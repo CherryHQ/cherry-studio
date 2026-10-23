@@ -242,7 +242,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
 
   // Uppercase base64 media types must be canonicalized without rewriting the raw URL header.
   it('lowercases an uppercase base64 media type while preserving the URL header', () => {
-    const source = { type: 'base64', media_type: 'IMAGE/PNG', data: 'AAAA' } as ImageBlockParam['source']
+    const source = { type: 'base64', media_type: 'IMAGE/PNG', data: 'AAAA' } as unknown as ImageBlockParam['source']
     const msgs = converter.toUIMessages(params({ messages: [{ role: 'user', content: [{ type: 'image', source }] }] }))
     expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: 'data:IMAGE/PNG;base64,AAAA' }])
   })

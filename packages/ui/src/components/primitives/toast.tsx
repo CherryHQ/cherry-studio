@@ -16,8 +16,11 @@ export interface ToastAction {
 
 export interface ToastConfig {
   action?: ToastAction
+  /** Lower-emphasis control rendered before `action`, for a secondary way out (e.g. a link to where the item went). */
+  secondaryAction?: ToastAction
   title?: React.ReactNode
   description?: React.ReactNode
+  details?: string
   icon?: React.ReactNode
   key?: string | number
   timeout?: number
@@ -29,7 +32,7 @@ export interface ToastConfig {
 
 export interface LoadingToastConfig<T = unknown> extends ToastConfig {
   onError?: (error: unknown) => void
-  promise: Promise<T>
+  promise?: Promise<T>
 }
 
 export interface ToastRecord extends ToastConfig {
@@ -39,6 +42,7 @@ export interface ToastRecord extends ToastConfig {
 
 export interface ToastLabels {
   close: string
+  details?: string
   error: React.ReactNode
   errorDescription: React.ReactNode
   loading: React.ReactNode
@@ -59,6 +63,7 @@ export type ToastStore = ReturnType<typeof createToastStore>
 const DEFAULT_TIMEOUT = 3000
 const DEFAULT_TOAST_LABELS: ToastLabels = {
   close: 'Close',
+  details: 'View details',
   error: 'Error',
   errorDescription: 'An error occurred',
   loading: 'Loading...',
@@ -218,6 +223,7 @@ const createToast = (type: StaticToastType, store = defaultToastStore) => {
   return (arg: ToastConfig | string): string => {
     const config = typeof arg === 'string' ? { title: arg } : arg
     const key = getToastKey(config.key)
+    store.unsetLoadingToken(key)
 
     upsertToast(
       {
@@ -255,7 +261,7 @@ const createLoadingToast =
     )
 
     promise
-      .then((result) => {
+      ?.then((result) => {
         if (store.getLoadingToken(key) !== token) {
           return result
         }
@@ -366,6 +372,7 @@ const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivEl
 
 const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
   const action = toast.action
+  const secondaryAction = toast.secondaryAction
   const icon = toast.icon ?? typeIconMap[toast.type]
   const a11yProps = getToastA11yProps(toast.type)
 
@@ -377,6 +384,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
         // so hover/click reach the items instead of the window-drag hit test (Electron).
         'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
+        action && 'w-[min(480px,calc(100vw-2rem))]',
         toast.className
       )}
       style={toast.style}
@@ -386,7 +394,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
         {toast.title && (
           <div
             title={typeof toast.title === 'string' ? toast.title : undefined}
-            className="min-h-7 truncate py-1 text-sm leading-5 font-medium">
+            className={cn('min-h-7 py-1 text-sm leading-5 font-medium', toast.details ? 'break-words' : 'truncate')}>
             {toast.title}
           </div>
         )}
@@ -400,7 +408,29 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
             {toast.description}
           </div>
         )}
+        {toast.details && (
+          <details className="mt-1 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+            <summary className="cursor-pointer" title={toast.details}>
+              {labels.details ?? DEFAULT_TOAST_LABELS.details}
+            </summary>
+            <pre className="mt-1 max-h-40 overflow-auto font-mono break-words whitespace-pre-wrap">{toast.details}</pre>
+          </details>
+        )}
       </div>
+      {secondaryAction && (
+        <Button
+          type="button"
+          className="shrink-0"
+          size="sm"
+          variant="link"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+            void secondaryAction.onClick()
+          }}>
+          {secondaryAction.label}
+        </Button>
+      )}
       {action && (
         <Button
           type="button"

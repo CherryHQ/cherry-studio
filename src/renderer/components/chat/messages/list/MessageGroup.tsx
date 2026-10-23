@@ -1,8 +1,9 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger, PortalContainerProvider, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -22,10 +23,21 @@ import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState }
 import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
 import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
-import { useScrollRuntimeBoundary, useScrollRuntimeNavigation } from './ScrollOwnershipContext'
+import {
+  findVerticalWheelConsumer,
+  useScrollRuntimeBoundary,
+  useScrollRuntimeNavigation
+} from './ScrollOwnershipContext'
 
 const logger = loggerService.withContext('MessageGroup')
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+const WHEEL_LINE_HEIGHT_PX = 16
+
+function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return delta * WHEEL_LINE_HEIGHT_PX
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize
+  return delta
+}
 
 interface Props {
   messages: MessageListItem[]
@@ -74,7 +86,7 @@ const MessageGroup = ({
   const { setTimeoutTimer } = useTimer()
   const currentTabId = useCurrentTabId()
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
-  const { scrollByWheel } = useScrollRuntimeBoundary()
+  const { getScrollContainer, scrollByWheel } = useScrollRuntimeBoundary()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -251,19 +263,33 @@ const MessageGroup = ({
   const handleHorizontalGroupWheel = useCallback(
     (event: WheelEvent) => {
       const target = event.target as HTMLElement | null
-      if (target?.closest('.message-content-container')) {
-        return
-      }
-
       const groupContainer = event.currentTarget as HTMLDivElement
+      const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
+      const horizontalWheelDelta = normalizeWheelDelta(event.deltaX, event.deltaMode, groupContainer.clientWidth)
+      const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
       const horizontalDelta = event.shiftKey
-        ? event.deltaX || event.deltaY
-        : Math.abs(event.deltaX) > Math.abs(event.deltaY)
-          ? event.deltaX
+        ? horizontalWheelDelta || normalizeWheelDelta(event.deltaY, event.deltaMode, groupContainer.clientWidth)
+        : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
+          ? horizontalWheelDelta
           : 0
+      const inMessageColumn = Boolean(target?.closest('.message-content-container'))
 
-      if (horizontalDelta === 0) {
-        if (event.deltaX !== 0 && event.deltaY !== 0 && scrollByWheel(event.deltaY)) {
+      // Column owns vertical while it can scroll. At its boundary the group's
+      // overflow-y:hidden blocks chaining, so forward vertical-dominant wheels
+      // to the list runtime — but keep dominant-horizontal pans on the row.
+      if (inMessageColumn) {
+        if (verticalWheelDelta !== 0 && findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)) {
+          return
+        }
+        if (horizontalDelta === 0) {
+          if (verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+          return
+        }
+      } else if (horizontalDelta === 0) {
+        if (horizontalWheelDelta !== 0 && verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
           event.preventDefault()
           event.stopPropagation()
         }
@@ -282,7 +308,7 @@ const MessageGroup = ({
         groupContainer.scrollLeft += horizontalDelta
       }
     },
-    [scrollByWheel]
+    [getScrollContainer, scrollByWheel]
   )
 
   useEffect(() => {
@@ -335,17 +361,19 @@ const MessageGroup = ({
             key={message.id}
             trigger={gridPopoverTrigger}
             content={
-              <MessageWrapper
-                tabIndex={0}
-                className={classNames([
-                  'in-popover',
-                  {
-                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
-                    selected: message.id === selectedMessageId
-                  }
-                ])}>
-                <MessageItem onSelectContext={onSelectContext} {...messageProps} />
-              </MessageWrapper>
+              <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+                <MessageWrapper
+                  tabIndex={0}
+                  className={classNames([
+                    'in-popover',
+                    {
+                      [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
+                      selected: message.id === selectedMessageId
+                    }
+                  ])}>
+                  <MessageItem onSelectContext={onSelectContext} {...messageProps} />
+                </MessageWrapper>
+              </SelectionContextMenu>
             }
             triggerContent={messageContent}
           />
@@ -355,6 +383,7 @@ const MessageGroup = ({
       return messageContent
     },
     [
+      actions.openBrowserUrl,
       isGrid,
       isGrouped,
       isMultiModelGroup,
@@ -493,6 +522,7 @@ const GridMessagePopover = ({
   trigger: 'hover' | 'click'
 }) => {
   const [open, setOpen] = useState(false)
+  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null)
   const isHover = trigger === 'hover'
 
   return (
@@ -505,12 +535,13 @@ const GridMessagePopover = ({
         </div>
       </PopoverTrigger>
       <PopoverContent
+        ref={setContentElement}
         onMouseEnter={isHover ? () => setOpen(true) : undefined}
         onMouseLeave={isHover ? () => setOpen(false) : undefined}
         className="z-1000 max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-4"
         side="top"
         align="center">
-        {content}
+        <PortalContainerProvider container={contentElement}>{content}</PortalContainerProvider>
       </PopoverContent>
     </Popover>
   )

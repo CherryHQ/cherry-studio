@@ -1,4 +1,6 @@
+import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import {
+  type Api,
   type AssistantMessage,
   type Context,
   createAssistantMessageEventStream,
@@ -6,10 +8,9 @@ import {
 } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
-  ModelRegistry,
+  ModelRuntime,
   SessionManager,
   SettingsManager
 } from '@earendil-works/pi-coding-agent'
@@ -84,26 +85,13 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
     ]
   })
   await resourceLoader.reload()
-  const authStorage = AuthStorage.inMemory()
-  authStorage.setRuntimeApiKey(model.provider, 'synthetic-test-key')
-  const modelRegistry = ModelRegistry.inMemory(authStorage)
-  const { session } = await createAgentSession({
-    cwd,
-    model,
-    authStorage,
-    modelRegistry,
-    settingsManager,
-    resourceLoader,
-    sessionManager: SessionManager.inMemory(cwd),
-    tools: []
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    refreshOnCreate: false
   })
-  await session.bindExtensions({})
   const contexts: Context[] = []
-  const events: AgentSessionEvent[] = []
-  session.subscribe((event) => events.push(event))
-  // pi-agent-core resolves its own @earendil-works/pi-ai copy, so its AssistantMessageEventStream
-  // is a nominally distinct class from ours; the runtime object is the same shape.
-  session.agent.streamFn = ((_model: Model<'openai-completions'>, context: Context) => {
+  const streamSimple = (_model: Model<Api>, context: Context) => {
     contexts.push(structuredClone(context))
     const message = responses[contexts.length - 1]
     if (!message) throw new Error('Unexpected extra provider request')
@@ -112,7 +100,26 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
     stream.push({ type: 'done', reason: message.stopReason, message })
     stream.end()
     return stream
-  }) as unknown as typeof session.agent.streamFn
+  }
+  modelRuntime.registerProvider(model.provider, {
+    streamSimple,
+    api: model.api,
+    baseUrl: model.baseUrl,
+    apiKey: 'synthetic-test-key',
+    models: [model]
+  })
+  const { session } = await createAgentSession({
+    cwd,
+    model,
+    modelRuntime,
+    settingsManager,
+    resourceLoader,
+    sessionManager: SessionManager.inMemory(cwd),
+    tools: []
+  })
+  await session.bindExtensions({})
+  const events: AgentSessionEvent[] = []
+  session.subscribe((event) => events.push(event))
   return { session, contexts, events }
 }
 

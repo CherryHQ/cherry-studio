@@ -19,3 +19,7 @@ member is dropped from its list, an unrecognizable entry is dropped from its cat
 document still validates. So new vocabulary — a modality, a capability, a reasoning effort — is no
 longer a wire break and must not bump the version. What still breaks a vN client is structural:
 a renamed or retyped field, a removed required field.
+
+A new runtime wire behavior that requires a higher `REGISTRY_MIN_APP_VERSION` also gets a new schema
+stream and baseline, even if the JSON still parses. Older streams retain their published minimum
+versions and continue receiving compatible updates; raising the floor in place would cut them off.

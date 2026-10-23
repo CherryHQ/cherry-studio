@@ -120,11 +120,39 @@ pnpm debug
 
 Then input chrome://inspect in browser
 
+### Validate changes
+
+```bash
+pnpm check --plan
+pnpm check
+pnpm check --base <parent-branch> --plan
+pnpm check:all
+```
+
+`check` includes all branch changes since the merge base with `origin/main`, plus staged,
+unstaged, and untracked files. Use `--base` for the parent of a stacked branch. Ordinary
+Markdown selects only formatting and documentation checks; runtime resources and unknown
+paths conservatively select more checks. Missing comparison history selects the full gate.
+
+`pnpm lint` only runs read-only Oxlint and ESLint checks. Use `pnpm lint:fix` to apply lint
+fixes and `pnpm format` to format files. Type checking and i18n validation are separate tasks
+selected by `check`. `pnpm typecheck` runs compilers serially. Local Vitest uses two workers;
+override with `--maxWorkers=N` when needed. CI retains its runner worker limit.
+
 ### Test
 
 ```bash
+pnpm test:main src/main/path/to/example.test.ts
+pnpm test:renderer src/renderer/path/to/example.test.ts
 pnpm test
 ```
+
+`pnpm test` runs all registered projects in one invocation; file arguments apply to all
+projects. Each coding agent should use its own worktree and dependency installation.
+Main-process tests rebuild SQLite for Node, while `pnpm dev` rebuilds it for Electron:
+do not run both concurrently against the same worktree's native binary.
+
+See [Validation tooling](../../scripts/validation/README.md) for selection rules and task groups.
 
 ### Build
 

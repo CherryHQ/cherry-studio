@@ -127,6 +127,12 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['thinking', '思维链']
   },
   {
+    anchorId: 'user-message-default-expanded',
+    titleKey: 'settings.messages.user_content.default_expanded.label',
+    descriptionKey: 'settings.messages.user_content.default_expanded.hint',
+    groupKey: messagesGroup
+  },
+  {
     anchorId: 'show-message-outline',
     titleKey: 'settings.messages.show_message_outline',
     groupKey: messagesGroup

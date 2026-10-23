@@ -11,6 +11,7 @@ import p_burncloud from './burncloud'
 import p_cerebras from './cerebras'
 import p_cherryin from './cherryin'
 import p_claude_code from './claude-code'
+import p_comfyui from './comfyui'
 import p_copilot from './copilot'
 import p_dashscope from './dashscope'
 import p_deepseek from './deepseek'
@@ -26,6 +27,7 @@ import p_groq from './groq'
 import p_huggingface from './huggingface'
 import p_jina from './jina'
 import p_lanyun from './lanyun'
+import p_litellm from './litellm'
 import p_lmstudio from './lmstudio'
 import p_longcat from './longcat'
 import p_mimo from './mimo'
@@ -89,6 +91,7 @@ export const PROVIDERS: Provider[] = [
   p_tokendance,
   p_new_api,
   p_lmstudio,
+  p_litellm,
   p_anthropic,
   p_claude_code,
   p_openai_codex,
@@ -127,6 +130,7 @@ export const PROVIDERS: Provider[] = [
   p_huggingface,
   p_gateway,
   p_cerebras,
+  p_comfyui,
   p_mimo,
   p_zai,
   p_minimax_global
