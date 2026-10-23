@@ -1468,6 +1468,7 @@
   "error.render.block": "Ce bloc de contenu n'a pas pu être affiché",
   "error.render.description": "La formule n'a pas été rendue avec succès, veuillez vérifier si le format de la formule est correct",
   "error.render.title": "Erreur de rendu",
+  "error.reply_interrupted": "Cette réponse a été interrompue car l’application s’est fermée. Régénérez-la pour obtenir une réponse complète.",
   "error.requestBody": "Contenu de la demande",
   "error.requestBodyValues": "Corps de la requête",
   "error.requestUrl": "Chemin de la requête",

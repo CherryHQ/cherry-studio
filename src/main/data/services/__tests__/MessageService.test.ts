@@ -387,8 +387,8 @@ describe('MessageService', () => {
       const { assistant } = await seedTrashedTopic()
       await dbh.db.update(messageTable).set({ status: 'pending' }).where(eq(messageTable.id, assistant.id))
 
-      expect(messageService.findPendingAssistantMessageIds()).toContain(assistant.id)
-      messageService.markMessagesError([assistant.id])
+      expect(messageService.findPendingAssistantMessages().map(({ id }) => id)).toContain(assistant.id)
+      messageService.resolveInterruptedAssistantMessages([{ id: assistant.id, data: mainText('partial') }])
 
       const [stored] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))
       expect(stored.status).toBe('error')
@@ -603,7 +603,7 @@ describe('MessageService', () => {
     })
   })
 
-  describe('findPendingAssistantMessageIds', () => {
+  describe('findPendingAssistantMessages', () => {
     it('returns only non-deleted assistant rows still in pending', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-p', activeNodeId: 'm-pending', orderKey: 'b0' })
       await dbh.db.insert(messageTable).values(
@@ -670,7 +670,7 @@ describe('MessageService', () => {
         ])
       )
 
-      const pendingIds = messageService.findPendingAssistantMessageIds()
+      const pendingIds = messageService.findPendingAssistantMessages().map(({ id }) => id)
       expect(pendingIds).toEqual(['m-pending'])
     })
   })
@@ -818,7 +818,7 @@ describe('MessageService', () => {
     })
   })
 
-  describe('markMessagesError', () => {
+  describe('stream checkpoints and interrupted replies', () => {
     async function seedStatuses() {
       await dbh.db.insert(topicTable).values({
         id: 'topic-e',
@@ -872,23 +872,44 @@ describe('MessageService', () => {
       return row?.status
     }
 
-    it('flips only the listed rows to error and leaves others untouched', async () => {
+    it('settles only the listed rows as error with the given parts and leaves others untouched', async () => {
       await seedStatuses()
 
-      messageService.markMessagesError(['m-a', 'm-b'])
+      messageService.resolveInterruptedAssistantMessages([
+        { id: 'm-a', data: mainText('partial a') },
+        { id: 'm-b', data: mainText('partial b') }
+      ])
 
       expect(await statusOf('m-a')).toBe('error')
+      expect(messageService.getById('m-a').data).toEqual(mainText('partial a'))
       expect(await statusOf('m-b')).toBe('error')
       expect(await statusOf('m-keep')).toBe('success')
       expect(topicService.getById('topic-e').lastActivityAt).toBe('1970-01-01T00:00:00.120Z')
     })
 
-    it('is a no-op for an empty id list', async () => {
+    it('keeps a checkpoint for the reconcile without showing it to readers', async () => {
       await seedStatuses()
 
-      messageService.markMessagesError([])
+      messageService.saveStreamCheckpoint('m-a', mainText('so far').parts!)
 
-      expect(await statusOf('m-a')).toBe('pending')
+      expect(messageService.findPendingAssistantMessages().find(({ id }) => id === 'm-a')?.data).toEqual({
+        ...mainText(''),
+        streamCheckpoint: mainText('so far').parts
+      })
+      expect(messageService.getById('m-a').data).toEqual(mainText(''))
+    })
+
+    it('never writes a checkpoint over a reply that has settled', async () => {
+      await seedStatuses()
+      messageService.finalizeAssistantMessage('m-a', { data: mainText('final'), status: 'success' })
+
+      messageService.saveStreamCheckpoint('m-a', mainText('late').parts!)
+      messageService.saveStreamCheckpoint('m-keep', mainText('late').parts!)
+
+      const [a] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-a'))
+      const [keep] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-keep'))
+      expect(a.data).toEqual(mainText('final'))
+      expect(keep.data).toEqual(mainText('done'))
     })
   })
 

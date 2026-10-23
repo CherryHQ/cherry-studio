@@ -130,6 +130,13 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
  * Also handles JSON columns: ORM returns parsed objects; the parseJson
  * helper covers any legacy code path that still hands in JSON strings.
  */
+/** `data` without main-only fields, for anything outside this service. */
+function publicMessageData(data: MessageRow['data']): MessageData {
+  const result = { ...data }
+  delete result.streamCheckpoint
+  return result
+}
+
 function rowToMessage(row: MessageRow): Message {
   // Handle JSON strings from raw SQL queries (db.all with sql``)
   // ORM queries (.select().from()) return already-parsed objects
@@ -144,7 +151,7 @@ function rowToMessage(row: MessageRow): Message {
     topicId: row.topicId,
     parentId: row.parentId,
     role: row.role as Message['role'],
-    data: parseJson(row.data)!,
+    data: publicMessageData(parseJson(row.data)!),
     searchableText: row.searchableText,
     status: row.status as Message['status'],
     siblingsGroupId: row.siblingsGroupId,
@@ -163,7 +170,7 @@ function messageEntityJsonBytes(): SQL<number> {
     'topicId', ${messageTable.topicId},
     'parentId', ${messageTable.parentId},
     'role', ${messageTable.role},
-    'data', json(${messageTable.data}),
+    'data', json_remove(json(${messageTable.data}), '$.streamCheckpoint'),
     'searchableText', ${messageTable.searchableText},
     'status', ${messageTable.status},
     'siblingsGroupId', ${messageTable.siblingsGroupId},
@@ -851,16 +858,27 @@ export class MessageService {
    * Ids of assistant rows still in `pending` — used by the boot reconcile of crash-orphaned turns.
    * Selects only `id` (reconcile just flips them to `error`); backed by `message_status_idx`.
    */
-  findPendingAssistantMessageIds(): string[] {
+  findPendingAssistantMessages(): Array<{ id: string; data: MessageRow['data'] }> {
     const db = application.get('DbService').getDb()
-    const rows = db
-      .select({ id: messageTable.id })
+    return db
+      .select({ id: messageTable.id, data: messageTable.data })
       .from(messageTable)
       .where(
         and(eq(messageTable.role, 'assistant'), eq(messageTable.status, 'pending'), isNull(messageTable.deletedAt))
       )
       .all()
-    return rows.map((row) => row.id)
+  }
+
+  /**
+   * Keep the latest parts of a reply still streaming beside the placeholder's `parts`, which live
+   * readers seed from. The terminal write replaces `data` and drops them. No-op once settled.
+   */
+  saveStreamCheckpoint(id: string, parts: CherryMessagePart[]): void {
+    const db = application.get('DbService').getDb()
+    db.update(messageTable)
+      .set({ data: sql`json_set(${messageTable.data}, '$.streamCheckpoint', json(${JSON.stringify(parts)}))` })
+      .where(and(eq(messageTable.id, id), eq(messageTable.status, 'pending')))
+      .run()
   }
 
   listLiveCreatedInRangeMetadataPage({
@@ -914,10 +932,15 @@ export class MessageService {
    * {@link findPendingAssistantMessages} for the boot reconcile of crash-orphaned `pending`
    * turns.
    */
-  markMessagesError(ids: string[]): void {
-    if (ids.length === 0) return
-    const db = application.get('DbService').getDb()
-    db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
+  /** Settle replies a crash left `pending` as `error`, with the parts the boot reconcile kept. */
+  resolveInterruptedAssistantMessages(messages: Array<{ id: string; data: MessageData }>): void {
+    if (messages.length === 0) return
+    application.get('DbService').withWriteTx((tx) => {
+      for (const { id, data } of messages) {
+        tx.update(messageTable).set({ status: 'error', data }).where(eq(messageTable.id, id)).run()
+        replaceChatMessageFileRefsTx(tx, id, data)
+      }
+    })
   }
 
   /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */

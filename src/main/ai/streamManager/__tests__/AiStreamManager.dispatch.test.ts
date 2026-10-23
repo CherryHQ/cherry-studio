@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MessageRow } from '@data/db/schemas/message'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { MessageData } from '@shared/data/types/message'
 
 import type { AiStreamManagerConfig, StreamListener } from '../types'
 
@@ -29,12 +31,13 @@ vi.mock('../context/dispatch', () => ({
 }))
 
 // Boot-sweep reconcile reads/writes through MessageService.
-const findPendingAssistantMessageIds = vi.fn<() => string[]>(() => [])
-const markMessagesError = vi.fn<(ids: string[]) => void>(() => undefined)
+const findPendingAssistantMessages = vi.fn<() => Array<{ id: string; data: MessageRow['data'] }>>(() => [])
+const resolveInterruptedAssistantMessages = vi.fn<(messages: Array<{ id: string; data: MessageData }>) => void>()
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
-    findPendingAssistantMessageIds: () => findPendingAssistantMessageIds(),
-    markMessagesError: (ids: string[]) => markMessagesError(ids)
+    findPendingAssistantMessages: () => findPendingAssistantMessages(),
+    resolveInterruptedAssistantMessages: (messages: Array<{ id: string; data: MessageData }>) =>
+      resolveInterruptedAssistantMessages(messages)
   }
 }))
 
@@ -78,7 +81,7 @@ describe('AiStreamManager.dispatch — per-topic serialization', () => {
     vi.clearAllMocks()
     dispatchEvents.length = 0
     dispatchResolvers.length = 0
-    findPendingAssistantMessageIds.mockReturnValue([])
+    findPendingAssistantMessages.mockReturnValue([])
     mgr = createManager()
     // onInit resolves the reconcile gate `dispatch` awaits, so these lock tests run normally.
     await runOnInit(mgr)
@@ -158,9 +161,18 @@ describe('AiStreamManager.dispatch — boot reconcile gate', () => {
     await dispatchPromise
   })
 
-  it('flips orphaned pending rows to error during the reconcile sweep', async () => {
-    findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
+  it('settles an orphaned pending reply with the partial text its last checkpoint saved', async () => {
+    findPendingAssistantMessages.mockReturnValue([
+      { id: 'stale', data: { parts: [], streamCheckpoint: [{ type: 'text', text: 'so far', state: 'streaming' }] } }
+    ])
     await runOnInit(mgr)
-    expect(markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
+
+    const [[settled]] = resolveInterruptedAssistantMessages.mock.calls[0]
+    expect(settled.id).toBe('stale')
+    expect(settled.data).not.toHaveProperty('streamCheckpoint')
+    expect(settled.data.parts).toEqual([
+      { type: 'text', text: 'so far', state: 'done' },
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ i18nKey: 'reply_interrupted' }) })
+    ])
   })
 })

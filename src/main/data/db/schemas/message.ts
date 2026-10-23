@@ -1,7 +1,7 @@
 import { asc, desc, sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
+import type { CherryMessagePart, MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { topicTable } from './topic'
@@ -27,8 +27,8 @@ export const messageTable = sqliteTable(
       .references(() => topicTable.id, { onDelete: 'cascade' }),
     // Message role: user, assistant, system
     role: text().notNull(),
-    // Main content - contains AI SDK UIMessage.parts (inline JSON)
-    data: text({ mode: 'json' }).$type<MessageData>().notNull(),
+    // Main content - contains AI SDK UIMessage.parts (inline JSON); `streamCheckpoint` is main-only
+    data: text({ mode: 'json' }).$type<MessageData & { streamCheckpoint?: CherryMessagePart[] }>().notNull(),
     // Searchable text extracted from data.parts (populated by trigger, used for FTS5)
     searchableText: text().notNull().default(''),
     // Final status: SUCCESS, ERROR, PAUSED

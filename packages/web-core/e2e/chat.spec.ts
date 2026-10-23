@@ -124,20 +124,34 @@ test('persists a provider error on the reply instead of leaving it pending', asy
   expect(reply).toMatchObject({ role: 'assistant', status: 'error' })
 })
 
-test('marks a reply left streaming by a closed tab as failed when the account reopens', async ({ page, account }) => {
+test('keeps the partial reply a closed tab left streaming, marked as interrupted, when the account reopens', async ({
+  page,
+  account
+}) => {
   await page.evaluate((account) => harness.client.open(account), account)
   const { topicId } = await createChatSetup(page)
 
+  // The mock sends "partial" and never finishes; wait until the streaming reply has been saved.
   void chat(page, topicId, 'please hang').catch(() => {})
   await expect
-    .poll(async () => (await readBranch(page, topicId)).map((message) => [message.role, message.status]))
-    .toEqual([
-      ['user', 'success'],
-      ['assistant', 'pending']
-    ])
+    .poll(() =>
+      page.evaluate(
+        (topicId) =>
+          harness.client.send<{ saved: number }[]>('sql', {
+            sql: `SELECT EXISTS (
+                    SELECT 1 FROM json_each(data, '$.streamCheckpoint') WHERE json_extract(value, '$.text') = 'partial'
+                  ) AS saved FROM message WHERE topic_id = ? AND role = 'assistant'`,
+            params: [topicId]
+          }),
+        topicId
+      )
+    )
+    .toEqual([{ saved: 1 }])
 
   await reloadHarness(page)
   await page.evaluate((account) => harness.client.open(account), account)
   const [, reply] = await readBranch(page, topicId)
   expect(reply.status).toBe('error')
+  expect(textOf(reply)).toBe('partial')
+  expect(reply.data.parts?.at(-1)).toMatchObject({ type: 'data-error', data: { i18nKey: 'reply_interrupted' } })
 })

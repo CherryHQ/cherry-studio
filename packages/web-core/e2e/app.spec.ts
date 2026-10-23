@@ -53,7 +53,43 @@ test('chats through the desktop composer and keeps the conversation across a rel
   const run = Date.now().toString(36)
   const message = `hello from the web page ${run}`
   await gotoApp(page)
-  // Point every assistant at the mock endpoint; the trial's model source is not decided yet.
+  await useMockProvider(page, run)
+  await gotoApp(page)
+
+  await composerInput(page).click()
+  await page.keyboard.type(message)
+  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled()
+  await page.keyboard.press('Enter')
+  await expect(page.getByText(`echo: ${message}`)).toBeVisible()
+  // The reply shows while it streams; reloading before the turn is saved would end the turn.
+  await expect.poll(() => replyStatus(page)).toBe('success')
+
+  await gotoApp(page)
+  await expect(page.getByText(message, { exact: true })).toBeVisible()
+  await expect(page.getByText(`echo: ${message}`)).toBeVisible()
+})
+
+test('keeps a reply cut off by a reload and says it was interrupted', async ({ page }) => {
+  await gotoApp(page)
+  await useMockProvider(page, Date.now().toString(36))
+  await gotoApp(page)
+
+  // The mock sends "partial" and never finishes the reply.
+  await composerInput(page).click()
+  await page.keyboard.type('please hang')
+  await page.keyboard.press('Enter')
+  const messages = page.getByLabel('Messages')
+  await expect(messages.getByText('partial', { exact: true })).toBeVisible()
+  // A streaming reply is saved about once a second.
+  await page.waitForTimeout(2_000)
+
+  await gotoApp(page)
+  await expect(messages.getByText('partial', { exact: true })).toBeVisible()
+  await expect(messages.getByText(/^This reply was interrupted because the app closed\./)).toBeVisible()
+})
+
+/** Point every assistant at the mock endpoint; the trial's model source is not decided yet. */
+async function useMockProvider(page: Page, run: string): Promise<void> {
   await page.evaluate(
     async ({ baseUrl, providerId }) => {
       const request = async (method: DataRequest['method'], path: string, body?: unknown) => {
@@ -77,20 +113,7 @@ test('chats through the desktop composer and keeps the conversation across a rel
     },
     { baseUrl: `http://localhost:${MOCK_PROVIDER_PORT}`, providerId: `mock-${run}` }
   )
-  await gotoApp(page)
-
-  await composerInput(page).click()
-  await page.keyboard.type(message)
-  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled()
-  await page.keyboard.press('Enter')
-  await expect(page.getByText(`echo: ${message}`)).toBeVisible()
-  // The reply shows while it streams; reloading before the turn is saved would end the turn.
-  await expect.poll(() => replyStatus(page)).toBe('success')
-
-  await gotoApp(page)
-  await expect(page.getByText(message, { exact: true })).toBeVisible()
-  await expect(page.getByText(`echo: ${message}`)).toBeVisible()
-})
+}
 
 /** Status of the latest message in the only topic. */
 function replyStatus(page: Page): Promise<string | undefined> {

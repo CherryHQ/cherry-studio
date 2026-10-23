@@ -1468,6 +1468,7 @@
   "error.render.block": "บล็อกเนื้อหานี้แสดงผลไม่สำเร็จ",
   "error.render.description": "ไม่สามารถแสดงเนื้อหาข้อความได้ กรุณาตรวจสอบว่าเนื้อหาข้อความมีรูปแบบที่ถูกต้อง",
   "error.render.title": "ข้อผิดพลาดในการแสดงผล",
+  "error.reply_interrupted": "คำตอบนี้ถูกขัดจังหวะเนื่องจากแอปปิด สร้างใหม่เพื่อรับคำตอบที่สมบูรณ์",
   "error.requestBody": "เนื้อหาคำขอ",
   "error.requestBodyValues": "ค่าของเนื้อหาคำขอ",
   "error.requestUrl": "URL คำขอ",
