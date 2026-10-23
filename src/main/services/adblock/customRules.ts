@@ -43,7 +43,7 @@ const FORBIDDEN_NETWORK_MARKERS = ['##', '#@#', '#?#', '#$#', '\n', '\r']
 export function normalizeDomain(input: string): string {
   const domain = input.trim().toLowerCase().replace(/^\.+/, '').replace(/\.+$/, '')
   if (!DOMAIN_PATTERN.test(domain)) {
-    throw new Error(`无效域名：${input}`)
+    throw new Error(`Invalid domain: ${input}`)
   }
   return domain
 }
@@ -80,30 +80,30 @@ export function scopeNetworkRule(value: string, domain: string): string | undefi
 
 function validateCosmeticSelector(value: string): string {
   const selector = value.trim()
-  if (!selector) throw new Error('CSS 选择器不能为空')
-  if (selector.length > MAX_VALUE_LENGTH) throw new Error(`CSS 选择器不能超过 ${MAX_VALUE_LENGTH} 个字符`)
+  if (!selector) throw new Error('CSS selector must not be empty')
+  if (selector.length > MAX_VALUE_LENGTH) throw new Error(`CSS selector must be at most ${MAX_VALUE_LENGTH} characters`)
   if (!CSS_SELECTOR_PATTERN.test(selector)) {
-    throw new Error('CSS 选择器包含不允许的字符，只能写选择器本身，不能带样式声明')
+    throw new Error('CSS selector contains disallowed characters; pass the selector only, not declarations')
   }
   // A selector that starts with a combinator or ends with one would be parsed
   // as a relative selector by some engines; reject instead of guessing.
-  if (/^[>+~]/.test(selector)) throw new Error('CSS 选择器不能以组合符开头')
+  if (/^[>+~]/.test(selector)) throw new Error('CSS selector must not start with a combinator')
   return selector
 }
 
 function validateNetworkRule(value: string): string {
   const rule = value.trim()
-  if (!rule) throw new Error('网络规则不能为空')
-  if (rule.length > MAX_VALUE_LENGTH) throw new Error(`网络规则不能超过 ${MAX_VALUE_LENGTH} 个字符`)
+  if (!rule) throw new Error('Network rule must not be empty')
+  if (rule.length > MAX_VALUE_LENGTH) throw new Error(`Network rule must be at most ${MAX_VALUE_LENGTH} characters`)
   if (FORBIDDEN_NETWORK_MARKERS.some((marker) => rule.includes(marker))) {
-    throw new Error('网络规则不能包含元素隐藏语法，隐藏元素请用 css 参数')
+    throw new Error('Network rule must not contain element-hiding syntax; use the css field')
   }
-  if (/\s/.test(rule)) throw new Error('网络规则不能包含空白字符')
+  if (/\s/.test(rule)) throw new Error('Network rule must not contain whitespace')
   if (!/^(@@)?[|/]/.test(rule)) {
-    throw new Error('网络规则必须以 ||、| 或 / 开头')
+    throw new Error('Network rule must start with ||, | or /')
   }
   if (hasDomainOption(rule)) {
-    throw new Error('网络规则不能自带 domain 选项，作用域由 domain 参数决定')
+    throw new Error('Network rule must not carry a domain option; the domain argument sets the scope')
   }
   return rule
 }
@@ -184,7 +184,7 @@ export class CustomAdblockRuleStore {
         return { rule: { ...existing }, existing: true }
       }
       if (this.rules.length >= MAX_RULES) {
-        throw new Error(`规则数量已达上限（${MAX_RULES} 条），请先在设置里清理`)
+        throw new Error(`Rule limit reached (${MAX_RULES}); delete some rules in Settings first`)
       }
       const rule: CustomAdblockRule = {
         id: randomUUID(),

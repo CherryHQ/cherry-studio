@@ -122,12 +122,12 @@ describe('block_ads tool', () => {
   })
 
   it('reports a validation error from the service', async () => {
-    addCustomRule.mockRejectedValue(new Error('CSS 选择器包含不允许的字符'))
+    addCustomRule.mockRejectedValue(new Error('CSS selector contains disallowed characters'))
 
     const result = await handleBlockAds(controller, { domain: 'example.com', css: '.ad{display:none}' })
 
     expect(result.isError).toBe(true)
-    expect(textOf(result)).toContain('CSS 选择器')
+    expect(textOf(result)).toContain('CSS selector')
   })
 
   it('refuses a domain that does not cover the page the controller is showing', async () => {
