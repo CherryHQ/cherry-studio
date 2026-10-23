@@ -31,16 +31,35 @@ const context = (signal = new AbortController().signal): UtilityProcessHandlerCo
 describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
   let root: string
   let tonePath: string
+  let metadataTonePath: string
   let webmPath: string
   let videoPath: string
+  let transportStreamPath: string
 
   beforeAll(() => {
     root = mkdtempSync(join(tmpdir(), 'cherry-media-ffmpeg-test-'))
     tonePath = join(root, 'tone.wav')
+    metadataTonePath = join(root, 'metadata-tone.wav')
     webmPath = join(root, 'tone.webm')
     videoPath = join(root, 'portrait.mp4')
+    transportStreamPath = join(root, 'tail.ts')
     expect(
       runFfmpeg(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=3', '-ac', '1', '-ar', '48000', tonePath])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=3',
+        '-metadata',
+        `comment=${'x'.repeat(10_000)}`,
+        '-ac',
+        '1',
+        '-ar',
+        '48000',
+        metadataTonePath
+      ])
     ).toBe(0)
     expect(
       runFfmpeg(['-f', 'lavfi', '-i', 'sine=frequency=660:duration=1', '-strict', '-2', '-c:a', 'opus', webmPath])
@@ -61,6 +80,19 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
         'aac',
         '-shortest',
         videoPath
+      ])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'testsrc2=size=160x120:rate=12:duration=6',
+        '-c:v',
+        'mpeg2video',
+        '-f',
+        'mpegts',
+        transportStreamPath
       ])
     ).toBe(0)
   })
@@ -93,6 +125,16 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
       [...result.chunks.map((chunk) => chunk.startMs)].sort((a, b) => a - b)
     )
     expect(result).toMatchObject({ sampleRateHz: 16000, channels: 1 })
+  })
+
+  it('strips oversized source metadata before enforcing the WAV chunk limit', async () => {
+    const result = await mediaFfmpegHandlers.extractAudio(
+      { filePath: metadataTonePath, outputDir: join(root, 'metadata-chunks'), maxChunkBytes: 10_000 },
+      context()
+    )
+
+    expect(result.chunks.length).toBeGreaterThan(1)
+    expect(result.chunks.every((chunk) => chunk.byteLength <= 10_000)).toBe(true)
   })
 
   it('distinguishes audio-only WebM and extracts bounded portrait video frames', async () => {
@@ -156,6 +198,21 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
 
     await expect(pending).rejects.toBe(reason)
     expect(existsSync(pidRegistryPath)).toBe(false)
+  })
+
+  it('recovers a decodable MPEG-TS end frame with output-side seeking', async () => {
+    const result = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: transportStreamPath,
+        outputDir: join(root, 'transport-stream-frames'),
+        timestampsMs: [5_950],
+        maxEdgePx: 240,
+        jpegQuality: 80
+      },
+      context()
+    )
+
+    expect(result.frames.map((frame) => frame.timestampMs)).toEqual([5_950])
   })
 
   function runFfmpeg(args: string[]): number | null {
