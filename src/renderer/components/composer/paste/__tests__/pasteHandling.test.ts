@@ -225,7 +225,7 @@ describe('pasteHandling', () => {
     expect(setFiles).not.toHaveBeenCalled()
   })
 
-  it('uses the clipboard image basename as the display name for a pasted screenshot', async () => {
+  it('preserves the clipboard image filename and extension instead of the generated temporary name', async () => {
     const tempImageFile: FileMetadata = {
       ...selectedFile,
       name: 'temp_file_123_image.png',
@@ -262,7 +262,7 @@ describe('pasteHandling', () => {
     expect(files[0]).toMatchObject({
       path: tempImageFile.path,
       name: tempImageFile.name,
-      origin_name: 'image',
+      origin_name: 'image.png',
       ext: '.png',
       type: FILE_TYPE.IMAGE
     })
@@ -316,7 +316,7 @@ describe('pasteHandling', () => {
     expect(handled).toBe(true)
     expect(window.api.file.createTempFile).toHaveBeenCalledTimes(2)
     expect(files).toHaveLength(2)
-    expect(files.map((attachment) => attachment.origin_name)).toEqual(['first', 'second'])
+    expect(files.map((attachment) => attachment.origin_name)).toEqual(['first.png', 'second.png'])
   })
 
   it('attaches a supported screenshot when the clipboard also exposes a text flavor', async () => {
@@ -738,7 +738,7 @@ describe('pasteHandling', () => {
 
     expect(handled).toBe(true)
     expect(files).toHaveLength(1)
-    expect(files[0]).toMatchObject({ path: tempImageFile.path, origin_name: 'image' })
+    expect(files[0]).toMatchObject({ path: tempImageFile.path, origin_name: 'image.png' })
     expect(toast.info).not.toHaveBeenCalled()
   })
 

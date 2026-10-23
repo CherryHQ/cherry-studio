@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.6",
+    "version": "2.1.7",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -77,6 +77,7 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/profile",
       "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
@@ -86,6 +87,7 @@
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
+      "/settings/subscription",
       "/settings/system",
       "/settings/usage",
       "/settings/voice",
@@ -498,7 +500,7 @@
     }
   ],
   "providers": {
-    "version": "defc6a5ac2bc457b",
+    "version": "1b44511badb438e6",
     "count": 66,
     "entries": [
       {
@@ -824,6 +826,11 @@
       "label": "Română"
     },
     {
+      "value": "th-TH",
+      "flag": "🇹🇭",
+      "label": "ภาษาไทย"
+    },
+    {
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
@@ -832,6 +839,11 @@
       "value": "tr-TR",
       "flag": "🇹🇷",
       "label": "Türkçe"
+    },
+    {
+      "value": "it-IT",
+      "flag": "🇮🇹",
+      "label": "Italiano"
     }
   ],
   "agents": {

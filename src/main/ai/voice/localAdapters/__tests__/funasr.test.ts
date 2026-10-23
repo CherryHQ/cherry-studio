@@ -3,15 +3,22 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type { AsrInferenceService } from '@main/ai/localModel'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import { FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
-import { createLocalTranscriptionModel, downloadVoiceModel, getLocalVoiceStatus } from '../../localAdapters'
+import { downloadVoiceModel, getLocalVoiceStatus } from '../../localAdapters'
+import { createFunAsrTranscriptionModel } from '../funasr'
 
-const mocks = vi.hoisted(() => ({ decode: vi.fn(), transcribe: vi.fn(), refreshStatus: vi.fn(), download: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  decode: vi.fn(),
+  transcribe: vi.fn<AsrInferenceService['transcribe']>(),
+  refreshStatus: vi.fn(),
+  download: vi.fn()
+}))
 const transcriptCanary = 'PRIVATE_TRANSCRIPT_CANARY'
 const CANONICAL_WAV_HEADER_BYTES = 44
 const CANONICAL_WAV_BYTE_RATE = 32_000
@@ -63,7 +70,9 @@ beforeEach(async () => {
   }) as never)
   mocks.refreshStatus.mockReturnValue({ status: 'ready' })
   mocks.decode.mockResolvedValue({ wav, durationSeconds: 2.5, sampleRate: 16000, channels: 1 })
-  mocks.transcribe.mockImplementation(async ({ filePath }) => {
+  mocks.transcribe.mockImplementation(async (_modelId, source) => {
+    assert(source.kind === 'wav')
+    const { filePath } = source
     expect(await readFile(filePath)).toEqual(wav)
     expect((await stat(dirname(filePath))).mode & 0o777).toBe(0o700)
     expect((await stat(filePath)).mode & 0o777).toBe(0o600)
@@ -90,7 +99,7 @@ describe('FunASR local adapter', () => {
   })
 
   it('decodes WebM, transcribes private WAV scratch, and returns timed segments', async () => {
-    const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const result = await createFunAsrTranscriptionModel({}).doGenerate({
       audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
       mediaType: 'audio/webm;codecs=opus'
     })
@@ -115,7 +124,7 @@ describe('FunASR local adapter', () => {
 
   it('rejects an explicit language because FunASR only supports automatic detection', async () => {
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, { language: 'zh-CN' }).doGenerate({
+      createFunAsrTranscriptionModel({ language: 'zh-CN' }).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -134,7 +143,7 @@ describe('FunASR local adapter', () => {
     )
 
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      createFunAsrTranscriptionModel({}).doGenerate({
         audio: new TextEncoder().encode(canary),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -154,7 +163,7 @@ describe('FunASR local adapter', () => {
     )
 
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      createFunAsrTranscriptionModel({}).doGenerate({
         audio: new TextEncoder().encode(canary),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -176,7 +185,7 @@ describe('FunASR local adapter', () => {
     )
 
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      createFunAsrTranscriptionModel({}).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -189,12 +198,14 @@ describe('FunASR local adapter', () => {
     vi.spyOn(AbortSignal, 'timeout')
       .mockReturnValueOnce(decodeTimeout.signal)
       .mockReturnValueOnce(inferenceTimeout.signal)
-    mocks.transcribe.mockImplementation(
-      (_source, signal) =>
-        new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
-    )
+    mocks.transcribe.mockImplementation((_modelId, _source, signal) => {
+      assert(signal)
+      return new Promise((_resolve, reject) =>
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      )
+    })
 
-    const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
       audio: new Uint8Array([1]),
       mediaType: 'audio/webm;codecs=opus'
     })
@@ -219,7 +230,7 @@ describe('FunASR local adapter', () => {
   it('does not start decoding until the model is ready', async () => {
     mocks.refreshStatus.mockReturnValue({ status: 'not_downloaded' })
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      createFunAsrTranscriptionModel({}).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -229,11 +240,11 @@ describe('FunASR local adapter', () => {
 
   it('forwards caller cancellation and removes scratch', async () => {
     const controller = new AbortController()
-    mocks.transcribe.mockImplementation(
-      (_source, signal) =>
-        new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
-    )
-    const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    mocks.transcribe.mockImplementation((_modelId, _source, signal) => {
+      assert(signal)
+      return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
+    })
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
       audio: new Uint8Array([1]),
       mediaType: 'audio/webm;codecs=opus',
       abortSignal: controller.signal
@@ -248,14 +259,16 @@ describe('FunASR local adapter', () => {
   it('gives inference the original canonical WAV and its PCM duration', async () => {
     const audio = canonicalPcmWav(CANONICAL_WAV_BYTE_RATE)
     mocks.decode.mockRejectedValue(new Error('WebM decode must not see canonical WAV'))
-    mocks.transcribe.mockImplementation(async ({ filePath }) => {
+    mocks.transcribe.mockImplementation(async (_modelId, source) => {
+      assert(source.kind === 'wav')
+      const { filePath } = source
       const written = await readFile(filePath)
       expect(Buffer.compare(written, audio)).toBe(0)
       expect((await stat(filePath)).mode & 0o777).toBe(0o600)
       return { text: transcriptCanary, segments: [{ text: transcriptCanary, start: 0, end: 1 }] }
     })
 
-    const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const result = await createFunAsrTranscriptionModel({}).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -276,9 +289,10 @@ describe('FunASR local adapter', () => {
     mocks.decode.mockRejectedValue(new Error('decode must not run'))
     mocks.transcribe.mockRejectedValue(new Error('inference must not run'))
 
-    await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({ audio, mediaType })
-    ).rejects.toMatchObject({ reason: 'invalid_audio', message: 'invalid_audio' })
+    await expect(createFunAsrTranscriptionModel({}).doGenerate({ audio, mediaType })).rejects.toMatchObject({
+      reason: 'invalid_audio',
+      message: 'invalid_audio'
+    })
     expect(await readdir(directory)).toEqual([])
   })
 
@@ -288,7 +302,7 @@ describe('FunASR local adapter', () => {
     mocks.transcribe.mockRejectedValue(new Error('inference must not run'))
 
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({ audio, mediaType: 'audio/wav' })
+      createFunAsrTranscriptionModel({}).doGenerate({ audio, mediaType: 'audio/wav' })
     ).rejects.toMatchObject({ reason: 'invalid_audio' })
     expect(await readdir(directory)).toEqual([])
   })
@@ -297,12 +311,14 @@ describe('FunASR local adapter', () => {
     const audio = canonicalPcmWav(MAX_CANONICAL_WAV_BYTES - CANONICAL_WAV_HEADER_BYTES)
     expect(audio.length).toBe(MAX_CANONICAL_WAV_BYTES)
     mocks.decode.mockRejectedValue(new Error('WebM decode must not see canonical WAV'))
-    mocks.transcribe.mockImplementation(async ({ filePath }) => {
+    mocks.transcribe.mockImplementation(async (_modelId, source) => {
+      assert(source.kind === 'wav')
+      const { filePath } = source
       expect(Buffer.compare(await readFile(filePath), audio)).toBe(0)
       return { text: transcriptCanary, segments: [] }
     })
 
-    const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const result = await createFunAsrTranscriptionModel({}).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -321,12 +337,14 @@ describe('FunASR local adapter', () => {
       expect(milliseconds).toBe(120_000)
       return inferenceTimeout.signal
     })
-    mocks.transcribe.mockImplementation(
-      (_source, signal) =>
-        new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
-    )
+    mocks.transcribe.mockImplementation((_modelId, _source, signal) => {
+      assert(signal)
+      return new Promise((_resolve, reject) =>
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      )
+    })
 
-    const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -340,12 +358,12 @@ describe('FunASR local adapter', () => {
   it('aborts canonical WAV inference and removes the scratch input', async () => {
     const audio = canonicalPcmWav(2)
     const controller = new AbortController()
-    mocks.transcribe.mockImplementation(
-      (_source, signal) =>
-        new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
-    )
+    mocks.transcribe.mockImplementation((_modelId, _source, signal) => {
+      assert(signal)
+      return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
+    })
 
-    const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
       audio,
       mediaType: 'audio/wav',
       abortSignal: controller.signal

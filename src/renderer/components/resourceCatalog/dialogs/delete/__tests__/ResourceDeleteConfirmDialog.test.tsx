@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -118,6 +119,8 @@ function createResource(type: ResourceItem['type']): ResourceItem {
 describe('ResourceDeleteConfirmDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('assistant.archive.related_topics', false)
     mocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: ['topic-1'] })
     mocks.getActiveResource.mockResolvedValue({ id: 'active-resource' })
     mocks.deletePrompt.mockResolvedValue(undefined)
@@ -215,7 +218,14 @@ describe('ResourceDeleteConfirmDialog', () => {
     const user = userEvent.setup()
     mocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: [] })
 
-    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+    const resource = createResource('assistant')
+    const onClose = vi.fn()
+    const { rerender } = render(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
+    expect(screen.getByLabelText('Also archive related topics')).not.toBeChecked()
+    await user.click(screen.getByLabelText('Also archive related topics'))
+    rerender(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
+    await user.click(screen.getByLabelText('Also archive related topics'))
+    rerender(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
     await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: false }))
@@ -235,9 +245,12 @@ describe('ResourceDeleteConfirmDialog', () => {
   it('moves only the returned Assistant Topics when cascade is selected', async () => {
     const user = userEvent.setup()
 
-    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+    const resource = createResource('assistant')
+    const onClose = vi.fn()
+    const { rerender } = render(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
 
     await user.click(screen.getByLabelText('Also archive related topics'))
+    rerender(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
     await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true }))

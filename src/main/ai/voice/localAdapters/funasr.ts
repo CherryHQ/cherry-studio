@@ -10,25 +10,20 @@ import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessErr
 import { regionService } from '@main/services/RegionService'
 import { FUNASR_SUPPORTED_PLATFORM_KEYS } from '@shared/ai/localVoice'
 import { LOCAL_VOICE_MODELS, VoiceModelSupport, VoiceResourceOperation } from '@shared/ai/localVoice'
-import { FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+import { FUNASR_MODEL_ID, FUNASR_BUNDLE_ID } from '@shared/ai/localVoice'
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 
 import type { TranscriptionModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
-import { withScratch } from './nativeSupport'
-import { voiceAudioProcess } from './voiceAudioProcess'
+import { decodeVoiceRecording } from './recordingDecoder'
+import { withScratch } from './scratch'
+import { completeTranscriptionOperation } from './sdkOperations'
 
-const AUDIO_DECODE_TIMEOUT_MS = 30_000
 const ASR_INFERENCE_TIMEOUT_MS = 120_000
 const logger = loggerService.withContext('FunAsrAdapter')
-
-function checkAbort(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new VoiceRuntimeError('aborted')
-}
 
 function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
@@ -54,7 +49,7 @@ function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeErr
 
 export function getFunAsrStatus(signal?: AbortSignal): LocalVoiceStatus {
   checkAbort(signal)
-  const { status } = application.get('LocalModelService').refreshStatus(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr)
+  const { status } = application.get('LocalModelService').refreshStatus(FUNASR_BUNDLE_ID)
   switch (status) {
     case 'not_downloaded':
       return { status: 'not_installed', reason: 'model_required' }
@@ -63,9 +58,7 @@ export function getFunAsrStatus(signal?: AbortSignal): LocalVoiceStatus {
         status: 'installing',
         reason: 'model_required',
         percent:
-          application.get('CacheService').getShared(LOCAL_MODEL_STATUS_CACHE_KEY)?.[
-            LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr
-          ]?.percent ?? 0
+          application.get('CacheService').getShared(LOCAL_MODEL_STATUS_CACHE_KEY)?.[FUNASR_BUNDLE_ID]?.percent ?? 0
       }
     case 'ready':
       return { status: 'ready' }
@@ -102,16 +95,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
             wavBytes = audio
             durationSeconds = wavMetadata.durationSeconds
           } else {
-            const timeout = AbortSignal.timeout(AUDIO_DECODE_TIMEOUT_MS)
-            const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-            const decoded = await application
-              .get('UtilityProcessManager')
-              .client(voiceAudioProcess)
-              .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
-              .catch((error: unknown) => {
-                if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-                throw error
-              })
+            const decoded = await decodeVoiceRecording(audio, input.abortSignal)
             wavBytes = decoded.wav
             durationSeconds = decoded.durationSeconds
           }
@@ -124,7 +108,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
             : inferenceTimeout
           const transcript = await application
             .get('AsrInferenceService')
-            .transcribe({ kind: 'wav', filePath: inputPath }, inferenceSignal)
+            .transcribe(FUNASR_BUNDLE_ID, { kind: 'wav', filePath: inputPath }, inferenceSignal)
             .catch((error: unknown) => {
               if (inferenceTimeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
               throw error
@@ -177,16 +161,14 @@ export const funAsrTranscriptionDefinition: TranscriptionModelDefinition = {
   }),
   status: (_options, signal) => getFunAsrStatus(signal),
   locales: async () => ({ supported: [], installed: [] }),
-  createModel: createFunAsrTranscriptionModel,
+  transcriptionOperations: [completeTranscriptionOperation(createFunAsrTranscriptionModel)],
   download: () =>
     application
       .get('LocalModelService')
-      .download(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr, async () =>
-        (await regionService.isInChina()) ? 'china-first' : 'global-first'
-      )
+      .download(FUNASR_BUNDLE_ID, async () => ((await regionService.isInChina()) ? 'china-first' : 'global-first'))
       .catch(() => {
         throw new VoiceRuntimeError('download_failed')
       }),
-  cancelDownload: () => application.get('LocalModelService').cancel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr),
-  remove: () => application.get('LocalModelService').remove(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr)
+  cancelDownload: () => application.get('LocalModelService').cancel(FUNASR_BUNDLE_ID),
+  remove: () => application.get('LocalModelService').remove(FUNASR_BUNDLE_ID)
 }

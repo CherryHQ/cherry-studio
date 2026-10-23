@@ -21,6 +21,7 @@ import { logAiFailure } from '@main/ai/errorReporting'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -55,7 +56,6 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -196,21 +196,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
-    const resolveInjection = async (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> => {
-      try {
-        return await resolvePiProviderInjectionForSession(
-          this.input.sessionId,
-          snapshot.provider,
-          snapshot.model,
-          snapshot.enabledApiKeys
-        )
-      } catch (error) {
-        if (error instanceof ApiGatewayNotRunningError) {
-          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-        }
-        throw error
-      }
-    }
+    const resolveInjection = (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> =>
+      resolvePiProviderInjectionForSession(
+        this.input.sessionId,
+        snapshot.provider,
+        snapshot.model,
+        snapshot.enabledApiKeys
+      )
 
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
@@ -238,6 +230,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (!session?.agentId || !workspacePath) {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
+
+    await prepareAgentSessionWorkspaceDirectory(session)
 
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
@@ -351,6 +345,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         nonBypassableApprovalTools: new Set(
           mountedPolicies
             .filter(({ approval, bypassApproval }) => approval === 'required' && bypassApproval === 'enforce')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        delegationTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'delegation')
             .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
         )
       }
@@ -919,7 +918,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return
       }
       // Auto-compaction failure stays non-terminal — the surrounding turn owns the terminal event.
-      this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
+      this.eventQueue.push({
+        type: 'compaction-error',
+        error: event.errorMessage ?? 'pi compaction aborted',
+        aborted: event.aborted
+      })
       return
     }
     // `willRetry` keeps the surrounding agent turn open; it does not defer this compaction result.

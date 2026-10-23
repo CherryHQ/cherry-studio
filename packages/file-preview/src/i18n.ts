@@ -5,6 +5,7 @@ import elGR from './locales/el-gr.json'
 import enUS from './locales/en-us.json'
 import esES from './locales/es-es.json'
 import frFR from './locales/fr-fr.json'
+import itIT from './locales/it-it.json'
 import jaJP from './locales/ja-jp.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
@@ -20,6 +21,7 @@ const catalogs = {
   'en-us': enUS,
   'es-es': esES,
   'fr-fr': frFR,
+  'it-it': itIT,
   'ja-jp': jaJP,
   'pt-pt': ptPT,
   'ro-ro': roRO,

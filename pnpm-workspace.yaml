@@ -11,6 +11,9 @@ packageExtensions:
       devlop: "1.1.0"
 
 overrides:
+  # Linux x64 must stay usable without AVX/AVX2; the fork's prebuilt vec0.so requires them (#22048).
+  "@aiany/sqlite-vec-linux-x64": "npm:sqlite-vec-linux-x64@0.1.9"
+  "@earendil-works/pi-ai@1.0.0>@google/genai": "2.23.0"
   picomatch: "4.0.4"
   "concurrently>shell-quote": "1.8.4"
   fast-xml-parser: ">=5.10.1"
@@ -104,7 +107,7 @@ patchedDependencies:
   # Version-pinned: hunk targets a content-hashed dist chunk; bumps hard-fail install until key+hunk are re-derived.
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
-  # Preserve main's ultra reasoning support until the adapter accepts that level upstream.
+  # Preserve ultra reasoning and Google custom fetch until Pi supports both upstream.
   "@earendil-works/pi-ai@1.0.0": patches/@earendil-works__pi-ai@1.0.0.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
@@ -116,6 +119,8 @@ patchedDependencies:
   "@sting8k/pi-vcc@0.8.1": patches/@sting8k__pi-vcc@0.8.1.patch
   # Normalize XML BOMs and propagate parsing failures instead of silently returning an empty deck.
   "@aiden0z/pptx-renderer@1.2.2": patches/@aiden0z__pptx-renderer@1.2.2.patch
+  # Normalize RTF byte representations before code-page decoding; preserve font resets and binary ranges.
+  rtf.js@3.0.9: patches/rtf.js@3.0.9.patch
 
 allowBuilds:
   "@google/genai": false
@@ -176,11 +181,12 @@ minimumReleaseAgeExclude:
   - "@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.284"
   - "@anthropic-ai/claude-agent-sdk-win32-x64@0.3.284"
   - "@anthropic-ai/claude-agent-sdk@0.3.284"
-  - "@cherrystudio/computer-use-darwin-arm64@0.1.4"
-  - "@cherrystudio/computer-use-darwin-x64@0.1.4"
-  - "@cherrystudio/computer-use-win32-arm64@0.1.4"
-  - "@cherrystudio/computer-use@0.1.4"
-  - "@cherrystudio/computer-use-linux-arm64@0.1.4"
-  - "@cherrystudio/computer-use-linux-x64@0.1.4"
-  - "@cherrystudio/computer-use-win32-x64@0.1.4"
+  - "@cherrystudio/computer-use-darwin-arm64@0.1.9"
+  - "@cherrystudio/computer-use-darwin-x64@0.1.9"
+  - "@cherrystudio/computer-use-win32-arm64@0.1.9"
+  - "@cherrystudio/computer-use@0.1.9"
+  - "@cherrystudio/computer-use-linux-arm64@0.1.9"
+  - "@cherrystudio/computer-use-linux-x64@0.1.9"
+  - "@cherrystudio/computer-use-win32-x64@0.1.9"
   - "mediabunny@1.58.0"
+  - electron@44.9.3

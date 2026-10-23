@@ -6,7 +6,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
-  WINDOWS_TTS_MODEL_ID
+  QWEN3_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -43,6 +43,7 @@ beforeEach(async () => {
   nextId = 0
   ownerWindow = Object.assign(new EventTarget(), { closed: false }) as Window
   on.mockImplementation((_event: string, listener: (event: any) => void) => {
+    if (_event !== 'ai.voice.session_event') return () => undefined
     voiceEvents.push(listener)
     return unsubscribe
   })
@@ -60,7 +61,7 @@ describe('VoiceService state ownership', () => {
         return {
           sessionId: input.sessionId,
           requestId: input.requestId,
-          output: { id: ids[2], url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          output: { kind: 'audio', id: ids[2], url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         }
       return undefined
     })
@@ -166,27 +167,25 @@ describe('VoiceService state ownership', () => {
     })
   })
 
-  it('preserves an explicit voice without imposing the interface language', async () => {
-    request.mockResolvedValue({
-      modelId: WINDOWS_TTS_MODEL_ID,
-      voice: 'chinese',
-      language: 'zh-CN',
-      speed: 1,
-      status: { status: 'ready' }
-    })
-    const service = new VoiceService({
-      ipc: { request, on },
-      ownerWindow,
-      readSpeechPreferences: async () => ({ modelId: WINDOWS_TTS_MODEL_ID, voice: 'chinese', language: '', speed: 1 })
-    })
-    await expect(service.resolveSpeechPreferences()).resolves.toMatchObject({ voice: 'chinese', language: 'zh-CN' })
-    expect(request).toHaveBeenCalledWith('ai.voice.speech.resolve', {
-      modelId: WINDOWS_TTS_MODEL_ID,
-      voice: 'chinese',
-      language: undefined,
-      speed: 1
-    })
-  })
+  it.each([
+    [APPLE_TTS_MODEL_ID, 'japanese', 'ja-JP'],
+    [QWEN3_TTS_MODEL_ID, 'vivian', 'zh-CN']
+  ] as const)(
+    'resolves follow-interface independently of the selected %s voice',
+    async (modelId, voice, initialLanguage) => {
+      let language: string = initialLanguage
+      const service = new VoiceService({
+        ipc: { request, on },
+        ownerWindow,
+        readSpeechPreferences: async () => ({ modelId, voice, language, speed: 1 })
+      })
+      expect(await service.readSpeechPreferenceInput()).toEqual({ modelId, voice, language: initialLanguage, speed: 1 })
+      language = ''
+      expect(await service.readSpeechPreferenceInput()).toEqual({ modelId, voice, language: 'en-US', speed: 1 })
+      await i18n.changeLanguage('de-DE')
+      expect(await service.readSpeechPreferenceInput()).toEqual({ modelId, voice, language: 'de-DE', speed: 1 })
+    }
+  )
 
   it('surfaces missing resources before opening the microphone', async () => {
     request.mockResolvedValue({
@@ -733,7 +732,12 @@ describe('VoiceService route facade', () => {
         return Promise.resolve({
           sessionId: input.sessionId,
           requestId: input.requestId,
-          output: { id: `output-${input.chunkIndex}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          output: {
+            kind: 'audio',
+            id: `output-${input.chunkIndex}`,
+            url: 'cherry-media://audio/output',
+            mimeType: 'audio/wav'
+          }
         })
       }
       if (route === 'ai.voice.output.release') return new Promise<void>((resolve) => (releaseOutput = resolve))
@@ -830,7 +834,7 @@ describe('VoiceService route facade', () => {
         return {
           sessionId: input.sessionId,
           requestId: input.requestId,
-          output: { id: 'output-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          output: { kind: 'audio', id: 'output-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         }
       }
       if (route === 'ai.voice.playback.report' || route === 'ai.voice.playback.control') {

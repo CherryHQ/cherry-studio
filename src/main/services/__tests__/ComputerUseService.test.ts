@@ -26,6 +26,7 @@ function client(overrides: Partial<ComputerUseClient> = {}): ComputerUseClient {
     stopAppSession: vi.fn(),
     getAppState: vi.fn(),
     act: vi.fn(),
+    ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn(), perform: vi.fn() },
     onClosed: vi.fn(),
     getPermissionStatus: vi.fn().mockResolvedValue(unknown),
     requestPermissions: vi.fn().mockResolvedValue(unknown),

@@ -9,7 +9,7 @@ import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
@@ -67,8 +67,6 @@ const mocks = vi.hoisted(() => ({
   editorIsFocused: false,
   docTextContent: '',
   fileDragDropOptions: undefined as any,
-  setTimeoutTimer: vi.fn(),
-  timeoutCleanups: [] as Array<() => void>,
   preferences: {
     'chat.input.send_message_shortcut': 'Enter'
   } as Record<string, unknown>,
@@ -88,10 +86,6 @@ const mocks = vi.hoisted(() => ({
   translate: (key: string) => (key === 'chat.input.ai_disclaimer' ? '内容由 AI 生成，仅供参考' : key),
   transaction: undefined as any
 }))
-
-function clearMockTimers() {
-  mocks.timeoutCleanups.splice(0).forEach((cleanup) => cleanup())
-}
 
 function getMockEditorMinHeight(node: HTMLElement) {
   if (!mocks.simulateDeferredEditorStyle) return mocks.editorClientHeight
@@ -321,12 +315,6 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [mocks.preferences[key]]
 }))
 
-vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({
-    setTimeoutTimer: mocks.setTimeoutTimer
-  })
-}))
-
 vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
   useFileDragDrop: (options: any) => {
     mocks.fileDragDropOptions = options
@@ -471,7 +459,6 @@ describe('ComposerSurface', () => {
   let hasFocusSpy: ReturnType<typeof vi.spyOn> | undefined
 
   beforeEach(() => {
-    clearMockTimers()
     // jsdom reports an unfocused document, which would short-circuit every focus-restore path.
     hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     mocks.editorOptions = undefined
@@ -514,13 +501,6 @@ describe('ComposerSurface', () => {
     mocks.docTextContent = ''
     mocks.insertContentAt.mockReset()
     mocks.fileDragDropOptions = undefined
-    mocks.setTimeoutTimer.mockReset()
-    mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
-      const timer = setTimeout(callback, delay)
-      const cleanup = () => clearTimeout(timer)
-      mocks.timeoutCleanups.push(cleanup)
-      return cleanup
-    })
     mocks.preferences = {
       'chat.input.send_message_shortcut': 'Enter'
     }
@@ -798,7 +778,6 @@ describe('ComposerSurface', () => {
   })
 
   afterEach(() => {
-    clearMockTimers()
     hasFocusSpy?.mockRestore()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
@@ -1841,6 +1820,83 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, '上海')).toBe(true)
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
+  })
+
+  describe('IME input notifications', () => {
+    let listener: ReturnType<typeof vi.fn<(event?: QuickPanelInputEvent) => void>>
+
+    beforeEach(async () => {
+      mocks.stabilizeEditor = true
+      let inputAdapter: QuickPanelInputAdapter | undefined
+      render(
+        <ComposerSurface
+          {...baseProps}
+          renderLeftControls={(adapter) => {
+            inputAdapter = adapter
+            return null
+          }}
+        />
+      )
+      await waitFor(() => expect(inputAdapter).toBeDefined())
+      listener = vi.fn<(event?: QuickPanelInputEvent) => void>()
+      inputAdapter!.subscribeInput!(listener)
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('notifies input listeners once an IME composition ends without another edit', () => {
+      mocks.editorViewComposing = true
+      act(() => {
+        mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
+      })
+      expect(listener).toHaveBeenCalledWith({ isComposing: true, cause: 'user-input' })
+      listener.mockClear()
+
+      mocks.editorViewComposing = false
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        vi.advanceTimersByTime(39)
+      })
+      expect(listener).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
+
+    it('waits for a restarted composition to end before notifying finalized input', () => {
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知' })
+        mocks.editorViewComposing = true
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionstart()
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).not.toHaveBeenCalled()
+
+      act(() => {
+        mocks.editorViewComposing = false
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
+
+    it('does not repeat an input notification already emitted by the composition flush', () => {
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+
+      act(() => {
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
   })
 
   it('allows typing, replacement and newlines beyond the former input limit', async () => {
@@ -3187,7 +3243,52 @@ describe('ComposerSurface', () => {
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
   })
 
-  it('renders image file tokens as chips with icon-sized thumbnails inside the editable composer', async () => {
+  it('activates the original mounted file token with the current preview action', async () => {
+    const fileToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'notes.md',
+      payload: {
+        id: 'file-1',
+        name: 'notes.md',
+        origin_name: 'notes.md',
+        path: '/tmp/notes.md'
+      }
+    }
+    const outcomes: string[] = []
+    const selectFile = vi.fn(() => {
+      outcomes.push('select')
+    })
+    const confirmLeave = vi.fn((input: { displayName: string; previewPath: string }) => {
+      outcomes.push(`confirm:${input.displayName}:${input.previewPath}`)
+    })
+    const nodeViewProps = { selected: false, nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } } }
+    const view = render(
+      <ComposerSurface {...baseProps} previewInputFile={selectFile} tokens={[fileToken]} managedTokenKinds={['file']} />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    const retainedRenderToken = mocks.editorPresetOptions.renderToken
+    render(<>{retainedRenderToken(fileToken, nodeViewProps)}</>)
+    const chip = screen.getByRole('button', { name: 'notes.md' })
+
+    view.rerender(
+      <ComposerSurface
+        {...baseProps}
+        previewInputFile={confirmLeave}
+        tokens={[fileToken]}
+        managedTokenKinds={['file']}
+      />
+    )
+    expect(chip.isConnected).toBe(true)
+
+    fireEvent.click(chip)
+
+    expect(outcomes).toEqual(['confirm:notes.md:/tmp/notes.md'])
+    expect(selectFile).not.toHaveBeenCalled()
+  })
+
+  it('renders image file tokens with type icons inside the editable composer', async () => {
     const imageToken = {
       id: 'file:image-1',
       kind: 'file' as const,
@@ -3220,7 +3321,8 @@ describe('ComposerSurface', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveTextContent('preview.png')
-    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeInTheDocument()
+    expect(token?.querySelector('img')).toBeNull()
+    expect(token?.querySelector('[data-file-token-icon="image"]')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
   })
 

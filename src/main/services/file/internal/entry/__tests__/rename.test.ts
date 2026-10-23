@@ -19,6 +19,8 @@ const { fileRefService } = await import('@data/services/FileRefService')
 const { rename } = await import('../rename')
 const { createInternal, ensureExternal } = await import('../create')
 
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+
 import type { FileManagerDeps } from '../../deps'
 
 describe('internal/entry/rename', () => {
@@ -53,7 +55,7 @@ describe('internal/entry/rename', () => {
         clear: vi.fn()
       },
       versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
-      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
+      contentWriteLock: new KeyedMutex()
     }
   })
 

@@ -40,6 +40,7 @@ export type {
 } from './FileManager'
 export { FileManager } from './FileManager'
 export { classifyFileFailure } from './failureFacts'
+export { FileEditService } from './FileEditService'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 export { DirectoryTreeManager, DirectoryTreeStoppedError, type TreeOwner } from './tree/DirectoryTreeManager'
 

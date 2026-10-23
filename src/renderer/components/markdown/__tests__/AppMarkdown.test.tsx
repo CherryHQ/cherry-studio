@@ -96,6 +96,17 @@ After`}</AppMarkdown>
     expect(screen.queryByRole('button', { name: 'code_block.edit.label' })).not.toBeInTheDocument()
   })
 
+  it('keeps chat-style relative images on the default pipeline without an image resolver', () => {
+    const { container } = render(
+      <MarkdownHostProvider openFilePath={vi.fn()}>
+        <AppMarkdown>{'![](images/diagram.png)\n\n![diagram](images/diagram.png)\n\n![icon](./icon.svg)'}</AppMarkdown>
+      </MarkdownHostProvider>
+    )
+    expect(screen.getByText('diagram')).toBeVisible()
+    expect(container.querySelectorAll('img')).toHaveLength(1)
+    expect(screen.getByRole('img', { name: 'icon' })).toHaveAttribute('src', '/icon.svg')
+  })
+
   it('opens relative links only through an explicitly supplied host', async () => {
     const user = userEvent.setup()
     const openFilePath = vi.fn()

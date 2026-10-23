@@ -29,8 +29,10 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'AsrInferenceService') return { terminateThen: terminateAsrRuntime }
-    if (name === 'OcrInferenceService') return { terminateThen: terminateOcrRuntime }
+    if (name === 'AsrInferenceService')
+      return { removeModelThen: (_id: string, after: () => Promise<unknown>) => terminateAsrRuntime(after) }
+    if (name === 'OcrInferenceService')
+      return { removeModelThen: (_id: string, after: () => Promise<unknown>) => terminateOcrRuntime(after) }
     return originalGet(name)
   })
   return result
@@ -83,7 +85,9 @@ describe('lifecycle', () => {
     await expect(localModelService._doInit()).resolves.toBeUndefined()
 
     const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
-    expect(swept).toEqual([EMBEDDING, OCR, ASR].sort())
+    expect(swept).toEqual(
+      [EMBEDDING, OCR, ASR, 'qwen3-asr-1.7b-8bit', 'qwen3-tts-0.6b-customvoice-8bit', 'kokoro-multi-lang-v1.1'].sort()
+    )
   })
 
   it('cancels an in-flight download on stop instead of leaving it to die with the process', async () => {
@@ -141,15 +145,15 @@ describe('LocalModelService readiness', () => {
   it('answers for the capability, not for a specific bundle', () => {
     onDisk({ [OCR]: INSTALLED })
 
-    expect(localModelService.isCapabilityReady('ocr')).toBe(true)
-    expect(localModelService.isCapabilityReady('embedding')).toBe(false)
+    expect(localModelService.isDefaultModelReady('ocr')).toBe(true)
+    expect(localModelService.isDefaultModelReady('embedding')).toBe(false)
   })
 
   it('is false while the shared runtime the model needs is missing', () => {
     onDisk({ [OCR]: INSTALLED })
     isArtifactReady.mockReturnValue(false)
 
-    expect(localModelService.isCapabilityReady('ocr')).toBe(false)
+    expect(localModelService.isDefaultModelReady('ocr')).toBe(false)
   })
 })
 
@@ -166,6 +170,18 @@ describe('shared artifact cleanup', () => {
     await localModelService.remove(OCR)
 
     expect(removeArtifactIfUnused).not.toHaveBeenCalledWith('onnxruntime-node')
+  })
+
+  it('preserves MLX for installed TTS when Qwen3 ASR is removed', async () => {
+    onDisk({ 'qwen3-tts-0.6b-customvoice-8bit': INSTALLED })
+    removeArtifactIfUnused.mockImplementation(async (id) => {
+      if (id === 'mlx-node') throw new Error('Live TTS runtime would be deleted')
+      return true
+    })
+    await expect(localModelService.remove('qwen3-asr-1.7b-8bit')).resolves.toEqual({ removed: true })
+    expect(removeArtifactIfUnused.mock.calls.flat()).not.toContain('mlx-node')
+    expect(localModelService.isModelReady('qwen3-tts-0.6b-customvoice-8bit')).toBe(true)
+    expect(localModelService.isModelReady('qwen3-asr-1.7b-8bit')).toBe(false)
   })
 
   it('does not let a locked runtime turn cleanup into a failure', async () => {
