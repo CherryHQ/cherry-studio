@@ -79,6 +79,12 @@ const INLINE_CODE_PLACEHOLDER = new RegExp(
   `${INLINE_CODE_PLACEHOLDER_PREFIX}(\\d+)${INLINE_CODE_PLACEHOLDER_SUFFIX}`,
   'g'
 )
+const INDENTED_CODE_PLACEHOLDER_PREFIX = '\uE000INDENTED_CODE_'
+const INDENTED_CODE_PLACEHOLDER_SUFFIX = '\uE001'
+const INDENTED_CODE_PLACEHOLDER = new RegExp(
+  `${INDENTED_CODE_PLACEHOLDER_PREFIX}(\\d+)${INDENTED_CODE_PLACEHOLDER_SUFFIX}`,
+  'g'
+)
 
 function isValidFenceLinePrefix(prefix: string): boolean {
   let i = 0
@@ -363,6 +369,70 @@ function unmaskInlineCodeSpans(text: string, spans: string[]): string {
   return text.replace(INLINE_CODE_PLACEHOLDER, (_, index) => spans[Number(index)] ?? '')
 }
 
+/**
+ * Masks Markdown indented code blocks (runs of lines indented four or more
+ * spaces, or a tab) so literal scratchpad-shaped examples inside them survive
+ * wrapper removal: fences and inline spans were already protected, but an
+ * indented `Example:` block reached global scratchpad removal and lost its
+ * content in summary formatting and adapter delivery (cherry-pr-review
+ * inv_29a1cf6c61a8326f). Indented code cannot interrupt a paragraph, so a run
+ * only starts at the text edge or after a blank line. A run inside a
+ * scratchpad block stays unmasked so it cannot hide the block's boundary.
+ */
+function maskIndentedCodeBlocks(text: string): { text: string; blocks: string[] } {
+  const blocks: string[] = []
+  const lines = text.split('\n')
+  const lineOffsets: number[] = []
+  let offset = 0
+  for (const line of lines) {
+    lineOffsets.push(offset)
+    offset += line.length + 1
+  }
+  const isIndentedCodeLine = (line: string): boolean => /^(?: {4}|\t)\S/.test(line)
+
+  const outLines: string[] = []
+  let i = 0
+  let paragraphOpen = false
+  while (i < lines.length) {
+    const line = lines[i]
+    if (line.trim() === '') {
+      paragraphOpen = false
+      outLines.push(line)
+      i++
+      continue
+    }
+    if (paragraphOpen || !isIndentedCodeLine(line)) {
+      paragraphOpen = true
+      outLines.push(line)
+      i++
+      continue
+    }
+    if (enclosingScratchpadTag(text, lineOffsets[i]) !== null) {
+      // Indented content of a real scratchpad block must stay visible to
+      // boundary detection; masking it could swallow the block's closer.
+      paragraphOpen = true
+      outLines.push(line)
+      i++
+      continue
+    }
+    let end = i
+    let lastContent = i
+    while (end < lines.length && (lines[end].trim() === '' || isIndentedCodeLine(lines[end]))) {
+      if (lines[end].trim() !== '') lastContent = end
+      end++
+    }
+    blocks.push(lines.slice(i, lastContent + 1).join('\n'))
+    outLines.push(`${INDENTED_CODE_PLACEHOLDER_PREFIX}${blocks.length - 1}${INDENTED_CODE_PLACEHOLDER_SUFFIX}`)
+    paragraphOpen = false
+    i = lastContent + 1
+  }
+  return { text: outLines.join('\n'), blocks }
+}
+
+function unmaskIndentedCodeBlocks(text: string, blocks: string[]): string {
+  return text.replace(INDENTED_CODE_PLACEHOLDER, (_, index) => blocks[Number(index)] ?? '')
+}
+
 function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolean {
   const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
   const prefix = text.slice(lineStart, markerStart)
@@ -599,10 +669,38 @@ export function textStartsWithNonScratchpadOpeningTag(text: string): boolean {
 /** Strips known scratchpad wrappers without touching fenced code blocks. */
 export function stripKnownModelScratchpadBlocksPreservingCodeFences(raw: string): string {
   const { text: fenceMasked, fences } = maskCodeFences(raw)
-  const { text: inlineMasked, spans } = maskInlineCodeSpans(fenceMasked)
+  const { text: indentedMasked, blocks } = maskIndentedCodeBlocks(fenceMasked)
+  const { text: inlineMasked, spans } = maskInlineCodeSpans(indentedMasked)
   const stripped = stripKnownModelScratchpadBlocks(inlineMasked)
   const withInline = unmaskInlineCodeSpans(stripped, spans)
-  return unmaskCodeFences(withInline, fences)
+  const withIndented = unmaskIndentedCodeBlocks(withInline, blocks)
+  return unmaskCodeFences(withIndented, fences)
+}
+
+/**
+ * True when the scratchpad tag at [tagStart, tagEnd) is the entire content of
+ * an inline code span - immediately flanked by matching backtick runs. Such a
+ * tag is a literal mention of the wrapper, not a boundary: treating it as the
+ * block end leaves the block's real internal tail in replacement context
+ * (cherry-pr-review inv_ed290cd7b29202da). A tag merely INSIDE a larger code
+ * span (other content between it and the backticks) still ends the block.
+ */
+function isInlineCodeWrappedTag(text: string, tagStart: number, tagEnd: number): boolean {
+  let openRun = 0
+  let i = tagStart - 1
+  while (i >= 0 && text[i] === '`') {
+    openRun++
+    i--
+  }
+  if (openRun === 0 || isBackslashEscaped(text, tagStart - openRun)) return false
+  let closeRun = 0
+  let j = tagEnd
+  while (j < text.length && text[j] === '`') {
+    closeRun++
+    j++
+  }
+  if (closeRun !== openRun || isBackslashEscaped(text, tagEnd)) return false
+  return true
 }
 
 function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string, openerLength: number): number {
@@ -617,6 +715,7 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
   let tagMatch: RegExpExecArray | null
   while ((tagMatch = tagPattern.exec(text)) !== null) {
     if (isBackslashEscaped(text, tagMatch.index)) continue
+    if (isInlineCodeWrappedTag(text, tagMatch.index, tagMatch.index + tagMatch[0].length)) continue
     if (tagMatch[1] === '/') {
       depth--
       if (depth === 0) {
@@ -691,7 +790,8 @@ function unwrapWholeSummaryWrapper(text: string): string | null {
 
 export function stripModelScratchpadBlocks(raw: string): string {
   const { text: fenceMasked, fences } = maskCodeFences(raw)
-  const { text: inlineMasked, spans } = maskInlineCodeSpans(fenceMasked)
+  const { text: indentedMasked, blocks } = maskIndentedCodeBlocks(fenceMasked)
+  const { text: inlineMasked, spans } = maskInlineCodeSpans(indentedMasked)
   let out = stripKnownModelScratchpadBlocks(inlineMasked)
 
   const unwrapped = unwrapWholeSummaryWrapper(out)
@@ -700,6 +800,7 @@ export function stripModelScratchpadBlocks(raw: string): string {
   }
 
   out = unmaskInlineCodeSpans(out, spans)
+  out = unmaskIndentedCodeBlocks(out, blocks)
   out = unmaskCodeFences(out, fences)
   return out.replace(/\n{3,}/g, '\n\n').trim()
 }
@@ -712,7 +813,8 @@ const TRAILING_TOOL_PROTOCOL_CLOSE_RE =
 export function stripTrailingToolProtocolClosingFragments(raw: string): string {
   if (!raw) return raw
   const { text: fenceMasked, fences } = maskCodeFences(raw)
-  const { text: inlineMasked, spans } = maskInlineCodeSpans(fenceMasked)
+  const { text: indentedMasked, blocks } = maskIndentedCodeBlocks(fenceMasked)
+  const { text: inlineMasked, spans } = maskInlineCodeSpans(indentedMasked)
   let out = inlineMasked
   let previous: string
   do {
@@ -720,5 +822,6 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
     out = out.replace(TRAILING_TOOL_PROTOCOL_CLOSE_RE, '')
   } while (out !== previous)
   out = unmaskInlineCodeSpans(out, spans)
+  out = unmaskIndentedCodeBlocks(out, blocks)
   return unmaskCodeFences(out, fences)
 }

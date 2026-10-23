@@ -560,7 +560,13 @@ export class ClaudeCodeStreamAdapter {
    * (cherry-pr-review inv_63b9c0bbf40500fd).
    */
   private hasSeenGenuineUserPrompt = false
-  private assistantActivitySinceUserPrompt = false
+  /**
+   * Visible answer text delivered for the pending user prompt. Tool rounds are
+   * not the answer: a Read round before a runtime compaction must not flip the
+   * preemption provenance and arm artifact suppression against the requested
+   * answer (cherry-pr-review inv_fa1985c9a95f568f).
+   */
+  private assistantAnswerSinceUserPrompt = false
   private compactionPreemptsPendingAnswer = false
 
   /** Section headings demanded by the compaction instruction; two or more mark a compaction summary. */
@@ -910,7 +916,6 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleStreamEvent(message: SDKPartialAssistantMessage, ctx: StreamContext): void {
-    this.assistantActivitySinceUserPrompt = true
     const { event } = message
     switch (event.type) {
       case 'content_block_start':
@@ -1533,7 +1538,11 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleAssistantMessage(message: SDKAssistantMessage, ctx: StreamContext): void {
-    this.assistantActivitySinceUserPrompt = true
+    // Only visible answer text completes the pending prompt's answer; tool-use
+    // rounds leave it pending (cherry-pr-review inv_fa1985c9a95f568f).
+    if (ctx === this.ctx && getTextContent(message.message?.content ?? []).some((text) => text.trim())) {
+      this.assistantAnswerSinceUserPrompt = true
+    }
     // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
     // arrived. `isClaudeCodeTruncationError` can only infer this from a mid-token JSON parse
     // failure, so a clean truncation would otherwise go unnoticed.
@@ -1711,11 +1720,10 @@ export class ClaudeCodeStreamAdapter {
     // artifact grace ends here (cherry-pr-review inv_5b861e177143056b).
     if (!message.isSynthetic && toolResults.length === 0 && getTextContent(content).some((text) => text.trim())) {
       this.hasSeenGenuineUserPrompt = true
-      this.assistantActivitySinceUserPrompt = false
+      this.assistantAnswerSinceUserPrompt = false
       this.endCompactionArtifactGrace()
     }
 
-    if (toolResults.length > 0) this.assistantActivitySinceUserPrompt = true
     for (const result of toolResults) {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
@@ -2081,7 +2089,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.accumulatedText = ''
       ctx.streamedTextLength = 0
       this.runtimeCompactionActive = true
-      this.compactionPreemptsPendingAnswer = this.hasSeenGenuineUserPrompt && !this.assistantActivitySinceUserPrompt
+      this.compactionPreemptsPendingAnswer = this.hasSeenGenuineUserPrompt && !this.assistantAnswerSinceUserPrompt
       this.statusSink.emit({ type: 'compaction-start' })
       return
     }

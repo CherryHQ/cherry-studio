@@ -88,6 +88,26 @@ describe('scratchpadText', () => {
     const input = '<analysis>I should use `foo.</analysis><summary>Run `ls`</summary>'
     expect(stripModelScratchpadBlocks(input)).toBe('Run `ls`')
   })
+
+  it('treats a backtick-wrapped closing tag as a literal mention, not the block boundary (inv_ed290cd7b29202da)', () => {
+    // The analysis discusses the literal `</analysis>` tag: the real boundary
+    // is the LATER unwrapped closer, and the internal tail must not survive.
+    const input = '<analysis>Use `</analysis>` in code. SECRET_INTERNAL_TEXT</analysis><summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe('<summary>Keep</summary>')
+  })
+
+  it('preserves scratchpad literals inside an indented Markdown code block (inv_29a1cf6c61a8326f)', () => {
+    const input = 'Example:\n\n    <thinking>literal example</thinking>\n\nNext steps\u2026'
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+    expect(stripModelScratchpadBlocks(input)).toContain('Next steps')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toContain('<thinking>literal example</thinking>')
+  })
+
+  it('does not let indented content hide a scratchpad block boundary (inv_29a1cf6c61a8326f)', () => {
+    const input = '<analysis>draft\n\n    </analysis><summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+  })
   it('tracks inline code across a line break before fence recognition', () => {
     const input = '<analysis>The docs use `a\n</thinking>~~~` as a closing marker.</analysis><summary>Keep</summary>'
     expect(stripModelScratchpadBlocks(input)).toBe('Keep')
