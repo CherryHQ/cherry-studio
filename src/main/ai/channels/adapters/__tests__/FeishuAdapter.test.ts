@@ -116,7 +116,8 @@ describe('FeishuAdapter', () => {
         encrypt_key: (overrides.encrypt_key as string) ?? '',
         verification_token: (overrides.verification_token as string) ?? '',
         allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['oc_123'],
-        domain: (overrides.domain as 'feishu' | 'lark') ?? 'feishu'
+        domain: (overrides.domain as 'feishu' | 'lark') ?? 'feishu',
+        ...(Object.hasOwn(overrides, 'mention_only') ? { mention_only: overrides.mention_only as boolean } : {})
       }
     })
   }
@@ -149,6 +150,22 @@ describe('FeishuAdapter', () => {
       outbound: { textChunkLimit: 4000 },
       wsConfig: { pingTimeout: 10 }
     })
+  })
+
+  it('honors explicit Feishu mention_only=false', async () => {
+    const adapter = createAdapter({ mention_only: false })
+    await adapter.connect()
+
+    expect(channelOptions?.policy.requireMention).toBe(false)
+    expect(channelOptions?.policy.dmMode).toBe('open')
+    expect(channelOptions?.policy.respondToMentionAll).toBe(false)
+  })
+
+  it('honors explicit Feishu mention_only=true', async () => {
+    const adapter = createAdapter({ mention_only: true })
+    await adapter.connect()
+
+    expect(channelOptions?.policy.requireMention).toBe(true)
   })
 
   it('forwards configured event security to the WebSocket dispatcher', async () => {

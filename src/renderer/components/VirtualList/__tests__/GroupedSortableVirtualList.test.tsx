@@ -614,6 +614,43 @@ describe('GroupedSortableVirtualList', () => {
     expect(screen.getByText('Item Beta').parentElement).toHaveStyle({ opacity: '0.5' })
   })
 
+  it.each([
+    { shape: 'footer', collision: false, endpoint: 'Footer B' },
+    { shape: 'header-only', collision: false, endpoint: 'Header B' },
+    { shape: 'footer', collision: true, endpoint: 'Footer B' }
+  ])('uses the inner group extent for $shape with boundary collision=$collision', ({ shape, collision, endpoint }) => {
+    const sectionGroups = [
+      { group: { id: 'section:x', label: 'X' }, header: 'X', items: [] },
+      { group: { id: 'inner:a', label: 'A' }, header: 'A', items: [{ id: 'a1', label: 'A1' }] },
+      {
+        group: { id: 'inner:b', label: 'B' },
+        header: 'B',
+        items: shape === 'header-only' ? [] : [{ id: 'b1', label: 'B1' }],
+        footer: shape === 'footer' ? 'B' : undefined
+      },
+      { group: { id: 'inner:c', label: 'C' }, header: 'C', items: [{ id: 'c1', label: 'C1' }] },
+      { group: { id: 'section:y', label: 'Y' }, header: 'Y', items: [] },
+      { group: { id: 'inner:d', label: 'D' }, header: 'D', items: [{ id: 'd1', label: 'D1' }] }
+    ]
+    renderList(vi.fn(), {
+      groups: sectionGroups,
+      getGroupBoundaryId: (group: TestGroup) => {
+        if (group.id === 'inner:d') return collision ? 'inner:b' : 'section:y'
+        return group.id.startsWith('inner:') ? 'section:x' : group.id
+      },
+      dragCapabilities: { groups: true, items: false },
+      canDragGroup: () => true,
+      renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
+    })
+    startDragging('group:inner:a')
+    act(() => dndMocks.onDragOver?.(dragEvent('group:inner:a', 'group:inner:b')))
+
+    const indicators = document.querySelectorAll('[data-drop-indicator]')
+    expect(indicators).toHaveLength(1)
+    expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
+    expect(indicators[0].parentElement).toBe(screen.getByText(endpoint).parentElement)
+  })
+
   it('shows the group insertion line before the target group when moving upward', () => {
     renderList(vi.fn(), { dragCapabilities: { groups: true }, canDragGroup: () => true })
 
