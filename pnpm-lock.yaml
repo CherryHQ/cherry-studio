@@ -2232,6 +2232,9 @@ importers:
       es-toolkit:
         specifier: ^1.49.0
         version: 1.49.0
+      kerium:
+        specifier: ^1.5.0
+        version: 1.5.0
       pathe:
         specifier: ^2.0.3
         version: 2.0.3

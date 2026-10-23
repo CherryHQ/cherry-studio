@@ -30,6 +30,7 @@ import { AsyncEventQueue } from '@shared/utils/async'
 
 import { createCodeTools } from './codeTools'
 import { createFileTools, REPORT_ARTIFACTS_TOOL } from './fileTools'
+import { isLocalFolderPath } from './localFolders'
 
 /** Pi's own default: the turn ends when the model stops calling tools, so this only stops runaway loops. */
 const MAX_STEPS = 100
@@ -37,7 +38,10 @@ const MAX_STEPS = 100
 type PiEvent = Parameters<PiStreamAdapter['handleEvent']>[0]
 
 function basePrompt(workspacePath: string): string {
-  return `You are an agent running in Cherry Studio's Web edition. Your workspace is ${workspacePath}, a folder in the browser's private storage; relative paths resolve against it.
+  const location = isLocalFolderPath(workspacePath)
+    ? "a folder on the user's computer that they opened for you; your changes go to their real files"
+    : "a folder in the browser's private storage"
+  return `You are an agent running in Cherry Studio's Web edition. Your workspace is ${workspacePath}, ${location}; relative paths resolve against it.
 
 Tools:
 - read, write, edit: read, create and change files

@@ -1,10 +1,12 @@
 import { application } from '@application'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiHandlers } from '@main/ipc/handlers/ai'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { ipcRequestSchemas, type IpcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 import { version } from '../../../../package.json'
+import { isLocalFolderPath } from '../agent/localFolders'
 import { unsupported } from '../disabled/unsupported'
 import { NATIVE_THEME_CHANNEL } from '../worker/protocol'
 import { ipcMain } from './electron'
@@ -17,9 +19,10 @@ ipcMain.on(NATIVE_THEME_CHANNEL, (_event, theme) => {
 })
 
 /**
- * IpcApi routes the Web edition serves: chat streams, agent creation, tool approvals and the agent
- * session runtime, and Web answers to what the desktop shell asks at start. Archiving and deleting
- * agents and sessions need the desktop's workspace archives, which the Web edition does not have yet.
+ * IpcApi routes the Web edition serves: chat streams, agent creation, tool approvals, the agent
+ * session runtime, local-folder workspaces, and Web answers to what the desktop shell asks at start.
+ * Archiving and deleting agents, sessions and workspaces need the desktop's workspace archives, which
+ * the Web edition does not have yet.
  */
 const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.open': aiHandlers['ai.stream.open'],
@@ -36,6 +39,11 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.agent.session.edit_target': aiHandlers['ai.agent.session.edit_target'],
   'ai.agent.session.edit_resend': aiHandlers['ai.agent.session.edit_resend'],
   'ai.agent.session.fork': aiHandlers['ai.agent.session.fork'],
+  // A workspace the user picks is a stored local folder; the desktop's storage checks need its disk.
+  'ai.agent.workspace.register': async ({ path, name }) => {
+    if (!isLocalFolderPath(path)) throw new Error(`Not a local folder the user picked: ${path}`)
+    return agentWorkspaceService.findOrCreateByPath(path, { name })
+  },
   'app.get_info': async () => ({
     version,
     isPackaged: true,

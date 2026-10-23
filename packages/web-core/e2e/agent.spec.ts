@@ -174,3 +174,69 @@ test('runs JavaScript in a sandbox and stops an endless loop at its timeout', as
   await page.getByRole('button', { name: /^Allow/ }).click()
   await expect(page.getByText(/^tools said:.*timed out after 2000 ms/)).toBeVisible()
 })
+
+/** The composer's work directory selector, which shows the session's folder. */
+const workspaceSelector = (page: Page) => page.getByRole('button', { name: /work directory|^picked-/ }).first()
+
+test('works in a folder the user picks and keeps it across a reload', async ({ page, browserName }, testInfo) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
+  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
+  // The picker's folder is an OPFS directory: the same handle API as a folder on disk, without the dialog.
+  await page.addInitScript((name) => {
+    Object.assign(window, {
+      showDirectoryPicker: async () =>
+        (await navigator.storage.getDirectory()).getDirectoryHandle(name, { create: true })
+    })
+  }, name)
+  const readPicked = () =>
+    page.evaluate(async (name) => {
+      const folder = await (await navigator.storage.getDirectory()).getDirectoryHandle(name)
+      const files: Record<string, string> = {}
+      for await (const handle of (folder as unknown as { values(): AsyncIterable<FileSystemHandle> }).values()) {
+        if (handle.kind === 'file') files[handle.name] = await (await (handle as FileSystemFileHandle).getFile()).text()
+      }
+      return files
+    }, name)
+
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+
+  await workspaceSelector(page).click()
+  await page.getByText('Add new work directory').click()
+  await expect(workspaceSelector(page)).toHaveText(name)
+
+  await send(page, 'please call write {"path":"from-agent.txt","content":"written in the picked folder"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+  expect(await readPicked()).toEqual({ 'from-agent.txt': 'written in the picked folder' })
+
+  await gotoApp(page, 'Work')
+  await expect(workspaceSelector(page)).toHaveText(name)
+  await send(page, 'please call read {"path":"from-agent.txt"}')
+  await expect(page.getByText(/^tools said: written in the picked folder/)).toBeVisible()
+  await page.evaluate(
+    async (name) => (await navigator.storage.getDirectory()).removeEntry(name, { recursive: true }),
+    name
+  )
+})
+
+test('tells a browser without the folder picker to use Chrome or Edge', async ({ page }) => {
+  // WebKit and Firefox have no picker; Chromium is made to match.
+  await page.addInitScript(() => Object.assign(window, { showDirectoryPicker: undefined }))
+  await gotoApp(page, 'Work')
+
+  await workspaceSelector(page).click()
+  await page.getByText('Add new work directory').click()
+  await expect(page.getByText('Local folders need Chrome or Edge')).toBeVisible()
+  await expect(workspaceSelector(page)).toHaveText('No work directory')
+  const workspaces = await page.evaluate(async () => {
+    const response = await window.api.dataApi.request({
+      id: crypto.randomUUID(),
+      method: 'GET',
+      path: '/agent-workspaces'
+    })
+    return (response.data as { type: string }[]).filter((workspace) => workspace.type === 'user')
+  })
+  expect(workspaces).toEqual([])
+})

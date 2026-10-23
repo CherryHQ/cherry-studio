@@ -7,8 +7,9 @@ unmodified desktop main window on top of it. See the Agent Notes for the
 [database](../../.agents/notes/proposed/architecture/2026-10-20-web-core-database.md),
 [chat](../../.agents/notes/proposed/architecture/2026-10-20-web-core-ai.md),
 [page bridge](../../.agents/notes/proposed/architecture/2026-10-20-web-core-page-bridge.md),
-[Web app](../../.agents/notes/proposed/architecture/2026-10-20-web-core-app.md) and
-[agent](../../.agents/notes/proposed/architecture/2026-10-21-web-core-agent.md).
+[Web app](../../.agents/notes/proposed/architecture/2026-10-20-web-core-app.md),
+[agent](../../.agents/notes/proposed/architecture/2026-10-21-web-core-agent.md) and
+[agent local folders](../../.agents/notes/proposed/architecture/2026-10-23-web-core-local-folder.md).
 
 - `./worker` — `startCoreWorker(self, extraCommands?, hooks?)` turns a dedicated Worker into a
   Core Worker. Commands: `open` (account), `request` (a DataApi `DataRequest`),
@@ -89,6 +90,23 @@ heartbeat, knowledge bases, MCP, skills and slash commands. Served agent IpcApi 
 (editing a sent message and forking answer that the checkpoint is unsupported). Deleting or archiving an agent
 or session is not served yet.
 
+### Local folders
+
+The composer's "Add new work directory" lets an agent work in a folder on the user's computer
+(Chrome and Edge only). The page answers the desktop folder dialog (`IpcChannel.File_SelectFolder`)
+with `showDirectoryPicker()` in the same click (`src/page/localFolders.ts`, through `handleInPage`
+in `src/page/electron.ts`) and sends the handle to the Worker (`local-folder.add`). The Worker
+keeps handles per account in IndexedDB `cherry-studio-local-folders` and mounts each at
+`/local/<id>/<folder name>` while the account is open (`src/agent/localFolders.ts`);
+`ai.agent.workspace.register` is served for those paths only.
+
+The mount is `LocalFolderFS` (`src/agent/localFolderFs.ts`): every call runs on the directory
+handle, with no preload or cache, so files changed elsewhere are current; it has async calls only.
+A folder whose permission the browser dropped is mounted as `UnavailableFolderFS`: every call fails
+with `EACCES`, and the first one broadcasts `PageChannel.LocalFolderAccess`, whose toast asks the
+user to allow access (`requestPermission` needs the click) and then sends `local-folder.allow`.
+A browser without the picker shows a toast that local folders need Chrome or Edge.
+
 ## How the page talks to the Worker
 
 `src/page/electron.ts` is the page's `electron`: `ipcRenderer.invoke` / `send` become the
@@ -152,7 +170,8 @@ Another edition builds its own Web app on this package, with its own Worker entr
 `pnpm test:web-core:browser` builds `harness/` and the Web app and runs `e2e/` with Playwright in Chromium,
 WebKit and Firefox (`pnpm exec playwright install chromium webkit firefox` once). The
 harness Worker adds test-only commands (`sql`, `seedMessages`, `integrity`, `searchMessages`,
-`chat`). `harness/bridge.html` loads the desktop preload and renderer services over the same
+`chat`, and `fsCall` and `revokeFolderPermission` for `e2e/localFolder.spec.ts`, where an OPFS
+directory stands in for a picked folder). `harness/bridge.html` loads the desktop preload and renderer services over the same
 Worker for `e2e/bridge.spec.ts`. `e2e/app.spec.ts` and `e2e/agent.spec.ts` drive the Web app (port 4320). `e2e/mockProvider.ts` is the
 OpenAI-compatible endpoint the chat and agent tests talk to; `call <tool> <json>` makes it call tools.
 `WEB_CORE_SCALE=1` adds the 50k-message timing run.

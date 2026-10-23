@@ -27,6 +27,7 @@
     "buffer": "^6.0.3",
     "drizzle-orm": "^0.44.5",
     "es-toolkit": "^1.49.0",
+    "kerium": "^1.5.0",
     "pathe": "^2.0.3",
     "quickjs-wasi": "3.6.2",
     "zod": "4.4.3"

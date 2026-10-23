@@ -13,6 +13,7 @@ import { PythonService } from '@main/services/PythonService'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { mountBuiltinAgentTemplates } from '../agent/builtinAgentTemplates'
+import { addLocalFolder, allowLocalFolder, mountLocalFolders, unmountLocalFolders } from '../agent/localFolders'
 import { mountAccountFiles, unmountAccountFiles } from '../database/accountFiles'
 import { type OpenedDatabase, openDatabase } from '../database/openDatabase'
 import { WebCherryAssistantSeeder } from '../database/WebCherryAssistantSeeder'
@@ -138,6 +139,7 @@ export function startCoreWorker(
       await started
       opened = await openDatabase(account, { handoverTimeoutMs })
       await mountAccountFiles(account)
+      await mountLocalFolders(account)
       await mountBuiltinAgentTemplates()
       await startAccountServices(opened)
       try {
@@ -166,9 +168,12 @@ export function startCoreWorker(
       await application.get('AiStreamManager')._doStop()
       await application.get('PreferenceService')._doStop()
       opened.close()
+      unmountLocalFolders()
       unmountAccountFiles()
       opened = undefined
-    }
+    },
+    'local-folder.add': ({ handle }) => addLocalFolder(handle),
+    'local-folder.allow': ({ id }) => allowLocalFolder(id)
   }
   const commands: Record<string, CommandHandler> = { ...extraCommands, ...coreCommands }
 

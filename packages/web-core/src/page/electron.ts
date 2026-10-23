@@ -12,12 +12,16 @@ export interface IpcRendererEvent {
 }
 
 const listeners = new Map<string, Set<IpcRendererListener>>()
+const pageHandlers = new Map<string, (...args: unknown[]) => Promise<unknown>>()
 let connect: (client: CoreClient) => void
 // Calls made before the page connects (e.g. logging while modules load) wait for the Worker.
 const core = new Promise<CoreClient>((resolve) => (connect = resolve))
 
 export const ipcRenderer = {
   async invoke(channel: string, ...args: unknown[]): Promise<any> {
+    // Runs in the caller's click, before any await, so it can open browser dialogs.
+    const pageHandler = pageHandlers.get(channel)
+    if (pageHandler) return pageHandler(...args)
     try {
       return await (await core).send('ipc-invoke', { channel, args })
     } catch (error) {
@@ -64,6 +68,11 @@ export function connectCore(client: CoreClient): void {
     for (const listener of [...(listeners.get(channel) ?? [])]) listener(event, ...args)
   })
   connect(client)
+}
+
+/** Answers `ipcRenderer.invoke(channel)` in the page, for what only the page can do, such as browser dialogs. */
+export function handleInPage(channel: string, handler: (...args: unknown[]) => Promise<unknown>): void {
+  pageHandlers.set(channel, handler)
 }
 
 export const contextBridge = {
