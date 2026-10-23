@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { CustomAdblockRuleStore, normalizeDomain, validateRuleInput } from '../customRules'
+import { CustomAdblockRuleStore, normalizeDomain, scopeNetworkRule, validateRuleInput } from '../customRules'
 
 let directory: string
 let store: CustomAdblockRuleStore
@@ -47,6 +47,24 @@ describe('rule validation', () => {
     expect(() => validateRuleInput({ domain: 'example.com', kind: 'network', value: 'example.com##.ad' })).toThrow()
     expect(() => validateRuleInput({ domain: 'example.com', kind: 'network', value: 'ads example' })).toThrow()
   })
+
+  it('rejects a network rule that carries its own domain option', () => {
+    for (const value of [
+      '||cdn.example.invalid^$domain=other.com',
+      '||cdn.example.invalid^$third-party,domain=other.com',
+      '@@||cdn.example.invalid^$DOMAIN=other.com'
+    ]) {
+      expect(() => validateRuleInput({ domain: 'example.com', kind: 'network', value }), value).toThrow('domain')
+    }
+  })
+
+  it('scopes a network rule to the saved domain and refuses to compile a conflicting one', () => {
+    expect(scopeNetworkRule('||cdn.example.invalid^', 'example.com')).toBe('||cdn.example.invalid^$domain=example.com')
+    expect(scopeNetworkRule('||cdn.example.invalid^$third-party', 'example.com')).toBe(
+      '||cdn.example.invalid^$third-party,domain=example.com'
+    )
+    expect(scopeNetworkRule('||cdn.example.invalid^$domain=other.com', 'example.com')).toBeUndefined()
+  })
 })
 
 describe('CustomAdblockRuleStore', () => {
@@ -86,5 +104,20 @@ describe('CustomAdblockRuleStore', () => {
     const reopened = new CustomAdblockRuleStore(path.join(directory, 'rules.json'))
     await reopened.load()
     expect(reopened.list()).toHaveLength(1)
+  })
+
+  it('serializes concurrent mutations so every write and rename succeeds', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 12 }, (_, index) =>
+        store.add({ domain: 'example.com', kind: 'cosmetic', value: `.ad-${index}` })
+      )
+    )
+
+    expect(results.every((result) => result.existing === false)).toBe(true)
+    expect(store.list()).toHaveLength(12)
+
+    const reopened = new CustomAdblockRuleStore(path.join(directory, 'rules.json'))
+    await reopened.load()
+    expect(reopened.list()).toHaveLength(12)
   })
 })

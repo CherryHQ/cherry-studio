@@ -2,9 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { app } from 'electron'
-
 import { loggerService } from '@logger'
+import { Sequencer } from '@shared/utils/async'
 
 const logger = loggerService.withContext('AdblockRules')
 
@@ -49,6 +48,36 @@ export function normalizeDomain(input: string): string {
   return domain
 }
 
+/** True when `hostname` is `domain` itself or one of its subdomains. */
+export function hostnameMatchesDomain(hostname: string, domain: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/\.+$/, '')
+  return host === domain || host.endsWith(`.${domain}`)
+}
+
+/**
+ * The stored rule is always scoped to its saved `domain`. A rule that carries
+ * its own `domain=` option would apply wherever that option points, so it is
+ * rejected instead of being silently rewritten.
+ */
+function hasDomainOption(rule: string): boolean {
+  const optionStart = rule.lastIndexOf('$')
+  if (optionStart === -1) return false
+  return rule
+    .slice(optionStart + 1)
+    .split(',')
+    .some((option) => /^\s*domain=/i.test(option))
+}
+
+/**
+ * Pins a network rule to the domain it was saved under. Returns `undefined` for
+ * a rule that carries its own `domain=` option: validation rejects those, and
+ * compiling one would let the filter escape its stored scope.
+ */
+export function scopeNetworkRule(value: string, domain: string): string | undefined {
+  if (hasDomainOption(value)) return undefined
+  return value.includes('$') ? `${value},domain=${domain}` : `${value}$domain=${domain}`
+}
+
 function validateCosmeticSelector(value: string): string {
   const selector = value.trim()
   if (!selector) throw new Error('CSS 选择器不能为空')
@@ -73,6 +102,9 @@ function validateNetworkRule(value: string): string {
   if (!/^(@@)?[|/]/.test(rule)) {
     throw new Error('网络规则必须以 ||、| 或 / 开头')
   }
+  if (hasDomainOption(rule)) {
+    throw new Error('网络规则不能自带 domain 选项，作用域由 domain 参数决定')
+  }
   return rule
 }
 
@@ -95,8 +127,10 @@ export class CustomAdblockRuleStore {
   private rules: CustomAdblockRule[] = []
   private loaded = false
   private readonly filePath: string
+  /** Mutation and persistence travel together, so concurrent callers cannot interleave writes. */
+  private readonly mutations = new Sequencer()
 
-  constructor(filePath = path.join(app.getPath('userData'), 'adblock-rules.json')) {
+  constructor(filePath: string) {
     this.filePath = filePath
   }
 
@@ -139,47 +173,53 @@ export class CustomAdblockRuleStore {
 
   async add(input: NewCustomAdblockRule): Promise<{ rule: CustomAdblockRule; existing: boolean }> {
     const validated = validateRuleInput(input)
-    const existing = this.rules.find(
-      (rule) => rule.domain === validated.domain && rule.kind === validated.kind && rule.value === validated.value
-    )
-    if (existing) {
-      existing.enabled = true
-      existing.note = validated.note ?? existing.note
+    return this.mutations.queue(async () => {
+      const existing = this.rules.find(
+        (rule) => rule.domain === validated.domain && rule.kind === validated.kind && rule.value === validated.value
+      )
+      if (existing) {
+        existing.enabled = true
+        existing.note = validated.note ?? existing.note
+        await this.persist()
+        return { rule: { ...existing }, existing: true }
+      }
+      if (this.rules.length >= MAX_RULES) {
+        throw new Error(`规则数量已达上限（${MAX_RULES} 条），请先在设置里清理`)
+      }
+      const rule: CustomAdblockRule = {
+        id: randomUUID(),
+        domain: validated.domain,
+        kind: validated.kind,
+        value: validated.value,
+        note: validated.note ?? '',
+        source: validated.source ?? 'manual',
+        enabled: true,
+        createdAt: Date.now()
+      }
+      this.rules.push(rule)
       await this.persist()
-      return { rule: { ...existing }, existing: true }
-    }
-    if (this.rules.length >= MAX_RULES) {
-      throw new Error(`规则数量已达上限（${MAX_RULES} 条），请先在设置里清理`)
-    }
-    const rule: CustomAdblockRule = {
-      id: randomUUID(),
-      domain: validated.domain,
-      kind: validated.kind,
-      value: validated.value,
-      note: validated.note ?? '',
-      source: validated.source ?? 'manual',
-      enabled: true,
-      createdAt: Date.now()
-    }
-    this.rules.push(rule)
-    await this.persist()
-    return { rule: { ...rule }, existing: false }
+      return { rule: { ...rule }, existing: false }
+    })
   }
 
   async remove(id: string): Promise<boolean> {
-    const before = this.rules.length
-    this.rules = this.rules.filter((rule) => rule.id !== id)
-    if (this.rules.length === before) return false
-    await this.persist()
-    return true
+    return this.mutations.queue(async () => {
+      const before = this.rules.length
+      this.rules = this.rules.filter((rule) => rule.id !== id)
+      if (this.rules.length === before) return false
+      await this.persist()
+      return true
+    })
   }
 
   async setEnabled(id: string, enabled: boolean): Promise<CustomAdblockRule | undefined> {
-    const rule = this.rules.find((entry) => entry.id === id)
-    if (!rule) return undefined
-    rule.enabled = enabled
-    await this.persist()
-    return { ...rule }
+    return this.mutations.queue(async () => {
+      const rule = this.rules.find((entry) => entry.id === id)
+      if (!rule) return undefined
+      rule.enabled = enabled
+      await this.persist()
+      return { ...rule }
+    })
   }
 
   private async persist(): Promise<void> {

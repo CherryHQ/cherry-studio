@@ -4,7 +4,7 @@ import type * as FsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { app, session } from 'electron'
+import { ipcMain, session, webContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -15,6 +15,7 @@ import { AdblockService } from '../AdblockService'
 import { isBlockedByAdblock, setAdblockGate } from '../gate'
 
 const ENGINE_PATH = new URL('../../../../../resources/adblock/engine.bin', import.meta.url)
+const INJECT_COSMETIC_FILTERS = '@ghostery/adblocker/inject-cosmetic-filters'
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>()
@@ -37,9 +38,15 @@ async function startService(): Promise<AdblockService> {
 }
 
 function stubPreloadApi(): void {
-  for (const profile of [WebviewSecurityProfile.MiniApp, WebviewSecurityProfile.AgentBrowser]) {
-    const guestSession = session.fromPartition(getWebviewPartition(profile)) as unknown as Record<string, unknown>
-    guestSession.registerPreloadScript = vi.fn(() => `preload-${profile}`)
+  const partitions = [
+    getWebviewPartition(WebviewSecurityProfile.MiniApp),
+    getWebviewPartition(WebviewSecurityProfile.AgentBrowser),
+    'persist:default',
+    'private'
+  ]
+  for (const partition of partitions) {
+    const guestSession = session.fromPartition(partition) as unknown as Record<string, unknown>
+    guestSession.registerPreloadScript = vi.fn(() => `preload-${partition}`)
     guestSession.unregisterPreloadScript = vi.fn()
   }
 }
@@ -52,9 +59,11 @@ describe('AdblockService', () => {
     BaseService.resetInstances()
     setAdblockGate(undefined)
     directory = await mkdtemp(path.join(os.tmpdir(), 'adblock-service-'))
-    ;(app.getPath as unknown as ReturnType<typeof vi.fn>).mockImplementation((key: string) =>
-      key === 'userData' ? directory : `/mock/${key}`
+    const getPath = application.getPath as unknown as ReturnType<typeof vi.fn>
+    getPath.mockImplementation((key: string) =>
+      key === 'feature.adblock.rules_file' ? path.join(directory, 'adblock-rules.json') : `/mock/${key}`
     )
+    vi.mocked(webContents.getAllWebContents).mockReturnValue([])
     stubPreloadApi()
   })
 
@@ -148,6 +157,101 @@ describe('AdblockService', () => {
     expect(
       isBlockedByAdblock(request('https://tracker.zzz-test.com/pixel.js', 'script', 'https://www.other.com/page'))
     ).toBe(false)
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+  })
+
+  it('rejects a network rule that tries to pick its own scope', async () => {
+    const service = await startService()
+
+    await expect(
+      service.addCustomRule({
+        domain: 'example.com',
+        kind: 'network',
+        value: '||cdn.review-test.invalid^$domain=other.com',
+        source: 'ai'
+      })
+    ).rejects.toThrow('domain')
+
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+  })
+
+  it('covers the standalone MCP browser sessions in normal and private mode', async () => {
+    const service = await startService()
+
+    for (const partition of ['persist:default', 'private']) {
+      const guestSession = session.fromPartition(partition) as unknown as {
+        registerPreloadScript: ReturnType<typeof vi.fn>
+        webRequest: { onBeforeRequest: ReturnType<typeof vi.fn> }
+      }
+      expect(guestSession.registerPreloadScript, partition).toHaveBeenCalledWith({
+        type: 'frame',
+        filePath: '/mock/app.root.resources/adblock/preload.cjs'
+      })
+      const listener = guestSession.webRequest.onBeforeRequest.mock.calls[0]?.[1] as (
+        details: Electron.OnBeforeRequestListenerDetails,
+        callback: (response: { cancel?: boolean }) => void
+      ) => void
+      const callback = vi.fn()
+      listener(request('https://cpro.baidu.com/cpro/ui/c.js'), callback)
+      expect(callback, partition).toHaveBeenCalledWith({ cancel: true })
+    }
+
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+  })
+
+  it('leaves AI cosmetic rules to the tracked page stylesheet only', async () => {
+    const service = await startService()
+    await service.addCustomRule({ domain: 'baidu.com', kind: 'cosmetic', value: '.ad-slot', source: 'ai' })
+    ;(service as unknown as { engine: unknown }).engine = {
+      getCosmeticsFilters: () => ({ active: true, styles: '.engine-ad { display: none; }', scripts: [] })
+    }
+
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === INJECT_COSMETIC_FILTERS)?.[1]
+    const insertCSS = vi.fn<(css: string) => Promise<string>>().mockResolvedValue('engine-sheet')
+    const sender = {
+      getURL: () => 'https://www.baidu.com/s?wd=test',
+      insertCSS,
+      executeJavaScript: vi.fn(async () => undefined)
+    }
+    await (handler as (event: unknown, url?: string, message?: unknown) => Promise<void>)(
+      { sender },
+      undefined,
+      undefined
+    )
+
+    expect(insertCSS).toHaveBeenCalledTimes(1)
+    expect(insertCSS.mock.calls[0][0]).toBe('.engine-ad { display: none; }')
+
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+  })
+
+  it('removes the tracked stylesheet when its cosmetic rule is disabled', async () => {
+    const service = await startService()
+    const { rule } = await service.addCustomRule({
+      domain: 'example.com',
+      kind: 'cosmetic',
+      value: '.ad-slot',
+      source: 'ai'
+    })
+    const insertCSS = vi.fn<(css: string) => Promise<string>>().mockResolvedValue('sheet-1')
+    const removeInsertedCSS = vi.fn<(key: string) => Promise<void>>().mockResolvedValue(undefined)
+    const page = {
+      id: 42,
+      isDestroyed: () => false,
+      getURL: () => 'https://www.example.com/page',
+      insertCSS,
+      removeInsertedCSS,
+      session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.MiniApp))
+    }
+    vi.mocked(webContents.getAllWebContents).mockReturnValue([page] as unknown as Electron.WebContents[])
+
+    await service.setCustomRuleEnabled(rule.id, true)
+    await vi.waitFor(() => expect(insertCSS).toHaveBeenCalledTimes(1))
+    expect(insertCSS.mock.calls[0][0]).toContain('.ad-slot')
+
+    await service.setCustomRuleEnabled(rule.id, false)
+    await vi.waitFor(() => expect(removeInsertedCSS).toHaveBeenCalledWith('sheet-1'))
+
     await (service as unknown as { onStop: () => Promise<void> }).onStop()
   })
 })

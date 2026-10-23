@@ -26,6 +26,7 @@ export function automationBootstrap(): string {
       scroll: (pages, ref) => invoke('browser', 'scroll', {pages, ref}, target),
       selectOption: (ref, values) => invoke('browser', 'selectOption', {ref, values}, target),
       find: query => invoke('browser', 'find', query, target),
+      blockAds: (options = {}) => invoke('browser', 'blockAds', options, target),
       handleDialog: options => invoke('browser', 'handleDialog', options, target)
     });
     const app = target => Object.freeze({
