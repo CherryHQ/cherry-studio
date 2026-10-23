@@ -1,6 +1,6 @@
 # File preview
 
-Portable React DOM previews for PDF, DOCX, PPTX, XLSX and images (including SVG).
+Portable React DOM previews for PDF, DOCX, PPTX, XLSX, RTF and images (including SVG).
 The package owns rendering, controls, structural selections, workers and translations.
 Hosts own file access, permissions, navigation, external opening and logging.
 HTML, Markdown and source-code previews remain in the desktop application.
@@ -30,7 +30,7 @@ The preview closes it after failure, replacement, refresh or unmount, including 
 open that completes after cancellation. A document's size and revision stay fixed;
 its reader must reject version changes, short reads and reads after close. Close must
 be idempotent. Range offsets and lengths are safe integers within the document size.
-DOCX, PPTX, XLSX and images request the whole document as one `[0, size)` range, so
+DOCX, PPTX, XLSX, RTF and images request the whole document as one `[0, size)` range, so
 a host can serve it with a single read; PDF requests partial ranges.
 Readers should honor abort signals where their transport supports cancellation. The
 package discards a read result after cancellation; it cannot stop host I/O that has
@@ -43,6 +43,15 @@ a fresh session, including after a failure. `header` accepts host-owned navigati
 and file-identity content for the fixed top row; the format toolbar shares that row.
 Without a header, format controls render above the document. Give `source` and
 `resources` stable references so layout, locale and theme updates retain the session.
+
+Refreshing the same source ID and format retains the mounted format and its valid
+reading state while opening a fresh document. Formats preserve zoom, page, scroll,
+worksheet and image transforms as applicable, and clamp positions to shorter content.
+A different source ID or format starts a new preview. The previous document still
+closes on refresh; obsolete reads and parsing results cannot overwrite retained
+content or publish selections or terminal errors for the replacement session.
+Closing and reopening a preview does not persist reading
+history. Hosts must clear any held selection when requesting a refresh.
 
 `onSelection` reports `{ sourceId, revision, anchor, excerpt }`, or `null` when a
 pick is cleared. Anchors use worksheet A1 ranges, body paragraph ordinals, PDF pages
@@ -80,9 +89,9 @@ outline navigation, emit diagnostics while the rest of the document remains usab
 `onRequestOpen` delegates external opening to the host only after the user activates
 an open button. Its reason is `unsupported` for unrecognized formats or `too_large`
 for size-limit fallbacks; rendering or refreshing an unsupported source never opens
-another application automatically. DOCX/PPTX above 25 MiB, XLSX above 20 MiB and
-images above 64 MiB show their limits. PDF has a 16 MiB assembled-range cap, without
-a whole-document size limit. These states offer an external-open button when the
+another application automatically. DOCX/PPTX above 25 MiB, XLSX above 20 MiB,
+RTF above 10 MiB and images above 64 MiB show their limits. PDF has a 16 MiB
+assembled-range cap, without a whole-document size limit. These states offer an external-open button when the
 host supplies the callback.
 `resources.baseUrl` optionally overrides the bundled worker/font/CMap directory;
 include a trailing slash. Relative URLs resolve against the host page.
@@ -214,6 +223,24 @@ Root overrides win over the packaged values, and PDF observes this same root for
 | `--file-preview-toolbar-button-size` | Toolbar button size, default `1.75rem` |
 | `--file-preview-bottom-inset` | Bottom space; content mode adds document scroll space or protects the fixed XLSX footer |
 
+## RTF documents
+
+RTF previews render formatted text, Unicode and legacy code pages, links, and embedded
+images using rtf.js. Documents use a white canvas in both themes to retain authored
+foreground and highlight colors. HTTP, HTTPS and mail links open only on user action;
+other links remain plain text. External image imports are not loaded.
+
+Rendering is a flowing document preview, not a page-faithful Word layout. RTF does not
+provide structural selection references. Parsing runs synchronously within the lazy
+format module, subject to the 10 MiB source limit. The bundled rtf.js patch rejects
+truncated documents, consumes binary image payloads, and restores the default font
+on character resets. Literal bytes, hexadecimal escapes and escaped symbols share
+one code-page decoder; Unicode controls remain decoded text. Raw double-byte trail
+bytes are consumed before interpreting RTF syntax. Incomplete or unmapped byte
+sequences fail the preview instead of inserting `undefined` into document content.
+Regression cases cover Windows-1252, GBK, Big5 and Shift-JIS, including mixed byte
+representations, font changes, group boundaries and Unicode fallback skipping.
+
 ## Building
 
 ```sh
@@ -227,6 +254,22 @@ The library build uses Vite to process native worker URLs and Tailwind CSS, plus
 is bundled, including UI components and the patched docx-preview and pptx-renderer, so they are dev
 dependencies; consumers install only `zod` and the React peers. CSS excludes Tailwind preflight
 and scopes selectors to `.file-preview-root`.
+
+## Browser regression tests
+
+From the workspace root, install Playwright's Chromium once, then run the package tests:
+
+```sh
+pnpm exec playwright install chromium
+pnpm exec playwright test --config packages/file-preview/playwright.config.ts
+```
+
+The test configuration builds the package and starts its own Vite server, then stops
+the server after the run. No running Electron instance or renderer development server
+is required. The PDF cases exercise the built public package and actual worker/layout
+for mixed/changed page geometry, reading offsets, refresh, zoom, Activity and shorter documents.
+The PowerPoint case uses the real renderer to retain a slide-relative reading offset
+when the same deck changes its slide proportions, including Activity restoration.
 
 ## Publishing
 

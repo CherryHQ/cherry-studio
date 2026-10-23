@@ -1,5 +1,5 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -84,6 +84,103 @@ function renderPreview(
 }
 
 describe('MarkdownFilePreview', () => {
+  it('ignores an obsolete read failure while replacement metadata is pending', async () => {
+    const obsoleteRead = Promise.withResolvers<string>()
+    const metadata = {
+      kind: 'file' as const,
+      type: 'text' as const,
+      size: 15,
+      modifiedAt: 1,
+      createdAt: 1,
+      mime: 'text/markdown'
+    }
+    const latestMetadata = Promise.withResolvers<typeof metadata>()
+    const currentMetadata = () => Promise.resolve(metadata)
+    const replacementMetadata = () => latestMetadata.promise
+    const props = { filePath, fileName: 'README.md', metadata }
+    const view = render(<MarkdownFilePreview {...props} refreshKey={0} metadataRequest={currentMetadata} />)
+    const heading = await screen.findByRole('heading', { name: 'File preview' })
+    mocks.readText.mockReturnValueOnce(obsoleteRead.promise).mockResolvedValueOnce('# Updated content')
+
+    view.rerender(<MarkdownFilePreview {...props} refreshKey={1} metadataRequest={currentMetadata} />)
+    await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(2))
+    view.rerender(<MarkdownFilePreview {...props} refreshKey={1} metadataRequest={replacementMetadata} />)
+    await act(async () => obsoleteRead.reject(new Error('Obsolete read failed')))
+    expect(screen.getByRole('heading', { name: 'File preview' })).toBe(heading)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mocks.readText).toHaveBeenCalledTimes(2)
+
+    const refreshedMetadata = { ...metadata, size: 32, modifiedAt: 3 }
+    await act(async () => latestMetadata.resolve(refreshedMetadata))
+    expect(await screen.findByRole('heading', { name: 'Updated content' })).toBeInTheDocument()
+    view.rerender(
+      <MarkdownFilePreview
+        {...props}
+        metadata={refreshedMetadata}
+        refreshKey={1}
+        metadataRequest={replacementMetadata}
+      />
+    )
+    expect(mocks.readText).toHaveBeenCalledTimes(3)
+  })
+
+  it('retries an unchanged failed image only after the refreshed document finishes loading', async () => {
+    mocks.readText.mockResolvedValue('![Retry image](images/missing.png)')
+    const view = renderPreview()
+    fireEvent.error(await screen.findByAltText('Retry image'))
+    expect(screen.getByRole('img', { name: 'Retry image' }).tagName).toBe('SPAN')
+    let finish!: (text: string) => void
+    const pending = new Promise<string>((resolve) => {
+      finish = resolve
+    })
+    mocks.readText.mockReturnValueOnce(pending)
+    view.rerender(
+      <MarkdownFilePreview
+        filePath={filePath}
+        fileName="README.md"
+        metadata={{ size: 15, modifiedAt: 2 }}
+        refreshKey={1}
+      />
+    )
+    expect(screen.getByRole('img', { name: 'Retry image' }).tagName).toBe('SPAN')
+    await act(async () => {
+      finish('![Retry image](images/missing.png)')
+      await pending
+    })
+    expect(await screen.findByAltText('Retry image')).toHaveAttribute('src', 'file:///tmp/workspace/images/missing.png')
+  })
+
+  it('keeps source mode and old content visible until refreshed text arrives', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderPreview()
+    await screen.findByRole('heading', { name: 'File preview' })
+    await user.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' }))
+    await screen.findByTestId('code-viewer')
+    let finish!: (text: string) => void
+    mocks.readText.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve
+        })
+    )
+    rerender(
+      <MarkdownFilePreview
+        filePath={filePath}
+        fileName="README.md"
+        metadata={{ size: 15, modifiedAt: 2 }}
+        refreshKey={1}
+      />
+    )
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('# File preview')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    finish('# Updated content')
+    await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('# Updated content'))
+    expect(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.readText.mockResolvedValue('# File preview')
@@ -238,7 +335,7 @@ describe('MarkdownFilePreview', () => {
         refreshKey={0}
       />
     )
-    expect(await screen.findByRole('heading')).toHaveTextContent('Second document')
+    expect(await screen.findByRole('heading', { name: 'Second document' })).toBeInTheDocument()
     mocks.readText.mockResolvedValueOnce('# Refreshed document')
     view.rerender(
       <MarkdownFilePreview
@@ -248,7 +345,7 @@ describe('MarkdownFilePreview', () => {
         refreshKey={1}
       />
     )
-    expect(await screen.findByRole('heading')).toHaveTextContent('Refreshed document')
+    expect(await screen.findByRole('heading', { name: 'Refreshed document' })).toBeInTheDocument()
   })
 
   it('ignores a stale read after the path changes', async () => {
