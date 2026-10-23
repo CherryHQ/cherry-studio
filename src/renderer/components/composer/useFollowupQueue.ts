@@ -324,9 +324,17 @@ export function useFollowupQueue({
   useEffect(() => {
     const held = queueState ? pausedOverrides[queueState.scopeKey] : undefined
     if (queueState && held !== undefined && queueState.paused === held) {
+      // Keep the override until its owning request generation is acknowledged
+      // (or fails): the matching echo must come from the server holding the
+      // override's own write, not from a stale read (cherry-pr-review
+      // inv_2defea073e0ba391).
+      const scope = queueState.scopeKey
+      if ((pausedAckedRef.current.get(scope) ?? 0) !== (pausedGenerationRef.current.get(scope) ?? 0)) {
+        return
+      }
       setPausedOverrides((prev) => {
         const next = { ...prev }
-        delete next[queueState.scopeKey]
+        delete next[scope]
         return next
       })
     }
@@ -439,6 +447,12 @@ export function useFollowupQueue({
   const pausedInflightRef = useRef(new Set<string>())
   const pausedQueuedRef = useRef(new Map<string, { paused: boolean; generation: number }>())
   const pausedGenerationRef = useRef(new Map<string, number>())
+  // Per-scope acknowledgement of pause writes: a cache echo matching the held
+  // override by Boolean equality is NOT acknowledgement - the echo can
+  // predate the override's own (queued or in-flight) write, and clearing the
+  // hold then lets a committed older write enable automatic delivery while
+  // the newest Pause is still pending (cherry-pr-review inv_2defea073e0ba391).
+  const pausedAckedRef = useRef(new Map<string, number>())
 
   // Track mount state for background timers. Resolve retries intentionally
   // survive unmount (a sent row must still be dequeued); claim retries stop.
@@ -926,6 +940,11 @@ export function useFollowupQueue({
       const send = async (current: { scopeKey: string; paused: boolean; generation: number }) => {
         try {
           await setPausedTrigger({ body: { scopeKey: current.scopeKey, paused: current.paused } })
+          // Generations settle in order per scope (writes are serialized), so
+          // a later success never lowers the acknowledged generation.
+          if (current.generation > (pausedAckedRef.current.get(current.scopeKey) ?? 0)) {
+            pausedAckedRef.current.set(current.scopeKey, current.generation)
+          }
         } catch {
           toast.error(t('message.error.operation_unavailable'))
           // Release the optimistic hold so a failed Pause cannot park the
