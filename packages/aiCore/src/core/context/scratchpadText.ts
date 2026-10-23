@@ -369,6 +369,28 @@ function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolea
   return /<\/(?:analysis|assessment|thinking)\s*>$/i.test(prefix)
 }
 
+/**
+ * Tag name of the innermost scratchpad block still open at `pos`, or null when
+ * `pos` is outside any scratchpad block. Escaped tags are literal and ignored.
+ */
+function enclosingScratchpadTag(text: string, pos: number): string | null {
+  const tagPattern = /<(\/?)(analysis|assessment|thinking)(?=[\s/>])[^>]*>/gi
+  const stack: string[] = []
+  let match: RegExpExecArray | null
+  while ((match = tagPattern.exec(text)) !== null) {
+    if (match.index >= pos) break
+    if (isBackslashEscaped(text, match.index)) continue
+    const tag = match[2].toLowerCase()
+    if (match[1]) {
+      const idx = stack.lastIndexOf(tag)
+      if (idx !== -1) stack.splice(idx, 1)
+    } else {
+      stack.push(tag)
+    }
+  }
+  return stack.length ? stack[stack.length - 1] : null
+}
+
 function maskCodeFences(text: string): { text: string; fences: string[] } {
   const fences: string[] = []
   let out = ''
@@ -400,7 +422,23 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
     const afterOpen = markerStart + openMatch[0].length
     const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen)
     if (closeEnd === -1) {
-      const fenceEnd = text.length
+      // An unfinished fence inside a scratchpad block ends at that block's
+      // closing tag: masking through EOF would hide the closer and keep internal
+      // analysis from being stripped (cherry-pr-review inv_85d2261387fd1a1f). A
+      // fence outside any scratchpad block still masks to EOF.
+      let fenceEnd = text.length
+      const enclosing = enclosingScratchpadTag(text, fenceStart)
+      if (enclosing) {
+        const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
+        closer.lastIndex = afterOpen
+        let match: RegExpExecArray | null
+        while ((match = closer.exec(text)) !== null) {
+          if (!isBackslashEscaped(text, match.index)) {
+            fenceEnd = match.index
+            break
+          }
+        }
+      }
       fences.push(text.slice(fenceStart, fenceEnd))
       out += `${CODE_FENCE_PLACEHOLDER_PREFIX}${fences.length - 1}${CODE_FENCE_PLACEHOLDER_SUFFIX}`
       pos = fenceEnd

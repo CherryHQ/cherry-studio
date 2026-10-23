@@ -313,3 +313,10 @@ Example:
     )
   })
 })
+
+describe('unfinished fences inside scratchpad blocks', () => {
+  it('strips analysis interrupted by an unfinished fence and unwraps the summary', () => {
+    const input = '<analysis>I considered:\n```\n</analysis><summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+  })
+})

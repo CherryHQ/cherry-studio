@@ -1063,9 +1063,16 @@ export class ClaudeCodeStreamAdapter {
     }
 
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(combined)
-    const { emit, buffer } = this.splitIncompleteTagSuffix(stripped.slice(prefix.length))
+    const scanned = stripped.slice(prefix.length)
+    const { emit, buffer } = this.splitIncompleteTagSuffix(scanned)
     ctx.scratchpadStreamRemainder = buffer
-    ctx.scratchpadStreamEscapeCarry = hasOddTrailingBackslashRun(stripped)
+    // Escape context belongs to the emit/buffer boundary, not the stripped tail: a
+    // backslash inside the buffered partial tag is invisible to the next chunk, so
+    // the carry must describe the character run right before the buffer
+    // (cherry-pr-review inv_93cf115807fbf4b8).
+    ctx.scratchpadStreamEscapeCarry = buffer
+      ? hasOddTrailingBackslashRun(stripped.slice(0, stripped.length - buffer.length))
+      : hasOddTrailingBackslashRun(scanned || stripped)
     return emit
   }
 
@@ -1104,7 +1111,16 @@ export class ClaudeCodeStreamAdapter {
     const markerCount = ClaudeCodeStreamAdapter.COMPACTION_SUMMARY_SECTIONS.filter((section) =>
       new RegExp(`(^|\\n)\\s*\\d+\\.\\s*${section}\\b`, 'i').test(trimmed)
     ).length
-    if (markerCount >= 2) return 'artifact'
+    if (markerCount >= 2) {
+      // The artifact is the summary exchange alone. Validate the complete
+      // boundary before suppressing: ordinary text after the closing tag is a
+      // real answer, not compaction prose (cherry-pr-review inv_673840dd69889b50).
+      const summaryClose = /<\/summary\s*>/i.exec(trimmed)
+      if (summaryClose && trimmed.slice(summaryClose.index + summaryClose[0].length).trim()) {
+        return 'not-artifact'
+      }
+      return atBlockEnd ? 'artifact' : 'pending'
+    }
     if (!trimmed.includes('</summary>') && !atBlockEnd) return 'pending'
     return 'not-artifact'
   }

@@ -3708,3 +3708,68 @@ describe('deferred text-start fidelity', () => {
     expect(visible).toBe('Use \\` and `<thinking>literal</thinking>` now.')
   })
 })
+
+describe('scratchpad escape carry across buffered partial tags', () => {
+  it('preserves a literal escaped scratchpad tag split across deltas after the tag prefix', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Use \\<th' } })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'inking>literal\\</thinking> now.' }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    const visible = parts
+      .filter((part) => part.type === 'text-delta')
+      .map((part) => (part as { delta: string }).delta)
+      .join('')
+    expect(visible).toBe('Use \\<thinking>literal\\</thinking> now.')
+  })
+})
+
+describe('compaction artifact boundary', () => {
+  it('preserves a real answer that follows the summary during the post-compaction grace window', () => {
+    const { adapter, parts } = createAdapter()
+    const textBlock =
+      '<summary>\n1. Task Overview:\n   Summarize the session.\n\n2. Current State:\n   - Wrapped up\n</summary>\nThe answer is 42.'
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_result: 'success'
+    } as any)
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: textBlock } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(textBlock)
+    expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(1)
+  })
+})
