@@ -146,7 +146,9 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
 
   it('does not decode media containers as document text', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
-    readMock.mockResolvedValueOnce({ content: Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(137)]) })
+    readMock.mockResolvedValueOnce({
+      content: Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(137)])
+    })
 
     expect(await extractDocumentText('e1')).toBeNull()
     expect(decodeTextMock).not.toHaveBeenCalled()
