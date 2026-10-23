@@ -19,27 +19,27 @@ Status: proposed
 
 所有改动都在 `packages/web-core` 内,不改桌面端源码。
 
-1. **内容安全策略。** web-core 在一处定义策略,开发服务器和 `vite preview` 把它和 COOP、COEP 一起作为响应头下发;README 给出静态托管时的写法。
-   - `default-src 'self'`;`object-src 'none'`;`base-uri 'self'`;`form-action 'self'`;`frame-ancestors 'none'`。
-   - `script-src 'self' 'wasm-unsafe-eval'`,加上 Pyodide 的 CDN(`https://cdn.jsdelivr.net/pyodide/`)。内联脚本只按哈希放行:构建时对 Pyodide 沙箱 iframe 的脚本取哈希,这是应用唯一需要的内联脚本。脚本不允许 `'unsafe-eval'`,也不允许 `'unsafe-inline'`。
+1. **内容安全策略。** web-core 在一处定义策略,开发服务器和 `vite preview` 把它和 COOP、COEP 一起作为响应头下发;应用构建时把这些响应头写进 `dist/app/_headers`(Cloudflare Pages 和 Netlify 读取的文件),README 说明其他托管方式怎么配置。
+   - `default-src 'self'`;`object-src 'none'`;`form-action 'self'`;`frame-ancestors 'none'`。不设 `base-uri`:桌面端的 HTML 预览会设置 `<base href="about:srcdoc">`,而 `script-src` 已经限制了脚本的来源。
+   - `script-src 'self' 'wasm-unsafe-eval'`,加上 Pyodide 的 CDN(`https://cdn.jsdelivr.net/pyodide/`)。内联脚本只按哈希放行:构建时对 Pyodide 沙箱 iframe 的脚本取哈希,这是应用唯一需要的内联脚本。脚本不允许 `'unsafe-eval'`,也不允许 `'unsafe-inline'`:zod 会试探 `eval` 来编译更快的校验函数,所以页面和 Worker 在任何校验运行之前先关掉它(`jitless`)。
    - `worker-src 'self' data:`(Pyodide worker 从 `data:` URL 启动,见 Agent Spec);预览用 `frame-src 'self' data: blob:`。
    - `style-src 'self' 'unsafe-inline'`:桌面端渲染层在运行时注入样式;样式不能执行脚本。
    - `img-src`、`media-src` 和 `font-src`:`'self' data: blob:`,图片和媒体再加上 `https:`,因为模型回复和服务商图标可能从任何地方加载。
-   - `connect-src 'self' data: blob: https:`:社区版在浏览器里直接向用户配置的服务商发送模型请求,所以必须能访问任何 HTTPS 地址。各版本通过同一个函数收窄它(企业版收窄到自己的后端和网关)。
-   每个 e2e 页面都记录 `securitypolicyviolation` 事件,出现任何违规测试就失败,所以被策略拦住的功能不会悄悄发布出去。
+   - `connect-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*`:社区版在浏览器里直接向用户配置的服务商发送模型请求,所以必须能访问任何 HTTPS 地址和本地模型服务。各版本通过同一个函数收窄它(企业版收窄到自己的后端和网关)。
+   e2e 测试中,策略带一个指向模拟服务器的 `report-uri`,Worker 和 iframe 里的违规也会上报;收到任何违规报告测试就失败,所以被策略拦住的功能不会悄悄发布出去。
 2. **启动检查。** 启动 Core Worker 之前,页面检查自己是否处于跨域隔离状态,以及模块 Worker、WebAssembly 和 OPFS 是否可用;Worker 再检查能否打开同步访问句柄。检查失败时,用启动界面支持的语言把转圈换成具体原因:
-   - 没有跨域隔离:站点没有带必需的响应头(部署问题,附 README 相应章节的链接);
+   - 没有跨域隔离:站点没有带必需的响应头,需要站点管理员修复;
    - 缺少功能:浏览器不受支持,并列出支持的浏览器;
    - OPFS 被拒绝(例如某些无痕窗口):浏览器不允许这个站点存储数据。
    支持的浏览器是 Chrome、Edge、Firefox 和 Safari 的当前和上一个大版本,也就是 e2e 测试运行的版本;检查按功能进行,所以具备这些功能的其他浏览器也能启动。
-3. **持久化存储。** 账号打开时,页面申请持久化存储(`navigator.storage.persist()`)。浏览器拒绝时,页面对每个账号只弹一次警告提示:存储空间紧张时浏览器可能删除数据,不要清除站点数据。Worker 把存储已满(`QuotaExceededError`、`SQLITE_FULL`)当作已知错误,页面弹出"浏览器为这个站点分配的存储空间已满"的提示,而不是笼统的失败。
+3. **持久化存储。** 账号打开时,页面申请持久化存储(`navigator.storage.persist()`)。浏览器拒绝时,页面对每个账号只弹一次警告提示:存储空间紧张时浏览器可能删除数据,不要清除站点数据。
 4. **隔离测试**(e2e,三个浏览器):
    - 模型回复里试图运行脚本的 HTML(`<script>`、`<img onerror>`、`javascript:` 链接)一个都不会执行。
    - HTML 代码块的预览不运行脚本,也读不到页面的存储:桌面端受限的预览沙箱已经保证这一点,测试负责把它固定下来。
    - QuickJS 脚本里没有 `fetch`、`indexedDB`、`navigator` 和 `postMessage`。
    - Python 的不透明源和 Agent 的审批已有测试覆盖。
 5. **压力测试**(e2e,Chromium,它能用 `performance.measureUserAgentSpecificMemory()` 测内存):
-   - **长对话:** 在一个话题里对模拟服务商进行 200 轮对话。每 50 轮记录一次从发送到收到第一个流式 token 的时间,以及页面和 Worker 的内存。
+   - **长对话:** 在一个话题里对模拟服务商进行 200 轮对话。每 50 轮记录一次从发送到回复显示出来的时间,以及页面和它的各个 Worker 的内存。
    - **长 Agent 会话:** 50 轮 Agent 对话,每轮写入并读取一个文件。记录同样的测量值。
    - 这份 Note 改为 implemented 时写入测量结果。
 6. **能力清单。** README 新增一张表,按用户能感知的功能(对话、附件、Agent 工具、Python、JavaScript、本地文件夹、MCP、知识库、小程序、备份等)列出 Web 版能做什么、哪些仍只在桌面端,以及每项需要的浏览器。Web 版不支持的功能已经会返回 `WebUnsupportedError`;这张表是用户和管理员查阅的地方。
@@ -56,11 +56,11 @@ Status: proposed
 
 ## Acceptance criteria
 
-- AC1 — 开发服务器和 `vite preview` 下发上述 CSP 以及 COOP、COEP。完整的 e2e 测试在 Chromium、WebKit 和 Firefox 中在该策略下通过,且没有记录到任何 `securitypolicyviolation` 事件;README 给出静态托管时的响应头。(verification: packaged artifact)
+- AC1 — 开发服务器和 `vite preview` 下发上述 CSP 以及 COOP、COEP,应用构建把它们写进 `dist/app/_headers`。完整的 e2e 测试在 Chromium、WebKit 和 Firefox 中在该策略下通过,没有任何违规报告。(verification: packaged artifact)
 - AC2 — 没有隔离响应头的页面、没有 OPFS 同步访问句柄的浏览器(模拟)和被拒绝的 OPFS(模拟),各自显示自己的启动界面提示,而不是转圈或笼统的错误。(verification: packaged artifact)
-- AC3 — 打开账号时会申请持久化存储;申请被拒绝时(模拟),每个账号只出现一次警告提示,重新加载后不再出现。存储已满导致的数据库写入失败会显示存储已满的提示。(verification: packaged artifact)
+- AC3 — 打开账号时会申请持久化存储;申请被拒绝时(模拟),每个账号只出现一次警告提示,重新加载后不再出现;申请被批准时不出现提示。(verification: packaged artifact)
 - AC4 — 在三个浏览器中,模型回复的 HTML 和 HTML 代码块预览里的脚本都不会运行,也读不到 OPFS;QuickJS 脚本看不到 `fetch`、`indexedDB`、`navigator` 和 `postMessage` 中的任何一个。(verification: packaged artifact)
-- AC5 — 长对话和长 Agent 会话测试在 Chromium 中运行,每 50 轮记录发送到首个 token 的时间以及页面和 Worker 的内存,记录写在这份 Note 里。第 200 轮(对话)和第 50 轮(Agent)之后的内存,最多是第 50 轮(对话)和第 10 轮(Agent)之后的 1.5 倍;最后一轮的首个 token 时间最多是第一轮的两倍。(verification: packaged artifact)
+- AC5 — 长对话和长 Agent 会话测试在 Chromium 中运行,对话每 50 轮、Agent 每 10 轮记录一次回复耗时以及页面和它的各个 Worker 的内存,记录写在这份 Note 里。第 200 轮(对话)和第 50 轮(Agent)之后的内存,最多是第 50 轮(对话)和第 10 轮(Agent)之后的 1.5 倍;最后十次回复的平均耗时最多是最初十次的两倍。(verification: packaged artifact)
 - AC6 — README 有能力清单,清单中标为仅桌面端的每条路由都返回 `WebUnsupportedError`。`src/main`、`src/preload`、`src/renderer` 和 `src/shared` 下没有文件改动。(verification: change-scope report 和 code review)
 
 ## Risks
@@ -69,4 +69,5 @@ Status: proposed
 - **社区版的 `connect-src https:`。** 万一真有注入的脚本运行,它仍能把数据发到任何地方。CSP 让脚本很难运行起来,但不限制数据发往哪里。
 - **是否持久化由浏览器决定。** Chrome 按站点使用情况决定是否授予,第一次访问的用户经常被拒绝;在备份完成之前,警告是唯一的缓解办法。
 - **压力测试的阈值基于模拟服务商。** 真实服务商流式输出更慢、回复更长;这些测试检测的是应用本身的泄漏和变慢,不是真实环境下的速度。
+- **存储已满时只有笼统的报错。** 浏览器给每个站点的配额占磁盘的很大一部分(Chrome 和 Safari 最多 60%,Firefox 10%),试用账号不太可能用满;真用满时,写入失败显示的是桌面端的通用错误。
 - **依赖 CDN。** Pyodide 仍从 jsDelivr 加载;屏蔽它的部署会失去 Python。把 Pyodide 随应用一起托管留给以后的改动。
