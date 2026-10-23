@@ -20,7 +20,12 @@ import type {
   MediaFfmpegContract,
   MediaFfmpegInitData
 } from '@main/features/fileProcessing/media/mediaFfmpegProcess'
-import { classifyFfprobeResult, sniffEbmlDocType } from '@main/features/fileProcessing/media/probeClassification'
+import {
+  classifyFfprobeResult,
+  lastDecodableVideoTimestampMs,
+  sniffEbmlDocType,
+  type FfprobeResult
+} from '@main/features/fileProcessing/media/probeClassification'
 
 type Logger = { warn: (message: string) => void }
 
@@ -203,7 +208,7 @@ async function probeJson(
       '-print_format',
       'json',
       '-show_entries',
-      'format=duration,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,duration:stream_disposition=attached_pic',
+      'format=duration,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,duration,nb_frames,avg_frame_rate,r_frame_rate,start_time:stream_disposition=attached_pic',
       '-i',
       filePath
     ],
@@ -218,6 +223,24 @@ async function probeJson(
 function probeDurationMs(probe: unknown): number {
   if (!probe || typeof probe !== 'object') return 0
   return classifyFfprobeResult(probe).durationMs
+}
+
+async function videoSeekBounds(
+  filePath: string,
+  signal: AbortSignal,
+  logger: Logger,
+  pidRegistryPath?: string
+): Promise<{ durationMs: number; lastFrameMs?: number }> {
+  try {
+    const probe = await probeJson(filePath, signal, logger, pidRegistryPath)
+    if (!probe || typeof probe !== 'object') return { durationMs: 0 }
+    const parsed = probe as FfprobeResult
+    return { durationMs: classifyFfprobeResult(parsed).durationMs, lastFrameMs: lastDecodableVideoTimestampMs(parsed) }
+  } catch (error) {
+    signal.throwIfAborted()
+    logger.warn(`video seek bounds unavailable: ${error instanceof Error ? error.message : String(error)}`)
+    return { durationMs: 0 }
+  }
 }
 
 export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = {
@@ -321,30 +344,27 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     mkdirSync(outputDir, { recursive: true })
     const frames: Array<{ path: string; timestampMs: number }> = []
     const quality = Math.min(31, Math.max(2, Math.round(31 - (jpegQuality / 100) * 29)))
-
-    let durationMs = 0
-    try {
-      durationMs = probeDurationMs(await probeJson(filePath, signal, logger, pidRegistryPath))
-    } catch (error) {
-      signal.throwIfAborted()
-      if (error instanceof Error && error.message.startsWith('Media processing timed out')) throw error
-      logger.warn(`video duration unavailable: ${error instanceof Error ? error.message : String(error)}`)
-    }
+    const bounds = await videoSeekBounds(filePath, signal, logger, pidRegistryPath)
 
     for (let index = 0; index < timestampsMs.length; index += 1) {
       signal.throwIfAborted()
       const timestampMs = timestampsMs[index]
+      // Input seek needs a frame PTS at or after this time. Inside the container, use the last real frame.
+      let seekMs = timestampMs
+      if (bounds.lastFrameMs != null && timestampMs > bounds.lastFrameMs && timestampMs <= bounds.durationMs) {
+        seekMs = bounds.lastFrameMs
+      }
       const outputPath = join(outputDir, `frame-${String(index).padStart(4, '0')}.jpg`)
       rmSync(outputPath, { force: true })
       try {
         const attempts =
-          durationMs > 0 && timestampMs > durationMs
-            ? [{ seekMs: timestampMs, inputSeek: true }]
+          bounds.durationMs > 0 && timestampMs > bounds.durationMs
+            ? [{ seekMs, inputSeek: true }]
             : [
-                { seekMs: timestampMs, inputSeek: true },
-                { seekMs: timestampMs, inputSeek: false },
+                { seekMs, inputSeek: true },
+                { seekMs, inputSeek: false },
                 ...[100, 250, 500, 1_000].map((offset) => ({
-                  seekMs: Math.max(0, timestampMs - offset),
+                  seekMs: Math.max(0, seekMs - offset),
                   inputSeek: false
                 }))
               ]
@@ -389,7 +409,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
         logger.warn(`frame extract failed timestampMs=${timestampMs}: ${message}`)
         continue
       }
-      if (existsSync(outputPath)) frames.push({ path: outputPath, timestampMs })
+      if (existsSync(outputPath)) frames.push({ path: outputPath, timestampMs: seekMs })
     }
     return { frames }
   }
