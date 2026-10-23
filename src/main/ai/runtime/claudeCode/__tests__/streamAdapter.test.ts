@@ -3604,3 +3604,107 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
   })
 })
+
+describe('deferred text-start fidelity', () => {
+  it('retains parent metadata when a parented text block starts during compaction', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      ...streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
+      parent_tool_use_id: 'task-1'
+    })
+    adapter.handleMessage({
+      ...streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'Subagent finding: all clear' }
+      }),
+      parent_tool_use_id: 'task-1'
+    })
+    adapter.handleMessage({
+      ...streamEvent({ type: 'content_block_stop', index: 0 }),
+      parent_tool_use_id: 'task-1'
+    })
+
+    const start = parts.find((part) => part.type === 'text-start')
+    expect(start).toMatchObject({
+      type: 'text-start',
+      providerMetadata: { 'claude-code': { parentToolCallId: 'task-1' } }
+    })
+    expect(parts).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'Subagent finding: all clear' }))
+  })
+
+  it('retains parent metadata when a deferred probe flushes at block end', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'compact_boundary',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+    } as any)
+    adapter.handleMessage({
+      ...streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
+      parent_tool_use_id: 'task-1'
+    })
+    adapter.handleMessage({
+      ...streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: '<summary-incomplete' }
+      }),
+      parent_tool_use_id: 'task-1'
+    })
+    adapter.handleMessage({
+      ...streamEvent({ type: 'content_block_stop', index: 0 }),
+      parent_tool_use_id: 'task-1'
+    })
+
+    const start = parts.find((part) => part.type === 'text-start')
+    expect(start).toMatchObject({
+      type: 'text-start',
+      providerMetadata: { 'claude-code': { parentToolCallId: 'task-1' } }
+    })
+    expect(parts).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: '<summary-incomplete' }))
+  })
+
+  it('keeps lexical escape state across chunk boundaries when masking inline code', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Use \\' } })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: '` and `<thinking>literal</thinking>` now.' }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    const visible = parts
+      .filter((part) => part.type === 'text-delta')
+      .map((part) => (part as { delta: string }).delta)
+      .join('')
+    expect(visible).toBe('Use \\` and `<thinking>literal</thinking>` now.')
+  })
+})

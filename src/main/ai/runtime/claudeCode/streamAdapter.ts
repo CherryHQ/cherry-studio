@@ -159,6 +159,8 @@ type StreamContext = {
   filterParentlessScratchpadText: boolean
   scratchpadTextProbe: string
   scratchpadStreamRemainder: string
+  /** Odd trailing backslash run at the processed tail: the next delta's first character is escaped. */
+  scratchpadStreamEscapeCarry: boolean
   /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
   toolProtocolStripAccumulator: string
   toolProtocolStripEmittedLength: number
@@ -167,6 +169,8 @@ type StreamContext = {
   suppressCompactionArtifactPart: boolean
   textStartDeferred: boolean
   textPartStarted: boolean
+  /** Parent of the active text part, retained so deferred text-start emission keeps it. */
+  textPartParentId: SdkParentToolUseId
 }
 
 /**
@@ -190,6 +194,15 @@ export type ClaudeCodeStreamStatusEvent = Extract<
       | 'autonomous-turn-state'
   }
 >
+
+/** True when the text ends with an odd-length backslash run: the next chunk's first character is escaped. */
+function hasOddTrailingBackslashRun(text: string): boolean {
+  let run = 0
+  for (let i = text.length - 1; i >= 0 && text[i] === '\\'; i--) {
+    run++
+  }
+  return run % 2 === 1
+}
 
 type StatusSink = {
   emit(event: ClaudeCodeStreamStatusEvent): void
@@ -591,12 +604,14 @@ export class ClaudeCodeStreamAdapter {
       filterParentlessScratchpadText,
       scratchpadTextProbe: '',
       scratchpadStreamRemainder: '',
+      scratchpadStreamEscapeCarry: false,
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
       suppressActiveTextPart: false,
       suppressCompactionArtifactPart: false,
       textStartDeferred: false,
-      textPartStarted: false
+      textPartStarted: false,
+      textPartParentId: null
     }
   }
 
@@ -955,6 +970,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadTextProbe = ''
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false
+    ctx.textPartParentId = sdkParentToolUseId ?? null
     this.resetToolProtocolStripState(ctx)
     ctx.textStartDeferred = ctx.filterParentlessScratchpadText || this.compactionArtifactWatchActive()
     ctx.textPartStarted = false
@@ -1033,17 +1049,23 @@ export class ClaudeCodeStreamAdapter {
       return text
     }
 
-    const combined = ctx.scratchpadStreamRemainder + text
+    // Reattach the escape context of the previous chunk: its trailing backslash was already
+    // emitted, so the scanner cannot see it. The synthetic prefix is removed again below.
+    const prefix = ctx.scratchpadStreamEscapeCarry ? '\\' : ''
+    const combined = prefix + ctx.scratchpadStreamRemainder + text
     ctx.scratchpadStreamRemainder = ''
+    ctx.scratchpadStreamEscapeCarry = false
 
     if (shouldDeferScratchpadStripping(combined)) {
-      ctx.scratchpadStreamRemainder = combined
+      ctx.scratchpadStreamRemainder = combined.slice(prefix.length)
+      ctx.scratchpadStreamEscapeCarry = prefix !== ''
       return ''
     }
 
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(combined)
-    const { emit, buffer } = this.splitIncompleteTagSuffix(stripped)
+    const { emit, buffer } = this.splitIncompleteTagSuffix(stripped.slice(prefix.length))
     ctx.scratchpadStreamRemainder = buffer
+    ctx.scratchpadStreamEscapeCarry = hasOddTrailingBackslashRun(stripped)
     return emit
   }
 
@@ -1158,7 +1180,11 @@ export class ClaudeCodeStreamAdapter {
       }
       if (!ctx.filterParentlessScratchpadText) {
         // Flow-context text under the watch is healthy: emit verbatim.
-        ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+        ctx.sink.enqueue({
+          type: 'text-start',
+          id: ctx.textPartId,
+          providerMetadata: this.textStartProviderMetadata(ctx)
+        })
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: pending })
         ctx.textPartStarted = true
         ctx.textStreamedViaContentBlock = true
@@ -1183,7 +1209,11 @@ export class ClaudeCodeStreamAdapter {
     }
 
     const visible = this.trimAfterScratchpadStrip(pending, classified.visible)
-    ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+    ctx.sink.enqueue({
+      type: 'text-start',
+      id: ctx.textPartId,
+      providerMetadata: this.textStartProviderMetadata(ctx)
+    })
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: visible })
     ctx.textPartStarted = true
     ctx.textStreamedViaContentBlock = true
@@ -1200,7 +1230,11 @@ export class ClaudeCodeStreamAdapter {
       ctx.textPartId = generateId()
     }
     if (!ctx.textPartStarted) {
-      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        providerMetadata: this.textStartProviderMetadata(ctx)
+      })
       ctx.textPartStarted = true
     }
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
@@ -1230,7 +1264,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.sink.enqueue({
           type: 'text-start',
           id: ctx.textPartId,
-          ...(providerMetadata ? { providerMetadata } : {})
+          providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
         })
         ctx.textPartStarted = true
       }
@@ -1261,7 +1295,7 @@ export class ClaudeCodeStreamAdapter {
           ctx.sink.enqueue({
             type: 'text-start',
             id: ctx.textPartId,
-            ...(providerMetadata ? { providerMetadata } : {})
+            providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
           })
           ctx.textPartStarted = true
           this.endCompactionArtifactGrace()
@@ -1284,7 +1318,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.sink.enqueue({
           type: 'text-start',
           id: ctx.textPartId,
-          ...(providerMetadata ? { providerMetadata } : {})
+          providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
         })
         ctx.textPartStarted = true
         this.endCompactionArtifactGrace()
@@ -1305,7 +1339,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({
         type: 'text-start',
         id: ctx.textPartId,
-        ...(providerMetadata ? { providerMetadata } : {})
+        providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
       })
       ctx.textPartStarted = true
     }
@@ -1372,11 +1406,13 @@ export class ClaudeCodeStreamAdapter {
         ctx.textPartId = undefined
         ctx.scratchpadTextProbe = ''
         ctx.scratchpadStreamRemainder = ''
+        ctx.scratchpadStreamEscapeCarry = false
         this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
         ctx.suppressCompactionArtifactPart = false
         ctx.textStartDeferred = false
         ctx.textPartStarted = false
+        ctx.textPartParentId = null
       }
       return
     }
@@ -1534,6 +1570,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleAssistantText(visibleText: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    ctx.textPartParentId = sdkParentToolUseId ?? null
     if (!visibleText) {
       return
     }
@@ -2261,6 +2298,13 @@ export class ClaudeCodeStreamAdapter {
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
+  private textStartProviderMetadata(
+    ctx: StreamContext,
+    explicit?: Record<string, JSONObject>
+  ): Record<string, JSONObject> | undefined {
+    return explicit ?? this.buildParentProviderMetadata(ctx.textPartParentId)
+  }
+
   private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
     return {
@@ -2380,9 +2424,11 @@ export class ClaudeCodeStreamAdapter {
 
   private flushScratchpadStreamRemainder(ctx: StreamContext): void {
     if (!ctx.scratchpadStreamRemainder) return
-    const pending = ctx.scratchpadStreamRemainder
+    const prefix = ctx.scratchpadStreamEscapeCarry ? '\\' : ''
+    const pending = prefix + ctx.scratchpadStreamRemainder
     ctx.scratchpadStreamRemainder = ''
-    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending)
+    ctx.scratchpadStreamEscapeCarry = false
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending).slice(prefix.length)
     if (stripped) {
       this.appendVisibleTextDelta(stripped, ctx)
     }
@@ -2399,11 +2445,13 @@ export class ClaudeCodeStreamAdapter {
     ctx.textPartId = undefined
     ctx.scratchpadTextProbe = ''
     ctx.scratchpadStreamRemainder = ''
+    ctx.scratchpadStreamEscapeCarry = false
     this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false
     ctx.textStartDeferred = false
     ctx.textPartStarted = false
+    ctx.textPartParentId = null
     for (const [idx, blockTextId] of ctx.textBlocksByIndex) {
       if (blockTextId === closedTextId) {
         ctx.textBlocksByIndex.delete(idx)
