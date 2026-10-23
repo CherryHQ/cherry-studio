@@ -3188,4 +3188,87 @@ describe('persistBlobAttachments', () => {
     const payload = { text: 'x', userMessageParts: [], attachments: [{ id: 'a', path: '/tmp/a' }] }
     await expect(persistBlobAttachments(payload as any)).resolves.toBe(payload)
   })
+
+  it('releases a claim won while Pause took effect without dispatching the send', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, failTrigger } = wireMutations()
+    let resolveClaim!: (value: unknown) => void
+    claimHeadTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveClaim = resolve
+      })
+    )
+    const onDrain = vi.fn(async () => true)
+    const { result, rerender } = renderHook(
+      ({ status, lastCompletedAt }: { status: 'streaming' | 'done'; lastCompletedAt: number | null }) =>
+        useFollowupQueue(baseProps({ status, lastCompletedAt, onDrain })),
+      { initialProps: { status: 'streaming' as const, lastCompletedAt: null as number | null } }
+    )
+
+    // Fire the completion edge: the drain claims the head; keep the claim in flight.
+    await act(async () => {
+      rerender({ status: 'done', lastCompletedAt: 100 })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+
+    // Pause takes effect before the claim resolves (cherry-pr-review
+    // inv_d8f850bf38694710): the late grant must not dispatch.
+    await act(async () => {
+      void result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+    await act(async () => {
+      resolveClaim({ claimed: true, id: 'h', alreadySent: false })
+      await Promise.resolve()
+    })
+
+    expect(onDrain).not.toHaveBeenCalled()
+    // The owned claim is released without consuming the completion edge.
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
+  })
+
+  it('removes the landed outgoing copy when a switch abandons on a scope change', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, deleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+    // A's take delete resolves; B's stays pending until the scope has moved.
+    let resolveDelete!: () => void
+    takeDeleteTrigger.mockResolvedValueOnce(undefined).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDelete = () => resolve(undefined)
+      })
+    )
+
+    const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+      initialProps: { scopeKey: SCOPE }
+    })
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    await act(async () => {
+      void result.current.takeForEdit('b', captureOutgoing)
+    })
+    // A's recovery copy lands (born held) while B's delete is still pending.
+    await act(async () => {})
+    expect(postTrigger).toHaveBeenCalledTimes(1)
+    const restoreBodies = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+    const restoreId = restoreBodies[0][0].body.id
+    expect(restoreBodies[0][0].body.held).toBe(true)
+
+    // Navigate away mid-flight: the composer unmounts and caches the visible
+    // outgoing draft, so the landed copy must be removed rather than linger
+    // and age out into a duplicate delivery (cherry-pr-review
+    // inv_ab5b303505a45104).
+    await act(async () => {
+      rerender({ scopeKey: 's2' })
+    })
+    await act(async () => {
+      resolveDelete()
+    })
+    await act(async () => {})
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
+  })
 })
