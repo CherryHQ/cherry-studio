@@ -752,24 +752,26 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
     spanCursor = Math.max(spanCursor, limit)
   }
   while ((tagMatch = tagPattern.exec(text)) !== null) {
-    if (isBackslashEscaped(text, tagMatch.index)) continue
-    collectSpansUntil(tagMatch.index)
-    const tagEnd = tagMatch.index + tagMatch[0].length
-    const span = codeSpans.find((s) => tagMatch.index > s.start && tagEnd <= s.end)
+    // Pin the match: closure capture of the loop variable defeats narrowing.
+    const match = tagMatch
+    if (isBackslashEscaped(text, match.index)) continue
+    collectSpansUntil(match.index)
+    const tagEnd = match.index + match[0].length
+    const span = codeSpans.find((s) => match.index > s.start && tagEnd <= s.end)
     if (span) {
-      if (tagMatch[1] !== '/') continue
+      if (match[1] !== '/') continue
       const later = new RegExp(`</${tagName}\\s*>`, 'gi')
       later.lastIndex = span.end
       if (later.test(text)) continue
       // Last closer inside a code span: it stays the boundary.
     }
-    if (tagMatch[1] === '/') {
+    if (match[1] === '/') {
       depth--
       if (depth === 0) {
         end = tagEnd
         break
       }
-    } else if (!tagMatch[0].endsWith('/>')) {
+    } else if (!match[0].endsWith('/>')) {
       depth++
     }
   }
