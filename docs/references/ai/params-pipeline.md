@@ -145,21 +145,22 @@ params merge into `providerOptions[aiSdkProviderId]` (after a
 options).
 
 Standard sampling params are assembled directly in `buildAgentOptions`;
-they are not contributed by a `RequestFeature`. Assistant `temperature`
-and `topP` values are capability-filtered, then custom standard params
-override them, and per-call overrides apply last. After service tier, per-call
+they are not contributed by a `RequestFeature`. Custom standard parameters and per-call overrides take precedence over
+assistant defaults. Missing `temperature` and `topP` values use assistant
+defaults filtered against the effective reasoning settings. After service tier, per-call
 and Fast Mode options, and the output limit have been resolved,
-`stripRejectedSamplingParams` applies the resolved model's temperature/topP
-support and existing family policies to all three parameter surfaces:
+`stripUnsupportedModelParams` applies catalog sampling support and explicit-cache
+restrictions to all three parameter surfaces:
 
 - Top-level standard parameters.
 - Direct fields in each `providerOptions` namespace.
-- Top-level body-passthrough parameters, including the wire alias `top_p`.
+- Top-level body-passthrough parameters, including wire aliases such as `top_p`, `top_k`, and `cached_content`.
 
 The filter does not mutate its inputs or traverse arbitrary nested custom data.
 Assistant enable flags, reasoning-aware limits, and mutual-exclusion rules stay
 in `getTemperature` / `getTopP`; this final step enforces sampling omission
-regardless of which input supplied the value. Undeclared support retains the
+regardless of which input supplied the value. DashScope Qwen temperatures at or
+above 2 are normalized to 1.9 after unsupported parameters are removed. Undeclared support retains the
 existing default behavior.
 
 `maxOutputTokens` uses a separate raw-limit resolution before reasoning:

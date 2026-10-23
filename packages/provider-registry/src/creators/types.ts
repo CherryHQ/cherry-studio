@@ -5,7 +5,9 @@
  * LIST (from its own API and/or hand-written entries), and metadata is enriched from
  * models.dev/OpenRouter. You never edit `models.json` by hand — add/override in a creator here instead.
  */
-import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
+import type * as z from 'zod'
+
+import type { ModelConfig, ParameterSupportSchema, ReasoningFamilyRule } from '../schemas/model'
 
 /**
  * A model a creator declares by hand. It is a Partial `ModelConfig` — `ownedBy` comes from the creator and
@@ -13,8 +15,9 @@ import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
  * re-declared. Use it to ADD models the API/sources miss (new releases, AIGC, `imageGeneration`
  * widget specs models.dev never has) or to override any field.
  */
-export type CreatorModel = Partial<Omit<ModelConfig, 'ownedBy' | 'metadata'>> & {
+export type CreatorModel = Partial<Omit<ModelConfig, 'ownedBy' | 'metadata' | 'parameterSupport'>> & {
   id: string
+  parameterSupport?: z.input<typeof ParameterSupportSchema>
 }
 
 export interface Creator {

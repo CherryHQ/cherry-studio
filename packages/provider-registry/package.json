@@ -124,7 +124,7 @@
     "compat:check": "tsx scripts/checkCatalogCompatibility.ts",
     "compat:policy": "tsx scripts/compatibilityPolicy.ts",
     "dev": "pnpm --workspace-root exec tsc -w -p packages/provider-registry/tsconfig.json",
-    "generate": "tsx scripts/generate-catalog.ts --write && pnpm --workspace-root exec oxfmt --write packages/provider-registry/data/models.json packages/provider-registry/data/provider-models.json packages/provider-registry/data/providers.json packages/provider-registry/src/patterns/reasoning-families.gen.ts packages/provider-registry/src/patterns/server-tool-models.gen.ts packages/provider-registry/src/patterns/server-tool-constraints.gen.ts",
+    "generate": "tsx scripts/generate-catalog.ts --write && pnpm --workspace-root exec oxfmt --write packages/provider-registry/data/models.json packages/provider-registry/data/provider-models.json packages/provider-registry/data/providers.json packages/provider-registry/src/patterns/reasoning-families.gen.ts packages/provider-registry/src/patterns/server-tool-models.gen.ts packages/provider-registry/src/patterns/server-tool-constraints.gen.ts packages/provider-registry/src/patterns/request-policies.gen.ts",
     "generate:check": "tsx scripts/generate-catalog.ts --report",
     "prepack": "pnpm build",
     "test": "vitest run",

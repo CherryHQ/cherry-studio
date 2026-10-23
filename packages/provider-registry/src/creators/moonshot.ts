@@ -24,5 +24,141 @@ export default defineCreator({
     { pattern: 'kimi-k2[.-][5-9]\\d*', budget: { min: 0, max: 30720 }, template: true },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: '^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$' }
+  ],
+  models: [
+    {
+      id: 'kimi-k2',
+      name: 'Kimi K2 Thinking',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 216144,
+      messageCompatibility: { dynamicToolDeclarations: false }
+    },
+    {
+      id: 'kimi-k2-5',
+      name: 'Kimi K2.5',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 262144,
+      messageCompatibility: { dynamicToolDeclarations: false }
+    },
+    {
+      id: 'kimi-k2-6',
+      name: 'Kimi K2.6',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 262144,
+      messageCompatibility: { dynamicToolDeclarations: false }
+    },
+    {
+      id: 'kimi-k2-7-code',
+      name: 'Kimi K2.7 Code',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 262144,
+      messageCompatibility: { dynamicToolDeclarations: false }
+    },
+    {
+      id: 'kimi-k2-7-code-highspeed',
+      name: 'Kimi K2.7 Code HighSpeed',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 262144,
+      messageCompatibility: { dynamicToolDeclarations: false }
+    },
+    {
+      id: 'kimi-k2-instruct',
+      name: 'Kimi K2 0905',
+      capabilities: ['function-call'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 262144,
+      messageCompatibility: { dynamicToolDeclarations: false }
+    },
+    {
+      id: 'kimi-k2-thinking-maas',
+      name: 'Kimi K2 Thinking',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 262144,
+      messageCompatibility: { dynamicToolDeclarations: false }
+    },
+    {
+      id: 'kimi-latest',
+      name: 'MoonshotAI: Kimi Latest',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'video-recognition', 'structured-output'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      messageCompatibility: { dynamicToolDeclarations: false }
+    },
+    {
+      id: 'kimi-k3',
+      name: 'Kimi K3',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 1048576,
+      messageCompatibility: { dynamicToolDeclarations: true }
+    },
+    {
+      id: 'kimi-k3-fast',
+      name: 'Kimi K3 Fast',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 131072,
+      messageCompatibility: { dynamicToolDeclarations: true }
+    }
   ]
 })

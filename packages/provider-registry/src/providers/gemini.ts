@@ -11,6 +11,13 @@ const webToolModels = [
 const webSearchImageModels = ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
 
 export default defineProvider({
+  overrides: [
+    {
+      modelId: 'gemini-3-1-flash-lite-preview',
+      disabled: true,
+      reason: 'Retired on the official API; third-party hosting is independent.'
+    }
+  ],
   id: 'gemini',
   name: 'Gemini',
   availableInEditions: ['global'],

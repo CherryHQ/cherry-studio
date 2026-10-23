@@ -365,6 +365,75 @@ export default defineCreator({
       family: 'qwen',
       capabilities: ['rerank'],
       contextWindow: 32768
+    },
+    {
+      id: 'qwen-mt-plus',
+      name: 'Qwen-MT Plus',
+      capabilities: [],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 16384,
+      maxOutputTokens: 8192,
+      messageCompatibility: { translation: true }
+    },
+    {
+      id: 'qwen-mt-turbo',
+      name: 'Qwen-MT Turbo',
+      capabilities: [],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 16384,
+      maxOutputTokens: 8192,
+      messageCompatibility: { translation: true }
+    },
+    {
+      id: 'qwen3-14b',
+      name: 'Qwen3 14B',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 131072,
+      maxOutputTokens: 8192,
+      messageCompatibility: { thinkingPrompt: true }
+    },
+    {
+      id: 'qwen3-235b-a22b',
+      name: 'Qwen3 235B-A22B',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 131072,
+      messageCompatibility: { thinkingPrompt: true }
+    },
+    {
+      id: 'qwen3-30b-a3b',
+      name: 'Qwen: Qwen3 30B A3B Thinking 2507',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 131072,
+      messageCompatibility: { thinkingPrompt: true }
+    },
+    {
+      id: 'qwen3-32b',
+      name: 'Qwen3 32B',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 131072,
+      maxOutputTokens: 16384,
+      messageCompatibility: { thinkingPrompt: true }
+    },
+    {
+      id: 'qwen3-8b',
+      name: 'Qwen3 8B',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 131072,
+      maxOutputTokens: 8192,
+      messageCompatibility: { thinkingPrompt: true }
     }
   ]
 })

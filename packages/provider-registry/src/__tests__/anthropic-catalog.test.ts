@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
+import { canonOf } from '../../scripts/canonicalize'
 import { inferReasoningControls } from '../patterns/reasoning-heuristics'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { RegistryLoader } from '../registry-loader'
@@ -12,6 +13,21 @@ const loader = new RegistryLoader({
   models: join(dataDir, 'models.json'),
   providers: join(dataDir, 'providers.json'),
   providerModels: join(dataDir, 'provider-models.json')
+})
+
+it('shares Opus 4.6 metadata with Bedrock without changing its deployment ID', () => {
+  const apiModelId = 'global.anthropic.claude-opus-4-6-v1'
+  expect(canonOf(apiModelId)).toBe('claude-opus-4-6')
+  expect(
+    loader
+      .loadModels()
+      .filter((model) => model.id.startsWith('claude-opus-4-6'))
+      .map((model) => model.id)
+  ).toEqual(['claude-opus-4-6'])
+  expect(loader.findModel(apiModelId)?.id).toBe('claude-opus-4-6')
+  expect(loader.getOverridesForProvider('aws-bedrock')).toContainEqual(
+    expect.objectContaining({ modelId: 'claude-opus-4-6', apiModelId })
+  )
 })
 
 describe('Claude Haiku 5.5 catalog', () => {

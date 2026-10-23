@@ -36,13 +36,27 @@ export const moonshotOverrides = [
   { modelId: 'kimi-k2.5', parameterSupport: fixedSamplingParameterSupport },
   // Moonshot's provider wire only carries `thinking.type`, so these SKUs need their own contract
   // for a chosen tier to reach the request at all.
-  ...['kimi-k2.6', 'kimi-k3', 'kimi-k3-fast'].map((modelId) => ({
+  ...['kimi-k2.6', 'kimi-k3-fast'].map((modelId) => ({
     modelId,
     parameterSupport: fixedSamplingParameterSupport,
     reasoningContracts: {
       'openai-chat-completions': { wire: effortWire }
     }
   })),
+  // K3 direct always reasons; hosted variants declare their own controls.
+  {
+    modelId: 'kimi-k3',
+    parameterSupport: fixedSamplingParameterSupport,
+    reasoningContracts: {
+      'openai-chat-completions': {
+        support: { controls: [{ kind: 'effort', values: ['low', 'high', 'max'], default: 'max' }] },
+        wire: modeWire('reasoningEffort', { effort: EFFORT })
+      },
+      'anthropic-messages': {
+        support: { controls: [{ kind: 'effort', values: ['low', 'high', 'max'], default: 'max' }] }
+      }
+    }
+  },
   ...['kimi-k2.7-code', 'kimi-k2.7-code-highspeed'].map((modelId) => ({
     modelId,
     parameterSupport: fixedSamplingParameterSupport

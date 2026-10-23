@@ -36,6 +36,7 @@ import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
 import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
+import { buildRequestPoliciesGen } from './requestPolicies'
 import { scopeModelRefresh } from './scopeModelRefresh'
 import {
   type CherryMeta,
@@ -740,6 +741,10 @@ void (async () => {
     throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)
   }
 
+  fs.writeFileSync(
+    path.join(__dirname, '../src/patterns/request-policies.gen.ts'),
+    buildRequestPoliciesGen(list, pm.overrides)
+  )
   fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
   console.log(`\nWROTE ${MODELS_PATH} (${list.length} models).`)
 

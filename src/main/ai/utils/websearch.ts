@@ -1,8 +1,9 @@
 import type { WebSearchToolConfigMap } from '@cherrystudio/ai-core/provider'
+import { usesChatSearchOptions, usesDeepResearchSearchTool } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
-import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
+import { getRawModelId } from '@shared/utils/model'
 import { isBuiltinWebFetchAvailable, matchesPreset } from '@shared/utils/provider'
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
@@ -64,7 +65,7 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
     }
   }
 
-  if (isOpenAIWebSearchChatCompletionOnlyModel(model)) {
+  if (usesChatSearchOptions(getRawModelId(model))) {
     return {
       web_search_options: {}
     }
@@ -139,7 +140,7 @@ export function buildProviderBuiltinWebSearchConfig(
         return servesResponsesWebSearch(model) ? { openai: {} } : undefined
       }
       const searchContextSize =
-        model && isOpenAIDeepResearchModel(model)
+        model && usesDeepResearchSearchTool(getRawModelId(model), model.providerId)
           ? 'medium'
           : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)
       return {
@@ -150,7 +151,7 @@ export function buildProviderBuiltinWebSearchConfig(
     }
     case 'openai-chat': {
       const searchContextSize =
-        model && isOpenAIDeepResearchModel(model)
+        model && usesDeepResearchSearchTool(getRawModelId(model), model.providerId)
           ? 'medium'
           : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)
       return {
