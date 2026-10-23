@@ -1394,8 +1394,7 @@ describe('useFollowupQueue', () => {
         void result.current.takeForEdit('b', captureOutgoing)
       })
       await act(async () => {})
-      const restoreBodies = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
-      const restoreId = restoreBodies[0][0].body.id
+      expect(postTrigger).toHaveBeenCalledTimes(1)
 
       await act(async () => {
         rerender({ scopeKey: 's2' })
@@ -1415,14 +1414,12 @@ describe('useFollowupQueue', () => {
         await vi.advanceTimersByTimeAsync(5000)
       })
       expect(deleteTrigger.mock.calls.length).toBeGreaterThan(3)
-      const retried = deleteTrigger.mock.calls.length
       deleteTrigger.mockClear().mockResolvedValue(undefined)
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5000)
       })
       // The retried removal succeeded: the chain stops.
       expect(deleteTrigger.mock.calls.length).toBeLessThanOrEqual(1)
-      void retried
     } finally {
       vi.useRealTimers()
     }
