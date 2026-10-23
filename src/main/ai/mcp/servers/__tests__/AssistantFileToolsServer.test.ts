@@ -51,6 +51,7 @@ vi.mock('@main/ai/tools/moveToTrash', async (importOriginal) => ({
 }))
 
 const { createAssistantFileToolsServer } = await import('../AssistantFileToolsServer')
+const { READ_FILE_DESCRIPTION } = await import('@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool')
 
 function message(fileEntryId: string, filename: string) {
   return {
@@ -117,9 +118,9 @@ function messageWithComposerAttachments() {
 type Result = { isError?: boolean; content: Array<{ type: string; text: string }> }
 const clients: Client[] = []
 
-async function createServer(): Promise<Client> {
+async function createServer(access: 'full' | 'read-only' = 'full'): Promise<Client> {
   const client = await connectMcpTestClient(() =>
-    createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+    createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace', access })
   )
   clients.push(client)
   return client
@@ -143,11 +144,63 @@ describe('assistant-files MCP server', () => {
   })
 
   it('advertises only the assistant file capabilities', async () => {
-    const server = await createServer()
+    const server = await createServer('full')
 
     const result = await server.listTools()
 
     expect(result.tools.map((tool) => tool.name).sort()).toEqual(['move_to_trash', 'read_file', 'save_attachment'])
+  })
+
+  it('refuses to default a missing access mode to the full mutating surface', () => {
+    // Bug: an omitted mode used to register save_attachment and move_to_trash.
+    expect(() =>
+      createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' } as never)
+    ).toThrow(/access/)
+  })
+
+  it('lists and describes only read_file on the ordinary read-only surface', async () => {
+    // Bug: ordinary Claude agents had no attachment read tool, and the shared AI SDK description
+    // does not tell Claude to pass the opaque handle or that audio/video returns timestamped analysis.
+    const server = await createServer('read-only')
+    const result = await server.listTools()
+    const [tool] = result.tools
+
+    expect(result.tools.map((entry) => entry.name)).toEqual(['read_file'])
+    expect(tool?.description).toContain('timestamped')
+    expect(tool?.description).toContain('opaque attachment handle')
+    expect(READ_FILE_DESCRIPTION).not.toContain('opaque attachment handle')
+  })
+
+  it.each(['mcp__assistant-files__read_file', 'mcp__assistant-files', 'mcp__assistant-files__*', 'mcp__*'])(
+    'does not discover read_file when it is disabled by %s',
+    async (rule) => {
+      // Bug: a disabled read_file must not remain on tools/list. Bare tool names are not MCP rules.
+      const server = await connectMcpTestClient(() =>
+        createAssistantFileToolsServer({
+          sessionId: 'session-1',
+          workspacePath: '/workspace',
+          access: 'read-only',
+          disabledTools: [rule]
+        })
+      )
+      clients.push(server)
+
+      expect((await server.listTools()).tools.map((tool) => tool.name)).toEqual([])
+    }
+  )
+
+  it('still lists read_file when the disabled entry is only the bare tool name', async () => {
+    const server = await connectMcpTestClient(() =>
+      createAssistantFileToolsServer({
+        sessionId: 'session-1',
+        workspacePath: '/workspace',
+        access: 'read-only',
+        disabledTools: ['read_file']
+      })
+    )
+    clients.push(server)
+
+    expect((await server.listTools()).tools.map((tool) => tool.name)).toEqual(['read_file'])
   })
 
   it('rebuilds the attachment allow-list for every read call', async () => {
