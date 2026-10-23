@@ -778,12 +778,16 @@ export function useFollowupQueue({
         let restored = false
         let conversationGone = false
         const restoreId = crypto.randomUUID()
-        // The taken row's payload is already durable; rebuilding the body
-        // re-derives fileEntryIds so the replacement row keeps attachment
-        // ownership once the original row's references close (cherry-pr-review).
+        // Build the recovery from the HYDRATED payload, not the taken row's: a
+        // managed attachment's original entry becomes cleanup-eligible in the
+        // window between the committed DELETE and this restore, and a body that
+        // keeps only the old entry id loses the draft's bytes with it
+        // (cherry-pr-review inv_47152cb370dd7fef). The hydrated Blob re-persists
+        // as a fresh managed entry, so the replacement row - and each
+        // background-retry rebuild - owns live bytes.
         let restoreBody: RestoreQueueBody | null = null
         try {
-          restoreBody = await buildRestoreBody(restoreId, scope, item.draft, item.payload)
+          restoreBody = await buildRestoreBody(restoreId, scope, item.draft, restoredItem.payload)
         } catch {
           // Persistence IPC failed: the background retry rebuilds the body each tick.
         }
@@ -803,7 +807,7 @@ export function useFollowupQueue({
         if (!restored && !conversationGone) {
           toast.error(t('message.error.operation_unavailable'))
           scheduleReenqueueRetryRef.current(
-            restoreBody ?? { id: restoreId, scopeKey: scope, draft: item.draft, payload: item.payload }
+            restoreBody ?? { id: restoreId, scopeKey: scope, draft: item.draft, payload: restoredItem.payload }
           )
         }
       }

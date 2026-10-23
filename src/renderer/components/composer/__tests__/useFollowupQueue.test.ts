@@ -911,6 +911,158 @@ describe('useFollowupQueue', () => {
     })
   })
 
+  it('restores a scope-moved take from the hydrated attachment bytes, not the stale entry id', async () => {
+    // The taken row's managed attachment becomes cleanup-eligible in the
+    // window between the committed DELETE and the restore; a recovery that
+    // keeps only the row's old entry id loses the draft's bytes with it
+    // (cherry-pr-review inv_47152cb370dd7fef).
+    const persisted = row('h', 'head')
+    ;(persisted as any).payload = {
+      text: 'head',
+      userMessageParts: [],
+      attachments: [
+        {
+          id: 'shot',
+          name: 'screenshot.png',
+          origin_name: 'screenshot.png',
+          ext: '.png',
+          path: '/data/files/entry-1.png',
+          entryId: 'entry-1'
+        }
+      ]
+    }
+    wireQuery([persisted])
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
+    let resolveDelete!: () => void
+    takeDeleteTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDelete = () => resolve(undefined)
+      })
+    )
+    const bytes = new Uint8Array([1, 2, 3])
+    ipcMocks.request.mockResolvedValueOnce({ content: bytes, mime: 'image/png' })
+    // jsdom's Blob lacks arrayBuffer(); the renderer's Chromium Blob has it.
+    Object.defineProperty(Blob.prototype, 'arrayBuffer', {
+      configurable: true,
+      value: async () => new Uint8Array([1, 2, 3]).buffer
+    })
+    const createInternalEntry = vi.fn(async () => ({ id: 'entry-fresh' }))
+    const getPhysicalPath = vi.fn(async () => '/data/files/entry-fresh.png')
+    const previousApi = (window as any).api
+    ;(window as any).api = { ...previousApi, file: { ...previousApi?.file, createInternalEntry, getPhysicalPath } }
+
+    try {
+      const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+
+      let taken: unknown = 'unset'
+      await act(async () => {
+        void result.current
+          .takeForEdit('h', () => null)
+          .then((value) => {
+            taken = value
+          })
+      })
+      await act(async () => {
+        rerender({ scopeKey: 's2' })
+      })
+      await act(async () => {
+        resolveDelete()
+      })
+
+      expect(taken).toBeUndefined()
+      expect(postTrigger).toHaveBeenCalledTimes(1)
+      const body = (postTrigger.mock.calls as unknown as Array<[{ body: any }]>)[0][0].body
+      expect(body.scopeKey).toBe(SCOPE)
+      const restored = body.payload.attachments[0]
+      // Recovery owns live bytes: a fresh managed entry persisted from the
+      // hydrated Blob, never the taken row's reclaimable entry id.
+      expect(restored.entryId).toBe('entry-fresh')
+      expect(restored.path).toBe('/data/files/entry-fresh.png')
+      expect(restored.blob).toBeUndefined()
+      expect(body.fileEntryIds).toEqual(['entry-fresh'])
+      expect(createInternalEntry).toHaveBeenCalledTimes(1)
+    } finally {
+      ;(window as any).api = previousApi
+      delete (Blob.prototype as any).arrayBuffer
+    }
+  })
+
+  it('rebuilds an orphaned scope-moved restore from the hydrated bytes on each background retry', async () => {
+    vi.useFakeTimers()
+    const persisted = row('h', 'head')
+    ;(persisted as any).payload = {
+      text: 'head',
+      userMessageParts: [],
+      attachments: [
+        {
+          id: 'shot',
+          name: 'screenshot.png',
+          origin_name: 'screenshot.png',
+          ext: '.png',
+          path: '/data/files/entry-1.png',
+          entryId: 'entry-1'
+        }
+      ]
+    }
+    wireQuery([persisted])
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
+    let resolveDelete!: () => void
+    takeDeleteTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDelete = () => resolve(undefined)
+      })
+    )
+    const bytes = new Uint8Array([1, 2, 3])
+    ipcMocks.request.mockResolvedValueOnce({ content: bytes, mime: 'image/png' })
+    // jsdom's Blob lacks arrayBuffer(); the renderer's Chromium Blob has it.
+    Object.defineProperty(Blob.prototype, 'arrayBuffer', {
+      configurable: true,
+      value: async () => new Uint8Array([1, 2, 3]).buffer
+    })
+    // Inline persistence fails; the background retry's rebuild must still
+    // persist from the hydrated Blob rather than the taken row's stale entry id.
+    const createInternalEntry = vi.fn(async () => ({ id: 'entry-fresh' })).mockRejectedValueOnce(new Error('disk busy'))
+    const getPhysicalPath = vi.fn(async () => '/data/files/entry-fresh.png')
+    const previousApi = (window as any).api
+    ;(window as any).api = { ...previousApi, file: { ...previousApi?.file, createInternalEntry, getPhysicalPath } }
+
+    try {
+      const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+
+      await act(async () => {
+        void result.current.takeForEdit('h', () => null)
+      })
+      await act(async () => {
+        rerender({ scopeKey: 's2' })
+      })
+      await act(async () => {
+        resolveDelete()
+      })
+      await act(async () => {})
+      expect(postTrigger).not.toHaveBeenCalled()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(1)
+      const body = (postTrigger.mock.calls as unknown as Array<[{ body: any }]>)[0][0].body
+      const restored = body.payload.attachments[0]
+      expect(restored.entryId).toBe('entry-fresh')
+      expect(restored.blob).toBeUndefined()
+      expect(body.fileEntryIds).toEqual(['entry-fresh'])
+    } finally {
+      ;(window as any).api = previousApi
+      delete (Blob.prototype as any).arrayBuffer
+      vi.useRealTimers()
+    }
+  })
+
   it('does not restore a take for an item that was already sent', async () => {
     wireQuery([row('h', 'head')])
     const { claimTrigger, takeDeleteTrigger } = wireMutations()
