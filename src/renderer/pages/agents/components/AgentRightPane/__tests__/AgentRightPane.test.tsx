@@ -18,11 +18,13 @@ import {
   HoverCardContent as RealHoverCardContent,
   HoverCardTrigger as RealHoverCardTrigger
 } from '@cherrystudio/ui/components'
+import { ConfirmDialog as RealConfirmDialog } from '@cherrystudio/ui/components/composites/confirm-dialog'
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
+import type * as UseFileEditSessionModule from '@renderer/hooks/useFileEditSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -60,7 +62,8 @@ const {
     isDirty: false,
     isSaving: false,
     saveError: undefined as Error | undefined,
-    metadataRecoveryPending: false
+    metadataRecoveryPending: false,
+    useReal: false
   },
   fileTreeModelState: {
     hasLoaded: false,
@@ -83,7 +86,7 @@ const {
   ipcRequestMock: vi.fn(),
   toastErrorMock: vi.fn(),
   webviewBrowserMock: vi.fn(),
-  uiMockState: { useRealHoverCard: false },
+  uiMockState: { useRealHoverCard: false, useRealConfirmDialog: false },
   useAgentMessageListProviderValueMock: vi.fn()
 }))
 
@@ -109,34 +112,18 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   CircularProgress: ({ value }: { value: number }) => (
     <span data-testid="circular-progress" data-value={String(value)} />
   ),
-  ConfirmDialog: ({
-    cancelText,
-    confirmLoading,
-    confirmText,
-    description,
-    onConfirm,
-    onOpenChange,
-    open,
-    title
-  }: {
-    cancelText: string
-    confirmLoading?: boolean
-    confirmText: string
-    description: string
-    onConfirm: () => void
-    onOpenChange: (open: boolean) => void
-    open: boolean
-    title: string
-  }) =>
-    open ? (
+  ConfirmDialog: (props: ComponentProps<typeof RealConfirmDialog>) =>
+    uiMockState.useRealConfirmDialog ? (
+      <RealConfirmDialog {...props} />
+    ) : props.open ? (
       <div role="dialog">
-        <div>{title}</div>
-        <div>{description}</div>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          {cancelText}
+        <div>{props.title}</div>
+        <div>{props.description}</div>
+        <button type="button" onClick={() => props.onOpenChange?.(false)}>
+          {props.cancelText}
         </button>
-        <button type="button" disabled={confirmLoading} onClick={onConfirm}>
-          {confirmText}
+        <button type="button" disabled={props.confirmLoading} onClick={() => void props.onConfirm?.()}>
+          {props.confirmText}
         </button>
       </div>
     ) : null,
@@ -257,10 +244,12 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onSelectedFileChange,
     paneActions,
     paneTitle,
+    fileSession,
     previewFileSelection,
     selectedFile
   }: {
     editMode?: 'preview' | 'edit'
+    fileSession?: { draft: string; setDraft: (next: string) => void }
     onEditModeChange?: (mode: 'preview' | 'edit') => void
     headerVariant?: 'overlay' | 'pane'
     onPreviewClose?: () => void
@@ -297,6 +286,13 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
         <button type="button" onClick={() => onEditModeChange?.('preview')}>
           preview
         </button>
+        {fileSessionState.useReal && fileSession ? (
+          <textarea
+            aria-label="draft"
+            value={fileSession.draft}
+            onChange={(event) => fileSession.setDraft(event.target.value)}
+          />
+        ) : null}
         {previewFileSelection && (
           <div data-testid="artifact-file-preview-overlay">
             {previewFileSelection.filePath}
@@ -324,7 +320,8 @@ vi.mock('@renderer/components/OpenTarget', () => ({
   loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
-vi.mock('@renderer/hooks/useFileEditSession', () => {
+vi.mock('@renderer/hooks/useFileEditSession', async (importOriginal) => {
+  const actual = await importOriginal<typeof UseFileEditSessionModule>()
   const fileSessionMock = {
     status: 'idle',
     savedContent: '',
@@ -349,7 +346,11 @@ vi.mock('@renderer/hooks/useFileEditSession', () => {
     notifyExternalChange: vi.fn()
   }
 
-  return { useFileEditSession: () => fileSessionMock }
+  return {
+    ...actual,
+    useFileEditSession: (handle: Parameters<typeof actual.useFileEditSession>[0]) =>
+      fileSessionState.useReal ? actual.useFileEditSession(handle) : fileSessionMock
+  }
 })
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
@@ -686,6 +687,8 @@ describe('AgentRightPane', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
     window.api.file.openPath = openPathMock
     uiMockState.useRealHoverCard = false
+    uiMockState.useRealConfirmDialog = false
+    fileSessionState.useReal = false
     ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
       return {
@@ -3917,5 +3920,97 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md')
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+  })
+
+  it('preserves the real edit draft until deferred deletion commits that approved text', async () => {
+    fileSessionState.useReal = true
+    uiMockState.useRealConfirmDialog = true
+    const saved = 'saved line\n'
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'file.read') {
+        const content = new TextEncoder().encode(saved)
+        return { content, mime: 'text/plain', version: { mtime: 5, size: content.byteLength } }
+      }
+      if (route === 'file.write_if_unchanged') return { mtime: 6, size: saved.length }
+      return { kind: 'file', type: 'text', size: 1, createdAt: 1, modifiedAt: 1, mime: 'text/plain' }
+    })
+    const onFileNavigationRequestChange = vi.fn()
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-draft"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}
+        onFileNavigationRequestChange={onFileNavigationRequestChange}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const view = render(pane())
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    const draft = () => screen.getByRole('textbox', { name: 'draft' })
+    await waitFor(() => expect(draft()).toHaveValue(saved))
+
+    const dirty = 'saved line\nDIRTY'
+    fireEvent.change(draft(), { target: { value: dirty } })
+    await waitFor(() => expect(draft()).toHaveValue(dirty))
+    const latestRequest = () =>
+      onFileNavigationRequestChange.mock.calls
+        .map(([request]) => request)
+        .filter(Boolean)
+        .at(-1) as (
+        transition: (grant?: { commitDiscard: () => void }) => void,
+        options?: { deferDraftDisposal?: boolean }
+      ) => void
+
+    const continued = vi.fn()
+    act(() => latestRequest()(() => continued()))
+    expect(continued).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(draft()).toHaveValue(dirty)
+    expect(continued).not.toHaveBeenCalled()
+
+    let deferred: { commitDiscard: () => void } | undefined
+    act(() =>
+      latestRequest()(
+        (grant) => {
+          deferred = grant
+        },
+        { deferDraftDisposal: true }
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    expect(deferred).toBeDefined()
+    expect(draft()).toHaveValue(dirty)
+
+    const newer = 'saved line\nNEWER'
+    fireEvent.change(draft(), { target: { value: newer } })
+    act(() => deferred?.commitDiscard())
+    expect(draft()).toHaveValue(newer)
+
+    view.rerender(pane())
+    let approved: { commitDiscard: () => void } | undefined
+    act(() =>
+      latestRequest()(
+        (grant) => {
+          approved = grant
+        },
+        { deferDraftDisposal: true }
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    act(() => approved?.commitDiscard())
+    await waitFor(() => expect(draft()).toHaveValue(saved))
+
+    const again = 'saved line\nAGAIN'
+    fireEvent.change(draft(), { target: { value: again } })
+    await waitFor(() => expect(draft()).toHaveValue(again))
+    view.rerender(pane())
+    const navigated = vi.fn()
+    act(() => latestRequest()(() => navigated()))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    expect(navigated).toHaveBeenCalledOnce()
+    await waitFor(() => expect(draft()).toHaveValue(saved))
   })
 })

@@ -5,6 +5,7 @@ import { Activity, type ComponentProps, type ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
@@ -18,9 +19,12 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+const permanentDeletePopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+const deleteAgentPermanentlyMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => ({
-  deleteConversationOwnerPopup: conversationOwnerPopupMocks
+  deleteConversationOwnerPopup: conversationOwnerPopupMocks,
+  permanentDeletePopup: permanentDeletePopupMocks
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -248,6 +252,7 @@ vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
 const sessionDataMocks = vi.hoisted(() => ({
   createSession: vi.fn().mockResolvedValue({ id: 'created-session' }),
   deleteSession: vi.fn().mockResolvedValue(true),
+  deleteSessionWithOutcome: vi.fn().mockResolvedValue({ status: 'succeeded' as const }),
   deleteSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   reload: vi.fn().mockResolvedValue(undefined),
   reorderSession: vi.fn().mockResolvedValue(true),
@@ -285,7 +290,12 @@ const cacheMocks = vi.hoisted(() => ({
 }))
 
 const fileNavigationMocks = vi.hoisted(() => ({
-  request: null as null | ((transition: () => void) => void)
+  request: null as
+    | null
+    | ((
+        transition: (grant?: { commitDiscard: () => void }) => void | Promise<void>,
+        options?: { deferDraftDisposal?: boolean }
+      ) => void)
 }))
 
 vi.mock('../AgentRightPane', () => ({
@@ -683,6 +693,7 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel',
         'common.delete': 'Delete',
         'common.archive': 'Archive',
+        'common.delete_permanently': 'Delete Permanently',
         'common.delete_success': 'Deleted successfully',
         'common.error': 'Error',
         'common.loading': 'Loading...',
@@ -895,6 +906,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     isLoading: false,
     error: undefined,
     deleteSession: sessionDataMocks.deleteSession,
+    deleteSessionWithOutcome: sessionDataMocks.deleteSessionWithOutcome,
     deleteSessions: sessionDataMocks.deleteSessions,
     restoreSession: sessionDataMocks.restoreSession,
     hasMore: false,
@@ -942,6 +954,8 @@ describe('Sessions', () => {
     dataApiMocks.workspacesRefreshing = false
     dataApiMocks.dataChangeSubscriptions.length = 0
     dataApiMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
+    deleteAgentPermanentlyMock.mockReset()
+    deleteAgentPermanentlyMock.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
     dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.deleteWorkspace.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.refetchAgents.mockResolvedValue(undefined)
@@ -980,6 +994,10 @@ describe('Sessions', () => {
       refetch: dataApiMocks.refetchAgents
     })
     vi.clearAllMocks()
+    permanentDeletePopupMocks.show.mockReset()
+    permanentDeletePopupMocks.show.mockResolvedValue(false)
+    sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'succeeded' })
+    ;(cacheService as unknown as { _resetMockState: () => void })._resetMockState()
     dataApiMocks.invalidate.mockResolvedValue(undefined)
     dataApiMocks.ipcRequest.mockImplementation((route: string, input: Record<string, unknown>) => {
       if (route === 'ai.agent.delete') {
@@ -987,6 +1005,9 @@ describe('Sessions', () => {
           params: { agentId: input.agentId },
           query: { deleteSessions: input.deleteSessions }
         })
+      }
+      if (route === 'ai.agent.delete_permanently') {
+        return deleteAgentPermanentlyMock(input)
       }
       if (route === 'ai.agent.sessions.delete') {
         return dataApiMocks.deleteAgentSessions({ params: { agentId: input.agentId } })
@@ -3109,6 +3130,585 @@ describe('Sessions', () => {
     expect(onCreateSession).not.toHaveBeenCalled()
   })
 
+  async function flushDeferredMenuAction() {
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+    })
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+    })
+  }
+
+  async function openPermanentDelete(name: string) {
+    const label = screen.getByText(name)
+    const row = label.closest('[role="option"]') as HTMLElement
+    fireEvent.contextMenu(label)
+    const menu = row.closest('[data-testid="context-menu"]') ?? row
+    const item = within(menu)
+      .getAllByRole('menuitem', { name: /Delete Permanently|common\.delete_permanently/ })
+      .find((candidate) => candidate.getAttribute('data-slot') !== 'dropdown-menu-item')
+    if (!item) throw new Error(`missing permanent delete item for ${name}`)
+    const showCalls = permanentDeletePopupMocks.show.mock.calls.length
+    fireEvent.click(item)
+    await flushDeferredMenuAction()
+    if (typeof fileNavigationMocks.request !== 'function') {
+      await vi.waitFor(() => expect(permanentDeletePopupMocks.show.mock.calls.length).toBeGreaterThan(showCalls))
+    }
+  }
+
+  it('shows permanent delete and does not delete until the confirmation action runs', async () => {
+    const setActiveSessionId = vi.fn()
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'conversation', name: 'Beta session' })
+    )
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { storedName: '', visibleName: 'New task', isNameManuallyEdited: false },
+    { storedName: '   ', visibleName: 'New task', isNameManuallyEdited: false },
+    { storedName: '   ', visibleName: '   ', isNameManuallyEdited: true },
+    { storedName: 'Named session', visibleName: 'Named session', isNameManuallyEdited: true }
+  ])(
+    'permanent delete names the visible session label ($storedName, manual=$isNameManuallyEdited) and cancel keeps it',
+    async ({ storedName, visibleName, isNameManuallyEdited }) => {
+      setupSessions({
+        sessions: [createSession({ id: 'session-blank', name: storedName, isNameManuallyEdited })]
+      })
+      render(<SessionsForTest activeSessionId="session-blank" />)
+
+      const row = screen.getByRole('option')
+      const exactText = { exact: true, normalizer: (text: string) => text }
+      expect(within(row).getByText(visibleName, exactText)).toBeInTheDocument()
+
+      fireEvent.contextMenu(within(row).getByText(visibleName, exactText))
+      const menu = row.closest('[data-testid="context-menu"]') ?? row
+      const item = within(menu)
+        .getAllByRole('menuitem', { name: /Delete Permanently|common\.delete_permanently/ })
+        .find((candidate) => candidate.getAttribute('data-slot') !== 'dropdown-menu-item')
+      if (!item) throw new Error('missing permanent delete item')
+      fireEvent.click(item)
+      await flushDeferredMenuAction()
+      await vi.waitFor(() => expect(permanentDeletePopupMocks.show).toHaveBeenCalled())
+
+      expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'conversation', name: visibleName })
+      )
+      expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+      expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+      expect(within(row).getByText(visibleName, exactText)).toBeInTheDocument()
+    }
+  )
+
+  it('permanently deletes only after confirmation and selects the adjacent session', async () => {
+    const setActiveSessionId = vi.fn()
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await params.action()
+      return true
+    })
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+
+    await vi.waitFor(() =>
+      expect(sessionDataMocks.deleteSessionWithOutcome).toHaveBeenCalledWith('session-b', {
+        permanent: true,
+        showFeedback: false,
+        onDeleted: expect.any(Function)
+      })
+    )
+    expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
+    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('keeps the confirmation open when permanent delete fails and succeeds on retry', async () => {
+    const setActiveSessionId = vi.fn()
+    sessionDataMocks.deleteSessionWithOutcome
+      .mockResolvedValueOnce({ status: 'failed', error: 'disk locked' })
+      .mockResolvedValueOnce({ status: 'succeeded' })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await expect(params.action()).rejects.toThrow('disk locked')
+      await params.action()
+      return true
+    })
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSessionWithOutcome).toHaveBeenCalledTimes(2))
+    expect(sessionDataMocks.reload).toHaveBeenCalled()
+    expect(setActiveSessionId).toHaveBeenCalledTimes(1)
+    expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
+  })
+
+  it('refreshes and rejects when the session is already gone so the popup stays a failure', async () => {
+    const setActiveSessionId = vi.fn()
+    sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'stale' })
+    sessionDataMocks.reload.mockRejectedValueOnce(new Error('refresh failed'))
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await expect(params.action()).rejects.toThrow('recycle_bin.delete.stale')
+      return false
+    })
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+
+    await vi.waitFor(() => expect(sessionDataMocks.reload).toHaveBeenCalled())
+    expect(toast.info).not.toHaveBeenCalledWith('recycle_bin.delete.stale')
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('does not delete a session that disappeared while confirmation was open', async () => {
+    const setActiveSessionId = vi.fn()
+    let confirm: (() => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      confirm = params.action
+      return false
+    })
+    const { rerender } = render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
+    })
+    rerender(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await expect(confirm?.()).rejects.toThrow('recycle_bin.delete.stale')
+
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalledWith('recycle_bin.delete.stale')
+    expect(sessionDataMocks.reload).toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+  })
+
+  it('refuses permanent delete when the session becomes pinned or busy before confirmation', async () => {
+    const setActiveSessionId = vi.fn()
+    let confirm: (() => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      confirm = params.action
+      return false
+    })
+    const { rerender } = render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+    await openPermanentDelete('Beta session')
+
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })
+      ],
+      pinIdBySessionId: new Map([['session-b', 'pin-b']])
+    })
+    rerender(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+    await expect(confirm?.()).rejects.toThrow('recycle_bin.delete.pinned')
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+
+    setupSessions()
+    rerender(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+    cacheService.setShared('topic.stream.statuses.agent-session:session-b', {
+      status: 'streaming',
+      activeExecutions: [],
+      awaitingApprovalAnchors: []
+    })
+    await expect(confirm?.()).rejects.toThrow('recycle_bin.delete.busy')
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+  })
+
+  it('leaves the current selection when the user switches sessions during a permanent delete', async () => {
+    const setActiveSessionId = vi.fn()
+    let resolveDelete: (outcome: { status: 'succeeded' }) => void = () => undefined
+    sessionDataMocks.deleteSessionWithOutcome.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDelete = resolve
+      })
+    )
+    permanentDeletePopupMocks.show.mockImplementation((params: { action: () => Promise<void> }) => params.action())
+    const { rerender } = render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+    rerender(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+    resolveDelete({ status: 'succeeded' })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSessionWithOutcome).toHaveBeenCalled())
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+  })
+
+  it('restores a neighbour when invalidation clears the active session during permanent delete', async () => {
+    const setActiveSessionId = vi.fn()
+    let resolveDelete: (outcome: { status: 'succeeded' }) => void = () => undefined
+    sessionDataMocks.deleteSessionWithOutcome.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDelete = resolve
+      })
+    )
+    permanentDeletePopupMocks.show.mockImplementation((params: { action: () => Promise<void> }) => params.action())
+    const { rerender } = render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+    rerender(<SessionsForTest activeSessionId={null} setActiveSessionId={setActiveSessionId} />)
+    resolveDelete({ status: 'succeeded' })
+
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
+    )
+  })
+
+  it('clears selection after permanently deleting the last session', async () => {
+    const setActiveSessionId = vi.fn()
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await params.action()
+      return true
+    })
+    render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Alpha session')
+
+    await vi.waitFor(() => expect(setActiveSessionId).toHaveBeenCalledWith(null, null))
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('does not open permanent delete or lock it when the unsaved-file guard is cancelled', async () => {
+    const transitions: Array<() => void> = []
+    fileNavigationMocks.request = (transition) => {
+      transitions.push(transition)
+    }
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          orderKey: 'a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' })
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          orderKey: 'b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' })
+        })
+      ]
+    })
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={vi.fn()} />)
+
+    await openPermanentDelete('Beta session')
+    await openPermanentDelete('Beta session')
+
+    expect(transitions).toHaveLength(2)
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+
+    transitions[1]()
+    transitions[1]()
+
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledTimes(1)
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    transitions[0]()
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks the file guard before confirming deletion of the last active session', async () => {
+    const transitions: Array<() => void> = []
+    fileNavigationMocks.request = (transition) => {
+      transitions.push(transition)
+    }
+    const setActiveSessionId = vi.fn()
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          orderKey: 'a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' })
+        })
+      ]
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await params.action()
+      return true
+    })
+    render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Alpha session')
+
+    expect(transitions).toHaveLength(1)
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+
+    transitions[0]()
+
+    await vi.waitFor(() => expect(setActiveSessionId).toHaveBeenCalledWith(null, null))
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not leave an unhandled rejection when a deferred file guard opens a failing confirm', async () => {
+    const transitions: Array<() => void> = []
+    fileNavigationMocks.request = (transition) => {
+      transitions.push(transition)
+    }
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          orderKey: 'a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' })
+        })
+      ]
+    })
+    permanentDeletePopupMocks.show.mockRejectedValue(new Error('disk locked'))
+    render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={vi.fn()} />)
+
+    await openPermanentDelete('Alpha session')
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+
+    await act(async () => {
+      transitions[0]()
+      await Promise.resolve()
+    })
+
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledTimes(1)
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+  })
+
+  function crossWorkspaceSessions() {
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          orderKey: 'a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' })
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          orderKey: 'b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' })
+        })
+      ]
+    })
+  }
+
+  it('discards the deferred draft only after permanent delete succeeds and before selecting the neighbor', async () => {
+    const order: string[] = []
+    const commitDiscard = vi.fn(() => order.push('discard'))
+    fileNavigationMocks.request = (transition, options) => {
+      expect(options).toEqual({ deferDraftDisposal: true })
+      void transition({ commitDiscard })
+    }
+    sessionDataMocks.deleteSessionWithOutcome.mockImplementation(async (_id, options) => {
+      options?.onDeleted?.()
+      order.push('deleted')
+      return { status: 'succeeded' }
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await params.action()
+      return true
+    })
+    const setActiveSessionId = vi.fn(() => order.push('select'))
+    crossWorkspaceSessions()
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+
+    await vi.waitFor(() => expect(order).toEqual(['discard', 'deleted', 'select']))
+    expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
+  })
+
+  it('holds the pending delete until the neighbor is selected', async () => {
+    // Pending starts before the delete reply and clears only after the neighbor is selected.
+    const events: string[] = []
+    const onLocalPermanentDeletePendingChange = (id: string | null) => {
+      events.push(id === null ? 'clear' : `pending:${id}`)
+    }
+    sessionDataMocks.deleteSessionWithOutcome.mockImplementation(async (_id, options) => {
+      expect(events).toEqual(['pending:session-b'])
+      events.push('delete')
+      options?.onDeleted?.()
+      return { status: 'succeeded' }
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await params.action()
+      return true
+    })
+    const setActiveSessionId = vi.fn(() => events.push('select'))
+    setupSessions()
+    render(
+      <SessionsForTest
+        activeSessionId="session-b"
+        setActiveSessionId={setActiveSessionId}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+      />
+    )
+
+    await openPermanentDelete('Beta session')
+    await vi.waitFor(() => expect(events).toEqual(['pending:session-b', 'delete', 'select', 'clear']))
+    expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
+  })
+
+  it('keeps a genuine user selection and its draft when permanent delete settles later', async () => {
+    const events: string[] = []
+    const commitDiscard = vi.fn()
+    const onLocalPermanentDeletePendingChange = (id: string | null) => {
+      events.push(id === null ? 'clear' : `pending:${id}`)
+    }
+    let finishDelete: () => void = () => undefined
+    sessionDataMocks.deleteSessionWithOutcome.mockImplementation(
+      (_id, options?: { onDeleted?: () => void }) =>
+        new Promise((resolve) => {
+          finishDelete = () => {
+            options?.onDeleted?.()
+            resolve({ status: 'succeeded' })
+          }
+        })
+    )
+    fileNavigationMocks.request = (transition, options) => {
+      expect(options).toEqual({ deferDraftDisposal: true })
+      void transition({ commitDiscard })
+    }
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await params.action()
+      return true
+    })
+    const setActiveSessionId = vi.fn()
+    crossWorkspaceSessions()
+    const view = render(
+      <SessionsForTest
+        activeSessionId="session-b"
+        setActiveSessionId={setActiveSessionId}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+      />
+    )
+
+    await openPermanentDelete('Beta session')
+    await vi.waitFor(() => expect(events).toEqual(['pending:session-b']))
+    view.rerender(
+      <SessionsForTest
+        activeSessionId="session-a"
+        setActiveSessionId={setActiveSessionId}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+      />
+    )
+    finishDelete()
+    await vi.waitFor(() => expect(events).toEqual(['pending:session-b', 'clear']))
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+  })
+
+  it('clears the pending delete and keeps the draft when permanent delete fails or is stale', async () => {
+    const pending: Array<string | null> = []
+    const commitDiscard = vi.fn()
+    const onLocalPermanentDeletePendingChange = (id: string | null) => {
+      pending.push(id)
+    }
+    fileNavigationMocks.request = (transition, options) => {
+      expect(options).toEqual({ deferDraftDisposal: true })
+      void transition({ commitDiscard })
+    }
+    sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'failed', error: 'disk locked' })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await expect(params.action()).rejects.toThrow('disk locked')
+      return false
+    })
+    const setActiveSessionId = vi.fn()
+    crossWorkspaceSessions()
+    render(
+      <SessionsForTest
+        activeSessionId="session-b"
+        setActiveSessionId={setActiveSessionId}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+      />
+    )
+
+    await openPermanentDelete('Beta session')
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(pending).toEqual(['session-b', null])
+
+    pending.length = 0
+    sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'stale' })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await expect(params.action()).rejects.toThrow('recycle_bin.delete.stale')
+      return false
+    })
+    await openPermanentDelete('Beta session')
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(pending).toEqual(['session-b', null])
+  })
+
+  it('keeps the deferred draft when permanent delete fails, is stale, or the user selects another session', async () => {
+    const commitDiscard = vi.fn()
+    let navigationSettled = Promise.resolve()
+    fileNavigationMocks.request = (transition, options) => {
+      expect(options).toEqual({ deferDraftDisposal: true })
+      navigationSettled = Promise.resolve(transition({ commitDiscard })).then(
+        () => undefined,
+        () => undefined
+      )
+    }
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await expect(params.action()).rejects.toThrow('disk locked')
+      return false
+    })
+    sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'failed', error: 'disk locked' })
+    const setActiveSessionId = vi.fn()
+    crossWorkspaceSessions()
+    const view = render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    await openPermanentDelete('Beta session')
+    await navigationSettled
+
+    expect(sessionDataMocks.deleteSessionWithOutcome).toHaveBeenCalledWith(
+      'session-b',
+      expect.objectContaining({ permanent: true, showFeedback: false, onDeleted: expect.any(Function) })
+    )
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+
+    sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'stale' })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await expect(params.action()).rejects.toThrow('recycle_bin.delete.stale')
+      return false
+    })
+    await openPermanentDelete('Beta session')
+    await navigationSettled
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+
+    let deleteStarted = false
+    let finishDelete: (options: { onDeleted?: () => void }) => void = () => undefined
+    sessionDataMocks.deleteSessionWithOutcome.mockImplementation(
+      (_id, options) =>
+        new Promise((resolve) => {
+          deleteStarted = true
+          finishDelete = () => {
+            options?.onDeleted?.()
+            resolve({ status: 'succeeded' })
+          }
+        })
+    )
+    permanentDeletePopupMocks.show.mockImplementation((params: { action: () => Promise<void> }) => params.action())
+    await openPermanentDelete('Beta session')
+    await vi.waitFor(() => expect(deleteStarted).toBe(true))
+    view.rerender(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+    finishDelete(sessionDataMocks.deleteSessionWithOutcome.mock.calls.at(-1)?.[1])
+    await navigationSettled
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+  })
+
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setSessionGroupExpansionCache({
@@ -3934,9 +4534,7 @@ describe('Sessions', () => {
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     expect(screen.queryByRole('menuitem', { name: 'Delete all sessions' })).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('menuitem', { name: /Delete Permanently|common.delete_permanently/ })
-    ).not.toBeInTheDocument()
+    expect(screen.getAllByRole('menuitem', { name: /Delete Permanently/ }).length).toBeGreaterThan(0)
     const deleteAgentMenuItem = screen
       .getAllByRole('menuitem', { name: 'Archive' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
@@ -4040,6 +4638,214 @@ describe('Sessions', () => {
     expect(sessionDataMocks.restoreSession).toHaveBeenCalledWith('session-not-loaded')
   })
 
+  async function clickAgentMenuItem(agentName: string, itemName: string | RegExp) {
+    const group = screen.getByRole('button', { name: agentName }).closest('div') as HTMLElement
+    const more = within(group).getByRole('button', { name: 'More' })
+    fireEvent.pointerDown(more)
+    const menu = more.closest('[data-testid="context-menu"]') ?? more.parentElement ?? group
+    const item = within(menu)
+      .getAllByRole('menuitem', { name: itemName })
+      .find((candidate) => candidate.getAttribute('data-slot') === 'dropdown-menu-item')
+    if (!item) throw new Error(`missing menu item ${String(itemName)} for ${agentName}`)
+    const showCalls = permanentDeletePopupMocks.show.mock.calls.length
+    fireEvent.click(item)
+    await vi.waitFor(() => expect(permanentDeletePopupMocks.show.mock.calls.length).toBeGreaterThan(showCalls))
+  }
+
+  it('permanently deletes an agent only after the owner confirmation and does not offer undo', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+    render(<SessionsForTest activeSessionId="session-a" onActiveAgentDeleted={onActiveAgentDeleted} />)
+
+    await clickAgentMenuItem('Alpha agent', /Delete Permanently/)
+
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'owner', type: 'agent', name: 'Alpha agent' })
+    )
+    expect(deleteAgentPermanentlyMock).not.toHaveBeenCalled()
+    expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+
+    const action = permanentDeletePopupMocks.show.mock.calls.at(-1)?.[0].action as (
+      deleteChildren: boolean
+    ) => Promise<void>
+    deleteAgentPermanentlyMock.mockResolvedValueOnce({ deleted: true, deletedSessionIds: ['session-a'] })
+    await action(false)
+    expect(deleteAgentPermanentlyMock).toHaveBeenCalledWith({ agentId: 'agent-a', deleteSessions: false })
+
+    await action(true)
+    expect(deleteAgentPermanentlyMock).toHaveBeenLastCalledWith({ agentId: 'agent-a', deleteSessions: true })
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
+  })
+
+  it('keeps a session the user switched to while an agent permanent delete is in flight', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+    let resolveDelete: (result: { deleted: boolean; deletedSessionIds: string[] }) => void = () => undefined
+    deleteAgentPermanentlyMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDelete = resolve
+      })
+    )
+    permanentDeletePopupMocks.show.mockImplementation(
+      (params: { action: (deleteChildren: boolean) => Promise<void> }) => params.action(true)
+    )
+    const { rerender } = render(
+      <SessionsForTest activeSessionId="session-a" onActiveAgentDeleted={onActiveAgentDeleted} />
+    )
+
+    await clickAgentMenuItem('Alpha agent', /Delete Permanently/)
+    rerender(<SessionsForTest activeSessionId="session-b" onActiveAgentDeleted={onActiveAgentDeleted} />)
+    resolveDelete({ deleted: true, deletedSessionIds: ['session-a'] })
+
+    await vi.waitFor(() => expect(deleteAgentPermanentlyMock).toHaveBeenCalled())
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+  })
+
+  it('reconciles when invalidation clears the active session during an agent permanent delete', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+    let resolveDelete: (result: { deleted: boolean; deletedSessionIds: string[] }) => void = () => undefined
+    deleteAgentPermanentlyMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDelete = resolve
+      })
+    )
+    permanentDeletePopupMocks.show.mockImplementation(
+      (params: { action: (deleteChildren: boolean) => Promise<void> }) => params.action(true)
+    )
+    const { rerender } = render(
+      <SessionsForTest activeSessionId="session-a" onActiveAgentDeleted={onActiveAgentDeleted} />
+    )
+
+    await clickAgentMenuItem('Alpha agent', /Delete Permanently/)
+    rerender(<SessionsForTest activeSessionId={null} onActiveAgentDeleted={onActiveAgentDeleted} />)
+    resolveDelete({ deleted: true, deletedSessionIds: ['session-a'] })
+
+    await vi.waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a'))
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('throws a stale agent permanent delete after refresh and still throws when refresh fails', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+    deleteAgentPermanentlyMock.mockResolvedValueOnce({ deleted: false, deletedSessionIds: [] })
+    dataApiMocks.refetchAgents.mockRejectedValueOnce(new Error('refresh failed'))
+    let confirm: ((deleteChildren: boolean) => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation(
+      async (params: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        confirm = params.action
+        return false
+      }
+    )
+    render(<SessionsForTest activeSessionId="session-a" />)
+
+    await clickAgentMenuItem('Alpha agent', /Delete Permanently/)
+    await expect(confirm?.(false)).rejects.toThrow('recycle_bin.delete.stale')
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('refuses an agent cascade while a child session is busy and allows a pinned agent', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    pinMocks.usePins.mockReturnValue({
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      error: undefined,
+      pinnedIds: ['agent-a'],
+      refetch: vi.fn(),
+      togglePin: vi.fn()
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a', pinned: true })
+      ]
+    })
+    let confirm: ((deleteChildren: boolean) => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation(
+      async (params: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        confirm = params.action
+        return false
+      }
+    )
+    render(<SessionsForTest activeSessionId="session-a" />)
+
+    await clickAgentMenuItem('Alpha agent', /Delete Permanently/)
+    cacheService.setShared('topic.stream.statuses.agent-session:session-a', {
+      status: 'streaming',
+      activeExecutions: [],
+      awaitingApprovalAnchors: []
+    })
+    await expect(confirm?.(true)).rejects.toThrow('recycle_bin.delete.busy')
+    expect(deleteAgentPermanentlyMock).not.toHaveBeenCalled()
+    cacheService.setShared('topic.stream.statuses.agent-session:session-a', {
+      status: 'done',
+      activeExecutions: [],
+      awaitingApprovalAnchors: []
+    })
+
+    deleteAgentPermanentlyMock.mockResolvedValueOnce({
+      deleted: true,
+      deletedSessionIds: ['session-a', 'archived-child']
+    })
+    await confirm?.(true)
+    expect(deleteAgentPermanentlyMock).toHaveBeenCalledWith({ agentId: 'agent-a', deleteSessions: true })
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'archived-child'])
+  })
+
   it('refreshes a stale agent result without changing selection or offering Undo', async () => {
     const onActiveAgentDeleted = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
@@ -4059,17 +4865,22 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
 
-    const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
-    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const deleteAgentMenuItem = screen
+    const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div') as HTMLElement
+    const more = within(agentGroup).getByRole('button', { name: 'More' })
+    fireEvent.pointerDown(more)
+    const menu = more.closest('[data-testid="context-menu"]') ?? more.parentElement ?? agentGroup
+    const deleteAgentMenuItem = within(menu)
       .getAllByRole('menuitem', { name: 'Archive' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     fireEvent.click(deleteAgentMenuItem as HTMLElement)
-    await act(async () => {
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
-    })
 
-    await vi.waitFor(() => expect(deleteAgentMenuItem).toBeDisabled())
+    await vi.waitFor(() => expect(dataApiMocks.deleteAgent).toHaveBeenCalled())
+    await vi.waitFor(() => {
+      const disabledItem = within(menu)
+        .getAllByRole('menuitem', { name: 'Archive' })
+        .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
+      expect(disabledItem).toBeDisabled()
+    })
     await act(async () => {
       resolveReload?.()
       await reloadFinished
@@ -4122,6 +4933,7 @@ describe('Sessions', () => {
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(deleteSessionsMenuItem).toBeDefined()
     expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Delete Permanently/ })).not.toBeInTheDocument()
 
     fireEvent.click(deleteSessionsMenuItem as HTMLElement)
 
@@ -4243,6 +5055,19 @@ describe('Sessions', () => {
 
     await vi.waitFor(() => expect(toggleAgentPin).toHaveBeenCalledWith('agent-a'))
     expect(groupChevron(agentGroupButton)).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.contextMenu(agentGroup as HTMLElement)
+    const contextPermanentItem = screen
+      .getAllByRole('menuitem', { name: /Delete Permanently/ })
+      .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
+    expect(contextPermanentItem).toBeDefined()
+    fireEvent.click(contextPermanentItem as HTMLElement)
+    await vi.waitFor(() =>
+      expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'owner', type: 'agent', name: 'Alpha agent' })
+      )
+    )
+    expect(deleteAgentPermanentlyMock).not.toHaveBeenCalled()
   })
 
   it('disables agent group pin action while agent pins are mutating', async () => {

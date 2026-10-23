@@ -1,15 +1,20 @@
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiIcon } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
+import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
+import { permanentDeletePopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { dataApiService } from '@renderer/data/DataApiService'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
@@ -20,17 +25,31 @@ import {
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import type {
+  AgentFileNavigationOptions,
+  AgentFileNavigationTransition,
+  DeferredDraftDiscard
+} from '@renderer/types/agent'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
+import { isElementSuppressed } from '@renderer/utils/commandFocus'
 import { getErrorMessage } from '@renderer/utils/error'
 import { matchesSearchText } from '@renderer/utils/pinyin'
+import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
-import type { HistoryBulkDeleteResult, HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
+import type {
+  HistoryBulkDeleteResult,
+  HistoryRecordDescriptor,
+  HistoryRowActions,
+  HistoryRowState
+} from './historyRecordsDescriptor'
 import {
   ALL_SOURCE_ID,
   buildAgentSources,
@@ -41,11 +60,69 @@ import {
 } from './historyRecordsHelpers'
 import { useHistoryRecordsController } from './useHistoryRecordsController'
 
+const logger = loggerService.withContext('AgentHistoryRecords')
+
+function removalGuardIsOpen(): boolean {
+  const nodes = document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')
+  for (const node of nodes) {
+    if (!(node instanceof HTMLElement)) continue
+    if (node.getAttribute('data-state') === 'closed' || isElementSuppressed(node)) continue
+    return true
+  }
+  return false
+}
+
+function AgentHistoryRowState({
+  sessionId,
+  children
+}: {
+  sessionId: string
+  children: (state: HistoryRowState) => ReactElement
+}) {
+  useSharedCacheValue(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+  return children({ isRenaming: false })
+}
+
+function isAgentHistorySessionBusy(sessionId: string): boolean {
+  const entry = cacheService.getShared(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+  const flags = classifyTurn(entry?.status)
+  return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors?.length ?? 0) > 0
+}
+
+function survivingHistoryNeighbor<T extends { id: string }>(
+  orderedBeforeDelete: readonly T[],
+  refreshed: readonly T[],
+  deletedId: string,
+  neighborBeforeDelete: T | undefined
+): T | undefined {
+  const remaining = refreshed.filter((item) => item.id !== deletedId)
+  if (neighborBeforeDelete) {
+    const stillThere = remaining.find((item) => item.id === neighborBeforeDelete.id)
+    if (stillThere) return stillThere
+  }
+  if (remaining.length === 0) return undefined
+
+  const remainingIds = new Set(remaining.map((item) => item.id))
+  const fallback = orderedBeforeDelete.find((item) => item.id !== deletedId && remainingIds.has(item.id))
+  return fallback ? remaining.find((item) => item.id === fallback.id) : remaining[0]
+}
+
 interface AgentHistoryRecordsProps {
   activeRecordId?: string | null
   onClose: () => void
   onRecordSelect?: (sessionId: string) => void
   onActiveRecordChange?: (sessionId: string | null) => void
+  /**
+   * Confirms leaving the active session's dirty file before permanent-delete confirmation.
+   * `transition` opens that confirmation and may receive a deferred `commitDiscard`.
+   */
+  requestRecordRemoval?: (
+    nextSessionId: string | null,
+    transition: AgentFileNavigationTransition,
+    options?: AgentFileNavigationOptions
+  ) => void
+  /** Active while this list is permanently deleting `id`; `null` when that attempt settles. */
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   toolbarLeading?: ReactNode
 }
 
@@ -54,11 +131,14 @@ const AgentHistoryRecords = ({
   onClose,
   onRecordSelect,
   onActiveRecordChange: onActiveSessionChange,
+  requestRecordRemoval,
+  onLocalPermanentDeletePendingChange,
   toolbarLeading
 }: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('agents')
+  const { shortcutLabel: permanentDeleteShortcut } = useResolvedCommand('resource.delete_permanently')
 
   const {
     sessions,
@@ -79,6 +159,14 @@ const AgentHistoryRecords = ({
     () => optimisticSessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
     [isSessionPinned, optimisticSessions]
   )
+  const sessionItemsRef = useRef(sessionItems)
+  const pinIdBySessionIdRef = useRef(pinIdBySessionId)
+  const activeRecordIdRef = useRef(activeRecordId)
+  const permanentDeleteLockRef = useRef(false)
+  const deferredRemovalIdRef = useRef<string | null>(null)
+  sessionItemsRef.current = sessionItems
+  pinIdBySessionIdRef.current = pinIdBySessionId
+  activeRecordIdRef.current = activeRecordId
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
 
@@ -86,6 +174,8 @@ const AgentHistoryRecords = ({
     () => sortSessionsForDisplayGroups(sessionItems, { mode: 'time', now: groupNow }),
     [groupNow, sessionItems]
   )
+  const timeSortedSessionsRef = useRef(timeSortedSessions)
+  timeSortedSessionsRef.current = timeSortedSessions
   const agentSortedSessions = useMemo(
     () => sortSessionsForDisplayGroups(sessionItems, { agentRankById, mode: 'agent', now: groupNow }),
     [agentRankById, groupNow, sessionItems]
@@ -93,8 +183,14 @@ const AgentHistoryRecords = ({
 
   const sessionIds = useMemo(() => sessionItems.map((session) => session.id), [sessionItems])
   const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
+  const streamStatusBySessionIdRef = useRef(streamStatusBySessionId)
+  streamStatusBySessionIdRef.current = streamStatusBySessionId
 
   const unknownAgentLabel = t('agent.session.group.unknown_agent')
+  const historySessionLabel = useCallback(
+    (name: string | null | undefined) => (name?.trim() ? name : t('common.unnamed')),
+    [t]
+  )
   const statusItems = useMemo(() => buildAgentStatusItems(t), [t])
   const agentSources = useMemo(
     () => buildAgentSources(sessionItems, agentById, agentRankById, unknownAgentLabel, t),
@@ -164,6 +260,114 @@ const AgentHistoryRecords = ({
       sessionItems,
       t,
       timeSortedSessions
+    ]
+  )
+
+  const handlePermanentDeleteSession = useCallback(
+    (id: string) => {
+      const wasActiveAtStart = activeRecordIdRef.current === id
+      const orderedBeforeDelete = timeSortedSessionsRef.current
+      const neighborBeforeDelete = pickNeighbourAfterRemoval(orderedBeforeDelete, id)
+      const nextSessionId = neighborBeforeDelete?.id ?? null
+
+      const startConfirmation = (grant?: DeferredDraftDiscard): Promise<void> => {
+        deferredRemovalIdRef.current = null
+        if (permanentDeleteLockRef.current) return Promise.resolve()
+        permanentDeleteLockRef.current = true
+        const current = sessionItemsRef.current.find((session) => session.id === id)
+        return permanentDeletePopup
+          .show({
+            kind: 'conversation',
+            name: historySessionLabel(current?.name),
+            action: async () => {
+              if (pinIdBySessionIdRef.current.has(id)) {
+                throw new Error(t('recycle_bin.delete.pinned'))
+              }
+              if (isAgentHistorySessionBusy(id) || streamStatusBySessionIdRef.current.get(id)?.isPending) {
+                throw new Error(t('recycle_bin.delete.busy'))
+              }
+
+              // Hold missing-session recovery until this attempt settles. The by-id NOT_FOUND
+              // notification can arrive before the IPC reply and is not user navigation.
+              onLocalPermanentDeletePendingChange?.(id)
+              try {
+                const outcome = await deleteSessionWithOutcome(id, {
+                  permanent: true,
+                  showFeedback: false,
+                  onDeleted: () => {
+                    const activeId = activeRecordIdRef.current
+                    const clearedDuringDelete = activeId == null && wasActiveAtStart
+                    if (activeId !== id && !clearedDuringDelete) return
+                    grant?.commitDiscard()
+                  }
+                })
+                if (outcome.status !== 'succeeded') {
+                  await reload().catch((refreshError) => {
+                    logger.warn('Failed to refresh sessions after permanent delete failed', refreshError as Error, {
+                      sessionId: id
+                    })
+                  })
+                  throw new Error(
+                    outcome.status === 'failed'
+                      ? outcome.error || t('agent.session.delete.error.failed')
+                      : t('recycle_bin.delete.stale')
+                  )
+                }
+
+                const activeId = activeRecordIdRef.current
+                const clearedDuringDelete = activeId == null && wasActiveAtStart
+                if (activeId !== id && !clearedDuringDelete) return
+
+                const nextSession = survivingHistoryNeighbor(
+                  orderedBeforeDelete,
+                  timeSortedSessionsRef.current,
+                  id,
+                  neighborBeforeDelete
+                )
+                onActiveSessionChange?.(nextSession?.id ?? null)
+              } finally {
+                onLocalPermanentDeletePendingChange?.(null)
+              }
+            }
+          })
+          .then(() => undefined)
+          .finally(() => {
+            permanentDeleteLockRef.current = false
+          })
+      }
+
+      if (!wasActiveAtStart || !requestRecordRemoval) return startConfirmation()
+
+      if (deferredRemovalIdRef.current === id && removalGuardIsOpen()) return Promise.resolve()
+      deferredRemovalIdRef.current = null
+
+      let started = false
+      let pending = Promise.resolve()
+      requestRecordRemoval(
+        nextSessionId,
+        (grant) => {
+          started = true
+          pending = startConfirmation(grant).catch((error) => {
+            logger.error('Failed to permanently delete session from history', error as Error, { sessionId: id })
+            toast.error(getErrorMessage(error))
+          })
+          return pending
+        },
+        { deferDraftDisposal: true }
+      )
+      if (started) return pending
+
+      deferredRemovalIdRef.current = id
+      return Promise.resolve()
+    },
+    [
+      deleteSessionWithOutcome,
+      historySessionLabel,
+      onActiveSessionChange,
+      onLocalPermanentDeletePendingChange,
+      reload,
+      requestRecordRemoval,
+      t
     ]
   )
 
@@ -237,9 +441,12 @@ const AgentHistoryRecords = ({
     (session: AgentSessionEntity): SessionActionContext =>
       createSessionActionContext({
         isActiveInCurrentTab: false,
+        isBusy: isAgentHistorySessionBusy(session.id),
         onDelete: () => {
           void handleDeleteSession(session.id)
         },
+        onDeletePermanently: () => handlePermanentDeleteSession(session.id),
+        permanentDeleteShortcut,
         onTogglePin: () => {
           void handleToggleSessionPin(session.id)
         },
@@ -248,7 +455,14 @@ const AgentHistoryRecords = ({
         startEdit: () => undefined,
         t
       }),
-    [handleDeleteSession, handleToggleSessionPin, isSessionPinned, t]
+    [
+      handleDeleteSession,
+      handlePermanentDeleteSession,
+      handleToggleSessionPin,
+      isSessionPinned,
+      permanentDeleteShortcut,
+      t
+    ]
   )
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
 
@@ -277,7 +491,7 @@ const AgentHistoryRecords = ({
   )
   const rowDescriptor = useMemo(
     () => ({
-      getName: (session: SessionListItem) => session.name || t('common.unnamed'),
+      getName: (session: SessionListItem) => historySessionLabel(session.name),
       getUpdatedAt: (session: SessionListItem) => session.lastActivityAt,
       getSourceLabel: (session: SessionListItem) =>
         (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? unknownAgentLabel,
@@ -292,7 +506,10 @@ const AgentHistoryRecords = ({
         )
       },
       rowHeight: 32,
-      getSelectLabel: (session: SessionListItem) => `${t('common.select')} ${session.name || t('common.unnamed')}`,
+      getSelectLabel: (session: SessionListItem) => `${t('common.select')} ${historySessionLabel(session.name)}`,
+      renderRowState: (session: SessionListItem, render: (state: HistoryRowState) => ReactElement) => (
+        <AgentHistoryRowState sessionId={session.id}>{render}</AgentHistoryRowState>
+      ),
       getRowActions: (session: SessionListItem, openRename: (id: string, name: string) => void) => {
         const contextOverride = { startEdit: () => openRename(session.id, session.name ?? '') }
         const actions = sessionMenuPreset.getActions(session, contextOverride)
@@ -312,7 +529,15 @@ const AgentHistoryRecords = ({
           row
         )
     }),
-    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t, unknownAgentLabel]
+    [
+      agentById,
+      handleSessionSelect,
+      handleToggleSessionPin,
+      historySessionLabel,
+      sessionMenuPreset,
+      t,
+      unknownAgentLabel
+    ]
   )
 
   const descriptor: HistoryRecordDescriptor<SessionListItem> = {

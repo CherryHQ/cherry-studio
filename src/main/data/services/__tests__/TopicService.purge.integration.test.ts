@@ -2,7 +2,7 @@ import '@data/services/MessageService'
 import { createHash } from 'node:crypto'
 
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { count as rowCount, eq } from 'drizzle-orm'
+import { count as rowCount, eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -237,6 +237,8 @@ describe('TopicService permanent purge integration', () => {
 
   it('keeps the active-only state check across batches', () => {
     const ids = seed(1001, 1001)
+    // Seed pins the first and last rows. Direct active purge now rejects those pins.
+    dbh.db.delete(pinTable).where(inArray(pinTable.entityId, ids)).run()
     const result = topicService.deleteByIds(ids, { permanent: true, targetState: 'active' })
     assertPurged(ids, result.deletedIds)
   })

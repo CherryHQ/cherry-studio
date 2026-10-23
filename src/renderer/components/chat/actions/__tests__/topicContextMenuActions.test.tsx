@@ -1,5 +1,7 @@
+import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { Topic } from '@renderer/types/topic'
 
 import { executeTopicMenuAction, resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
@@ -80,9 +82,86 @@ describe('topic context menu actions', () => {
     expect(onDelete).toHaveBeenCalledWith(topic)
   })
 
-  it('does not offer permanent deletion in the conversation menu', () => {
+  it('omits permanent deletion until the caller provides that callback', () => {
     const actions = resolveTopicMenuActions(createTopicActionFixture())
     expect(actions.map((action) => action.id)).not.toContain('topic.delete-permanently')
+  })
+
+  it('offers a dangerous permanent delete that calls its own callback and shows the configured shortcut', async () => {
+    const onDelete = vi.fn()
+    const onDeletePermanently = vi.fn()
+    const context = createTopicActionFixture({
+      onDelete,
+      onDeletePermanently,
+      permanentDeleteShortcut: '⌥⌫'
+    })
+    const actions = resolveTopicMenuActions(context)
+    const archiveAction = actions.find((action) => action.id === 'topic.delete')
+    const permanentAction = actions.find((action) => action.id === 'topic.delete-permanently')
+
+    expect(archiveAction?.label).toBe('common.archive')
+    expect(archiveAction?.danger).toBe(false)
+    expect(permanentAction?.label).toBe('common.delete_permanently')
+    expect(permanentAction?.danger).toBe(true)
+    expect(permanentAction?.shortcut).toBe('⌥⌫')
+    expect(permanentAction?.availability).toEqual({ visible: true, enabled: true })
+
+    await executeTopicMenuAction(permanentAction!, context)
+
+    expect(onDeletePermanently).toHaveBeenCalledWith(topic)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('hides permanent delete for a pinned topic and disables it while deletion is blocked', async () => {
+    const onDeletePermanently = vi.fn()
+    const pinned = resolveTopicMenuActions(
+      createTopicActionFixture({ onDeletePermanently, topic: { ...topic, pinned: true } })
+    )
+    expect(pinned.map((action) => action.id)).not.toContain('topic.delete-permanently')
+
+    const blockedContext = createTopicActionFixture({ isArchiveBlocked: true, onDeletePermanently })
+    const blockedAction = resolveTopicMenuActions(blockedContext).find(
+      (action) => action.id === 'topic.delete-permanently'
+    )
+    expect(blockedAction?.availability).toEqual({
+      visible: true,
+      enabled: false,
+      reason: 'recycle_bin.move.blocked_generation'
+    })
+    await expect(executeTopicMenuAction(blockedAction!, blockedContext)).resolves.toBe(false)
+    expect(onDeletePermanently).not.toHaveBeenCalled()
+  })
+
+  it('threads the optional permanent-delete callback through useTopicMenuActions', async () => {
+    const onDeletePermanently = vi.fn()
+    const { result } = renderHook(() =>
+      useTopicMenuActions({
+        exportMenuOptions,
+        isArchiveBlocked: false,
+        isActiveInCurrentTab: false,
+        isRenaming: false,
+        notesPath: '/notes',
+        onAutoRename: vi.fn(),
+        onClearMessages: vi.fn(),
+        onDelete: vi.fn(),
+        onDeletePermanently,
+        onPinTopic: vi.fn(),
+        onStartRename: vi.fn(),
+        permanentDeleteShortcut: '⌥⌫',
+        t,
+        topic,
+        topicsLength: 2
+      })
+    )
+
+    const permanentAction = result.current.getMenuActions().find((action) => action.id === 'topic.delete-permanently')
+    expect(permanentAction?.label).toBe('common.delete_permanently')
+    expect(permanentAction?.danger).toBe(true)
+    expect(permanentAction?.shortcut).toBe('⌥⌫')
+
+    await result.current.handleMenuAction(permanentAction!)
+
+    expect(onDeletePermanently).toHaveBeenCalledWith(topic)
   })
 
   it('keeps Delete visible but disabled while the Topic has unsettled generation work', async () => {

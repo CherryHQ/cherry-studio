@@ -38,6 +38,7 @@ import {
 import { ResourceListLeadingSlot, type ResourceListLeadingSlotProps } from './ResourceListLeadingSlot'
 import { ResourceListProvider } from './ResourceListProvider'
 import { VirtualDraggableItems, VirtualItems } from './ResourceListVirtual'
+import { ResourceListPermanentDelete } from './useResourceListPermanentDelete'
 
 export type {
   ResourceListActionMap,
@@ -777,9 +778,12 @@ const ResourceList = {
   RenameField,
   EmptyState,
   LoadingState,
-  ErrorState
+  ErrorState,
+  PermanentDelete: ResourceListPermanentDelete
 }
 
+export type { ResourceListPermanentDeleteProps } from './useResourceListPermanentDelete'
+export { useResourceListPermanentDelete } from './useResourceListPermanentDelete'
 export {
   ResourceList,
   useResourceList,

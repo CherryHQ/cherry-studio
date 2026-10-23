@@ -575,6 +575,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'shortcut.quick_assistant.toggle': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
+    'shortcut.resource.delete_permanently': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
     'shortcut.screenshot.capture': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.selection.capture_text': PreferenceTypes.PreferenceShortcutType
@@ -899,6 +901,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.chat.message.search': { binding: ['CommandOrControl', 'F'], enabled: true },
     'shortcut.chat.model.select': { binding: ['CommandOrControl', 'Shift', 'M'], enabled: true },
     'shortcut.quick_assistant.toggle': { binding: ['CommandOrControl', 'E'], enabled: false },
+    'shortcut.resource.delete_permanently': { binding: ['CommandOrControl', 'Backspace'], enabled: true },
     'shortcut.screenshot.capture': { binding: ['CommandOrControl', 'Shift', 'A'], enabled: true },
     'shortcut.selection.capture_text': { binding: [], enabled: false },
     'shortcut.selection.toggle': { binding: [], enabled: false },
@@ -932,7 +935,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 294
+ * - 总配置项: 295
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0

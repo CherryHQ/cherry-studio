@@ -1,9 +1,9 @@
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUseInvalidateCache, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistant, useAssistants } from '../useAssistant'
+import { useAssistant, useAssistantMutations, useAssistants } from '../useAssistant'
 
 function queryResult(data?: unknown, options: { isLoading?: boolean } = {}) {
   return {
@@ -19,6 +19,87 @@ function queryResult(data?: unknown, options: { isLoading?: boolean } = {}) {
 function resetQueryMock() {
   mockUseQuery.mockImplementation(() => queryResult())
 }
+
+function ipcOk(data: unknown) {
+  return { ok: true, data }
+}
+
+describe('useAssistantMutations.deleteAssistant', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetQueryMock()
+    vi.mocked(window.api.ipcApi.request).mockReset()
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue(ipcOk(undefined))
+  })
+
+  it('returns a committed deletion when refresh fails and refreshes unlinked topics', async () => {
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue(ipcOk({ deleted: true }))
+
+    const { result } = renderHook(() => useAssistantMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as ReturnType<typeof vi.fn>
+    invalidate.mockRejectedValueOnce(new Error('refresh failed'))
+
+    const outcome = await act(async () =>
+      result.current.deleteAssistant('assistant-1', { permanent: true, deleteTopics: false })
+    )
+
+    expect(window.api.ipcApi.request).toHaveBeenCalledWith('trash.assistant.delete_permanently', {
+      assistantId: 'assistant-1',
+      deleteTopics: false
+    })
+    expect(invalidate).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/topics'])
+    expect(outcome).toEqual({ deleted: true })
+  })
+
+  it('keeps archive cascade refresh, including topics and pins', async () => {
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue(
+      ipcOk({ deleted: true, deletedTopicIds: ['active-topic', 'archived-topic'] })
+    )
+
+    const { result } = renderHook(() => useAssistantMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as ReturnType<typeof vi.fn>
+    const outcome = await act(async () => result.current.deleteAssistant('assistant-1', { deleteTopics: true }))
+
+    expect(window.api.ipcApi.request).toHaveBeenCalledWith('trash.assistant.archive', {
+      assistantId: 'assistant-1',
+      deleteTopics: true
+    })
+    expect(invalidate).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
+    expect(outcome).toEqual({ deleted: true, deletedTopicIds: ['active-topic', 'archived-topic'] })
+  })
+
+  it('returns a stale assistant deletion after refreshing the topic list', async () => {
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue(ipcOk({ deleted: false }))
+
+    const { result } = renderHook(() => useAssistantMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as ReturnType<typeof vi.fn>
+    const outcome = await act(async () => result.current.deleteAssistant('assistant-1', { permanent: true }))
+
+    expect(outcome).toEqual({ deleted: false })
+    expect(invalidate).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/topics'])
+  })
+
+  it('rethrows the deletion failure after refresh, including when refresh fails', async () => {
+    vi.mocked(window.api.ipcApi.request).mockRejectedValue(new Error('delete failed'))
+
+    const { result } = renderHook(() => useAssistantMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as ReturnType<typeof vi.fn>
+    invalidate.mockRejectedValueOnce(new Error('refresh failed'))
+
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteAssistant('assistant-1', { permanent: true, deleteTopics: true })
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toBeInstanceOf(Error)
+    expect((caught as Error).message).toBe('delete failed')
+    expect(invalidate).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
+  })
+})
 
 describe('useAssistants', () => {
   beforeEach(() => {

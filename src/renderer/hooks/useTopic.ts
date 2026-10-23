@@ -15,6 +15,7 @@
 
 import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
@@ -40,8 +41,15 @@ import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
+import { isTrashTopicPinnedError } from '@shared/ipc/errors/trash'
 
 const logger = loggerService.withContext('useTopic')
+
+/** Keep only the requested topic. An empty or unrelated result is a no-op, not a deletion. */
+function topicDeleteOutcome(result: DeleteTopicsResult, topicId: string): DeleteTopicsResult {
+  const deleted = result.deletedIds.includes(topicId)
+  return deleted ? { deletedIds: [topicId], deletedCount: 1 } : { deletedIds: [], deletedCount: 0 }
+}
 
 // ─── Tier 1: pure / non-React helpers ─────────────────────────────────────
 
@@ -387,6 +395,7 @@ export function useLatestTopic(opts?: { enabled?: boolean }) {
  * Topic mutations backed by DataApi, with archive commands routed through IpcApi.
  */
 export function useTopicMutations() {
+  const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const writeCache = useWriteCache()
   const closeConversationTabs = useCloseConversationTabs()
@@ -427,33 +436,53 @@ export function useTopicMutations() {
     async (
       topicId: string,
       options?: { permanent?: boolean; refresh?: boolean; targetState?: 'active' | 'trashed' }
-    ): Promise<void> => {
+    ): Promise<DeleteTopicsResult> => {
       const shouldRefresh = options?.refresh !== false
-      try {
-        if (options?.permanent && options.targetState === 'active') {
-          await ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
-        } else if (options?.permanent) {
-          await deleteTrigger({ params: { id: topicId }, query: { permanent: true } })
-        } else {
-          await ipcApi.request('trash.topic.archive', { topicIds: [topicId] })
-        }
-      } catch (error) {
-        if (shouldRefresh) {
-          await invalidate('/topics').catch((refreshError) => {
-            logger.warn('Failed to refresh topics after delete failed', refreshError as Error, { topicId })
-          })
-        }
-        throw error
-      }
-      if (shouldRefresh) {
-        await invalidate('/topics').catch((refreshError) => {
-          logger.warn('Failed to refresh topics after delete succeeded', refreshError as Error, { topicId })
+      const refreshTopicsAfterDelete = (phase: 'failed' | 'completed') => {
+        if (!shouldRefresh) return Promise.resolve()
+        return invalidate('/topics').catch((refreshError) => {
+          logger.warn(
+            phase === 'failed'
+              ? 'Failed to refresh topics after delete failed'
+              : 'Failed to refresh topics after delete succeeded',
+            refreshError as Error,
+            { topicId }
+          )
         })
       }
-      closeConversationTabs('assistants', [topicId])
+
+      let outcome: DeleteTopicsResult
+      try {
+        if (options?.permanent && options.targetState === 'active') {
+          outcome = topicDeleteOutcome(
+            await ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] }),
+            topicId
+          )
+        } else if (options?.permanent) {
+          // Trashed-topic purge has no id list. Resolution means this topic was removed;
+          // a missing row rejects instead of resolving.
+          await deleteTrigger({ params: { id: topicId }, query: { permanent: true } })
+          outcome = { deletedIds: [topicId], deletedCount: 1 }
+        } else {
+          outcome = topicDeleteOutcome(await ipcApi.request('trash.topic.archive', { topicIds: [topicId] }), topicId)
+        }
+      } catch (error) {
+        await refreshTopicsAfterDelete('failed')
+        if (isTrashTopicPinnedError(error)) throw new Error(t('recycle_bin.delete.pinned'))
+        throw error
+      }
+
+      await refreshTopicsAfterDelete('completed')
+      if (outcome.deletedIds.length === 0) {
+        logger.info('Topic deletion found no matching topic', { topicId, permanent: options?.permanent === true })
+        return outcome
+      }
+
+      closeConversationTabs('assistants', outcome.deletedIds)
       logger.info(options?.permanent ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id: topicId })
+      return outcome
     },
-    [closeConversationTabs, deleteTrigger, invalidate]
+    [closeConversationTabs, deleteTrigger, invalidate, t]
   )
 
   const restoreTopic = useCallback(

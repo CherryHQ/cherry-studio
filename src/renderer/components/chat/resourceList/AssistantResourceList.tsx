@@ -1,4 +1,4 @@
-import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags } from 'lucide-react'
+import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,7 +7,10 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
+import {
+  deleteConversationOwnerPopup,
+  permanentDeletePopup
+} from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import {
@@ -16,6 +19,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -54,6 +58,7 @@ const ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID = 'assistant-entity.clear-topics'
 const ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID = 'assistant-entity.toggle-grouping'
 const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_ARCHIVE_ACTION_ID = 'assistant-entity.archive'
+const ASSISTANT_ENTITY_PERMANENT_DELETE_ACTION_ID = 'assistant-entity.delete-permanently'
 const ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'assistant-entity.toggle-sidebar'
 const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
 
@@ -96,6 +101,7 @@ export function AssistantResourceList({
   onActiveAssistantDeleted
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
+  const permanentDeleteShortcut = useResolvedCommand('resource.delete_permanently').shortcutLabel
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
@@ -169,9 +175,14 @@ export function AssistantResourceList({
     [rendererTopics, topicPinnedIdSet]
   )
   const topicsRef = useRef(topics)
+  const activeTopicIdRef = useRef(activeTopicId)
+  const assistantsRef = useRef(assistants)
+  const deleteAssistantPromptLockRef = useRef(false)
   useEffect(() => {
     topicsRef.current = topics
   }, [topics])
+  activeTopicIdRef.current = activeTopicId
+  assistantsRef.current = assistants
 
   const createTopicForAssistant = useCallback(
     (assistantId: string) => {
@@ -434,17 +445,49 @@ export function AssistantResourceList({
   }, [refreshAssistants, refreshTopics])
 
   const handleDeleteAssistant = useCallback(
-    async (assistantId: string) => {
-      if (deletingAssistantId) return
+    async (assistantId: string, mode: 'archive' | 'permanent' = 'archive') => {
+      if (deleteAssistantPromptLockRef.current || deletingAssistantId) return
+      const permanent = mode === 'permanent'
+      if (
+        permanent &&
+        (assistantId === UNLINKED_ASSISTANT_ENTITY_ID ||
+          !assistantsRef.current.some((assistant) => assistant.id === assistantId))
+      ) {
+        return
+      }
 
-      const assistantName = assistants.find((assistant) => assistant.id === assistantId)?.name ?? t('common.unnamed')
+      const assistantName =
+        assistantsRef.current.find((assistant) => assistant.id === assistantId)?.name ?? t('common.unnamed')
       const performDelete = async (deleteTopics: boolean) => {
+        if (permanent) {
+          const liveAssistant = assistantsRef.current.find((assistant) => assistant.id === assistantId)
+          if (!liveAssistant || assistantId === UNLINKED_ASSISTANT_ENTITY_ID) {
+            await Promise.allSettled([refreshAssistants(), refreshTopics()])
+            toast.info(t('recycle_bin.delete.stale'))
+            return
+          }
+        }
+
+        const activeTopicIdWhenMutationStarted = activeTopicIdRef.current
         setDeletingAssistantId(assistantId)
+        let deleted = false
         try {
           let result
           try {
-            result = await deleteAssistant(assistantId, { deleteTopics })
+            result = await deleteAssistant(
+              assistantId,
+              permanent ? { deleteTopics, permanent: true } : { deleteTopics }
+            )
           } catch (err) {
+            if (permanent) {
+              await Promise.allSettled([refreshAssistants(), refreshTopics()])
+              if (isTrashTargetNotFoundError(err)) {
+                toast.info(t('recycle_bin.delete.stale'))
+                return
+              }
+              if (isTrashTopicBusyError(err)) throw new Error(t('recycle_bin.delete.busy'))
+              throw err
+            }
             if (!isTrashTargetNotFoundError(err)) throw err
             await Promise.allSettled([refreshAssistants(), refreshTopics()])
             toast.info(t('recycle_bin.already_moved'))
@@ -452,12 +495,20 @@ export function AssistantResourceList({
           }
           if (!result.deleted) {
             await Promise.allSettled([refreshAssistants(), refreshTopics()])
-            toast.info(t('recycle_bin.already_moved'))
+            toast.info(permanent ? t('recycle_bin.delete.stale') : t('recycle_bin.already_moved'))
             return
           }
+          deleted = true
           const deletedTopicIds = result.deletedTopicIds ?? []
+          const activeTopicIdNow = activeTopicIdRef.current
+          const currentTopicWasDeleted = !!activeTopicIdNow && deletedTopicIds.includes(activeTopicIdNow)
+          // Empty selection only reconciles when the topic active at mutation start was deleted.
+          const closedTargetRace =
+            !activeTopicIdNow &&
+            !!activeTopicIdWhenMutationStarted &&
+            deletedTopicIds.includes(activeTopicIdWhenMutationStarted)
           if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
-          if (activeTopicId && deletedTopicIds.includes(activeTopicId)) {
+          if (currentTopicWasDeleted || closedTargetRace) {
             try {
               await onActiveAssistantDeleted?.(assistantId)
             } catch (err) {
@@ -481,26 +532,35 @@ export function AssistantResourceList({
               err
             })
           }
-          showRecycleBinUndo({
-            itemName: assistantName,
-            onUndo: () =>
-              restoreRecycleBinUndoGroup({
-                primary: {
-                  id: assistantId,
-                  restore: restoreAssistant,
-                  getActive: (id) => dataApiService.get(`/assistants/${id}`)
-                },
-                related: {
-                  ids: deletedTopicIds,
-                  restore: restoreTopic,
-                  getActive: (id) => dataApiService.get(`/topics/${id}`)
-                },
-                refresh: refreshAfterRestore
-              })
-          })
+          if (!permanent) {
+            showRecycleBinUndo({
+              itemName: assistantName,
+              onUndo: () =>
+                restoreRecycleBinUndoGroup({
+                  primary: {
+                    id: assistantId,
+                    restore: restoreAssistant,
+                    getActive: (id) => dataApiService.get(`/assistants/${id}`)
+                  },
+                  related: {
+                    ids: deletedTopicIds,
+                    restore: restoreTopic,
+                    getActive: (id) => dataApiService.get(`/topics/${id}`)
+                  },
+                  refresh: refreshAfterRestore
+                })
+            })
+          }
         } catch (err) {
+          if (deleted) {
+            logger.warn('Assistant deletion succeeded but a follow-up failed from classic-layout rail', {
+              assistantId,
+              err
+            })
+            return
+          }
           logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
-          if (isTrashTopicBusyError(err)) {
+          if (!permanent && isTrashTopicBusyError(err)) {
             toast.info(t('recycle_bin.move.blocked_generation'))
             return
           }
@@ -510,11 +570,23 @@ export function AssistantResourceList({
         }
       }
 
-      await deleteConversationOwnerPopup.show({ type: 'assistant', action: performDelete })
+      deleteAssistantPromptLockRef.current = true
+      try {
+        if (permanent) {
+          await permanentDeletePopup.show({
+            kind: 'owner',
+            type: 'assistant',
+            name: assistantName,
+            action: performDelete
+          })
+        } else {
+          await deleteConversationOwnerPopup.show({ type: 'assistant', action: performDelete })
+        }
+      } finally {
+        deleteAssistantPromptLockRef.current = false
+      }
     },
     [
-      activeTopicId,
-      assistants,
       closeConversationTabs,
       deleteAssistant,
       deletingAssistantId,
@@ -583,6 +655,16 @@ export function AssistantResourceList({
           group: 'danger',
           order: 30,
           availability: { visible: true, enabled: deletingAssistantId === null }
+        }),
+        buildResolvedResourceEntityMenuAction({
+          id: ASSISTANT_ENTITY_PERMANENT_DELETE_ACTION_ID,
+          label: t('common.delete_permanently'),
+          icon: <Trash2 size={14} />,
+          danger: true,
+          group: 'danger',
+          order: 32,
+          ...(permanentDeleteShortcut ? { shortcut: permanentDeleteShortcut } : {}),
+          availability: { visible: true, enabled: deletingAssistantId === null }
         })
       ]
     },
@@ -593,6 +675,7 @@ export function AssistantResourceList({
       deletingAssistantId,
       isAssistantPinActionDisabled,
       isGroupGrouping,
+      permanentDeleteShortcut,
       sidebarAssistantFavoriteIdSet,
       t
     ]
@@ -628,6 +711,10 @@ export function AssistantResourceList({
       }
       if (action.id === ASSISTANT_ENTITY_ARCHIVE_ACTION_ID) {
         void handleDeleteAssistant(item.id)
+        return
+      }
+      if (action.id === ASSISTANT_ENTITY_PERMANENT_DELETE_ACTION_ID) {
+        void handleDeleteAssistant(item.id, 'permanent')
       }
     },
     [
@@ -670,6 +757,13 @@ export function AssistantResourceList({
             onOpenHistoryRecords={onOpenHistoryRecords}
           />
         }
+        permanentDelete={{
+          isItemEligible: (item) =>
+            !deleteAssistantPromptLockRef.current &&
+            item.id !== UNLINKED_ASSISTANT_ENTITY_ID &&
+            assistantsRef.current.some((assistant) => assistant.id === item.id),
+          onDelete: (item) => handleDeleteAssistant(item.id, 'permanent')
+        }}
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAssistantClick?.()}
         onCollapsedStateChange={setCollapsedGroupIds}

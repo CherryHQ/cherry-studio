@@ -2,6 +2,7 @@ import { lazy, type ReactNode, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@cherrystudio/ui'
+import type { AgentFileNavigationOptions, AgentFileNavigationTransition } from '@renderer/types/agent'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 
 import type { HistoryRecordsMode } from './historyRecordsTypes'
@@ -38,11 +39,24 @@ type HistoryRecordsViewProps =
       mode: 'assistant'
       onRecordSelect?: (topic: RendererTopic) => void
       onActiveRecordChange?: (topic: RendererTopic | null) => void
+      /** Active while History is permanently deleting `id`; `null` after that attempt settles. */
+      onLocalPermanentDeletePendingChange?: (id: string | null) => void
     })
   | (HistoryRecordsViewBaseProps & {
       mode: 'agent'
       onRecordSelect?: (sessionId: string) => void
       onActiveRecordChange?: (sessionId: string | null) => void
+      /**
+       * Confirm leaving the active session's dirty file before permanent-delete confirmation.
+       * Draft disposal stays deferred until that deletion succeeds.
+       */
+      requestRecordRemoval?: (
+        nextSessionId: string | null,
+        transition: AgentFileNavigationTransition,
+        options?: AgentFileNavigationOptions
+      ) => void
+      /** Active while History is permanently deleting `id`; `null` after that attempt settles. */
+      onLocalPermanentDeletePendingChange?: (id: string | null) => void
     })
 
 const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
@@ -57,6 +71,7 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
             onClose={props.onClose}
             onRecordSelect={props.onRecordSelect}
             onActiveRecordChange={props.onActiveRecordChange}
+            onLocalPermanentDeletePendingChange={props.onLocalPermanentDeletePendingChange}
             toolbarLeading={props.toolbarLeading}
           />
         ) : (
@@ -65,6 +80,8 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
             onClose={props.onClose}
             onRecordSelect={props.onRecordSelect}
             onActiveRecordChange={props.onActiveRecordChange}
+            requestRecordRemoval={props.requestRecordRemoval}
+            onLocalPermanentDeletePendingChange={props.onLocalPermanentDeletePendingChange}
             toolbarLeading={props.toolbarLeading}
           />
         )}

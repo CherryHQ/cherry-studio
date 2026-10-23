@@ -38,6 +38,11 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
+import type {
+  AgentFileNavigationOptions,
+  AgentFileNavigationRequest,
+  AgentFileNavigationTransition
+} from '@renderer/types/agent'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -52,7 +57,6 @@ import type { InstalledSkill } from '@shared/data/types/agent'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
-import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
 import Sessions from './components/Sessions'
 import {
@@ -288,6 +292,14 @@ const AgentPage = () => {
     clearActiveSession()
     void navigate({ to: '/app/agents', search: {}, replace: true })
   }, [clearActiveSession, navigate])
+  // Ref is visible to a NOT_FOUND effect that runs before this state commits. State retriggers
+  // that effect when the local delete settles, so a last-item route can still recover.
+  const pendingLocalPermanentDeleteIdRef = useRef<string | null>(null)
+  const [pendingLocalPermanentDeleteId, setPendingLocalPermanentDeleteId] = useState<string | null>(null)
+  const onLocalPermanentDeletePendingChange = useCallback((id: string | null) => {
+    pendingLocalPermanentDeleteIdRef.current = id
+    setPendingLocalPermanentDeleteId(id)
+  }, [])
   // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -296,6 +308,7 @@ const AgentPage = () => {
     if (!routeSessionId || activeSessionId !== routeSessionId) return
     if (activeSession || isActiveSessionLoading) return
     if (!isDataApiNotFoundError(activeSessionError)) return
+    if (pendingLocalPermanentDeleteIdRef.current === routeSessionId) return
     reenterAgentRoute()
   }, [
     activeSession,
@@ -304,12 +317,22 @@ const AgentPage = () => {
     forkReturnSessionId,
     isActiveSessionLoading,
     isPreparedIntent,
+    pendingLocalPermanentDeleteId,
     reenterAgentRoute,
     routeSessionId
   ])
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
+  // NOT_FOUND drops the query entity before the delete popup settles. Keep the session
+  // AgentRightPane already mounted so its workspace effect does not open a second discard.
+  const pendingDeletedSession =
+    pendingLocalPermanentDeleteId &&
+    activeSessionId === pendingLocalPermanentDeleteId &&
+    lastVisibleSessionRef.current?.id === pendingLocalPermanentDeleteId
+      ? lastVisibleSessionRef.current
+      : null
   const visibleSession =
     activeSession ??
+    pendingDeletedSession ??
     (isActiveSessionLoading && lastVisibleSessionRef.current?.id === activeSessionId
       ? lastVisibleSessionRef.current
       : null)
@@ -324,13 +347,13 @@ const AgentPage = () => {
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
   }, [])
-  const requestFileNavigation = useCallback((transition: () => void) => {
+  const requestFileNavigation = useCallback<AgentFileNavigationRequest>((transition, options) => {
     const request = fileNavigationRequestRef.current
     if (request) {
-      request(transition)
+      request(transition, options)
       return
     }
-    transition()
+    void transition()
   }, [])
   const resourceConversationKey = useMemo(() => {
     if (visibleSession?.id) return `session:${visibleSession.id}`
@@ -637,7 +660,7 @@ const AgentPage = () => {
   )
 
   const requestSessionNavigation = useCallback(
-    (sessionId: string | null, transition: () => void) => {
+    (sessionId: string | null, transition: AgentFileNavigationTransition, options?: AgentFileNavigationOptions) => {
       const targetSession = sessionId ? agentSessions.find((session) => session.id === sessionId) : undefined
       const preservesFileWorkspace =
         sessionId === visibleSession?.id ||
@@ -648,10 +671,10 @@ const AgentPage = () => {
             buildAgentFileWorkspaceKey(visibleSession.workspaceId, visibleSession.workspace?.path))
 
       if (preservesFileWorkspace) {
-        transition()
+        void transition()
         return
       }
-      requestFileNavigation(transition)
+      requestFileNavigation(transition, options)
     },
     [agentSessions, requestFileNavigation, visibleSession]
   )
@@ -1047,6 +1070,7 @@ const AgentPage = () => {
         panePosition="left"
         manageAgentsActive={manageAgentsActive}
         onManageAgents={onManageAgents}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         setActiveSessionId={setActiveSessionAndClearTransient}
       />
     )
@@ -1069,6 +1093,7 @@ const AgentPage = () => {
               onShowMissingAgentSelection={showMissingAgentSelection}
               onSetPanePosition={setSessionListPosition}
               panePosition="right"
+              onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
               setActiveSessionId={setActiveSessionAndClearTransient}
             />
           )
@@ -1108,6 +1133,8 @@ const AgentPage = () => {
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsSessionSelect}
             onActiveRecordChange={handleHistoryActiveSessionChange}
+            onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+            requestRecordRemoval={requestSessionNavigation}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton

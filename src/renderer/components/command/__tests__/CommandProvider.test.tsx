@@ -151,6 +151,32 @@ describe('CommandProvider', () => {
     expect(preventDefault).not.toHaveBeenCalled()
   })
 
+  it('reads handler availability at the key event', () => {
+    const onExecute = vi.fn()
+    let available = false
+
+    function LiveAvailability() {
+      useCommandHandler('topic.create', onExecute, { enabled: () => available })
+      return null
+    }
+
+    renderProvider(<LiveAvailability />)
+
+    const blocked = dispatchShortcut({})
+    expect(onExecute).not.toHaveBeenCalled()
+    expect(blocked).not.toHaveBeenCalled()
+
+    available = true
+    const allowed = dispatchShortcut({})
+    expect(onExecute).toHaveBeenCalledOnce()
+    expect(allowed).toHaveBeenCalledOnce()
+
+    available = false
+    const blockedAgain = dispatchShortcut({})
+    expect(onExecute).toHaveBeenCalledOnce()
+    expect(blockedAgain).not.toHaveBeenCalled()
+  })
+
   it('skips composing events', () => {
     const onExecute = vi.fn()
     renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)

@@ -98,6 +98,11 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type {
+  AgentFileNavigationOptions,
+  AgentFileNavigationRequest,
+  AgentFileNavigationTransition
+} from '@renderer/types/agent'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -251,7 +256,7 @@ interface AgentRightPaneFileState {
 }
 
 type AgentFileEditorMode = 'preview' | 'edit'
-export type AgentFileNavigationRequest = (transition: () => void) => void
+export type { AgentFileNavigationRequest } from '@renderer/types/agent'
 
 interface AgentRightPaneActions {
   isAgentToolFlowActive: (toolCallId: string) => boolean
@@ -609,8 +614,10 @@ function AgentRightPaneStateProvider({
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
   const previousSessionIdRef = useRef(sessionId)
   const artifactOpenRequestRef = useRef(0)
-  const pendingFileTransitionRef = useRef<(() => void) | null>(null)
+  const pendingFileTransitionRef = useRef<AgentFileNavigationTransition | null>(null)
+  const pendingDeferDraftDisposalRef = useRef(false)
   const pendingWorkspaceCommitRef = useRef<(() => void) | null>(null)
+  const editIdentityRef = useRef({ key: '', draft: '', revision: 0 })
   // Decline follows one incoming request. A new session or workspace key starts another.
   const declinedWorkspaceRequestRef = useRef<{ sessionId: string | undefined; workspaceKey: string } | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
@@ -735,6 +742,14 @@ function AgentRightPaneStateProvider({
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
   const fileSession = useFileEditSession(editHandle)
   const discardFileDraft = fileSession.discard
+  const editIdentityKey = editHandle ? `path:${editHandle.path}` : ''
+  if (editIdentityRef.current.key !== editIdentityKey || editIdentityRef.current.draft !== fileSession.draft) {
+    editIdentityRef.current = {
+      key: editIdentityKey,
+      draft: fileSession.draft,
+      revision: editIdentityRef.current.revision + 1
+    }
+  }
   const systemWorkspacePath = useMemo(() => {
     if (workspaceType !== AGENT_WORKSPACE_TYPE.SYSTEM || !workspacePath) return undefined
     const result = AbsoluteFilePathSchema.safeParse(workspacePath)
@@ -754,12 +769,13 @@ function AgentRightPaneStateProvider({
   }, [sessionId])
 
   const requestFileTransition = useCallback(
-    (transition: () => void) => {
+    (transition: AgentFileNavigationTransition, options?: AgentFileNavigationOptions) => {
       if (!fileSession.isDirty) {
-        transition()
+        void transition()
         return
       }
       pendingFileTransitionRef.current = transition
+      pendingDeferDraftDisposalRef.current = options?.deferDraftDisposal === true
       setShowDirtyLeaveConfirmation(true)
     },
     [fileSession.isDirty]
@@ -781,6 +797,7 @@ function AgentRightPaneStateProvider({
           declinedWorkspaceRequestRef.current = { sessionId, workspaceKey }
         }
         pendingFileTransitionRef.current = null
+        pendingDeferDraftDisposalRef.current = false
         pendingWorkspaceCommitRef.current = null
       }
     },
@@ -789,9 +806,30 @@ function AgentRightPaneStateProvider({
 
   const handleDiscardAndContinue = useCallback(() => {
     const transition = pendingFileTransitionRef.current
+    const deferDraftDisposal = pendingDeferDraftDisposalRef.current
     pendingFileTransitionRef.current = null
-    discardFileDraft()
-    transition?.()
+    pendingDeferDraftDisposalRef.current = false
+    if (!deferDraftDisposal) {
+      discardFileDraft()
+      void transition?.()
+      setShowDirtyLeaveConfirmation(false)
+      return
+    }
+    const approved = editIdentityRef.current
+    void transition?.({
+      commitDiscard: () => {
+        const current = editIdentityRef.current
+        if (
+          approved.key === '' ||
+          current.key !== approved.key ||
+          current.draft !== approved.draft ||
+          current.revision !== approved.revision
+        ) {
+          return
+        }
+        discardFileDraft()
+      }
+    })
     setShowDirtyLeaveConfirmation(false)
   }, [discardFileDraft])
 
