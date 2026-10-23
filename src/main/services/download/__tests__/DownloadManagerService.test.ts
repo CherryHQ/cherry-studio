@@ -237,4 +237,84 @@ describe('DownloadManagerService recovery', () => {
 
     expect(store.get(task.id)?.task.state).toBe('cancelled')
   })
+
+  /** Serves HEAD and byte ranges from CONTENT; `gate` holds every HEAD response. */
+  function servingFetch(gate: Promise<void> = Promise.resolve()): FetchLike {
+    return async (_url, init) => {
+      if (init?.method === 'HEAD') {
+        await gate
+        return new Response(null, {
+          status: 200,
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-length': String(CONTENT.length),
+            'accept-ranges': 'bytes'
+          }
+        })
+      }
+      const range = /bytes=(\d+)-(\d+)/.exec(new Headers(init?.headers).get('range') ?? '')
+      const start = Number(range?.[1] ?? 0)
+      const end = Math.min(Number(range?.[2] ?? CONTENT.length - 1), CONTENT.length - 1)
+      return new Response(CONTENT.subarray(start, end + 1), {
+        status: 206,
+        headers: {
+          'content-range': `bytes ${start}-${end}/${CONTENT.length}`,
+          'content-length': String(end - start + 1)
+        }
+      })
+    }
+  }
+
+  it('serializes overlapping retries so the late probe cannot requeue the task', async () => {
+    const { task } = createTask()
+    store.setState(task.id, 'failed', 'probe failed')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const view = internals(service)
+
+    let releaseHead!: () => void
+    const headGate = new Promise<void>((resolve) => (releaseHead = resolve))
+    let heads = 0
+    const serve = servingFetch(headGate)
+    vi.spyOn(view, 'fetchFor').mockReturnValue(async (url, init) => {
+      if (init?.method === 'HEAD') heads += 1
+      return serve(url, init)
+    })
+
+    const first = service.retry(task.id)
+    const second = service.retry(task.id)
+    // The second click joins the probe in flight instead of starting its own.
+    expect(heads).toBe(1)
+
+    releaseHead()
+    await Promise.all([first, second])
+
+    await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('completed'))
+    expect(store.get(task.id)?.task.tempPath).toBe('')
+  })
+
+  it('leaves a task alone when it stops being failed during the retry probe', async () => {
+    const { task, filePath } = createTask()
+    store.setState(task.id, 'failed', 'probe failed')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const view = internals(service)
+
+    let releaseHead!: () => void
+    const headGate = new Promise<void>((resolve) => (releaseHead = resolve))
+    vi.spyOn(view, 'fetchFor').mockReturnValue(servingFetch(headGate))
+
+    const retrying = service.retry(task.id)
+    // Another actor finishes the row while this probe is still waiting.
+    store.complete(task.id, filePath, CONTENT.length)
+    releaseHead()
+    await retrying
+
+    const stored = store.get(task.id)!
+    expect(stored.task.state).toBe('completed')
+    expect(stored.task.tempPath).toBe('')
+    expect(view.queue).not.toContain(task.id)
+  })
 })

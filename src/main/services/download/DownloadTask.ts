@@ -262,6 +262,13 @@ export class DownloadTask {
     } finally {
       await handle.close()
     }
+    // A pause or cancel can land while the sync or the close is in flight. The
+    // ranged branch checks that window before reading `merging`; doing the same
+    // here keeps a single-stream task from renaming over the abort and
+    // publishing a file the user asked to stop.
+    if (signal.aborted) {
+      return this.settleAbort(signal)
+    }
 
     store.setState(task.id, 'merging')
     await fs.rename(task.tempPath, task.filePath)

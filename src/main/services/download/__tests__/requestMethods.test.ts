@@ -41,6 +41,21 @@ describe('RequestMethods', () => {
     expect(methods.methodFor('https://example.com/export')).toBeUndefined()
   })
 
+  it('keeps a GET replayable after the manager probes the same url with HEAD', () => {
+    const methods = new RequestMethods(4, 60_000, () => 0)
+    methods.record('https://example.com/file', 'GET')
+    methods.record('https://example.com/file', 'HEAD')
+
+    expect(methods.methodFor('https://example.com/file')).toBe('GET')
+  })
+
+  it('reports a url only ever seen with HEAD as replayable', () => {
+    const methods = new RequestMethods(4, 60_000, () => 0)
+    methods.record('https://example.com/probe', 'HEAD')
+
+    expect(methods.methodFor('https://example.com/probe')).toBe('HEAD')
+  })
+
   it('only treats requests without a body as replayable', () => {
     expect(isReplayableDownload('GET')).toBe(true)
     expect(isReplayableDownload('HEAD')).toBe(true)

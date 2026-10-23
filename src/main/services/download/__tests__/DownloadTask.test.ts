@@ -284,6 +284,54 @@ describe('DownloadTask', () => {
     expect(store.get(task.id)?.task.state).toBe('paused')
   })
 
+  it('does not publish a single-stream file when a pause lands during the final sync', async () => {
+    const fileName = 'sync.bin'
+    const filePath = join(dir, fileName)
+    const tempPath = `${filePath}.crdownload`
+    const { task, segments } = store.create({
+      url: `${baseUrl}/sync`,
+      finalUrl: `${baseUrl}/sync`,
+      fileName,
+      filePath,
+      tempPath,
+      totalBytes: 0,
+      connections: 1,
+      source: 'manual',
+      supportsRanges: false,
+      ranges: [{ index: 0, start: 0, end: 0 }]
+    })
+    const controller = new AbortController()
+    const runner = new DownloadTask({
+      task,
+      segments,
+      probe: { finalUrl: task.url, totalBytes: 0, supportsRanges: false },
+      store,
+      fetchImpl: async () => new Response(CONTENT, { status: 200 }),
+      progressFlushBytes: 1
+    })
+
+    // The sync has no hook of its own, so borrow the handle prototype to abort
+    // between `handle.sync()` resolving and `handle.close()` running.
+    const probeHandle = await fs.open(tempPath, 'w')
+    const proto = Object.getPrototypeOf(probeHandle) as { sync(): Promise<void> }
+    await probeHandle.close()
+    const realSync = proto.sync
+    const syncSpy = vi.spyOn(proto, 'sync').mockImplementation(async function (this: typeof probeHandle) {
+      await realSync.call(this)
+      controller.abort()
+    })
+
+    try {
+      await expect(runner.run(controller.signal)).resolves.toBe('paused')
+    } finally {
+      syncSpy.mockRestore()
+    }
+
+    expect(store.get(task.id)?.task.state).toBe('paused')
+    expect(existsSync(filePath)).toBe(false)
+    expect(existsSync(tempPath)).toBe(true)
+  })
+
   it('settles a pause that lands before the response headers', async () => {
     const fileName = 'headers.bin'
     const filePath = join(dir, fileName)

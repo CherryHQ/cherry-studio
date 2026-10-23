@@ -79,6 +79,8 @@ export class DownloadManagerService extends BaseService {
   private readonly running = new Map<string, AbortController>()
   /** Final and temporary paths claimed by tasks, including failed rows that can retry. */
   private readonly reserved = new Set<string>()
+  /** One probe/reset per task; concurrent Retry clicks join the running one. */
+  private readonly retries = new Map<string, Promise<void>>()
   private readonly speeds = new SpeedMeter()
   private active = 0
 
@@ -366,15 +368,32 @@ export class DownloadManagerService extends BaseService {
 
   /** Re-probes and restarts a failed task from zero. */
   async retry(taskId: string): Promise<void> {
+    // The probe is a network round trip, so two clicks can overlap. They must
+    // share one reset: otherwise the later probe reaches the row after the
+    // earlier retry has completed it and requeues it with `tempPath: ''`.
+    const inFlight = this.retries.get(taskId)
+    if (inFlight) return inFlight
+    const job = this.restartFailed(taskId).finally(() => this.retries.delete(taskId))
+    this.retries.set(taskId, job)
+    return job
+  }
+
+  private async restartFailed(taskId: string): Promise<void> {
     const entry = this.store.get(taskId)
     if (!entry) return
     const { task } = entry
     const probe = await probeDownload(task.url, this.fetchFor(task.partition))
+    // The row can reach a terminal state while the probe is in flight: removed,
+    // cancelled, or completed by the retry this call joined.
+    if (!this.canRetry(taskId)) return
     const ranges =
       probe.supportsRanges && probe.totalBytes > 0
         ? planSegments(probe.totalBytes, task.connections)
         : [{ index: 0, start: 0, end: 0 }]
     if (task.tempPath) await fs.rm(task.tempPath, { force: true }).catch(() => undefined)
+    // Removing the temporary file is another await; do not reset a row that
+    // stopped being failed in the meantime.
+    if (!this.canRetry(taskId)) return
     this.store.reset(taskId, {
       totalBytes: probe.totalBytes,
       supportsRanges: probe.supportsRanges,
@@ -384,6 +403,11 @@ export class DownloadManagerService extends BaseService {
     })
     this.enqueue(taskId)
     this.pump()
+  }
+
+  /** Retry may only reset a row that is still failed. */
+  private canRetry(taskId: string): boolean {
+    return this.store.get(taskId)?.task.state === 'failed'
   }
 
   async remove(taskId: string): Promise<void> {
