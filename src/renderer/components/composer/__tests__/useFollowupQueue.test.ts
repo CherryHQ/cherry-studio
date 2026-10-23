@@ -1497,6 +1497,65 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('dispatches a won claim when only its own broadcast refresh is in flight (inv_16b576017347a966)', async () => {
+    let refreshing = false
+    mockUseQuery.mockImplementation((path: string) => {
+      if (path === '/followup-queues') {
+        return {
+          data: [row('h', 'head')],
+          isLoading: false,
+          isRefreshing: refreshing,
+          error: undefined,
+          refetch: vi.fn(),
+          mutate: vi.fn()
+        }
+      }
+      if (path === '/followup-queue-states') {
+        return {
+          data: { scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn(),
+          mutate: vi.fn()
+        }
+      }
+      throw new Error(`unexpected query path ${path}`)
+    })
+    const { claimHeadTrigger } = wireMutations()
+    let resolveClaim!: (value: unknown) => void
+    claimHeadTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveClaim = resolve
+      })
+    )
+    const onDrain = vi.fn(async () => true)
+    const { rerender } = renderHook(
+      ({ status, lastCompletedAt }: { status: 'streaming' | 'done'; lastCompletedAt: number | null }) =>
+        useFollowupQueue(baseProps({ status, lastCompletedAt, onDrain })),
+      { initialProps: { status: 'streaming' as 'streaming' | 'done', lastCompletedAt: null as number | null } }
+    )
+
+    await act(async () => {
+      rerender({ status: 'done', lastCompletedAt: 100 })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+
+    // The claim's own broadcast starts queue revalidation before the grant
+    // lands. Pre-claim readiness must not read as post-claim dispatch
+    // safety: only Pause/ownership may release a won claim without delivery
+    // (cherry-pr-review inv_16b576017347a966).
+    refreshing = true
+    await act(async () => {
+      rerender({ status: 'done', lastCompletedAt: 100 })
+    })
+    await act(async () => {
+      resolveClaim({ claimed: true, id: 'h', alreadySent: false })
+      await Promise.resolve()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+  })
+
   it('retries the restored-copy cleanup when the delete fails transiently after the edit session ends', async () => {
     vi.useFakeTimers()
     try {
