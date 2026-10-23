@@ -180,7 +180,10 @@ export function useModelMutations() {
   const updateModel = useCallback(
     async (providerId: string, modelId: string, updates: UpdateModelDto) => {
       try {
-        await updateTrigger({ params: { uniqueModelId: createUniqueModelId(providerId, modelId) }, body: updates })
+        return await updateTrigger({
+          params: { uniqueModelId: createUniqueModelId(providerId, modelId) },
+          body: updates
+        })
       } catch (error) {
         logger.error('Failed to update model', { providerId, modelId, error })
         throw error

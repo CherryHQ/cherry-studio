@@ -179,20 +179,44 @@ describe('Voice handlers through real IpcRouter', () => {
     }
   )
 
-  it('dispatches speech and abort operations with the managed owner', async () => {
-    const webContents = { id: 10, isDestroyed: () => false }
-    const owner = { windowId: 'owner', webContents }
-    const abort = { sessionId: input.sessionId, requestId: input.requestId }
-    boundary.window.mockReturnValue({ webContents })
+  it.each(['local-voice::apple-system-tts', 'openai::tts-1', 'custom::deployment-42'])(
+    'dispatches speech for %s and abort operations with the managed owner',
+    async (modelId) => {
+      const webContents = { id: 10, isDestroyed: () => false }
+      const owner = { windowId: 'owner', webContents }
+      const abort = { sessionId: input.sessionId, requestId: input.requestId }
+      const speechInput = { ...input, modelId }
+      const output = {
+        sessionId: input.sessionId,
+        requestId: input.requestId,
+        output: {
+          kind: 'audio',
+          id: '00000000-0000-4000-8000-000000000004',
+          url: 'cherry-media://voice/test',
+          mimeType: 'audio/wav'
+        },
+        playback: {
+          attemptId: 1,
+          commandRevision: 0,
+          synthesis: 'completed',
+          desired: 'playing',
+          observed: 'ready',
+          pendingCommand: null,
+          availableCommands: ['pause', 'stop']
+        }
+      }
+      boundary.window.mockReturnValue({ webContents })
+      boundary.speech.mockResolvedValue(output)
 
-    await router.dispatch('ai.speech.generate', input, { senderId: 'owner' })
-    await router.dispatch('ai.speech.abort', abort, { senderId: 'owner' })
-    await router.dispatch('ai.transcription.abort', abort, { senderId: 'owner' })
+      await expect(router.dispatch('ai.speech.generate', speechInput, { senderId: 'owner' })).resolves.toEqual(output)
+      await router.dispatch('ai.speech.abort', abort, { senderId: 'owner' })
+      await router.dispatch('ai.transcription.abort', abort, { senderId: 'owner' })
 
-    expect(boundary.speech).toHaveBeenCalledWith(owner, input)
-    expect(boundary.abort).toHaveBeenNthCalledWith(1, owner, abort, 'speech')
-    expect(boundary.abort).toHaveBeenNthCalledWith(2, owner, abort, 'transcription')
-  })
+      expect(boundary.speech).toHaveBeenCalledWith(owner, speechInput)
+      expect(boundary.abort).toHaveBeenNthCalledWith(1, owner, abort, 'speech')
+      expect(boundary.abort).toHaveBeenNthCalledWith(2, owner, abort, 'transcription')
+    }
+  )
 
   it('dispatches a valid WebM/Opus recording with the managed owner and returns its FileEntry', async () => {
     const webContents = { id: 10, isDestroyed: () => false }

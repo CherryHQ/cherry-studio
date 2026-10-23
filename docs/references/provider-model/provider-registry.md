@@ -70,7 +70,8 @@ can be deleted.
 
 ```
 POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
-  → handler: for each item, providerRegistryService.lookupModel(providerId, modelId)
+  → handler: group items by provider, providerRegistryService.lookupModels(providerId, modelIds)
+    → read effective provider connections once per group
     → RegistryLoader.findModel('gpt-4o')           // O(1) indexed, normalize fallback
     → RegistryLoader.findOverride('openai', 'gpt-4o')  // O(1) indexed
     → resolve endpoint profile from registry data   // main-only; not persisted
@@ -83,6 +84,27 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
     → rebuild current registry baseline
     → apply every non-null sparse column
 ```
+
+Manual previews, creation, and imported descriptions use this same resolution
+owner. Registry suggestions use the provider's effective connections, not the
+model vendor's identity: a Gemini model served through an OpenAI-compatible
+deployment is not forced onto Google transport. Registered multi-backend gateways
+retain their per-model native Chat route before the generic provider default.
+Explicit provider-model, remote, and user endpoint declarations take precedence
+over suggestions.
+
+Forms keep resolved defaults separate from explicit draft edits. Untouched fields
+are omitted; explicitly cleared arrays remain stored arrays, including when the
+current default is also empty. Import carries only fields actually supplied by
+discovery as creation overrides. Registry lookup failures abort creation instead
+of being treated as successful unknown-model lookups.
+
+`PATCH /models/:uniqueModelId` accepts `resetFields` for `capabilities`,
+`inputModalities`, `outputModalities`, and `endpointTypes`. It resolves the current
+baseline and clears only those overrides in one synchronous write transaction.
+Input modality reset also clears `inputModalitiesExplicit`. Setting and resetting
+the same field, or resetting a model without a baseline, fails without writes.
+The command is not stored and does not expand to pricing, limits, or identity.
 
 ### 3. Resolve SDK Model List
 

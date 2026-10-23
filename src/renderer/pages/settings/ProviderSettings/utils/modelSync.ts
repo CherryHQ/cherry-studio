@@ -9,12 +9,15 @@ import {
   type EndpointType as RuntimeEndpointType,
   type ListedModels,
   type Model,
+  ModelSchema,
   parseUniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ProviderModelSync')
+
+type ResolvedProviderModel = Model & { creationOverrides?: Partial<CreateModelDto> }
 
 export type ModelSyncErrorCode = 'NO_ENABLED_API_KEY'
 
@@ -34,8 +37,9 @@ type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' 
 
 export function resolveCreateModelEndpointTypes(
   provider: ModelSyncProviderEndpointSource | null | undefined,
-  model: Pick<Model, 'endpointTypes'>
+  model: Pick<ResolvedProviderModel, 'endpointTypes' | 'creationOverrides'>
 ): RuntimeEndpointType[] | undefined {
+  if (model.creationOverrides) return model.creationOverrides.endpointTypes
   if (model.endpointTypes?.length) {
     return [...model.endpointTypes]
   }
@@ -53,10 +57,17 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
 
 export function toCreateModelDto(
   providerId: string,
-  model: Model,
+  model: ResolvedProviderModel,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
   const modelId = getRawModelId(model)
+  if (model.creationOverrides)
+    return {
+      providerId,
+      modelId,
+      ...model.creationOverrides,
+      ...(endpointTypes !== undefined ? { endpointTypes } : {})
+    }
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
   const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
 
@@ -73,6 +84,11 @@ export function toCreateModelDto(
   }
 }
 
+export async function resolveProviderModelDefaults(providerId: string, ids: string[]): Promise<Model[]> {
+  const path: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
+  return ModelSchema.array().parse(await dataApiService.get(path, { query: { ids } }))
+}
+
 /**
  * Enrich raw v2 models from `ipcApi.request('ai.provider.model.list', …)` with registry
  * metadata fetched via `/providers/:id/models:resolve`. The IPC already
@@ -80,7 +96,10 @@ export function toCreateModelDto(
  * — this layer overlays preset capabilities/limits/pricing that aren't
  * available from the upstream provider SDK.
  */
-async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Model>[]): Promise<Model[]> {
+async function enrichFetchedModels(
+  providerId: string,
+  fetchedModels: Partial<Model>[]
+): Promise<ResolvedProviderModel[]> {
   const filteredModels = fetchedModels.filter((model) => !isEmpty(model.name))
   if (filteredModels.length === 0) {
     return []
@@ -131,12 +150,28 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       return base
     }
 
-    const merged = { ...base }
+    const creationOverrides: Partial<CreateModelDto> = {}
+    for (const field of [
+      'capabilities',
+      'inputModalities',
+      'outputModalities',
+      'endpointTypes',
+      'contextWindow',
+      'maxInputTokens',
+      'maxOutputTokens',
+      'name',
+      'group'
+    ] as const) {
+      if (fetched[field] !== undefined && (field !== 'name' || fetched.name !== apiId)) {
+        Object.assign(creationOverrides, { [field]: fetched[field] })
+      }
+    }
+    const merged: ResolvedProviderModel = { ...base, creationOverrides }
     // Fetchers use the raw id when the API has no display name; only then use the registry name.
     const keepFetchedName = !!base.name && base.name !== base.apiModelId
 
     for (const field of REGISTRY_FIELDS) {
-      if (field === 'endpointTypes' && base.endpointTypes?.length) {
+      if (field in creationOverrides) {
         continue
       }
       if (field === 'name' && keepFetchedName) {
@@ -148,6 +183,12 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       }
     }
 
+    if (registry.capabilities && base.capabilities) {
+      merged.capabilities = [...new Set([...registry.capabilities, ...base.capabilities])]
+      if (base.capabilities.some((capability) => !registry.capabilities.includes(capability))) {
+        creationOverrides.capabilities = merged.capabilities
+      } else delete creationOverrides.capabilities
+    }
     return merged
   })
 }
@@ -158,7 +199,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
+export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<ResolvedProviderModel>> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
     const { models: fetched, skippedModels } = await ipcApi.request('ai.provider.model.list', {

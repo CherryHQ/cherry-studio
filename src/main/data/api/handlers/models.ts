@@ -8,8 +8,7 @@
 
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { loggerService } from '@logger'
-import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   BulkUpdateModelsSchema,
@@ -24,8 +23,6 @@ import {
 import type { HandlersFor } from '@shared/data/api/types'
 import { SuccessStatus } from '@shared/data/api/types'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-
-const logger = loggerService.withContext('DataApi:ModelHandlers')
 
 /**
  * Parse a UniqueModelId from the transport layer, raising a 422 validation
@@ -46,41 +43,15 @@ const parseOrValidationError = (uniqueModelId: string) => {
   return parseUniqueModelId(uniqueModelId)
 }
 
-async function enrichCreateItems(dtos: CreateModelDto[]) {
-  return await Promise.all(
-    dtos.map(async (dto) => {
-      try {
-        return {
-          dto,
-          registryData: providerRegistryService.lookupModel(dto.providerId, dto.modelId)
-        }
-      } catch (error) {
-        if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
-          logger.error('Registry lookup failed during create', {
-            providerId: dto.providerId,
-            modelId: dto.modelId,
-            error
-          })
-          throw error
-        }
-
-        logger.warn(
-          dtos.length === 1
-            ? 'Registry lookup missed during create, falling back to custom'
-            : 'Registry lookup missed during batch create, falling back to custom',
-          {
-            providerId: dto.providerId,
-            modelId: dto.modelId,
-            error
-          }
-        )
-        return {
-          dto,
-          registryData: undefined
-        }
-      }
-    })
-  )
+function enrichCreateItems(dtos: CreateModelDto[]) {
+  return [...new Set(dtos.map((dto) => dto.providerId))].flatMap((providerId) => {
+    const items = dtos.filter((dto) => dto.providerId === providerId)
+    const resolved = providerRegistryService.lookupModels(
+      providerId,
+      items.map((dto) => dto.modelId)
+    )
+    return items.map((dto, index) => ({ dto, registryData: resolved[index] }))
+  })
 }
 
 export const modelHandlers: HandlersFor<ModelSchemas> = {
@@ -95,7 +66,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       // normalized before they reach the service so the service can expose one
       // collection-oriented create path with consistent transaction semantics.
       const parsed = CreateModelsSchema.parse(body)
-      const items = await enrichCreateItems(parsed)
+      const items = enrichCreateItems(parsed)
       return modelService.create(items)
     },
 
@@ -160,7 +131,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
         }
       }
 
-      const items = await enrichCreateItems(parsed.toAdd)
+      const items = enrichCreateItems(parsed.toAdd)
       const models = modelService.reconcileForProvider(params.providerId, {
         toAdd: items,
         toRemove: parsed.toRemove

@@ -427,6 +427,10 @@ describe('AiService', () => {
           endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://provider.test/v1' } }
         })
       )
+      mockModelGetByKey.mockReturnValue({
+        ...mockModelGetByKey(),
+        capabilities: [modality === 'image' ? 'image-generation' : modality]
+      })
       const { customFetch } = await import('../utils/customFetch')
       vi.mocked(customFetch).mockResolvedValue(new Response(null, { status: 204 }))
       const sdkRequest = async (_providerId: string, settings: { fetch: FetchFunction }) => {
