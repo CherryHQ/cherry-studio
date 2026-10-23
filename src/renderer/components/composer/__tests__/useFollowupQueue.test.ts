@@ -1368,6 +1368,66 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('keeps cleanup ownership of the landed copy when the abandon-path removal fails transiently (inv_f89db3564dc86774)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+      // A's take delete resolves; B's stays pending until the scope has moved.
+      let resolveDelete!: () => void
+      takeDeleteTrigger.mockResolvedValueOnce(undefined).mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveDelete = () => resolve(undefined)
+        })
+      )
+
+      const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        void result.current.takeForEdit('b', captureOutgoing)
+      })
+      await act(async () => {})
+      const restoreBodies = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+      const restoreId = restoreBodies[0][0].body.id
+
+      await act(async () => {
+        rerender({ scopeKey: 's2' })
+      })
+      // The abandon-path removal keeps failing transiently: cleanup ownership
+      // must move to the resolve retry chain instead of abandoning the held
+      // copy to the hold expiry and a duplicate delivery (cherry-pr-review
+      // inv_f89db3564dc86774).
+      deleteTrigger.mockRejectedValue(new Error('temporary outage'))
+      await act(async () => {
+        resolveDelete()
+      })
+      await act(async () => {})
+      expect(deleteTrigger).toHaveBeenCalledTimes(3)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(deleteTrigger.mock.calls.length).toBeGreaterThan(3)
+      const retried = deleteTrigger.mock.calls.length
+      deleteTrigger.mockClear().mockResolvedValue(undefined)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      // The retried removal succeeded: the chain stops.
+      expect(deleteTrigger.mock.calls.length).toBeLessThanOrEqual(1)
+      void retried
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('retries the restored-copy cleanup when the delete fails transiently after the edit session ends', async () => {
     vi.useFakeTimers()
     try {
@@ -3154,6 +3214,61 @@ describe('persistBlobAttachments', () => {
     // The owned claim is released without consuming the completion edge.
     expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
+  })
+
+  it('re-drives the pending completion when Resume lands while the pause release is in flight (inv_b17cab8d94fd1281)', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, failTrigger } = wireMutations()
+    let resolveClaim!: (value: unknown) => void
+    claimHeadTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveClaim = resolve
+      })
+    )
+    let resolveFail!: () => void
+    failTrigger.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveFail = () => resolve(undefined)
+      })
+    )
+    const onDrain = vi.fn(async () => true)
+    const { result, rerender } = renderHook(
+      ({ status, lastCompletedAt }: { status: 'streaming' | 'done'; lastCompletedAt: number | null }) =>
+        useFollowupQueue(baseProps({ status, lastCompletedAt, onDrain })),
+      { initialProps: { status: 'streaming' as 'streaming' | 'done', lastCompletedAt: null as number | null } }
+    )
+
+    await act(async () => {
+      rerender({ status: 'done', lastCompletedAt: 100 })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      result.current.setPaused(true)
+    })
+    // The claim resolves after Pause took effect: the drain releases it
+    // without dispatching, and the release stays in flight.
+    await act(async () => {
+      resolveClaim({ claimed: true, id: 'h', alreadySent: false })
+      await Promise.resolve()
+    })
+    expect(failTrigger).toHaveBeenCalledTimes(1)
+    expect(onDrain).not.toHaveBeenCalled()
+
+    // Resume while the release is in flight: the drain effect exits at the
+    // busy-scope guard, so the settlement itself must re-drive the still
+    // unconsumed completion (cherry-pr-review inv_b17cab8d94fd1281).
+    await act(async () => {
+      result.current.setPaused(false)
+    })
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+    await act(async () => {
+      resolveFail()
+    })
+    await act(async () => {})
+
+    expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
+    expect(onDrain).toHaveBeenCalledTimes(1)
   })
 
   it('removes the landed outgoing copy when a switch abandons on a scope change', async () => {
