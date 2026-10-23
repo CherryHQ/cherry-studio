@@ -3397,7 +3397,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         },
         key: 'warm-key',
         options: { model: 'sonnet' },
-        settings: { toolPolicySnapshot: snapshot },
+        settings: { toolPolicySnapshot: snapshot, mcpServerAllocation: { srv: 'docs' } },
         sdkModelId: 'sonnet-sdk',
         initializeTimeoutMs: 100
       })
@@ -3419,7 +3419,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       })
       await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
 
-      expect(snapshot.update).toHaveBeenCalledWith(updatedAgent, { preserveDenied: ['mcp__docs__run'] })
+      // The connect-time allocation rides along: a denial added after the rename must also
+      // block the pre-rename identity the frozen allocation still serves.
+      expect(snapshot.update).toHaveBeenCalledWith(updatedAgent, {
+        preserveDenied: ['mcp__docs__run'],
+        baselineServerNameById: new Map([['srv', 'docs']])
+      })
 
       void connection.close()
     })

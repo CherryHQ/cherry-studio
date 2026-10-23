@@ -229,6 +229,29 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__github__other')).toBe(true)
   })
 
+  it('applies a post-rename denial to the active connection as well as the desired allocation', async () => {
+    // Full Access turn under `docs`; the server is renamed to `github` and the tool is disabled
+    // AFTER the rename but BEFORE the deferred rebuild. The driver's preservation baseline moved
+    // to the migrated rules and is empty, so the snapshot must translate the new-form denial back
+    // onto the connect-time keys (`baselineServerNameById`) that the ACTIVE connection still serves.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([]), {
+      serverNameById: new Map([['mcp-1', 'docs']])
+    })
+
+    await snapshot.update(makeAgent(['mcp__github__run']), {
+      serverNameById: new Map([['mcp-1', 'github']]),
+      baselineServerNameById: new Map([['mcp-1', 'docs']]),
+      preserveDenied: []
+    })
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    // The replacement connection's connect refresh carries no baseline — release.
+    await snapshot.update(makeAgent(['mcp__github__run']), { serverNameById: new Map([['mcp-1', 'github']]) })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(false)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))

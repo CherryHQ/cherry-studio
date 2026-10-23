@@ -339,6 +339,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
+  /** Mounted-server id → record key frozen at connect: the identity this allocation still serves. */
+  private connectMcpServerAllocation?: ReadonlyMap<string, string>
   private _usageCapture?: AgentSessionUsageCapture
   private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
   private readonly streamInvocationIdsByLane = new Map<string, string>()
@@ -430,12 +432,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.bindApprovalEmitter()
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
+    // The frozen allocation still serves its connect-time keys: reconcile translates post-rename
+    // denials back onto them while this connection remains active (released only by its replacement).
+    this.connectMcpServerAllocation = request.settings.mcpServerAllocation
+      ? new Map(Object.entries(request.settings.mcpServerAllocation))
+      : undefined
     registerMcpSessionCatalogSync(
       this.input.sessionId,
       this.input.agentId,
       request.connectionConfig?.live.toolPolicy.mcps ?? [],
       this.mcpToolMetadata,
-      request.settings.mcpServerAllocation ? new Map(Object.entries(request.settings.mcpServerAllocation)) : undefined
+      this.connectMcpServerAllocation
     )
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
@@ -572,7 +579,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           : agent
         if (needsRebuild) {
           await this.toolPolicySnapshot?.update(snapshotAgent, {
-            preserveDenied: baseline.live.toolPolicy.disabledTools
+            preserveDenied: baseline.live.toolPolicy.disabledTools,
+            // Same-connection semantics: the frozen allocation still serves its connect-time
+            // keys, so a denial that postdates the rename must also block those identities.
+            baselineServerNameById: this.connectMcpServerAllocation
           })
         } else {
           await this.toolPolicySnapshot?.update(snapshotAgent)
