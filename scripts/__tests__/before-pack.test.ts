@@ -98,7 +98,8 @@ describe('prepareNativeModulesForElectron', () => {
       },
       rebuild,
       undefined,
-      () => {}
+      () => {},
+      async () => {}
     )
 
     expect(rebuild).toHaveBeenCalledWith({
@@ -182,7 +183,8 @@ describe('Windows runtime preparation ordering', () => {
               toolsets: [{ path: 'tools', version: '14.44.35207' }],
               redists: ['x64', 'arm64'].map((arch) => ({ path: arch, arch, version: [14, 44, 35211, 0] }))
             })
-          })
+          }),
+        async () => {}
       )
       expect(observed).toBe(
         '!define VC_RUNTIME_MIN_MAJOR 14\n!define VC_RUNTIME_MIN_MINOR 44\n!define VC_RUNTIME_MIN_BUILD 35211\n!define VC_RUNTIME_MIN_PACKED 917548\n'
@@ -190,6 +192,54 @@ describe('Windows runtime preparation ordering', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  // Catches verifying a per-architecture floor or starting the rebuild before verification completes.
+  it.each([Arch.x64, Arch.arm64])('verifies the generated common floor before rebuilding %s', async (arch) => {
+    const events: string[] = []
+    const floor = { major: 14, minor: 51, build: 36247 }
+    await prepareNativeModulesForElectron(
+      context('fixture-build', arch),
+      async () => {
+        events.push('rebuild')
+      },
+      undefined,
+      () => {
+        events.push('prepare')
+        return floor
+      },
+      async (generatedFloor, options) => {
+        expect(generatedFloor).toBe(floor)
+        expect(options).toEqual({ arch: Arch[arch] })
+        expect(events).toEqual(['prepare'])
+        await Promise.resolve()
+        events.push('verify')
+      }
+    )
+    expect(events).toEqual(['prepare', 'verify', 'rebuild'])
+  })
+
+  // Catches ignoring a verification rejection and rebuilding an unsatisfiable package.
+  it('aborts before native rebuild when payload verification fails', async () => {
+    const events: string[] = []
+    await expect(
+      prepareNativeModulesForElectron(
+        context('fixture-build'),
+        async () => {
+          events.push('rebuild')
+        },
+        undefined,
+        () => {
+          events.push('prepare')
+          return { major: 14, minor: 51, build: 36247 }
+        },
+        async () => {
+          events.push('verify')
+          throw new Error('payload below floor')
+        }
+      )
+    ).rejects.toThrow('payload below floor')
+    expect(events).toEqual(['prepare', 'verify'])
   })
 
   it('rejects a Windows target on a non-Windows host before rebuilding', async () => {

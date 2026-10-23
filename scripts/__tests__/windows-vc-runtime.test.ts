@@ -1,7 +1,10 @@
 import childProcess from 'node:child_process'
+import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
+import https from 'node:https'
 import os from 'node:os'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,7 +12,8 @@ import {
   inspectWindowsMsvc,
   deriveRuntimeFloor,
   prepareWindowsRuntimeFloor,
-  renderRuntimeFloor
+  renderRuntimeFloor,
+  verifyWindowsRuntimePayload
 } from '../packaging/windows-vc-runtime'
 
 const fixture = (build = 35211) => ({
@@ -328,5 +332,135 @@ describe('inspectWindowsMsvc command fixtures', () => {
     vi.stubEnv('GYP_MSVS_OVERRIDE_PATH', root)
     vi.stubEnv('npm_config_msvs_version', root)
     expect(deriveRuntimeFloor(inspectWindowsMsvc())).toEqual({ major: 14, minor: 44, build: 35211 })
+  })
+})
+
+describe('verifyWindowsRuntimePayload', () => {
+  const floor = { major: 14, minor: 51, build: 36247 }
+  afterEach(() => vi.restoreAllMocks())
+
+  // Catches packaging a floor newer than the redistributable the installer can download.
+  it.each(['x64', 'arm64'])('rejects an insufficient published %s payload with actionable versions', async (arch) => {
+    const url = `https://aka.ms/vs/17/release/vc_redist.${arch}.exe`
+    await expect(
+      verifyWindowsRuntimePayload(floor, {
+        arch,
+        resolvePayloadVersion: async (requestedUrl) => {
+          expect(requestedUrl).toBe(url)
+          return [14, 44, 35211, 0]
+        }
+      })
+    ).rejects.toThrow(`${url}: payload 14.44.35211.0 is older than required floor 14.51.36247`)
+  })
+
+  // Catches rejecting a sufficient payload or comparing the private component as part of the floor.
+  it.each([
+    [14, 51, 36247, 0],
+    [14, 51, 36247, 1],
+    [14, 52, 1, 0]
+  ])('accepts sufficient payload %j', async (...version) => {
+    await expect(
+      verifyWindowsRuntimePayload(floor, { arch: 'x64', resolvePayloadVersion: async () => version })
+    ).resolves.toBeUndefined()
+  })
+
+  // Catches treating missing or malformed FileVersionInfo as permission to package.
+  it.each([undefined, [0, 0, 0, 0], [14, 51, 36247], ['14', 51, 36247, 0]])(
+    'fails closed on unreadable version %j',
+    async (version) => {
+      await expect(
+        verifyWindowsRuntimePayload(floor, { arch: 'x64', resolvePayloadVersion: async () => version })
+      ).rejects.toThrow('cannot read payload file version')
+    }
+  )
+
+  // Catches swallowing download or version-reader failures.
+  it('propagates resolver rejection with the payload URL', async () => {
+    await expect(
+      verifyWindowsRuntimePayload(floor, {
+        arch: 'arm64',
+        resolvePayloadVersion: async () => {
+          throw new Error('FileVersionInfo unreadable')
+        }
+      })
+    ).rejects.toThrow('https://aka.ms/vs/17/release/vc_redist.arm64.exe: FileVersionInfo unreadable')
+  })
+
+  const stubDownload = (responses: { status: number; location?: string }[]) => {
+    const urls: string[] = []
+    vi.spyOn(https, 'get').mockImplementation(((url, options, callback) => {
+      urls.push(String(url))
+      const reply = responses.shift()!
+      const response = Object.assign(Readable.from(['downloaded EXE']), {
+        statusCode: reply.status,
+        headers: { location: reply.location }
+      })
+      expect(options.signal).toBeInstanceOf(AbortSignal)
+      queueMicrotask(() => callback(response))
+      return new EventEmitter()
+    }) as typeof https.get)
+    return urls
+  }
+
+  // Catches inspecting the redirect body instead of the downloaded EXE, or leaking a successful download.
+  it('follows the aka.ms redirect, reads the EXE file version, and removes the temporary file', async () => {
+    const target = 'https://download.visualstudio.microsoft.com/fixture/vc_redist.x64.exe'
+    const urls = stubDownload([{ status: 302, location: target }, { status: 200 }])
+    let downloadedFile = ''
+    vi.spyOn(childProcess, 'execFileSync').mockImplementation((file, args) => {
+      expect(file).toBe('powershell.exe')
+      const command = String(args?.at(-1))
+      downloadedFile = command.match(/GetVersionInfo\('([^']+)'\)/)![1]
+      expect(fs.readFileSync(downloadedFile, 'utf8')).toBe('downloaded EXE')
+      for (const part of ['FileMajorPart', 'FileMinorPart', 'FileBuildPart', 'FilePrivatePart']) {
+        expect(command).toContain(part)
+      }
+      return '[14,51,36247,0]'
+    })
+    await verifyWindowsRuntimePayload(floor, { arch: 'x64' })
+    expect(urls).toEqual(['https://aka.ms/vs/17/release/vc_redist.x64.exe', target])
+    expect(fs.existsSync(path.dirname(downloadedFile))).toBe(false)
+  })
+
+  // Catches accepting an error response or following redirects indefinitely.
+  it.each([
+    { responses: [{ status: 503 }], error: 'HTTP 503' },
+    { responses: [{ status: 302 }], error: 'redirect without Location' },
+    { responses: [{ status: 302, location: 'https://aka.ms/vs/17/release/vc_redist.x64.exe' }], error: 'redirect loop' }
+  ])('fails closed on $error', async ({ responses, error }) => {
+    stubDownload(responses)
+    await expect(verifyWindowsRuntimePayload(floor, { arch: 'x64' })).rejects.toThrow(error)
+  })
+
+  // Catches assuming success on connection failures or ignoring the 60-second download deadline.
+  it.each(['network error', 'timeout'])('fails closed on %s', async (failure) => {
+    const controller = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal)
+    vi.spyOn(https, 'get').mockImplementation(((_url, options) => {
+      const request = new EventEmitter()
+      if (failure === 'timeout') {
+        options.signal.addEventListener('abort', () => request.emit('error', new Error('download timed out')))
+        queueMicrotask(() => controller.abort())
+      } else {
+        queueMicrotask(() => request.emit('error', new Error('connection reset')))
+      }
+      return request
+    }) as typeof https.get)
+    await expect(verifyWindowsRuntimePayload(floor, { arch: 'x64' })).rejects.toThrow(
+      failure === 'timeout' ? 'download timed out' : 'connection reset'
+    )
+    expect(timeout).toHaveBeenCalledWith(60_000)
+  })
+
+  // Catches leaving a downloaded EXE behind when PowerShell cannot inspect it.
+  it('removes the temporary file when version inspection fails', async () => {
+    stubDownload([{ status: 200 }])
+    let downloadedFile = ''
+    vi.spyOn(childProcess, 'execFileSync').mockImplementation((_file, args) => {
+      downloadedFile = String(args?.at(-1)).match(/GetVersionInfo\('([^']+)'\)/)![1]
+      throw new Error('PowerShell failed')
+    })
+    await expect(verifyWindowsRuntimePayload(floor, { arch: 'x64' })).rejects.toThrow('PowerShell failed')
+    expect(fs.existsSync(path.dirname(downloadedFile))).toBe(false)
   })
 })

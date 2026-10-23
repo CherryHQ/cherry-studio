@@ -1,6 +1,9 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const childProcess = require('node:child_process')
+const https = require('node:https')
+const os = require('node:os')
+const { pipeline } = require('node:stream/promises')
 
 const generatedFile = 'vc-runtime-version.generated.nsh'
 const incomplete = (reason) =>
@@ -85,6 +88,19 @@ function renderRuntimeFloor({ major, minor, build }) {
   return `!define VC_RUNTIME_MIN_MAJOR ${major}\n!define VC_RUNTIME_MIN_MINOR ${minor}\n!define VC_RUNTIME_MIN_BUILD ${build}\n!define VC_RUNTIME_MIN_PACKED ${(major << 16) | minor}\n`
 }
 
+function readPayloadVersion(file) {
+  const quoted = file.replace(/'/g, "''")
+  const command = `$ErrorActionPreference = 'Stop'; $v = [System.Diagnostics.FileVersionInfo]::GetVersionInfo('${quoted}'); ConvertTo-Json -Compress -InputObject @($v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart)`
+  return JSON.parse(
+    childProcess
+      .execFileSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command], {
+        encoding: 'utf8',
+        windowsHide: true
+      })
+      .replace(/^\uFEFF/, '')
+  )
+}
+
 function inspectWindowsMsvc() {
   try {
     const env = Object.fromEntries(Object.entries(process.env).map(([key, value]) => [key.toLowerCase(), value]))
@@ -131,16 +147,7 @@ function inspectWindowsMsvc() {
       const key = canonical(resolved)
       if (seen.has(key)) return
       seen.add(key)
-      const quoted = resolved.replace(/'/g, "''")
-      const command = `$ErrorActionPreference = 'Stop'; $v = [System.Diagnostics.FileVersionInfo]::GetVersionInfo('${quoted}'); ConvertTo-Json -Compress -InputObject @($v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart)`
-      const version = JSON.parse(
-        childProcess
-          .execFileSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command], {
-            encoding: 'utf8',
-            windowsHide: true
-          })
-          .replace(/^\uFEFF/, '')
-      )
+      const version = readPayloadVersion(resolved)
       inventory.redists.push({ path: resolved, arch, version })
       process.stdout.write(`VC runtime payload (${source}): ${arch} ${version.join('.')} ${resolved}\n`)
     }
@@ -232,4 +239,62 @@ function prepareWindowsRuntimeFloor(
   return floor
 }
 
-module.exports = { inspectWindowsMsvc, deriveRuntimeFloor, renderRuntimeFloor, prepareWindowsRuntimeFloor }
+async function resolvePublishedPayloadVersion(url) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-runtime-payload-'))
+  const file = path.join(dir, 'vc_redist.exe')
+  const signal = AbortSignal.timeout(60_000)
+  const visited = new Set()
+  try {
+    while (true) {
+      if (visited.has(url) || visited.size >= 10) throw new Error('redirect loop or limit exceeded')
+      visited.add(url)
+      const response = await new Promise((resolve, reject) => {
+        https.get(url, { signal }, resolve).on('error', reject)
+      })
+      if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
+        response.resume()
+        if (!response.headers.location) throw new Error('redirect without Location')
+        url = new URL(response.headers.location, url).href
+        continue
+      }
+      if (response.statusCode !== 200) {
+        response.resume()
+        throw new Error(`HTTP ${response.statusCode}`)
+      }
+      await pipeline(response, fs.createWriteStream(file), { signal })
+      return readPayloadVersion(file)
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+async function verifyWindowsRuntimePayload(floor, { arch, resolvePayloadVersion = resolvePublishedPayloadVersion }) {
+  if (!['x64', 'arm64'].includes(arch)) throw new Error(`Unsupported Windows packaging architecture: ${arch}`)
+  const url = `https://aka.ms/vs/17/release/vc_redist.${arch}.exe`
+  const minimum = validateVersion([floor.major, floor.minor, floor.build])
+  try {
+    const version = await resolvePayloadVersion(url)
+    if (
+      !Array.isArray(version) ||
+      version.length !== 4 ||
+      !version.every((part) => Number.isInteger(part) && part >= 0 && part <= 65535) ||
+      version[0] < 1
+    ) {
+      throw new Error('cannot read payload file version')
+    }
+    if (compare(version, minimum) < 0) {
+      throw new Error(`payload ${version.join('.')} is older than required floor ${minimum.join('.')}`)
+    }
+  } catch (error) {
+    throw new Error(`VC runtime payload verification failed for ${url}: ${error.message}`, { cause: error })
+  }
+}
+
+module.exports = {
+  verifyWindowsRuntimePayload,
+  inspectWindowsMsvc,
+  deriveRuntimeFloor,
+  renderRuntimeFloor,
+  prepareWindowsRuntimeFloor
+}
