@@ -657,7 +657,9 @@ export function useFollowupQueue({
         }
         for (let attempt = 0; attempt < 3 && !restored; attempt++) {
           try {
-            await enqueueTrigger({ body: restoreBody })
+            // Born held: the copy stays ineligible for delivery until editor
+            // ownership actually transfers; the failure paths only re-stamp it.
+            await enqueueTrigger({ body: { ...restoreBody, held: true } })
             restored = true
           } catch (error) {
             // The conversation was permanently deleted: nothing to restore
@@ -799,6 +801,12 @@ export function useFollowupQueue({
         }
         takenEditRef.current = null
         return undefined
+      }
+      // Editor ownership actually transferred only now: release the outgoing
+      // copy's recovery hold so it is claimable as ordinary pending content.
+      // A lost release self-heals when the hold ages out.
+      if (restoredCopy) {
+        void enqueueTrigger({ body: { ...restoredCopy.body, held: false } }).catch(() => {})
       }
       takenEditRef.current = { item: restoredItem, slot: Math.max(incomingSlot, 0), scopeKey: scope }
       return restoredItem

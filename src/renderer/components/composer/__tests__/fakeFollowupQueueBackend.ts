@@ -136,6 +136,12 @@ export function installFakeFollowupQueueBackend() {
                     claimTokens.set(duplicate.id, HELD_TOKEN)
                     duplicate.updatedAt = new Date().toISOString()
                   }
+                } else if (!body.held && duplicate.status === 'pending' && heldRows.has(duplicate.id)) {
+                  // Mirror production: a non-held retry after editor ownership
+                  // transferred releases the recovery hold.
+                  heldRows.delete(duplicate.id)
+                  claimTokens.set(duplicate.id, undefined)
+                  duplicate.updatedAt = new Date().toISOString()
                 }
                 return duplicate
               }
