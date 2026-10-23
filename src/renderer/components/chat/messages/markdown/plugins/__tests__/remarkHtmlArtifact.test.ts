@@ -1142,6 +1142,69 @@ After.`
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
   })
 
+  // An HTML comment between the summary label and the inner opener must not void the opener's
+  // bookkeeping: the label split has to look past comments (and whitespace) before deciding the
+  // rest of the node holds no disclosure opener, or the inner close lands on the artifact path.
+  it('keeps an inner opener behind an HTML comment in the summary node in the bookkeeping', () => {
+    const source = `<details>
+
+<summary>Outer</summary>
+<!-- note -->
+<details><summary>Inner</summary>
+
+Inner body
+
+</details>
+
+Outer tail
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'html',
+      'html',
+      'html',
+      'paragraph',
+      'html',
+      'paragraph',
+      'html',
+      'paragraph'
+    ])
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<summary>Outer</summary>' })
+    expect(tree.children[2]).toMatchObject({ type: 'html', value: '<details><summary>Inner</summary>' })
+    expect(tree.children[4]).toMatchObject({ type: 'html', value: '</details>' })
+    expect(tree.children[6]).toMatchObject({ type: 'html', value: '</details>' })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
+  // HTML ignores the self-closing marker on non-void elements: `<script/>` still opens a
+  // raw-text script body whose `</details>` literal is source code, not a disclosure boundary.
+  // Only foreign content (svg/math) treats the marker as a real close — inside a paired
+  // disclosure the literal otherwise hijacks the pairing close and shreds the document.
+  it('keeps the embedded document artifact when an HTML self-closing script opener hides a close', () => {
+    const source = `<details>
+
+<summary>Doc</summary>
+
+<html><body><script/>const example="</details>";</script><style>p{color:red}</style><p>Card</p></body></html>
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'html', 'code', 'html', 'paragraph'])
+    expect(tree.children[2]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: source.split('\n\n')[2]
+    })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
   // A pairing search starting at a later node must consult the lexical state carried from the
   // earlier nodes: a `<details>` literal inside a textarea body opened in a previous node is
   // TEXT, not an opener. Starting fresh treats it as real and consumes the inner disclosure's

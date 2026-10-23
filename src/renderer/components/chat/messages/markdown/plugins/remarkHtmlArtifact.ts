@@ -348,8 +348,11 @@ function isForeignContext(state: ContainerScanState): boolean {
 /**
  * Applies a tag that just completed at offset `tagEnd`: a non-self-closing `<svg>` / `<math>`
  * opens a foreign-content namespace, and a raw-text opener recorded in `pendingRawText` enters
- * its raw-text body — but never inside foreign content and never when it self-closed. `tagName`
- * is undefined for a tag continued from a previous node, whose opener text is not in `value`.
+ * its raw-text body — never inside foreign content, where the raw-text algorithm does not
+ * apply. HTML has no self-closing on non-void elements (the marker is ignored, so `<script/>`
+ * still opens a raw-text body); the marker only matters for the namespace openers themselves.
+ * `tagName` is undefined for a tag continued from a previous node, whose opener text is not in
+ * `value`.
  */
 function applyCompletedTag(
   value: string,
@@ -364,7 +367,7 @@ function applyCompletedTag(
     return
   }
   if (state.pendingRawText !== undefined) {
-    if (!isSelfClosingTag(value, tagStart, tagEnd) && !isForeignContext(state)) {
+    if (!isForeignContext(state)) {
       state.rawText = state.pendingRawText
     }
     state.pendingRawText = undefined
@@ -506,8 +509,15 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
       continue
     }
 
-    CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = position
-    const match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
+    // Every token alternative ends in `>` (tags, comments, CDATA): with no `>` left the exec
+    // below could only fail — and retrying its unanchored scan at every unterminated opener is
+    // quadratic on streamed attribute soup. Skip straight to the opener/comment handling, which
+    // returns within one iteration.
+    let match: RegExpExecArray | null = null
+    if (value.indexOf('>', position) !== -1) {
+      CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = position
+      match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
+    }
     // A comment opening before the next token cannot terminate in the remaining input (a
     // complete comment would have matched as the token itself): it swallows the rest of the
     // input — across later nodes — so no boundary inside it may be trusted.
@@ -569,12 +579,8 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
         if (!isSelfClosingTag(token, 0, token.length)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
         continue
       }
-      if (
-        name !== undefined &&
-        RAW_TEXT_CLOSE_REGEXES.has(name) &&
-        !isSelfClosingTag(token, 0, token.length) &&
-        !isForeignContext(state)
-      ) {
+      // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
+      if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name) && !isForeignContext(state)) {
         state.rawText = name
       }
       continue
@@ -631,6 +637,9 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
       CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = scanned
       continue
     }
+    // Same `>` pre-check as the pairing scan: every alternative needs one, and letting the
+    // unanchored exec retry at every unterminated opener is quadratic on attribute soup.
+    if (value.indexOf('>', scanned) === -1) return undefined
     match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
     if (match === null) return undefined
     const commentStart = value.indexOf('<!--', scanned)
@@ -650,12 +659,8 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
         if (!isSelfClosingTag(token, 0, token.length)) foreignDepth += 1
         continue
       }
-      if (
-        name !== undefined &&
-        RAW_TEXT_CLOSE_REGEXES.has(name) &&
-        !isSelfClosingTag(token, 0, token.length) &&
-        foreignDepth === 0
-      ) {
+      // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
+      if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name) && foreignDepth === 0) {
         rawText = name
       }
       continue
@@ -678,6 +683,24 @@ function findSummaryElementEnd(value: string): number | undefined {
   if (!open) return undefined
   const close = /<\/summary\s*>/i.exec(value.slice(open[0].length))
   return close ? open[0].length + close.index + close[0].length : undefined
+}
+
+// Offset of a `<details` opener reached from `from` across whitespace and complete comments, or
+// undefined. A comment sitting between the summary label and the opener does not void the
+// opener's bookkeeping — it still shares the node and still needs its pairing entry.
+function findDetailsOpenerAfterComments(value: string, from: number): number | undefined {
+  let position = from
+  while (position < value.length) {
+    while (position < value.length && /\s/.test(value[position])) position += 1
+    if (value.startsWith('<!--', position)) {
+      const end = value.indexOf('-->', position + 4)
+      if (end === -1) return undefined // unterminated comment: keep the whole node raw
+      position = end + 3
+      continue
+    }
+    return /^<details(?=[\s>])/i.test(value.slice(position)) ? position : undefined
+  }
+  return undefined
 }
 
 interface PairedContainerClose {
@@ -934,20 +957,25 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         const firstBody = body[0]
         if (firstBody?.type === 'html' && HTML_SUMMARY_OPEN_REGEX.test(stripLeadingHtmlMetadata(firstBody.value))) {
           const summaryEnd = findSummaryElementEnd(firstBody.value)
-          const rest = summaryEnd !== undefined ? firstBody.value.slice(summaryEnd) : ''
-          // Leading whitespace on the remainder is insignificant inside the html block.
-          const restStart = summaryEnd !== undefined ? summaryEnd + (rest.length - rest.trimStart().length) : 0
-          if (
-            summaryEnd !== undefined &&
-            restStart < firstBody.value.length &&
-            HTML_CONTAINER_OPEN_REGEX.test(firstBody.value.slice(restStart))
-          ) {
-            // The label shares its node with an inner disclosure opener (no blank line between
-            // them): only the label stays raw, the opener re-enters pairing — skipping the
-            // whole node orphaned the inner close onto the artifact path.
-            children.push(sliceHtmlNode(firstBody, 0, summaryEnd))
-            body[0] = sliceHtmlNode(firstBody, restStart, firstBody.value.length)
+          if (summaryEnd !== undefined) {
+            const rest = firstBody.value.slice(summaryEnd)
+            // Leading whitespace on the remainder is insignificant inside the html block.
+            const restStart = summaryEnd + (rest.length - rest.trimStart().length)
+            const openerStart = findDetailsOpenerAfterComments(firstBody.value, restStart)
+            if (openerStart !== undefined) {
+              // The label shares its node with an inner disclosure opener (possibly behind
+              // comments): only the label stays raw, the opener re-enters pairing — skipping
+              // the whole node orphaned the inner close onto the artifact path. Whitespace and
+              // the comments between are insignificant inside the html block and are dropped.
+              children.push(sliceHtmlNode(firstBody, 0, summaryEnd))
+              body[0] = sliceHtmlNode(firstBody, openerStart, firstBody.value.length)
+            } else {
+              children.push(firstBody)
+              bodyStart = 1
+            }
           } else {
+            // The label's open tag never completed in this node (streaming): keep the whole
+            // node raw, as before the split existed.
             children.push(firstBody)
             bodyStart = 1
           }
