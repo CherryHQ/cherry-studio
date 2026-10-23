@@ -4190,6 +4190,39 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it('preserves indented code when the indentation itself splits across deltas (inv_91c25cca41ade4f0)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'Example:\n\n    <thinking>literal</thinking>\n\nDone.'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    // The four-space indentation straddles the delta boundary: without the
+    // partial line indentation carried, the completing delta is scanned as
+    // column-zero text and the literal XML code block is deleted, corrupting
+    // snapshot reconciliation too (cherry-pr-review inv_91c25cca41ade4f0).
+    for (const piece of ['Example:\n\n ', '   <thinking>literal</thinking>\n\nDone.']) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
   it('preserves indented code when the delta splits after line content (inv_07cd547fcfcb085d)', () => {
     const { adapter, parts } = createAdapter()
     const answer = 'Example:\n\n    note <thinking>literal</thinking> end\n\nNext steps\u2026'

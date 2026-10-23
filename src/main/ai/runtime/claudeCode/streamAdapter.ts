@@ -1171,6 +1171,10 @@ export class ClaudeCodeStreamAdapter {
    * code block, a context the scratchpad scanner cannot see once the
    * indentation (and any already-emitted content) has landed
    * (cherry-pr-review inv_b4f675e18911386f, inv_07cd547fcfcb085d).
+   * Partial indentation still in flight (fewer than four columns emitted
+   * before the delta boundary) is carried as well, so the completing delta
+   * is scanned with the full line indentation instead of as column-zero
+   * scratchpad text (cherry-pr-review inv_91c25cca41ade4f0).
    */
   private emittedIndentOnlyLinePrefix(text: string): string {
     const lineStart = text.lastIndexOf('\n') + 1
@@ -1180,7 +1184,7 @@ export class ClaudeCodeStreamAdapter {
     // whitespace or after content landed: the next chunk continues that line
     // and must be scanned with its indentation restored (cherry-pr-review
     // inv_07cd547fcfcb085d).
-    const indent = openLine.match(/^(?: {4,}|\t+)/)?.[0]
+    const indent = openLine.match(/^(?: +|\t+)/)?.[0]
     if (!indent) return ''
     if (lineStart === 0) return indent
     const prevLineEnd = lineStart - 1
