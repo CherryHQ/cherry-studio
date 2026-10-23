@@ -135,6 +135,22 @@ export function clearAgentDraftCacheIfMatches(
   scope: AgentDraftCacheScope,
   submitted: Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'files'>
 ): boolean {
+  // Inspect raw cached ownership before the scoped read: readAgentDraftCache
+  // masks another agent's entry as an empty draft, which would read as
+  // "nothing to preserve" and let this stale settlement overwrite that
+  // owner's newer content with an empty entry under the wrong agent
+  // (cherry-pr-review inv_2905e46649d25a44).
+  const raw = cacheService.get(cacheKey)
+  if (isRecord(raw)) {
+    const rawAgentId = typeof raw.agentId === 'string' ? raw.agentId : ''
+    const rawWorkspaceKey = typeof raw.workspaceKey === 'string' ? raw.workspaceKey : ''
+    if (
+      (rawAgentId !== '' && rawAgentId !== scope.agentId) ||
+      (rawWorkspaceKey !== '' && rawWorkspaceKey !== scope.workspaceKey)
+    ) {
+      return false
+    }
+  }
   const cached = readAgentDraftCache(cacheKey, scope)
   // Only a real cached document can belong to a newer owner: an empty entry
   // (persistence disabled or nothing persisted yet) carries nothing to

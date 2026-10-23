@@ -242,6 +242,38 @@ describe('clearAgentDraftCacheIfMatches', () => {
     )
   })
 
+  it("leaves another agent's cached draft untouched when a stale settlement clears with its own scope", () => {
+    // Submitted under agent-1; the session then switched to agent-2, whose
+    // newer draft must survive agent-1's settlement. The scoped read masks
+    // the foreign entry as empty, so ownership must be inspected raw
+    // (cherry-pr-review inv_2905e46649d25a44).
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: 'Newer draft from agent-2',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [],
+      workspaceKey: 'ws-1',
+      agentId: 'agent-2'
+    })
+
+    expect(clearAgentDraftCacheIfMatches(cacheKey, scope, submitted)).toBe(false)
+    expect(cacheService.set).not.toHaveBeenCalled()
+  })
+
+  it("leaves another workspace's cached draft untouched when a stale settlement clears with its own scope", () => {
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: 'Newer draft from another workspace',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [],
+      workspaceKey: 'ws-2',
+      agentId: 'agent-1'
+    })
+
+    expect(clearAgentDraftCacheIfMatches(cacheKey, scope, submitted)).toBe(false)
+    expect(cacheService.set).not.toHaveBeenCalled()
+  })
+
   it('preserves a newer cached draft owned by a reopened composer', () => {
     // A reopened composer kept editing the persisted submission: clearing
     // through the obsolete instance would erase the newer draft

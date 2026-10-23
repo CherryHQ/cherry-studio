@@ -1400,7 +1400,7 @@ describe('AgentComposer', () => {
         isStreaming
       />
     )
-    let firstSend: Promise<unknown> | undefined
+    let firstSend: void | Promise<void> | undefined
     await act(async () => {
       firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1420,7 +1420,7 @@ describe('AgentComposer', () => {
         isStreaming
       />
     )
-    let replayedSend: Promise<unknown> | undefined
+    let replayedSend: void | Promise<void> | undefined
     await act(async () => {
       replayedSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1429,7 +1429,8 @@ describe('AgentComposer', () => {
 
     await act(async () => {
       releaseEnqueue?.()
-      await Promise.allSettled([firstSend, replayedSend])
+      // onSendDraft may return void; normalize before settling (cherry-pr-review inv_4359c31231f90009).
+      await Promise.allSettled([Promise.resolve(firstSend), Promise.resolve(replayedSend)])
     })
 
     expect(mocks.sendMessage).not.toHaveBeenCalled()

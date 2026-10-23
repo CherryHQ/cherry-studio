@@ -2270,7 +2270,7 @@ describe('ChatComposer', () => {
     }) as never)
 
     const firstView = render(<ChatComposer topic={topic} onSend={onSend} />)
-    let firstSend: Promise<unknown> | undefined
+    let firstSend: void | Promise<void> | undefined
     await act(async () => {
       firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -2282,7 +2282,7 @@ describe('ChatComposer', () => {
     // (cherry-pr-review inv_785c705f28b6e100).
     firstView.unmount()
     const secondView = render(<ChatComposer topic={topic} onSend={onSend} />)
-    let replayedSend: Promise<unknown> | undefined
+    let replayedSend: void | Promise<void> | undefined
     await act(async () => {
       replayedSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -2291,7 +2291,8 @@ describe('ChatComposer', () => {
 
     await act(async () => {
       releaseEnqueue?.()
-      await Promise.allSettled([firstSend, replayedSend])
+      // onSendDraft may return void; normalize before settling (cherry-pr-review inv_4359c31231f90009).
+      await Promise.allSettled([Promise.resolve(firstSend), Promise.resolve(replayedSend)])
     })
     // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
     secondView.rerender(<ChatComposer topic={topic} onSend={onSend} />)
