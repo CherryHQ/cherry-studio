@@ -668,7 +668,7 @@ describe('useFollowupQueue', () => {
     expect(ipcMocks.request.mock.invocationCallOrder[0]).toBeLessThan(takeDeleteTrigger.mock.invocationCallOrder[0])
   })
 
-  it('completes the take with the path-based attachment when hydration fails', async () => {
+  it('refuses the take and keeps the row queued when attachment hydration fails', async () => {
     const persisted = row('h', 'head')
     ;(persisted as any).payload = {
       text: 'head',
@@ -685,20 +685,24 @@ describe('useFollowupQueue', () => {
       ]
     }
     wireQuery([persisted])
-    const { claimTrigger, takeDeleteTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, failTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true })
-    ipcMocks.request.mockRejectedValueOnce(new Error('entry gone'))
+    ipcMocks.request.mockRejectedValueOnce(new Error('transient read failure'))
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
-    let taken: any
+    let taken: any = 'unset'
     await act(async () => {
       taken = await result.current.takeForEdit('h', () => null)
     })
 
-    expect(taken.payload.attachments[0].blob).toBeUndefined()
-    expect(taken.payload.attachments[0].path).toBe('/data/files/entry-1.png')
-    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    // The take is refused: the row (and its file refs) stays queued, the claim
+    // is released, and nothing reaches the editor (cherry-pr-review
+    // inv_3643f7c7dc08a171).
+    expect(taken).toBeUndefined()
+    expect(takeDeleteTrigger).not.toHaveBeenCalled()
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('refuses the edit take when another window owns the send', async () => {
@@ -2244,6 +2248,55 @@ describe('useFollowupQueue', () => {
 
       expect(onDrain).not.toHaveBeenCalled()
       expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears the parked marker when the scope switches before the reconcile tick, and retries on return', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimHeadTrigger, deleteTrigger } = wireMutations()
+      claimHeadTrigger
+        .mockResolvedValueOnce({ claimed: false })
+        .mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+      const onDrain = vi.fn(async () => true)
+      const { rerender } = renderHook(
+        ({ scope, completion }) => useFollowupQueue(baseProps({ scopeKey: scope, ...completion, onDrain })),
+        {
+          initialProps: {
+            scope: 's1',
+            completion: { status: 'streaming', lastCompletedAt: null as number | null }
+          }
+        }
+      )
+      await act(async () => {
+        rerender({ scope: 's1', completion: { status: 'done', lastCompletedAt: 100 } })
+      })
+      // Parked on the lost claim.
+      expect(onDrain).not.toHaveBeenCalled()
+
+      // Switch away before the reconcile tick fires: the tick drops the park
+      // for s1 instead of suppressing the completion forever
+      // (cherry-pr-review inv_cf435068dde27e9a). s2 stays mid-stream so no
+      // drain fires there.
+      await act(async () => {
+        rerender({ scope: 's2', completion: { status: 'streaming', lastCompletedAt: null } })
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+
+      // Returning to s1 re-drives the drain; the abandoned reservation is gone,
+      // so the retry delivers.
+      await act(async () => {
+        rerender({ scope: 's1', completion: { status: 'done', lastCompletedAt: 100 } })
+      })
+      expect(onDrain).toHaveBeenCalledWith(row('h', 'head').payload)
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     } finally {
       vi.useRealTimers()
     }

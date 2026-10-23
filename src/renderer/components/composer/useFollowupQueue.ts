@@ -107,17 +107,16 @@ async function hydrateTakenAttachments(payload: ComposerQueuedMessagePayload): P
   const hydrated = await Promise.all(
     attachments.map(async (attachment) => {
       if (typeof attachment.entryId !== 'string' || attachment.blob instanceof Blob) return attachment
-      try {
-        const { content, mime } = await ipcApi.request('file.read', {
-          handle: createFileEntryHandle(attachment.entryId),
-          options: { mode: 'full', encoding: 'binary' }
-        })
-        return { ...attachment, blob: new Blob([new Uint8Array(content)], { type: mime }) }
-      } catch {
-        // The entry is already unreadable: keep the path-based attachment — it
-        // stays readable until the sweep actually reclaims it.
-        return attachment
-      }
+      // A failed read must refuse the whole take: falling back to the
+      // path-only attachment would hand the editor a draft whose backing entry
+      // loses its queue refs when the row closes below, leaving the visible
+      // draftâs bytes cleanup-eligible (cherry-pr-review
+      // inv_3643f7c7dc08a171).
+      const { content, mime } = await ipcApi.request('file.read', {
+        handle: createFileEntryHandle(attachment.entryId),
+        options: { mode: 'full', encoding: 'binary' }
+      })
+      return { ...attachment, blob: new Blob([new Uint8Array(content)], { type: mime }) }
     })
   )
   return { ...payload, attachments: hydrated }
@@ -696,8 +695,24 @@ export function useFollowupQueue({
       // The take below closes the row's file refs: hydrate each managed
       // attachment into an editor-owned Blob first, so the restored draft never
       // depends on an entry the idle sweep can reclaim mid-edit
-      // (cherry-pr-review inv_e39933046420a12b).
-      const restoredItem: FollowupQueueItem = { ...item, payload: await hydrateTakenAttachments(item.payload) }
+      // (cherry-pr-review inv_e39933046420a12b). Hydration failing means the
+      // bytes are not readable right now: refuse the take and keep the row —
+      // and its file refs — queued, rather than exposing the visible draft to
+      // cleanup (cherry-pr-review inv_3643f7c7dc08a171).
+      let restoredItem: FollowupQueueItem
+      try {
+        restoredItem = { ...item, payload: await hydrateTakenAttachments(item.payload) }
+      } catch {
+        toast.error(t('message.error.operation_unavailable'))
+        if (taken && restoredCopy) {
+          // An outgoing edit was already restored into the queue: the composer
+          // still shows its draft, so hold the copy out of delivery like any
+          // other refused switch.
+          holdRestoredCopy(restoredCopy)
+        }
+        await releaseClaim()
+        return undefined
+      }
       // A committed DELETE can still time out: retry once and treat NOT_FOUND
       // as deleted, so a lost response cannot drop the draft.
       let deleted = false
@@ -1171,7 +1186,15 @@ export function useFollowupQueue({
     if (pendingTentativeReconcileRef.current.has(scope)) return
     const tick = () => {
       pendingTentativeReconcileRef.current.delete(scope)
-      if (!mountedRef.current || scopeKeyRef.current !== scope) return
+      if (!mountedRef.current) return
+      if (scopeKeyRef.current !== scope) {
+        // The scope moved before the tick ran: retaining the park would
+        // suppress the completion forever — a return to this scope
+        // re-evaluates it fresh, and a still-live winner simply re-parks on
+        // its lost claim (cherry-pr-review inv_cf435068dde27e9a).
+        if (tentativeConsumedRef.current.get(scope) === completionAt) tentativeConsumedRef.current.delete(scope)
+        return
+      }
       // Delivery landed while parked: the durable shared marker fences the
       // completion now, so drop the redundant session park and stop.
       if (loadConsumed(scope) === completionAt) {
