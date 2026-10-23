@@ -5004,7 +5004,10 @@ describe('AgentComposer', () => {
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
         isStreaming
-        launchOptions={{ initialDraft: { text: 'continue', tokens: [] }, editing: { messageId: 'msg-1' } }}
+        launchOptions={{
+          initialDraft: { text: 'continue', tokens: [] },
+          editing: { messageId: 'msg-1', onCancel: () => {} }
+        }}
       />
     )
 

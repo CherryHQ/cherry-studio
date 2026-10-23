@@ -832,14 +832,20 @@ export function useFollowupQueue({
         // inv_ab5b303505a45104). Best-effort: a failed removal leaves the copy
         // held, never deliverable.
         if (restoredCopy) {
-          for (let attempt = 0; attempt < 3; attempt++) {
+          let removed = false
+          for (let attempt = 0; attempt < 3 && !removed; attempt++) {
             try {
               await removeTrigger({ params: { id: restoredCopy.id } })
-              break
-            } catch {
-              // Transient — retry; the copy stays held meanwhile.
+              removed = true
+            } catch (error) {
+              // Already gone counts as closed; transient failures retry inline.
+              if (isAlreadyResolved(error)) removed = true
             }
           }
+          // Same cleanup-ownership obligation as the deferred-reorder branch
+          // below: a transient DELETE failure must not strand the held copy
+          // (cherry-pr-review inv_f89db3564dc86774).
+          if (!removed) scheduleResolveRetryRef.current(restoredCopy.id, true, '')
         }
         takenEditRef.current = null
         return undefined
