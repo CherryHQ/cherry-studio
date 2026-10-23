@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { cacheState, mocks, updateState } = vi.hoisted(() => ({
-  cacheState: { sidebarWidth: 50 },
+import { cacheService } from '@data/CacheService'
+
+const { mocks, updateState } = vi.hoisted(() => ({
   mocks: {
     openSettingsTab: vi.fn(),
     showSearchPopup: vi.fn(),
@@ -26,29 +28,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    type = 'button',
-    ...props
-  }: React.ComponentProps<'button'> & { variant?: string; size?: string }) => {
-    const { variant, size, ...buttonProps } = props
-    void variant
-    void size
-
-    return (
-      <button data-slot="button" type={type} {...buttonProps}>
-        {children}
-      </button>
-    )
-  },
-  Tooltip: ({ children }: { children: React.ReactNode }) => children,
-  Kbd: ({ children }: { children?: React.ReactNode }) => children
-}))
-
-vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [cacheState.sidebarWidth, vi.fn()]
-}))
+vi.unmock('@cherrystudio/ui')
+vi.unmock('@data/hooks/useCache')
 
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
   useAppUpdateState: () => ({ appUpdateState: updateState, updateAppUpdateState: vi.fn() })
@@ -98,7 +79,7 @@ import { AppUpdateButton, ShellTabBarActions, SidebarSettingsButton } from '../S
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  cacheState.sidebarWidth = 50
+  MockCacheUtils.resetMocks()
   updateState.available = false
   updateState.downloaded = false
   updateState.info = null
@@ -119,11 +100,6 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open global search' }))
 
-    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
-    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveClass(
-      'text-muted-foreground',
-      'dark:text-muted-foreground'
-    )
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
@@ -136,7 +112,6 @@ describe('ShellTabBarActions', () => {
     render(<AppUpdateButton />)
 
     const updateButton = screen.getByRole('button', { name: 'Found new version' })
-    expect(updateButton.querySelector('svg')).toHaveClass('text-success')
 
     await user.click(updateButton)
 
@@ -155,7 +130,7 @@ describe('ShellTabBarActions', () => {
   })
 
   it('keeps the ready update out of the tab bar when the full sidebar owns it', () => {
-    cacheState.sidebarWidth = 180
+    cacheService.setPersist('ui.sidebar.width', 180)
     updateState.available = true
     updateState.downloaded = true
     updateState.info = { version: '2.0.0' }
@@ -166,7 +141,7 @@ describe('ShellTabBarActions', () => {
   })
 
   it('keeps the update action at the left of the hidden-sidebar action group', () => {
-    cacheState.sidebarWidth = 0
+    cacheService.setPersist('ui.sidebar.width', 0)
     updateState.available = true
     updateState.downloaded = true
     updateState.info = { version: '2.0.0' }
@@ -181,15 +156,6 @@ describe('ShellTabBarActions', () => {
     ])
   })
 
-  it('uses its natural width in the header flex layout with one right padding', () => {
-    const { container } = render(<ShellTabBarActions />)
-    const actionArea = container.firstElementChild
-
-    expect(actionArea).toHaveClass('shrink-0')
-    expect(actionArea).not.toHaveClass('absolute')
-    expect(actionArea?.firstElementChild).toHaveClass('pr-2')
-  })
-
   it('keeps theme and settings actions out of the tab bar while the sidebar is visible', () => {
     render(<ShellTabBarActions />)
 
@@ -200,7 +166,7 @@ describe('ShellTabBarActions', () => {
 
   it('opens settings from the tab bar when the sidebar is hidden', async () => {
     const user = userEvent.setup()
-    cacheState.sidebarWidth = 0
+    cacheService.setPersist('ui.sidebar.width', 0)
 
     render(<ShellTabBarActions />)
 
@@ -211,14 +177,11 @@ describe('ShellTabBarActions', () => {
 })
 
 describe('SidebarSettingsButton', () => {
-  it('opens settings without a circular hover disc', async () => {
+  it('opens settings from the icon action', async () => {
     const user = userEvent.setup()
     render(<SidebarSettingsButton layout="icon" />)
 
     const button = screen.getByRole('button', { name: 'Settings' })
-    expect(button).toHaveClass('hover:bg-transparent', 'hover:opacity-100', 'hover:text-foreground')
-    expect(button).not.toHaveClass('rounded-full')
-
     await user.click(button)
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
   })
@@ -228,6 +191,5 @@ describe('SidebarSettingsButton', () => {
 
     const button = screen.getByRole('button', { name: 'Settings' })
     expect(button).toHaveTextContent('Settings')
-    expect(button).toHaveClass('w-full', 'justify-start')
   })
 })

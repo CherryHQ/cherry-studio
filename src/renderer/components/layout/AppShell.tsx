@@ -7,7 +7,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
-import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isConversationRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -100,14 +100,8 @@ export const AppShell = () => {
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
-    // Closing the last tab would strand the shell in the empty Launchpad state;
-    // browsers close the window for the final tab (Safari / Chrome convention).
-    if (tabs.length === 1) {
-      void ipcApi.request('window.close')
-      return
-    }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab, tabs])
+  }, [activeTabId, handleCloseTab])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
@@ -146,17 +140,11 @@ export const AppShell = () => {
     recordRouteVisit(activeTab)
   }, [activeTab, recordRouteVisit])
 
-  // Sync internal navigation back to tab state. For route-titled tabs we also
-  // refresh the title and clear the per-entity icon (it was supplied for a
-  // specific URL, e.g. a mini-app logo on /app/mini-app/<id>, and no longer
-  // applies once the user navigates elsewhere inside the tab). Chat / agent
-  // tabs are page-titled — their HomePage/AgentPage owns title + icon (topic /
-  // session name + assistant / agent emoji), so we only sync the url and leave
-  // title/icon alone, or navigating between topics would wipe them.
+  // Conversation visuals are normalized by TabsProvider; navigation only updates identity.
   const handleUrlChange = (tabId: string, url: string) => {
-    const isPageTitled = isPageTitledRoute(url)
+    const isConversation = isConversationRoute(url)
     const tab = tabs.find((candidate) => candidate.id === tabId)
-    const patch = isPageTitled
+    const patch = isConversation
       ? { url, lastAccessTime: Date.now() }
       : {
           url,
@@ -191,7 +179,7 @@ export const AppShell = () => {
 
   const contentArea = (
     <>
-      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
+      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pr-1.5 pb-1.5', isSettingsTabActive && 'pl-1.5')}>
         <main
           data-ui="app.content"
           className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">

@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { setImmediate as nextImmediate } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 
 import { createMockApplication } from '@test-mocks/main/application'
@@ -922,30 +923,48 @@ describe('MainWindowService', () => {
       expect(applicationMock.quit).not.toHaveBeenCalled()
     })
 
-    it('calls application.quit() on Win when tray is disabled', () => {
-      platformState.isWin = true
-      prefValues['app.tray.enabled'] = false
-      attachCloseListener(svc, win)
-      const event = makeCloseEvent()
+    describe.each([
+      ['isWin', false],
+      ['isWin', true],
+      ['isLinux', false],
+      ['isLinux', true]
+    ] as const)('direct exit on %s with tray enabled=%s', (platform, trayEnabled) => {
+      beforeEach(() => {
+        platformState[platform] = true
+        prefValues['app.tray.enabled'] = trayEnabled
+        prefValues['app.tray.on_close'] = false
+        attachCloseListener(svc, win)
+      })
 
-      win.emit('close', event)
+      it('preserves the window on repeated closes while quit is blocked', async () => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const event = new Event('close', { cancelable: true })
+          win.emit('close', event)
+          expect(event.defaultPrevented).toBe(true)
+          await nextImmediate()
+        }
 
-      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(event.preventDefault).not.toHaveBeenCalled()
-      expect(win.hide).not.toHaveBeenCalled()
-    })
+        expect(applicationMock.quit).toHaveBeenCalledTimes(2)
+        expect(win.hide).not.toHaveBeenCalled()
+        expect(win.minimize).not.toHaveBeenCalled()
+      })
 
-    it('calls application.quit() on Linux when tray is enabled but on_close is false', () => {
-      platformState.isLinux = true
-      prefValues['app.tray.enabled'] = true
-      prefValues['app.tray.on_close'] = false
-      attachCloseListener(svc, win)
-      const event = makeCloseEvent()
+      it('finishes cancelling the original close before allowing an accepted quit to close the window', async () => {
+        const quitClose = new Event('close', { cancelable: true })
+        applicationMock.quit.mockImplementation(() => {
+          applicationMock.isQuitting = true
+          win.emit('close', quitClose)
+        })
+        const originalClose = new Event('close', { cancelable: true })
 
-      win.emit('close', event)
+        win.emit('close', originalClose)
 
-      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(win.hide).not.toHaveBeenCalled()
+        expect(originalClose.defaultPrevented).toBe(true)
+        expect(applicationMock.quit).not.toHaveBeenCalled()
+        await nextImmediate()
+        expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+        expect(quitClose.defaultPrevented).toBe(false)
+      })
     })
 
     it('preventDefaults and minimizes on Win when tray + on_close are both enabled', () => {
@@ -980,7 +999,7 @@ describe('MainWindowService', () => {
       ['Linux', 'created'],
       ['Linux', 'initializing'],
       ['Linux', 'destroyed']
-    ])('quits on %s with an inactive tray in state %s', (platform, state) => {
+    ])('quits on %s with an inactive tray in state %s', async (platform, state) => {
       platformState.isWin = platform === 'Windows'
       platformState.isLinux = platform === 'Linux'
       prefValues['app.tray.enabled'] = true
@@ -992,15 +1011,17 @@ describe('MainWindowService', () => {
 
       win.emit('close', event)
 
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
       expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(event.preventDefault).not.toHaveBeenCalled()
       expect(win.setOpacity).not.toHaveBeenCalled()
       expect(win.setSkipTaskbar).not.toHaveBeenCalled()
       expect(win.minimize).not.toHaveBeenCalled()
       expect(win.hide).not.toHaveBeenCalled()
     })
 
-    it('rechecks tray activation on each close', () => {
+    it('rechecks tray activation on each close', async () => {
       platformState.isWin = true
       prefValues['app.tray.enabled'] = true
       prefValues['app.tray.on_close'] = true
@@ -1029,8 +1050,10 @@ describe('MainWindowService', () => {
 
       win.emit('close', secondEvent)
 
+      expect(secondEvent.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
       expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(secondEvent.preventDefault).not.toHaveBeenCalled()
       expect(win.setOpacity).not.toHaveBeenCalled()
       expect(win.setSkipTaskbar).not.toHaveBeenCalled()
       expect(win.minimize).not.toHaveBeenCalled()

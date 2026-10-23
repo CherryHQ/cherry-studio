@@ -11,10 +11,11 @@ import { resetEmojiSupportLevelCacheForTesting } from '../emojiSupport'
 const emojiPickerPropsMock = vi.hoisted((): { value: any } => ({ value: undefined }))
 const i18nLanguageMock = vi.hoisted(() => ({ value: 'en-US' }))
 const require = createRequire(import.meta.url)
-const loadSourceEmojiRecords = (locale: 'en' | 'zh') =>
+const loadSourceEmojiRecords = (locale: 'en' | 'zh' | 'it') =>
   JSON.parse(readFileSync(require.resolve(`emoji-picker-element-data/${locale}/cldr/data.json`), 'utf-8')) as unknown[]
 const sourceEmojiRecords = {
   en: loadSourceEmojiRecords('en'),
+  it: loadSourceEmojiRecords('it'),
   zh: loadSourceEmojiRecords('zh')
 }
 const emojiPickerCss = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
@@ -158,7 +159,12 @@ describe('EmojiPicker', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request) => {
-        const records = String(input).includes('/zh/') ? sourceEmojiRecords.zh : sourceEmojiRecords.en
+        const url = String(input)
+        const records = url.includes('/zh/')
+          ? sourceEmojiRecords.zh
+          : url.includes('/it/')
+            ? sourceEmojiRecords.it
+            : sourceEmojiRecords.en
         return {
           json: async () => records,
           ok: true,
@@ -385,6 +391,20 @@ describe('EmojiPicker', () => {
       expect(emojiPickerPropsMock.value.emojiData.emojis.smileys_people).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ a: '17', n: expect.arrayContaining(['变形的脸']), u: '1faea' })
+        ])
+      )
+    })
+  })
+
+  it('loads the Italian emoji data when the app language is it-IT', async () => {
+    i18nLanguageMock.value = 'it-IT'
+
+    await renderResolvedPicker()
+
+    await waitFor(() => {
+      expect(emojiPickerPropsMock.value.emojiData.emojis.smileys_people).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ a: '17', n: expect.arrayContaining(['faccina stravolta']), u: '1faea' })
         ])
       )
     })

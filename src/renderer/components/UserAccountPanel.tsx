@@ -211,7 +211,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
           </ColFlex>
         </Button>
       </ColFlex>
-      <ColFlex className="border-border-subtle gap-0.5 border-t pt-1">
+      <ColFlex className="border-border-subtle gap-0.5 border-t pt-1 pb-2">
         {isGlobalEdition ? (
           <Button
             type="button"
@@ -263,7 +263,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
         ) : null}
       </ColFlex>
       {isCloudSignedIn ? (
-        <div className="border-border-subtle border-t py-1">
+        <div className="border-border-subtle border-t pt-1">
           <Button
             className="min-h-8 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
             loading={isRevokingSession}

@@ -1,8 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { FileEditSessionContext } from '@renderer/hooks/useFileEditSession'
+import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -45,7 +48,15 @@ vi.mock('@tanstack/react-router', () => ({
     return mocks.blocker
   }
 }))
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
+vi.mock('@renderer/ipc', async () => {
+  const { createEditTransport } = await import('../../../../../../tests/helpers/file/editTransport')
+  return {
+    ipcApi: {
+      request: createEditTransport((route, input) => mocks.ipcRequest(route, input)),
+      on: vi.fn(() => () => {})
+    }
+  }
+})
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 vi.mock('react-i18next', () => ({
@@ -159,10 +170,13 @@ function createRoot() {
 }
 
 function renderBrowser(access: 'read_only' | 'read_write' = 'read_only') {
+  const manager = new FileEditSessionManager()
   return render(
-    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
-      <SkillFileBrowser rootPath={'/managed/writer' as never} skillId="skill-1" access={access} />
-    </SWRConfig>
+    <FileEditSessionContext value={manager}>
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <SkillFileBrowser rootPath={'/managed/writer' as never} skillId="skill-1" access={access} />
+      </SWRConfig>
+    </FileEditSessionContext>
   )
 }
 
@@ -178,11 +192,11 @@ describe('SkillFileBrowser', () => {
     mocks.blockerOptions = undefined
     mocks.onTreeMutation = undefined
     mocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'file.read') {
+      if (route === 'file.edit.read') {
         const content = new TextEncoder().encode('# Writer')
         return { content, mime: 'text/markdown', version: { mtime: 1, size: content.byteLength } }
       }
-      if (route === 'file.write_if_unchanged') return { mtime: 2, size: 16 }
+      if (route === 'file.edit.write') return { mtime: 2, size: 16 }
       return undefined
     })
   })
@@ -207,6 +221,33 @@ describe('SkillFileBrowser', () => {
     expect(screen.getByRole('radio', { name: 'settings.skills.editor.edit' })).not.toBeChecked()
   })
 
+  it.each([
+    ['binary', 'settings.skills.editor.unsupported.encoding'],
+    ['oversized', 'settings.skills.editor.unsupported.size'],
+    ['unreadable', 'settings.skills.editor.loadFailed']
+  ])('can select another file after a %s file fails to open', async (failure, message) => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockImplementation(async (route: string, input: { path?: string }) => {
+      if (route !== 'file.edit.read') return undefined
+      if (input.path?.endsWith('/README.md')) {
+        if (failure === 'oversized') throw new IpcError(fileErrorCodes.EDIT_UNSUPPORTED, 'too large')
+        if (failure === 'unreadable') throw new IpcError(fileErrorCodes.EDIT_PERMISSION, 'permission denied')
+        return { content: new Uint8Array([0xff]), version: { mtime: 1, size: 1 } }
+      }
+      const content = new TextEncoder().encode('# Writer')
+      return { content, version: { mtime: 1, size: content.byteLength } }
+    })
+    renderBrowser('read_write')
+    await screen.findByRole('radio', { name: 'settings.skills.editor.edit' })
+    await user.click(screen.getByRole('button', { name: 'README.md' }))
+    await screen.findByText(message)
+    await user.click(screen.getByRole('button', { name: 'SKILL.md' }))
+    await user.click(await screen.findByRole('radio', { name: 'settings.skills.editor.edit' }))
+    expect(screen.getByRole('textbox', { name: 'code-editor' })).toHaveValue('# Writer')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toEqual([])
+  })
+
   it('autosaves editable text through generic file IPC and scopes the following reconcile', async () => {
     vi.useFakeTimers()
     try {
@@ -225,8 +266,8 @@ describe('SkillFileBrowser', () => {
       })
 
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'file.write_if_unchanged',
-        expect.objectContaining({ handle: { kind: 'path', path: '/managed/writer/SKILL.md' } })
+        'file.edit.write',
+        expect.objectContaining({ editId: expect.any(String), data: expect.any(Uint8Array) })
       )
       expect(mocks.ipcRequest).toHaveBeenCalledWith('skill.reconcile', { skillId: 'skill-1' })
       expect(mocks.ipcRequest).not.toHaveBeenCalledWith('skill.reconcile', {})
@@ -249,18 +290,20 @@ describe('SkillFileBrowser', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('skill.reconcile', { skillId: 'skill-1' })
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'skill.reconcile')).toEqual([
+      ['skill.reconcile', { skillId: 'skill-1' }]
+    ])
   })
 
   it('reports a saved file whose scoped Skill synchronization failed', async () => {
     vi.useFakeTimers()
     try {
       mocks.ipcRequest.mockImplementation(async (route: string) => {
-        if (route === 'file.read') {
+        if (route === 'file.edit.read') {
           const content = new TextEncoder().encode('# Writer')
           return { content, mime: 'text/markdown', version: { mtime: 1, size: content.byteLength } }
         }
-        if (route === 'file.write_if_unchanged') return { mtime: 2, size: 16 }
+        if (route === 'file.edit.write') return { mtime: 2, size: 16 }
         if (route === 'skill.reconcile') throw new Error('mirror unavailable')
         return undefined
       })
@@ -291,7 +334,7 @@ describe('SkillFileBrowser', () => {
     let readCount = 0
     let writeCount = 0
     mocks.ipcRequest.mockImplementation(async (route: string, input: { data?: Uint8Array }) => {
-      if (route === 'file.read') {
+      if (route === 'file.edit.read') {
         const content = new TextEncoder().encode(readCount++ === 0 ? '# Writer' : '# External')
         return {
           content,
@@ -299,7 +342,7 @@ describe('SkillFileBrowser', () => {
           version: { mtime: readCount === 1 ? 1 : 2, size: content.byteLength }
         }
       }
-      if (route === 'file.write_if_unchanged') {
+      if (route === 'file.edit.write') {
         writeCount += 1
         if (writeCount === 1) throw new IpcError(fileErrorCodes.STALE_VERSION, 'stale')
         expect(new TextDecoder().decode(input.data)).toBe('# Current draft')
@@ -335,6 +378,6 @@ describe('SkillFileBrowser', () => {
 
     await waitFor(() => expect(screen.getByTestId('file-preview')).toBeInTheDocument())
     expect(screen.queryByRole('radio', { name: 'settings.skills.editor.edit' })).not.toBeInTheDocument()
-    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.read', expect.anything())
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.edit.read', expect.anything())
   })
 })

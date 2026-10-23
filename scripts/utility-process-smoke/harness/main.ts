@@ -1,14 +1,4 @@
-/**
- * Drives ProcessHost + the real Electron adapter inside a real Electron main process.
- *
- * Only what a real process can prove lives here — bundle layout, asar path resolution,
- * cross-process cloning, kill and crash semantics, pipes, proxy inheritance. Request
- * correlation, cancellation policy, the breaker and the stop barriers are unit-tested
- * against the in-memory adapter and are deliberately not repeated.
- *
- * It does not boot the lifecycle container: that would drag winston, BootConfig and quit
- * handlers into a throwaway app for no added coverage.
- */
+/** Real Electron smoke for bundle isolation, cloning, bounded streams, and process exit. */
 
 import http from 'node:http'
 import path from 'node:path'
@@ -26,6 +16,7 @@ import {
   type SmokeInitData,
   smokeTerminateProcess
 } from './smokeContract'
+import { measureStreams, checkDuplexStream, checkStreamCancel, checkStreamCrash, checkStreamStop } from './streamChecks'
 
 const FOUR_MIB = 4 * 1024 * 1024
 const WATCHDOG_MS = 90_000
@@ -35,7 +26,7 @@ let failures = 0
 
 const hostFor = (definition: typeof smokeEchoProcess) =>
   new ProcessHost<SmokeContract, SmokeInitData>(definition, {
-    adapter: electronProcessAdapter,
+    adapter: measureStreams(electronProcessAdapter),
     logger,
     resolveEntry: (entry) => path.join(app.getAppPath(), 'out', 'utility-process', `${entry}.js`),
     getTempDir: () => app.getPath('temp')
@@ -94,6 +85,11 @@ async function withHost(
 }
 
 async function runChecks(): Promise<void> {
+  await check('stream-duplex-slow-consumer', () => withHost(smokeEchoProcess, checkDuplexStream))
+  await check('stream-cooperative-cancel', () => withHost(smokeEchoProcess, checkStreamCancel))
+  await check('stream-terminate-cancel', () => withHost(smokeTerminateProcess, checkStreamCancel))
+  await check('stream-crash-restart', () => withHost(smokeEchoProcess, checkStreamCrash))
+  await check('stream-stop-barrier', () => withHost(smokeEchoProcess, checkStreamStop))
   // Each definition resolves its own bundle and gets through the connect handshake, whose
   // processId check would reject a process serving the other entry's id. Covers the emitted
   // layout and, in the asar variant, path resolution inside the archive.

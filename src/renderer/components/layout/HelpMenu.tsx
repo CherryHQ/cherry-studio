@@ -81,16 +81,16 @@ export function HelpMenu({
         className={
           isHeader
             ? 'flex size-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground'
-            : 'flex size-7 items-center justify-center rounded-none bg-transparent text-muted-foreground opacity-55 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100 focus-visible:bg-transparent focus-visible:text-foreground focus-visible:opacity-100 active:bg-transparent data-[state=open]:bg-transparent data-[state=open]:text-foreground data-[state=open]:opacity-100 dark:text-muted-foreground dark:hover:text-foreground [&_svg]:text-current'
+            : 'sidebar-action size-9 rounded-full transition-colors duration-150'
         }>
-        <CircleQuestionMark size={isHeader ? 16 : 18} strokeWidth={isHeader ? 1.8 : 1.6} />
+        <CircleQuestionMark className={isHeader ? 'size-4' : 'size-4.5'} strokeWidth={isHeader ? 1.8 : 1.6} />
       </Button>
     ) : (
       <Button
         type="button"
         variant="ghost"
         aria-label={t('help.title')}
-        className="flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
+        className="sidebar-action flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
         <CircleQuestionMark size={16} strokeWidth={1.6} />
         <span className="min-w-0 truncate">{t('help.title')}</span>
       </Button>
@@ -102,7 +102,7 @@ export function HelpMenu({
         <Tooltip
           content={t('help.title')}
           placement={placement}
-          delay={800}
+          delay={isHeader ? 800 : 400}
           fullWidthTrigger={layout !== 'icon'}
           isDisabled={layout !== 'icon'}>
           <PopoverTrigger asChild>{trigger}</PopoverTrigger>
