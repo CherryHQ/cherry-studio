@@ -87,7 +87,8 @@ function createPacketPtsTracker(): {
   let overflow = false
   const consider = (line: string) => {
     if (line.trim() === '') return
-    const pts = Number(line)
+    const [rawPts] = line.split(',')
+    const pts = Number(rawPts?.trim())
     if (Number.isFinite(pts) && pts > max) max = pts
   }
   return {

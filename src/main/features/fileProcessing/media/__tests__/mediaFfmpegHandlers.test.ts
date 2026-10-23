@@ -325,6 +325,50 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
   })
 
+  it('recovers an MPEG-TS tail frame when audio outlasts video', async () => {
+    const transportStreamWithLongAudioPath = join(root, 'audio-longer.ts')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'testsrc2=size=160x120:rate=12:duration=6.9',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=8',
+        '-map',
+        '0:v:0',
+        '-map',
+        '1:a:0',
+        '-c:v',
+        'mpeg2video',
+        '-c:a',
+        'mp2',
+        '-f',
+        'mpegts',
+        transportStreamWithLongAudioPath
+      ])
+    ).toBe(0)
+
+    const requestedTimestampMs = 6_925
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: transportStreamWithLongAudioPath,
+        outputDir: join(root, 'audio-longer-frames'),
+        timestampsMs: [requestedTimestampMs],
+        maxEdgePx: 240,
+        jpegQuality: 80
+      },
+      context()
+    )
+
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThan(6_800)
+    expect(frames.frames[0]?.timestampMs).toBeLessThan(requestedTimestampMs)
+    expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
+  })
+
   it('keeps a nonzero start relative and returns the last video frame when audio is longer', async () => {
     const offsetPath = join(root, 'offset-start.mp4')
     expect(
@@ -541,7 +585,10 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
       context()
     )
 
-    expect(result.frames.map((frame) => frame.timestampMs)).toEqual([5_950])
+    expect(result.frames).toHaveLength(1)
+    expect(result.frames[0]?.timestampMs).toBeGreaterThan(5_000)
+    expect(result.frames[0]?.timestampMs).toBeLessThan(5_950)
+    expect(readFileSync(result.frames[0].path).length).toBeGreaterThan(0)
   })
 
   function runFfmpeg(args: string[]): number | null {
