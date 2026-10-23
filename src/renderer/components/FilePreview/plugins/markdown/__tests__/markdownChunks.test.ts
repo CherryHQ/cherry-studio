@@ -2196,6 +2196,18 @@ describe('document-wide heading slugs', () => {
     expect(chunkHeadingIds(content, 1)).toEqual(['chunk--title-1'])
   })
 
+  it('counts a raw HTML heading whose attributes start on the next line', () => {
+    // `<h2` then a newline is a valid opening tag — HTML whitespace, and a type-6 block — so the
+    // document numbers it and the `# Title` below takes `-1`; rejecting the newline lost the id.
+    const content = `<h2\nclass="x">Title</h2>\n\n${'filler\n\n'.repeat(3200)}# Title\n\n[second](#title-1)\n`
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks[0].headingSlugs?.get('title')).toEqual(['title'])
+    expect(chunks.at(-1)?.headingSlugs?.get('title')).toEqual(['title-1'])
+  })
+
   it('counts a raw HTML heading the document ends inside', () => {
     // No blank line closes the block, so the scan runs at the end of the document rather than at
     // the blank — the heading still counts, and a duplicate below another chunk keys off it.
@@ -2730,6 +2742,20 @@ describe('a malformed tag that never closes', () => {
     const window = splitMarkdownChunks(content)
     const elapsed = Date.now() - started
 
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('reads a closing-tag run whose trailing lines stay under the long-line guard', () => {
+    // 100 trailing newlines dilute the average line length, so the pathological guard stays off and
+    // the tag branch itself has to be linear: every malformed opener used to scan to the close.
+    const content = `# ${'<style '.repeat(32_000)}</style>${'\n'.repeat(100)}`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.longLines).toBe(false)
     expect(window.chunks.length).toBeGreaterThan(0)
     expect(elapsed).toBeLessThan(1_000)
   })

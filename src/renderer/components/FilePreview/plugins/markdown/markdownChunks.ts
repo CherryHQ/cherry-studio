@@ -40,6 +40,9 @@ export interface MarkdownChunk {
  */
 export const MARKDOWN_CHUNK_BUDGET_CHARS = 24 * 1024
 
+/** The widest tag the heading text reads; bounding the slice keeps malformed runs linear. */
+const MAX_TAG_WINDOW = 4_096
+
 /**
  * A single indivisible block cannot be windowed, so one this large would still reach the renderer
  * whole. That is pathological input rather than a merely long document, and it falls back to the
@@ -1267,7 +1270,7 @@ function htmlHeadingOpens(content: string): Array<{ index: number; end: number; 
       content.charAt(start + 1).toLowerCase() === 'h' &&
       content.charAt(start + 2) >= '1' &&
       content.charAt(start + 2) <= '6' &&
-      (next === '' || next === '>' || next === ' ' || next === '\t')
+      (next === '' || next === '>' || next === ' ' || next === '\t' || next === '\n' || next === '\r' || next === '\f')
     if (!isOpen) {
       cursor = start + 1
       continue
@@ -1331,6 +1334,33 @@ function headingRenderedText(
     // made a line of unterminated `<style ` quadratic.
     const lastCloseAngle = segment.lastIndexOf('>')
     const lowerSegment = lastCloseAngle === -1 ? '' : segment.toLowerCase()
+    // Positions the tag branch reads, built on first use so a segment without tags never pays.
+    let tagPositions: { closeAngles: number[]; rawTextCloses: Array<{ at: number; name: string }> } | null = null
+    const scanTagPositions = () => {
+      if (tagPositions) return tagPositions
+      const closeAngles: number[] = []
+      for (let at = segment.indexOf('>'); at !== -1; at = segment.indexOf('>', at + 1)) closeAngles.push(at)
+      const rawTextCloses: Array<{ at: number; name: string }> = []
+      for (const name of ['script', 'style']) {
+        for (let at = lowerSegment.indexOf(`</${name}`); at !== -1; at = lowerSegment.indexOf(`</${name}`, at + 1)) {
+          rawTextCloses.push({ at, name })
+        }
+      }
+      rawTextCloses.sort((left, right) => left.at - right.at)
+      tagPositions = { closeAngles, rawTextCloses }
+      return tagPositions
+    }
+    const firstCloseAngleAtOrAfter = (from: number): number => {
+      const { closeAngles } = scanTagPositions()
+      let low = 0
+      let high = closeAngles.length
+      while (low < high) {
+        const mid = (low + high) >> 1
+        if (closeAngles[mid] < from) low = mid + 1
+        else high = mid
+      }
+      return low < closeAngles.length ? closeAngles[low] : -1
+    }
     // A label is inline content of its own, so its emphasis pairs within it rather than across the
     // link that holds it. Matched on first use, so a segment with no emphasis never pays the scan.
     let spans: Map<number, number> | null = null
@@ -1397,15 +1427,27 @@ function headingRenderedText(
           index += 1
           continue
         }
-        const rest = segment.slice(index)
+        // Every tag this branch reads is bounded: a window this wide cannot hold a tag a heading
+        // renders, and slicing the whole suffix per `<` is what made a run of them quadratic.
+        const rest = segment.slice(index, Math.min(segment.length, index + MAX_TAG_WINDOW))
         // A raw-text element the sanitizer strips keeps none of the text it holds — `A<style>x</style>B`
         // renders `AB`, and a heading id keyed on `axb` would take the id a later `# AB` should get.
-        // Without a closing tag the element cannot strip anything, so the scan is skipped.
-        const hasRawTextClose = lowerSegment.includes('</style') || lowerSegment.includes('</script')
-        const stripped = hasRawTextClose ? /^<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/i.exec(rest) : null
-        if (stripped) {
-          index += stripped[0].length
-          continue
+        // Its open and close are located by position rather than scanned per candidate.
+        const rawTextOpen = /^<(script|style)(?=[\s/>])/i.exec(rest)
+        if (rawTextOpen) {
+          const name = rawTextOpen[1].toLowerCase()
+          const { rawTextCloses } = scanTagPositions()
+          const close = rawTextCloses.find((entry) => entry.name === name && entry.at > index + rawTextOpen[0].length)
+          if (close) {
+            const openEnd = firstCloseAngleAtOrAfter(index + rawTextOpen[0].length)
+            if (openEnd !== -1 && openEnd < close.at && openEnd - index <= MAX_TAG_WINDOW) {
+              const closeEnd = firstCloseAngleAtOrAfter(close.at + name.length + 2)
+              if (closeEnd !== -1 && /^[ \t\n\r\f]*$/.test(segment.slice(close.at + name.length + 2, closeEnd))) {
+                index = closeEnd + 1
+                continue
+              }
+            }
+          }
         }
         const autolink =
           /^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*)>/.exec(rest) ?? /^<([^\s<>@]+@[^\s<>@]+)>/.exec(rest)
