@@ -7,7 +7,7 @@ import type { McpSkill } from '../../src/shared/types/mcpSkills'
 /** A real protocol peer shared by wire, host and Electron acceptance tests. */
 export function createMcpSkillsFixture() {
   const uri = 'skill://reports/SKILL.md'
-  const files = new Map([
+  const files = new Map<string, string | Buffer>([
     [uri, '---\nname: reports\ndescription: Build a report\n---\nRead references/facts.txt and return its code.\n'],
     ['skill://reports/references/facts.txt', 'Report code: CHERRY-2640\n']
   ])
@@ -60,9 +60,18 @@ export function createMcpSkillsFixture() {
       server.setRequestHandler('resources/list', async () => ({ resources: [], ttlMs: 0, cacheScope: 'private' }))
       server.setRequestHandler('resources/read', async ({ params }) => {
         requests.push(`read:${params.uri}`)
-        const text = files.get(params.uri)
-        if (text === undefined) throw new Error('Unknown resource')
-        return { contents: [{ uri: params.uri, text }], ttlMs: 0, cacheScope: 'private' }
+        const content = files.get(params.uri)
+        if (content === undefined) throw new Error('Unknown resource')
+        return {
+          contents: [
+            {
+              uri: params.uri,
+              ...(typeof content === 'string' ? { text: content } : { blob: content.toString('base64') })
+            }
+          ],
+          ttlMs: 0,
+          cacheScope: 'private'
+        }
       })
       server.fallbackRequestHandler = async (request) => {
         requests.push(request.method)

@@ -51,9 +51,9 @@ describe('MCP skill content boundary', () => {
     const bytes = Buffer.from(text)
     expect(() => verifyMcpSkillFile(skill, skill.uri, bytes)).not.toThrow()
     expect(() => verifyMcpSkillFile(skill, skill.uri, bytes.subarray(1))).toThrow('verification')
-    expect(() => verifyMcpSkillFile(skill, skill.uri, Buffer.from(text.replace('report', 'REPORT')))).toThrow(
-      'verification'
-    )
+    expect(() =>
+      verifyMcpSkillFile(skill, skill.uri, Buffer.from(bytes.toString('utf8').replace('report', 'REPORT')))
+    ).toThrow('verification')
     const entry = McpSkillSchema.parse({ ...skill, frontmatter: { ...skill.frontmatter, 'allowed-tools': 'Bash' } })
     expect(() => verifyMcpSkillFile(entry, skill.uri, bytes)).toThrow('frontmatter')
   })

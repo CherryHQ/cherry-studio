@@ -155,34 +155,66 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(agentSessionMessageService.listMcpSkills(sessionId)).toHaveLength(1)
   })
 
-  it('exposes discover, load and read as separate tools with origin and content', async () => {
-    const client = await connectMcpTestClient(() => createSkillsServer(agentId, sessionId))
-    try {
-      const catalog = await client.callTool({ name: 'list_mcp_skills', arguments: {} })
-      expect(JSON.stringify(catalog)).toContain('reports')
-      expect(fixture.requests.filter((request) => request.startsWith('read:'))).toEqual([])
-      const input = { server_id: serverId, skill_uri: fixture.uri }
-      expect(
-        await authorizer(true)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'load', input })
-      ).toBeUndefined()
-      const load = await client.callTool({ name: 'load_mcp_skill', arguments: input })
-      expect(load.isError).not.toBe(true)
-      expect(JSON.stringify(load)).toContain('Read references/facts.txt')
-      expect(JSON.stringify(load)).toContain(serverId)
-      expect(fixture.requests.filter((request) => request.startsWith('read:'))).toEqual([`read:${fixture.uri}`])
-      const read = await client.callTool({
-        name: 'read_mcp_skill_file',
-        arguments: {
-          server_id: serverId,
-          skill_uri: fixture.uri,
-          resource_uri: 'skill://reports/references/facts.txt'
-        }
-      })
-      expect(JSON.stringify(read)).toContain('CHERRY-2640')
-    } finally {
-      await client.close()
+  it.each(['text', 'blob'])(
+    'exposes readable %s entry content and preserves binary supporting files through tools',
+    async (representation) => {
+      const entryText = `${fixture.files.get(fixture.uri)}生成报告。\n`
+      fixture.files.set(fixture.uri, representation === 'blob' ? Buffer.from(entryText) : entryText)
+      const binaryUri = 'skill://reports/assets/data.bin'
+      const binary = Buffer.from([0, 255, 128, 1])
+      fixture.files.set(binaryUri, binary)
+      fixture.refresh()
+      const client = await connectMcpTestClient(() => createSkillsServer(agentId, sessionId))
+      try {
+        const catalog = await client.callTool({ name: 'list_mcp_skills', arguments: {} })
+        expect(JSON.stringify(catalog)).toContain('reports')
+        expect(fixture.requests.filter((request) => request.startsWith('read:'))).toEqual([])
+        const input = { server_id: serverId, skill_uri: fixture.uri }
+        expect(
+          await authorizer(true)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'load', input })
+        ).toBeUndefined()
+        const load = await client.callTool({ name: 'load_mcp_skill', arguments: input })
+        expect(load.isError).not.toBe(true)
+        expect(JSON.stringify(load)).toContain('Read references/facts.txt')
+        expect(JSON.stringify(load)).toContain(serverId)
+        const block = load.content[0]
+        if (block.type !== 'text') throw new Error('Expected a text tool result')
+        expect(JSON.parse(block.text)).toMatchObject({
+          entry: { ...fixture.manifest(), serverId },
+          content: { uri: fixture.uri, text: entryText }
+        })
+        expect(JSON.parse(block.text).content).not.toHaveProperty('blob')
+        expect((await skills.load(sessionId, serverId, fixture.uri)).content).toMatchObject({
+          uri: fixture.uri,
+          text: entryText
+        })
+        expect(fixture.requests.filter((request) => request.startsWith('read:'))).toEqual([`read:${fixture.uri}`])
+        const read = await client.callTool({
+          name: 'read_mcp_skill_file',
+          arguments: {
+            server_id: serverId,
+            skill_uri: fixture.uri,
+            resource_uri: 'skill://reports/references/facts.txt'
+          }
+        })
+        expect(JSON.stringify(read)).toContain('CHERRY-2640')
+        const readBinary = await client.callTool({
+          name: 'read_mcp_skill_file',
+          arguments: { server_id: serverId, skill_uri: fixture.uri, resource_uri: binaryUri }
+        })
+        expect(readBinary.isError).not.toBe(true)
+        const binaryBlock = readBinary.content[0]
+        if (binaryBlock.type !== 'text') throw new Error('Expected a text tool result')
+        expect(JSON.parse(binaryBlock.text)).toMatchObject({
+          origin: { serverId, skillUri: fixture.uri },
+          content: { uri: binaryUri, blob: binary.toString('base64') }
+        })
+        expect(JSON.parse(binaryBlock.text).content).not.toHaveProperty('text')
+      } finally {
+        await client.close()
+      }
     }
-  })
+  )
 
   it('rejects a reconfigured origin after authorization returns but before builtin execution', async () => {
     const input = { server_id: serverId, skill_uri: fixture.uri }

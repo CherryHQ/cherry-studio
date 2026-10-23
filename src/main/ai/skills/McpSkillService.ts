@@ -377,6 +377,11 @@ export class McpSkillService extends BaseService {
             : undefined
       if (!bytes) throw new Error('Skill resource has no content')
       verifyMcpSkillFile(held.entry, uri, bytes)
+      if (uri === held.entry.uri) {
+        const content = { ...file, text: bytes.toString('utf8') }
+        delete content.blob
+        return content
+      }
       return file
     } catch (error) {
       this.invalidate(held)
