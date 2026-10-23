@@ -552,7 +552,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // The user effort map must apply exactly once. On a gateway route the gateway's
   // providerOptionsMapper applies it, so applying it here as well would double-translate
   // (High -> Medium -> Low); on direct and external-CLI routes this is the only application.
-  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort, route.branch === 'gateway')
+  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
@@ -643,14 +643,17 @@ function resolveClaudeCodeReasoningContext(model: Model) {
 }
 
 /**
- * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
- * Cherry's gateway, the gateway translates those native fields again for the target endpoint —
- * including the user's effort map, so `routedViaGateway` must skip the local application.
+ * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. This boundary owns the
+ * user effort map for Claude Code sessions: it is applied to the canonical selection here and
+ * translated into the Anthropic dialect by the profile, because serialization can discard the
+ * canonical key before the gateway sees the request. A budget-based model keeps no effort field to
+ * map downstream, and a cross-provider tier (GPT-5 minimal) serializes to an Anthropic value (low)
+ * that would match the wrong map key there (cherry-pr-review inv_5fce608bcdee52df). The gateway
+ * native pass-through then carries the already-mapped fields to the target endpoint.
  */
 function resolveClaudeCodeThinkingOptions(
   model: Model,
-  reasoningEffort: ReasoningEffortOption,
-  routedViaGateway = false
+  reasoningEffort: ReasoningEffortOption
 ): { effort?: Options['effort']; thinking?: Options['thinking'] } {
   const { profile, invocationModel } = resolveClaudeCodeReasoningContext(model)
   const invocation = resolveReasoningInvocation({
@@ -658,7 +661,7 @@ function resolveClaudeCodeThinkingOptions(
     model: invocationModel,
     profile: profile.wire,
     maxTokens: model.maxOutputTokens,
-    userEffortMap: routedViaGateway ? undefined : getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
+    userEffortMap: getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
   })
   const encoded = encodeReasoningInvocation(invocation)
 

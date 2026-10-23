@@ -229,7 +229,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(thinkingOptions?.effort).toBe('medium')
   })
 
-  it('forwards the raw selection on a gateway route so the gateway applies the user effort map', async () => {
+  it('applies the user effort map at the boundary on a gateway route', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: CHERRY_CLOUD_PROVIDER_ID,
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
@@ -246,8 +246,67 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
 
+    // The boundary owns the map: the canonical selection is mapped once, before
+    // Anthropic serialization (single lookup — no chained re-application)
+    // (cherry-pr-review inv_5fce608bcdee52df).
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('medium')
+  })
+
+  it('maps the canonical selection before Anthropic serialization on a gateway route', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: { selectableEfforts: ['minimal', 'low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { minimal: 'high', low: 'medium' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'minimal')
+
+    // GPT-5 minimal serializes to Anthropic low; mapping must fire on the
+    // canonical minimal (-> high), not on the serialized low (-> medium)
+    // (cherry-pr-review inv_5fce608bcdee52df).
     const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
     expect(thinkingOptions?.effort).toBe('high')
+  })
+
+  it('applies the user effort map to budget serialization on a gateway route', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: {
+        selectableEfforts: ['low', 'medium', 'high'],
+        thinkingTokenLimits: { min: 1_024, max: 64_000 }
+      }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'low' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+    const mapped = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+
+    // Reference: the same route with a direct low selection and no map. A
+    // budget-based model keeps no effort field after serialization, so the map
+    // must fire here — the gateway pass-through has nothing left to key on
+    // (cherry-pr-review inv_5fce608bcdee52df).
+    mocks.preferenceGet.mockImplementation(() => undefined)
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'low')
+    const reference = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+
+    expect(mapped?.thinking ?? mapped?.effort).toEqual(reference?.thinking ?? reference?.effort)
   })
 
   it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
