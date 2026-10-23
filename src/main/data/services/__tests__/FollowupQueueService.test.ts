@@ -460,6 +460,65 @@ describe('FollowupQueueService', () => {
       })
     })
 
+    it('should release an abandoned reservation once its unsent claim is stale', async () => {
+      // The renderer crashed after the grant reached main but before it was
+      // received: no send and no release follow, and main keeps the
+      // reservation. Reopening after the stale-claim window generates a new
+      // token for the same completion; the reservation must reconcile with
+      // the expired unsent claim so the row drains instead of stranding
+      // (cherry-pr-review inv_6245082567738132).
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 9500)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+
+      // Crash without release: the row stays sending/unsent until it ages out.
+      await dbh.db
+        .update(followupQueueTable)
+        .set({ updatedAt: Date.now() - 31 * 60 * 1000 })
+        .where(eq(followupQueueTable.id, item.id))
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 9500)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+    })
+
+    it('should keep the fence when the abandoned claim recorded a send or is gone', async () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 9600)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      followupQueueService.markSent(item.id, 'token-1')
+
+      // Crash between send and dequeue: the sent row ages out, but the
+      // delivery already happened, so a new token for the same completion
+      // stays fenced while the winner's own retry re-acquires.
+      await dbh.db
+        .update(followupQueueTable)
+        .set({ updatedAt: Date.now() - 31 * 60 * 1000 })
+        .where(eq(followupQueueTable.id, item.id))
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 9600)).toEqual({ claimed: false })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 9600)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: true
+      })
+
+      // Once the sent row is dequeued, the reservation is all that remains:
+      // a completed delivery keeps its fence.
+      followupQueueService.remove(item.id)
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-3', 9600)).toEqual({ claimed: false })
+    })
+
     it('should keep the fence for a completed delivery and for foreign releases', () => {
       const item = enqueueIn(SCOPE_A, 'a')
 

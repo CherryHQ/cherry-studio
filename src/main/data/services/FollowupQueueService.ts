@@ -570,7 +570,36 @@ export class FollowupQueueService {
       // already-consumed completion is obsolete and must not deliver a second
       // row for the same turn (cherry-pr-review).
       if (!ownRetry && completionAt != null && this.hasConsumedCompletion(scopeKey, completionAt)) {
-        return { claimed: false as const }
+        // A reservation whose granted claim was abandoned before any send
+        // (renderer crash after the grant, so no send and no release) must
+        // not strand the row for that completion: once the claim has aged
+        // past the stale-claim window still unsent, any owner may reclaim
+        // the row, so the reservation is reconciled away here
+        // (cherry-pr-review inv_6245082567738132). A completed delivery
+        // keeps its fence: its row carries a sentAt stamp or is already
+        // dequeued, so neither shape reconciles.
+        const reservations = this.consumedCompletions.get(scopeKey) ?? []
+        for (const entry of reservations) {
+          if (entry.completionAt !== completionAt) continue
+          const [abandoned] = tx
+            .select({ id: followupQueueTable.id })
+            .from(followupQueueTable)
+            .where(
+              and(
+                eq(followupQueueTable.scopeKey, scopeKey),
+                eq(followupQueueTable.claimToken, entry.claimToken),
+                eq(followupQueueTable.status, 'sending'),
+                isNull(followupQueueTable.sentAt),
+                lt(followupQueueTable.updatedAt, cutoff)
+              )
+            )
+            .limit(1)
+            .all()
+          if (abandoned) this.releaseConsumedCompletion(scopeKey, entry.claimToken)
+        }
+        if (this.hasConsumedCompletion(scopeKey, completionAt)) {
+          return { claimed: false as const }
+        }
       }
       const claimable =
         ownRetry ||
