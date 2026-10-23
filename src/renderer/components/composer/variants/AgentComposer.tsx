@@ -160,6 +160,21 @@ const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
 const EMPTY_ACCESSIBLE_PATHS: readonly AbsoluteFilePath[] = []
 const FILE_IPC_BATCH_SIZE = 500
 
+type SubmittedAgentDraft = Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'files' | 'knowledgeBaseIds'>
+
+type ActiveAgentDraftEditor = {
+  /** True only while the visible editor holds exactly this submitted document. */
+  isShowing: (submitted: SubmittedAgentDraft) => boolean
+  /** Clear the submitted document from the editor, keeping an unrelated cached draft untouched. */
+  clearSubmitted: (options: { preserveCache: boolean }) => void
+}
+
+// The editor actually on screen for each draft-cache key. A queue settlement
+// can resolve in an unmounted instance after a navigate-away + reopen, and
+// only the active editor's clear reaches the visible draft (cherry-pr-review
+// inv_8e5cbb8f581e03ec).
+const activeAgentDraftEditors = new Map<string, ActiveAgentDraftEditor>()
+
 type AccessibleAttachment = {
   attachment: ComposerAttachment
   filePath: CanonicalFilePath
@@ -1063,11 +1078,20 @@ const AgentComposerInner = ({
   ])
 
   const persistedOnceRef = useRef(false)
+  // A settlement clear that preserves an unrelated cached draft (history
+  // preview) empties the editor: keep the cache entry until the user writes
+  // something new instead of persisting the emptied editor over it
+  // (cherry-pr-review inv_ccf47fc3bab12fcf).
+  const suppressEmptyPersistRef = useRef(false)
   useEffect(() => {
     if (!draftPersistenceEnabled || isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
       return
+    }
+    if (suppressEmptyPersistRef.current) {
+      if (text === '' && draftTokens.length === 0 && files.length === 0) return
+      suppressEmptyPersistRef.current = false
     }
 
     const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
@@ -1110,6 +1134,11 @@ const AgentComposerInner = ({
 
   const persistFinalDraft = useEffectEvent(() => {
     if (!draftPersistenceEnabled || isInputHistoryActive) return
+    if (suppressEmptyPersistRef.current) {
+      const current = actionsRef.current.getDraft()
+      if (current.text === '' && current.tokens.length === 0 && filesRef.current.length === 0) return
+      suppressEmptyPersistRef.current = false
+    }
     // Managed-sync token changes never reach `draftTokens` (isSyncingTokensRef suppresses
     // onTokensChange), so the cache must come from one surface serialization, not the shadow state.
     const draft = actionsRef.current.getDraft()
@@ -1592,41 +1621,68 @@ const AgentComposerInner = ({
     },
     [setFiles]
   )
-  const clearCurrentDraft = useCallback(() => {
-    releaseFollowupEditRef.current()
-    setText('')
-    setFiles([])
-    setSelectedSkills([])
-    setShouldValidateSkills(false)
-    setDraftTokens([])
-    draftTokensRef.current = []
-    if (draftPersistenceEnabled) {
-      writeAgentDraftCache(draftCacheKey, {
-        text: '',
-        tokens: [],
-        files: [],
-        knowledgeBaseIds: knowledgeBaseIdsRef.current,
-        workspaceKey,
-        agentId
-      })
+  const clearCurrentDraft = useCallback(
+    (options?: { preserveCache?: boolean }) => {
+      if (options?.preserveCache) suppressEmptyPersistRef.current = true
+      releaseFollowupEditRef.current()
+      setText('')
+      setFiles([])
+      setSelectedSkills([])
+      setShouldValidateSkills(false)
+      setDraftTokens([])
+      draftTokensRef.current = []
+      if (!options?.preserveCache && draftPersistenceEnabled) {
+        writeAgentDraftCache(draftCacheKey, {
+          text: '',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: knowledgeBaseIdsRef.current,
+          workspaceKey,
+          agentId
+        })
+      }
+      setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
+      // Drop the input-history nav state so a recalled draft that gets sent/queued
+      // does not leave useInputHistory pointing at it; otherwise the next
+      // ArrowDown would restore the already-sent draft and ArrowUp would resume
+      // from a stale index.
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+    },
+    [
+      agentId,
+      draftCacheKey,
+      draftPersistenceEnabled,
+      resetHistoryIndex,
+      setFiles,
+      setText,
+      setTimeoutTimer,
+      workspaceKey
+    ]
+  )
+
+  // Publish the live editor as the owner of this draft-cache key so an enqueue
+  // settlement resolving in another (unmounted) instance reconciles the
+  // visible editor instead of a dead one (cherry-pr-review
+  // inv_8e5cbb8f581e03ec).
+  useEffect(() => {
+    const entry: ActiveAgentDraftEditor = {
+      isShowing: (submitted) => {
+        const current = actionsRef.current.getDraft()
+        return (
+          current.text === submitted.text &&
+          JSON.stringify(current.tokens) === JSON.stringify(submitted.tokens) &&
+          JSON.stringify(filesRef.current) === JSON.stringify(submitted.files) &&
+          JSON.stringify(knowledgeBaseIdsRef.current) === JSON.stringify(submitted.knowledgeBaseIds)
+        )
+      },
+      clearSubmitted: (options) => clearCurrentDraft(options)
     }
-    setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
-    // Drop the input-history nav state so a recalled draft that gets sent/queued
-    // does not leave useInputHistory pointing at it; otherwise the next
-    // ArrowDown would restore the already-sent draft and ArrowUp would resume
-    // from a stale index.
-    resetHistoryIndex()
-    inputHistoryToolsRef.current = null
-  }, [
-    agentId,
-    draftCacheKey,
-    draftPersistenceEnabled,
-    resetHistoryIndex,
-    setFiles,
-    setText,
-    setTimeoutTimer,
-    workspaceKey
-  ])
+    activeAgentDraftEditors.set(draftCacheKey, entry)
+    return () => {
+      if (activeAgentDraftEditors.get(draftCacheKey) === entry) activeAgentDraftEditors.delete(draftCacheKey)
+    }
+  }, [clearCurrentDraft, draftCacheKey])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
@@ -1734,22 +1790,32 @@ const AgentComposerInner = ({
         try {
           const queued = await enqueueFollowup(draft, payload)
           if (queued) {
+            const submitted = {
+              text: draft.text,
+              tokens: draft.tokens,
+              files: enqueueFiles,
+              knowledgeBaseIds: enqueueKnowledgeBaseIds
+            }
             // An unmount between submit and settlement persists the submitted
             // draft, and a reopened composer keeps editing it: reconcile
             // against the current cached document and draft owner so this
             // now-obsolete instance cannot overwrite the newer cached draft
             // with empty content (cherry-pr-review inv_e49e883e1e3d4bb6).
-            const stillOwnsCache = clearAgentDraftCacheIfMatches(
-              draftCacheKey,
-              { workspaceKey, agentId },
-              {
-                text: draft.text,
-                tokens: draft.tokens,
-                files: enqueueFiles,
-                knowledgeBaseIds: enqueueKnowledgeBaseIds
+            const stillOwnsCache = clearAgentDraftCacheIfMatches(draftCacheKey, { workspaceKey, agentId }, submitted)
+            // The editor on screen may belong to a reopened instance rather
+            // than the one this settlement closes over: reconcile the ACTIVE
+            // editor owner, clearing only the unchanged submitted document
+            // and preserving subsequent edits (cherry-pr-review
+            // inv_8e5cbb8f581e03ec). A history preview deliberately leaves an
+            // unrelated draft cached — clear the submitted document from the
+            // editor and reset history navigation without touching that cache
+            // entry (cherry-pr-review inv_ccf47fc3bab12fcf).
+            const activeEditor = activeAgentDraftEditors.get(draftCacheKey)
+            if (activeEditor) {
+              if (activeEditor.isShowing(submitted)) {
+                activeEditor.clearSubmitted({ preserveCache: !stillOwnsCache })
               }
-            )
-            if (
+            } else if (
               stillOwnsCache &&
               queueScopeRef.current === enqueueScope &&
               draftEditRevisionRef.current === enqueueRevision
