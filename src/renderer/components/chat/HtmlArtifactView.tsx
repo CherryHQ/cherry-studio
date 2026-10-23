@@ -52,7 +52,9 @@ const MIN_ZOOM = 50
 const MAX_ZOOM = 200
 const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
-const MAX_BODY_BOX_EXCESS_PX = 24
+// The sweep can miss the last line's leading/descent; a remembered extent may bridge that gap.
+// A larger gap is a real content change and drops the memory.
+const MAX_CONTENT_EXTENT_GAP_PX = 16
 const MAX_STREAMING_PREVIEW_HEIGHT = 350
 /** Preview rebuild cadence floor/ceiling. Each rebuild re-parses the whole document in the
  *  iframe (O(html size)), so the interval scales with size to bound per-second work. */
@@ -92,13 +94,16 @@ function isWheelConsumedByEmbeddedDocument(event: WheelEvent): boolean {
   return canConsumeVerticalWheel(root, event.deltaY, true)
 }
 
-function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
+function getIframeContentHeight(
+  iframe: HTMLIFrameElement,
+  rememberedContentExtent: number | null
+): { height: number | null; contentExtent: number | null } {
   try {
     const frameDocument = iframe.contentDocument
     const body = frameDocument?.body
     const documentElement = frameDocument?.documentElement
     const frameWindow = iframe.contentWindow
-    if (!frameDocument || !body || !documentElement || !frameWindow) return null
+    if (!frameDocument || !body || !documentElement || !frameWindow) return { height: null, contentExtent: null }
 
     const documentScrollHeight = Math.max(
       body.scrollHeight,
@@ -110,14 +115,10 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
     const bodyEndSpacing =
       (Number.parseFloat(bodyStyle.paddingBottom) || 0) + (Number.parseFloat(bodyStyle.borderBottomWidth) || 0)
     const bodyMarginBottom = Number.parseFloat(bodyStyle.marginBottom) || 0
-    const bodyHeight = body.getBoundingClientRect().height
-    const bodyBoxHeight =
-      bodyHeight > 0 ? bodyHeight + (Number.parseFloat(bodyStyle.marginTop) || 0) + bodyMarginBottom : 0
-
     // Scrollable: scrollHeight is authoritative (scrollbar-bounded); the sweep
     // exists only for collapsed bottom margins in non-scrolling documents.
     if (documentScrollHeight > iframe.clientHeight + 1) {
-      return documentScrollHeight
+      return { height: documentScrollHeight, contentExtent: documentScrollHeight }
     }
 
     const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
@@ -148,18 +149,17 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
       }
     }
 
-    // A box filling the frame (min-height:100vh, height:100%) is viewport geometry; its margins can add a pixel per write.
-    // Only a box strictly smaller than the frame can be content.
-    const intrinsicBodyBoxHeight =
-      bodyHeight > 0 &&
-      bodyHeight < iframe.clientHeight &&
-      bodyBoxHeight - renderedContentBottom <= MAX_BODY_BOX_EXCESS_PX
-        ? bodyBoxHeight
-        : 0
-    const renderedContentHeight = Math.ceil(Math.max(renderedContentBottom, intrinsicBodyBoxHeight))
-    return renderedContentHeight > 0 ? renderedContentHeight : documentScrollHeight || null
+    const sweep = Math.ceil(renderedContentBottom)
+    if (
+      rememberedContentExtent !== null &&
+      rememberedContentExtent >= sweep &&
+      rememberedContentExtent - sweep <= MAX_CONTENT_EXTENT_GAP_PX
+    ) {
+      return { height: rememberedContentExtent, contentExtent: rememberedContentExtent }
+    }
+    return { height: sweep > 0 ? sweep : documentScrollHeight || null, contentExtent: null }
   } catch {
-    return null
+    return { height: null, contentExtent: null }
   }
 }
 
@@ -253,6 +253,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   const viewportRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const lastReportedHeightRef = useRef<number | null>(null)
+  const contentExtentRef = useRef<number | null>(null)
   const isScrollActiveRef = useDelayedScrollActivation(viewportRef)
   const scrollRuntime = useScrollRuntimeBoundary()
   const zoomScale = zoom / 100
@@ -261,6 +262,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   const staticHtml = useMemo(() => stripMetaRefresh(html), [html])
 
   useLayoutEffect(() => {
+    contentExtentRef.current = null
     const viewport = viewportRef.current
     const iframe = iframeRef.current
     if (!viewport || !iframe) return
@@ -271,12 +273,13 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     let observedDocument: Document | undefined
 
     const syncHeight = () => {
-      const contentHeight = getIframeContentHeight(iframe)
-      if (contentHeight === null) return
+      const { height, contentExtent } = getIframeContentHeight(iframe, contentExtentRef.current)
+      contentExtentRef.current = contentExtent
+      if (height === null) return
 
       const nextHeight = Math.min(
         getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
-        Math.max(1, Math.ceil(contentHeight * zoomScale))
+        Math.max(1, Math.ceil(height * zoomScale))
       )
       if (nextHeight === lastReportedHeightRef.current) return
       lastReportedHeightRef.current = nextHeight
