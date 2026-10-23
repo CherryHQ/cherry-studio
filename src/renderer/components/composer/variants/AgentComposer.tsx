@@ -420,6 +420,12 @@ const AgentComposerRoot = ({
   const resolvedWorkspaceId = workspaceId ?? session?.workspaceId ?? null
   const workspaceKey = buildAgentFileWorkspaceKey(resolvedWorkspaceId, session?.workspace?.path)
   const draftCacheKey = getAgentDraftCacheKey(sessionId)
+  // A message-edit composer is not the owner of the session's conversation
+  // draft: identical contents must not authorize a settlement to clear an
+  // independently owned edit, so its editor registers under a target-scoped
+  // key (cherry-pr-review inv_6986297a343908d7).
+  const editingMessageId = launchOptions?.editing?.messageId
+  const draftEditorRegistryKey = editingMessageId ? `${draftCacheKey}:edit:${editingMessageId}` : draftCacheKey
   const initialDraftRef = useRef<{
     instanceKey: string
     draft: RestoredAgentComposerDraftCache
@@ -508,6 +514,7 @@ const AgentComposerRoot = ({
         sessionId={sessionId}
         initialDraft={initialDraft}
         draftCacheKey={draftCacheKey}
+        draftEditorRegistryKey={draftEditorRegistryKey}
         draftPersistenceEnabled={draftPersistenceEnabled}
         workspaceKey={workspaceKey}
         sessionData={sessionData}
@@ -551,6 +558,7 @@ interface InnerProps {
   sessionId: string
   initialDraft: RestoredAgentComposerDraftCache
   draftCacheKey: AgentComposerDraftCacheKey
+  draftEditorRegistryKey: string
   draftPersistenceEnabled: boolean
   workspaceKey: string
   sessionData?: ToolContext['session']
@@ -771,6 +779,7 @@ const AgentComposerInner = ({
   sessionId,
   initialDraft,
   draftCacheKey,
+  draftEditorRegistryKey,
   draftPersistenceEnabled,
   workspaceKey,
   sessionData,
@@ -1676,10 +1685,13 @@ const AgentComposerInner = ({
     ]
   )
 
-  // Publish the live editor as the owner of this draft-cache key so an enqueue
+  // Publish the live editor as the owner of this draft identity so an enqueue
   // settlement resolving in another (unmounted) instance reconciles the
   // visible editor instead of a dead one (cherry-pr-review
-  // inv_8e5cbb8f581e03ec).
+  // inv_8e5cbb8f581e03ec). The key distinguishes a message-edit target from
+  // the conversation draft: a settlement of the queued conversation draft must
+  // never reconcile (and thereby clear) an edit composer's editor
+  // (cherry-pr-review inv_6986297a343908d7).
   useEffect(() => {
     const entry: ActiveAgentDraftEditor = {
       owner: clearCurrentDraft,
@@ -1700,11 +1712,12 @@ const AgentComposerInner = ({
       },
       clearSubmitted: (options) => clearCurrentDraft(options)
     }
-    activeAgentDraftEditors.set(draftCacheKey, entry)
+    activeAgentDraftEditors.set(draftEditorRegistryKey, entry)
     return () => {
-      if (activeAgentDraftEditors.get(draftCacheKey) === entry) activeAgentDraftEditors.delete(draftCacheKey)
+      if (activeAgentDraftEditors.get(draftEditorRegistryKey) === entry)
+        activeAgentDraftEditors.delete(draftEditorRegistryKey)
     }
-  }, [clearCurrentDraft, draftCacheKey])
+  }, [clearCurrentDraft, draftEditorRegistryKey])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
@@ -1837,7 +1850,7 @@ const AgentComposerInner = ({
             // unrelated draft cached — clear the submitted document from the
             // editor and reset history navigation without touching that cache
             // entry (cherry-pr-review inv_ccf47fc3bab12fcf).
-            const activeEditor = activeAgentDraftEditors.get(draftCacheKey)
+            const activeEditor = activeAgentDraftEditors.get(draftEditorRegistryKey)
             if (activeEditor) {
               const sameInstance = (activeEditor.owner as unknown) === clearCurrentDraft
               // Same instance that submitted: the synchronous revision guard

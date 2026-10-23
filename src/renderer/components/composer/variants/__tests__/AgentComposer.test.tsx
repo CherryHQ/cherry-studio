@@ -4973,6 +4973,49 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('unsaved B')
   })
 
+  it('preserves an independently owned message edit with identical text when a delayed enqueue settles (inv_6986297a343908d7)', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+
+    // The enqueue stays in flight while a message-edit composer opens for an
+    // older message in the same session with the SAME text. Identical content
+    // must not establish document ownership over the edit
+    // (cherry-pr-review inv_6986297a343908d7).
+    let settlement: void | Promise<void> | undefined
+    act(() => {
+      settlement = mocks.surfaceProps?.onSendDraft({ text: 'continue', tokens: [] })
+    })
+    // Move the submitting composer past the submitted document so its own
+    // settlement leaves it alone; the last render then belongs to the edit
+    // composer, making its surviving text observable.
+    act(() => mocks.surfaceProps?.onTextChange('continue plus more'))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{ initialDraft: { text: 'continue', tokens: [] }, editing: { messageId: 'msg-1' } }}
+      />
+    )
+
+    await act(async () => {
+      await settlement
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('continue')
+  })
+
   it('keeps a just-dispatched attachment in a reopened composer when a delayed enqueue settles (inv_390d6de6f59203f8)', async () => {
     render(
       <AgentComposer
