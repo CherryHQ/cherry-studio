@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { MediaAnalysis } from '@shared/types/mediaAnalysis'
-import { formatMediaAnalysisCompact, formatMediaAnalysisFull, isMediaAnalysis } from '@shared/utils/mediaAnalysis'
+import { formatMediaAnalysisCompact, formatMediaAnalysisFull, isMediaAnalysis } from '../mediaAnalysisFormat'
+import type { MediaAnalysis } from '../types'
 
 const sample = (): MediaAnalysis => ({
   version: 1,
