@@ -82,6 +82,32 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     ).toEqual([true, false])
   })
 
+  it.each([false, true])('keeps injected display-alias denials through catalog refresh (warm %s)', async (warm) => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    mocks.findMcpServer.mockReturnValue({ id, name: 'cherry-tools' })
+    const tools = [{ name: 'web_hook' }]
+    mocks.listMcpTools.mockReturnValue(warm ? tools : [])
+    const agent = makeAgent(['mcp__cherry-tools__web_*'], [id])
+    agent.configuration = { permission_mode: 'bypassPermissions' }
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent, {
+      boundedMcpToolNames: true,
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__']
+    })
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, ['web_hook'])
+    const external = `mcp__${plan.serverKey}__${plan.toolName('web_hook')}`
+    expect.soft(snapshot.resolve('mcp__cherry-tools__web_search')).toBeDefined()
+    expect.soft(snapshot.getPermissionMode()).toBe('bypassPermissions')
+    expect
+      .soft(['web_search', 'kb_search'].map((name) => snapshot.isDisabled(`mcp__cherry-tools__${name}`)))
+      .toEqual([true, false])
+    expect.soft(snapshot.isDisabled(external)).toBe(warm)
+    mocks.listMcpTools.mockReturnValue(tools)
+    await snapshot.update(agent)
+    expect(
+      ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__kb_search', external].map(snapshot.isDisabled)
+    ).toEqual([true, false, true])
+  })
+
   it('denies injected web tools through the real snapshot under Full Access', async () => {
     const agent = makeAgent(['mcp__*__web_*'])
     agent.configuration = { permission_mode: 'bypassPermissions' }

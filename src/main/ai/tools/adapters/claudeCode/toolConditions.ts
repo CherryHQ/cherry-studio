@@ -128,9 +128,10 @@ export function resolveDisallowedTools(
     const tail = delimiter === -1 ? undefined : rule.slice(delimiter + 2)
     if (tail === '') return [rule]
     // Canonical ownership must be settled across all mounts before considering display aliases.
+    const authoritativeOwner =
+      serverPlans.find(({ server }) => server.id === segment) ?? serverPlans.find(({ mcpId }) => mcpId === segment)
     const owner =
-      serverPlans.find(({ server }) => server.id === segment) ??
-      serverPlans.find(({ mcpId }) => mcpId === segment) ??
+      authoritativeOwner ??
       serverPlans.find(({ server }) => server.name === segment) ??
       serverPlans.find(
         ({ server, tools }) =>
@@ -149,27 +150,33 @@ export function resolveDisallowedTools(
         )
       ]
     }
+    // A display alias can also name an injected namespace outside the external mounts.
+    const preserved = authoritativeOwner ? [] : [rule]
     const { server, plan, tools, identities } = owner
     const allocated = (name: string) => `mcp__${plan.serverKey}__${plan.toolName(name)}`
     const compatibilityTool = tools.find((tool) => rule === buildClaudeMcpToolName(server.name, tool.name))
-    if (compatibilityTool && !tools.some((tool) => tool.name === tail)) return [allocated(compatibilityTool.name)]
-    if (tail === undefined || tail === '*') return [`mcp__${plan.serverKey}__*`]
+    if (compatibilityTool && !tools.some((tool) => tool.name === tail))
+      return [...preserved, allocated(compatibilityTool.name)]
+    if (tail === undefined || tail === '*') return [...preserved, `mcp__${plan.serverKey}__*`]
     const pattern = disableRulePattern(rule)
     if (!tail.includes('*')) {
       const matched =
         tools.find((tool) => tool.name === tail) ??
         tools.find((tool) => identities(tool.name).some((identity) => pattern.test(identity)))
-      return [allocated(matched?.name ?? tail)]
+      return [...preserved, allocated(matched?.name ?? tail)]
     }
-    return tools
-      .filter((tool) =>
-        [
-          ...identities(tool.name),
-          `mcp__${segment}__${tool.name}`,
-          `mcp__${segment}__${sanitizeClaudeMcpNameSegment(tool.name)}`
-        ].some((identity) => pattern.test(identity))
-      )
-      .map((tool) => allocated(tool.name))
+    return [
+      ...preserved,
+      ...tools
+        .filter((tool) =>
+          [
+            ...identities(tool.name),
+            `mcp__${segment}__${tool.name}`,
+            `mcp__${segment}__${sanitizeClaudeMcpNameSegment(tool.name)}`
+          ].some((identity) => pattern.test(identity))
+        )
+        .map((tool) => allocated(tool.name))
+    ]
   })
   return [...new Set(translated)]
 }

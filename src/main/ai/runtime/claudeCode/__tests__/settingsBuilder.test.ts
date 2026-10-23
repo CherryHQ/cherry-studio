@@ -1754,6 +1754,67 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(pending).resolves.toEqual({ behavior: 'deny', message: 'User denied permission for this tool' })
   })
 
+  it.each([false, true])('denies injected display-alias calls through real PreToolUse (warm %s)', async (warm) => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    const rule = 'mcp__cherry-tools__web_*'
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [id],
+      disabledTools: [rule],
+      configuration: { permission_mode: 'bypassPermissions' }
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    mocks.findByIdOrName.mockReturnValue({ id, name: 'cherry-tools', type: 'stdio' })
+    const tools = [{ id: 'web_hook', name: 'web_hook', inputSchema: { type: 'object' } }]
+    mocks.listMcpTools.mockReturnValue(warm ? tools : [])
+    const { createClaudeAgentToolPolicySnapshot } = await vi.importActual<typeof ClaudeAgentTools>(
+      '@main/ai/tools/adapters/claudeCode/agentTools'
+    )
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent as never, { boundedMcpToolNames: true })
+    mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never,
+      { boundedMcpToolNames: true }
+    )
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, ['web_hook'])
+    const external = `mcp__${plan.serverKey}__${plan.toolName('web_hook')}`
+    const aliases = ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__kb_search', external]
+    const denial = expect.objectContaining({
+      hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
+    })
+    const decisions = () =>
+      Promise.all(
+        aliases.map(async (toolName) => {
+          const results = await Promise.all(
+            (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+              hook(
+                { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+                'display-alias-call',
+                {} as never
+              )
+            )
+          )
+          return results.some((result) => denial.asymmetricMatch(result))
+        })
+      )
+    expect.soft(settings.permissionMode).toBe('bypassPermissions')
+    expect.soft(settings.disallowedTools).toContain(rule)
+    expect.soft(settings.disallowedTools?.filter((entry) => entry === external)).toEqual(warm ? [external] : [])
+    expect.soft(await decisions()).toEqual([true, false, warm])
+    expect.soft(aliases.map(snapshot.isDisabled)).toEqual([true, false, warm])
+    if (!warm) {
+      registerMcpSessionCatalogSync('session-1', 'agent-1', [id], settings.mcpToolMetadata, true)
+      mocks.listMcpTools.mockReturnValue(tools)
+      mocks.onToolsCacheUpdated.mock.calls.at(-1)![0]({ serverId: id })
+      await vi.waitFor(() => expect(snapshot.isDisabled(external)).toBe(true))
+      expect.soft(await decisions()).toEqual([true, false, true])
+      expect(aliases.map(snapshot.isDisabled)).toEqual([true, false, true])
+    }
+  })
+
   it('denies injected web calls through real PreToolUse under Full Access', async () => {
     const aliases = ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__kb_search']
     const agent = {

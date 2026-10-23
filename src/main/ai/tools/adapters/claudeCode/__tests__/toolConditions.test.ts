@@ -128,6 +128,32 @@ describe('bounded MCP disable rules', () => {
     mocks.listTools.mockReset().mockReturnValue([{ name: 'read_file' }, { name: 'write_file' }])
   })
 
+  it.each([
+    ['web_*', false],
+    ['web_*', true],
+    ['web_hook', true]
+  ] as const)('preserves injected display-alias rule %s (warm %s)', (tail, warm) => {
+    mocks.findServer.mockReturnValue({ id, name: 'cherry-tools' })
+    mocks.listTools.mockReturnValue(warm ? [{ name: 'web_hook' }] : [])
+    const rule = `mcp__cherry-tools__${tail}`
+    const result = externalRules([rule, rule])
+    expect.soft(result).toContain(rule)
+    expect(result.filter((entry) => entry !== rule)).toEqual(warm ? [alias('web_hook')] : [])
+  })
+
+  it('keeps a registered exact Cherry rule byte-identical despite a warm display alias', () => {
+    mocks.findServer.mockReturnValue({ id, name: 'cherry-tools' })
+    mocks.listTools.mockReturnValue([{ name: 'web_search' }])
+    const agent = { mcps: [id], disabledTools: ['mcp__cherry-tools__web_search'] }
+    expect(resolveDisallowedTools(agent, undefined, true)).toEqual(resolveDisallowedTools(agent))
+  })
+
+  it.each(['web_hook', 'web_*'])('replaces authoritative canonical rule %s despite a display alias', (tail) => {
+    mocks.findServer.mockReturnValue({ id, name: 'cherry-tools' })
+    mocks.listTools.mockReturnValue([{ name: 'web_hook' }])
+    expect(externalRules([`mcp__${id}__${tail}`])).toEqual([alias('web_hook')])
+  })
+
   it.each(['read.file', 'read.' + 'long_name_'.repeat(12)])(
     'denies the advertised sanitized identity of %s without disabling its sibling',
     (name) => {
@@ -251,10 +277,19 @@ describe('bounded MCP disable rules', () => {
   it('maps legacy exact, truncated and wildcard compatibility names back to originals', () => {
     const longName = 'read_' + 'long_name_'.repeat(12)
     mocks.listTools.mockReturnValue([{ name: 'read_file' }, { name: longName }])
-    expect(externalRules([buildClaudeMcpToolName(server.name, 'read_file')])).toEqual([alias('read_file')])
-    expect(externalRules([buildClaudeMcpToolName(server.name, longName)])).toEqual([alias(longName)])
-    expect(externalRules([buildClaudeMcpWildcard(server.name)])).toEqual([`mcp__${id}__*`])
-    expect(externalRules(['mcp__userMcp__read*'])).toEqual([alias('read_file'), alias(longName)])
+    expect(externalRules([buildClaudeMcpToolName(server.name, 'read_file')])).toEqual([
+      buildClaudeMcpToolName(server.name, 'read_file'),
+      alias('read_file')
+    ])
+    expect(externalRules([buildClaudeMcpToolName(server.name, longName)])).toEqual([
+      buildClaudeMcpToolName(server.name, longName),
+      alias(longName)
+    ])
+    expect(externalRules([buildClaudeMcpWildcard(server.name)])).toEqual([
+      buildClaudeMcpWildcard(server.name),
+      `mcp__${id}__*`
+    ])
+    expect(externalRules(['mcp__userMcp__read*'])).toEqual(['mcp__userMcp__read*', alias('read_file'), alias(longName)])
   })
 
   it('maps a legacy exact name truncated inside a long server name', () => {
@@ -262,7 +297,7 @@ describe('bounded MCP disable rules', () => {
     mocks.findServer.mockReturnValue({ id, name: longServerName })
     const rule = buildClaudeMcpToolName(longServerName, 'read_file')
     expect(rule.slice(5)).not.toContain('__')
-    expect(externalRules([rule])).toEqual([alias('read_file')])
+    expect(externalRules([rule])).toEqual([rule, alias('read_file')])
   })
 
   it('resolves stored mount references before display aliases', () => {
