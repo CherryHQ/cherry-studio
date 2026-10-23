@@ -858,14 +858,22 @@ export function useFollowupQueue({
         // inv_ab5b303505a45104). Best-effort: a failed removal leaves the copy
         // held, never deliverable.
         if (restoredCopy) {
-          for (let attempt = 0; attempt < 3; attempt++) {
+          let removed = false
+          for (let attempt = 0; attempt < 3 && !removed; attempt++) {
             try {
               await removeTrigger({ params: { id: restoredCopy.id } })
-              break
-            } catch {
-              // Transient — retry; the copy stays held meanwhile.
+              removed = true
+            } catch (error) {
+              // Already gone counts as closed; transient failures retry inline.
+              if (isAlreadyResolved(error)) removed = true
             }
           }
+          // Retain cleanup ownership until the copy is closed or confirmed
+          // absent: the resolve retry chain outlives navigation and transient
+          // failures, so the held copy never ages back into claimability and
+          // duplicates the composer-cached draft (cherry-pr-review
+          // inv_f89db3564dc86774, same obligation as inv_a9a4ae6a7ed17c68).
+          if (!removed) scheduleResolveRetryRef.current(restoredCopy.id, true, '')
         }
         takenEditRef.current = null
         return undefined
@@ -1431,6 +1439,13 @@ export function useFollowupQueue({
       // steering goes through steer, not this path.
       if (drainBlockedRef.current) {
         await settleItem(won.id, false, claimToken)
+        // The release settled the claim: the finally below must consider
+        // re-driving the still-unconsumed completion — a Resume (or query
+        // refresh) landing while this release was in flight exited at the
+        // busy-scope guard, and nothing else re-fires the drain
+        // (cherry-pr-review inv_b17cab8d94fd1281). Gates are re-checked there,
+        // so a still-active Pause stays parked.
+        settled = true
         return
       }
       const target = itemsRef.current.find((entry) => entry.id === won.id)
