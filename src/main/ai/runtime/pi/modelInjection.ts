@@ -124,7 +124,9 @@ export async function materializePiProviderStream(injection: PiProviderInjection
 }> {
   const providerConfig = injection.transportAdapter
     ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
-    : injection.providerName === 'cherryin' && injection.api === 'anthropic-messages'
+    : injection.usageCapture.owner === 'agent-sdk' &&
+        injection.providerName === 'cherryin' &&
+        injection.api === 'anthropic-messages'
       ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
       : injection.providerConfig
   return {
