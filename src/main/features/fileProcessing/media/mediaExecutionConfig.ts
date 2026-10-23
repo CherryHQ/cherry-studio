@@ -42,8 +42,8 @@ export interface MediaVisionExecutionConfig {
     providerSettings: AppProviderSettingsMap[keyof AppProviderSettingsMap]
     modelId: string
   }
-  /** Frozen before the vision call. Completion must not re-read provider or credential state. */
-  usage: ReturnType<typeof createAiUsageCaptureContext>
+  /** Resolve pricing at the start of each vision invocation while preserving request attribution. */
+  usage: () => ReturnType<typeof createAiUsageCaptureContext>
 }
 
 export interface MediaExecutionConfig {
@@ -109,6 +109,33 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
     if (!isVideoVisionSelectableModel(model, provider)) return null
     const endpoint = resolveEffectiveEndpoint(provider, model)
     const { sdkConfig, credentialReceipt } = await resolveSdkConfig(provider, model, endpoint)
+    const usage = () => {
+      let pricingSnapshot: ReturnType<typeof createAiUsageCaptureContext>['pricingSnapshot'] = null
+      try {
+        const currentProvider = providerService.getByProviderId(provider.id)
+        const currentModel = modelService.getByKey(provider.id, modelId)
+        pricingSnapshot = createAiUsageCaptureContext({
+          providerId: currentProvider.id,
+          modelId: sdkConfig.modelId,
+          pricing: currentModel.pricing,
+          billing: currentProvider.settings.billing,
+          billingModelId: modelId
+        }).pricingSnapshot
+      } catch {
+        // Keep the invocation attributable even if the pricing catalog changed mid-analysis.
+      }
+      return createAiUsageCaptureContext({
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId: sdkConfig.modelId,
+        modelName: model.name,
+        pricingSnapshot,
+        trustProviderReportedCost: provider.reportsActualCost,
+        reportedCostCurrency: provider.reportedCostCurrency,
+        credentialReceipt
+      })
+    }
+
     return {
       uniqueModelId: parsed.data,
       providerId,
@@ -120,18 +147,7 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
         providerSettings: sdkConfig.providerSettings,
         modelId: sdkConfig.modelId
       },
-      usage: createAiUsageCaptureContext({
-        providerId: provider.id,
-        providerName: provider.name,
-        modelId: sdkConfig.modelId,
-        modelName: model.name,
-        pricing: model.pricing,
-        billing: provider.settings.billing,
-        billingModelId: modelId,
-        trustProviderReportedCost: provider.reportsActualCost,
-        reportedCostCurrency: provider.reportedCostCurrency,
-        credentialReceipt
-      })
+      usage
     }
   } catch {
     return null
