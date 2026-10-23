@@ -86,6 +86,23 @@ describe('CodeViewerSelectionManager', () => {
     expect(copy(input)).toEqual({ text: '', prevented: false })
   })
 
+  it.each([
+    { key: 'c', ctrlKey: true },
+    { key: 'c', metaKey: true },
+    { key: 'Insert', ctrlKey: true }
+  ])('preserves detached selections for the copy shortcut %j', (shortcut) => {
+    const { manager, createViewer, select } = setup()
+    const { viewer, content } = createViewer('selected code')
+    select(content.firstChild!)
+    manager.retain(viewer)
+    content.remove()
+    document.dispatchEvent(new Event('selectionchange'))
+    vi.advanceTimersByTime(100)
+    expect(window.getSelection()!.isCollapsed).toBe(true)
+    document.dispatchEvent(new KeyboardEvent('keydown', shortcut))
+    expect(copy()).toEqual({ text: 'selected code', prevented: true })
+  })
+
   it.each(['pointer', 'keyboard', 'clear', 'focus', 'unmount', 'source'] as const)(
     'releases a detached selection on intentional %s changes',
     (action) => {

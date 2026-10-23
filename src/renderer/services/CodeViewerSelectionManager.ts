@@ -13,6 +13,7 @@ export class CodeViewerSelectionManager {
   private readonly handleKeyDown = (event: KeyboardEvent) => {
     if (['Shift', 'Control', 'Meta', 'Alt'].includes(event.key)) return
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') return
+    if (event.ctrlKey && event.key === 'Insert') return
     this.clearSelection()
   }
   private readonly handleFocus = (event: FocusEvent) => {
