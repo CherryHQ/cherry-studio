@@ -336,6 +336,18 @@ describe('materialize – assembling the bundle from the shared cache', () => {
     expect(fs.existsSync(path.join(bundle, '.bun-version'))).toBe(true)
   })
 
+  it('skips a cached version that holds only staging from a failed first download', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    const ffmpeg = fakeTool('ffmpeg', '8.1.2-27')
+    seedCache(cache, ffmpeg, { '.staging-resume/ffmpeg/ffmpeg.tar.gz': 'partial transfer' })
+    fs.writeFileSync(path.join(bundle, 'ffmpeg'), 'working binary from an earlier run')
+
+    expect(() => materialize([ffmpeg], PLATFORM, cache, bundle)).not.toThrow()
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg'), 'utf8')).toBe('working binary from an earlier run')
+    expect(fs.existsSync(path.join(bundle, '.ffmpeg-version'))).toBe(false)
+  })
+
   it('mirrors a whole tree and drops files a shrinking release removed', () => {
     const cache = makeTmpDir('dl-cache-')
     const bundle = makeTmpDir('dl-bundle-')

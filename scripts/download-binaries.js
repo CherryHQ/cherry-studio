@@ -120,6 +120,9 @@ function materialize(tools, platformKey, cacheRoot, bundleDir) {
     if (!pkg) continue
     const versionDir = cachedVersionDir(cacheRoot, platformKey, tool)
     if (!fs.existsSync(versionDir)) continue
+    const binaryPaths = pkg.binaries.map((binary) => path.join(versionDir, binary))
+    // A failed first download leaves only staging here; keep the existing bundle.
+    if (!isUpToDate(binaryPaths, null, tool.version)) continue
 
     if (pkg.dir) linkTree(path.join(versionDir, pkg.dir), path.join(bundleDir, pkg.dir), stats)
     else for (const binary of pkg.binaries) linkFile(path.join(versionDir, binary), path.join(bundleDir, binary), stats)
