@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -9,7 +9,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 const spawnControl = vi.hoisted(() => ({
   calls: 0,
-  replacement: null as null | ((...args: unknown[]) => unknown)
+  replacement: null as null | ((...args: unknown[]) => unknown),
+  recordedArgs: null as null | unknown[][]
 }))
 
 vi.mock('node:child_process', async () => {
@@ -17,6 +18,7 @@ vi.mock('node:child_process', async () => {
   return {
     ...actual,
     spawn: (...args: Parameters<typeof actual.spawn>) => {
+      if (spawnControl.recordedArgs && Array.isArray(args[1])) spawnControl.recordedArgs.push(args[1])
       if (spawnControl.replacement) {
         spawnControl.calls += 1
         return spawnControl.replacement(...args) as ReturnType<typeof actual.spawn>
@@ -146,9 +148,15 @@ describe.skipIf(!hasBundledFfmpeg && !requiresBundledFfmpeg)('mediaFfmpegHandler
   })
 
   it('probes audio and splits normalized WAV output below the requested byte limit', async () => {
-    const probe = await mediaFfmpegHandlers.probe({ filePath: tonePath, fallbackExt: 'wav' }, context())
-    expect(probe).toMatchObject({ hasAudio: true, hasVideo: false, mime: 'audio/wav', kind: 'audio' })
-    expect(probe.durationMs).toBeGreaterThanOrEqual(2_900)
+    spawnControl.recordedArgs = []
+    try {
+      const probe = await mediaFfmpegHandlers.probe({ filePath: tonePath, fallbackExt: 'wav' }, context())
+      expect(probe).toMatchObject({ hasAudio: true, hasVideo: false, mime: 'audio/wav', kind: 'audio' })
+      expect(probe.durationMs).toBeGreaterThanOrEqual(2_900)
+      expect(spawnControl.recordedArgs.some((args) => args.includes('-count_packets'))).toBe(false)
+    } finally {
+      spawnControl.recordedArgs = null
+    }
 
     const outputDir = join(root, 'audio-chunks')
     const result = await mediaFfmpegHandlers.extractAudio(
@@ -171,6 +179,182 @@ describe.skipIf(!hasBundledFfmpeg && !requiresBundledFfmpeg)('mediaFfmpegHandler
 
     expect(result.chunks.length).toBeGreaterThan(1)
     expect(result.chunks.every((chunk) => chunk.byteLength <= 10_000)).toBe(true)
+  })
+
+  it('probes and extracts a 24-track MKV whose packet-count JSON exceeds the default stdio cap', async () => {
+    const outputDir = join(root, 'twenty-four-audio')
+    mkdirSync(outputDir)
+    const sourcePath = join(outputDir, 'twenty-four.mkv')
+    const maps = Array.from({ length: 24 }, () => ['-map', '0:a'] as const).flat()
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=0.2', ...maps, '-c:a', 'pcm_s16le', sourcePath])
+    ).toBe(0)
+
+    const probe = await mediaFfmpegHandlers.probe({ filePath: sourcePath, fallbackExt: 'mkv' }, context())
+    expect(probe).toMatchObject({ hasAudio: true, kind: 'audio' })
+
+    const extracted = await mediaFfmpegHandlers.extractAudio(
+      { filePath: sourcePath, outputDir, maxChunkBytes: 1_000_000 },
+      context()
+    )
+    expect(extracted.chunks.length).toBeGreaterThan(0)
+  })
+
+  it('maps default stereo ahead of a non-default 5.1 track and keeps that stream offset', async () => {
+    const outputDir = join(root, 'dual-default-stereo')
+    mkdirSync(outputDir)
+    const sourcePath = join(outputDir, 'dual.m4a')
+    expect(
+      runFfmpeg([
+        '-itsoffset',
+        '0.25',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=1:sample_rate=48000,pan=stereo|c0=c0|c1=c0',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=880:duration=1:sample_rate=48000,pan=5.1|FL=c0|FR=c0|FC=c0|LFE=c0|BL=c0|BR=c0',
+        '-map',
+        '0:a',
+        '-map',
+        '1:a',
+        '-disposition:a:0',
+        'default',
+        '-disposition:a:1',
+        '0',
+        '-c:a',
+        'aac',
+        '-f',
+        'mp4',
+        sourcePath
+      ])
+    ).toBe(0)
+
+    const probed = JSON.parse(
+      spawnSync(
+        ffprobePath,
+        [
+          '-v',
+          'error',
+          '-show_entries',
+          'format=start_time:stream=index,codec_type,channels,start_time:stream_disposition=default',
+          '-of',
+          'json',
+          sourcePath
+        ],
+        { encoding: 'utf8' }
+      ).stdout
+    ) as {
+      format?: { start_time?: string }
+      streams?: Array<{
+        index?: number
+        codec_type?: string
+        channels?: number
+        start_time?: string
+        disposition?: { default?: number }
+      }>
+    }
+    const audio = (probed.streams ?? []).filter((stream) => stream.codec_type === 'audio')
+    const stereo = audio.find((stream) => stream.channels === 2 && stream.disposition?.default === 1)
+    const surround = audio.find((stream) => stream.channels === 6 && stream.disposition?.default === 0)
+    expect(stereo?.index).toBe(0)
+    expect(surround?.index).toBe(1)
+    const formatStart = Number(probed.format?.start_time ?? 0)
+    const stereoOffsetMs = Math.round((Number(stereo?.start_time) - formatStart) * 1000)
+    const surroundOffsetMs = Math.round((Number(surround?.start_time) - formatStart) * 1000)
+    expect(stereoOffsetMs).toBeGreaterThan(surroundOffsetMs)
+    expect(surroundOffsetMs).toBe(0)
+
+    spawnControl.recordedArgs = []
+    try {
+      const probe = await mediaFfmpegHandlers.probe({ filePath: sourcePath, fallbackExt: 'm4a' }, context())
+      expect(probe.audioStartMs).toBe(stereoOffsetMs)
+      expect(spawnControl.recordedArgs.some((args) => args.includes('-count_packets'))).toBe(true)
+    } finally {
+      spawnControl.recordedArgs = null
+    }
+
+    const autoPath = join(outputDir, 'auto.wav')
+    const surroundPath = join(outputDir, 'surround.wav')
+    expect(
+      runFfmpeg(['-i', sourcePath, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-f', 'wav', autoPath])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-i',
+        sourcePath,
+        '-map',
+        '0:1',
+        '-vn',
+        '-ac',
+        '1',
+        '-ar',
+        '16000',
+        '-c:a',
+        'pcm_s16le',
+        '-f',
+        'wav',
+        surroundPath
+      ])
+    ).toBe(0)
+
+    spawnControl.recordedArgs = []
+    try {
+      const result = await mediaFfmpegHandlers.extractAudio(
+        { filePath: sourcePath, outputDir, maxChunkBytes: 100_000 },
+        context()
+      )
+      const mapped = spawnControl.recordedArgs.find(
+        (args) => Array.isArray(args) && args.includes('-map') && args.includes(sourcePath)
+      )
+      const mapAt = Array.isArray(mapped) ? mapped.indexOf('-map') : -1
+      expect(Array.isArray(mapped) ? mapped[mapAt + 1] : undefined).toBe(`0:${stereo?.index}`)
+      expect(result.chunks).toEqual([expect.objectContaining({ startMs: 0 })])
+      expect(result).toMatchObject({ sampleRateHz: 16000, channels: 1 })
+      const extractedHz = wavToneHz(result.chunks[0]?.path ?? '')
+      expect(Math.abs(extractedHz - wavToneHz(autoPath))).toBeLessThan(20)
+      expect(Math.abs(extractedHz - wavToneHz(surroundPath))).toBeGreaterThan(200)
+    } finally {
+      spawnControl.recordedArgs = null
+    }
+  })
+
+  it('preserves an internal audio timestamp gap in the normalized WAV', async () => {
+    const sourcePath = join(root, 'gapped-audio.mka')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=7',
+        '-af',
+        'aselect=lt(t\\,1)+gte(t\\,6)',
+        '-c:a',
+        'pcm_s16le',
+        sourcePath
+      ])
+    ).toBe(0)
+
+    const result = await mediaFfmpegHandlers.extractAudio(
+      { filePath: sourcePath, outputDir: join(root, 'gapped-audio-output'), maxChunkBytes: 1_000_000 },
+      context()
+    )
+    expect(result.chunks).toHaveLength(1)
+    expect(result.chunks[0].endMs).toBeGreaterThanOrEqual(6_900)
+
+    const readSamples = (startSeconds: number): Buffer => {
+      const read = spawnSync(
+        ffmpegPath,
+        ['-v', 'error', '-ss', String(startSeconds), '-t', '0.5', '-i', result.chunks[0].path, '-f', 's16le', '-'],
+        { encoding: null }
+      )
+      expect(read.status).toBe(0)
+      return read.stdout
+    }
+    expect(readSamples(3).every((sample) => sample === 0)).toBe(true)
+    expect(readSamples(6.2).some((sample) => sample !== 0)).toBe(true)
   })
 
   it('distinguishes audio-only WebM and extracts bounded portrait video frames', async () => {
@@ -1320,6 +1504,23 @@ describe.skipIf(!hasBundledFfmpeg && !requiresBundledFfmpeg)('mediaFfmpegHandler
     return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
   }
 
+  function wavToneHz(filePath: string): number {
+    const bytes = readFileSync(filePath)
+    const data = bytes.indexOf(Buffer.from('data'))
+    if (data < 12) throw new Error(`WAV data chunk missing in ${filePath}`)
+    const size = bytes.readUInt32LE(data + 4)
+    const pcm = bytes.subarray(data + 8, data + 8 + size)
+    const samples = Math.floor(pcm.length / 2)
+    let crossings = 0
+    let previous = 0
+    for (let index = 0; index < samples; index += 1) {
+      const sample = pcm.readInt16LE(index * 2)
+      if ((previous >= 0 && sample < 0) || (previous < 0 && sample >= 0)) crossings += 1
+      previous = sample
+    }
+    return crossings / 2 / (samples / 16000)
+  }
+
   function readStarts(filePath: string): { formatStart: number; audioStart: number; videoStart: number } {
     const probed = JSON.parse(
       spawnSync(
@@ -1619,6 +1820,154 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         )
       ).rejects.toThrow('Media processing timed out')
       expect(spawnControl.calls).toBe(1)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+  it('maps extraction to the audio stream ffmpeg would select', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-audio-map-'))
+    const sourcePath = join(outputDir, 'source.bin')
+    writeFileSync(sourcePath, 'source-audio')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    let ffmpegArgs: string[] = []
+    spawnControl.replacement = (...spawnArgs: unknown[]) => {
+      const call = spawnControl.calls
+      const commandArgs = spawnArgs[1]
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1 || call === 2) {
+          child.stdout.emit(
+            'data',
+            JSON.stringify({
+              format: { duration: '10', start_time: '0', format_name: 'mov,mp4' },
+              streams: [
+                {
+                  index: 0,
+                  codec_type: 'audio',
+                  channels: 2,
+                  start_time: '0',
+                  nb_read_packets: call === 2 ? '0' : undefined,
+                  disposition: { default: 1 }
+                },
+                {
+                  index: 1,
+                  codec_type: 'audio',
+                  channels: 1,
+                  start_time: '2',
+                  nb_read_packets: call === 2 ? '42' : undefined,
+                  disposition: { default: 0 }
+                }
+              ]
+            })
+          )
+          child.emit('close', 0)
+          return
+        }
+        if (call === 3 && Array.isArray(commandArgs)) {
+          ffmpegArgs = commandArgs.map(String)
+          const outputPath = commandArgs.at(-1)
+          if (typeof outputPath === 'string') writeFileSync(outputPath, Buffer.alloc(64))
+          child.emit('close', 0)
+          return
+        }
+        child.stdout.emit(
+          'data',
+          '{"format":{"duration":"1","format_name":"wav"},"streams":[{"codec_type":"audio","duration":"1"}]}'
+        )
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractAudio(
+        { filePath: sourcePath, outputDir, maxChunkBytes: 100_000 },
+        context()
+      )
+      const mapAt = ffmpegArgs.indexOf('-map')
+      expect(ffmpegArgs[mapAt + 1]).toBe('0:1')
+      expect(ffmpegArgs.indexOf('-i')).toBeLessThan(mapAt)
+      expect(mapAt).toBeLessThan(ffmpegArgs.indexOf('-vn'))
+      expect(result.chunks).toEqual([expect.objectContaining({ startMs: 0, endMs: 1000 })])
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an oversized normalized WAV when the probe duration is unusable', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-zero-duration-'))
+    const sourcePath = join(outputDir, 'source.bin')
+    const maxChunkBytes = 5_000
+    const wavBytes = maxChunkBytes + 1
+    let normalizedWav = ''
+    writeFileSync(sourcePath, 'source-audio')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = (...spawnArgs: unknown[]) => {
+      const call = spawnControl.calls
+      const commandArgs = spawnArgs[1]
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.stdout.emit(
+            'data',
+            '{"format":{"duration":"1","format_name":"wav"},"streams":[{"index":0,"codec_type":"audio","channels":1}]}'
+          )
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2 && Array.isArray(commandArgs)) {
+          const outputPath = commandArgs.at(-1)
+          if (typeof outputPath === 'string') {
+            normalizedWav = outputPath
+            writeFileSync(outputPath, Buffer.alloc(wavBytes))
+          }
+          child.emit('close', 0)
+          return
+        }
+        if (call === 3) {
+          child.stdout.emit(
+            'data',
+            '{"format":{"duration":"N/A","format_name":"wav"},"streams":[{"codec_type":"audio","duration":"N/A"}]}'
+          )
+          child.emit('close', 0)
+          return
+        }
+        child.emit('close', 1)
+      })
+      return child
+    }
+
+    try {
+      let settled: { rejected: boolean; chunks: { byteLength: number }[] | undefined; error: string | undefined }
+      try {
+        const value = await mediaFfmpegHandlers.extractAudio(
+          { filePath: sourcePath, outputDir, maxChunkBytes },
+          context()
+        )
+        settled = { rejected: false, chunks: value.chunks, error: undefined }
+      } catch (error: unknown) {
+        settled = {
+          rejected: true,
+          chunks: undefined,
+          error: error instanceof Error ? error.message : String(error)
+        }
+      }
+
+      expect({
+        rejected: settled.rejected,
+        chunks: settled.chunks ?? null,
+        wavPreserved: normalizedWav.length > 0 && existsSync(normalizedWav),
+        commands: spawnControl.calls
+      }).toEqual({
+        rejected: true,
+        chunks: null,
+        wavPreserved: true,
+        commands: 3
+      })
+      expect(settled.error).toBe(`Audio duration unavailable for oversized WAV (${wavBytes} > ${maxChunkBytes})`)
+      expect(statSync(normalizedWav).size).toBe(wavBytes)
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
     }
