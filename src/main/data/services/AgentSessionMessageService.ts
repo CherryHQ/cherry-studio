@@ -303,6 +303,12 @@ export class AgentSessionMessageService {
         messageId: sessionMessagesTable.id,
         sessionId: sessionTable.id,
         runtime: agentTable.type,
+        role: sessionMessagesTable.role,
+        status: sessionMessagesTable.status,
+        userText: sql<
+          string | null
+        >`case when ${sessionMessagesTable.role} = 'user' then ${sessionMessagesTable.searchableText} end`,
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
         resumeToken: sessionMessagesTable.runtimeResumeToken,
         checkpoint: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint')`
       })

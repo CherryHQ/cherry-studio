@@ -14,6 +14,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
+import { loadPiAi, loadPiSdk } from '@main/ai/runtime/pi/piSdk'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
 import { migrateRetiredSessionHistories } from '@main/ai/runtime/pi/retiredSessionHistory'
 
@@ -313,6 +314,104 @@ describe('system workspace relocation', () => {
       expect(JSON.parse(contents.split('\n')[0])).toMatchObject({ type: 'session', id: token, cwd: workspace.newPath })
       expect(contents).toContain('Preserved DSH answer')
       expect(await relocateSystemWorkspaces()).toEqual(new Set())
+    }
+  )
+
+  it('relocates an initial Pi session after empty compaction fails without flushing history', async () => {
+    const workspace = await createWorkspace('pi')
+    const pi = await loadPiSdk()
+    const { InMemoryCredentialStore } = await loadPiAi()
+    const sessionDir = path.join(root, '.pi', 'sessions')
+    const manager = pi.SessionManager.create(workspace.oldPath, sessionDir, { id: workspace.sessionId })
+    const settingsManager = pi.SettingsManager.inMemory()
+    const resourceLoader = new pi.DefaultResourceLoader({
+      cwd: workspace.newPath,
+      agentDir: path.join(temporaryRoot, 'pi-agent'),
+      settingsManager,
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true
+    })
+    await resourceLoader.reload()
+    const modelRuntime = await pi.ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
+    const { session } = await pi.createAgentSession({
+      cwd: workspace.newPath,
+      sessionManager: manager,
+      settingsManager,
+      resourceLoader,
+      modelRuntime,
+      model: modelRuntime.getModels()[0],
+      tools: []
+    })
+    try {
+      agentSessionMessageService.saveMessage({
+        sessionId: workspace.sessionId,
+        message: {
+          id: randomUUID(),
+          role: 'user',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: '/compact' }] }
+        }
+      })
+      await expect(session.compact()).rejects.toThrow('Nothing to compact')
+      const token = session.sessionId
+      new AgentSessionMessageBackend({
+        sessionId: workspace.sessionId,
+        assistantMessageId: randomUUID(),
+        runtimeResumeToken: token
+      }).persistAssistant({ status: 'error', finalMessage: undefined })
+      const messages = dbh.db.select().from(agentSessionMessageTable).all()
+      expect(resolveResumeTokenSessionFile(token, sessionDir)).toBeNull()
+
+      expect(await relocateSystemWorkspaces()).toEqual(new Set())
+      expect(workspacePath(workspace.id)).toBe(workspace.newPath)
+      expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(messages)
+      expect(await relocateSystemWorkspaces()).toEqual(new Set())
+      expect(pi.SessionManager.create(workspace.newPath, sessionDir, { id: token }).getSessionId()).toBe(token)
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it.each(['prompt', 'success', 'checkpoint', 'edited', 'foreign-token'] as const)(
+    'still blocks missing Pi history with materialization evidence: %s',
+    async (evidence) => {
+      const workspace = await createWorkspace('pi')
+      const token = evidence === 'foreign-token' ? randomUUID() : workspace.sessionId
+      const userId = randomUUID()
+      agentSessionMessageService.saveMessage({
+        sessionId: workspace.sessionId,
+        message: {
+          id: userId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: evidence === 'prompt' ? 'Hello' : '/compact' }] }
+        }
+      })
+      if (evidence === 'edited') agentSessionMessageService.setEditRuntimeTx(dbh.db, workspace.sessionId, userId, token)
+      agentSessionMessageService.saveMessage({
+        sessionId: workspace.sessionId,
+        runtimeResumeToken: token,
+        ...(evidence === 'checkpoint'
+          ? { runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: token, leafId: 'saved-leaf' } } }
+          : {}),
+        message: {
+          id: randomUUID(),
+          role: 'assistant',
+          status: evidence === 'success' ? 'success' : 'error',
+          data: { parts: [] }
+        }
+      })
+
+      expect(await relocateSystemWorkspaces()).toEqual(new Set([workspace.sessionId]))
+      expect(workspacePath(workspace.id)).toBe(workspace.oldPath)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(token)
     }
   )
 

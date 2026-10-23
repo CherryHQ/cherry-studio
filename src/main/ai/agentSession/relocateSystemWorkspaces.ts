@@ -225,6 +225,25 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     const retiredSessions = new Set(
       listRetiredAgentSessionMigrations(application.get('DbService').getDb()).map((migration) => migration.sessionId)
     )
+    const unflushedPiSessions = new Set<string>()
+    for (const [sessionId, rows] of Map.groupBy(history, (row) => row.sessionId)) {
+      // Manual /compact bypasses Pi's prompt persistence; an empty failure never creates history.
+      if (
+        rows.some((row) => row.role === 'user') &&
+        rows.every(
+          (row) =>
+            row.runtime === 'pi' &&
+            !row.checkpoint &&
+            !row.nativeSessionId &&
+            (!row.resumeToken || row.resumeToken === sessionId) &&
+            (row.role === 'user'
+              ? /^\/compact(?:\s|$)/.test(row.userText?.trim() ?? '')
+              : row.role === 'assistant' && (row.status === 'error' || row.status === 'paused'))
+        )
+      ) {
+        unflushedPiSessions.add(sessionId)
+      }
+    }
     const claudeConfigDirs = new Map<string, string>()
     for (const { sessionId, checkpoint } of history) {
       if (
@@ -246,6 +265,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       if (runtime !== 'pi' && !z.uuid().safeParse(id).success) throw new Error('Invalid native session identity')
       if (runtime === 'pi') {
         const file = resolveResumeTokenSessionFile(id, application.getPath('feature.agents.pi.sessions'))
+        if (!file && unflushedPiSessions.has(row.sessionId)) continue
         if (!file) throw new Error('Pi history missing')
         const entries = await readEntries(file)
         if (entries[0]?.type !== 'session' || entries[0]?.id !== id) throw new Error('Pi history corrupt')
