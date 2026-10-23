@@ -3130,7 +3130,7 @@ describe('persistBlobAttachments', () => {
     const { result, rerender } = renderHook(
       ({ status, lastCompletedAt }: { status: 'streaming' | 'done'; lastCompletedAt: number | null }) =>
         useFollowupQueue(baseProps({ status, lastCompletedAt, onDrain })),
-      { initialProps: { status: 'streaming' as const, lastCompletedAt: null as number | null } }
+      { initialProps: { status: 'streaming' as 'streaming' | 'done', lastCompletedAt: null as number | null } }
     )
 
     // Fire the completion edge: the drain claims the head; keep the claim in flight.
@@ -3142,7 +3142,7 @@ describe('persistBlobAttachments', () => {
     // Pause takes effect before the claim resolves (cherry-pr-review
     // inv_d8f850bf38694710): the late grant must not dispatch.
     await act(async () => {
-      void result.current.setPaused(true)
+      result.current.setPaused(true)
     })
     expect(result.current.paused).toBe(true)
     await act(async () => {
