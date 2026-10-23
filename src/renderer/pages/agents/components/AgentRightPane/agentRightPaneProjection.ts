@@ -9,7 +9,9 @@ import {
   getPartResumeMarker,
   getResumedAgentId,
   isBackgroundAgentOutput,
-  resolveResumeReceiptState
+  resolveResumeReceiptState,
+  resolveTaskStatusAfter,
+  TERMINAL_TASK_STATUSES
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
@@ -583,6 +585,24 @@ export function buildAgentToolFlowProjection(
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
+    // A text-only or between-tools interval has no live tool part; the flow's own task edges are
+    // the only persisted evidence that the run itself settled.
+    const flowTaskIds = new Set(taskIds)
+    if (rootTaskId) flowTaskIds.add(rootTaskId)
+    const latestTaskStatusByTaskId = new Map<string, NonNullable<AgentTaskEventPartData['status']>>()
+    for (const { parts } of messageEntries) {
+      for (const part of parts) {
+        if (part.type !== 'data-agent-task-event' || !part.data.status) continue
+        if (!flowTaskIds.has(part.data.taskId)) continue
+        // A stale progress edge can arrive after the completion; keep the terminal outcome.
+        latestTaskStatusByTaskId.set(
+          part.data.taskId,
+          resolveTaskStatusAfter(latestTaskStatusByTaskId.get(part.data.taskId), part.data)
+        )
+      }
+    }
+    const flowSettled =
+      !isFlowActive && [...latestTaskStatusByTaskId.values()].every((status) => TERMINAL_TASK_STATUSES.has(status))
 
     // Content is split into rounds two ways: runtime-tagged parts (`cherry.resumedViaCallId`,
     // authoritative and restart-safe — the host row usually predates the receipt row, so position
@@ -719,7 +739,7 @@ export function buildAgentToolFlowProjection(
 
         if (
           markerOwnsThisFlow ||
-          (isResumeReceipt && toolCallId !== undefined && !taggedReceiptCallIds.has(toolCallId) && !isFlowActive)
+          (isResumeReceipt && toolCallId !== undefined && !taggedReceiptCallIds.has(toolCallId) && flowSettled)
         ) {
           const rank = receiptRank.get(marker ?? toolCallId ?? '')
           if (rank !== undefined) currentRank = rank
@@ -754,7 +774,7 @@ export function buildAgentToolFlowProjection(
         }
       }
       const roundContent = roundParts.get(rank) ?? []
-      if (roundContent.length === 0 && !isFlowActive) continue
+      if (roundContent.length === 0 && flowSettled) continue
       const id = `${selectedToolCallId}:agent-flow-assistant${rank === 0 ? '' : `-${rank}`}`
       const assistantMessage = {
         id,
@@ -762,7 +782,7 @@ export function buildAgentToolFlowProjection(
         parts: roundContent,
         metadata: {
           createdAt: selectedCreatedAt,
-          status: isFlowActive ? 'pending' : 'success'
+          status: flowSettled ? 'success' : 'pending'
         }
       } as CherryUIMessage
       flowMessages.push(assistantMessage)

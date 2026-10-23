@@ -773,6 +773,10 @@ describe('agent right pane flow rounds', () => {
           taskType: 'subagent'
         }
       } as unknown as CherryMessagePart,
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: childId, toolUseId: 'call_launch', status: 'completed' }
+      } as unknown as CherryMessagePart,
       textPart('First round findings', 'call_launch'),
       toolPart(
         'call_resume',
@@ -794,9 +798,13 @@ describe('agent right pane flow rounds', () => {
       'call_launch:agent-flow-resume-1',
       'call_launch:agent-flow-assistant-1'
     ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
     expect((projection.partsByMessageId['call_launch:agent-flow-resume-1'][0] as { text?: string }).text).toBe(
       'Second round of the same capability test.'
     )
+    // A settled history falls back to walk position: the untagged round lands behind its request.
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
   it('splits rounds for a dsh send_message continuation', () => {
@@ -1349,6 +1357,10 @@ describe('agent right pane flow rounds', () => {
           taskType: 'subagent'
         }
       } as unknown as CherryMessagePart,
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'a84dcee637f9fac0c', toolUseId: 'call_launch', status: 'completed' }
+      } as unknown as CherryMessagePart,
       textPart('First round findings', 'call_launch'),
       toolPart(
         'call_resume',
@@ -1372,6 +1384,105 @@ describe('agent right pane flow rounds', () => {
     ])
     const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
     expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Second round of the capability test.'])
+    // A settled history falls back to walk position for the untagged round.
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+  })
+
+  const LAUNCH_OUTPUT =
+    'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+  const QUEUED_OUTPUT = {
+    success: true,
+    message: 'Message queued for delivery at its next tool round.',
+    pin: { id: 'af5051807ed7aaa30', name: 'reviewer', ref: 'abc' }
+  }
+  function liveSendParts(taskEdge: Record<string, unknown>, extra: CherryMessagePart[] = []) {
+    return [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, LAUNCH_OUTPUT),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        QUEUED_OUTPUT
+      ),
+      ...extra,
+      {
+        type: 'data-agent-task-event',
+        data: { taskId: 'af5051807ed7aaa30', toolUseId: 'call_launch', ...taskEdge }
+      } as unknown as CherryMessagePart,
+      // Emitted before the delivery result landed, so it carries no marker.
+      textPart('More original-run output', 'call_launch')
+    ]
+  }
+  const flowTexts = (projection: ReturnType<typeof buildAgentToolFlowProjection>, id: string) =>
+    projection.partsByMessageId[id].map((part) => (part as { text?: string }).text).filter(Boolean)
+
+  // A text-only live interval has no non-terminal tool part; the flow's own task edge is the
+  // persisted evidence that the run is still live, so the delivery must not re-file its output.
+  it('keeps original-round output while the child produces text', () => {
+    const parts = liveSendParts({ event: 'started', status: 'in_progress', taskType: 'subagent' })
+    const messages = [message('m1', parts)]
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual([
+      'First round findings',
+      'More original-run output'
+    ])
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toEqual([])
+  })
+
+  // The same holds once the child's last tool has completed while the run continues.
+  it('keeps original-round output while the child is between tools', () => {
+    const parts = liveSendParts({ event: 'started', status: 'in_progress', taskType: 'subagent' }, [
+      toolPart('child_tool', 'Read', 'call_launch', 'output-available')
+    ])
+    const messages = [message('m1', parts)]
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual([
+      'First round findings',
+      'More original-run output'
+    ])
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toEqual([])
+  })
+
+  // Once the task edge settles, the walk position is the fallback for genuinely untagged history.
+  it('falls back to walk position once the task edge settles', () => {
+    const parts = liveSendParts({ event: 'notification', status: 'completed' })
+    const messages = [message('m1', parts)]
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual(['First round findings'])
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
+  })
+
+  // The liveness edge may name the resume call; the task id is what ties it to this flow.
+  it('reads a resume-bound task edge as evidence the flow is live', () => {
+    const parts = liveSendParts({ event: 'started', status: 'in_progress', taskType: 'subagent' })
+    parts.push({
+      type: 'data-agent-task-event',
+      data: { event: 'progress', taskId: 'af5051807ed7aaa30', toolUseId: 'call_send', status: 'in_progress' }
+    } as unknown as CherryMessagePart)
+    const messages = [message('m1', parts)]
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toEqual([])
+  })
+
+  // A stale progress edge after the completion must not keep the flow live.
+  it('settles on the terminal edge even when a stale progress edge follows', () => {
+    const parts = liveSendParts({ event: 'notification', status: 'completed' })
+    parts.push({
+      type: 'data-agent-task-event',
+      data: { event: 'progress', taskId: 'af5051807ed7aaa30', toolUseId: 'call_launch', status: 'in_progress' }
+    } as unknown as CherryMessagePart)
+    const messages = [message('m1', parts)]
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
   })
 })
 
