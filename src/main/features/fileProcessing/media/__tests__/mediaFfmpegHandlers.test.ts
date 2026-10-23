@@ -39,7 +39,6 @@ import {
   selectDistinctFrameIndexes
 } from '../frameSelection'
 import { readFrameSignature } from '../frameSignature'
-import { relativeInputSeekMs, videoTailProbePoint, videoTailReadInterval } from '../probeClassification'
 import {
   applyMediaFfmpegInitData,
   disposeMediaChildren,
