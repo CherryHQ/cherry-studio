@@ -15,6 +15,11 @@ import { uuid } from '@renderer/utils/uuid'
 
 const logger = loggerService.withContext('CodeViewer')
 
+interface SourcePoint {
+  line: number
+  offset: number
+}
+
 interface SavedSelection {
   startLine: number
   startOffset: number
@@ -111,6 +116,7 @@ const CodeViewer = ({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const savedSelectionRef = useRef<SavedSelection | null>(null)
+  const gestureRef = useRef<{ active: boolean; anchor: SourcePoint | null; focus: SourcePoint | null } | null>(null)
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
   const hasRequestedHighlightRef = useRef(false)
@@ -209,8 +215,10 @@ const CodeViewer = ({
 
   // 保存当前选区的逻辑位置
   const saveSelection = useCallback((): SavedSelection | null => {
+    const gesture = gestureRef.current
+    if (gesture && !gesture.active) return savedSelectionRef.current
     const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    if (!selection || selection.rangeCount === 0 || (selection.isCollapsed && !gesture)) {
       return null
     }
 
@@ -269,8 +277,23 @@ const CodeViewer = ({
       return { line: lineIndex, offset: charOffset }
     }
 
-    const start = findLineAndOffset(range.startContainer, range.startOffset)
-    const end = findLineAndOffset(range.endContainer, range.endOffset)
+    let start: SourcePoint | null
+    let end: SourcePoint | null
+    if (gesture) {
+      gesture.anchor ??= selection.anchorNode && findLineAndOffset(selection.anchorNode, selection.anchorOffset)
+      const focus = selection.focusNode && findLineAndOffset(selection.focusNode, selection.focusOffset)
+      if (focus) gesture.focus = focus
+      const { anchor } = gesture
+      if (!anchor || !gesture.focus) return savedSelectionRef.current
+      const forward =
+        anchor.line < gesture.focus.line ||
+        (anchor.line === gesture.focus.line && anchor.offset <= gesture.focus.offset)
+      start = forward ? anchor : gesture.focus
+      end = forward ? gesture.focus : anchor
+    } else {
+      start = findLineAndOffset(range.startContainer, range.startOffset)
+      end = findLineAndOffset(range.endContainer, range.endOffset)
+    }
 
     if (!start || !end) {
       logger.warn('saveSelection failed', {
@@ -287,12 +310,11 @@ const CodeViewer = ({
       endOffset: end.offset
     })
 
-    return {
-      startLine: start.line,
-      startOffset: start.offset,
-      endLine: end.line,
-      endOffset: end.offset
+    if (start.line === end.line && start.offset === end.offset) {
+      savedSelectionRef.current = null
+      return null
     }
+    return { startLine: start.line, startOffset: start.offset, endLine: end.line, endOffset: end.offset }
   }, [selectionBelongsToViewer])
 
   // 滚动事件处理：保存选择用于复制，但不恢复（避免选择高亮问题）
@@ -318,7 +340,7 @@ const CodeViewer = ({
   // 处理复制事件，确保跨虚拟滚动的复制能获取完整内容
   const handleCopy = useCallback(
     (event: ClipboardEvent) => {
-      // A live range reflects reselection; retain the saved range only for unmounted endpoints.
+      // During a pointer gesture, saveSelection keeps the source anchor even when Chromium reanchors the DOM range.
       const saved = saveSelection() ?? savedSelectionRef.current
 
       if (!saved) {
@@ -591,6 +613,7 @@ const CodeViewer = ({
     (selection: Selection | null) => {
       if (!selection || !selectionBelongsToViewer(selection)) {
         savedSelectionRef.current = null
+        gestureRef.current = null
         return
       }
 
@@ -616,11 +639,20 @@ const CodeViewer = ({
   )
   const selectionChangeHandlerRef = useRef(handleSelectionChange)
   const copyHandlerRef = useRef(handleCopy)
+  const gestureHandlerRef = useRef<(active: boolean) => void>(() => {})
 
   useLayoutEffect(() => {
     selectionChangeHandlerRef.current = handleSelectionChange
     copyHandlerRef.current = handleCopy
-  }, [handleSelectionChange, handleCopy])
+    gestureHandlerRef.current = (active) => {
+      if (active) {
+        gestureRef.current = { active: true, anchor: null, focus: null }
+      } else if (gestureRef.current) {
+        savedSelectionRef.current = saveSelection()
+        gestureRef.current.active = false
+      }
+    }
+  }, [handleSelectionChange, handleCopy, saveSelection])
 
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -629,7 +661,8 @@ const CodeViewer = ({
     return codeViewerSelectionManager.register(
       scroller,
       (selection) => selectionChangeHandlerRef.current(selection),
-      (event) => copyHandlerRef.current(event)
+      (event) => copyHandlerRef.current(event),
+      (active) => gestureHandlerRef.current(active)
     )
   }, [])
 
@@ -658,7 +691,7 @@ const CodeViewer = ({
     <div ref={shikiThemeRef} data-image-capture-content="" style={expanded || capture ? undefined : { height }}>
       <div
         ref={scrollerRef}
-        className="shiki-scroller relative block [scrollbar-color:auto] overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
+        className="shiki-scroller selectable relative block [scrollbar-color:auto] overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
         onScroll={handleScroll}
         style={
           {

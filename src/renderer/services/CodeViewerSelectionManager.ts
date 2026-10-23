@@ -1,15 +1,42 @@
 import { debounce } from 'es-toolkit/compat'
 
 type SelectionChangeHandler = (selection: Selection | null) => void
-type ViewerHandlers = { selection: SelectionChangeHandler; copy: (event: ClipboardEvent) => void }
+type ViewerHandlers = {
+  selection: SelectionChangeHandler
+  copy: (event: ClipboardEvent) => void
+  gesture?: (active: boolean) => void
+}
 
 export class CodeViewerSelectionManager {
   private readonly viewers = new Map<HTMLElement, ViewerHandlers>()
   private activeViewer: HTMLElement | null = null
   private retained: { viewer: HTMLElement; start: Node; end: Node } | null = null
   private ownerDocument: Document | null = null
-  private readonly handleSelectionChange = debounce(() => this.dispatchSelectionChange(), 100)
-  private readonly handlePointerDown = () => this.clearSelection()
+  private draggingViewer: HTMLElement | null = null
+  private readonly dispatchDeferredSelection = debounce(() => this.dispatchSelectionChange(), 100)
+  private readonly handleSelectionChange = () => {
+    if (this.draggingViewer) this.dispatchSelectionChange()
+    else this.dispatchDeferredSelection()
+  }
+  private readonly handlePointerDown = (event: PointerEvent) => {
+    this.clearSelection()
+    if (event.button !== 0 || !(event.target instanceof Node)) return
+    const viewer = this.findContainingViewer(event.target)
+    if (!viewer) return
+    this.activeViewer = viewer
+    this.draggingViewer = viewer
+    this.viewers.get(viewer)?.gesture?.(true)
+  }
+  private readonly handlePointerUp = () => {
+    const viewer = this.draggingViewer
+    if (!viewer) return
+    this.dispatchSelectionChange()
+    if (this.draggingViewer === viewer) this.viewers.get(viewer)?.gesture?.(false)
+    this.draggingViewer = null
+  }
+  private readonly handlePointerCancel = () => {
+    if (this.draggingViewer) this.clearSelection()
+  }
   private readonly handleKeyDown = (event: KeyboardEvent) => {
     const selectsAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a'
     const extendsSelection =
@@ -28,15 +55,23 @@ export class CodeViewerSelectionManager {
     if (viewer) this.viewers.get(viewer)?.copy(event)
   }
 
-  register(viewer: HTMLElement, handler: SelectionChangeHandler, copy: (event: ClipboardEvent) => void): () => void {
+  register(
+    viewer: HTMLElement,
+    handler: SelectionChangeHandler,
+    copy: (event: ClipboardEvent) => void,
+    gesture?: (active: boolean) => void
+  ): () => void {
     const previousHandler = this.viewers.get(viewer)
-    const handlers = { selection: handler, copy }
+    const handlers = { selection: handler, copy, gesture }
     this.viewers.set(viewer, handlers)
 
     if (!previousHandler && this.viewers.size === 1) {
       this.ownerDocument = viewer.ownerDocument
       this.ownerDocument.addEventListener('selectionchange', this.handleSelectionChange)
       this.ownerDocument.addEventListener('pointerdown', this.handlePointerDown, true)
+      this.ownerDocument.addEventListener('pointerup', this.handlePointerUp, true)
+      this.ownerDocument.addEventListener('pointercancel', this.handlePointerCancel, true)
+      this.ownerDocument.defaultView?.addEventListener('blur', this.handlePointerCancel)
       this.ownerDocument.addEventListener('keydown', this.handleKeyDown, true)
       this.ownerDocument.addEventListener('focusin', this.handleFocus)
       this.ownerDocument.addEventListener('copy', this.handleCopy)
@@ -51,10 +86,13 @@ export class CodeViewerSelectionManager {
       if (this.viewers.size === 0 && this.ownerDocument) {
         this.ownerDocument.removeEventListener('selectionchange', this.handleSelectionChange)
         this.ownerDocument.removeEventListener('pointerdown', this.handlePointerDown, true)
+        this.ownerDocument.removeEventListener('pointerup', this.handlePointerUp, true)
+        this.ownerDocument.removeEventListener('pointercancel', this.handlePointerCancel, true)
+        this.ownerDocument.defaultView?.removeEventListener('blur', this.handlePointerCancel)
         this.ownerDocument.removeEventListener('keydown', this.handleKeyDown, true)
         this.ownerDocument.removeEventListener('focusin', this.handleFocus)
         this.ownerDocument.removeEventListener('copy', this.handleCopy)
-        this.handleSelectionChange.cancel()
+        this.dispatchDeferredSelection.cancel()
         this.ownerDocument = null
       }
     }
@@ -77,6 +115,7 @@ export class CodeViewerSelectionManager {
     if (this.activeViewer) this.viewers.get(this.activeViewer)?.selection(null)
     this.activeViewer = null
     this.retained = null
+    this.draggingViewer = null
   }
 
   private retainsCollapsedSelection(selection: Selection | null): boolean {
@@ -92,6 +131,14 @@ export class CodeViewerSelectionManager {
 
   private dispatchSelectionChange(): void {
     const selection = this.ownerDocument?.defaultView?.getSelection() ?? null
+    if (
+      this.draggingViewer &&
+      selection?.rangeCount &&
+      this.draggingViewer.contains(selection.getRangeAt(0).commonAncestorContainer)
+    ) {
+      this.viewers.get(this.draggingViewer)?.selection(selection)
+      return
+    }
     const nextViewer = this.findViewer(selection)
     if (!nextViewer && this.retainsCollapsedSelection(selection)) return
 
@@ -108,7 +155,10 @@ export class CodeViewerSelectionManager {
   private findViewer(selection: Selection | null): HTMLElement | null {
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null
 
-    const selectionRoot = selection.getRangeAt(0).commonAncestorContainer
+    return this.findContainingViewer(selection.getRangeAt(0).commonAncestorContainer)
+  }
+
+  private findContainingViewer(selectionRoot: Node): HTMLElement | null {
     let matchedViewer: HTMLElement | null = null
 
     for (const viewer of this.viewers.keys()) {

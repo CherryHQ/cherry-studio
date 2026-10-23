@@ -131,6 +131,19 @@ describe('CodeViewerSelectionManager', () => {
     expect(copy()).toEqual({ text: '', prevented: false })
   })
 
+  it.each(['pointercancel', 'blur'])('abandons a detached in-progress selection on %s', (type) => {
+    const { manager, createViewer, select } = setup()
+    const { viewer, content } = createViewer('selected code')
+    content.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    select(content.firstChild!)
+    manager.retain(viewer)
+    content.remove()
+    document.dispatchEvent(new Event('selectionchange'))
+    if (type === 'blur') window.dispatchEvent(new Event(type))
+    else document.dispatchEvent(new Event(type))
+    expect(copy()).toEqual({ text: '', prevented: false })
+  })
+
   it.each(['pointer', 'keyboard', 'clear', 'focus', 'unmount', 'source'] as const)(
     'releases a detached selection on intentional %s changes',
     (action) => {

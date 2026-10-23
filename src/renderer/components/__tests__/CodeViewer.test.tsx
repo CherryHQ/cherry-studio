@@ -297,6 +297,87 @@ describe('CodeViewer', () => {
     selection.removeAllRanges()
   })
 
+  it.each(['forward', 'backward'] as const)(
+    'copies the original anchor through a held %s drag and allows immediate reselection',
+    async (direction) => {
+      const lines = Array.from({ length: 1000 }, (_, index) => `line ${index}`)
+      const { getByText, queryByText, getByTestId } = render(
+        <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+          <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+        </div>
+      )
+      const outer = getByTestId('outer')
+      const selection = window.getSelection()!
+      const forward = direction === 'forward'
+      if (!forward) {
+        outer.scrollTop = 3000
+        fireEvent.scroll(outer)
+        await waitFor(() => expect(getByText('line 145')).toBeInTheDocument())
+      }
+      const anchorLine = forward ? 2 : 145
+      const anchor = getByText(lines[anchorLine]).firstChild!
+      fireEvent(getByText(lines[anchorLine]), new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      selection.setBaseAndExtent(anchor, 1, anchor, 1)
+      fireEvent(document, new Event('selectionchange'))
+      const initialFocus = getByText(lines[forward ? 10 : 140]).firstChild!
+      selection.setBaseAndExtent(anchor, 1, initialFocus, 3)
+      fireEvent(document, new Event('selectionchange'))
+      outer.scrollTop = forward ? 3000 : 0
+      fireEvent.scroll(outer)
+      await waitFor(() => expect(queryByText(lines[anchorLine])).toBeNull())
+      const focusLine = forward ? 150 : 5
+      // Chromium reanchors to a mounted row when the original anchor is evicted.
+      selection.setBaseAndExtent(
+        getByText(lines[forward ? 125 : 30]).firstChild!,
+        0,
+        getByText(lines[focusLine]).firstChild!,
+        3
+      )
+      fireEvent(document, new Event('selectionchange'))
+      fireEvent(document, new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+      const copy = () => {
+        let text = ''
+        const event = new Event('copy', { bubbles: true, cancelable: true })
+        Object.defineProperty(event, 'clipboardData', {
+          value: {
+            setData: (_type: string, value: string) => {
+              text = value
+            }
+          }
+        })
+        document.body.dispatchEvent(event)
+        return text
+      }
+      const expected = forward
+        ? [lines[2].slice(1), ...lines.slice(3, 150), lines[150].slice(0, 3)]
+        : [lines[5].slice(3), ...lines.slice(6, 145), lines[145].slice(0, 1)]
+      expect(copy()).toBe(expected.join('\n'))
+      const fresh = getByText(lines[focusLine])
+      fireEvent(fresh, new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      selection.setBaseAndExtent(fresh.firstChild!, 1, fresh.firstChild!, 4)
+      fireEvent(document, new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+      expect(copy()).toBe(lines[focusLine].slice(1, 4))
+      selection.removeAllRanges()
+    }
+  )
+
+  it('does not copy an obsolete range after dragging back to the original anchor', () => {
+    const { getByText } = render(<CodeViewer value={'first line\nsecond line'} language="text" />)
+    const anchor = getByText('first line').firstChild!
+    const focus = getByText('second line').firstChild!
+    const selection = window.getSelection()!
+    fireEvent(getByText('first line'), new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    selection.setBaseAndExtent(anchor, 2, focus, 3)
+    fireEvent(document, new Event('selectionchange'))
+    selection.setBaseAndExtent(anchor, 2, anchor, 2)
+    fireEvent(document, new Event('selectionchange'))
+    fireEvent(document, new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    document.body.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    selection.removeAllRanges()
+  })
+
   it('keeps a growing collapsed viewer pinned until the user scrolls away', () => {
     const props = { language: 'text', expanded: false, height: 300, autoScrollToBottom: true } as const
     const { container, rerender } = render(<CodeViewer {...props} value="first" />)
