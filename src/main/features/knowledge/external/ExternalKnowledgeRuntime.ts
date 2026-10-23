@@ -458,10 +458,7 @@ export class ExternalKnowledgeRuntime {
         appCredentialSource: applicationCredentials.source,
         appCredentials: applicationCredentials.credentials,
         applicationName: applicationCredentials.applicationName,
-        includeSpaceDiscovery:
-          includeSpaceDiscovery ||
-          applicationCredentials.includeSpaceDiscovery ||
-          connection.grantedScopes.includes(FEISHU_SPACE_DISCOVERY_USER_SCOPE),
+        includeSpaceDiscovery: includeSpaceDiscovery || applicationCredentials.includeSpaceDiscovery,
         initial: false,
         connection,
         generation

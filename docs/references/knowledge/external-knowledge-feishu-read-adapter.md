@@ -50,6 +50,9 @@ An existing connection may explicitly reauthorize with discovery consent. This
 uses the existing reconnect lifecycle, so dependent Sources pause until the
 connection succeeds again. A missing discovery permission alone does not pause
 them.
+Reconnecting with stored app credentials preserves existing discovery consent.
+Replacing app credentials uses the replacement's discovery choice or an explicit
+request to enable discovery; it does not inherit the previous app's optional grant.
 
 Only the validated token and URL kind enter provider operations. API requests
 always use the fixed `https://open.feishu.cn` origin. Query strings and fragments

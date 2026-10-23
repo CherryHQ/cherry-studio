@@ -21,6 +21,7 @@ import type {
 } from '../ExternalKnowledgeCredentialStore'
 import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
 import {
+  beginDeviceAuthorization,
   FEISHU_REQUIRED_USER_SCOPES,
   FEISHU_SPACE_DISCOVERY_USER_SCOPE,
   FeishuProviderError,
@@ -1746,66 +1747,6 @@ describe('ExternalKnowledgeRuntime', () => {
     await runtime.cancelUserAuthorization(begun.authorizationSessionId)
   })
 
-  it('preserves discovery consent on reconnect and permits an explicit upgrade for older connections', async () => {
-    const connections = new MemoryConnections()
-    const credentials = new MemoryCredentials()
-    const older = connection('older', 'ref-older')
-    const newer = connection('newer', 'ref-newer', {
-      grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
-    })
-    const upgraded = connection('upgraded', 'ref-upgraded')
-    connections.values.set(older.id, older)
-    connections.values.set(newer.id, newer)
-    connections.values.set(upgraded.id, upgraded)
-    credentials.values.set('ref-older', { status: 'ok', credential: validCredential('older') })
-    credentials.values.set('ref-newer', {
-      status: 'ok',
-      credential: {
-        ...validCredential('newer'),
-        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
-      }
-    })
-    credentials.values.set('ref-upgraded', { status: 'ok', credential: validCredential('upgraded') })
-    const provider = createProvider({
-      beginDeviceAuthorization: vi.fn(async () => ({
-        deviceCode: 'device-code',
-        userCode: 'ABCD-EFGH',
-        verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
-        expiresIn: 600,
-        interval: 5
-      }))
-    })
-    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
-    await runtime.start()
-
-    const olderSession = await runtime.beginReconnect(older.id)
-    const newerSession = await runtime.beginReconnect(newer.id)
-    const upgradeSession = await runtime.beginReconnect(upgraded.id, undefined, true)
-
-    expect(provider.beginDeviceAuthorization).toHaveBeenNthCalledWith(
-      1,
-      { appId: older.appId, appSecret: 'app-secret' },
-      expect.any(AbortSignal),
-      false
-    )
-    expect(provider.beginDeviceAuthorization).toHaveBeenNthCalledWith(
-      2,
-      { appId: newer.appId, appSecret: 'app-secret' },
-      expect.any(AbortSignal),
-      true
-    )
-    expect(provider.beginDeviceAuthorization).toHaveBeenNthCalledWith(
-      3,
-      { appId: upgraded.appId, appSecret: 'app-secret' },
-      expect.any(AbortSignal),
-      true
-    )
-    await runtime.cancelUserAuthorization(olderSession.authorizationSessionId)
-    await runtime.cancelUserAuthorization(newerSession.authorizationSessionId)
-    await runtime.cancelUserAuthorization(upgradeSession.authorizationSessionId)
-    await runtime.stop()
-  })
-
   it('keeps the active reference, application metadata and credential bytes unchanged while reconnect authorization is pending', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
@@ -3313,6 +3254,160 @@ describe('ExternalKnowledgeRuntime', () => {
     await removing
     expect(lateOperation).not.toHaveBeenCalled()
   })
+})
+
+describe('ExternalKnowledgeRuntime reconnect discovery consent', () => {
+  setupTestDatabase()
+
+  it.each([
+    {
+      scenario: 'link-only reconnect',
+      existingDiscovery: false,
+      replace: false,
+      discovery: undefined,
+      upgrade: false,
+      expectedDiscovery: false
+    },
+    {
+      scenario: 'preserved discovery',
+      existingDiscovery: true,
+      replace: false,
+      discovery: undefined,
+      upgrade: false,
+      expectedDiscovery: true
+    },
+    {
+      scenario: 'explicit reconnect upgrade',
+      existingDiscovery: false,
+      replace: false,
+      discovery: undefined,
+      upgrade: true,
+      expectedDiscovery: true
+    },
+    {
+      scenario: 'replacement with discovery omitted',
+      existingDiscovery: true,
+      replace: true,
+      discovery: undefined,
+      upgrade: false,
+      expectedDiscovery: false
+    },
+    {
+      scenario: 'replacement with discovery disabled',
+      existingDiscovery: true,
+      replace: true,
+      discovery: false,
+      upgrade: false,
+      expectedDiscovery: false
+    },
+    {
+      scenario: 'replacement with discovery enabled',
+      existingDiscovery: false,
+      replace: true,
+      discovery: true,
+      upgrade: false,
+      expectedDiscovery: true
+    },
+    {
+      scenario: 'replacement with explicit request upgrade',
+      existingDiscovery: false,
+      replace: true,
+      discovery: false,
+      upgrade: true,
+      expectedDiscovery: true
+    }
+  ])(
+    'completes $scenario with the app-supported scopes',
+    async ({ existingDiscovery, replace, discovery, upgrade, expectedDiscovery }) => {
+      const credentials = new MemoryCredentials()
+      const initialScopes = [
+        ...FEISHU_REQUIRED_USER_SCOPES,
+        ...(existingDiscovery ? [FEISHU_SPACE_DISCOVERY_USER_SCOPE] : [])
+      ]
+      const created = externalKnowledgeConnectionService.create({
+        appId: 'cli_one',
+        appCredentialSource: 'custom-app',
+        credentialReference: 'ref-one'
+      })
+      externalKnowledgeConnectionService.markConnected(created.id, {
+        accountUserId: 'user_one',
+        accountOpenId: 'ou_one',
+        accountUnionId: null,
+        tenantKey: 'tenant_one',
+        displayName: 'User',
+        avatarUrl: null,
+        grantedScopes: initialScopes
+      })
+      credentials.values.set('ref-one', {
+        status: 'ok',
+        credential: { ...validCredential('one'), grantedScopes: initialScopes }
+      })
+      let grantedScopes: string[] = []
+      vi.mocked(net.fetch)
+        .mockReset()
+        .mockImplementation(async (_url, options) => {
+          const form = new URLSearchParams(String(options?.body))
+          grantedScopes = form.get('scope')?.split(' ') ?? []
+          if (!expectedDiscovery && grantedScopes.includes(FEISHU_SPACE_DISCOVERY_USER_SCOPE)) {
+            return Response.json({ error: 'invalid_scope' }, { status: 400 })
+          }
+          return Response.json({
+            device_code: 'device-code',
+            user_code: 'ABCD-EFGH',
+            verification_uri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+            expires_in: 600,
+            interval: 5
+          })
+        })
+      const provider = createProvider({
+        beginDeviceAuthorization,
+        exchangeDeviceAuthorization: vi.fn(async () => ({
+          accessToken: 'access-one',
+          refreshToken: 'replacement-refresh',
+          expiresIn: 7200,
+          refreshTokenExpiresIn: 604800,
+          grantedScopes
+        })),
+        listWikiSpaces: vi.fn(async () => ({ spaces: [] }))
+      })
+      const runtime = new ExternalKnowledgeRuntime({ credentials, provider, now: () => 1_000 })
+      await runtime.start()
+      try {
+        const session = await runtime.beginReconnect(
+          created.id,
+          replace
+            ? {
+                kind: 'custom-app',
+                appId: 'cli_replacement',
+                appSecret: 'replacement-secret',
+                includeSpaceDiscovery: discovery
+              }
+            : undefined,
+          upgrade
+        )
+        const connected = await runtime.completeUserAuthorization(session.authorizationSessionId)
+        const expectedScopes = [
+          ...FEISHU_REQUIRED_USER_SCOPES,
+          ...(expectedDiscovery ? [FEISHU_SPACE_DISCOVERY_USER_SCOPE] : [])
+        ]
+        expect(externalKnowledgeConnectionService.getById(created.id)).toMatchObject({
+          authorizationStatus: 'connected',
+          appId: replace ? 'cli_replacement' : 'cli_one',
+          grantedScopes: expectedScopes
+        })
+        await expect(credentials.read(connected.credentialReference)).resolves.toMatchObject({
+          status: 'ok',
+          credential: { grantedScopes: expectedScopes, refreshToken: 'replacement-refresh' }
+        })
+        await expect(runtime.acquireAccessToken(created.id)).resolves.toBe('access-one')
+        if (expectedDiscovery) await expect(runtime.listFeishuSpaces(created.id)).resolves.toEqual({ spaces: [] })
+        else await expect(runtime.listFeishuSpaces(created.id)).rejects.toMatchObject({ code: 'scope-missing' })
+      } finally {
+        await runtime.stop()
+        vi.mocked(net.fetch).mockReset()
+      }
+    }
+  )
 })
 
 describe('ExternalKnowledgeRuntime interrupted initial authorization', () => {
