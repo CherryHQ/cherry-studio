@@ -4847,6 +4847,45 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('draft A plus newer edits')
   })
 
+  it('preserves unsaved edits in a second composer when a delayed enqueue settles (cache ownership is not document ownership)', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('submitted A'))
+
+    // The enqueue stays in flight while a second composer sharing the draft
+    // registry key mounts and gains unsaved edits that never persisted into
+    // the session cache (e.g. a message-edit session) (cherry-pr-review
+    // inv_d544282ace304750).
+    let settlement: Promise<unknown> | undefined
+    act(() => {
+      settlement = mocks.surfaceProps?.onSendDraft({ text: 'submitted A', tokens: [] })
+    })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('unsaved B'))
+
+    await act(async () => {
+      await settlement
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('unsaved B')
+  })
+
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },

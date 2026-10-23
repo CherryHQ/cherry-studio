@@ -1816,20 +1816,27 @@ const AgentComposerInner = ({
             // entry (cherry-pr-review inv_ccf47fc3bab12fcf).
             const activeEditor = activeAgentDraftEditors.get(draftCacheKey)
             if (activeEditor) {
+              const sameInstance = (activeEditor.owner as unknown) === clearCurrentDraft
               // Same instance that submitted: the synchronous revision guard
               // sees edits that have not rendered yet. Another (reopened)
               // instance has its own revision counter, so only its live
               // document comparison applies (cherry-pr-review
               // inv_8e5cbb8f581e03ec).
-              const unchanged =
-                (activeEditor.owner as unknown) === clearCurrentDraft
-                  ? queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision
-                  : true
-              // stillOwnsCache implies the cache still held the submitted
-              // document; otherwise the visible editor is cleared only when it
-              // verifiably shows exactly that document, preserving an
-              // unrelated cached draft (cherry-pr-review inv_ccf47fc3bab12fcf).
-              if (unchanged && (stillOwnsCache || activeEditor.isShowing(submitted))) {
+              const unchanged = sameInstance
+                ? queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision
+                : true
+              // stillOwnsCache speaks only for the cache entry, never for what
+              // another instance is showing: a message-edit session keeps its
+              // unsaved text out of the session cache, so cache ownership
+              // cannot clear that editor. A different instance must prove the
+              // visible document still equals the submitted one; the same
+              // instance may also rely on cache ownership because its own
+              // edits persist through it (cherry-pr-review
+              // inv_ccf47fc3bab12fcf, inv_d544282ace304750).
+              const mayClear = sameInstance
+                ? stillOwnsCache || activeEditor.isShowing(submitted)
+                : activeEditor.isShowing(submitted)
+              if (unchanged && mayClear) {
                 activeEditor.clearSubmitted({ preserveCache: !stillOwnsCache })
               }
             } else if (
