@@ -9,6 +9,7 @@ import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { ErrorCode } from '@shared/data/api/errors'
+import { UpdateAgentChannelSchema } from '@shared/data/api/schemas/agentChannels'
 
 const notifyDataApiDataChange = vi.hoisted(() => vi.fn())
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange }))
@@ -46,6 +47,32 @@ describe('AgentChannelService', () => {
       catchUpPolicy: { kind: 'skip-missed' }
     })
   }
+
+  it('applies separate configuration field patches to the latest persisted channel', () => {
+    const channel = agentChannelService.createChannel({
+      type: 'wecom',
+      name: 'WeCom',
+      workspace: SYSTEM_WORKSPACE,
+      isActive: false,
+      config: { bot_id: 'old', secret: 'original', allowed_chat_ids: ['dm:alice'], allowed_user_ids: [] }
+    })
+    agentChannelService.updateChannel(channel.id, UpdateAgentChannelSchema.parse({ configPatch: { bot_id: 'new' } }))
+    agentChannelService.updateChannel(
+      channel.id,
+      UpdateAgentChannelSchema.parse({ configPatch: { secret: ' secret ' } })
+    )
+    expect(agentChannelService.getChannel(channel.id)?.config).toEqual({
+      bot_id: 'new',
+      secret: ' secret ',
+      allowed_chat_ids: ['dm:alice'],
+      allowed_user_ids: []
+    })
+    expect(() => agentChannelService.updateChannel(channel.id, { configPatch: { unknown: true } })).toThrow()
+    expect(
+      UpdateAgentChannelSchema.safeParse({ config: channel.config, configPatch: { bot_id: 'ambiguous' } }).success
+    ).toBe(false)
+    expect(agentChannelService.getChannel(channel.id)?.config).toMatchObject({ bot_id: 'new', secret: ' secret ' })
+  })
 
   describe('createChannel', () => {
     it('creates a channel and returns the entity', async () => {
@@ -276,6 +303,67 @@ describe('AgentChannelService', () => {
   })
 
   describe('normalizeChannelConfig (via createChannel)', () => {
+    it('persists an explicit Feishu mention_only=false', () => {
+      const channel = agentChannelService.createChannel({
+        type: 'feishu',
+        name: 'Feishu',
+        workspace: SYSTEM_WORKSPACE,
+        config: {
+          app_id: 'app-id',
+          app_secret: 'app-secret',
+          encrypt_key: 'encrypt-key',
+          verification_token: 'verification-token',
+          domain: 'lark',
+          allowed_chat_ids: ['chat-1'],
+          mention_only: false
+        }
+      })
+
+      expect(agentChannelService.getChannel(channel.id)?.config).toEqual({
+        app_id: 'app-id',
+        app_secret: 'app-secret',
+        encrypt_key: 'encrypt-key',
+        verification_token: 'verification-token',
+        domain: 'lark',
+        allowed_chat_ids: ['chat-1'],
+        mention_only: false
+      })
+    })
+
+    it('updates a legacy Feishu channel from mention-only to all-user messages and back', () => {
+      const config = {
+        app_id: 'app-id',
+        app_secret: 'app-secret',
+        encrypt_key: 'encrypt-key',
+        verification_token: 'verification-token',
+        domain: 'lark' as const,
+        allowed_chat_ids: ['chat-1']
+      }
+      const channel = agentChannelService.createChannel({
+        type: 'feishu',
+        name: 'Legacy Feishu',
+        workspace: SYSTEM_WORKSPACE,
+        config
+      })
+
+      for (const mentionOnly of [false, true]) {
+        const existing = agentChannelService.getChannel(channel.id)!
+        agentChannelService.updateChannel(
+          channel.id,
+          UpdateAgentChannelSchema.parse({ config: { ...existing.config, mention_only: mentionOnly } })
+        )
+        expect(agentChannelService.getChannel(channel.id)?.config).toEqual({
+          app_id: 'app-id',
+          app_secret: 'app-secret',
+          encrypt_key: 'encrypt-key',
+          verification_token: 'verification-token',
+          domain: 'lark',
+          allowed_chat_ids: ['chat-1'],
+          mention_only: mentionOnly
+        })
+      }
+    })
+
     it('strips the type key from the stored config', async () => {
       const channel = agentChannelService.createChannel({
         type: 'telegram',

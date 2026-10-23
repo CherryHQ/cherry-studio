@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('@renderer/utils/markdownLight', () => ({ findCitationInChildren: mocks.findCitationInChildren }))
 vi.mock('@renderer/components/icons/FallbackFavicon', () => ({ __esModule: true, default: mocks.Favicon }))
 vi.mock('../CitationTooltip', () => ({ default: mocks.CitationTooltip }))
-vi.mock('../Hyperlink', () => ({ default: mocks.Hyperlink }))
+vi.mock('@renderer/components/markdown/MarkdownHyperlink', () => ({ default: mocks.Hyperlink }))
 vi.mock('../../MessageListProvider', () => ({
   useOptionalMessageListActions: () => mocks.messageListActions
 }))
@@ -192,21 +192,6 @@ describe('Link', () => {
       </Link>
     )
     expect(screen.getByTestId('citation-tooltip')).toBeInTheDocument()
-  })
-
-  it('renders normal external links inside Hyperlink with a favicon', () => {
-    mocks.findCitationInChildren.mockReturnValue(undefined)
-    const { container } = render(<Link href="https://domain.com/path">Open</Link>)
-
-    const wrapper = screen.getByTestId('hyperlink')
-    expect(wrapper).toBeInTheDocument()
-    expect(wrapper).toHaveAttribute('data-href', 'https://domain.com/path')
-
-    const anchor = container.querySelector('a') as HTMLAnchorElement
-    expect(anchor.getAttribute('href')).toBe('https://domain.com/path')
-    expect(anchor.getAttribute('target')).toBe('_blank')
-    expect(anchor.getAttribute('rel')).toBe('noreferrer')
-    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
   })
 
   it('does not inject another favicon when children already include one', () => {

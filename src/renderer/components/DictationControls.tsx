@@ -1,0 +1,199 @@
+import { Copy, CornerDownLeft, Mic, RotateCcw, Square, Trash2, X } from 'lucide-react'
+import { useSyncExternalStore } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { BarVisualizer, Button, NormalTooltip } from '@cherrystudio/ui'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { dictationService, voiceTargetManager } from '@renderer/services/voice'
+import type { DictationErrorCategory, DictationPhase } from '@renderer/services/voice'
+
+const SETTINGS_RECOVERY_ERRORS = new Set<DictationErrorCategory>([
+  'model_required',
+  'voice_unavailable',
+  'unsupported',
+  'asset_required',
+  'microphone_permission',
+  'microphone_unavailable',
+  'microphone_unreadable'
+])
+const PHASE_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
+  starting: 'settings.voice.dictation.phase.starting',
+  recording: 'settings.voice.dictation.phase.recording',
+  recorded: 'settings.voice.dictation.phase.recorded',
+  stopping: 'settings.voice.dictation.phase.stopping',
+  transcribing: 'settings.voice.dictation.phase.transcribing',
+  failed: 'settings.voice.dictation.phase.failed',
+  recovery: 'settings.voice.dictation.phase.recovery'
+}
+
+export function DictationControls({
+  targetId,
+  disabled,
+  focusInput
+}: {
+  targetId: string
+  disabled: boolean
+  focusInput: () => void
+}) {
+  const { t } = useTranslation()
+  const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
+  const target = useSyncExternalStore(voiceTargetManager.subscribe, voiceTargetManager.getSnapshot)
+  const capturing = ['starting', 'recording', 'stopping', 'transcribing'].includes(snapshot.phase)
+  const run = (action: () => Promise<unknown>) => {
+    void action()
+      .catch(() => undefined)
+      .finally(focusInput)
+  }
+  const start = () => {
+    if (disabled || !voiceTargetManager.markCurrent(targetId)) return
+    void dictationService.startScoped().result.catch(() => undefined)
+    focusInput()
+  }
+
+  return (
+    <div
+      className={
+        capturing
+          ? 'flex max-w-full items-center gap-2 rounded-full border border-border bg-popover py-1 pr-1 pl-3'
+          : 'flex flex-wrap items-center gap-1'
+      }>
+      {snapshot.transcript && (
+        <span role="status" className="max-w-64 truncate text-sm" title={snapshot.transcript.text}>
+          {snapshot.transcript.text.slice(0, snapshot.transcript.provisionalStart)}
+          <span className="text-muted-foreground">
+            {snapshot.transcript.text.slice(snapshot.transcript.provisionalStart)}
+          </span>
+        </span>
+      )}
+      {capturing && (
+        <BarVisualizer
+          aria-hidden
+          analyser={snapshot.analyser}
+          state={snapshot.phase === 'recording' ? 'listening' : 'thinking'}
+          className="h-6 w-16 shrink-0"
+        />
+      )}
+      {snapshot.phase !== 'idle' && (
+        <span role="status" className="text-xs text-muted-foreground">
+          {t(
+            snapshot.error &&
+              ['no_speech', 'microphone_unavailable', 'microphone_unreadable', 'recording_failed'].includes(
+                snapshot.error
+              )
+              ? `settings.voice.status.${snapshot.error}`
+              : PHASE_KEYS[snapshot.phase]
+          )}
+          {snapshot.phase === 'recording' &&
+            ` ${t('settings.voice.dictation.elapsed', { seconds: Math.floor(snapshot.elapsedMs / 1_000) })}`}
+        </span>
+      )}
+      {snapshot.phase === 'idle' && (
+        <NormalTooltip
+          content={t('chat.input.dictation.action.start')}
+          side="bottom"
+          sideOffset={4}
+          delayDuration={300}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('chat.input.dictation.title')}
+            disabled={disabled}
+            onClick={start}>
+            <Mic className="size-4" />
+          </Button>
+        </NormalTooltip>
+      )}
+      {snapshot.phase === 'recording' && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('settings.voice.action.stop_recording')}
+          onClick={() => run(() => dictationService.stop())}>
+          <Square className="size-4" />
+        </Button>
+      )}
+      {['starting', 'recording', 'stopping', 'transcribing'].includes(snapshot.phase) && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('chat.input.dictation.action.cancel')}
+          onClick={() => run(() => dictationService.cancel())}>
+          <X className="size-4" />
+        </Button>
+      )}
+      {(snapshot.phase === 'failed' || snapshot.phase === 'recorded') && (
+        <>
+          {snapshot.phase === 'recorded' && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => run(() => dictationService.transcribeRecording())}>
+              {t('settings.voice.action.transcribe')}
+            </Button>
+          )}
+          {snapshot.retryAvailable && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('settings.voice.action.retry')}
+              onClick={() => run(() => dictationService.retry())}>
+              <RotateCcw className="size-4" />
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('settings.voice.action.discard')}
+            onClick={() => run(() => dictationService.discard())}>
+            <Trash2 className="size-4" />
+          </Button>
+          {snapshot.error && SETTINGS_RECOVERY_ERRORS.has(snapshot.error) && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/voice')}>
+              {t('settings.voice.action.open_settings')}
+            </Button>
+          )}
+        </>
+      )}
+      {snapshot.phase === 'recovery' && (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('settings.voice.action.insert_recovery')}
+            disabled={disabled || target?.targetId !== targetId}
+            onClick={() => {
+              dictationService.insertRecovery()
+              focusInput()
+            }}>
+            <CornerDownLeft className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('chat.input.dictation.action.copy_recovery')}
+            onClick={() => run(() => dictationService.copyRecovery())}>
+            <Copy className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('settings.voice.action.discard')}
+            onClick={() => run(() => dictationService.discard())}>
+            <Trash2 className="size-4" />
+          </Button>
+        </>
+      )}
+    </div>
+  )
+}
+
+export default DictationControls

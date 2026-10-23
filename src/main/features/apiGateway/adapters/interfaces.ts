@@ -18,8 +18,10 @@ import type { Provider } from '@shared/data/types/provider'
  * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
  * `AiService.streamText`: the nested `stats` snapshot (Cherry `MessageStats`,
  * AI SDK v6 names) is the single carrier — the gateway SSE adapters read the
- * input/output totals from it, plus the cache-read and reasoning breakdowns
- * for dialects that expose them.
+ * input/output totals from it, plus the cache and reasoning breakdowns for
+ * dialects that expose them. Top-level `inputTokens` follows the v6 semantic
+ * of TOTAL input (cache reads and writes included); the uncached portion is
+ * only available through `inputTokenDetails`.
  */
 export interface GatewayUsageMetadata {
   stats?: {
@@ -27,7 +29,9 @@ export interface GatewayUsageMetadata {
     inputTokens?: number
     outputTokens?: number
     inputTokenDetails?: {
+      noCacheTokens?: number
       cacheReadTokens?: number
+      cacheWriteTokens?: number
     }
     outputTokenDetails?: {
       reasoningTokens?: number
@@ -208,6 +212,7 @@ export interface AdapterState {
   inputTokens: number
   cacheReadTokens?: number
   outputTokens: number
+  reasoningTokens?: number
   currentBlockIndex: number
   blocks: Map<number, ContentBlockState>
   textBlockIndex: number | null

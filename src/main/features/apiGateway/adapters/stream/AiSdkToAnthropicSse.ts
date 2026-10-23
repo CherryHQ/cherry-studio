@@ -69,6 +69,8 @@ const NULL_CONTAINER = null
  */
 export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent> {
   private readonly toClientToolName?: (toolName: string) => string
+  /** Cache-write tokens are Anthropic-dialect reporting, not shared adapter state. */
+  private cacheWriteTokens?: number
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -101,6 +103,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       content: [],
       container: NULL_CONTAINER,
       model: this.state.model,
+      stop_details: null,
       stop_reason: null,
       stop_sequence: null,
       usage
@@ -200,6 +203,38 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
+      this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
+    if (metadata.stats?.inputTokenDetails?.cacheWriteTokens !== undefined) {
+      this.cacheWriteTokens = metadata.stats.inputTokenDetails.cacheWriteTokens
+    }
+  }
+
+  /**
+   * Split the cache-inclusive projected input total into the Anthropic usage
+   * shape. The projection's `inputTokens` follows the AI SDK v6 semantic of
+   * TOTAL input (cache reads and writes included), while Anthropic clients
+   * expect `input_tokens` to be the uncached portion with cache reads/writes
+   * reported separately (billed input = input + cache_creation + cache_read).
+   * Without a projected breakdown there is nothing to split, so the total is
+   * reported as-is and the cache buckets keep their SDK defaults.
+   */
+  private splitAnthropicInputUsage(): {
+    inputTokens: number
+    cacheCreationInputTokens: number
+    cacheReadInputTokens: number | null
+  } {
+    const cacheRead = this.state.cacheReadTokens
+    const cacheWrite = this.cacheWriteTokens
+    if (cacheRead === undefined && cacheWrite === undefined) {
+      return { inputTokens: this.state.inputTokens, cacheCreationInputTokens: 0, cacheReadInputTokens: null }
+    }
+
+    const cacheCreationInputTokens = cacheWrite ?? 0
+    const cacheReadInputTokens = cacheRead ?? 0
+    const inputTokens = Math.max(0, this.state.inputTokens - cacheCreationInputTokens - cacheReadInputTokens)
+    return { inputTokens, cacheCreationInputTokens, cacheReadInputTokens }
   }
 
   private startTextBlock(): void {
@@ -478,12 +513,14 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     }
 
     // Emit message_delta with final stop reason and usage
+    const inputUsage = this.splitAnthropicInputUsage()
     const usage: MessageDeltaUsage = {
       output_tokens: this.state.outputTokens,
-      input_tokens: this.state.inputTokens,
-      // The UIMessageChunk usage projection carries no cache-token breakdown.
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: null,
+      input_tokens: inputUsage.inputTokens,
+      // The usage projection carries cache reads/writes on `inputTokenDetails`
+      // (split above); there is no breakdown when the runtime reports totals only.
+      cache_creation_input_tokens: inputUsage.cacheCreationInputTokens,
+      cache_read_input_tokens: inputUsage.cacheReadInputTokens,
       server_tool_use: null
     }
 
@@ -491,6 +528,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       type: 'message_delta',
       delta: {
         container: NULL_CONTAINER,
+        stop_details: null,
         stop_reason: (this.state.stopReason as StopReason) || 'end_turn',
         stop_sequence: null
       },
@@ -544,6 +582,8 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       }
     }
 
+    const inputUsage = this.splitAnthropicInputUsage()
+
     return {
       id: this.state.messageId,
       type: 'message',
@@ -551,14 +591,15 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       content,
       container: NULL_CONTAINER,
       model: this.state.model,
+      stop_details: null,
       stop_reason: (this.state.stopReason as StopReason) || 'end_turn',
       stop_sequence: null,
       usage: {
-        input_tokens: this.state.inputTokens,
+        input_tokens: inputUsage.inputTokens,
         output_tokens: this.state.outputTokens,
         cache_creation: NULL_CACHE_CREATION,
-        cache_creation_input_tokens: 0,
-        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: inputUsage.cacheCreationInputTokens,
+        cache_read_input_tokens: inputUsage.cacheReadInputTokens ?? 0,
         inference_geo: NULL_INFERENCE_GEO,
         server_tool_use: null,
         service_tier: NULL_SERVICE_TIER

@@ -18,10 +18,12 @@ const mocks = vi.hoisted(() => ({
   publishDispatchChanges: vi.fn(),
   listAccepted: vi.fn(),
   listRecoverable: vi.fn(),
+  listRuntimeResumeTokensBySession: vi.fn(),
   resolveCrash: vi.fn(),
   reuseOrCreate: vi.fn(),
   deleteByIds: vi.fn<typeof agentSessionService.deleteByIdsWithImpact>(),
   listActiveIdsByAgent: vi.fn(),
+  listSystemWorkspaceSessions: vi.fn(),
   restore: vi.fn(),
   isExpiredTrash: vi.fn(),
   listExpiredTrashIds: vi.fn(),
@@ -41,7 +43,7 @@ const mocks = vi.hoisted(() => ({
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
   getPath: vi.fn(),
-  removeAgentStorageSubdirectory: vi.fn(),
+  purgeSystemWorkspace: vi.fn(),
   withDispatchLock: vi.fn(),
   hasUnsettledTopicWork: vi.fn(),
   logger: {
@@ -80,6 +82,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     publishDispatchChanges: mocks.publishDispatchChanges,
     listAcceptedSessionDeliveries: mocks.listAccepted,
     listRecoverableSessionDeliveries: mocks.listRecoverable,
+    listRuntimeResumeTokensBySession: mocks.listRuntimeResumeTokensBySession,
     resolveCrashOrphanedMessages: mocks.resolveCrash
   }
 }))
@@ -89,8 +92,13 @@ vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
     error instanceof Error && error.name === 'AgentSessionWorkspaceError'
 }))
 
-vi.mock('@main/ai/agents/agentDataDirectory', () => ({
-  removeAgentStorageSubdirectory: mocks.removeAgentStorageSubdirectory
+vi.mock('@main/ai/agents/AgentWorkspaceStorageService', () => ({
+  agentWorkspaceStorageService: {
+    archiveWorkspace: vi.fn(),
+    restoreWorkspaces: (_workspaces: unknown[], activate: () => unknown) => activate(),
+    reconcileWorkspace: vi.fn(),
+    purgeWorkspace: mocks.purgeSystemWorkspace
+  }
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -100,6 +108,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listActiveIdsByAgent: mocks.listActiveIdsByAgent,
     listIdsByAgent: mocks.listActiveIdsByAgent,
     listIdsByWorkspace: () => [],
+    listSystemWorkspaceSessions: mocks.listSystemWorkspaceSessions,
     restore: mocks.restore,
     notifyPurged: vi.fn(),
     isExpiredTrash: mocks.isExpiredTrash,
@@ -114,9 +123,15 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { deleteAgentStateTx: mocks.deleteAgent, notifyDeleted: vi.fn(), getLifecycleState: () => 'trashed' }
 }))
 
-vi.mock('@main/ai/agents/agentOrphanSweep', () => ({ sweepAgentOrphans: vi.fn() }))
+vi.mock('@main/ai/agents/agentOrphanSweep', () => ({
+  sweepAgentOrphans: vi.fn(),
+  reclaimPurgedRuntimeSessions: vi.fn()
+}))
 vi.mock('@data/services/AgentTaskService', () => ({
-  agentTaskService: { setOwnerStateTx: () => [], notifyReadModelChange: vi.fn() }
+  agentTaskService: {
+    setOwnerStateTx: () => ({ scheduleIds: [], deletedSchedules: [] }),
+    notifyReadModelChange: vi.fn()
+  }
 }))
 
 vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
@@ -133,6 +148,7 @@ const runtime = {
   listActiveWork: () => [],
   drainInFlight: async () => ({ stragglerIds: [] }),
   isSessionBusy: mocks.runtimeBusy,
+  isSessionBusyForArchive: mocks.runtimeBusy,
   closeSession: mocks.closeSession,
   onTurnTerminal: (listener: (event: any) => void) => {
     mocks.terminalListeners.add(listener)
@@ -225,6 +241,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.idleListeners.clear()
     mocks.listAccepted.mockReturnValue([])
     mocks.listRecoverable.mockReturnValue([])
+    mocks.listRuntimeResumeTokensBySession.mockReturnValue(new Map<string, Set<string>>())
     mocks.hasLiveStream.mockReturnValue(false)
     mocks.hasUnsettledTopicWork.mockReturnValue(false)
     mocks.withDispatchLock.mockImplementation((_topicId: string, fn: () => Promise<unknown>) => fn())
@@ -233,7 +250,8 @@ describe('AgentSessionDeliveryService', () => {
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
-    mocks.removeAgentStorageSubdirectory.mockResolvedValue(undefined)
+    mocks.purgeSystemWorkspace.mockResolvedValue(undefined)
+    mocks.listSystemWorkspaceSessions.mockReturnValue([])
     mocks.getMessage.mockReturnValue(accepted)
     mocks.markTerminalError.mockReset()
     mocks.validateDispatch.mockResolvedValue({
@@ -765,6 +783,7 @@ describe('AgentSessionDeliveryService', () => {
   it('removes purged system workspaces after closing their runtimes', async () => {
     const order: string[] = []
     const workspacePath = '/mock/feature.agents.system_workspaces/2026-09-16/target'
+    mocks.listSystemWorkspaceSessions.mockReturnValue([{ id: 'target', path: workspacePath, deletedAt: 1 }])
     mocks.deleteByIds.mockReturnValue({
       deletedIds: ['target'],
       taskScheduleIds: [],
@@ -777,7 +796,7 @@ describe('AgentSessionDeliveryService', () => {
     runtime.cancelSessionForks.mockImplementationOnce(async () => {
       order.push('forks-cancelled')
     })
-    mocks.removeAgentStorageSubdirectory.mockImplementation(async () => {
+    mocks.purgeSystemWorkspace.mockImplementation(async () => {
       order.push('workspace-removed')
     })
     const delivery = new AgentSessionDeliveryService()
@@ -787,10 +806,6 @@ describe('AgentSessionDeliveryService', () => {
 
     await expect(service.purgeSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
 
-    expect(mocks.removeAgentStorageSubdirectory).toHaveBeenCalledWith(
-      '/mock/feature.agents.system_workspaces',
-      workspacePath
-    )
     expect(order).toEqual(['forks-cancelled', 'runtime-closed', 'workspace-removed'])
   })
 
@@ -810,13 +825,14 @@ describe('AgentSessionDeliveryService', () => {
   it('keeps a committed permanent deletion successful when workspace cleanup fails', async () => {
     const workspacePath = '/mock/feature.agents.system_workspaces/2026-09-16/target'
     const cleanupError = new Error('workspace busy')
+    mocks.listSystemWorkspaceSessions.mockReturnValue([{ id: 'target', path: workspacePath, deletedAt: 1 }])
     mocks.deleteByIds.mockReturnValue({
       deletedIds: ['target'],
       taskScheduleIds: [],
       deliveryResults: [],
       purgedSystemWorkspacePaths: [workspacePath]
     })
-    mocks.removeAgentStorageSubdirectory.mockRejectedValue(cleanupError)
+    mocks.purgeSystemWorkspace.mockRejectedValue(cleanupError)
     const delivery = new AgentSessionDeliveryService()
     deliveryOwner = delivery
     const service = new AgentLifecycleService()

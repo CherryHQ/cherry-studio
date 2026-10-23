@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 const { execFileSync } = vi.hoisted(() => ({ execFileSync: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync }))
 
-import { terminateOwnedMacProcessGroup, waitForMacProcessGroupExit } from '../process'
+import { assertOwnedProcess, terminateOwnedMacProcessGroup, waitForMacProcessGroupExit } from '../process'
 
 const owner = {
   mode: 'branch' as const,
@@ -42,8 +42,8 @@ it.each([true, false])(
     const alive = new Set([42001, 99000, ...(runnerAlive ? [42000] : [])])
     execFileSync.mockImplementation((_file, args) =>
       args.includes('-axo')
-        ? `${runnerAlive ? '42000 42000 pnpm debug\n' : ''}42001 42000 electron /tmp/regression-target\n99000 99000 TextEdit`
-        : 'pnpm debug'
+        ? `${runnerAlive ? '42000 42000 node /tmp/regression-target/node_modules/dotenv-cli/cli.js\n' : ''}42001 42000 electron /tmp/regression-target\n99000 99000 TextEdit`
+        : 'node /tmp/regression-target/node_modules/dotenv-cli/cli.js'
     )
     vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
       if (signal === 'SIGTERM' && pid === -42000) {
@@ -61,7 +61,10 @@ it.each([true, false])(
 
 it.each([
   ['42001 42000 unrelated-app', false],
-  ['42000 99000 pnpm debug\n42001 42000 electron /tmp/regression-target', true]
+  [
+    '42000 99000 node /tmp/regression-target/node_modules/dotenv-cli/cli.js\n42001 42000 electron /tmp/regression-target',
+    true
+  ]
 ] as const)('refuses an unowned or reused group: %s', (processes, runnerAlive) => {
   execFileSync.mockReturnValue(processes)
   const kill = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
@@ -71,4 +74,39 @@ it.each([
   })
   expect(() => terminateOwnedMacProcessGroup(owner)).toThrow('Refusing cleanup')
   expect(kill.mock.calls.every(([, signal]) => signal === 0)).toBe(true)
+})
+
+it('refuses a runner launched from a different checkout even when it also uses dotenv', () => {
+  execFileSync.mockReturnValue('node /tmp/other-checkout/node_modules/dotenv-cli/cli.js')
+  expect(() => assertOwnedProcess(owner, owner.runnerPid, 'runner')).toThrow('Refusing to terminate stale runner')
+})
+
+it('takes the CDP and inspector ports from the environment when given', async () => {
+  vi.resetModules()
+  process.env.CHERRY_CDP_PORT = '19333'
+  process.env.CHERRY_INSPECTOR_PORT = '19334'
+  try {
+    const mod = await import('../process')
+    expect(mod.CDP_PORT).toBe(19333)
+    expect(mod.MAIN_INSPECTOR_PORT).toBe(19334)
+  } finally {
+    delete process.env.CHERRY_CDP_PORT
+    delete process.env.CHERRY_INSPECTOR_PORT
+    vi.resetModules()
+  }
+})
+
+it('falls back to the default ports when the environment value is not a usable port', async () => {
+  vi.resetModules()
+  process.env.CHERRY_CDP_PORT = 'not-a-port'
+  process.env.CHERRY_INSPECTOR_PORT = '0'
+  try {
+    const mod = await import('../process')
+    expect(mod.CDP_PORT).toBe(9222)
+    expect(mod.MAIN_INSPECTOR_PORT).toBe(9229)
+  } finally {
+    delete process.env.CHERRY_CDP_PORT
+    delete process.env.CHERRY_INSPECTOR_PORT
+    vi.resetModules()
+  }
 })

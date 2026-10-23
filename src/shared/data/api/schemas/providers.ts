@@ -19,6 +19,7 @@ import {
   type ProviderSettings,
   ProviderSettingsSchema
 } from '../../types/provider'
+import { ProviderBillingSchema } from '../../types/providerBilling'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { CreateLogoSchema } from './logo'
 
@@ -51,6 +52,15 @@ const ProviderSettingsCreateSchema = ProviderSettingsSchema.partial()
 
 /** RFC 7396 merge patch accepted while updating an existing provider. */
 const ProviderSettingsMergePatchSchema = z.object({
+  billing: z
+    .strictObject({
+      defaultMultiplier: ProviderBillingSchema.shape.defaultMultiplier.nullable().optional(),
+      scheduleEnabled: ProviderBillingSchema.shape.scheduleEnabled.nullable().optional(),
+      timeZone: ProviderBillingSchema.shape.timeZone.nullable().optional(),
+      periods: ProviderBillingSchema.shape.periods.nullable().optional()
+    })
+    .nullable()
+    .optional(),
   streamOptions: z
     .object({
       includeUsage: ProviderSettingsSchema.shape.streamOptions.unwrap().shape.includeUsage.nullable().optional()
@@ -126,9 +136,9 @@ export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend
   /** RFC 7396 merge patch; null removes a stored setting. */
   providerSettings: ProviderSettingsMergePatchSchema.optional(),
   /**
-   * Whether this provider is enabled. A persisted false-to-true transition also
-   * moves the provider to the first position atomically; redundant true updates
-   * preserve the existing order.
+   * Whether this provider is enabled. Enabling or disabling an existing
+   * provider preserves its current order; only creation inserts first.
+   * Explicit order endpoints remain the ordering mechanism.
    */
   isEnabled: z.boolean().optional()
   // Logo edits (preset key / image upload / clear) go through the

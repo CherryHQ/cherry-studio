@@ -298,7 +298,7 @@ describe('ClaudeConfigFields', () => {
 
     expect(onChange).toHaveBeenCalledWith({
       env: {
-        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5 [1M]',
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5[1M]',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-sonnet-4-5'
       }
     })
