@@ -596,6 +596,47 @@ describe('CodeViewer', () => {
       })
     })
 
+    it('ignores a bare shift press when nothing is selected differently', () => {
+      const lines = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`)
+      mocks.firstRenderedRow = 10
+      mocks.lastRenderedRow = 29
+      const view = setup(false, undefined, lines.join('\n'))
+      view.pointer(view.scroller, 'pointerdown')
+      view.select(view.text(10), 0, view.text(29), 2)
+      view.pointer(document.body, 'pointerup')
+      expect(view.copy().text).toHaveLength(553)
+
+      fireEvent.keyDown(document.body, { key: 'Shift', shiftKey: true, bubbles: true })
+      fireEvent.keyUp(document.body, { key: 'Shift', shiftKey: true, bubbles: true })
+      view.select(view.text(10), 0, view.content(29), 0)
+
+      expect(view.copy()).toEqual({
+        text: [...lines.slice(10, 29), 'co'].join('\n'),
+        prevented: true
+      })
+    })
+
+    it('ends the keyboard permission at keyup', () => {
+      const code = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`).join('\n')
+      mocks.firstRenderedRow = 10
+      mocks.lastRenderedRow = 29
+      const view = setup(false, undefined, code)
+      view.pointer(view.scroller, 'pointerdown')
+      view.select(view.text(10), 0, view.text(29), 2)
+      view.pointer(document.body, 'pointerup')
+      expect(view.copy().text).toHaveLength(553)
+
+      fireEvent.keyDown(document.body, { key: 'ArrowRight', shiftKey: true, bubbles: true })
+      view.select(view.text(10), 0, view.text(29), 3)
+      fireEvent.keyUp(document.body, { key: 'ArrowRight', shiftKey: true, bubbles: true })
+      view.select(view.text(10), 0, view.content(29), 0)
+
+      expect(view.copy()).toEqual({
+        text: 'const value10 = "abcdefghij"\nconst value11 = "abcdefghij"\nconst value12 = "abcdefghij"\nconst value13 = "abcdefghij"\nconst value14 = "abcdefghij"\nconst value15 = "abcdefghij"\nconst value16 = "abcdefghij"\nconst value17 = "abcdefghij"\nconst value18 = "abcdefghij"\nconst value19 = "abcdefghij"\nconst value20 = "abcdefghij"\nconst value21 = "abcdefghij"\nconst value22 = "abcdefghij"\nconst value23 = "abcdefghij"\nconst value24 = "abcdefghij"\nconst value25 = "abcdefghij"\nconst value26 = "abcdefghij"\nconst value27 = "abcdefghij"\nconst value28 = "abcdefghij"\ncon',
+        prevented: true
+      })
+    })
+
     it('dropping replace permission after a double click', () => {
       const view = setup()
       view.pointer(view.scroller, 'pointerdown')

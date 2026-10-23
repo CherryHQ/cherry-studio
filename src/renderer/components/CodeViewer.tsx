@@ -539,7 +539,6 @@ const CodeViewer = ({
     const keydown = (event: KeyboardEvent) => {
       if (!selectionBelongsToViewer(window.getSelection())) return
       if (
-        event.shiftKey ||
         event.key.startsWith('Arrow') ||
         event.key === 'Home' ||
         event.key === 'End' ||
@@ -547,6 +546,10 @@ const CodeViewer = ({
       ) {
         keyboardReplaceRef.current = true
       }
+    }
+    const keyup = () => {
+      if (!selectionBelongsToViewer(window.getSelection())) return
+      if (keyboardReplaceRef.current) commitSelection()
     }
     const begin = (event: PointerEvent) => {
       lastPointerTypeRef.current = event.pointerType
@@ -563,12 +566,14 @@ const CodeViewer = ({
     scroller.addEventListener('contextmenu', contextmenu)
     scroller.addEventListener('dblclick', dblclick)
     document.addEventListener('keydown', keydown)
+    document.addEventListener('keyup', keyup)
     return () => {
       cleanup()
       scroller.removeEventListener('pointerdown', begin)
       scroller.removeEventListener('contextmenu', contextmenu)
       scroller.removeEventListener('dblclick', dblclick)
       document.removeEventListener('keydown', keydown)
+      document.removeEventListener('keyup', keyup)
     }
   }, [commitSelection, selectionBelongsToViewer])
 
