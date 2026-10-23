@@ -1024,7 +1024,10 @@ class ProviderRegistryService {
         ? provider.endpointConfigs?.[effectiveEndpoint]?.dialect?.reasoningSummary
         : undefined
     })
-    return { ...resolved, support }
+    return {
+      ...resolved,
+      support: resolved.format === 'ollama' && model.reasoning?.controls !== undefined ? model.reasoning : support
+    }
   }
 
   /** Resolve the main-only native service-tier mapping for one request model. */

@@ -7,6 +7,8 @@ import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { makeModel } from '@main/ai/__tests__/fixtures/model'
+import type { EndpointType, RuntimeReasoning } from '@shared/data/types/model'
 
 describe('ProviderRegistryService explicit provider context', () => {
   const dbh = setupTestDatabase()
@@ -27,6 +29,41 @@ describe('ProviderRegistryService explicit provider context', () => {
     vi.restoreAllMocks()
     providerRegistryService.clearCache()
   })
+
+  it.each<{
+    endpoint: EndpointType
+    reasoning: RuntimeReasoning
+    expectedControls: RuntimeReasoning['controls']
+  }>([
+    { endpoint: 'ollama-chat', reasoning: { controls: [], selectableEfforts: [] }, expectedControls: [] },
+    {
+      endpoint: 'ollama-chat',
+      reasoning: { selectableEfforts: [] },
+      expectedControls: [{ kind: 'toggle' }]
+    },
+    {
+      endpoint: 'openai-chat-completions',
+      reasoning: { controls: [{ kind: 'effort', values: ['medium'] }], selectableEfforts: ['medium'] },
+      expectedControls: [{ kind: 'toggle' }]
+    }
+  ])(
+    'resolves $endpoint controls from the appropriate source: $expectedControls',
+    ({ endpoint, reasoning, expectedControls }) => {
+      const profile = providerRegistryService.resolveReasoningProfile(
+        { id: 'ollama', presetProviderId: 'ollama' },
+        makeModel({
+          id: 'ollama::nemotron-3.5-lightning:30b-a3b',
+          providerId: 'ollama',
+          apiModelId: 'nemotron-3.5-lightning:30b-a3b',
+          presetModelId: 'nemotron-3-5-lightning-30b-a3b',
+          reasoning
+        }),
+        endpoint
+      )
+
+      expect(profile.support?.controls).toEqual(expectedControls)
+    }
+  )
 
   it('uses the supplied provider identity even when persisted identity differs and global DB is unavailable', () => {
     dbh.db
