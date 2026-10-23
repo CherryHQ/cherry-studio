@@ -1,4 +1,18 @@
-import { expect, test } from './fixtures/electron.fixture'
+import { _electron as electron } from '@playwright/test'
+
+import { expect, test as base } from './fixtures/electron.fixture'
+
+const test = base.extend({
+  electronApp: async ({}, runTest, testInfo) => {
+    const electronApp = await electron.launch({
+      args: ['.'],
+      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: testInfo.outputPath('profile') },
+      timeout: 60000
+    })
+    await runTest(electronApp)
+    await electronApp.close()
+  }
+})
 
 const MARKDOWN = [
   'before-block-marker',

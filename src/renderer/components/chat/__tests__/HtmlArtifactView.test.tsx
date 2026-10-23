@@ -893,11 +893,66 @@ describe('HtmlArtifactView', () => {
     expect(surface).toHaveStyle({ height: '475px' })
 
     overflowing = false
+    const observer = new MutationObserver(() => {})
+    observer.observe(surface, { attributes: true, attributeFilter: ['style'] })
+    try {
+      act(() => {
+        for (const callback of [...mocks.resizeObserverCallbacks]) callback([], {} as ResizeObserver)
+      })
+      expect(surface).toHaveStyle({ height: '475px' })
+      expect(observer.takeRecords()).toHaveLength(0)
+    } finally {
+      observer.disconnect()
+    }
+
     sweep = 100
     act(() => {
       for (const callback of [...mocks.resizeObserverCallbacks]) callback([], {} as ResizeObserver)
     })
     expect(surface).toHaveStyle({ height: '100px' })
+  })
+
+  it('drops a remembered overflow extent when the sweep shrinks inside the former gap band', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '0'
+    const content = frameDocument.createElement('main')
+    body.replaceChildren(content)
+    let sweep = 310
+    let overflowing = true
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 0 })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => (overflowing ? 316 : iframe.clientHeight)
+    })
+    vi.spyOn(content, 'getBoundingClientRect').mockImplementation(
+      () => ({ bottom: sweep, height: sweep, width: 100 }) as DOMRect
+    )
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '316px' })
+
+    overflowing = false
+    act(() => {
+      for (const callback of [...mocks.resizeObserverCallbacks]) callback([], {} as ResizeObserver)
+    })
+    expect(surface).toHaveStyle({ height: '316px' })
+
+    sweep = 306
+    act(() => {
+      for (const callback of [...mocks.resizeObserverCallbacks]) callback([], {} as ResizeObserver)
+    })
+    expect(surface).toHaveStyle({ height: '306px' })
   })
 
   it('stabilizes at the natural height when a nested bottom margin collapses through its wrapper', () => {
