@@ -1497,6 +1497,88 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('closes the held recovery copy when the consumer unmounts with a live edit session (inv_4e8303d70c4d5b9d)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+      // A's take delete resolves; BOTH of B's take-delete attempts fail, so
+      // the take refuses and A's restored copy stays held and tracked — the
+      // edit session is still live.
+      takeDeleteTrigger.mockResolvedValueOnce(undefined).mockRejectedValue(new Error('delete failed'))
+
+      const { result, unmount } = renderHook(() => useFollowupQueue(baseProps({ scopeKey: SCOPE })))
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        await result.current.takeForEdit('b', captureOutgoing)
+      })
+      await act(async () => {})
+      expect(postTrigger).toHaveBeenCalled()
+      const heldCopyId = postTrigger.mock.calls[0][0].body.id as string
+
+      // Navigate away with the edit session live: the composer cache owns the
+      // draft, so the held recovery row is redundant. Unmount must close it —
+      // a transient failure joins the resolve retry chain, which survives
+      // unmount — instead of abandoning renewal and letting the row age back
+      // into claimability for a duplicate delivery (cherry-pr-review
+      // inv_4e8303d70c4d5b9d).
+      const deletionsBeforeUnmount = deleteTrigger.mock.calls.length
+      deleteTrigger.mockRejectedValueOnce(new Error('temporary outage'))
+      await act(async () => {
+        unmount()
+      })
+      await act(async () => {})
+      const closesForCopy = () => deleteTrigger.mock.calls.filter((c) => c[0]?.params?.id === heldCopyId).length
+      expect(closesForCopy()).toBeGreaterThanOrEqual(1)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      // The first close failed transiently: the retry chain fired again.
+      expect(deleteTrigger.mock.calls.length).toBeGreaterThan(deletionsBeforeUnmount + 1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes the held recovery copy when the scope switches with a live edit session (inv_4e8303d70c4d5b9d)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+      takeDeleteTrigger.mockResolvedValueOnce(undefined).mockRejectedValue(new Error('delete failed'))
+
+      const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        await result.current.takeForEdit('b', captureOutgoing)
+      })
+      await act(async () => {})
+      expect(postTrigger).toHaveBeenCalled()
+      const heldCopyId = postTrigger.mock.calls[0][0].body.id as string
+
+      // Switching scope retires the old scope's edit session: its held
+      // recovery row must be closed, not left to the hold expiry
+      // (cherry-pr-review inv_4e8303d70c4d5b9d).
+      await act(async () => {
+        rerender({ scopeKey: 's2' })
+      })
+      await act(async () => {})
+      expect(deleteTrigger.mock.calls.filter((c) => c[0]?.params?.id === heldCopyId).length).toBeGreaterThanOrEqual(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('dispatches a won claim when only its own broadcast refresh is in flight (inv_16b576017347a966)', async () => {
     let refreshing = false
     mockUseQuery.mockImplementation((path: string) => {
