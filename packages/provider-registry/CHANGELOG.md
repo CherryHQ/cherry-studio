@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.4
+
+### Patch Changes
+
+- [#22515](https://github.com/CherryHQ/cherry-studio/pull/22515) [`f740f7d`](https://github.com/CherryHQ/cherry-studio/commit/f740f7d65d130fb27e0ed6fcf6b62dd00e395811) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add generate-mode quality and size presets for the GPT Image 2.5 Flare and Sunburst models.
+
 ## 0.2.3
 
 ### Patch Changes
