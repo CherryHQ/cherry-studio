@@ -1692,8 +1692,17 @@ export class ClaudeCodeStreamAdapter {
 
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
+    const toolResults = this.extractToolResults(content)
 
-    for (const result of this.extractToolResults(content)) {
+    // A genuine user prompt establishes that the following assistant text answers the
+    // user, not the compaction instruction: scratchpad removal plus a sectioned
+    // summary shape does not by itself establish compaction provenance, so the
+    // artifact grace ends here (cherry-pr-review inv_5b861e177143056b).
+    if (!message.isSynthetic && toolResults.length === 0 && getTextContent(content).some((text) => text.trim())) {
+      this.endCompactionArtifactGrace()
+    }
+
+    for (const result of toolResults) {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
   }

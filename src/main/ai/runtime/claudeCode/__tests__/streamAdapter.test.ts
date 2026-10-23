@@ -3837,4 +3837,53 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(textBlock)
     expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(1)
   })
+
+  it('preserves a user-requested sectioned summary snapshot after compaction success (inv_5b861e177143056b)', () => {
+    const { adapter, parts } = createAdapter()
+    const summary =
+      '<analysis>Internal review.</analysis>\n' +
+      '<summary>\n' +
+      '1. Task Overview:\n   Maintain the team wiki.\n\n' +
+      '2. Current State:\n   - Drafted three pages\n' +
+      '</summary>'
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_result: 'success'
+    } as any)
+    // The user asks for the summary: the assistant text answers the user, not
+    // the compaction instruction, so it must stay visible.
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'user', content: [{ type: 'text', text: 'Summarize where we are.' }] }
+    } as any)
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: summary }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toContain('Task Overview')
+    expect(text).not.toContain('Internal review.')
+  })
 })
