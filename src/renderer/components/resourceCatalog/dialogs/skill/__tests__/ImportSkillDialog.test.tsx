@@ -140,17 +140,22 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.skills.installFromZip' })).toBeEnabled())
   })
 
-  it('shows the localized install prefix with the original ZIP error', async () => {
+  it('shows the localized message when no skill directory is found', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
-    const originalError = 'No skill directory found in /tmp/CherryStudio/skill-install/zip-install-123'
-    installFromZip.mockRejectedValue(new Error(originalError))
+    // The main process throws a stable, path-free message; the renderer maps the
+    // "No skill directory found" prefix to a localized, actionable string.
+    installFromZip.mockRejectedValue(
+      new Error('No skill directory found: the archive must contain a directory with SKILL.md')
+    )
 
     render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
-    expect(await screen.findByText(`settings.skills.installFailed:broken.zip: ${originalError}`)).toBeInTheDocument()
+    expect(
+      await screen.findByText('settings.skills.installFailed:broken.zip: settings.skills.noSkillDirectoryFound')
+    ).toBeInTheDocument()
     expect(screen.queryByText('settings.skills.batchInstallPartialFailed:0:1:1')).not.toBeInTheDocument()
     expect(toast.error).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
