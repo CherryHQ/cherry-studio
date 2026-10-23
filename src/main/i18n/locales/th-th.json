@@ -175,6 +175,7 @@
   "paintings.comfyui.workflow_rejected": "ComfyUI ปฏิเสธเวิร์กโฟลว์ (HTTP {{status}})",
   "paintings.generate_failed": "ไม่สามารถสร้างรูปภาพได้",
   "paintings.image_mix_failed": "ไม่สามารถผสมรูปภาพได้",
+  "provider.errors.missing_connection": "ยังไม่ได้กำหนดค่าการเชื่อมต่อสำหรับ {{endpoint}} บน {{provider}} โปรดกำหนดที่อยู่สำหรับโปรโตคอลนี้ในการตั้งค่าผู้ให้บริการ",
   "selection.name": "ผู้ช่วยการเลือก",
   "settings.mcp.oauth.callback.listen_error": "ฟัง OAuth callback ที่ 127.0.0.1:{{port}} ({{reason}}) ไม่สำเร็จ ตรวจว่าพอร์ตว่างอยู่แล้วลองใหม่",
   "settings.mcp.oauth.callback.message": "คุณสามารถปิดหน้านี้และกลับไปยัง Cherry Studio",

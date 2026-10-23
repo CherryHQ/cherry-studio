@@ -16254,6 +16254,36 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "gemini-2.5-flash-preview-tts",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-2-5-flash-preview-tts",
+      "providerId": "gemini"
+    },
+    {
+      "apiModelId": "gemini-2.5-flash-tts",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-2-5-flash-tts",
+      "providerId": "gemini"
+    },
+    {
+      "apiModelId": "gemini-2.5-pro-preview-tts",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-2-5-pro-preview-tts",
+      "providerId": "gemini"
+    },
+    {
+      "apiModelId": "gemini-2.5-pro-tts",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-2-5-pro-tts",
+      "providerId": "gemini"
+    },
+    {
+      "apiModelId": "gemini-3.1-flash-tts-preview",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-3-1-flash-tts-preview",
+      "providerId": "gemini"
+    },
+    {
       "apiModelId": "grok-4.20-0309-non-reasoning",
       "capabilities": {
         "force": ["function-call", "image-recognition"]
@@ -21422,6 +21452,21 @@
       "name": "Z-Image Turbo",
       "outputModalities": ["image"],
       "providerId": "ollama"
+    },
+    {
+      "endpointTypes": ["openai-text-to-speech"],
+      "modelId": "gpt-4o-mini-tts",
+      "providerId": "openai"
+    },
+    {
+      "endpointTypes": ["openai-text-to-speech"],
+      "modelId": "tts-1",
+      "providerId": "openai"
+    },
+    {
+      "endpointTypes": ["openai-text-to-speech"],
+      "modelId": "tts-1-hd",
+      "providerId": "openai"
     },
     {
       "apiModelId": "gpt-5.3-codex-spark",
@@ -41413,5 +41458,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "40f7a97c43483a3a"
+  "version": "19423a14d884b7ec"
 }

@@ -13,6 +13,7 @@ import { LOCAL_VOICE_MODELS, VoiceModelSupport, VoiceResourceOperation } from '@
 import { FUNASR_MODEL_ID, FUNASR_BUNDLE_ID } from '@shared/ai/localVoice'
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 
+import { completeTranscriptionOperation } from '../sdkOperations'
 import type { TranscriptionModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
@@ -20,7 +21,6 @@ import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { decodeVoiceRecording } from './recordingDecoder'
 import { withScratch } from './scratch'
-import { completeTranscriptionOperation } from './sdkOperations'
 
 const ASR_INFERENCE_TIMEOUT_MS = 120_000
 const logger = loggerService.withContext('FunAsrAdapter')

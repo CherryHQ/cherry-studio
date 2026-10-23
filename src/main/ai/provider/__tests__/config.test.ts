@@ -1,3 +1,5 @@
+import { createGoogleGenerativeAI, type GoogleGenerativeAIProviderSettings } from '@ai-sdk/google'
+import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
@@ -110,7 +112,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   )
 
   it('does not route an ordinary CherryAI model from its display group', async () => {
-    const provider = makeProvider({ id: CHERRYAI_PROVIDER_ID })
+    const provider = makeProvider({
+      id: CHERRYAI_PROVIDER_ID,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: CHERRYAI_API_BASE_URL } }
+    })
     const model = makeModel({
       id: `${CHERRYAI_PROVIDER_ID}::custom-model`,
       apiModelId: 'custom-model',
@@ -125,7 +131,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   it('keeps the managed CherryAI default model on its API-key HMAC transport', async () => {
-    const provider = makeProvider({ id: CHERRYAI_PROVIDER_ID })
+    const provider = makeProvider({
+      id: CHERRYAI_PROVIDER_ID,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: CHERRYAI_API_BASE_URL } }
+    })
     const model = makeModel({
       id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
       apiModelId: CHERRYAI_DEFAULT_MODEL_ID,
@@ -141,7 +151,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   it('uses an explicit API key override instead of the provider rotation key', async () => {
-    const provider = makeProvider({ id: 'openai' })
+    const provider = makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.openai.com' } }
+    })
     const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
 
     const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
@@ -158,7 +172,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       masked: 'sk-a****aaaa'
     } as const
     resolveApiKeyMock.mockReturnValue({ value: 'sk-selected', apiKeySelection })
-    const provider = makeProvider({ id: 'openai' })
+    const provider = makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.openai.com' } }
+    })
     const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
 
     const resolved = await resolveProviderAiSdkConfig(provider, model)
@@ -206,7 +224,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       authMethods: ['external-cli'],
       defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       endpointConfigs: {
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
       }
     })
     const model = makeModel({
@@ -1945,7 +1963,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://api.newapi.com/anthropic/v1')
     })
 
-    it('falls back to default endpoint baseURL when anthropic endpointConfig has no baseUrl', async () => {
+    it('rejects an undeclared Anthropic connection instead of borrowing an OpenAI gateway address', async () => {
       const provider = makeProvider({
         id: 'my-newapi',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
@@ -1958,10 +1976,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
       const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
 
-      const config = await providerToAiSdkConfig(provider, model)
-
-      const settings = config.providerSettings as Record<string, unknown>
-      expect(settings.baseURL).toBe('https://api.newapi.com/v1')
+      await expect(providerToAiSdkConfig(provider, model)).rejects.toThrow('anthropic-messages')
     })
 
     // A `/v1beta` typed for Gemini must not reach the chat route as `/v1beta/chat/completions`.
@@ -2054,5 +2069,111 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('newapi')
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
+  })
+})
+
+describe('request connection inheritance', () => {
+  it('rejects an OpenAI image request when only a Gemini connection exists', async () => {
+    const provider = makeProvider({
+      name: 'Gemini relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://gemini.example', adapterFamily: 'google' }
+      }
+    })
+    await expect(
+      providerToAiSdkConfig(provider, makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION] }))
+    ).rejects.toThrow('No connection configured for openai-image-generation on Gemini relay')
+  })
+
+  it('sends images and speech to their own paths when inheriting a complete chat URL', async () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://relay.example/custom/chat/completions#',
+          adapterFamily: 'openai'
+        },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { adapterFamily: 'openai' },
+        [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]: { adapterFamily: 'openai' }
+      }
+    })
+    const urls: string[] = []
+    const imageConfig = await providerToAiSdkConfig(
+      provider,
+      makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION] })
+    )
+    const image = createOpenAI({
+      ...(imageConfig.providerSettings as OpenAIProviderSettings),
+      fetch: async (input) => {
+        urls.push(String(input))
+        return Response.json({ created: 0, data: [{ b64_json: 'AQID' }] })
+      }
+    }).image('gpt-image-1')
+    const result = await image.doGenerate({
+      prompt: 'a banana',
+      n: 1,
+      size: undefined,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: {}
+    })
+    const speechConfig = await providerToAiSdkConfig(
+      provider,
+      makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH] })
+    )
+    const speech = createOpenAI({
+      ...(speechConfig.providerSettings as OpenAIProviderSettings),
+      fetch: async (input) => {
+        urls.push(String(input))
+        return new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'audio/wav' } })
+      }
+    }).speech('tts-1')
+    await speech.doGenerate({ text: 'hello', voice: 'alloy', outputFormat: 'wav', providerOptions: {} })
+    expect(result.images).toEqual(['AQID'])
+    expect(urls).toEqual([
+      'https://relay.example/custom/images/generations',
+      'https://relay.example/custom/audio/speech'
+    ])
+    expect(imageConfig.endpoint).toBe('')
+    expect(speechConfig.endpoint).toBe('')
+  })
+
+  it('sends a Gemini image to the custom generateContent URL', async () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/custom#', adapterFamily: 'google' }
+      }
+    })
+    const config = await providerToAiSdkConfig(
+      provider,
+      makeModel({ endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] })
+    )
+    const urls: string[] = []
+    const google = createGoogleGenerativeAI({
+      ...(config.providerSettings as GoogleGenerativeAIProviderSettings),
+      fetch: async (input) => {
+        urls.push(String(input))
+        return Response.json({
+          candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: 'AQID' } }] } }]
+        })
+      }
+    })
+    const result = await google.image('gemini-3-pro-image-preview').doGenerate({
+      prompt: 'a banana',
+      n: 1,
+      size: undefined,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: {}
+    })
+    expect(result.images).toEqual(['AQID'])
+    expect(urls).toEqual(['https://relay.example/custom/models/gemini-3-pro-image-preview:generateContent'])
+    expect(config.providerId).toBe('google')
   })
 })

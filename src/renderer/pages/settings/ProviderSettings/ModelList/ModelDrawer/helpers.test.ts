@@ -1,137 +1,54 @@
 import { describe, expect, it } from 'vitest'
 
-import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, ModelSchema } from '@shared/data/types/model'
 
-import {
-  areModelClassificationsEqual,
-  buildModelCapabilities,
-  buildModelInputModalities,
-  getInitialAddModelFormState,
-  getInitialModelClassification,
-  MODEL_ENDPOINT_OPTIONS,
-  splitModelIds
-} from './helpers'
+import { getInitialAddModelFormState, splitModelIds, toggleModelValue } from './helpers'
 
-function makeModel(overrides: Partial<Model> = {}): Model {
-  return {
-    capabilities: [],
-    inputModalities: [],
-    ...overrides
-  } as Model
-}
-
-describe('model drawer classification helpers', () => {
-  it('normalizes comma-separated model IDs without creating duplicates', () => {
+describe('model drawer fields', () => {
+  it('deduplicates model IDs without changing their order', () => {
     expect(splitModelIds(' alpha, beta, alpha, ,beta ')).toEqual(['alpha', 'beta'])
   })
-
-  it('offers an endpoint for every editable non-text model consumer', () => {
-    expect(MODEL_ENDPOINT_OPTIONS.map((option) => option.id)).toEqual(
-      expect.arrayContaining([
-        ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
-        ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
-        ENDPOINT_TYPE.JINA_RERANK
-      ])
+  it('preserves all prefilled endpoints ahead of the provider default', () => {
+    const endpointTypes = [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, ENDPOINT_TYPE.OPENAI_RESPONSES]
+    expect(getInitialAddModelFormState({ endpointTypes }, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS).endpointTypes).toEqual(
+      endpointTypes
     )
   })
-
-  it('separates model type, capabilities, and input modalities', () => {
-    const classification = getInitialModelClassification(
-      makeModel({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
-        inputModalities: [MODALITY.IMAGE, MODALITY.AUDIO]
-      })
-    )
-
-    expect(classification.primaryType).toBe('image')
-    expect(classification.capabilities).toEqual(new Set([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]))
-    expect(classification.inputModalities).toEqual(new Set([MODALITY.IMAGE, MODALITY.AUDIO]))
+  it('uses an explicit endpoint entry point ahead of the provider default', () => {
+    expect(
+      getInitialAddModelFormState(
+        { endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT },
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      ).endpointTypes
+    ).toEqual([ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT])
   })
-
-  it('normalizes legacy recognition capabilities to input modalities while preserving unknown capabilities', () => {
-    const model = makeModel({
-      capabilities: [
-        MODEL_CAPABILITY.IMAGE_RECOGNITION,
-        MODEL_CAPABILITY.AUDIO_RECOGNITION,
-        MODEL_CAPABILITY.STRUCTURED_OUTPUT
-      ],
-      inputModalities: [MODALITY.TEXT]
-    })
-    const classification = getInitialModelClassification(model)
-
-    expect(buildModelCapabilities(model.capabilities, classification)).toEqual([MODEL_CAPABILITY.STRUCTURED_OUTPUT])
-    expect(buildModelInputModalities(model.inputModalities ?? [], classification)).toEqual([
-      MODALITY.TEXT,
-      MODALITY.IMAGE,
-      MODALITY.AUDIO
+  it('leaves undeclared endpoints empty for provider inheritance', () => {
+    expect(getInitialAddModelFormState(null).endpointTypes).toEqual([])
+  })
+  it('adds and removes one capability without dropping other catalog capabilities', () => {
+    const original = [MODEL_CAPABILITY.AUDIO_GENERATION, MODEL_CAPABILITY.STRUCTURED_OUTPUT]
+    expect(toggleModelValue(original, MODEL_CAPABILITY.IMAGE_GENERATION)).toEqual([
+      ...original,
+      MODEL_CAPABILITY.IMAGE_GENERATION
     ])
+    expect(
+      toggleModelValue([...original, MODEL_CAPABILITY.IMAGE_GENERATION], MODEL_CAPABILITY.IMAGE_GENERATION)
+    ).toEqual(original)
   })
-
-  it('switches between editable model types without disabling independent capabilities', () => {
-    const classification = getInitialModelClassification(
-      makeModel({ capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.FUNCTION_CALL] })
-    )
-    classification.primaryType = 'rerank'
-    classification.capabilities.add(MODEL_CAPABILITY.REASONING)
-
-    expect(buildModelCapabilities([MODEL_CAPABILITY.EMBEDDING], classification)).toEqual([
-      MODEL_CAPABILITY.RERANK,
-      MODEL_CAPABILITY.FUNCTION_CALL,
-      MODEL_CAPABILITY.REASONING
-    ])
-  })
-
-  it('preserves unsupported catalog model types until the user explicitly chooses a supported type', () => {
-    const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
-    const classification = getInitialModelClassification(model)
-
-    expect(classification.primaryType).toBeNull()
-    expect(buildModelCapabilities(model.capabilities, classification)).toEqual([MODEL_CAPABILITY.AUDIO_GENERATION])
-
-    const reset = getInitialModelClassification(model)
-    expect(areModelClassificationsEqual(classification, reset)).toBe(true)
-  })
-
-  it('replaces an unsupported audio model type with text after round-trip', () => {
-    const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
-    const classification = getInitialModelClassification(model)
-    classification.primaryType = 'text'
-
-    const capabilities = buildModelCapabilities(model.capabilities, classification)
-
-    expect(capabilities).toEqual([])
-    expect(getInitialModelClassification(makeModel({ capabilities })).primaryType).toBe('text')
-  })
-
-  it('replaces an unsupported audio model type with image after round-trip', () => {
-    const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
-    const classification = getInitialModelClassification(model)
-    classification.primaryType = 'image'
-
-    const capabilities = buildModelCapabilities(model.capabilities, classification)
-
-    expect(capabilities).toEqual([MODEL_CAPABILITY.IMAGE_GENERATION])
-    expect(getInitialModelClassification(makeModel({ capabilities })).primaryType).toBe('image')
-  })
-})
-
-describe('getInitialAddModelFormState', () => {
-  it('keeps persisted token limits numeric and uses null for missing limits', () => {
-    const form = getInitialAddModelFormState({
-      model: makeModel({
-        id: 'openai::gpt-test',
-        name: 'GPT Test',
-        contextWindow: 128_000,
-        maxInputTokens: 64_000
-      })
+  it('preserves numeric token limits from a catalog model', () => {
+    const model = ModelSchema.parse({
+      providerId: 'openai',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      id: 'openai::gpt-test',
+      name: 'GPT Test',
+      contextWindow: 128_000,
+      maxInputTokens: 64_000
     })
-
-    expect(form).toEqual(
-      expect.objectContaining({
-        contextWindow: 128_000,
-        maxInputTokens: 64_000,
-        maxOutputTokens: null
-      })
+    expect(getInitialAddModelFormState({ model })).toEqual(
+      expect.objectContaining({ contextWindow: 128_000, maxInputTokens: 64_000, maxOutputTokens: null })
     )
   })
 })

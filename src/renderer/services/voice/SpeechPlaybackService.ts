@@ -537,9 +537,12 @@ export class SpeechPlaybackService {
         run.failedAttempt = undefined
         let audio: SpeechPlayback
         switch (run.output.kind) {
-          case 'audio':
-            audio = new FinitePlayback(this.createAudio(run.output.url))
+          case 'audio': {
+            const element = this.createAudio(run.output.url)
+            element.playbackRate = run.output.playbackRate ?? 1
+            audio = new FinitePlayback(element)
             break
+          }
           case 'pcm-stream':
             audio = new PcmPlayback(
               { sessionId: run.sessionId, requestId: run.requestId!, attemptId: target.attemptId },

@@ -21,6 +21,13 @@ export default defineProvider({
       baseUrl: 'https://generativelanguage.googleapis.com'
     }
   },
+  overrides: [
+    { modelId: 'gemini-2.5-flash-preview-tts', endpointTypes: ['google-generate-content'] },
+    { modelId: 'gemini-2.5-pro-preview-tts', endpointTypes: ['google-generate-content'] },
+    { modelId: 'gemini-2.5-flash-tts', endpointTypes: ['google-generate-content'] },
+    { modelId: 'gemini-2.5-pro-tts', endpointTypes: ['google-generate-content'] },
+    { modelId: 'gemini-3.1-flash-tts-preview', endpointTypes: ['google-generate-content'] }
+  ],
   serverTools: [
     {
       id: 'web-search',

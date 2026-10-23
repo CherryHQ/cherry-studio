@@ -180,6 +180,50 @@ describe('EditModelDrawer', () => {
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
   })
 
+  it.each([
+    { field: 'name', label: 'model_name', pending: false },
+    { field: 'group', label: 'group_name', pending: false },
+    { field: 'name', label: 'model_name', pending: true },
+    { field: 'group', label: 'group_name', pending: true }
+  ] as const)('saves a restored $field with the first save pending: $pending', async ({ field, label, pending }) => {
+    const user = userEvent.setup()
+    const model = makePricingModel()
+    const original = model[field]!
+    let finishFirstSave!: () => void
+    updateModelMock.mockResolvedValue(undefined)
+    if (pending) {
+      updateModelMock.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishFirstSave = resolve
+          })
+      )
+    }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    const input = screen.getByLabelText(`settings.models.add.${label}.label`)
+    await user.clear(input)
+    await user.type(input, 'Changed')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateModelMock).toHaveBeenLastCalledWith('openai', 'claude-4-sonnet', { [field]: 'Changed' })
+    )
+
+    await user.clear(input)
+    await user.type(input, original)
+    await user.tab()
+    if (pending) finishFirstSave()
+
+    await waitFor(() =>
+      expect(updateModelMock).toHaveBeenLastCalledWith(
+        'openai',
+        'claude-4-sonnet',
+        expect.objectContaining({ [field]: original })
+      )
+    )
+    expect(input).toHaveValue(original)
+  })
+
   it('saves an image rate without inventing token prices and retains it when editing tokens', async () => {
     const user = userEvent.setup()
     const model = { ...modelWithFullPricing, pricing: undefined }
