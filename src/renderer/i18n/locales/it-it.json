@@ -4838,6 +4838,8 @@
   "settings.messages.input.steer_shortcuts": "Scorciatoia per indirizzare l'agente",
   "settings.messages.input.steer_shortcuts_hint": "Mentre un agente è in esecuzione, invia subito il tuo messaggio nel turno corrente per indirizzarlo; la scorciatoia di invio lo mette in coda fino alla fine del turno.",
   "settings.messages.input.title": "Impostazioni di inserimento",
+  "settings.messages.keep_intermediate_text.hint": "Mantieni nella risposta il testo dell'assistente tra le chiamate agli strumenti, mentre gli strumenti e il ragionamento restano compressi.",
+  "settings.messages.keep_intermediate_text.label": "Mostra il testo intermedio dell'assistente",
   "settings.messages.layout.conversation": "Vista conversazione",
   "settings.messages.layout.work": "Vista lavoro",
   "settings.messages.markdown_rendering_input_message": "Visualizza in Markdown i messaggi inseriti",
