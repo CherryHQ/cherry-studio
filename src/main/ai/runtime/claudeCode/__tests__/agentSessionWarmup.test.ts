@@ -569,6 +569,51 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayEnsureInternal).not.toHaveBeenCalled()
   })
 
+  it('keeps configured plan/small aliases on an ordinary session model override (inv_f7cde0553102c364)', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
+    // The session carries its own model override: current session state, NOT
+    // a stale captured turn - the configured Sonnet/Haiku aliases must survive
+    // the switch (cherry-pr-review inv_f7cde0553102c364).
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-small-api'
+    })
+
+    // A live turn captured on the CURRENT override is fresh too: the aliases
+    // still apply rather than pinning to the primary.
+    const liveRequest = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
+    expect(liveRequest?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-small-api'
+    })
+
+    // The connection-signature derivation agrees with query construction: no
+    // spurious rebuild from the override alone.
+    const current = await deriveConnectionConfig('session-1')
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
   it('fingerprints the enabled key set, stable across rotation and sensitive to key-set edits', async () => {
     mocks.getApiKeys.mockReturnValue([
       { key: 'key-a', isEnabled: true },

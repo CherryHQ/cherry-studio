@@ -331,7 +331,8 @@ export async function deriveConnectionConfig(
         reasoningEffort,
         fastMode,
         selectedKnowledgeBaseIds,
-        undefined
+        undefined,
+        connectionModelId
       )
     }
   } catch (error) {
@@ -369,7 +370,8 @@ async function deriveConnectionConfigFromSnapshot(
   reasoningEffort: ReasoningEffortOption,
   fastMode: boolean,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  materialized?: ConnectionMaterializationFacts
+  materialized?: ConnectionMaterializationFacts,
+  connectionModelId?: UniqueModelId
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
@@ -382,8 +384,11 @@ async function deriveConnectionConfigFromSnapshot(
   let routeFacts = materialized?.route
   if (!routeFacts) {
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-    // Same pinning semantics as the query-request builder (see its comment).
-    const pinSubModelsToPrimary = uniqueModelId !== agent.model
+    // Same pinning semantics as the query-request builder (see its comment):
+    // pin only a genuinely stale capture, never an ordinary session override
+    // (cherry-pr-review inv_f7cde0553102c364).
+    const pinSubModelsToPrimary =
+      connectionModelId !== undefined && connectionModelId !== (session.model ?? agent.model)
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -522,13 +527,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
-  // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
-  // capture (the effective model differs from the latest `agent.model`), pin plan/small to it too rather
-  // than read the possibly-edited-ahead latest sub-models — otherwise the captured turn would launch with
-  // the old ANTHROPIC_MODEL but new sonnet/haiku defaults, or be forced onto the gateway by a sub-model
-  // that now points at another provider. With no edit (or a turn-less connection) the latest sub-models
-  // still apply.
-  const pinSubModelsToPrimary = uniqueModelId !== agent.model
+  // edit behind the session's CURRENT resolution. The turn captured only its primary, so when the primary
+  // is a pre-edit capture (the captured model differs from what `session.model ?? agent.model` resolves
+  // to NOW), pin plan/small to it too rather than read the possibly-edited-ahead latest sub-models —
+  // otherwise the captured turn would launch with the old ANTHROPIC_MODEL but new sonnet/haiku defaults,
+  // or be forced onto the gateway by a sub-model that now points at another provider. An ordinary session
+  // override (`session.model` differing from `agent.model`) is current session state, not a stale
+  // capture: the configured sub-model aliases still apply (cherry-pr-review inv_f7cde0553102c364). With
+  // no capture (or a turn-less connection) the latest sub-models apply as well.
+  const pinSubModelsToPrimary = connectionModelId !== undefined && connectionModelId !== (session.model ?? agent.model)
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
   const route = await resolveClaudeCodeRuntimeRoute(
