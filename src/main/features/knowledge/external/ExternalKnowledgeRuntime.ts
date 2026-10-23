@@ -218,6 +218,7 @@ type EndpointBudget = { key: string; minimumIntervalMs: number }
 type AuthorizedReadContext = {
   authorization: FeishuUserAuthorization
   connection: ExternalKnowledgeConnection
+  grantedScopes: readonly string[]
   signal: AbortSignal
   request<T>(budget: EndpointBudget, operation: () => Promise<T>): Promise<T>
 }
@@ -655,8 +656,7 @@ export class ExternalKnowledgeRuntime {
   }
 
   private async requestWikiSpaces(context: AuthorizedReadContext, pageToken?: string): Promise<FeishuWikiSpacePage> {
-    const credential = await this.readCredential(context.connection)
-    if (!credential.grantedScopes.includes(FEISHU_SPACE_DISCOVERY_USER_SCOPE)) {
+    if (!context.grantedScopes.includes(FEISHU_SPACE_DISCOVERY_USER_SCOPE)) {
       throw new ExternalKnowledgeRuntimeError('scope-missing')
     }
     try {
@@ -744,6 +744,7 @@ export class ExternalKnowledgeRuntime {
           return await operation({
             authorization,
             connection: validatedConnection,
+            grantedScopes: credential.grantedScopes,
             signal,
             request: (budget, request) =>
               this.runCredentialRequest(
