@@ -1,4 +1,5 @@
 export { FileProcessingService } from './FileProcessingService'
+export { MediaAnalysisService } from './media/MediaAnalysisService'
 export type { MediaExtractAudioRequest, MediaExtractFramesRequest, MediaProbeRequest } from './media/MediaFfmpegService'
 export { MediaFfmpegService } from './media/MediaFfmpegService'
 export type { MediaExtractAudioResult, MediaExtractFramesResult } from './media/mediaFfmpegProcess'

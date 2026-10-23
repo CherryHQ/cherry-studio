@@ -1,0 +1,168 @@
+import { createHash } from 'node:crypto'
+
+import { application } from '@application'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
+import type { AppProviderSettingsMap } from '@main/ai/types'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { describeVoiceModel } from '@main/ai/voice/localAdapters'
+import { resolveDefaultAsrModel } from '@main/ai/voice/voicePlatform'
+import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing/config/resolveProcessorConfig'
+import { isTranscriptionModelId, type LocalTranscriptionModelId } from '@shared/ai/localVoice'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
+import { DEFAULT_MEDIA_FRAME_BUDGET, MEDIA_PIPELINE_VERSION, type MediaFrameBudget } from '@shared/types/mediaAnalysis'
+import { isVideoVisionSelectableModel } from '@shared/utils/model'
+
+export interface MediaAsrExecutionConfig {
+  modelId: LocalTranscriptionModelId
+  language?: string
+}
+
+export interface MediaOcrExecutionConfig {
+  processor: FileProcessorMerged
+  identity: {
+    processorId: string
+    modelId: string
+    apiHost: string
+    optionsJson: string
+  }
+}
+
+export interface MediaVisionExecutionConfig {
+  uniqueModelId: UniqueModelId
+  providerId: string
+  modelId: string
+  endpointType: string
+  baseUrl: string
+  sdkConfig: {
+    providerId: keyof AppProviderSettingsMap
+    providerSettings: AppProviderSettingsMap[keyof AppProviderSettingsMap]
+    modelId: string
+  }
+  /** Frozen before the vision call. Completion must not re-read provider or credential state. */
+  usage: ReturnType<typeof createAiUsageCaptureContext>
+}
+
+export interface MediaExecutionConfig {
+  asr: MediaAsrExecutionConfig | null
+  ocr: MediaOcrExecutionConfig | null
+  vision: MediaVisionExecutionConfig | null
+  budget: MediaFrameBudget
+  pipelineVersion: typeof MEDIA_PIPELINE_VERSION
+}
+
+function resolveAsrExecutionConfig(): MediaAsrExecutionConfig | null {
+  const preferences = application.get('PreferenceService')
+  const rawModelId = preferences.get('feature.voice.recognition.model_id').trim()
+  const explicit = rawModelId ? (isTranscriptionModelId(rawModelId) ? rawModelId : null) : undefined
+  if (explicit === null) return null
+
+  const modelId = resolveDefaultAsrModel(
+    {
+      platform: process.platform,
+      arch: process.arch,
+      majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
+    },
+    explicit
+  )
+  if (!modelId) return null
+
+  const language = preferences.get('feature.voice.recognition.language').trim()
+  const acceptsLanguage = describeVoiceModel(modelId).model?.localeSelection != null
+  return {
+    modelId,
+    ...(language && acceptsLanguage ? { language } : {})
+  }
+}
+
+function resolveOcrExecutionConfig(): MediaOcrExecutionConfig | null {
+  try {
+    const processor = resolveProcessorConfigByFeature('image_to_text')
+    const capability = processor.capabilities.find((item) => item.feature === 'image_to_text')
+    return {
+      processor,
+      identity: {
+        processorId: processor.id,
+        modelId: capability?.modelId ?? '',
+        apiHost: capability?.apiHost ?? '',
+        optionsJson: JSON.stringify(processor.options ?? {})
+      }
+    }
+  } catch {
+    return null
+  }
+}
+
+async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfig | null> {
+  const raw = application.get('PreferenceService').get('feature.file_processing.default_video_vision_model')
+  if (!raw) return null
+  const parsed = UniqueModelIdSchema.safeParse(raw)
+  if (!parsed.success) return null
+
+  try {
+    const { providerId, modelId } = parseUniqueModelId(parsed.data)
+    const model = modelService.getByKey(providerId, modelId)
+    const provider = providerService.getByProviderId(providerId)
+    if (!isVideoVisionSelectableModel(model, provider)) return null
+    const endpoint = resolveEffectiveEndpoint(provider, model)
+    const { sdkConfig, credentialReceipt } = await resolveSdkConfig(provider, model, endpoint)
+    return {
+      uniqueModelId: parsed.data,
+      providerId,
+      modelId,
+      endpointType: String(endpoint.endpointType ?? ''),
+      baseUrl: endpoint.baseUrl,
+      sdkConfig: {
+        providerId: sdkConfig.providerId,
+        providerSettings: sdkConfig.providerSettings,
+        modelId: sdkConfig.modelId
+      },
+      usage: createAiUsageCaptureContext({
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId: sdkConfig.modelId,
+        modelName: model.name,
+        pricing: model.pricing,
+        billing: provider.settings.billing,
+        billingModelId: modelId,
+        trustProviderReportedCost: provider.reportsActualCost,
+        reportedCostCurrency: provider.reportedCostCurrency,
+        credentialReceipt
+      })
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function resolveMediaExecutionConfig(): Promise<MediaExecutionConfig> {
+  return {
+    asr: resolveAsrExecutionConfig(),
+    ocr: resolveOcrExecutionConfig(),
+    vision: await resolveVisionExecutionConfig(),
+    budget: { ...DEFAULT_MEDIA_FRAME_BUDGET },
+    pipelineVersion: MEDIA_PIPELINE_VERSION
+  }
+}
+
+export function hashMediaExecutionConfig(config: MediaExecutionConfig): string {
+  const identity = {
+    asr: config.asr,
+    ocr: config.ocr?.identity ?? null,
+    vision: config.vision
+      ? {
+          uniqueModelId: config.vision.uniqueModelId,
+          providerId: config.vision.providerId,
+          modelId: config.vision.modelId,
+          endpointType: config.vision.endpointType,
+          baseUrl: config.vision.baseUrl
+        }
+      : null,
+    budget: config.budget,
+    pipelineVersion: config.pipelineVersion
+  }
+  return createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 24)
+}
