@@ -4330,7 +4330,7 @@ describe('compaction artifact boundary', () => {
     } as any)
     // The next message's bare summary-shaped answer carries no scratchpad
     // provenance of its own: the earlier tool round must not erase it.
-    adapter.handleMessage(streamEvent({ type: 'message_start' } as any))
+    adapter.handleMessage(streamEvent({ type: 'message_start' }))
     adapter.handleMessage(
       streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
     )
