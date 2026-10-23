@@ -4,7 +4,7 @@ import {
   type MediaAudioSegment,
   type MediaVisualFrame,
   MEDIA_ANALYSIS_VERSION
-} from '@shared/types/mediaAnalysis'
+} from './types'
 
 const SECTION_AUDIO = '## Audio transcript'
 const SECTION_VISUAL = '## Visual scenes'

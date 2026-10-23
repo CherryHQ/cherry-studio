@@ -13,8 +13,9 @@ import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing/c
 import { isTranscriptionModelId, type LocalTranscriptionModelId } from '@shared/ai/localVoice'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
-import { DEFAULT_MEDIA_FRAME_BUDGET, MEDIA_PIPELINE_VERSION, type MediaFrameBudget } from '@shared/types/mediaAnalysis'
 import { isVideoVisionSelectableModel } from '@shared/utils/model'
+
+import { DEFAULT_MEDIA_FRAME_BUDGET, MEDIA_PIPELINE_VERSION, type MediaFrameBudget } from './types'
 
 export interface MediaAsrExecutionConfig {
   modelId: LocalTranscriptionModelId
