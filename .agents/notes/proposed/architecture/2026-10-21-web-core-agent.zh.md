@@ -47,7 +47,7 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 
 实现放在一个 PR 里,接在本 Spec 之上。
 
-不在本 Spec 范围内:来自 `configurations` 的远程 MCP、技能、定时和心跳运行、IM 频道、会话分叉、删除和归档 Agent 及会话、用户自选工作区、附件,以及把工作区文件纳入备份(M4 阶段)。
+不在本 Spec 范围内:来自 `configurations` 的远程 MCP、技能、定时和心跳运行、IM 频道、会话分叉、删除和归档 Agent 及会话、附件,以及把工作区文件纳入备份(M4 阶段)。用户自选工作区见[本地文件夹 Spec](2026-10-23-web-core-local-folder.md)。
 
 ## Alternatives considered
 
