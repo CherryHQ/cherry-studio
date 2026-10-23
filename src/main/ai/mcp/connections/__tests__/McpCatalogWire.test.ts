@@ -1,5 +1,5 @@
 import { Client, InMemoryTransport, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
-import { createMcpHandler, McpServer, Server } from '@modelcontextprotocol/server'
+import { createMcpHandler, type ListToolsResult, McpServer, Server } from '@modelcontextprotocol/server'
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -46,13 +46,15 @@ describe('MCP catalog over modern handler.fetch', () => {
         { name: 'last', inputSchema: { type: 'object' } }
       ]
       const server = new Server({ name: 'boolean-catalog', version: '1' }, { capabilities: { tools: {} } })
-      server.setRequestHandler('tools/list', async ({ params }) =>
-        params?.cursor
-          ? { tools: tools.slice(1) }
-          : {
-              tools: [tools[0]],
-              nextCursor: 'second'
-            }
+      server.setRequestHandler(
+        'tools/list',
+        async ({ params }) =>
+          (params?.cursor
+            ? { tools: tools.slice(1) }
+            : {
+                tools: [tools[0]],
+                nextCursor: 'second'
+              }) as unknown as ListToolsResult
       )
       const client = new Client(
         { name: 'test', version: '1' },
@@ -80,9 +82,13 @@ describe('MCP catalog over modern handler.fetch', () => {
     'rejects a malformed %s tool list even when healthy peers are present',
     async (era) => {
       const server = new Server({ name: 'malformed-catalog', version: '1' }, { capabilities: { tools: {} } })
-      server.setRequestHandler('tools/list', async () => ({
-        tools: [{ name: 'healthy', inputSchema: { type: 'object' } }, { inputSchema: { type: 'object' } }]
-      }))
+      server.setRequestHandler(
+        'tools/list',
+        async () =>
+          ({
+            tools: [{ name: 'healthy', inputSchema: { type: 'object' } }, { inputSchema: { type: 'object' } }]
+          }) as unknown as ListToolsResult
+      )
       const client = new Client(
         { name: 'test', version: '1' },
         { versionNegotiation: { mode: era === 'legacy' ? 'legacy' : { pin: '2026-07-28' } } }
