@@ -664,6 +664,10 @@ function resolveClaudeCodeReasoningContext(model: Model) {
  * (minimal -> low), so the canonical, already-mapped tier passes through verbatim and the gateway
  * serializes it against the target profile (cherry-pr-review inv_c617555adede2eca).
  */
+// The only tiers SDK 0.3.284's Options.effort transport accepts (sdk.d.ts);
+// anything else is rejected and silently defaults to High.
+const SDK_TRANSPORT_EFFORT_TIERS: ReadonlySet<string> = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
+
 function resolveClaudeCodeThinkingOptions(
   model: Model,
   reasoningEffort: ReasoningEffortOption,
@@ -693,7 +697,13 @@ function resolveClaudeCodeThinkingOptions(
       invocationModel
     )
     if (canonical && canonical !== 'none' && canonical !== 'auto' && canonical !== 'default') {
-      effort = canonical as Options['effort']
+      // …but only when the SDK transport can carry it: SDK 0.3.284's
+      // Options.effort accepts low|medium|high|xhigh|max and silently
+      // defaults a rejected value to High. Preserve a destination outside
+      // that vocabulary (GPT-5 minimal) through the Anthropic-serialized
+      // tier (low) instead — the SDK-supported transport that lands where
+      // the frozen base landed (cherry-pr-review inv_ab2d93e990367ead).
+      effort = (SDK_TRANSPORT_EFFORT_TIERS.has(canonical) ? canonical : encoded.effort) as Options['effort']
     }
   }
 

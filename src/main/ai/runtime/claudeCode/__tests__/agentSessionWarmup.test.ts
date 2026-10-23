@@ -277,7 +277,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(thinkingOptions?.effort).toBe('high')
   })
 
-  it('preserves the mapped destination tier across the gateway boundary for a non-Anthropic target', async () => {
+  it('routes a destination tier outside the SDK vocabulary through the serialized transport', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: CHERRY_CLOUD_PROVIDER_ID,
       endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.example.com' } }
@@ -295,13 +295,42 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
 
-    // Anthropic serialization cannot represent GPT-5 minimal (it degrades to
-    // low); this route's Anthropic dialect ends at Cherry's gateway, which
-    // serializes the literal tier against the target profile, so the mapped
-    // destination must cross the boundary verbatim (cherry-pr-review
-    // inv_c617555adede2eca).
+    // SDK 0.3.284's Options.effort accepts only low|medium|high|xhigh|max and
+    // silently defaults a rejected value to High, so GPT-5 minimal cannot
+    // cross the SDK boundary verbatim. The Anthropic-serialized transport
+    // (minimal -> low) is the SDK-supported value that lands where the frozen
+    // base landed — exactly-once mapping retained (cherry-pr-review
+    // inv_ab2d93e990367ead).
     const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
-    expect(thinkingOptions?.effort).toBe('minimal')
+    expect(thinkingOptions?.effort).toBe('low')
+  })
+
+  it('preserves an SDK-native mapped destination tier verbatim across the gateway boundary', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'gpt-5',
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      reasoning: { selectableEfforts: ['low', 'medium', 'high', 'xhigh'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'xhigh' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+
+    // Anthropic serialization cannot represent xhigh (the Claude model on this
+    // route selects from low|medium|high, so it degrades to high); this
+    // route's Anthropic dialect ends at Cherry's gateway, which serializes the
+    // literal tier against the target profile, and the SDK transport does
+    // accept xhigh — the mapped destination crosses verbatim
+    // (cherry-pr-review inv_c617555adede2eca).
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('xhigh')
   })
 
   it('applies the user effort map to budget serialization on a gateway route', async () => {
