@@ -18578,7 +18578,24 @@
     },
     {
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 1000000
+      },
       "modelId": "minimax-m3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
       "providerId": "minimax"
     },
     {
@@ -18781,7 +18798,24 @@
     },
     {
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 1000000
+      },
       "modelId": "minimax-m3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
       "providerId": "minimax-global"
     },
     {
@@ -41413,5 +41447,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "40f7a97c43483a3a"
+  "version": "012562b484523f23"
 }

@@ -19,6 +19,11 @@ describe('MiniMax M3.1 Flash catalog', () => {
     expect(loader.findModel('MiniMax-M3.1-Flash')).toMatchObject({
       name: 'MiniMax-M3.1-Flash',
       contextWindow: 1_000_000,
+      pricing: {
+        input: { perMillionTokens: 0.15 },
+        output: { perMillionTokens: 0.6 },
+        cacheRead: { perMillionTokens: 0.015 }
+      },
       inputModalities: ['text', 'image', 'video'],
       capabilities: expect.arrayContaining(['reasoning', 'function-call', 'image-recognition', 'video-recognition']),
       reasoning: {
@@ -29,8 +34,22 @@ describe('MiniMax M3.1 Flash catalog', () => {
     })
   })
 
-  it.each(['MiniMax-M3.1-Flash', 'MiniMax-M3'])('preserves documented temperature support for %s', (id) => {
-    expect(loader.findModel(id)?.parameterSupport?.temperature).toMatchObject({ supported: true })
+  it.each(['MiniMax-M3.1-Flash', 'MiniMax-M3'])('does not offer ignored sampling controls for %s', (id) => {
+    expect(loader.findModel(id)?.parameterSupport).toMatchObject({
+      temperature: { supported: false },
+      topP: { supported: false },
+      frequencyPenalty: false,
+      presencePenalty: false
+    })
+    expect(loader.findModel(id)?.maxOutputTokens).toBe(524288)
+  })
+
+  it.each(['minimax', 'minimax-global'])('uses the standard short-context M3 price on %s', (providerId) => {
+    expect(loader.findOverride(providerId, 'minimax-m3')?.pricing).toMatchObject({
+      input: { perMillionTokens: 0.3 },
+      output: { perMillionTokens: 1.2 },
+      cacheRead: { perMillionTokens: 0.06 }
+    })
   })
 
   it.each(['MiniMax-M3.1-Flash', 'minimax-m3-1-flash', 'MiniMaxAI/MiniMax-M3.1-Flash'])(

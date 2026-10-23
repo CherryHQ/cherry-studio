@@ -13096,19 +13096,19 @@
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "parameterSupport": {
-        "frequencyPenalty": true,
+        "frequencyPenalty": false,
         "maxTokens": true,
-        "presencePenalty": true,
+        "presencePenalty": false,
         "stopSequences": true,
         "systemMessage": true,
         "temperature": {
-          "supported": true
+          "supported": false
         },
         "topK": {
           "supported": false
         },
         "topP": {
-          "supported": true
+          "supported": false
         }
       },
       "pricing": {
@@ -13147,19 +13147,19 @@
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "parameterSupport": {
-        "frequencyPenalty": true,
+        "frequencyPenalty": false,
         "maxTokens": true,
-        "presencePenalty": true,
+        "presencePenalty": false,
         "stopSequences": true,
         "systemMessage": true,
         "temperature": {
-          "supported": true
+          "supported": false
         },
         "topK": {
           "supported": false
         },
         "topP": {
-          "supported": true
+          "supported": false
         }
       },
       "pricing": {
@@ -23017,5 +23017,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "6b81bfc9f3902e8c"
+  "version": "7a949fec7f656a88"
 }
