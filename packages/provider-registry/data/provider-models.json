@@ -3472,6 +3472,17 @@
       }
     },
     {
+      "apiModelId": "openai/gpt-5.6-terra",
+      "modelId": "gpt-5-6-terra",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        }
+      },
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects temperature on the GPT-5.6 Terra offer: HTTP 400 \"Unsupported parameter: 'temperature' is not supported with this model.\""
+    },
+    {
       "apiModelId": "qwen/qwen3.5-122b-a10b",
       "capabilities": {
         "remove": ["audio-recognition"]
@@ -41413,5 +41424,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "40f7a97c43483a3a"
+  "version": "5e620fe64e673dee"
 }
