@@ -553,6 +553,15 @@ export class ClaudeCodeStreamAdapter {
    * text starts stay deferred until the first visible text emits.
    */
   private compactionArtifactGrace = false
+  /**
+   * Provenance for the compaction-artifact grace: a compaction that completes before the
+   * assistant produced any output for the pending user prompt runs AHEAD of the requested
+   * answer, so its success/boundary must not arm artifact suppression against that answer
+   * (cherry-pr-review inv_63b9c0bbf40500fd).
+   */
+  private hasSeenGenuineUserPrompt = false
+  private assistantActivitySinceUserPrompt = false
+  private compactionPreemptsPendingAnswer = false
 
   /** Section headings demanded by the compaction instruction; two or more mark a compaction summary. */
   private static readonly COMPACTION_SUMMARY_SECTIONS = [
@@ -901,6 +910,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleStreamEvent(message: SDKPartialAssistantMessage, ctx: StreamContext): void {
+    this.assistantActivitySinceUserPrompt = true
     const { event } = message
     switch (event.type) {
       case 'content_block_start':
@@ -1523,6 +1533,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleAssistantMessage(message: SDKAssistantMessage, ctx: StreamContext): void {
+    this.assistantActivitySinceUserPrompt = true
     // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
     // arrived. `isClaudeCodeTruncationError` can only infer this from a mid-token JSON parse
     // failure, so a clean truncation would otherwise go unnoticed.
@@ -1699,9 +1710,12 @@ export class ClaudeCodeStreamAdapter {
     // summary shape does not by itself establish compaction provenance, so the
     // artifact grace ends here (cherry-pr-review inv_5b861e177143056b).
     if (!message.isSynthetic && toolResults.length === 0 && getTextContent(content).some((text) => text.trim())) {
+      this.hasSeenGenuineUserPrompt = true
+      this.assistantActivitySinceUserPrompt = false
       this.endCompactionArtifactGrace()
     }
 
+    if (toolResults.length > 0) this.assistantActivitySinceUserPrompt = true
     for (const result of toolResults) {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
@@ -2067,6 +2081,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.accumulatedText = ''
       ctx.streamedTextLength = 0
       this.runtimeCompactionActive = true
+      this.compactionPreemptsPendingAnswer = this.hasSeenGenuineUserPrompt && !this.assistantActivitySinceUserPrompt
       this.statusSink.emit({ type: 'compaction-start' })
       return
     }
@@ -2079,8 +2094,10 @@ export class ClaudeCodeStreamAdapter {
     if (message.compact_result === 'success') {
       // Success ends suppression: the SDK does not guarantee a boundary, so content after
       // success is post-compaction output and must stay visible. A later boundary still wins.
+      // A compaction that preempted the pending user prompt's answer must not arm
+      // the grace against that answer (cherry-pr-review inv_63b9c0bbf40500fd).
       this.runtimeCompactionActive = false
-      this.compactionArtifactGrace = true
+      this.compactionArtifactGrace = !this.compactionPreemptsPendingAnswer
       // closeActiveTextPart on compacting may have cleared textPartId while offsets still
       // reflect pre-compaction streaming; reset so snapshot reconciliation starts fresh.
       ctx.accumulatedText = ''
@@ -2112,7 +2129,9 @@ export class ClaudeCodeStreamAdapter {
 
   private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage, ctx: StreamContext): void {
     this.runtimeCompactionActive = false
-    this.compactionArtifactGrace = true
+    // Same provenance rule as compact success: a preempted pending answer stays
+    // visible (cherry-pr-review inv_63b9c0bbf40500fd).
+    this.compactionArtifactGrace = !this.compactionPreemptsPendingAnswer
     // A boundary starts a fresh context window, so the next assistant snapshot is a new response.
     // Reset the streaming offsets or its prefix would be sliced against pre-compaction lengths.
     this.closeActiveTextPart(ctx)

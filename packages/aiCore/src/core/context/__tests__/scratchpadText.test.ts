@@ -190,6 +190,14 @@ Example:
     expect(stripModelScratchpadBlocks(input)).toBe('Keep this')
   })
 
+  it('excludes inline-code openers when judging whether a fence sits inside a scratchpad wrapper', () => {
+    // cherry-pr-review inv_fedee4736993b558: the inline-code `<thinking>`
+    // opener is a literal, so the completed fence below it is ordinary code
+    // content and both example elements survive in full.
+    const text = 'Use `<thinking>` blocks:\n```xml\n<thinking>one</thinking>\n<thinking>two</thinking>\n```'
+    expect(stripModelScratchpadBlocks(text)).toBe(text)
+  })
+
   it('preserves scratchpad-shaped literals inside inline code spans', () => {
     const input = 'Use the literal `<thinking>foo</thinking>` tag in your reply.'
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)

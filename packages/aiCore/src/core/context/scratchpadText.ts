@@ -276,8 +276,13 @@ function findScratchpadBlockRanges(text: string): Array<{ start: number; end: nu
   return ranges
 }
 
-function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
+function maskInlineCodeSpans(text: string): {
+  text: string
+  spans: string[]
+  ranges: Array<{ start: number; end: number }>
+} {
   const spans: string[] = []
+  const ranges: Array<{ start: number; end: number }> = []
   const scratchpadRanges = findScratchpadBlockRanges(text)
   let out = ''
   let pos = 0
@@ -346,11 +351,12 @@ function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
 
     const span = text.slice(pos, closedAt)
     spans.push(span)
+    ranges.push({ start: pos, end: closedAt })
     out += `${INLINE_CODE_PLACEHOLDER_PREFIX}${spans.length - 1}${INLINE_CODE_PLACEHOLDER_SUFFIX}`
     pos = closedAt
   }
 
-  return { text: out, spans }
+  return { text: out, spans, ranges }
 }
 
 function unmaskInlineCodeSpans(text: string, spans: string[]): string {
@@ -376,10 +382,20 @@ function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolea
 function enclosingScratchpadTag(text: string, pos: number): string | null {
   const tagPattern = /<(\/?)(analysis|assessment|thinking)(?=[\s/>])[^>]*>/gi
   const stack: string[] = []
+  // Inline-code tags are literals, not wrappers: an opener such as
+  // `Use `<thinking>` blocks:` must not enlist the following fenced example
+  // as enclosed scratchpad content (cherry-pr-review inv_fedee4736993b558).
+  const { ranges: inlineCodeRanges } = maskInlineCodeSpans(text)
+  let rangeIndex = 0
   let match: RegExpExecArray | null
   while ((match = tagPattern.exec(text)) !== null) {
     if (match.index >= pos) break
     if (isBackslashEscaped(text, match.index)) continue
+    while (rangeIndex < inlineCodeRanges.length && inlineCodeRanges[rangeIndex].end <= match.index) {
+      rangeIndex++
+    }
+    const range = inlineCodeRanges[rangeIndex]
+    if (range && match.index >= range.start && match.index < range.end) continue
     const tag = match[2].toLowerCase()
     if (match[1]) {
       const idx = stack.lastIndexOf(tag)
