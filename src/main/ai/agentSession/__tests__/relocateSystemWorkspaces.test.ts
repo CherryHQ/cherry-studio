@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { cp, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { createRequire, stripTypeScriptTypes } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -15,6 +16,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { runForkWorker } from '@main/ai/runtime/fork'
 import { loadPiAi, loadPiSdk } from '@main/ai/runtime/pi/piSdk'
@@ -24,7 +26,10 @@ import { migrateRetiredSessionHistories } from '@main/ai/runtime/pi/retiredSessi
 import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from '../relocateSystemWorkspaces'
 
-const workerMocks = vi.hoisted(() => ({ source: undefined as string | undefined }))
+const workerMocks = vi.hoisted(() => ({
+  source: undefined as string | undefined,
+  keys: undefined as { oldKey: string; newKey: string } | undefined
+}))
 
 // Keep filesystem publication and database recovery real; isolate only the native SDK worker.
 vi.mock('../relocationWorker?nodeWorker', async () => {
@@ -38,7 +43,7 @@ vi.mock('../relocationWorker?nodeWorker', async () => {
       const worker = Object.assign(new EventEmitter(), { terminate: async () => 0 })
       setImmediate(() =>
         worker.emit('message', {
-          result: {
+          result: workerMocks.keys ?? {
             oldKey: `old-${basename(workerData.oldCwd)}`,
             newKey: `new-${basename(workerData.newCwd)}`
           }
@@ -56,16 +61,17 @@ describe('system workspace relocation', () => {
 
   beforeEach(async () => {
     workerMocks.source = undefined
+    workerMocks.keys = undefined
     temporaryRoot = await mkdtemp(path.join(tmpdir(), 'cs-relocation-'))
     root = path.join(temporaryRoot, 'new', 'Data', 'Agents')
     await mkdir(root, { recursive: true })
-    const paths: Record<string, string> = {
-      'feature.agents.data': root,
-      'feature.agents.system_workspaces': path.join(root, 'system'),
-      'feature.agents.claude.root': path.join(root, '.claude'),
-      'feature.agents.pi.sessions': path.join(root, '.pi', 'sessions')
-    }
     vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      const paths: Record<string, string> = {
+        'feature.agents.data': root,
+        'feature.agents.system_workspaces': path.join(root, 'system'),
+        'feature.agents.claude.root': path.join(root, '.claude'),
+        'feature.agents.pi.sessions': path.join(root, '.pi', 'sessions')
+      }
       const value = paths[key]
       if (!value) throw new Error(`Unexpected path: ${key}`)
       return filename ? path.join(value, filename) : value
@@ -142,11 +148,11 @@ describe('system workspace relocation', () => {
 
   it.each(
     ['retained', 'removed', 'ambiguous', 'linked', 'target-conflict'].flatMap((scenario) =>
-      [false, true].map((obsolete) => ({ scenario, obsolete }))
+      ['absent', 'obsolete', 'required'].map((literal) => ({ scenario, literal }))
     )
   )(
-    'recovers canonical Claude project ownership with the native worker: $scenario, obsolete=$obsolete',
-    async ({ scenario, obsolete }) => {
+    'recovers canonical Claude project ownership with the native worker: $scenario, literal=$literal',
+    async ({ scenario, literal }) => {
       const workspace = await createWorkspace('claude-code')
       const canonicalRoot = path.join(temporaryRoot, 'canonical-old')
       await mkdir(path.join(canonicalRoot, path.relative(path.join(temporaryRoot, 'old'), workspace.oldPath)), {
@@ -164,10 +170,29 @@ describe('system workspace relocation', () => {
           new AbortController().signal
         ) as Promise<{ oldKey: string; newKey: string }>
       const literalKey = (await keys()).oldKey
-      const obsoleteFile = obsolete
-        ? await writeHistory('claude-code', workspace.id, randomUUID(), literalKey)
-        : undefined
-      const obsoleteContents = obsoleteFile ? await readFile(obsoleteFile, 'utf8') : undefined
+      const literalId = randomUUID()
+      const literalFile =
+        literal !== 'absent' ? await writeHistory('claude-code', workspace.id, literalId, literalKey) : undefined
+      const literalContents = literalFile ? await readFile(literalFile, 'utf8') : undefined
+      if (literal === 'required') {
+        const messageId = randomUUID()
+        agentSessionMessageService.saveMessage({
+          sessionId: workspace.sessionId,
+          runtimeResumeToken: literalId,
+          runtimeAnchor: {
+            checkpoint: {
+              runtime: 'claude-code',
+              runtimeSessionId: literalId,
+              messageUuid: 'boundary',
+              configDir: path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
+            }
+          },
+          message: { id: messageId, role: 'assistant', status: 'pending', data: { parts: [] } }
+        })
+        const orphaned = agentSessionMessageService.findCrashOrphanedAssistantMessages()
+        agentSessionMessageService.resolveCrashOrphanedMessages(orphaned, [workspace.sessionId])
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBeNull()
+      }
       await symlink(canonicalRoot, path.join(temporaryRoot, 'old'), process.platform === 'win32' ? 'junction' : 'dir')
       const before = await keys()
       const nativeId = randomUUID()
@@ -204,9 +229,111 @@ describe('system workspace relocation', () => {
         contents
       )
       expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(nativeId)
-      if (obsoleteFile) expect(await readFile(obsoleteFile, 'utf8')).toBe(obsoleteContents)
+      if (literalFile) {
+        const preservedLiteral =
+          literal === 'required' && !blocked ? path.join(newProject, `${literalId}.jsonl`) : literalFile
+        expect(await readFile(preservedLiteral, 'utf8')).toBe(literalContents)
+      }
       if (scenario === 'target-conflict')
         expect(await readFile(path.join(newProject, 'keep.txt'), 'utf8')).toBe('existing target')
+    }
+  )
+
+  it.each(['disjoint', 'conflict', 'rollback', 'interrupted', 'repeated'] as const)(
+    'preserves multiple Claude project sources during %s publication',
+    async (scenario) => {
+      const workspace = await createWorkspace('claude-code')
+      const firstId = randomUUID()
+      const secondId = randomUUID()
+      const firstFile = await writeHistory('claude-code', workspace.id, firstId)
+      const secondFile = await writeHistory('claude-code', workspace.id, secondId, `canonical-${workspace.id}`)
+      const originals = await Promise.all([firstFile, secondFile].map((file) => readFile(file, 'utf8')))
+      for (const [index, id] of [firstId, secondId].entries()) {
+        dbh.db
+          .insert(agentSessionMessageTable)
+          .values({
+            sessionId: workspace.sessionId,
+            role: 'assistant',
+            status: 'paused',
+            runtimeResumeToken: id,
+            data: { parts: [] },
+            createdAt: index + 1
+          })
+          .run()
+      }
+      const firstArtifact = path.join(path.dirname(firstFile), 'subdirectory', 'first.txt')
+      const secondArtifact = path.join(
+        path.dirname(secondFile),
+        'subdirectory',
+        scenario === 'conflict' ? 'first.txt' : 'second.txt'
+      )
+      for (const [file, contents] of [
+        [firstArtifact, 'first artifact'],
+        [secondArtifact, 'second artifact']
+      ]) {
+        await mkdir(path.dirname(file), { recursive: true })
+        await writeFile(file, contents)
+      }
+      const newProject = path.join(root, '.claude', 'projects', `new-${workspace.id}`)
+      let published: string[] = []
+      if (scenario === 'rollback' || scenario === 'interrupted') {
+        vi.spyOn(agentWorkspaceService, 'relocateSystemWorkspaceTx').mockImplementationOnce(() => {
+          published = [firstId, secondId].map((id) => readFileSync(path.join(newProject, `${id}.jsonl`), 'utf8'))
+          if (scenario === 'interrupted') writeFileSync(path.join(newProject, `${firstId}.jsonl`), 'external change')
+          throw new Error('Database transaction failed')
+        })
+      }
+
+      const blocked = !['disjoint', 'repeated'].includes(scenario)
+      expect(await relocateSystemWorkspaces()).toEqual(new Set(blocked ? [workspace.sessionId] : []))
+      expect(workspacePath(workspace.id)).toBe(blocked ? workspace.oldPath : workspace.newPath)
+      if (blocked) {
+        expect(await readFile(secondFile, 'utf8')).toBe(originals[1])
+        expect(await readFile(secondArtifact, 'utf8')).toBe('second artifact')
+      }
+      if (scenario === 'conflict' || scenario === 'rollback') {
+        expect(await readFile(firstFile, 'utf8')).toBe(originals[0])
+        expect(await readFile(firstArtifact, 'utf8')).toBe('first artifact')
+        await expect(readdir(newProject)).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+      if (scenario === 'rollback' || scenario === 'interrupted') {
+        expect(published).toEqual(originals)
+        if (scenario === 'interrupted') {
+          const backup = path.join(root, '.relocation', workspace.id, 'backup', '0', `${firstId}.jsonl`)
+          expect(await readFile(backup, 'utf8')).toBe(originals[0])
+          await writeFile(path.join(newProject, `${firstId}.jsonl`), originals[0])
+        }
+        expect(await relocateSystemWorkspaces()).toEqual(new Set())
+        await expect(readFile(secondFile)).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+      if (scenario !== 'conflict') {
+        expect(workspacePath(workspace.id)).toBe(workspace.newPath)
+        for (const [index, id] of [firstId, secondId].entries()) {
+          expect(await readFile(path.join(newProject, `${id}.jsonl`), 'utf8')).toBe(originals[index])
+        }
+        expect(await readFile(path.join(newProject, 'subdirectory', 'first.txt'), 'utf8')).toBe('first artifact')
+        expect(await readFile(path.join(newProject, 'subdirectory', 'second.txt'), 'utf8')).toBe('second artifact')
+        expect(await relocateSystemWorkspaces()).toEqual(new Set())
+      }
+      if (scenario === 'repeated') {
+        const nextRoot = path.join(temporaryRoot, 'next', 'Data', 'Agents')
+        await mkdir(path.dirname(nextRoot), { recursive: true })
+        await rename(root, nextRoot)
+        root = nextRoot
+        workerMocks.keys = { oldKey: 'unavailable-old-key', newKey: `next-${workspace.id}` }
+
+        expect(await relocateSystemWorkspaces()).toEqual(new Set())
+        expect(workspacePath(workspace.id)).toBe(path.join(root, 'system', '2026-10-09', workspace.id))
+        const projects = path.join(root, '.claude', 'projects')
+        expect(await readdir(projects)).toEqual([workerMocks.keys.newKey])
+        for (const [index, id] of [firstId, secondId].entries()) {
+          expect(await readFile(path.join(projects, workerMocks.keys.newKey, `${id}.jsonl`), 'utf8')).toBe(
+            originals[index]
+          )
+        }
+      }
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(secondId)
+      expect(await readdir(path.join(root, '.relocation'))).toEqual([])
     }
   )
 

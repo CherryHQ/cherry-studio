@@ -25,12 +25,15 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { RelocationWorkerInput } from './relocationWorker'
 
 const logger = loggerService.withContext('SystemWorkspaceRelocation')
-const OperationSchema = z.strictObject({
-  source: z.string(),
-  target: z.string(),
-  before: z.string().regex(/^[a-f0-9]{64}$/),
-  after: z.string().regex(/^[a-f0-9]{64}$/)
-})
+const OperationSchema = z.union([
+  z.strictObject({
+    source: z.string(),
+    target: z.string(),
+    before: z.string().regex(/^[a-f0-9]{64}$/),
+    after: z.string().regex(/^[a-f0-9]{64}$/)
+  }),
+  z.strictObject({ source: z.string(), before: z.string().regex(/^[a-f0-9]{64}$/) })
+])
 const JournalSchema = z.strictObject({
   version: z.literal(1),
   workspaceId: z.uuid(),
@@ -112,9 +115,20 @@ async function recover(root: string, directory: string, journal: Journal): Promi
   if (!committed && workspace.path !== journal.oldPath) throw new Error('Relocation workspace changed')
   for (const [index, operation] of [...journal.operations.entries()].reverse()) {
     const source = artifactPath(root, operation.source)
-    const target = artifactPath(root, operation.target)
     const backup = path.join(directory, 'backup', String(index))
     const staged = path.join(directory, 'staged', String(index))
+    if (!('target' in operation)) {
+      for (const file of [source, backup]) await assertAgentStoragePath(root, file)
+      if (await exists(backup)) {
+        if ((await digest(root, backup)) !== operation.before) throw new Error('History backup changed')
+        if (await exists(source)) throw new Error('Relocation source conflict')
+        if (!committed) await rename(backup, source)
+      } else if (committed ? await exists(source) : (await digest(root, source)) !== operation.before) {
+        throw new Error('Relocation source changed')
+      }
+      continue
+    }
+    const target = artifactPath(root, operation.target)
     for (const file of [source, target, backup, staged]) await assertAgentStoragePath(root, file)
     if (committed) {
       if ((await digest(root, target)) !== operation.after) throw new Error('Published history changed during recovery')
@@ -177,7 +191,9 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         const pending = JournalSchema.parse(JSON.parse(await readFile(pendingFile, 'utf8')))
         if (
           pending.operations.some((operation) =>
-            [operation.source, operation.target].some((file) => files.includes(file))
+            [operation.source, ...('target' in operation ? [operation.target] : [])].some((file) =>
+              files.includes(file)
+            )
           )
         ) {
           throw new Error('Runtime history belongs to an unfinished relocation')
@@ -200,9 +216,20 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       } else await cp(source, staged, { recursive: true, force: false, errorOnExist: true })
       const after = await digest(root, staged)
       if (!prepared && after !== before) throw new Error('Copied history changed')
-      journal.operations.push({ source: sourceRelative, target: targetRelative, before, after })
+      const operation = { source: sourceRelative, target: targetRelative, before, after }
+      journal.operations.push(operation)
+      return { staged, operation }
     }
-    let oldProject = artifactPath(root, path.join('.claude', 'projects', result.oldKey))
+    async function mergeProject(source: string, target: string): Promise<void> {
+      for (const entry of await readdir(source, { withFileTypes: true })) {
+        const from = path.join(source, entry.name)
+        const to = path.join(target, entry.name)
+        if (entry.isDirectory() && (await exists(to)) && (await lstat(to)).isDirectory()) {
+          await mergeProject(from, to)
+        } else await cp(from, to, { recursive: true, force: false, errorOnExist: true })
+      }
+    }
+    const oldProject = artifactPath(root, path.join('.claude', 'projects', result.oldKey))
     const newProject = artifactPath(root, path.join('.claude', 'projects', result.newKey))
     const entriesByFile = new Map<string, Array<Record<string, unknown>>>()
     async function readEntries(file: string) {
@@ -272,9 +299,11 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         claudeHistory.push({ id, checkpoint })
       }
     }
+    const claudeProjects = new Set<string>()
     for (const { id } of claudeHistory) {
-      await assertAgentStoragePath(root, oldProject)
-      if (!(await exists(path.join(oldProject, id + '.jsonl')))) {
+      let owner = oldProject
+      await assertAgentStoragePath(root, owner)
+      if (!(await exists(path.join(owner, id + '.jsonl')))) {
         // A stale literal project can outlive a removed symlink ancestor; resolve required identities before staging.
         const projectsRoot = path.dirname(oldProject)
         await assertAgentStorageDirectory(root, projectsRoot)
@@ -287,15 +316,33 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
           if (candidates.length > 1) throw new Error('Ambiguous Claude project history')
         }
         if (candidates[0] === newProject) throw new Error('Relocation target already exists')
-        if (candidates.length) oldProject = candidates[0]
+        if (!candidates.length) throw new Error('Claude history missing')
+        owner = candidates[0]
+      }
+      claudeProjects.add(owner)
+    }
+    const [primaryProject = oldProject, ...additionalProjects] = claudeProjects
+    let validationProject = primaryProject
+    if (await exists(primaryProject)) {
+      await digest(root, primaryProject)
+      if (primaryProject !== newProject || additionalProjects.length) {
+        const { staged, operation } = await stage(primaryProject, newProject)
+        for (const project of additionalProjects) {
+          await assertNoPendingRelocation(path.relative(root, project))
+          const before = await digest(root, project)
+          const snapshot = path.join(directory, `source-${journal.operations.length}`)
+          await cp(project, snapshot, { recursive: true, force: false, errorOnExist: true })
+          if ((await digest(root, snapshot)) !== before) throw new Error('Copied history changed')
+          await mergeProject(snapshot, staged)
+          // Back up every merged source so retries restore all owners without leaving duplicate identities after commit.
+          journal.operations.push({ source: path.relative(root, project), before })
+        }
+        operation.after = await digest(root, staged)
+        validationProject = staged
       }
     }
-    if (await exists(oldProject)) {
-      await digest(root, oldProject)
-      if (oldProject !== newProject) await stage(oldProject, newProject)
-    }
     for (const { id, checkpoint } of claudeHistory) {
-      const file = path.join(oldProject, id + '.jsonl')
+      const file = path.join(validationProject, id + '.jsonl')
       await assertAgentStoragePath(root, file)
       if (!(await exists(file))) throw new Error('Claude history missing')
       const entries = await readEntries(file)
@@ -333,9 +380,13 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     await atomicWriteFile(AbsoluteFilePathSchema.parse(journalPath), JSON.stringify(journal), { mode: 0o600 })
     for (const [index, operation] of journal.operations.entries()) {
       const source = artifactPath(root, operation.source)
-      const target = artifactPath(root, operation.target)
       if ((await digest(root, source)) !== operation.before)
         throw new Error('Runtime history changed during relocation')
+      if (!('target' in operation)) {
+        await rename(source, path.join(directory, 'backup', String(index)))
+        continue
+      }
+      const target = artifactPath(root, operation.target)
       await ensureAgentStorageDirectory(root, path.dirname(target))
       if (source !== target && (await exists(target))) throw new Error('Runtime history target conflict')
       await rename(source, path.join(directory, 'backup', String(index)))
