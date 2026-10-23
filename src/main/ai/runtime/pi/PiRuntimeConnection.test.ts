@@ -1581,20 +1581,22 @@ describe('PiRuntimeConnection', () => {
     await conn.close()
   })
 
-  it('reports media-analysis failure and drops the reservation while the turn is active', async () => {
+  it('requeues media-analysis failure without terminating the active turn', async () => {
     mocks.isStreaming = true
     mocks.collectMediaNotes = () => Promise.reject(new Error('analysis failed'))
     const conn = await new PiRuntimeConnection(input).start()
+    const iter = conn.events[Symbol.asyncIterator]()
+    const steer = mediaInput()
 
-    expect(conn.redirect(mediaInput())).toBe(true)
-    const failed = await collectUntilTerminal(conn.events)
-    expect(failed.find((event) => event.type === 'error')).toMatchObject({ error: new Error('analysis failed') })
+    expect(conn.redirect(steer)).toBe(true)
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
+    await expect(iter.next()).resolves.toMatchObject({
+      value: { type: 'steer-undelivered', inputs: [steer] }
+    })
     expect(mocks.steer).not.toHaveBeenCalled()
 
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
-    const finished = await collectUntilTerminal(conn.events)
-    expect(finished.find((event) => event.type === 'steer-undelivered')).toBeUndefined()
-    expect(finished.at(-1)?.type).toBe('turn-complete')
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
   })
 
   it.each(['send', 'redirect'] as const)(

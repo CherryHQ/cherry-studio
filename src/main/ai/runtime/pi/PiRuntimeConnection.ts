@@ -588,7 +588,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.removePendingSteer(pending)
         if (!stillPending || this.closed) return
         logger.error('pi media analysis failed', error as Error)
-        this.eventQueue.push({ type: 'error', error })
+        // A failed follow-up must not terminate the host turn that is still streaming.
+        // Requeue it through the same undelivered path used when the turn ends first.
+        this.eventQueue.push({ type: 'steer-undelivered', inputs: [pending.input] })
       })
     return true
   }
