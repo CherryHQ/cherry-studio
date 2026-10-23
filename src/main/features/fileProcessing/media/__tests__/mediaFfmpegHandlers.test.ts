@@ -364,7 +364,8 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     )
 
     expect(frames.frames).toHaveLength(1)
-    expect(frames.frames[0]?.timestampMs).toBeGreaterThan(6_800)
+    // The label is the fallback seek that decoded, so it sits within the last 250ms of the 6.9s video.
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThan(6_650)
     expect(frames.frames[0]?.timestampMs).toBeLessThan(requestedTimestampMs)
     expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
   })
