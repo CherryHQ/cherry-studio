@@ -26,6 +26,8 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
   const tokenLinesCountRef = useRef(0)
   /** The content the current tokens were produced from, so a shorter request cannot reuse them. */
   const highlightedContentRef = useRef('')
+  /** The whole document those tokens belong to; a replacement invalidates the count shortcut. */
+  const highlightedDocumentRef = useRef('')
   // 每次 resetHighlight() 递增，用于丢弃 reset 之前起飞、reset 之后才返回的旧异步高亮结果
   const generationRef = useRef(0)
   const shikiThemeRef = useRef(activeShikiTheme)
@@ -40,9 +42,17 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
 
       const currentContent = rawLines.slice(0, targetCount).join('\n').trimEnd()
 
-      // 数量相等也可能内容不同，交给 ShikiStreamService 处理；数量更少时只有内容没变才能复用，
-      // 否则一次有界请求会在文档被替换后继续显示旧 token
-      if (targetCount < tokenLinesCountRef.current && currentContent === highlightedContentRef.current) return
+      // 数量相等也可能内容不同，交给 ShikiStreamService 处理；数量更少时只有同一文档的同一前缀才能复用，
+      // 否则一次有界请求会在文档被替换后继续显示旧 token（向上滚动则是同一前缀，不该重置高亮）
+      const cached = highlightedContentRef.current
+      const samePrefix = cached === currentContent || cached.startsWith(`${currentContent}\n`)
+      if (
+        targetCount < tokenLinesCountRef.current &&
+        rawLines.join('\n') === highlightedDocumentRef.current &&
+        samePrefix
+      ) {
+        return
+      }
 
       // 记录最新要处理的内容，为了保证最终状态正确
       latestRequestedContentRef.current = currentContent
@@ -68,6 +78,7 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
           // 如有结果，更新 tokenLines
           if (result.lines.length > 0 || result.recall !== 0) {
             highlightedContentRef.current = contentToProcess
+            highlightedDocumentRef.current = rawLines.join('\n')
             setTokenLines((prev) => {
               return result.recall === -1
                 ? result.lines
@@ -85,6 +96,7 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
   const resetHighlight = useCallback(() => {
     generationRef.current += 1
     highlightedContentRef.current = ''
+    highlightedDocumentRef.current = ''
     cleanupTokenizers(callerId)
     setTokenLines([])
   }, [callerId, cleanupTokenizers])

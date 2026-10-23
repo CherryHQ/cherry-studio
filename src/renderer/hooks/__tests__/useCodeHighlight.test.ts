@@ -86,6 +86,30 @@ describe('useCodeHighlight', () => {
     expect(result.current.tokenLines.map((line) => line[0].content)).toEqual(['new 0', 'new 1'])
   })
 
+  it('does not re-highlight an unchanged shorter prefix when scrolling back up', async () => {
+    mocks.highlightStreamingCode.mockImplementation(async (content: string) => ({
+      lines: content.split('\n').map((line) => [sampleToken(line)]),
+      recall: -1
+    }))
+
+    const { result } = renderHook(() =>
+      useCodeHighlight({ rawLines: ['a', 'b', 'c', 'd'], language: 'plaintext', callerId: 'c1' })
+    )
+
+    await act(async () => {
+      await result.current.highlightLines()
+    })
+    expect(mocks.highlightStreamingCode).toHaveBeenCalledTimes(1)
+
+    // Scrolling upward asks for the lines that are already the prefix of the highlighted content.
+    await act(async () => {
+      await result.current.highlightLines(2)
+    })
+
+    expect(mocks.highlightStreamingCode).toHaveBeenCalledTimes(1)
+    expect(result.current.tokenLines).toHaveLength(4)
+  })
+
   it('drops a stale async highlight result that returns after resetHighlight()', async () => {
     const deferred = createDeferred<{ lines: ThemedToken[][]; recall: number }>()
     mocks.highlightStreamingCode.mockReturnValue(deferred.promise)
