@@ -312,20 +312,25 @@ export function useFollowupQueue({
   // Optimistic pause: the PUT + refetch round-trip leaves a window where the
   // server still reports unpaused — a completion edge landing in that window
   // would drain against the user's explicit Pause. Hold the requested value
-  // locally until the server echoes it (or the request fails). Scoped, so a
-  // conversation switch never inherits another scope's hold.
-  const [pausedOverride, setPausedOverride] = useState<{ scopeKey: string; paused: boolean } | null>(null)
+  // locally until the server echoes it (or the request fails). Held per
+  // scope: a single slot lets one scope's pending Pause clobber another's
+  // when the user switches assistants within a mounted composer, so the
+  // first scope falls back to persisted unpaused and drains despite Pause
+  // (cherry-pr-review inv_389ec2ffbe28356e). Scoped, so a conversation
+  // switch never inherits another scope's hold.
+  const [pausedOverrides, setPausedOverrides] = useState<Readonly<Record<string, boolean>>>({})
   const serverPaused = queueState?.scopeKey === scopeKey ? (queueState?.paused ?? false) : false
-  const paused = pausedOverride && pausedOverride.scopeKey === scopeKey ? pausedOverride.paused : serverPaused
+  const paused = pausedOverrides[scopeKey] ?? serverPaused
   useEffect(() => {
-    if (
-      pausedOverride &&
-      queueState?.scopeKey === pausedOverride.scopeKey &&
-      queueState.paused === pausedOverride.paused
-    ) {
-      setPausedOverride(null)
+    const held = queueState ? pausedOverrides[queueState.scopeKey] : undefined
+    if (queueState && held !== undefined && queueState.paused === held) {
+      setPausedOverrides((prev) => {
+        const next = { ...prev }
+        delete next[queueState.scopeKey]
+        return next
+      })
     }
-  }, [pausedOverride, queueState])
+  }, [pausedOverrides, queueState])
   // Fail closed on the pause flag: while the pause-state read is unloaded,
   // scoped elsewhere, or errored, the drain stays parked instead of sending
   // into a possibly-paused conversation.
@@ -833,7 +838,7 @@ export function useFollowupQueue({
   const setPaused = useCallback(
     (nextPaused: boolean) => {
       const scope = scopeKeyRef.current
-      setPausedOverride({ scopeKey: scope, paused: nextPaused })
+      setPausedOverrides((prev) => ({ ...prev, [scope]: nextPaused }))
       const request = { scopeKey: scope, paused: nextPaused }
       // Coalesce rapid toggles within this scope: only the latest queued
       // request is sent after the in-flight PUT settles, so the server ends
@@ -851,9 +856,12 @@ export function useFollowupQueue({
           // Release the optimistic hold so a failed Pause cannot park the
           // drain. Only clear when the hold still matches this request: a
           // newer toggle issued mid-flight owns the hold now.
-          setPausedOverride((prev) =>
-            prev?.scopeKey === current.scopeKey && prev.paused === current.paused ? null : prev
-          )
+          setPausedOverrides((prev) => {
+            if (prev[current.scopeKey] !== current.paused) return prev
+            const next = { ...prev }
+            delete next[current.scopeKey]
+            return next
+          })
         }
       }
       void (async () => {
