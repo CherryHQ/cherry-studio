@@ -87,6 +87,9 @@ export class MediaFfmpegService extends BaseService {
     const registryDir = await mkdtemp(application.getPath('app.temp', 'media-ffmpeg-'))
     const pidRegistryPath = join(registryDir, 'active-child.pid')
     try {
+      if (!this.initialized || generation !== this.generation) {
+        throw new Error('MediaFfmpegService request belongs to an inactive lifecycle generation')
+      }
       const client = application.get('UtilityProcessManager').client(mediaFfmpegProcess)
       return await client.request(method, { ...input, pidRegistryPath }, options)
     } catch (error) {
