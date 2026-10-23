@@ -5,6 +5,14 @@
  * them through the same descriptor-driven builders as Cherry's native chat
  * path. Native Anthropic and Gemini requests keep a lossless fast path when
  * the target speaks the same dialect.
+ *
+ * The user effort map is deliberately NOT applied here: the session boundary
+ * owns the single mapping (agentSessionWarmup for Claude Code, buildAgentParams
+ * for the direct route), because Anthropic serialization can discard the
+ * canonical key before a request reaches the gateway. Re-applying the map in
+ * this converter chains it (High -> Medium -> Low) for warmup-mapped sessions
+ * and rewrites external clients' literal effort (cherry-pr-review
+ * inv_d3a354e6550a361e).
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
@@ -18,7 +26,6 @@ import {
   resolveEndpointProviderOptionsKey
 } from '@main/ai/provider/endpoint'
 import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
-import { getUserReasoningEffortMap } from '@main/ai/utils/reasoningEffortPreferences'
 import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { nearestEffortForBudget } from '@shared/ai/reasoning'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
@@ -47,8 +54,7 @@ function resolveProviderReasoningContext(
     endpointType,
     invocationModel,
     providerOptionsKey: resolveEndpointProviderOptionsKey(provider, resolvedEndpoint),
-    reasoningProfile,
-    userEffortMap: getUserReasoningEffortMap(provider, invocationModel)
+    reasoningProfile
   }
 }
 
@@ -63,8 +69,7 @@ function buildProviderOptions(
     selection: effort,
     model: context.invocationModel,
     profile: context.reasoningProfile.wire,
-    maxTokens,
-    userEffortMap: context.userEffortMap
+    maxTokens
   })
   return buildResolvedReasoningProviderOptions({
     aiSdkProviderId: context.aiSdkProviderId,
@@ -88,8 +93,7 @@ function resolveNativeAnthropicEffort(
     selection: effort,
     model: context.invocationModel,
     profile: context.reasoningProfile.wire,
-    maxTokens,
-    userEffortMap: context.userEffortMap
+    maxTokens
   })
   const emission = invocation.emissions.find((candidate) => candidate.target === 'effort')
   return typeof emission?.value === 'string' ? (emission.value as GatewayReasoningEffort) : undefined

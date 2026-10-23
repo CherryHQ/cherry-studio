@@ -19,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   resolveReasoningProfile: vi.fn()
 }))
 
+vi.mock('@main/ai/utils/reasoningEffortPreferences', () => ({
+  // Always offer a chained map: any gateway-side application is observable.
+  getUserReasoningEffortMap: vi.fn(() => ({ high: 'medium', medium: 'low' }))
+}))
+
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderRegistryServiceModule>()
   return {
@@ -392,6 +397,32 @@ describe('cross-dialect descriptor translation', () => {
 
     expect(mapReasoningEffortToProviderOptions(nvidia, gptOss, 'high')).toEqual({
       nvidia: { reasoningEffort: 'high' }
+    })
+  })
+
+  it('applies no user effort map: the session boundary owns the single mapping (inv_d3a354e6550a361e)', () => {
+    const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const nvidia = {
+      id: 'nvidia',
+      endpointConfigs: { [endpoint]: { adapterFamily: 'openai-compatible' } }
+    } as Provider
+    const gptOss = model('nvidia', 'gpt-oss-120b', endpoint, {
+      selectableEfforts: ['low', 'medium', 'high'],
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }]
+    })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'openai-chat',
+      wire: {
+        effort: {
+          operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }]
+        }
+      }
+    })
+
+    // The warmup/direct boundary already mapped High -> Medium; a gateway
+    // re-application would chain Medium -> Low.
+    expect(mapReasoningEffortToProviderOptions(nvidia, gptOss, 'medium')).toEqual({
+      nvidia: { reasoningEffort: 'medium' }
     })
   })
 
