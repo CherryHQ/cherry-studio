@@ -800,8 +800,15 @@ const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-+)[ \t]*$/
  */
 function containerOpensBlock(container: string, previous: string): boolean {
   const quotes = quoteDepth(container)
-  if (quotes !== quoteDepth(previous)) return quotes > quoteDepth(previous)
+  const previousQuotes = quoteDepth(previous)
   const marker = /(?:[-+*]|(\d{1,9})([.)]))[ \t]+$/.exec(container)
+  if (quotes !== previousQuotes) {
+    if (quotes > previousQuotes) return true
+    // Leaving a quote is no block of its own, but a list marker there still interrupts the quoted
+    // paragraph above — `> text` then `- [label]: /url` opens a list item that holds a definition.
+    if (!marker) return false
+    return marker[1] === undefined || marker[1] === '1'
+  }
   if (!marker) return false
   // An ordered item interrupts an open paragraph only when it starts at one — `123.` below a
   // paragraph is prose the parser keeps, so a definition shape inside it is not a definition. A
@@ -1024,11 +1031,11 @@ function emphasisRuns(
 }
 
 /**
- * The emphasis runs of `source` that the renderer reads as the markers of a span — which render no
- * text of their own — keyed by the run's start with the number of markers consumed. A closing run
- * matches the nearest opener of the same character, taking two markers when both hold two (so `***`
- * can close against `**` and leave `*` for a later closer) and one otherwise; the rule of three
- * keeps a single `*` from closing a `**` the renderer leaves literal.
+ * The emphasis markers `source` renders nothing for, keyed by the run's start with the number of
+ * markers consumed. This follows micromark's own walk: a closing run searches back past openers the
+ * rule of three rejects, takes two markers when both sides hold two and one otherwise, and consumes
+ * every opener above the one it matched — those sit inside the new span and can no longer pair with
+ * a later closer outside it.
  */
 function emphasisSpans(source: string): Map<number, number> {
   const runs = emphasisRuns(source)
@@ -1037,24 +1044,37 @@ function emphasisSpans(source: string): Map<number, number> {
   for (const current of runs) {
     let remaining = current.run.length
     if (current.closes) {
-      while (remaining > 0 && open.length > 0) {
-        const top = open[open.length - 1]
-        if (top.marker !== current.run[0]) break
-        const use = top.remaining >= 2 && remaining >= 2 ? 2 : 1
-        // Rule of three: a delimiter that can both open and close cannot pair when the two runs'
-        // lengths sum to a multiple of three, unless both are multiples of three.
-        if (
-          (top.closes || current.opens) &&
-          (top.remaining + remaining) % 3 === 0 &&
-          !(top.remaining % 3 === 0 && remaining % 3 === 0)
-        ) {
+      while (remaining > 0) {
+        let index = open.length - 1
+        let match = -1
+        while (index >= 0) {
+          const candidate = open[index]
+          if (candidate.marker !== current.run[0]) {
+            index -= 1
+            continue
+          }
+          // Rule of three: when the opener can also close or the closer can also open, a closer
+          // that is not a multiple of three cannot pair when the two lengths sum to a multiple.
+          if (
+            (candidate.closes || current.opens) &&
+            remaining % 3 !== 0 &&
+            (candidate.remaining + remaining) % 3 === 0
+          ) {
+            index -= 1
+            continue
+          }
+          match = index
           break
         }
-        spans.set(top.at, (spans.get(top.at) ?? 0) + use)
+        if (match < 0) break
+        const opener = open[match]
+        const use = opener.remaining > 1 && remaining > 1 ? 2 : 1
+        spans.set(opener.at, (spans.get(opener.at) ?? 0) + use)
         spans.set(current.open, (spans.get(current.open) ?? 0) + use)
-        top.remaining -= use
+        opener.remaining -= use
         remaining -= use
-        if (top.remaining === 0) open.pop()
+        // Everything above the opener is inside the span just formed, so it stops opening.
+        open.length = opener.remaining === 0 ? match : match + 1
       }
     }
     if (remaining > 0 && current.opens) {

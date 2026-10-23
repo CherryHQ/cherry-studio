@@ -734,6 +734,23 @@ describe('splitMarkdownChunks', () => {
     expect(JSON.stringify(definition)).not.toContain('second')
   })
 
+  it('keeps the first definition a list item opens after a quote', () => {
+    // `- [guide]: /intended` leaves the quote and opens a list item, which interrupts the quoted
+    // paragraph; reading the depth decrease as "no block" skipped this definition and let the
+    // later `[guide]: /other` win.
+    const content = [
+      '> introductory quote',
+      '- [guide]: /intended',
+      '',
+      '[guide]: /other',
+      '',
+      '[open guide][guide]'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['/intended'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/intended'])
+  })
+
   it('carries a definition whose title escapes its own delimiter', () => {
     // An escaped quote is part of the title, so the definition is a definition; read as a closing
     // delimiter it would fail the title shape and the reference would degrade to literal text.
@@ -2838,6 +2855,17 @@ describe('a definition behind an NBSP-only line', () => {
 
     expect(resolvedReferenceUrls(content)).toEqual([])
     expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual([])
+  })
+})
+
+describe('an ineligible emphasis opener between a closer and its partner', () => {
+  it('searches past the blocked run like the renderer does', () => {
+    // micromark closes the second `**` against the first one past the `*` that the rule of three
+    // blocks, so both headings render `ab-cd`; stopping at the blocked run keyed them `a-b-c-d`
+    // twice and gave the second the same id again, losing the `ab-cd-1` fragment.
+    const content = `# a**b*c**d*\n\n${'filler\n\n'.repeat(3072)}# a**b*c**d*\n\n[jump](#ab-cd-1)\n`
+
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
   })
 })
 
