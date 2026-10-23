@@ -50,7 +50,9 @@ async function extract(entryId: FileEntryId, ext: string, signal?: AbortSignal):
     })
     return text.trim()
   }
-  return runAttachmentWorker('decode', { content, conservative: getFileTypeByExt(ext) === FILE_TYPE.OTHER }, signal)
+  const fileType = getFileTypeByExt(ext)
+  if (fileType === FILE_TYPE.IMAGE || fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) return null
+  return runAttachmentWorker('decode', { content, conservative: fileType === FILE_TYPE.OTHER }, signal)
 }
 
 /**
