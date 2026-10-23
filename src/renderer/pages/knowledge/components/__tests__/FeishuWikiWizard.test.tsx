@@ -1300,6 +1300,70 @@ describe('FeishuWikiWizard', () => {
     })
   })
 
+  it.each([
+    { outcome: 'success', settleWhileHidden: true },
+    { outcome: 'failure', settleWhileHidden: true },
+    { outcome: 'success', settleWhileHidden: false },
+    { outcome: 'failure', settleWhileHidden: false }
+  ])(
+    'recovers pagination $outcome across Activity (settle while hidden: $settleWhileHidden)',
+    async ({ outcome, settleWhileHidden }) => {
+      const user = userEvent.setup()
+      const nextSpace = { spaceId: 'space-2', name: 'Research Wiki', description: null }
+      let finishPage!: () => void
+      let retry = false
+      mockRequest.mockImplementation(async (route: string, input?: { pageToken?: string }) => {
+        if (route === 'knowledge.feishu.spaces.list') {
+          if (!input?.pageToken) return { spaces: [space], nextPageToken: 'page-2' }
+          if (input.pageToken === 'page-3') return { spaces: [] }
+          if (retry) return { spaces: [nextSpace], nextPageToken: 'page-3' }
+          return new Promise((resolve, reject) => {
+            finishPage = () =>
+              outcome === 'success'
+                ? resolve({ spaces: [nextSpace], nextPageToken: 'page-3' })
+                : reject(new Error('Temporary provider failure'))
+          })
+        }
+        if (route === 'knowledge.feishu.space.preview') return spacePreview
+        return undefined
+      })
+      const wizard = (mode: 'visible' | 'hidden') => (
+        <Activity mode={mode}>
+          <FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />
+        </Activity>
+      )
+      const { rerender } = render(wizard('visible'))
+      await selectApplication(user)
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+      await selectWiki(user, /Project Wiki/)
+      await user.click(screen.getByRole('button', { name: 'Load more Wikis' }))
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+      rerender(wizard('hidden'))
+      if (!settleWhileHidden) rerender(wizard('visible'))
+      await act(async () => finishPage())
+      if (settleWhileHidden) rerender(wizard('visible'))
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled())
+      if (outcome === 'failure') {
+        expect(screen.getByRole('alert')).toBeVisible()
+        retry = true
+        await user.click(screen.getByRole('button', { name: 'Retry loading' }))
+      }
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Load more Wikis' })).toBeEnabled())
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+      expect(await screen.findByRole('button', { name: 'Add' })).toBeEnabled()
+      await user.click(screen.getByRole('button', { name: 'Back' }))
+      expect(screen.getByRole('combobox', { name: 'Available Feishu Wikis' })).toHaveTextContent('Project Wiki')
+      await user.click(screen.getByRole('button', { name: 'Load more Wikis' }))
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more Wikis' })).not.toBeInTheDocument())
+      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
+      expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.spaces.list', {
+        connectionId: connection.id,
+        pageToken: 'page-3'
+      })
+    }
+  )
+
   it('keeps pagination available when an accessible-space page is empty', async () => {
     const user = userEvent.setup()
     mockRequest.mockImplementation(async (route: string, input?: { pageToken?: string }) => {
@@ -1321,37 +1385,44 @@ describe('FeishuWikiWizard', () => {
     expect(await screen.findByRole('combobox', { name: 'Available Feishu Wikis' })).toBeVisible()
   })
 
-  it('ignores a late space page from a previously selected account', async () => {
+  it('keeps replacement-account loading and data independent of a late pagination page', async () => {
     const user = userEvent.setup()
     const otherConnection = { ...connection, id: '0199c87a-1200-7000-8000-000000000003', displayName: 'Bob' }
     const otherSpace = { spaceId: 'space-2', name: 'Bob Wiki', description: null }
-    let resolveAlice: (page: { spaces: (typeof space)[] }) => void = () => undefined
+    let resolveAlice!: (page: { spaces: (typeof space)[] }) => void
+    let resolveBob!: (page: { spaces: (typeof otherSpace)[] }) => void
     MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', {
       data: [connection, otherConnection],
       isLoading: false,
       error: undefined,
       refetch: vi.fn()
     })
-    mockRequest.mockImplementation(async (route: string, input?: { connectionId?: string }) => {
+    mockRequest.mockImplementation(async (route: string, input?: { connectionId?: string; pageToken?: string }) => {
       if (route !== 'knowledge.feishu.spaces.list') return undefined
       if (input?.connectionId === connection.id) {
+        if (!input.pageToken) return { spaces: [space], nextPageToken: 'page-2' }
         return await new Promise((resolve) => {
           resolveAlice = resolve
         })
       }
-      return { spaces: [otherSpace] }
+      return await new Promise((resolve) => {
+        resolveBob = resolve
+      })
     })
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
 
     await selectApplication(user)
     await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(await screen.findByRole('button', { name: 'Load more Wikis' }))
     await user.click(screen.getByRole('button', { name: 'Back' }))
     await selectApplication(user, /Team Wiki.*Bob/)
     await user.click(screen.getByRole('button', { name: 'Next' }))
+    await act(async () => resolveAlice({ spaces: [{ ...space, spaceId: 'alice-page-2' }] }))
+    expect(screen.getByRole('status')).toBeVisible()
+    expect(screen.queryByRole('combobox', { name: 'Available Feishu Wikis' })).not.toBeInTheDocument()
+    await act(async () => resolveBob({ spaces: [otherSpace] }))
     await openWikiOptions(user)
     expect(await screen.findByRole('option', { name: 'Bob Wiki' })).toBeVisible()
-
-    await act(async () => resolveAlice({ spaces: [space] }))
     expect(screen.queryByRole('option', { name: /Project Wiki/ })).not.toBeInTheDocument()
   })
 

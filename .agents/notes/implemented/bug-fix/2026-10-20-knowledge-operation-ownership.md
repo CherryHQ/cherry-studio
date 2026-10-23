@@ -20,6 +20,8 @@ Schedule mutations use the same base mutex and deletion admission fence as teard
 
 External staging row validation runs inside the insert transaction, so invalid input cannot leave an unreadable cleanup row. Untitled Feishu nodes use their remote object token as a stable display name. Preview requires a completed external item. Renderer authorization attempts carry a monotonically increasing identity; cleanup and cancellation invalidate it, including across Activity hide/show. A late session is cancelled before browser launch, and completion is checked again after browser launch returns.
 
+Wiki discovery pages and request status are owned by `useSWRInfinite`, keyed by wizard session, Connection, and page cursor. Activity hides disconnect subscriptions but preserve component state; an in-flight read settles in the cache, and reveal observes its data or error without retaining an orphaned loading flag. Account changes select a different cache key. Pagination uses provider cursors, including after an empty page, and retries remain explicit. Reconnect explicitly revalidates discovery; focus and network events do not trigger additional provider reads.
+
 Terminal synchronization cleanup is separate from result publication. Authorization failure pauses the Source and advances its revision, so the old Job cannot publish its summary. Settlement still clears that Job's own active reference under the current Source revision, in the same transaction, and notifies after commit. A replacement Job remains protected by its different id. Requiring the original revision for this cleanup leaves manual-only Sources blocked after successful reauthorization.
 
 Disconnect reads the active binding again in its final deletion transaction after cancellation has settled. The original binding and a cleared binding both permit deletion; a replacement Job does not. Source revision, paused state, and schedule fences still apply. Requiring the pre-cancellation binding rejects successful settlement and leaves a paused Source connected.
@@ -50,3 +52,5 @@ Newer overlapping work wins while unrelated roots can still proceed. Ordinary de
 - Regression — `ExternalKnowledgeSourceLifecycle.test.ts` and `syncExternalSourceJobHandler.test.ts`: credential failure followed by settlement and reauthorization in either order clears only the terminal Job binding, preserves newer-revision results and replacement Jobs, and notifies after commit.
 
 - Regression — `ExternalKnowledgeDisconnect.test.ts`: production JobManager cancellation and sync-handler settlement complete both disconnect modes; revision/state changes and replacement Jobs preserve ownership and roll back local cleanup.
+
+- Regression — `FeishuWikiWizard.test.tsx`: pagination succeeds or fails while hidden or after reveal; selected Wikis and cursor progress survive, errors remain retryable, and a late old-account page cannot clear a replacement account's loading state or replace its list.

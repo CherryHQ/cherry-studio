@@ -33,6 +33,10 @@ does not include the personal `my_library` in this list. The picker retains the
 URL path for connections without discovery permission and for a specific node
 or document. `knowledge.feishu.space.preview` accepts a selected space id and
 rechecks access in main before scanning all of its visible root nodes.
+Hiding the Knowledge tab preserves loaded Wiki pages, selection, and pagination.
+Pending list requests settle while hidden; returning shows their result or a retryable
+error. Switching connections isolates their lists. Focus and network reconnection do
+not automatically reload discovery.
 The wizard supports selecting multiple spaces. It previews each space and creates
 a Source named after each Wiki space, using one shared scheduling choice. Link-based
 Sources use the resolved Wiki or document title. The renderer does not offer a

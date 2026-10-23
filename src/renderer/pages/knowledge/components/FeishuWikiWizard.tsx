@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { uniqBy } from 'es-toolkit'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWRInfinite from 'swr/infinite'
 
 import {
   Accordion,
@@ -27,7 +29,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type {
   ExternalKnowledgeDocumentKind,
   ExternalKnowledgeScopePreview,
-  FeishuWikiSpace,
+  FeishuWikiSpacePage,
   FeishuWikiSpacePreview
 } from '@shared/data/types/externalKnowledgeRead'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -73,11 +75,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
   const [scopeMode, setScopeMode] = useState<'space' | 'url'>('space')
-  const [spaces, setSpaces] = useState<FeishuWikiSpace[]>([])
-  const [nextPageToken, setNextPageToken] = useState<string | undefined>()
   const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>([])
-  const [spacesLoading, setSpacesLoading] = useState(false)
-  const [spacesError, setSpacesError] = useState<'permission' | 'other' | null>(null)
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<ScopePreview | null>(null)
   const [createdCount, setCreatedCount] = useState(0)
@@ -91,8 +89,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   const authorizationAttempt = useRef(0)
   const reconnecting = useRef(false)
   const closed = useRef(false)
-  const spacesRequestVersion = useRef(0)
-  const loadedSpacesConnectionId = useRef<string | null>(null)
   const createdScopes = useRef(new Set<string>())
   const isCreating = busy && step === 3
   const reviewLocked = busy || createdCount > 0
@@ -106,60 +102,52 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   const showAppForm = connectingNewApp || !hasConnectedConnections
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
+  // Discovery cache belongs to this wizard; reopening must observe current permissions.
+  const spacesSessionId = useId()
+  const {
+    data: spacePages,
+    error: spacesRequestError,
+    isLoading: spacesInitiallyLoading,
+    isValidating: spacesValidating,
+    setSize: setSpacesSize,
+    mutate: refreshSpaces
+  } = useSWRInfinite<FeishuWikiSpacePage, unknown>(
+    (pageIndex: number, previousPage: FeishuWikiSpacePage | null) => {
+      if (!open || step !== 2 || scopeMode !== 'space' || !selectedConnectionId) return null
+      if (pageIndex > 0 && !previousPage?.nextPageToken) return null
+      return [
+        'knowledge.feishu.spaces.list',
+        spacesSessionId,
+        selectedConnectionId,
+        previousPage?.nextPageToken
+      ] as const
+    },
+    ([, , connectionId, pageToken]: readonly [string, string, string, string | undefined]) =>
+      ipcApi.request('knowledge.feishu.spaces.list', { connectionId, ...(pageToken && { pageToken }) }),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      revalidateIfStale: false,
+      revalidateFirstPage: false,
+      shouldRetryOnError: false
+    }
+  )
+  const spaces = uniqBy(spacePages?.flatMap((page) => page.spaces) ?? [], (space) => space.spaceId)
+  const nextPageToken = spacePages?.at(-1)?.nextPageToken
+  const spacesLoading = spacesInitiallyLoading || spacesValidating
+  const spacesError = spacesRequestError
+    ? spacesRequestError instanceof IpcError && spacesRequestError.code === knowledgeErrorCodes.FEISHU_SCOPE_MISSING
+      ? 'permission'
+      : 'other'
+    : null
+
   const selectConnection = (connectionId: string | null) => {
     setScopeMode('space')
-    spacesRequestVersion.current += 1
-    loadedSpacesConnectionId.current = null
     setSelectedConnectionId(connectionId)
-    setSpaces([])
-    setNextPageToken(undefined)
     setSelectedSpaceIds([])
-    setSpacesLoading(false)
-    setSpacesError(null)
     setPreview(null)
     setError(null)
   }
-
-  const loadSpaces = useCallback(async (connectionId: string, pageToken?: string) => {
-    const requestVersion = ++spacesRequestVersion.current
-    setSpacesLoading(true)
-    setSpacesError(null)
-    try {
-      const page = await ipcApi.request('knowledge.feishu.spaces.list', {
-        connectionId,
-        ...(pageToken && { pageToken })
-      })
-      if (closed.current || requestVersion !== spacesRequestVersion.current) return
-      if (!pageToken) loadedSpacesConnectionId.current = connectionId
-      setSpaces((current) => {
-        const knownIds = new Set<string>()
-        return [...(pageToken ? current : []), ...page.spaces].filter((space) => {
-          if (knownIds.has(space.spaceId)) return false
-          knownIds.add(space.spaceId)
-          return true
-        })
-      })
-      setNextPageToken(page.nextPageToken)
-    } catch (cause) {
-      if (closed.current || requestVersion !== spacesRequestVersion.current) return
-      setSpacesError(
-        cause instanceof IpcError && cause.code === knowledgeErrorCodes.FEISHU_SCOPE_MISSING ? 'permission' : 'other'
-      )
-    } finally {
-      if (!closed.current && requestVersion === spacesRequestVersion.current) setSpacesLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (step !== 2 || scopeMode !== 'space' || !selectedConnectionId) return
-    if (loadedSpacesConnectionId.current === selectedConnectionId) return
-    setSpaces([])
-    setNextPageToken(undefined)
-    void loadSpaces(selectedConnectionId)
-    return () => {
-      spacesRequestVersion.current += 1
-    }
-  }, [step, scopeMode, selectedConnectionId, loadSpaces])
 
   const cancelPendingAuthorization = () => {
     authorizationAttempt.current += 1
@@ -186,7 +174,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
 
   const close = () => {
     closed.current = true
-    spacesRequestVersion.current += 1
     cancelPendingAuthorization()
     setAuthorization(null)
     onOpenChange(false)
@@ -237,7 +224,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
       setStep(2)
       void invalidate('/external-knowledge-connections')
       if (includeSpaceDiscovery && connected.id === selectedConnectionId && step === 2 && scopeMode === 'space') {
-        void loadSpaces(connected.id)
+        void refreshSpaces()
       }
     } catch (cause) {
       if (isCurrent()) setError(formatAuthorizationError(cause))
@@ -480,7 +467,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                       ]}
                       onValueChange={(value) => {
                         setScopeMode(value)
-                        setSpacesLoading(false)
                         setPreview(null)
                         setError(null)
                       }}
@@ -502,9 +488,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                               variant="outline"
                               size="sm"
                               disabled={busy || spacesLoading}
-                              onClick={() =>
-                                selectedConnectionId && void loadSpaces(selectedConnectionId, nextPageToken)
-                              }>
+                              onClick={() => void refreshSpaces()}>
                               {t('knowledge.external.wizard.retry_spaces')}
                             </Button>
                             {spacesError === 'permission' && selectedConnectionId ? (
@@ -567,9 +551,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                             variant="outline"
                             size="sm"
                             disabled={busy || spacesLoading}
-                            onClick={() =>
-                              selectedConnectionId && void loadSpaces(selectedConnectionId, nextPageToken)
-                            }>
+                            onClick={() => void setSpacesSize((spacePages?.length ?? 0) + 1)}>
                             {spacesLoading ? t('common.loading') : t('knowledge.external.wizard.load_more_spaces')}
                           </Button>
                         ) : null}
@@ -750,7 +732,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                     disabled={reviewLocked}
                     onClick={() => {
                       setError(null)
-                      if (step === 2) setSpacesLoading(false)
                       setStep(step === 3 ? 2 : 1)
                     }}>
                     {t('common.back')}
