@@ -267,13 +267,88 @@ function isClosingFenceLine(text: string, markerStart: number, fenceChar: string
   return true
 }
 
-function findCodeFenceClose(text: string, searchFrom: number, fenceChar: string, fenceLen: number): number {
+/** One container segment parsed from a fence opener's line prefix. */
+type FenceContainerSegment = { type: 'quote' } | { type: 'list'; contentCol: number }
+
+function parseFenceContainerSegments(prefix: string): FenceContainerSegment[] {
+  const segments: FenceContainerSegment[] = []
+  let rest = prefix
+  for (;;) {
+    const quote = /^ {0,3}>(?: |$)/.exec(rest)
+    if (quote) {
+      segments.push({ type: 'quote' })
+      rest = rest.slice(quote[0].length)
+      continue
+    }
+    const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +|$)/.exec(rest)
+    if (list) {
+      // List item content begins after the marker and its following spaces
+      // (CommonMark 0.31.2 §5.2: one space when the run exceeds four).
+      const padding = list[3] === '' ? 1 : Math.min(list[3].length, 4)
+      segments.push({ type: 'list', contentCol: list[1].length + list[2].length + padding })
+      rest = rest.slice(list[0].length)
+      continue
+    }
+    // Up to three columns of indentation may precede the fence marker itself.
+    break
+  }
+  return segments
+}
+
+/**
+ * Whether a candidate closing-fence line sits in the same container context
+ * as the opener: the opener's blockquote markers must repeat on the closing
+ * line, and its list items must continue - either by a repeated marker with
+ * the same content column or by indentation reaching it. Nothing but up to
+ * three columns of closing indentation may follow: a fence opened at the top
+ * level is not closed by a marker prefixed with `> ` or a list marker, and
+ * vice versa - such a prefixed marker is literal content of the outer block
+ * (cherry-pr-review inv_896e68088dfc29d1).
+ */
+function fenceCloseMatchesContainerContext(candidatePrefix: string, openerPrefix: string): boolean {
+  const segments = parseFenceContainerSegments(openerPrefix)
+  let rest = candidatePrefix
+  for (const segment of segments) {
+    if (segment.type === 'quote') {
+      const quote = /^ {0,3}>(?: |$)/.exec(rest)
+      if (!quote) return false
+      rest = rest.slice(quote[0].length)
+      continue
+    }
+    const repeated = /^( {0,3})([-*+]|\d{1,9}[.)])( +|$)/.exec(rest)
+    if (repeated) {
+      const padding = repeated[3] === '' ? 1 : Math.min(repeated[3].length, 4)
+      if (repeated[1].length + repeated[2].length + padding !== segment.contentCol) return false
+      rest = rest.slice(repeated[0].length)
+      continue
+    }
+    // A continuation line reaches the item's content column by indentation.
+    let spaces = 0
+    while (spaces < rest.length && rest[spaces] === ' ') spaces++
+    if (spaces < segment.contentCol) return false
+    rest = rest.slice(segment.contentCol)
+  }
+  return /^ {0,3}$/.test(rest)
+}
+
+function findCodeFenceClose(
+  text: string,
+  searchFrom: number,
+  fenceChar: string,
+  fenceLen: number,
+  openerPrefix = ''
+): number {
   let pos = searchFrom
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
     if (rel === -1) return -1
     const markerStart = pos + rel
     if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
+      pos = markerStart + 1
+      continue
+    }
+    const candidateLineStart = text.lastIndexOf('\n', markerStart - 1) + 1
+    if (!fenceCloseMatchesContainerContext(text.slice(candidateLineStart, markerStart), openerPrefix)) {
       pos = markerStart + 1
       continue
     }
@@ -438,6 +513,26 @@ function unmaskInlineCodeSpans(text: string, spans: string[], placeholderBase = 
  * only starts at the text edge or after a blank line. A run inside a
  * scratchpad block stays unmasked so it cannot hide the block's boundary.
  */
+/**
+ * Leading Markdown container markers (a blockquote `> ` or a list marker such
+ * as `- ` or `1. `) wrap every line of their content: the four columns that
+ * open an indented code block sit AFTER the markers, not at column zero
+ * (cherry-pr-review inv_5cfd1b3f92913a5c).
+ */
+function stripMarkdownContainerMarkers(line: string): string {
+  let rest = line
+  for (;;) {
+    const marker = /^ {0,3}(?:>[ ]?|(?:[-*+]|\d{1,9}[.)]) )/.exec(rest)
+    if (!marker) return rest
+    rest = rest.slice(marker[0].length)
+  }
+}
+
+/** A line of only blockquote markers is its container's blank line: it closes an open paragraph. */
+function isContainerOnlyLine(line: string): boolean {
+  return line.includes('>') && /^ {0,3}(?:>[ ]?)+$/.test(line)
+}
+
 function maskIndentedCodeBlocks(text: string): {
   text: string
   blocks: string[]
@@ -461,10 +556,11 @@ function maskIndentedCodeBlocks(text: string): {
   // spaces, five/eight spaces, or repeated tabs (cherry-pr-review
   // inv_4ab3f6f347edda60, inv_c51149ed55871417).
   const indentedCodeColumns = (line: string): number => {
+    const content = stripMarkdownContainerMarkers(line)
     let columns = 0
-    for (let k = 0; k < line.length; k++) {
-      if (line[k] === ' ') columns += 1
-      else if (line[k] === '\t') columns += 4 - (columns % 4)
+    for (let k = 0; k < content.length; k++) {
+      if (content[k] === ' ') columns += 1
+      else if (content[k] === '\t') columns += 4 - (columns % 4)
       else break
     }
     return columns
@@ -477,12 +573,13 @@ function maskIndentedCodeBlocks(text: string): {
   // (CommonMark 0.31.2 §4.4; cherry-pr-review inv_0847c277aaa83851). A setext
   // underline only closes an OPEN paragraph; on its own it is paragraph text.
   const isLeafBlockBoundaryLine = (line: string, paragraphWasOpen: boolean): boolean => {
-    if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(line)) return true
-    if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(line)) return true
-    if (/^ {0,3}(?:_[ \t]*){3,}$/.test(line)) return true
-    if (/^ {0,3}(?:-[ \t]*){3,}$/.test(line)) return true
-    if (/^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001[ \t]*$/.test(line.trim())) return true
-    if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(line)) return true
+    const content = stripMarkdownContainerMarkers(line)
+    if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
+    if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:-[ \t]*){3,}$/.test(content)) return true
+    if (/^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001[ \t]*$/.test(content.trim())) return true
+    if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return true
     return false
   }
 
@@ -491,7 +588,7 @@ function maskIndentedCodeBlocks(text: string): {
   let paragraphOpen = false
   while (i < lines.length) {
     const line = lines[i]
-    if (line.trim() === '') {
+    if (line.trim() === '' || isContainerOnlyLine(line)) {
       paragraphOpen = false
       outLines.push(line)
       i++
@@ -610,7 +707,7 @@ function maskCodeFences(text: string): {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
-    const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen)
+    const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen, text.slice(fenceStart, markerStart))
     // A fence opened inside a scratchpad block ends at that block's closing
     // tag, whether it has no close of its own or only finds one past the
     // boundary: masking through the closer would hide it and keep internal
@@ -747,7 +844,8 @@ export function textHasUnclosedCodeFence(text: string): boolean {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
-    const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen)
+    const openerLineStart = fenceLinePrefixStart(text, markerStart)
+    const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen, text.slice(openerLineStart, markerStart))
     if (closeEnd === -1) return true
     pos = closeEnd
   }

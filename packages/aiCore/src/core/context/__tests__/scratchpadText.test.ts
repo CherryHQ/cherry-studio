@@ -127,6 +127,38 @@ describe('scratchpadText', () => {
     expect(stripModelScratchpadBlocks(input)).toBe('Keep')
   })
 
+  it('keeps container-prefixed fence markers as literal content of the outer fence (inv_896e68088dfc29d1)', () => {
+    // Inside a top-level fence, a `> ``` or `- ``` line is literal content,
+    // not the closing fence: accepting it as the closer exposes the remaining
+    // fence content to scratchpad removal. A closer must share the opener's
+    // container context.
+    const blockquoted = 'Example:\n\n```\n> ```\n<thinking>literal example</thinking>\n```\n\nDone.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(blockquoted)).toBe(blockquoted)
+    expect(stripModelScratchpadBlocks(blockquoted)).toBe(blockquoted)
+    const listed = 'Example:\n\n```\n- ```\n<thinking>literal example</thinking>\n```\n\nDone.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(listed)).toBe(listed)
+    expect(stripModelScratchpadBlocks(listed)).toBe(listed)
+    // A quoted fence still closes on a matching container prefix.
+    const quoted = '> ```\n> <thinking>literal example</thinking>\n> ```\n\nVisible.'
+    expect(stripModelScratchpadBlocks(quoted)).toContain('> <thinking>literal example</thinking>')
+    expect(stripModelScratchpadBlocks(quoted)).toContain('Visible.')
+  })
+
+  it('recognizes indented code inside Markdown containers (inv_5cfd1b3f92913a5c)', () => {
+    // `>     <thinking>...` is an indented code block inside a blockquote:
+    // indentation counting must skip the container marker or the literal code
+    // stays exposed to scratchpad removal. The bare `>` line is the
+    // blockquote's blank line, so the quoted paragraph does not continue.
+    const summary = '<summary>\n> Example:\n>\n>     <thinking>literal example</thinking>\n</summary>'
+    expect(stripModelScratchpadBlocks(summary)).toContain('<thinking>literal example</thinking>')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(summary)).toContain(
+      '<thinking>literal example</thinking>'
+    )
+    // List containers follow the same rule.
+    const listed = '<summary>\n- Example:\n\n-     <thinking>literal example</thinking>\n</summary>'
+    expect(stripModelScratchpadBlocks(listed)).toContain('<thinking>literal example</thinking>')
+  })
+
   it('preserves scratchpad literals at every valid indented-code depth (inv_4ab3f6f347edda60)', () => {
     // CommonMark 0.31.2 §4.4: four or more columns - five spaces, eight
     // spaces, and repeated tabs are all valid indented code.

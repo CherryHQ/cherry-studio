@@ -1194,23 +1194,88 @@ export class ClaudeCodeStreamAdapter {
     // Carrying only the leading spaces drops the tab and the completing chunk
     // scans below the indented-code threshold (cherry-pr-review
     // inv_f762891db4383e41).
-    const indent = openLine.match(/^[ \t]+/)?.[0]
+    // Markdown containers prefix every line of their content: a blockquote
+    // marker (`> `) or list marker (`- `) wraps the contained block, so the
+    // indentation that opens code sits after the markers. Carry the marker
+    // prefix along with the indentation, or quoted code scans as column-zero
+    // text and loses literal content (cherry-pr-review
+    // inv_5cfd1b3f92913a5c).
+    const containerPrefix = openLine.match(/^(?: {0,3}>(?: |$)| {0,3}(?:[-*+]|\d{1,9}[.)]) )*/)?.[0] ?? ''
+    const indent = openLine.slice(containerPrefix.length).match(/^[ \t]+/)?.[0]
     if (!indent) return ''
-    if (lineStart === 0) return indent
-    const leadingIndentColumns = (line: string): number => {
-      let columns = 0
-      for (const ch of line) {
-        if (ch === ' ') columns += 1
-        else if (ch === '\t') columns += 4 - (columns % 4)
-        else break
-      }
-      return columns
-    }
+    const carry = containerPrefix + indent
+    if (lineStart === 0) return carry
     const prevLineEnd = lineStart - 1
     const prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1
     const prevLine = text.slice(prevLineStart, prevLineEnd)
-    if (prevLine.trim() === '' || leadingIndentColumns(prevLine) >= 4) return indent
+    if (prevLine.trim() === '') return carry
+    // A line holding only blockquote markers is its container's blank line:
+    // it closes the paragraph just like an empty line.
+    if (/^ {0,3}(?:>[ ]?)+$/.test(prevLine)) return carry
+    const prevContent = this.stripMarkdownContainerMarkers(prevLine)
+    if (this.leadingIndentColumns(prevContent) >= 4) return carry
+    // Leaf blocks close a paragraph, so indentation after them opens indented
+    // code rather than continuing paragraph text (CommonMark 0.31.2 §4.4;
+    // cherry-pr-review inv_cc2d7448049afb39). Without this, an indented
+    // literal element following a heading is scanned as column-zero
+    // scratchpad and deleted from the stream.
+    if (this.isLeafBlockBoundaryLine(prevContent, text, prevLineStart)) return carry
     return ''
+  }
+
+  /** Leading indentation of a line in CommonMark columns (tab stops of four). */
+  private leadingIndentColumns(line: string): number {
+    let columns = 0
+    for (const ch of line) {
+      if (ch === ' ') columns += 1
+      else if (ch === '\t') columns += 4 - (columns % 4)
+      else break
+    }
+    return columns
+  }
+
+  /**
+   * Removes leading Markdown container markers (blockquote `> `, list
+   * markers) so indentation and leaf-block checks see the contained content
+   * (cherry-pr-review inv_5cfd1b3f92913a5c).
+   */
+  private stripMarkdownContainerMarkers(line: string): string {
+    let rest = line
+    for (;;) {
+      const marker = /^ {0,3}(?:>[ ]?|(?:[-*+]|\d{1,9}[.)]) )/.exec(rest)
+      if (!marker) return rest
+      rest = rest.slice(marker[0].length)
+    }
+  }
+
+  /**
+   * Whether a completed line (already container-stripped) ends a paragraph,
+   * letting a following indented line open an indented code block. Mirrors
+   * the scanner's leaf-block-boundary rules so streaming and whole-text
+   * filtering agree on the visible text (cherry-pr-review
+   * inv_cc2d7448049afb39).
+   */
+  private isLeafBlockBoundaryLine(content: string, text: string, contentLineStart: number): boolean {
+    if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
+    if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:-[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:`{3,}|~{3,})/.test(content)) return true
+    if (!/^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return false
+    // A setext underline only closes an OPEN paragraph; on its own it is
+    // paragraph text. The line before it decides.
+    const prevEnd = contentLineStart - 1
+    if (prevEnd <= 0) return false
+    const prevStart = text.lastIndexOf('\n', prevEnd - 1) + 1
+    const prevLine = this.stripMarkdownContainerMarkers(text.slice(prevStart, prevEnd))
+    if (prevLine.trim() === '') return false
+    if (this.leadingIndentColumns(prevLine) >= 4) return false
+    if (
+      /^ {0,3}(?:#{1,6}(?:[ \t]+|$)|(?:\*[ \t]*){3,}$|(?:_[ \t]*){3,}$|(?:-[ \t]*){3,}$|(?:`{3,}|~{3,}))/.test(prevLine)
+    ) {
+      return false
+    }
+    return true
   }
 
   /**

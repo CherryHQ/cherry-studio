@@ -4284,6 +4284,71 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it('preserves indented code after a leaf-block boundary, split across deltas (inv_cc2d7448049afb39)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = '# Example\n    <thinking>literal</thinking>\n\nDone.'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    // The heading closes the paragraph, so the indented line opens indented
+    // code. The indent carry must recognize the leaf-block boundary, or the
+    // literal element scans as column-zero scratchpad and is deleted - and a
+    // matching snapshot then appends the mangled suffix after `Done.`.
+    for (const piece of ['# Example\n    ', '<thinking>literal</thinking>', '\n\nDone.']) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
+  it('preserves blockquoted indented code split across deltas, with a matching snapshot (inv_5cfd1b3f92913a5c)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = '> Example:\n>\n>     <thinking>literal example</thinking>\n\nDone.'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    // The open line carries the blockquote marker plus four columns: without
+    // the container prefix in the carry, the literal element scans as
+    // column-zero scratchpad and is deleted.
+    for (const piece of ['> Example:\n>\n>     ', '<thinking>literal example</thinking>', '\n\nDone.']) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
   it('keeps a post-tool-round bare summary answer visible during post-compaction grace (inv_2d860893242eb158)', () => {
     const { adapter, parts } = createAdapter()
     const answer =
