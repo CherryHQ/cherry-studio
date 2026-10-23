@@ -308,12 +308,17 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       const cached = entriesByFile.get(file)
       if (cached) return cached
       await digest(root, file)
-      const entries = z.array(z.record(z.string(), z.unknown())).parse(
-        (await readFile(file, 'utf8'))
-          .split('\n')
-          .filter((line) => line.trim())
-          .map((line) => JSON.parse(line))
-      )
+      const parsed: unknown[] = []
+      for (const line of (await readFile(file, 'utf8')).split('\n')) {
+        if (!line.trim()) continue
+        try {
+          parsed.push(JSON.parse(line))
+        } catch (error) {
+          // Both runtimes skip malformed JSONL records, including interrupted trailing writes.
+          if (!(error instanceof SyntaxError)) throw error
+        }
+      }
+      const entries = z.array(z.record(z.string(), z.unknown())).parse(parsed)
       entriesByFile.set(file, entries)
       return entries
     }
@@ -365,6 +370,8 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         if (!file) throw new Error('Pi history missing')
         const entries = await readEntries(file)
         if (entries[0]?.type !== 'session' || entries[0]?.id !== id) throw new Error('Pi history corrupt')
+        if (checkpoint?.leafId && !entries.some((entry) => entry.id === checkpoint.leafId))
+          throw new Error('Pi checkpoint history missing')
       }
       const configDir = checkpoint?.configDir ?? claudeConfigDirs.get(`${row.sessionId}:${id}`)
       if (runtime === 'claude-code' && (!configDir || configDir === oldConfig)) {

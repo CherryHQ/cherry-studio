@@ -753,6 +753,91 @@ describe('system workspace relocation', () => {
     }
   )
 
+  it.each(
+    (['claude-code', 'pi'] as const).flatMap((runtime) =>
+      (
+        ['complete', 'tail', 'terminated-tail', 'middle', 'missing-checkpoint', 'wrong-identity', 'no-records'] as const
+      ).map((scenario) => ({ runtime, scenario }))
+    )
+  )('validates recoverable $runtime JSONL history: $scenario', async ({ runtime, scenario }) => {
+    const workspace = await createWorkspace(runtime)
+    let nativeId: string = randomUUID()
+    let boundary: string = 'boundary'
+    let file: string
+    if (runtime === 'pi') {
+      const { SessionManager } = await loadPiSdk()
+      const manager = SessionManager.create(workspace.oldPath, path.join(root, '.pi', 'sessions'))
+      manager.appendMessage({ role: 'user', content: 'Save output', timestamp: 1 })
+      boundary = manager.appendMessage({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Output saved' }],
+        api: 'openai-completions',
+        provider: 'fixture',
+        model: 'fixture',
+        usage: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+        },
+        stopReason: 'stop',
+        timestamp: 2
+      })
+      nativeId = manager.getSessionId()
+      file = manager.getSessionFile()!
+    } else file = await writeHistory(runtime, workspace.id, nativeId)
+    let contents = await readFile(file, 'utf8')
+    const requiredBoundary = scenario === 'missing-checkpoint' ? 'unsaved-boundary' : boundary
+    const checkpoint =
+      runtime === 'pi'
+        ? { runtime, runtimeSessionId: nativeId, leafId: requiredBoundary }
+        : {
+            runtime,
+            runtimeSessionId: nativeId,
+            messageUuid: requiredBoundary,
+            configDir: path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
+          }
+    agentSessionMessageService.saveMessage({
+      sessionId: workspace.sessionId,
+      runtimeResumeToken: nativeId,
+      runtimeAnchor: { checkpoint },
+      message: { id: randomUUID(), role: 'assistant', status: 'success', data: { parts: [] } }
+    })
+    const partial = '{"type":"message","id":"unsaved-boundary","uuid":"unsaved-boundary","content":'
+    if (scenario === 'tail' || scenario === 'missing-checkpoint') contents += partial
+    if (scenario === 'terminated-tail') contents += partial + '\n'
+    if (scenario === 'middle') contents = partial + '\n' + contents
+    if (scenario === 'wrong-identity') contents = contents.replaceAll(nativeId, randomUUID()) + partial
+    if (scenario === 'no-records') contents = partial
+    await writeFile(file, contents)
+    const blocked = ['missing-checkpoint', 'wrong-identity', 'no-records'].includes(scenario)
+    expect(await relocateSystemWorkspaces()).toEqual(new Set(blocked ? [workspace.sessionId] : []))
+    expect(workspacePath(workspace.id)).toBe(blocked ? workspace.oldPath : workspace.newPath)
+    const relocated =
+      runtime === 'pi' || blocked
+        ? file
+        : path.join(root, '.claude', 'projects', `new-${workspace.id}`, `${nativeId}.jsonl`)
+    expect(await readFile(relocated, 'utf8')).toBe(contents)
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(nativeId)
+    if (!blocked) {
+      if (runtime === 'pi') {
+        const { SessionManager } = await loadPiSdk()
+        expect(SessionManager.open(relocated).getLeafId()).toBe(boundary)
+      } else {
+        vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(root, '.claude'))
+        try {
+          const { getSessionMessages, forkSession } = await import('@anthropic-ai/claude-agent-sdk')
+          expect((await getSessionMessages(nativeId)).some((message) => message.uuid === boundary)).toBe(true)
+          expect((await forkSession(nativeId, { upToMessageId: boundary })).sessionId).not.toBe(nativeId)
+        } finally {
+          vi.unstubAllEnvs()
+        }
+      }
+    }
+  })
+
   it.each(['claude-code', 'pi'] as const)(
     'relocates an edited %s conversation using its materialized history',
     async (runtime) => {
@@ -796,6 +881,18 @@ describe('system workspace relocation', () => {
         ])
         .run()
       const file = await writeHistory(runtime, workspace.id, actualId)
+      if (runtime === 'pi')
+        await writeFile(
+          file,
+          (await readFile(file, 'utf8')) +
+            JSON.stringify({
+              type: 'message',
+              id: 'boundary',
+              parentId: null,
+              message: { role: 'user', content: 'saved' }
+            }) +
+            '\n'
+        )
       const contents = await readFile(file, 'utf8')
 
       expect(await relocateSystemWorkspaces()).toEqual(new Set())
