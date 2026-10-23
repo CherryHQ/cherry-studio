@@ -6,7 +6,7 @@ import { expect } from './fixtures'
 // Long sessions against the mock provider: memory must level off and replies must not slow down.
 // Only Chromium measures the Worker's memory (`performance.measureUserAgentSpecificMemory`).
 test.skip(({ browserName }) => browserName !== 'chromium', 'Only Chromium measures Worker memory')
-// The headless shell lacks the memory API; the flag measures after a garbage collection at once.
+// The headless shell lacks the memory API; the flag measures at once instead of at the next garbage collection.
 test.use({ launch: { channel: 'chromium', args: ['--enable-blink-features=ForceEagerMeasureMemory'] } })
 
 interface Sample {
