@@ -63,6 +63,7 @@ type PendingBatch = {
   resolvers: BatchResolver[]
   release: () => void
   cancelled: boolean
+  started: boolean
   admissionId: string
   admit: () => void
 }
@@ -102,6 +103,7 @@ export class ChannelMessageHandler {
   private readonly chatQueues = new Map<string, Promise<void>>()
   /** Active abort controllers per session — allows renderer to abort via IPC */
   private readonly activeAbortControllers = new Map<string, AbortController>()
+  private readonly preparingCommands = new Map<string, { cancelled: boolean }>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
   /** Queued work whose write admission hasn't landed yet — `drainInFlight`'s wait-set.
@@ -272,6 +274,7 @@ export class ChannelMessageHandler {
         resolvers: [{ resolve, reject }],
         release,
         cancelled: false,
+        started: false,
         admissionId,
         admit
       }
@@ -299,6 +302,7 @@ export class ChannelMessageHandler {
       .then(async () => {
         await ready
         if (batch.cancelled) return
+        batch.started = true
 
         const merged = this.mergeMessages(batch.messages)
         if (batch.messages.length > 1) {
@@ -362,8 +366,10 @@ export class ChannelMessageHandler {
       this.queuedBatches.delete(batch)
       const batchKey = `${conversationKey(adapter.agentId, adapter.channelId, conversationId)}:${batch.messages[0].userId}`
       if (this.pendingBatches.get(batchKey) === batch) this.pendingBatches.delete(batchKey)
-      batch.admit()
-      batch.release()
+      if (!batch.started) {
+        batch.admit()
+        batch.release()
+      }
       batch.resolvers.forEach((resolver) => resolver.resolve())
     }
     return discarded
@@ -585,6 +591,8 @@ export class ChannelMessageHandler {
           try {
             const discarded = this.discardConversationBatches(adapter, conversationIdOf(command))
             const sessionId = this.peekSessionId(agentId, adapter.channelId, conversationIdOf(command))
+            const preparing = sessionId ? this.preparingCommands.get(sessionId) : undefined
+            if (preparing) preparing.cancelled = true
             const aborted = sessionId ? this.abortSession(sessionId) : false
             if (aborted || discarded) {
               receipt = t('common.channel_stop_cancelled')
@@ -607,6 +615,8 @@ export class ChannelMessageHandler {
             await adapter.sendMessage(command.chatId, t('common.channel_no_active_session'), replyOpts)
             return
           }
+          const cancellation = { cancelled: false }
+          this.preparingCommands.set(session.id, cancellation)
           const abortController = new AbortController()
           this.activeAbortControllers.set(session.id, abortController)
           const responseOptions = streamResponseOptionsFor(command)
@@ -623,7 +633,10 @@ export class ChannelMessageHandler {
               adapter,
               command.chatId,
               responseOptions,
-              onAdmitted
+              onAdmitted,
+              undefined,
+              undefined,
+              cancellation
             )
             // The `ChannelAdapterListener` registered inside `collectStreamResponse` already
             // delivered any non-empty output; only send an explicit fallback when compact
@@ -631,7 +644,10 @@ export class ChannelMessageHandler {
             if (response === '') {
               await adapter.sendMessage(command.chatId, t('common.channel_session_compacted'), replyOpts)
             }
+          } catch (error) {
+            if (!cancellation.cancelled) throw error
           } finally {
+            this.preparingCommands.delete(session.id)
             this.activeAbortControllers.delete(session.id)
             clearInterval(typingInterval)
           }
@@ -920,7 +936,8 @@ export class ChannelMessageHandler {
     responseOptions?: SendMessageOptions,
     onAdmitted?: () => void,
     onStarted?: () => void,
-    batch?: PendingBatch
+    batch?: PendingBatch,
+    cancellation?: { cancelled: boolean }
   ): Promise<string | null> {
     if (!session.agentId) {
       throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
@@ -958,12 +975,13 @@ export class ChannelMessageHandler {
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId },
-        beforePersist: batch
-          ? () => {
-              if (batch.cancelled) throw new Error('Channel batch discarded')
-              this.queuedBatches.delete(batch)
-            }
-          : undefined
+        beforePersist:
+          batch || cancellation
+            ? () => {
+                if (batch?.cancelled || cancellation?.cancelled) throw new Error('Channel work cancelled')
+                if (batch) this.queuedBatches.delete(batch)
+              }
+            : undefined
       })
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
       // Add durable admission only if channels require guaranteed busy-session delivery.

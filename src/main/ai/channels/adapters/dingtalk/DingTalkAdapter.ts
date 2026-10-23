@@ -15,10 +15,12 @@ import { sanitizeFilename } from '@shared/utils/file'
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
+  type ChannelCommandEvent,
   type ChannelStreamErrorOptions,
   type ChannelStreamOutcome,
   type SendMessageOptions
 } from '../../ChannelAdapter'
+import { SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { DINGTALK_FILE_BYTES, DingTalkApi, type DingTalkWebhook } from './DingTalkApi'
 
@@ -330,13 +332,16 @@ export class DingTalkAdapter extends ChannelAdapter {
       userName: message.senderNick,
       messageId: message.msgId
     }
-    const command = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text)
+    const command = new RegExp(
+      `^/(${SLASH_COMMANDS.map((command) => command.name).join('|')})(?:\\s+(.*))?$`,
+      's'
+    ).exec(text)
     if (command && message.msgtype !== 'audio' && !media.length) {
       const context = this.replies.get(this.key(chatId, message.msgId))
       if (context) this.closeContext(context)
       this.emit('command', {
         ...identity,
-        command: command[1] as 'new' | 'compact' | 'help' | 'whoami',
+        command: command[1] as ChannelCommandEvent['command'],
         args: command[2]
       })
     } else if (text || media.length) this.emit('message', { ...identity, text, images, files })

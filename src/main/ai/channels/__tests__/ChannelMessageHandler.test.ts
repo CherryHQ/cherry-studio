@@ -1446,7 +1446,9 @@ describe('ChannelMessageHandler', () => {
           expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
           const pause = handler.pause('stop-test')
           try {
-            await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+            const drain = handler.drainInFlight({ timeoutMs: 50 })
+            await vi.advanceTimersByTimeAsync(50)
+            expect((await drain).stragglerIds).toHaveLength(1)
           } finally {
             pause.dispose()
           }
@@ -1502,7 +1504,9 @@ describe('ChannelMessageHandler', () => {
         expect(adapter.onStreamError.mock.calls).toEqual([])
         const pause = handler.pause('stop-test')
         try {
-          await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+          const drain = handler.drainInFlight({ timeoutMs: 50 })
+          await vi.advanceTimersByTimeAsync(50)
+          expect((await drain).stragglerIds).toHaveLength(1)
         } finally {
           pause.dispose()
         }
@@ -1651,6 +1655,97 @@ describe('ChannelMessageHandler', () => {
       } finally {
         await finish()
         await Promise.all([active.completion, buffered, stopped])
+      }
+    })
+
+    // Catches /stop reporting backup quiescence while attachment bytes and their DB entry can still commit.
+    it.each(['images', 'files'] as const)('holds the drain until an in-flight %s write settles', async (kind) => {
+      bind()
+      let release!: () => void
+      const ready = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const manager = application.get('FileManager')
+      const persist = manager.createInternalEntry.bind(manager)
+      let writing = false
+      let committed = false
+      const write = vi.spyOn(manager, 'createInternalEntry').mockImplementationOnce(async (input) => {
+        writing = true
+        await ready
+        const entry = await persist(input)
+        committed = true
+        return entry
+      })
+      const completion = handler.handleIncoming(adapter, {
+        ...incoming,
+        ...(kind === 'images'
+          ? { images: [{ media_type: 'image/png', data: 'AA==' }] }
+          : { files: [{ filename: 'test.txt', media_type: 'text/plain', data: 'AA==', size: 1 }] })
+      })
+      let pause: ReturnType<ChannelMessageHandler['pause']> | undefined
+      try {
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(writing).toBe(true)
+        await handler.handleCommand(adapter, stop)
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+        pause = handler.pause('attachment-write')
+        const drain = handler.drainInFlight({ timeoutMs: 50 })
+        await vi.advanceTimersByTimeAsync(50)
+        expect((await drain).stragglerIds).toHaveLength(1)
+        expect(committed).toBe(false)
+        release()
+        await vi.waitFor(() => expect(handler.listActiveWork()).toEqual([]))
+        expect(committed).toBe(true)
+        await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+        expect(mockStartAgentSessionRun.mock.calls).toEqual([])
+      } finally {
+        release()
+        await vi.waitFor(() => expect(committed).toBe(true))
+        await finish()
+        await completion
+        pause?.dispose()
+        write.mockRestore()
+      }
+    })
+
+    // Catches compaction persisting and starting after /stop acknowledged cancellation during dispatch validation.
+    it('prevents /compact awaiting dispatch validation from persisting after /stop', async () => {
+      bind()
+      let release!: () => void
+      const ready = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let validating = false
+      const admitted: string[] = []
+      mockStartAgentSessionRun.mockImplementationOnce(async ({ beforePersist, userParts, listeners }) => {
+        validating = true
+        await ready
+        beforePersist?.()
+        admitted.push(userParts[0].text)
+        listeners[0].onDone()
+        return { mode: 'started' }
+      })
+      const compact = handler.handleCommand(adapter, { ...stop, command: 'compact' })
+      try {
+        await vi.advanceTimersByTimeAsync(0)
+        expect(validating).toBe(true)
+        expect(runs.size).toBe(0)
+        await handler.handleCommand(adapter, stop)
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+        release()
+        await compact
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+        expect(admitted).toEqual([])
+        expect(runs.size).toBe(0)
+        expect(handler.abortSession('session-stop')).toBe(false)
+        expect(handler.listActiveWork()).toEqual([])
+        holdRuns = false
+        await handler.handleCommand(adapter, { ...stop, command: 'compact' })
+        expect(runs.has('session-stop')).toBe(true)
+      } finally {
+        release()
+        await compact
+        await finish()
       }
     })
 
