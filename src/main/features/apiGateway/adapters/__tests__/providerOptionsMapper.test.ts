@@ -308,6 +308,19 @@ describe('cross-dialect descriptor translation', () => {
     ).toEqual({ openai: { reasoningEffort: 'high', forceReasoning: true } })
   })
 
+  it('lands a serialized minimal destination at low on the OpenAI target', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+
+    // The SDK query boundary accepts only low|medium|high|xhigh|max (SDK
+    // 0.3.284 and current 0.3.309 alike — no minimal tier exists), so a GPT-5
+    // minimal destination reaches the gateway as its Anthropic-serialized
+    // tier low, and the target lands at low: the same landing spot the
+    // pre-gateway base produced (cherry-pr-review inv_ab2d93e990367ead).
+    expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, undefined, 'low')).toEqual({
+      openai: { reasoningEffort: 'low', forceReasoning: true }
+    })
+  })
+
   it('normalizes Gemini sentinels, levels, and positive budgets before target dispatch', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
