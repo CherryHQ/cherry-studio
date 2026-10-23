@@ -6,7 +6,9 @@ import winston from 'winston'
 
 import { BaseService } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
+import { ApiServer } from '@main/data/api/core/ApiServer'
 import { classifyDatabaseFailure } from '@main/data/failureFacts'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { IpcChannel } from '@shared/IpcChannel'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
@@ -75,6 +77,47 @@ afterEach(async () => {
 })
 
 describe('Sentry log reporting', () => {
+  it.each([
+    {
+      label: 'database full',
+      error: Object.assign(new Error('database or disk is full'), { code: 'SQLITE_FULL' }),
+      status: 500,
+      reports: 1
+    },
+    {
+      label: 'translated conflict',
+      error: DataApiErrorFactory.conflict('Tag already exists'),
+      status: 409,
+      reports: 0
+    }
+  ])('lets the classified DataApi boundary own capture for $label', async ({ error, status, reports }) => {
+    setConsent(true)
+    const server: ApiServer = new (ApiServer as any)({
+      '/tags': {
+        POST: () => {
+          throw error
+        }
+      }
+    })
+
+    const response = await server.handleRequest({ id: 'request', method: 'POST', path: '/tags' })
+    await drainLogs()
+
+    expect(response.status).toBe(status)
+    expect(response.error?.reportingHandled).toBe(true)
+    expect(captureExceptionMock.mock.calls).toHaveLength(reports)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    if (reports) {
+      const [reported, context] = captureExceptionMock.mock.calls[0]
+      expect(reported).toMatchObject({ name: 'OperationError', message: 'sqlite_full' })
+      expect(context.tags).toMatchObject({
+        operation: 'data.request',
+        'failure.kind': 'reliability',
+        'failure.reason': 'sqlite_full'
+      })
+    }
+  })
+
   it('keeps SQL and parameters local while reporting a database failure only once', async () => {
     setConsent(true)
     const lines: string[] = []

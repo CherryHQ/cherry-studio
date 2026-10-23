@@ -281,32 +281,27 @@ export class ApiServer {
     const { request, response } = context
     const { handler, params } = handlerMatch
 
-    try {
-      // Prepare handler parameters
-      const handlerParams = {
-        params,
-        query: request.params, // URL query parameters
-        body: request.body
-      }
+    // Prepare handler parameters
+    const handlerParams = {
+      params,
+      query: request.params, // URL query parameters
+      body: request.body
+    }
 
-      // Execute handler
-      const result = await handler(handlerParams)
+    // Execute handler
+    const result = await handler(handlerParams)
 
-      // Check if result is custom status format { data, status }
-      if (isCustomStatusResult(result)) {
-        response.data = result.data
-        response.status = result.status
-      } else {
-        // Set response data
-        if (result !== undefined) {
-          response.data = result
-        }
-        // Infer status code based on HTTP method
-        response.status = this.inferStatusCode(context.method!, result)
+    // Check if result is custom status format { data, status }
+    if (isCustomStatusResult(result)) {
+      response.data = result.data
+      response.status = result.status
+    } else {
+      // Set response data
+      if (result !== undefined) {
+        response.data = result
       }
-    } catch (error) {
-      logger.error('Handler execution failed', error as Error)
-      throw error
+      // Infer status code based on HTTP method
+      response.status = this.inferStatusCode(context.method!, result)
     }
   }
 
