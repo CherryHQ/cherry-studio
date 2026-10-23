@@ -47,6 +47,11 @@ export class RequestMethods {
    * A URL seen with more than one method cannot be attributed to the request
    * that produced a `will-download`; reporting `undefined` keeps the item with
    * Electron instead of replaying the wrong method.
+   *
+   * GET and HEAD are the exception: the manager replays both as GET, and its own
+   * probe adds HEAD to every URL it manages. A history made only of those two
+   * therefore still belongs to the manager; any other method leaves the URL
+   * ambiguous, so a POST attachment stays with Electron.
    */
   methodFor(url: string): string | undefined {
     const entry = this.entries.get(url)
@@ -54,6 +59,9 @@ export class RequestMethods {
     if (this.now() - entry.at > this.ttlMs) {
       this.entries.delete(url)
       return undefined
+    }
+    if (entry.methods.every(isReplayableDownload)) {
+      return entry.methods.includes('GET') ? 'GET' : 'HEAD'
     }
     return entry.methods.length === 1 ? entry.methods[0] : undefined
   }
