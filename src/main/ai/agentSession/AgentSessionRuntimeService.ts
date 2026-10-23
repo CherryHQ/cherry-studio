@@ -112,6 +112,7 @@ import {
   transitionAgentSessionRuntime,
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
+import { classifyClaudeCodeCompactionError, classifyClaudeCodeRequestSizeError } from './claudeCodeCompactionRecovery'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
@@ -2165,11 +2166,12 @@ export class AgentSessionRuntimeService extends BaseService {
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error?: string): void {
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
     if (error) logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
+    const reason = error && entry.agentType === 'claude-code' ? classifyClaudeCodeCompactionError(error) : undefined
     application
       .get('CacheService')
       .setShared(
         AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId),
-        error ? { status: 'failed', error } : { status: 'idle' }
+        error ? { status: 'failed', error, ...(reason ? { reason } : {}) } : { status: 'idle' }
       )
   }
 
@@ -2683,6 +2685,18 @@ export class AgentSessionRuntimeService extends BaseService {
       execution.kind === 'autonomous-turn' ||
       (execution.kind === 'turn' && turn !== undefined && this.isTurnLive(entry, turn))
     ) {
+      if (
+        entry.agentType === 'claude-code' &&
+        !isAbortError(error) &&
+        !turn?.abortController.signal.aborted &&
+        classifyClaudeCodeRequestSizeError(error)
+      ) {
+        application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+          reason: 'request_too_large'
+        })
+      }
       this.applyRuntimeStateEvent(entry, {
         type: 'runtime-terminal',
         outcome: { status: 'error', error }

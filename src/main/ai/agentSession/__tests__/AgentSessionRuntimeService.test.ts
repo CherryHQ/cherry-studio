@@ -17,6 +17,8 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
+import { ClaudeCodeResultError } from '../../runtime/claudeCode/streamAdapter'
+import { classifyClaudeCodeCompactionError, classifyClaudeCodeRequestSizeError } from '../claudeCodeCompactionRecovery'
 import type * as ForkResourcesModule from '../fork/resources'
 
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
@@ -4697,6 +4699,205 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeUndefined()
+    })
+  })
+
+  describe('Claude Code recovery diagnostic boundaries', () => {
+    it.each([
+      'Request too large (max 32MB)',
+      'Request too large (max 900 bytes).',
+      '  Request too large (max 1GB) \n',
+      "Request too large for the API's 32.1MB request limit: this conversation is about 40MB, and none of it is images or documents that could be removed, so removing attachments or compacting cannot make it fit.",
+      "Request too large for the API's 32MB request limit: this conversation is about 32MB (less than 1KB over it), and only 900 bytes of it is images or documents that could be removed, so removing attachments or compacting cannot make it fit. Reduce the input (large tool results or pasted content) or start a new session; this conversation cannot continue as is.",
+      "Request too large for the API's 1GB request limit: this conversation is about 1.1GB (100MB over it), and only less than 1KB of it is images or documents that could be removed, so removing attachments or compacting cannot make it fit. Double press esc to go back past the large content, or /clear to start a new conversation.",
+      'Request too large (max 32MB). Accumulated images and attachments in the conversation pushed the request over the limit. Remove older images or compact the conversation.',
+      'Request too large (max 1GB). Accumulated images and attachments in the conversation pushed the request over the limit. Run /compact, or double press esc to go back and remove attachments.',
+      'Request too large (max 32MB; less than 1KB of about 40MB is images or documents). Accumulated images and attachments in the conversation pushed the request over the limit. Remove older images or compact the conversation.',
+      'Request too large (max 32.1MB; 900 bytes of about 32.1MB (less than 1KB over it) is images or documents). Accumulated images and attachments in the conversation pushed the request over the limit. Run /compact, or double press esc to go back and remove attachments.'
+    ])('recognizes only the complete CLI request-size shape: %s', (diagnostic) => {
+      expect(classifyClaudeCodeRequestSizeError(diagnostic)).toBe('request_too_large')
+      expect(classifyClaudeCodeRequestSizeError(new Error(diagnostic))).toBe('request_too_large')
+    })
+
+    it.each([
+      'context too large',
+      '413 Payload Too Large',
+      413,
+      { statusCode: 413 },
+      { message: 'Request too large (max 32MB)' },
+      'The log says Request too large (max 32MB) but this is a quote.',
+      'Request too large (max 32MB); Request too large (max 1GB)',
+      'request too large (max 32MB)',
+      'Request too large (max 32MB) retry',
+      'Request too large (max 32MB). Run /compact, or double press esc to go back and remove attachments.',
+      "Request too large for the API's 32MB request limit: this conversation is about 40MB, and everything is removable, so removing attachments or compacting cannot make it fit.",
+      "Request too large for the API's 32MB request limit: this conversation is about 40MB, and none of it is images or documents that could be removed, so removing attachments or compacting cannot make it fit. Unknown advice."
+    ])('rejects unrelated or partial request-size diagnostics: %j', (diagnostic) => {
+      expect(classifyClaudeCodeRequestSizeError(diagnostic)).toBeUndefined()
+    })
+
+    it('does not classify result diagnostics by their joined message', () => {
+      const error = new ClaudeCodeResultError('Request too large (max 32MB)', 'error_during_execution', [
+        'Request too large (max ',
+        '32MB)'
+      ])
+      expect(classifyClaudeCodeRequestSizeError(error)).toBeUndefined()
+    })
+
+    it('skips non-string result diagnostics without losing valid members', () => {
+      const error = new ClaudeCodeResultError('original', 'error_during_execution', [
+        null,
+        413,
+        'Request too large (max 32MB)'
+      ] as unknown as string[])
+      expect(classifyClaudeCodeRequestSizeError(error)).toBe('request_too_large')
+    })
+
+    it.each(['prefix too_few_groups', 'too_few_groups: retry', 'TOO_FEW_GROUPS', 'context too large'])(
+      'rejects partial compaction diagnostic %s',
+      (diagnostic) => {
+        expect(classifyClaudeCodeCompactionError(diagnostic)).toBeUndefined()
+      }
+    )
+  })
+
+  describe('Claude Code compaction recovery', () => {
+    const key = 'agent.session.compaction.session-1'
+    let cache: Map<string, unknown>
+
+    beforeEach(() => {
+      cache = new Map()
+      mocks.cacheSetShared.mockImplementation((key, value) => cache.set(key, value))
+      mocks.cacheGetShared.mockImplementation((key) => cache.get(key))
+    })
+
+    afterEach(() => {
+      mocks.cacheSetShared.mockReset()
+      mocks.cacheGetShared.mockReset()
+    })
+
+    async function openRecoveryTurn(agentType = 'claude-code') {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
+      const events = createAsyncQueue<any>()
+      const connection = { events: events.iterable, send: vi.fn(), close: vi.fn() }
+      runtimeDriverRegistry.register({
+        type: agentType,
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, agentType, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+      return { service, handle, reader, events, connection }
+    }
+
+    it.each([
+      ['too_few_groups', 'claude-code', 'nothing_to_compact'],
+      ['  too_few_groups \n', 'claude-code', 'nothing_to_compact'],
+      ['Reactive compact: fewer than 2 groups, nothing to compact', 'claude-code', 'nothing_to_compact'],
+      ['context too large', 'claude-code', undefined],
+      ['prefix too_few_groups', 'claude-code', undefined],
+      ['too_few_groups: retry', 'claude-code', undefined],
+      ['too_few_groups', 'test-runtime', undefined]
+    ])('preserves raw compaction diagnostic %j for %s with reason %s', async (error, agentType, reason) => {
+      const { events, reader } = await openRecoveryTurn(agentType)
+      events.push({ type: 'compaction-start' })
+      events.push({ type: 'compaction-error', error })
+      await vi.waitFor(() => expect(cache.get(key)).toEqual({ status: 'failed', error, ...(reason ? { reason } : {}) }))
+      events.push({ type: 'turn-complete' })
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+    })
+
+    it.each(['absent', 'idle', 'compacting', 'unknown-failure', 'nothing_to_compact', 'same-error'])(
+      'replaces %s with one terminal size notice and preserves the stream error',
+      async (previous) => {
+        const { events, reader } = await openRecoveryTurn()
+        const error = new Error('Request too large (max 32MB)')
+        if (previous === 'idle') cache.set(key, { status: 'idle' })
+        if (previous === 'unknown-failure' || previous === 'same-error') {
+          cache.set(key, { status: 'failed', error: previous === 'same-error' ? error.message : 'unknown' })
+        }
+        if (previous === 'compacting') {
+          events.push({ type: 'compaction-start' })
+          await vi.waitFor(() => expect(cache.get(key)).toMatchObject({ status: 'compacting' }))
+        }
+        if (previous === 'nothing_to_compact') {
+          events.push({ type: 'compaction-error', error: 'too_few_groups' })
+          await vi.waitFor(() => expect(cache.get(key)).toMatchObject({ reason: 'nothing_to_compact' }))
+        }
+        events.push({ type: 'error', error })
+        await expect(reader.read()).rejects.toBe(error)
+        expect(cache.get(key)).toEqual({ status: 'failed', error: error.message, reason: 'request_too_large' })
+      }
+    )
+
+    it('classifies individual result diagnostics and preserves the original joined message', async () => {
+      const { events, reader } = await openRecoveryTurn()
+      const errors = ['another diagnostic', 'Request too large (max 32.1MB).']
+      const error = new ClaudeCodeResultError(errors.join('; '), 'error_during_execution', errors)
+      events.push({ type: 'error', error })
+      await expect(reader.read()).rejects.toBe(error)
+      expect(cache.get(key)).toEqual({ status: 'failed', error: errors.join('; '), reason: 'request_too_large' })
+    })
+
+    it.each(['abort-error', 'aborted-turn', 'other-runtime'])('suppresses terminal recovery for %s', async (kind) => {
+      const { service, events, reader } = await openRecoveryTurn(
+        kind === 'other-runtime' ? 'test-runtime' : 'claude-code'
+      )
+      const error = new Error('Request too large (max 32MB)')
+      if (kind === 'abort-error') error.name = 'AbortError'
+      if (kind === 'aborted-turn') getEntry(service).currentTurn.abortController.abort()
+      events.push({ type: 'error', error })
+      if (kind !== 'aborted-turn') await expect(reader.read()).rejects.toBe(error)
+      await vi.waitFor(() =>
+        expect(getEntry(service).runtimeState.execution).toMatchObject({ stream: 'awaiting-persistence' })
+      )
+      expect(cache.get(key)).toBeUndefined()
+    })
+
+    it.each(['nothing_to_compact', 'request_too_large'])('clears %s on the next admitted turn', async (reason) => {
+      const { service, handle, events, reader, connection } = await openRecoveryTurn()
+      if (reason === 'nothing_to_compact') {
+        events.push({ type: 'compaction-error', error: 'too_few_groups' })
+        await vi.waitFor(() => expect(cache.get(key)).toMatchObject({ status: 'failed', reason }))
+        events.push({ type: 'turn-complete' })
+        await expect(reader.read()).resolves.toMatchObject({ done: true })
+        await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      } else {
+        const error = new Error('Request too large (max 32MB)')
+        events.push({ type: 'error', error })
+        await expect(reader.read()).rejects.toBe(error)
+        expect(cache.get(key)).toMatchObject({ status: 'failed', reason })
+        await terminalListener(handle).onError({
+          status: 'error',
+          isTopicDone: true,
+          error: { name: 'Error', message: error.message }
+        })
+      }
+      const next = service.beginTurn({
+        ...baseTurnInput,
+        agentType: 'claude-code',
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      const nextReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: next.turnId, signal: new AbortController().signal })
+        .getReader()
+      await nextReader.read()
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+      expect(cache.get(key)).toEqual({ status: 'idle' })
+      events.push({ type: 'turn-complete' })
+      await expect(nextReader.read()).resolves.toMatchObject({ done: true })
     })
   })
 

@@ -1258,6 +1258,19 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(loggerMocks.info).not.toHaveBeenCalledWith(expect.stringContaining('Stream completed'))
   })
 
+  it('preserves separate result diagnostics and their original joined terminal message', () => {
+    const { adapter } = createAdapter()
+    const errors = ['another diagnostic', 'Request too large (max 32MB)']
+    let thrown: unknown
+    try {
+      adapter.handleMessage(successResult({ subtype: 'error_during_execution', is_error: true, errors }))
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+    expect(thrown).toMatchObject({ message: errors.join('; '), errors })
+  })
+
   it.each([400, 401, 429, 503])('preserves SDK HTTP %i across error serialization', (statusCode) => {
     const { adapter } = createAdapter()
     const message = `API Error: ${statusCode} Provider returned error`
@@ -2023,6 +2036,19 @@ describe('ClaudeCodeStreamAdapter', () => {
           anchor: expect.objectContaining({ trigger: 'auto', preTokens: 50_000, postTokens: 12_000, durationMs: 900 })
         }
       ])
+    })
+
+    it('forwards compact_error unchanged without classifying it', () => {
+      const { adapter, statusEvents } = createAdapter()
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'failed',
+        compact_error: '  too_few_groups \n'
+      } as any)
+      expect(statusEvents).toEqual([{ type: 'compaction-error', error: '  too_few_groups \n' }])
     })
 
     it('settles a compaction that reports success without a boundary', () => {
