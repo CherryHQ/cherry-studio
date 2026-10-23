@@ -4250,6 +4250,104 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it('preserves mixed space-tab indented code split across deltas, with a matching snapshot (inv_f762891db4383e41)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'Example:\n\n   \tvalue <thinking>literal</thinking>\n\nDone.'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    // Three spaces plus a tab reach column four via CommonMark tab stops: the
+    // carry must transport the whole mixed run, or the completing chunk scans
+    // below the indented-code threshold and the literal XML is deleted,
+    // corrupting snapshot reconciliation too (cherry-pr-review
+    // inv_f762891db4383e41).
+    for (const piece of ['Example:\n\n   \tvalue ', '<thinking>literal</thinking>', '\n\nDone.']) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
+  it('keeps a post-tool-round bare summary answer visible during post-compaction grace (inv_2d860893242eb158)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer =
+      '<summary>\n' +
+      '1. Task Overview:\n   Post-tool final answer.\n\n' +
+      '2. Current State:\n   Complete.\n' +
+      '</summary>'
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_result: 'success'
+    } as any)
+    // A tool-round message whose text is scratchpad-only: the strip records
+    // provenance for THIS message, not the whole turn.
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: '<analysis>internal routing notes</analysis>' },
+          { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'ls' } }
+        ]
+      }
+    } as any)
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'ok' }] }
+    } as any)
+    // The next message's bare summary-shaped answer carries no scratchpad
+    // provenance of its own: the earlier tool round must not erase it.
+    adapter.handleMessage(streamEvent({ type: 'message_start' } as any))
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: answer } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toContain('Task Overview')
+    expect(text).toContain('Post-tool final answer')
+    expect(text).not.toContain('internal routing notes')
+  })
+
   it('preserves the requested summary when a visible preamble and a tool call precede compaction (inv_58329b90d53633c8)', () => {
     const { adapter, parts } = createAdapter()
     const summary =

@@ -931,6 +931,11 @@ export class ClaudeCodeStreamAdapter {
         this.handleMessageDelta(event, ctx)
         break
       case 'message_start':
+        // Scratchpad provenance belongs to the message whose text carried the
+        // wrapper: carrying it into a new message lets unrelated tool-round
+        // reasoning erase the final answer (cherry-pr-review inv_2d860893242eb158).
+        ctx.compactionScratchpadStripped = false
+        break
       case 'message_stop':
         break
     }
@@ -1184,13 +1189,27 @@ export class ClaudeCodeStreamAdapter {
     // whitespace or after content landed: the next chunk continues that line
     // and must be scanned with its indentation restored (cherry-pr-review
     // inv_07cd547fcfcb085d).
-    const indent = openLine.match(/^(?: +|\t+)/)?.[0]
+    // Carry the complete mixed indentation: CommonMark measures columns with
+    // tab stops, so a run like three spaces and a tab reaches column four.
+    // Carrying only the leading spaces drops the tab and the completing chunk
+    // scans below the indented-code threshold (cherry-pr-review
+    // inv_f762891db4383e41).
+    const indent = openLine.match(/^[ \t]+/)?.[0]
     if (!indent) return ''
     if (lineStart === 0) return indent
+    const leadingIndentColumns = (line: string): number => {
+      let columns = 0
+      for (const ch of line) {
+        if (ch === ' ') columns += 1
+        else if (ch === '\t') columns += 4 - (columns % 4)
+        else break
+      }
+      return columns
+    }
     const prevLineEnd = lineStart - 1
     const prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1
     const prevLine = text.slice(prevLineStart, prevLineEnd)
-    if (prevLine.trim() === '' || /^(?: {4,}|\t)/.test(prevLine)) return indent
+    if (prevLine.trim() === '' || leadingIndentColumns(prevLine) >= 4) return indent
     return ''
   }
 
@@ -1599,6 +1618,11 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (!message.message?.content) return
+
+    // Scratchpad provenance belongs to this message alone: a strip from an
+    // earlier message in the turn must not mark this one's text as a
+    // compaction artifact (cherry-pr-review inv_2d860893242eb158).
+    ctx.compactionScratchpadStripped = false
 
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
