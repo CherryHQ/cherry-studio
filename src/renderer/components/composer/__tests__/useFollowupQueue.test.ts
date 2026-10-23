@@ -3049,6 +3049,70 @@ describe('useFollowupQueue', () => {
     expect(onDrain).not.toHaveBeenCalled()
   })
 
+  it('keeps a pending Pause override until its own write is acknowledged, not on a stale cache echo (inv_2defea073e0ba391)', async () => {
+    // Start paused: the cache echo already matches the Pause value the user
+    // is about to request.
+    wireQuery([row('h', 'head')], true)
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let resolveResume!: () => void
+    let resolvePause!: () => void
+    setPausedTrigger
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveResume = () => resolve({ scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' })
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePause = () => resolve({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '' })
+          })
+      )
+      .mockResolvedValue({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '' } as any)
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
+    )
+
+    // Resume, then Pause before the Resume write settles. The stale cache
+    // echo (still paused=true) matches the newest override, but the Pause
+    // write has not even been sent: Boolean equality must not release the
+    // hold (cherry-pr-review inv_2defea073e0ba391).
+    act(() => {
+      result.current.setPaused(false)
+    })
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+
+    // The Resume write commits and the cache catches up to it: automatic
+    // delivery must stay parked behind the still-pending Pause write.
+    await act(async () => {
+      resolveResume()
+    })
+    wireQuery([row('h', 'head')], false)
+    rerender({ completion: { status: 'streaming', lastCompletedAt: null as number | null } })
+    expect(result.current.paused).toBe(true)
+    await act(async () => {
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
+    expect(onDrain).not.toHaveBeenCalled()
+
+    // Once the Pause write itself is acknowledged and the cache echoes it,
+    // the hold clears against the echoed value.
+    await act(async () => {
+      resolvePause()
+    })
+    wireQuery([row('h', 'head')], true)
+    rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    expect(result.current.paused).toBe(true)
+  })
+
   it('retains a pending Pause per scope when another scope pauses before the write settles', async () => {
     // Pause assistant A while its PUT awaits retry, switch to assistant B in
     // the same topic (the composer stays mounted) and pause it, then return
