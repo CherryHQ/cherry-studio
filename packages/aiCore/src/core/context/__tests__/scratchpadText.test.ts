@@ -426,4 +426,21 @@ describe('round-3 scanner regressions', () => {
       'Answer \\</parameter>'
     )
   })
+
+  it('applies code-span delimiter rules when locating the real scratchpad closer (inv_ccf2d4de8815a708)', () => {
+    // A backslash does not escape a closing backtick INSIDE a code span: the
+    // span completes after `tag\`, the </analysis> inside it is literal, and
+    // the real wrapper boundary is the later unwrapped closer.
+    const input = '<analysis>Use `the </analysis> tag\\` in code. INTERNAL_TEXT</analysis><summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe('<summary>Keep</summary>')
+  })
+
+  it('treats a heading as a closed block so following indented scratchpad literals stay code (inv_0847c277aaa83851)', () => {
+    // CommonMark: the ATX heading closes its block, so the four-space line is
+    // indented code and its literal XML must survive.
+    const input = '# Example\n    <thinking>literal example</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
 })

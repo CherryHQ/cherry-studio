@@ -219,7 +219,11 @@ function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
         closeRun++
         j++
       }
-      if (closeRun === run && !isBackslashEscaped(text, j - closeRun)) {
+      // Inside a code span a backslash is literal text, so it cannot escape
+      // the closing backtick: rejecting this delimiter leaves the span open
+      // and lets a literal tag inside it become the wrapper boundary
+      // (CommonMark 0.31.2; cherry-pr-review inv_ccf2d4de8815a708).
+      if (closeRun === run) {
         closedAt = j
         break
       }
@@ -467,6 +471,21 @@ function maskIndentedCodeBlocks(text: string): {
   }
   const isIndentedCodeLine = (line: string): boolean => line.trim() !== '' && indentedCodeColumns(line) >= 4
 
+  // CommonMark leaf blocks close a paragraph, so indentation after them
+  // opens indented code rather than continuing paragraph text: an ATX
+  // heading, a setext underline, a thematic break, or a masked fence block
+  // (CommonMark 0.31.2 §4.4; cherry-pr-review inv_0847c277aaa83851). A setext
+  // underline only closes an OPEN paragraph; on its own it is paragraph text.
+  const isLeafBlockBoundaryLine = (line: string, paragraphWasOpen: boolean): boolean => {
+    if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(line)) return true
+    if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(line)) return true
+    if (/^ {0,3}(?:_[ \t]*){3,}$/.test(line)) return true
+    if (/^ {0,3}(?:-[ \t]*){3,}$/.test(line)) return true
+    if (/^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001[ \t]*$/.test(line.trim())) return true
+    if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(line)) return true
+    return false
+  }
+
   const outLines: string[] = []
   let i = 0
   let paragraphOpen = false
@@ -479,7 +498,7 @@ function maskIndentedCodeBlocks(text: string): {
       continue
     }
     if (paragraphOpen || !isIndentedCodeLine(line)) {
-      paragraphOpen = true
+      paragraphOpen = !isLeafBlockBoundaryLine(line, paragraphOpen)
       outLines.push(line)
       i++
       continue
@@ -810,7 +829,9 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
           closeRun++
           j++
         }
-        if (closeRun === run && !isBackslashEscaped(text, j - closeRun)) {
+        // Inside a code span a backslash is literal text, so it cannot
+        // escape the closing backtick (cherry-pr-review inv_ccf2d4de8815a708).
+        if (closeRun === run) {
           closedAt = j
           break
         }
