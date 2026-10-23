@@ -3,12 +3,15 @@ import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { readMigrationFiles } from 'drizzle-orm/migrator'
-import { defineConfig, type Plugin, type UserConfig } from 'vite'
+import { defineConfig, type Plugin, type Rolldown, type UserConfig } from 'vite'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
-const srcMain = resolve(repoRoot, 'src/main')
-const srcRenderer = resolve(repoRoot, 'src/renderer')
-const srcShared = resolve(repoRoot, 'src/shared')
+// The desktop sources to build from. An edition that composes its own source tree sets
+// WEB_CORE_SOURCE_ROOT to it before loading this config.
+const sourceRoot = process.env.WEB_CORE_SOURCE_ROOT ? resolve(process.env.WEB_CORE_SOURCE_ROOT) : repoRoot
+const srcMain = resolve(sourceRoot, 'src/main')
+const srcRenderer = resolve(sourceRoot, 'src/renderer')
+const srcShared = resolve(sourceRoot, 'src/shared')
 const runtime = (file: string) => resolve(import.meta.dirname, 'src/runtime', file)
 const disabled = (file: string) => resolve(import.meta.dirname, 'src/disabled', file)
 const page = (file: string) => resolve(import.meta.dirname, 'src/page', file)
@@ -44,22 +47,22 @@ export const workerAliases = [
   { find: /^@cherrystudio\/ai-core$/, replacement: resolve(repoRoot, 'packages/aiCore/src') },
   { find: /^@cherrystudio\/ai-sdk-provider$/, replacement: resolve(repoRoot, 'packages/ai-sdk-provider/src') },
   { find: /^@cherrystudio\/provider-registry$/, replacement: resolve(repoRoot, 'packages/provider-registry/src') },
-  { find: /^@main\//, replacement: `${resolve(repoRoot, 'src/main')}/` },
-  { find: /^@shared\//, replacement: `${resolve(repoRoot, 'src/shared')}/` }
+  { find: /^@main\//, replacement: `${srcMain}/` },
+  { find: /^@shared\//, replacement: `${srcShared}/` }
 ]
 
 /** The renderer aliases the harness bridge page needs; the Web app uses the desktop renderer's own. */
 const harnessPageAliases = [
-  { find: /^@renderer\//, replacement: `${resolve(repoRoot, 'src/renderer')}/` },
-  { find: /^@cherrystudio\/ui$/, replacement: resolve(repoRoot, 'packages/ui/src/index.ts') },
-  { find: /^@cherrystudio\/ui\/icons$/, replacement: resolve(repoRoot, 'packages/ui/src/components/icons/index.ts') },
-  { find: /^@cherrystudio\/ui\//, replacement: `${resolve(repoRoot, 'packages/ui/src')}/` }
+  { find: /^@renderer\//, replacement: `${srcRenderer}/` },
+  { find: /^@cherrystudio\/ui$/, replacement: resolve(sourceRoot, 'packages/ui/src/index.ts') },
+  { find: /^@cherrystudio\/ui\/icons$/, replacement: resolve(sourceRoot, 'packages/ui/src/components/icons/index.ts') },
+  { find: /^@cherrystudio\/ui\//, replacement: `${resolve(sourceRoot, 'packages/ui/src')}/` }
 ]
 
 /** Code that runs in the page as the desktop renderer or preload; everything else runs in the Worker. */
 const pageSources = [
-  resolve(repoRoot, 'src/renderer'),
-  resolve(repoRoot, 'src/preload'),
+  srcRenderer,
+  resolve(sourceRoot, 'src/preload'),
   resolve(import.meta.dirname, 'src/page'),
   resolve(import.meta.dirname, 'app/main.ts'),
   resolve(import.meta.dirname, 'harness/bridge.ts')
@@ -69,26 +72,30 @@ const pageSources = [
 const processAliases: Record<'worker' | 'page', Record<string, string>> = {
   worker: {
     '@logger': runtime('logger.ts'),
-    '@data': resolve(repoRoot, 'src/main/data'),
+    '@data': resolve(srcMain, 'data'),
     // Exports only what the main-process services use, so a new Electron API fails the build.
     electron: runtime('electron.ts')
   },
   page: {
-    '@logger': resolve(repoRoot, 'src/renderer/services/LoggerService.ts'),
-    '@data': resolve(repoRoot, 'src/renderer/data'),
+    '@logger': resolve(srcRenderer, 'services/LoggerService.ts'),
+    '@data': resolve(srcRenderer, 'data'),
     electron: page('electron.ts'),
     '@electron-toolkit/preload': page('electronToolkitPreload.ts')
   }
 }
 
-/** Resolves `processAliases` by the importer's side, since one build holds both the page and Worker code. */
-export function resolveProcessAliases(): Plugin {
+/**
+ * Resolves `processAliases` by the importer's side, since one build holds both the page and Worker code.
+ * `extraPageSources` adds an edition's own page code.
+ */
+export function resolveProcessAliases(extraPageSources: string[] = []): Plugin {
+  const sources = [...pageSources, ...extraPageSources]
   return {
     name: 'resolve-process-aliases',
     enforce: 'pre',
     resolveId(id, importer, options) {
       if (!importer) return undefined
-      const aliases = processAliases[pageSources.some((source) => importer.startsWith(source)) ? 'page' : 'worker']
+      const aliases = processAliases[sources.some((source) => importer.startsWith(source)) ? 'page' : 'worker']
       const name = Object.keys(aliases).find((key) => id === key || id.startsWith(`${key}/`))
       if (!name) return undefined
       return this.resolve(aliases[name] + id.slice(name.length), importer, { ...options, skipSelf: true })
@@ -212,12 +219,15 @@ export function provideWorkerNodeModules(): Plugin {
   }
 }
 
-/** Desktop code reads `process.platform`, which a Worker lacks; no desktop OS applies (`src/runtime/platform.ts`). */
+/**
+ * Desktop code, including an edition's main-process code, reads `process.platform`, which a Worker
+ * lacks; no desktop OS applies (`src/runtime/platform.ts`). Dependencies guard their own reads.
+ */
 export function defineWorkerPlatform(): Plugin {
   return {
     name: 'define-worker-platform',
     transform(code, id) {
-      if (!id.startsWith(srcMain) || !code.includes('process.platform')) return undefined
+      if (id.includes('/node_modules/') || !code.includes('process.platform')) return undefined
       return { code: code.replaceAll('process.platform', "'browser'"), map: null }
     }
   }
@@ -266,10 +276,13 @@ export const crossOriginIsolation = {
 // The desktop preload exposes its API directly when context isolation is off; a page has none.
 export const pageDefines = { 'process.contextIsolated': 'false' }
 
-const workerEntries = [
-  resolve(import.meta.dirname, 'harness/harnessWorker.ts'),
-  resolve(import.meta.dirname, 'app/coreWorker.ts')
-]
+/**
+ * Lazy chunks must not import from a Worker entry file: WebKit evaluates a module Worker's script
+ * again when a chunk imports it, starting a second Core Worker without a database.
+ */
+export function workerCodeSplitting(entries: string[]): Rolldown.CodeSplittingOptions {
+  return { groups: [{ name: 'core', tags: ['$initial'], test: (id: string) => !entries.includes(id) }] }
+}
 
 export const coreWorkerConfig = {
   format: 'es',
@@ -281,13 +294,12 @@ export const coreWorkerConfig = {
     forbidNodeModules(),
     migrationsPlugin()
   ],
-  // Lazy chunks must not import from the entry file: WebKit evaluates a module Worker's
-  // script again when a chunk imports it, starting a second Core Worker without a database.
   rolldownOptions: {
     output: {
-      codeSplitting: {
-        groups: [{ name: 'core', tags: ['$initial'], test: (id: string) => !workerEntries.includes(id) }]
-      }
+      codeSplitting: workerCodeSplitting([
+        resolve(import.meta.dirname, 'harness/harnessWorker.ts'),
+        resolve(import.meta.dirname, 'app/coreWorker.ts')
+      ])
     }
   }
 } satisfies UserConfig['worker']

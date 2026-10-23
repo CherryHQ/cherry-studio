@@ -12,12 +12,15 @@ let mounted = false
  * before they resolve.
  */
 export async function mountAccountFiles(account: string): Promise<void> {
-  const root = await navigator.storage.getDirectory()
-  const accounts = await root.getDirectoryHandle('cherry-studio', { create: true })
-  const accountDirectory = await accounts.getDirectoryHandle(encodeURIComponent(account), { create: true })
-  const handle = await accountDirectory.getDirectoryHandle('files', { create: true })
-  vfs.mount(FILES_ROOT, await resolveMountConfig({ backend: WebAccess, handle }))
+  await mountOpfsDirectory(FILES_ROOT, ['cherry-studio', encodeURIComponent(account), 'files'])
   mounted = true
+}
+
+/** Mounts the OPFS directory at `segments` (created if missing) at `mountPoint` in ZenFS. */
+export async function mountOpfsDirectory(mountPoint: string, segments: string[]): Promise<void> {
+  let handle = await navigator.storage.getDirectory()
+  for (const segment of segments) handle = await handle.getDirectoryHandle(segment, { create: true })
+  vfs.mount(mountPoint, await resolveMountConfig({ backend: WebAccess, handle }))
 }
 
 export function unmountAccountFiles(): void {

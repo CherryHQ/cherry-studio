@@ -12,11 +12,13 @@ import type { PythonService } from '@main/services/PythonService'
 
 import type { WebDbService } from '../database/WebDbService'
 import type { WebWindowManager } from '../services/WebWindowManager'
+import { app } from './electron'
 
 /** The part of the desktop trace store that every chat turn writes to. */
 export type WebTraceStorage = Pick<TraceStorageService, 'setTopicId' | 'saveEntity' | 'addSpanEvent' | 'saveSpans'>
 
-interface WebServices {
+/** Services by name; an edition adds its own by augmenting this interface. */
+export interface WebServices {
   DbService: WebDbService
   WindowManager: WebWindowManager
   PreferenceService: PreferenceService
@@ -38,6 +40,7 @@ interface WebServices {
  */
 class WebApplication {
   readonly #services = new Map<keyof WebServices, unknown>()
+  #ready = false
 
   register<K extends keyof WebServices>(name: K, instance: WebServices[K]): void {
     this.#services.set(name, instance)
@@ -57,8 +60,30 @@ class WebApplication {
     return filename ? `/web/${namespace}/${filename}` : `/web/${namespace}`
   }
 
+  /**
+   * The desktop is ready once its services have started. The Worker's window and IPC services start
+   * with the Worker, before the page opens an account (an edition's sign-in page runs without one).
+   */
   isReady(): boolean {
-    return this.#services.has('DbService')
+    return this.#ready
+  }
+
+  markReady(): void {
+    this.#ready = true
+  }
+
+  /** The desktop container's lookup by token, which edition code uses for its own services. */
+  getContainer() {
+    return {
+      get: <T>(token: keyof WebServices): T => this.get(token) as T,
+      getInstance: <T>(token: keyof WebServices): T | undefined => this.#services.get(token) as T | undefined,
+      has: (token: keyof WebServices): boolean => this.#services.has(token)
+    }
+  }
+
+  /** The page reloads and starts a new Core Worker. */
+  relaunch(): void {
+    app.relaunch()
   }
 }
 

@@ -15,6 +15,19 @@ export class WebWindowManager {
     return webContents === pageWebContents ? PAGE_WINDOW_ID : undefined
   }
 
+  getWindowId(window: unknown): string | undefined {
+    return window === BrowserWindow.getAllWindows()[0] ? PAGE_WINDOW_ID : undefined
+  }
+
+  getWindowType(windowId: string): WindowType | undefined {
+    return windowId === PAGE_WINDOW_ID ? WindowType.Main : undefined
+  }
+
+  /** The page is the only window, so there are no others to list or close. */
+  getWindowInfosByType(): [] {
+    return []
+  }
+
   getWindowsByType(type: WindowType): PageWindow[] {
     return type === WindowType.Main ? BrowserWindow.getAllWindows() : []
   }

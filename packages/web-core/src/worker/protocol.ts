@@ -3,6 +3,16 @@ import type { DataRequest, DataResponse } from '@shared/data/api/types'
 /** `ipcRenderer.send` channel on which the page reports its color scheme (`ThemeMode`). */
 export const NATIVE_THEME_CHANNEL = 'web:native-theme'
 
+/** `webContents.send` channels for what the desktop main process does to its window or the OS. */
+export const PageChannel = {
+  /** `app.relaunch()`: the page reloads, which starts a new Core Worker. */
+  Relaunch: 'web:relaunch',
+  /** `shell.openExternal(url)`: the page opens the URL in a new tab. */
+  OpenExternal: 'web:open-external',
+  /** `BrowserWindow.loadURL(url)`: the page shows the renderer entry at `url` (handled by the app). */
+  LoadUrl: 'web:load-url'
+} as const
+
 export interface OpenResult {
   path: string
   openMs: number

@@ -10,9 +10,9 @@ unmodified desktop main window on top of it. See the Agent Notes for the
 [Web app](../../.agents/notes/proposed/architecture/2026-10-20-web-core-app.md) and
 [agent](../../.agents/notes/proposed/architecture/2026-10-21-web-core-agent.md).
 
-- `./worker` — `startCoreWorker(self, extraCommands?)` turns a dedicated Worker into a
+- `./worker` — `startCoreWorker(self, extraCommands?, hooks?)` turns a dedicated Worker into a
   Core Worker. Commands: `open` (account), `request` (a DataApi `DataRequest`),
-  `ipc-invoke` / `ipc-send` (the page's `ipcRenderer`), `close`.
+  `ipc-invoke` / `ipc-send` (the page's `ipcRenderer`), `close`. See *Editions* for `hooks`.
 - `./client` — `CoreClient` on the page: `open()`, `request()`, and `onBroadcast()` for
   every `webContents.send` of the Worker (e.g. `DataApi_DataChanged`).
 - `src/page/preload.ts` — imported before any renderer module, it runs the desktop preload
@@ -23,13 +23,15 @@ unmodified desktop main window on top of it. See the Agent Notes for the
 The Worker build (`vite.config.ts`) aliases the few main-process modules the services
 touch to browser implementations in `src/runtime/`: `@application` (only the services
 registered by `startCoreWorker`; `getPath` returns `/web/<namespace>` paths), `@logger`, `diagnostics`, `platform`, `electron` (the
-`ipcMain` registries, the page as the only window and `app.getLocale()`), `node:crypto`, `node:os`, `node:path`, `node:util`,
+`ipcMain` registries, the page as the only window, `app.getLocale()` / `relaunch()`, `shell.openExternal` and
+`net.fetch`), `node:crypto`, `node:os`, `node:path`, `node:util`,
 `node:fs`, `node:fs/promises` and `node:url` (→ ZenFS, see below),
 `node:buffer`, better-sqlite3 (→ `@cherrystudio/sqlite-wasm-compat`), drizzle's
 file-reading migrator (→ migrations bundled at build time) and the provider registry
 loader (→ the bundled catalog). `BootConfigService` keeps the defaults in memory,
 `validateSender` accepts the page (a dedicated Worker only hears from it), and
-`CacheService`'s persist file lives in memory. `process.platform` reads `'browser'`.
+`CacheService`'s persist file lives in memory. `process.platform` reads `'browser'` in every
+source file outside `node_modules`.
 Nothing under `src/main` is edited.
 A build plugin fails on any other Node built-in or Electron import, so a served service
 that grows a desktop-only dependency breaks `build:harness` instead of the browser.
@@ -55,9 +57,9 @@ listing, web search, Copilot / Grok CLI / Ollama, trace storage, devtools) for s
 the feature's dependencies out of the bundle. Provider requests use the Worker's `fetch`, so
 an endpoint must allow CORS from the page's origin.
 
-The Worker build moves every eagerly loaded module into a `core` chunk. WebKit evaluates a
-module Worker's script a second time when a lazily loaded chunk imports from it, which
-started a second Core Worker without a database.
+The Worker build moves every eagerly loaded module into a `core` chunk
+(`workerCodeSplitting(entries)`). WebKit evaluates a module Worker's script a second time when a
+lazily loaded chunk imports from it, which started a second Core Worker without a database.
 
 ## How agents run here
 
@@ -112,6 +114,26 @@ in the page: Sentry is off, the settings menu keeps the provider, default model,
 general, appearance and about sections, creating an agent shows Pi as its runtime
 instead of a choice, and the Pyodide worker starts in a sandboxed iframe. Nothing under
 `src/renderer` is edited.
+
+## Editions
+
+Another edition builds its own Web app on this package, with its own Worker entry and page.
+
+- `WEB_CORE_SOURCE_ROOT` makes `vite.config.ts` resolve `src/main`, `src/renderer` and `src/shared`
+  under another tree, such as an edition's prepared source view, before the edition imports it.
+- `startCoreWorker`'s `hooks`: `createIpcApiService` / `createDataApiService` build the edition's
+  services in place of the desktop ones, `afterOpen(opened, account)` starts the edition's services
+  once the account's have started (a throw closes the account again) and `beforeClose` stops them.
+  It returns the `open` and `close` commands so the edition can reopen another account in place.
+- `application` starts ready with the Worker's window and IPC services, before any account opens,
+  so an edition can serve a sign-in page without a database. `WebServices` can be augmented, and
+  `getContainer()` is the desktop container's lookup.
+- The Worker reaches the page on `PageChannel`: `web:relaunch` (`app.relaunch()`) reloads it,
+  `web:open-external` (`shell.openExternal`) opens a tab, and `web:load-url` (`window.loadURL`)
+  hands the page the entry to show; the page decides whether that means a reload.
+- `resolveProcessAliases(extraPageSources)` treats an edition's page files as page code.
+  `mountOpfsDirectory` mounts any OPFS folder in ZenFS, and `deleteAccountData(account)` removes an
+  account's database and files once no Worker holds it.
 
 ## Database invariants
 

@@ -2,6 +2,7 @@
 // (see `src/runtime/electron.ts`) once `connectCore` has run. Only what the desktop preload uses
 // is exported, so a new Electron API in the preload fails the build.
 import type { CoreClient } from '../client/CoreClient'
+import { PageChannel } from '../worker/protocol'
 
 type IpcRendererListener = (event: IpcRendererEvent, ...args: any[]) => void
 
@@ -58,6 +59,8 @@ export const ipcRenderer = {
 export function connectCore(client: CoreClient): void {
   const event: IpcRendererEvent = { sender: ipcRenderer, ports: [] }
   client.onBroadcast((channel, args) => {
+    if (channel === PageChannel.Relaunch) location.reload()
+    else if (channel === PageChannel.OpenExternal) void shell.openExternal(args[0] as string)
     for (const listener of [...(listeners.get(channel) ?? [])]) listener(event, ...args)
   })
   connect(client)

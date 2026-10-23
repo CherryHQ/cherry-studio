@@ -55,6 +55,8 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'window.get_init_data': async () => null,
   'window.main.set_minimum_size': async () => {},
   'window.main.reset_minimum_size': async () => {},
+  // Escape asks the window to leave full screen; the browser already does that for its own full screen.
+  'window.set_full_screen': async () => {},
   'navigation.protocol_dispatch_ready': async () => {},
   'chat.screenshot.target': async () => {},
   'backup.get_auto_sync_state': async () => ({ pendingNotifications: [] })
