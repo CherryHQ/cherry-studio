@@ -445,6 +445,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       }
       const outputPath = join(outputDir, `frame-${String(index).padStart(4, '0')}.jpg`)
       rmSync(outputPath, { force: true })
+      let extractedSeekMs = seekMs
       try {
         const attempts =
           bounds.durationMs > 0 && timestampMs > bounds.durationMs
@@ -491,7 +492,10 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
               throw error
             }
           }
-          if (existsSync(outputPath)) break
+          if (existsSync(outputPath)) {
+            extractedSeekMs = attempt.seekMs
+            break
+          }
         }
       } catch (error) {
         signal.throwIfAborted()
@@ -500,7 +504,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
         logger.warn(`frame extract failed timestampMs=${timestampMs}: ${message}`)
         continue
       }
-      if (existsSync(outputPath)) frames.push({ path: outputPath, timestampMs: seekMs })
+      if (existsSync(outputPath)) frames.push({ path: outputPath, timestampMs: extractedSeekMs })
     }
     return { frames }
   }
