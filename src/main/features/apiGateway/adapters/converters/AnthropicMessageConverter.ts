@@ -87,7 +87,7 @@ function imageDataUrlMediaType(url: string): string | undefined {
   } else if (!data.trim()) {
     return undefined
   }
-  return mediaType
+  return mediaType.toLowerCase()
 }
 
 /** An Anthropic image block as a `file` UI part (undefined for unusable sources). */

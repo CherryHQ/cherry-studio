@@ -231,6 +231,22 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     expect(msgs[0].parts).toEqual([{ type: 'file', mediaType, url }])
   })
 
+  // Uppercase data URL media types must not bypass image capability checks or alter the forwarded URL.
+  it('lowercases an uppercase data URL media type while preserving the URL', () => {
+    const url = 'data:IMAGE/PNG;base64,AAAA'
+    const msgs = converter.toUIMessages(
+      params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url }])
+  })
+
+  // Uppercase base64 media types must be canonicalized without rewriting the raw URL header.
+  it('lowercases an uppercase base64 media type while preserving the URL header', () => {
+    const source = { type: 'base64', media_type: 'IMAGE/PNG', data: 'AAAA' } as ImageBlockParam['source']
+    const msgs = converter.toUIMessages(params({ messages: [{ role: 'user', content: [{ type: 'image', source }] }] }))
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: 'data:IMAGE/PNG;base64,AAAA' }])
+  })
+
   it('preserves a valid https image source', () => {
     const msgs = converter.toUIMessages(
       params({
@@ -446,6 +462,38 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         { type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }
       ]
     })
+  })
+
+  // Relocated uppercase images must use canonical media types in both file parts and tool-output anchors.
+  it('lowercases a relocated tool_result image media type and its anchor', () => {
+    const url = 'data:IMAGE/PNG;base64,AAAA'
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_img',
+                content: [{ type: 'image', source: { type: 'url', url } }]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    expect((msgs[0].parts[0] as { output?: unknown }).output).toBe(
+      '[tool-result attachment call_id="call_img" image=1] (image/png): attached in the following user message'
+    )
+    expect(msgs[1].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('call_id="call_img"') },
+      { type: 'file', mediaType: 'image/png', url }
+    ])
   })
 
   it('keeps unusable tool_result images visible without claiming they were attached', () => {
