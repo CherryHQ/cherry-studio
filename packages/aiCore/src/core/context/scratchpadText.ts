@@ -388,7 +388,10 @@ function maskIndentedCodeBlocks(text: string): { text: string; blocks: string[] 
     lineOffsets.push(offset)
     offset += line.length + 1
   }
-  const isIndentedCodeLine = (line: string): boolean => /^(?: {4}|\t)\S/.test(line)
+  // CommonMark 0.31.2 §4.4: any indentation of four or more columns opens an
+  // indented code block - five/eight spaces and repeated tabs are valid too
+  // (cherry-pr-review inv_4ab3f6f347edda60).
+  const isIndentedCodeLine = (line: string): boolean => /^(?: {4,}|\t+)\S/.test(line)
 
   const outLines: string[] = []
   let i = 0

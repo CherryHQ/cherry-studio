@@ -4083,6 +4083,113 @@ describe('compaction artifact boundary', () => {
     expect(text).not.toContain('Internal review.')
   })
 
+  it('preserves the requested summary when only scratchpad text and a tool call precede compaction (inv_f006573bb1316667)', () => {
+    const { adapter, parts } = createAdapter()
+    const summary =
+      '<analysis>Internal review.</analysis>\n' +
+      '<summary>\n' +
+      '1. Task Overview:\n   Maintain the team wiki.\n\n' +
+      '2. Current State:\n   - Drafted three pages\n' +
+      '</summary>'
+
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'user', content: [{ type: 'text', text: 'Summarize where we are.' }] }
+    } as any)
+    // The assistant emits ONLY scratchpad text plus a Read call: no visible
+    // answer text survives filtering, so the pending prompt stays unanswered
+    // and the compaction that follows still preempts it.
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: '<thinking>plan the summary</thinking>' },
+          { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/tmp/a.ts' } }
+        ]
+      }
+    } as any)
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file bytes' }]
+      }
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_result: 'success'
+    } as any)
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: summary }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toContain('Task Overview')
+    expect(text).toContain('Current State')
+    expect(text).not.toContain('Internal review.')
+    expect(text).not.toContain('plan the summary')
+  })
+
+  it('preserves an indented code example split across deltas, with a matching snapshot (inv_b4f675e18911386f)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'Example:\n\n    <thinking>literal example</thinking>\n\nNext steps\u2026'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    // The indentation lands in an earlier delta than the literal element:
+    // without the emitted line context the scanner treats the next delta as
+    // column-zero scratchpad and deletes it, corrupting reconciliation too.
+    for (const piece of ['Example:\n\n    ', '<thinking>literal example</thinking>', '\n\nNext steps\u2026']) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
   it('preserves an indented code example through streamed delivery without compaction (inv_29a1cf6c61a8326f)', () => {
     const { adapter, parts } = createAdapter()
     const answer = 'Example:\n\n    <thinking>literal example</thinking>\n\nNext steps\u2026'

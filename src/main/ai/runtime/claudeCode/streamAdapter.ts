@@ -1108,7 +1108,12 @@ export class ClaudeCodeStreamAdapter {
 
     // Reattach the escape context of the previous chunk: its trailing backslash was already
     // emitted, so the scanner cannot see it. The synthetic prefix is removed again below.
-    const prefix = ctx.scratchpadStreamEscapeCarry ? '\\' : ''
+    // The same applies to Markdown line context: a delta continuing an
+    // indented-code line whose whitespace already emitted would be scanned as
+    // column-zero text and lose literal code content (cherry-pr-review
+    // inv_b4f675e18911386f).
+    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText + ctx.scratchpadStreamRemainder)
+    const prefix = (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
     const combined = prefix + ctx.scratchpadStreamRemainder + text
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
@@ -1143,6 +1148,39 @@ export class ClaudeCodeStreamAdapter {
 
   private endCompactionArtifactGrace(): void {
     this.compactionArtifactGrace = false
+  }
+
+  /**
+   * Visible answer text committed to the main transcript. Answer provenance
+   * derives from post-filtering output only: a scratchpad-only assistant
+   * message (e.g. `<thinking>…</thinking>` alongside a tool call) emits
+   * nothing, so it must not mark the pending prompt answered and arm artifact
+   * suppression against the real answer (cherry-pr-review
+   * inv_f006573bb1316667).
+   */
+  private noteVisibleAnswerText(text: string, ctx: StreamContext): void {
+    if (ctx === this.ctx && text.trim()) {
+      this.assistantAnswerSinceUserPrompt = true
+    }
+  }
+
+  /**
+   * Leading whitespace of the visible stream's open line when that line is so
+   * far ONLY indentation of four or more columns (or a tab) and cannot be a
+   * paragraph continuation: the next delta continues an indented Markdown
+   * code block, a context the scratchpad scanner cannot see once the
+   * whitespace was already emitted (cherry-pr-review inv_b4f675e18911386f).
+   */
+  private emittedIndentOnlyLinePrefix(text: string): string {
+    const lineStart = text.lastIndexOf('\n') + 1
+    const openLine = text.slice(lineStart)
+    if (!/^[ \t]+$/.test(openLine) || !/^(?: {4,}|\t)/.test(openLine)) return ''
+    if (lineStart === 0) return openLine
+    const prevLineEnd = lineStart - 1
+    const prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1
+    const prevLine = text.slice(prevLineStart, prevLineEnd)
+    if (prevLine.trim() === '' || /^(?: {4,}|\t)/.test(prevLine)) return openLine
+    return ''
   }
 
   /**
@@ -1308,6 +1346,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += visible
     ctx.streamedTextLength += visible.length
+    this.noteVisibleAnswerText(visible, ctx)
     this.endCompactionArtifactGrace()
   }
 
@@ -1330,6 +1369,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += text
     ctx.streamedTextLength += text.length
+    this.noteVisibleAnswerText(text, ctx)
   }
 
   private enqueueVisibleTextDelta(
@@ -1437,6 +1477,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += text
     ctx.streamedTextLength += text.length
+    this.noteVisibleAnswerText(text, ctx)
   }
 
   private handleInputJsonDelta(partialJson: string, blockIndex: number, ctx: StreamContext): void {
@@ -1538,11 +1579,6 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleAssistantMessage(message: SDKAssistantMessage, ctx: StreamContext): void {
-    // Only visible answer text completes the pending prompt's answer; tool-use
-    // rounds leave it pending (cherry-pr-review inv_fa1985c9a95f568f).
-    if (ctx === this.ctx && getTextContent(message.message?.content ?? []).some((text) => text.trim())) {
-      this.assistantAnswerSinceUserPrompt = true
-    }
     // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
     // arrived. `isClaudeCodeTruncationError` can only infer this from a mid-token JSON parse
     // failure, so a clean truncation would otherwise go unnoticed.

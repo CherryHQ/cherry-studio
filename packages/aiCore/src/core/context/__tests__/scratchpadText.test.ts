@@ -108,6 +108,18 @@ describe('scratchpadText', () => {
     const input = '<analysis>draft\n\n    </analysis><summary>Keep</summary>'
     expect(stripModelScratchpadBlocks(input)).toBe('Keep')
   })
+
+  it('preserves scratchpad literals at every valid indented-code depth (inv_4ab3f6f347edda60)', () => {
+    // CommonMark 0.31.2 §4.4: four or more columns - five spaces, eight
+    // spaces, and repeated tabs are all valid indented code.
+    for (const indent of ['     ', '        ', '\t\t']) {
+      const input = `Example:\n\n${indent}<thinking>literal example</thinking>\n\nNext steps\u2026`
+      expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+      expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toContain(
+        '<thinking>literal example</thinking>'
+      )
+    }
+  })
   it('tracks inline code across a line break before fence recognition', () => {
     const input = '<analysis>The docs use `a\n</thinking>~~~` as a closing marker.</analysis><summary>Keep</summary>'
     expect(stripModelScratchpadBlocks(input)).toBe('Keep')
