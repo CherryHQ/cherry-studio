@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 
 import { extractDocumentParts, materializeDocumentImages } from '../extractDocumentParts'
-import { docx, paragraph, picture, png, relationshipsXml } from './docxFixtures'
+import { docx, paragraph, picture, png, relationshipsXml, runText } from './docxFixtures'
 
 const { version, read, cacheSet, cache } = vi.hoisted(() => ({
   version: vi.fn(),
@@ -140,5 +140,40 @@ describe('versioned DOCX discovery and selected image reads', () => {
       { occurrenceIndex: 0, kind: 'omitted', reason: 'missing-image' }
     ])
     expect(application.get('CacheService').get(key)).toBeDefined()
+  })
+  it('materializes all over-budget occurrences with dedupe and a later distinct target', async () => {
+    const text = 'x'.repeat(250_000)
+    read.mockResolvedValue({
+      content: await docx(
+        paragraph(runText(text) + picture() + picture() + picture('r2')),
+        { 'word/media/a.png': await png(), 'word/media/b.png': await png(256, 128, '#0000ff') },
+        relationshipsXml('<Relationship Id="r1" Target="media/a.png"/><Relationship Id="r2" Target="media/b.png"/>')
+      )
+    })
+    const document = await extractDocumentParts(source, text)
+    expect(document.order).toBe('text-first')
+    expect(document.text).toBe(text)
+    expect(document.parts).toEqual([
+      { kind: 'text', start: 0, end: text.length },
+      { kind: 'image', occurrenceIndex: 0 },
+      { kind: 'image', occurrenceIndex: 1 },
+      { kind: 'image', occurrenceIndex: 2 }
+    ])
+    expect(document.imageCount).toEqual({ total: 3, known: 3 })
+    expect(document.discoveryFailure).toBeUndefined()
+    expect(await materializeDocumentImages(document, [0, 1, 2])).toEqual([
+      expect.objectContaining({ occurrenceIndex: 0, kind: 'image', width: 128, height: 128 }),
+      { occurrenceIndex: 1, kind: 'omitted', reason: 'duplicate' },
+      expect.objectContaining({ occurrenceIndex: 2, kind: 'image', width: 256, height: 128 })
+    ])
+    expect(document.images[1]).toMatchObject({
+      index: 1,
+      target: 'word/media/a.png',
+      duplicateOf: 0,
+      omission: 'duplicate'
+    })
+    expect(document.images[2]).toMatchObject({ index: 2, target: 'word/media/b.png' })
+    expect(document.images[2].omission).toBeUndefined()
+    expect(document.imageCount).toEqual({ total: 3, known: 3 })
   })
 })

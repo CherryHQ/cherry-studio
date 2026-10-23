@@ -112,4 +112,177 @@ describe('DOCX body discovery and canonical alignment', () => {
       discoveryFailure: 'unreadable-document-xml'
     })
   })
+  it('interleaves 40 boundaries on one 16,000-character line', () => {
+    const text = 'x'.repeat(16_000)
+    const result = parseDocxParts(
+      documentXml(paragraph((runText('x'.repeat(400)) + picture()).repeat(40))),
+      relationshipsXml(),
+      text
+    )
+    expect(result.order).toBe('interleaved')
+    expect(result.imageCount).toEqual({ total: 40, known: 40 })
+    expect(result.images).toEqual(Array.from({ length: 40 }, (_, index) => ({ index, target: 'word/media/a.png' })))
+    expect(result.parts).toEqual(
+      Array.from({ length: 40 }, (_, index) => [
+        { kind: 'text', start: index * 400, end: (index + 1) * 400 },
+        { kind: 'image', occurrenceIndex: index }
+      ]).flat()
+    )
+    expect(
+      result.parts.flatMap((part) => (part.kind === 'text' ? [text.slice(part.start, part.end)] : [])).join('')
+    ).toBe(text)
+  })
+  it('admits exactly 2,000,000 alignment units and retains all 999 boundaries', () => {
+    const result = parseDocxParts(
+      documentXml(paragraph((runText('x') + picture()).repeat(999))),
+      relationshipsXml(),
+      'x'.repeat(999)
+    )
+    expect(result.order).toBe('interleaved')
+    expect(result.imageCount).toEqual({ total: 999, known: 999 })
+    expect(result.images).toEqual(Array.from({ length: 999 }, (_, index) => ({ index, target: 'word/media/a.png' })))
+    expect(result.parts).toEqual(
+      Array.from({ length: 999 }, (_, index) => [
+        { kind: 'text', start: index, end: index + 1 },
+        { kind: 'image', occurrenceIndex: index }
+      ]).flat()
+    )
+  })
+  it('falls back above the limit without losing unresolved or later table occurrences', () => {
+    const body = paragraph((runText('x') + picture()).repeat(999) + picture('missing'))
+    const text = 'x'.repeat(999)
+    const result = parseDocxParts(documentXml(body), relationshipsXml(), text)
+    expect(result.order).toBe('text-first')
+    expect(result.text).toBe(text)
+    expect(result.parts).toEqual([
+      { kind: 'text', start: 0, end: 999 },
+      ...Array.from({ length: 1000 }, (_, occurrenceIndex) => ({ kind: 'image', occurrenceIndex }))
+    ])
+    expect(result.images).toHaveLength(1000)
+    expect(result.imageCount).toEqual({ total: 1000, known: 1000 })
+    expect(result.discoveryFailure).toBeUndefined()
+    expect(result.images[999]).toEqual({ index: 999, omission: 'broken-relationship' })
+    const later = parseDocxParts(
+      documentXml(body + `<w:tbl><w:tr><w:tc>${paragraph(picture())}</w:tc></w:tr></w:tbl>`),
+      relationshipsXml(),
+      text
+    )
+    expect(later.order).toBe('text-first')
+    expect(later.images).toEqual([...result.images, { index: 1000, target: 'word/media/a.png' }])
+    expect(later.parts).toEqual([...result.parts, { kind: 'image', occurrenceIndex: 1000 }])
+    expect(later.imageCount).toEqual({ total: 1001, known: 1001 })
+    expect(later.discoveryFailure).toBeUndefined()
+  })
+  it.each(['xml whitespace', 'empty paragraph'])('charges %s independently of canonical length', (extra) => {
+    const runs = (runText('x') + picture()).repeat(999)
+    const body = extra === 'xml whitespace' ? paragraph(runText(' ') + runs) : paragraph(runs) + paragraph('')
+    const result = parseDocxParts(documentXml(body), relationshipsXml(), 'x'.repeat(999))
+    expect(result.order).toBe('text-first')
+    expect(result.parts).toEqual([
+      { kind: 'text', start: 0, end: 999 },
+      ...Array.from({ length: 999 }, (_, occurrenceIndex) => ({ kind: 'image', occurrenceIndex }))
+    ])
+    expect(result.imageCount).toEqual({ total: 999, known: 999 })
+  })
+  it.each([
+    ['ab', 'ab'],
+    [' ab', 'ab'],
+    ['ab ', 'ab'],
+    ['a b', 'a b'],
+    ['a   b', 'a b'],
+    ['a b', 'a   b'],
+    ['a\tb', 'a b'],
+    ['a\u00a0b', 'a b'],
+    ['\ufeffab', 'ab'],
+    ['a\ufeffb', 'a b'],
+    ['a\u200bb', 'a\u200bb'],
+    ['a😀b', 'a😀b'],
+    ['a   bc', 'a bc'],
+    ['ab   c', 'ab c'],
+    ['a  bc', 'a\tbc']
+  ])('matches the two-sided slice oracle for canonical %j and XML %j', (canonical, xml) => {
+    const normalize = (value: string) => value.replace(/\s+/gu, ' ').trim()
+    for (let boundary = 0; boundary <= xml.length; boundary++) {
+      if (boundary > 0 && /[\uD800-\uDBFF]/u.test(xml[boundary - 1]) && /[\uDC00-\uDFFF]/u.test(xml[boundary] ?? ''))
+        continue
+      const prefix = xml.slice(0, boundary)
+      const suffix = xml.slice(boundary)
+      const candidates = Array.from({ length: canonical.length + 1 }, (_, offset) => offset).filter(
+        (offset) =>
+          normalize(canonical.slice(0, offset)) === normalize(prefix) &&
+          normalize(canonical.slice(offset)) === normalize(suffix)
+      )
+      const result = parseDocxParts(
+        documentXml(paragraph(runText(prefix) + picture() + runText(suffix))),
+        relationshipsXml(),
+        canonical
+      )
+      if (candidates.length === 1) {
+        const offset = candidates[0]
+        expect(result.order).toBe('interleaved')
+        expect(result.parts).toEqual([
+          ...(offset ? [{ kind: 'text', start: 0, end: offset }] : []),
+          { kind: 'image', occurrenceIndex: 0 },
+          ...(offset < canonical.length ? [{ kind: 'text', start: offset, end: canonical.length }] : [])
+        ])
+      } else {
+        expect(result.order).toBe('text-first')
+        expect(result.parts).toEqual([
+          { kind: 'text', start: 0, end: canonical.length },
+          { kind: 'image', occurrenceIndex: 0 }
+        ])
+      }
+    }
+  })
+  it('keeps equal boundaries and canonical CRLF separators around breaks', () => {
+    const result = parseDocxParts(
+      documentXml(paragraph(runText('a') + picture() + picture() + '<w:r><w:br/></w:r>' + picture() + runText('b'))),
+      relationshipsXml(),
+      'a\r\nb'
+    )
+    expect(result.order).toBe('interleaved')
+    expect(result.parts).toEqual([
+      { kind: 'text', start: 0, end: 1 },
+      { kind: 'image', occurrenceIndex: 0 },
+      { kind: 'image', occurrenceIndex: 1 },
+      { kind: 'text', start: 1, end: 3 },
+      { kind: 'image', occurrenceIndex: 2 },
+      { kind: 'text', start: 3, end: 4 }
+    ])
+  })
+  it.each([
+    paragraph(runText('a') + '<w:r><w:br/></w:r>' + picture() + '<w:r><w:br/></w:r>' + runText('b')),
+    paragraph(runText('a')) + paragraph(runText(' ') + picture()) + paragraph(runText('b'))
+  ])('falls back for images on empty-normalized lines of nonempty paragraphs (%s)', (body) => {
+    const result = parseDocxParts(documentXml(body), relationshipsXml(), 'a\nb')
+    expect(result.order).toBe('text-first')
+    expect(result.parts).toEqual([
+      { kind: 'text', start: 0, end: 3 },
+      { kind: 'image', occurrenceIndex: 0 }
+    ])
+  })
+  it('pairs nonempty lines across blank XML lines', () => {
+    const result = parseDocxParts(
+      documentXml(paragraph(runText('a') + '<w:r><w:br/><w:br/></w:r>' + runText('b') + picture())),
+      relationshipsXml(),
+      'a\n\nb'
+    )
+    expect(result.order).toBe('interleaved')
+    expect(result.parts).toEqual([
+      { kind: 'text', start: 0, end: 4 },
+      { kind: 'image', occurrenceIndex: 0 }
+    ])
+  })
+  it.each([
+    [runText('a') + picture() + runText('\r\nb'), 1],
+    [runText('a\r\n') + picture() + runText('b'), 3]
+  ])('preserves boundaries before and after literal XML CRLF (%s)', (runs, offset) => {
+    const result = parseDocxParts(documentXml(paragraph(runs)), relationshipsXml(), 'a\r\nb')
+    expect(result.order).toBe('interleaved')
+    expect(result.parts).toEqual([
+      { kind: 'text', start: 0, end: offset },
+      { kind: 'image', occurrenceIndex: 0 },
+      { kind: 'text', start: offset, end: 4 }
+    ])
+  })
 })
