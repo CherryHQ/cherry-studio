@@ -1754,6 +1754,52 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(pending).resolves.toEqual({ behavior: 'deny', message: 'User denied permission for this tool' })
   })
 
+  it('denies injected web calls through real PreToolUse under Full Access', async () => {
+    const aliases = ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__kb_search']
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      disabledTools: ['mcp__*__web_*'],
+      configuration: { permission_mode: 'bypassPermissions' }
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    const { createClaudeAgentToolPolicySnapshot } = await vi.importActual<typeof ClaudeAgentTools>(
+      '@main/ai/tools/adapters/claudeCode/agentTools'
+    )
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent as never, { boundedMcpToolNames: true })
+    mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never,
+      { boundedMcpToolNames: true }
+    )
+    const denial = expect.objectContaining({
+      hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
+    })
+    const decisions = await Promise.all(
+      aliases.map(async (toolName) => {
+        const results = await Promise.all(
+          (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+            hook(
+              { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+              'cross-server-call',
+              {} as never
+            )
+          )
+        )
+        return results.some((result) => denial.asymmetricMatch(result))
+      })
+    )
+    expect.soft(settings.disallowedTools).toContain('mcp__*__web_*')
+    expect({ mode: settings.permissionMode, disabled: aliases.map(snapshot.isDisabled), decisions }).toEqual({
+      mode: 'bypassPermissions',
+      disabled: [true, false],
+      decisions: [true, false]
+    })
+  })
+
   it.each([false, true])('denies cross-server calls through real PreToolUse (cold %s)', async (cold) => {
     const id = '12345678-1234-4234-8234-123456789abc'
     const names = ['read_' + 'long_name_'.repeat(12) + '_sensitive', 'write_file']

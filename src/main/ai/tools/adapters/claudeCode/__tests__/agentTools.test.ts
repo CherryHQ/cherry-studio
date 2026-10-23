@@ -64,6 +64,73 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     mocks.listMcpTools.mockReturnValue([])
   })
 
+  it.each([
+    ['owned', 'read.file'],
+    ['owned', 'read.' + 'long_name_'.repeat(12)],
+    ['cross-server', 'read.file'],
+    ['cross-server', 'read.' + 'long_name_'.repeat(12)]
+  ])('denies %s sanitized allocated %s across catalog refresh while allowing its sibling', async (kind, name) => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    mocks.findMcpServer.mockReturnValue({ id, name: 'User MCP' })
+    const agent = makeAgent([`mcp__${kind === 'owned' ? id : '*'}__read_*`], [id])
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent, { boundedMcpToolNames: true })
+    mocks.listMcpTools.mockReturnValue([{ name }, { name: 'write.file' }])
+    await snapshot.update(agent)
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, [name, 'write.file'])
+    expect(
+      [name, 'write.file'].map((tool) => snapshot.isDisabled(`mcp__${plan.serverKey}__${plan.toolName(tool)}`))
+    ).toEqual([true, false])
+  })
+
+  it('denies injected web tools through the real snapshot under Full Access', async () => {
+    const agent = makeAgent(['mcp__*__web_*'])
+    agent.configuration = { permission_mode: 'bypassPermissions' }
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent, {
+      boundedMcpToolNames: true,
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__']
+    })
+    expect(snapshot.resolve('mcp__cherry-tools__web_search')).toMatchObject({ approval: 'auto' })
+    expect(['web_search', 'kb_search'].map((name) => snapshot.isDisabled(`mcp__cherry-tools__${name}`))).toEqual([
+      true,
+      false
+    ])
+  })
+
+  it.each([
+    [
+      'mcp__injected__web_*',
+      ['mcp__injected__web_', 'mcp__injected__web_search'],
+      ['mcp__injected__Web_search', 'mcp__injected__xweb_search']
+    ],
+    [
+      'mcp__injected__read_[a].*',
+      ['mcp__injected__read_[a].file'],
+      ['mcp__injected__read_aXfile', 'mcp__injected__Read_[a].file']
+    ],
+    [
+      'mcp__*__web_*',
+      ['mcp__cherry-tools__web_', 'mcp__cherry-tools__web_search'],
+      ['mcp__cherry-tools__Web_search', 'prefix_mcp__cherry-tools__web_search']
+    ],
+    [
+      'mcp__*__read_[a].*',
+      ['mcp__injected__read_[a].file'],
+      ['mcp__injected__read_aXfile', 'mcp__injected__Read_[a].file']
+    ],
+    ['mcp__*__*suffix', ['mcp__injected__suffix'], ['mcp__injected__suffix_extra']]
+  ])('enforces whole-name literal case-sensitive glob %s', async (rule, denied, allowed) => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([rule]), { boundedMcpToolNames: true })
+    expect(denied.map(snapshot.isDisabled)).toEqual(denied.map(() => true))
+    expect(allowed.map(snapshot.isDisabled)).toEqual(allowed.map(() => false))
+  })
+
+  it('keeps global MCP and bare-server denials in the live guard', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['mcp__*']), { boundedMcpToolNames: true })
+    expect(['mcp__cherry-tools__web_search', 'mcp__external__run'].map(snapshot.isDisabled)).toEqual([true, true])
+    await snapshot.update(makeAgent(['mcp__injected']))
+    expect(['mcp__injected__run', 'mcp__other__run'].map(snapshot.isDisabled)).toEqual([true, false])
+  })
+
   it('resolves bounded aliases with source approval and rejects removed or unknown aliases', async () => {
     const id = '12345678-1234-4234-8234-123456789abc'
     const name = 'tool_abcdefghijklmnopqr'

@@ -2,7 +2,11 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { planClaudeMcpToolNames } from '@main/ai/mcp/mcpToolNames'
-import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
+import {
+  type ClaudeToolContext,
+  disableRulePattern,
+  resolveDisallowedTools
+} from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
@@ -150,11 +154,9 @@ function injectedRuntimeToolRequiringApproval(runtimeName: string): Tool {
   }
 }
 
-// Accept exact runtime names, <serverKey>__* wildcards (including global mcp__*),
-// and bare <serverKey> rules that disable every tool on that server.
 function matchesMcpDisableRule(runtimeName: string, rule: string): boolean {
-  if (rule === runtimeName || rule === 'mcp__*') return true
-  if (rule.endsWith('__*')) return runtimeName.startsWith(rule.slice(0, -1))
+  if (rule === runtimeName) return true
+  if (rule.includes('*')) return disableRulePattern(rule).test(runtimeName)
   return !rule.slice(5).includes('__') && runtimeName.startsWith(`${rule}__`)
 }
 

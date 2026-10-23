@@ -12,7 +12,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
-import { planClaudeMcpToolNames } from '@main/ai/mcp/mcpToolNames'
+import { planClaudeMcpToolNames, sanitizeClaudeMcpNameSegment } from '@main/ai/mcp/mcpToolNames'
 import { CLAUDE_TOOL_DEFS } from '@shared/ai/claudecode/toolRegistry'
 import { buildClaudeMcpToolName, buildClaudeMcpWildcard } from '@shared/ai/claudecode/toolRules'
 
@@ -22,7 +22,7 @@ export interface ClaudeToolContext {
   cwd: string
 }
 
-function disableRulePattern(rule: string): RegExp {
+export function disableRulePattern(rule: string): RegExp {
   return new RegExp(
     `^${rule
       .split('*')
@@ -109,7 +109,14 @@ export function resolveDisallowedTools(
         server,
         mcpId,
         plan: planClaudeMcpToolNames({ serverId: server.id, sdkServerKey: mcpId }, []),
-        tools: application.get('McpCatalogService').listTools(server.id)
+        tools: application.get('McpCatalogService').listTools(server.id),
+        identities: (name: string) => [
+          `mcp__${server.id}__${name}`,
+          `mcp__${sanitizeClaudeMcpNameSegment(server.id)}__${sanitizeClaudeMcpNameSegment(name)}`,
+          `mcp__${mcpId}__${name}`,
+          `mcp__${sanitizeClaudeMcpNameSegment(mcpId)}__${sanitizeClaudeMcpNameSegment(name)}`,
+          buildClaudeMcpToolName(server.name, name)
+        ]
       }
     ]
   })
@@ -133,28 +140,34 @@ export function resolveDisallowedTools(
     if (!owner) {
       if (!segment.includes('*')) return [rule]
       const pattern = disableRulePattern(rule)
-      return serverPlans.flatMap(({ server, mcpId, plan, tools }) =>
-        tools
-          .filter(
-            (tool) =>
-              pattern.test(`mcp__${server.id}__${tool.name}`) ||
-              pattern.test(`mcp__${mcpId}__${tool.name}`) ||
-              pattern.test(buildClaudeMcpToolName(server.name, tool.name))
-          )
-          .map((tool) => `mcp__${plan.serverKey}__${plan.toolName(tool.name)}`)
-      )
+      return [
+        rule,
+        ...serverPlans.flatMap(({ plan, tools, identities }) =>
+          tools
+            .filter((tool) => identities(tool.name).some((identity) => pattern.test(identity)))
+            .map((tool) => `mcp__${plan.serverKey}__${plan.toolName(tool.name)}`)
+        )
+      ]
     }
-    const { server, plan, tools } = owner
+    const { server, plan, tools, identities } = owner
     const allocated = (name: string) => `mcp__${plan.serverKey}__${plan.toolName(name)}`
     const compatibilityTool = tools.find((tool) => rule === buildClaudeMcpToolName(server.name, tool.name))
     if (compatibilityTool && !tools.some((tool) => tool.name === tail)) return [allocated(compatibilityTool.name)]
     if (tail === undefined || tail === '*') return [`mcp__${plan.serverKey}__*`]
-    if (!tail.includes('*')) return [allocated(tail)]
     const pattern = disableRulePattern(rule)
+    if (!tail.includes('*')) {
+      const matched =
+        tools.find((tool) => tool.name === tail) ??
+        tools.find((tool) => identities(tool.name).some((identity) => pattern.test(identity)))
+      return [allocated(matched?.name ?? tail)]
+    }
     return tools
-      .filter(
-        (tool) =>
-          pattern.test(`mcp__${segment}__${tool.name}`) || pattern.test(buildClaudeMcpToolName(server.name, tool.name))
+      .filter((tool) =>
+        [
+          ...identities(tool.name),
+          `mcp__${segment}__${tool.name}`,
+          `mcp__${segment}__${sanitizeClaudeMcpNameSegment(tool.name)}`
+        ].some((identity) => pattern.test(identity))
       )
       .map((tool) => allocated(tool.name))
   })

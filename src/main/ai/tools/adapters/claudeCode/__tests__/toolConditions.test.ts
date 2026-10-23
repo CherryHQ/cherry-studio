@@ -128,12 +128,44 @@ describe('bounded MCP disable rules', () => {
     mocks.listTools.mockReset().mockReturnValue([{ name: 'read_file' }, { name: 'write_file' }])
   })
 
+  it.each(['read.file', 'read.' + 'long_name_'.repeat(12)])(
+    'denies the advertised sanitized identity of %s without disabling its sibling',
+    (name) => {
+      mocks.listTools.mockReturnValue([{ name }, { name: 'write.file' }])
+      expect(externalRules([`mcp__${id}__read_*`])).toEqual([alias(name)])
+    }
+  )
+
+  it('retains the raw cross-server rule and allocates each sanitized match once', () => {
+    const other = { id: 'second-server', name: 'Second Server' }
+    mocks.findServer.mockImplementation((key: string) => (key === id ? server : other))
+    mocks.listTools.mockReturnValue([{ name: 'read.file' }, { name: 'write.file' }])
+    expect(externalRules(['mcp__*__read_*'], [id, other.id])).toEqual([
+      'mcp__*__read_*',
+      alias('read.file'),
+      alias('read.file', other.id, other.id)
+    ])
+  })
+
+  it.each(['mcp__server_*__read_*', 'mcp__mount_*__read_*'])(
+    'matches sanitized server and mount segments (%s)',
+    (rule) => {
+      mocks.findServer.mockReturnValue({ id: 'server.id', name: 'Display' })
+      mocks.listTools.mockReturnValue([{ name: 'read.file' }, { name: 'write.file' }])
+      expect(externalRules([rule], ['mount.ref'])).toEqual([rule, alias('read.file', 'mount.ref', 'server.id')])
+    }
+  )
+
+  it('retains the byte-identical cross-server denial without external mounts', () => {
+    expect(externalRules(['mcp__*__web_*'], [])).toEqual(['mcp__*__web_*'])
+  })
+
   it('expands cross-server suffix rules before truncating allocated names', () => {
     const name = 'read_' + 'long_name_'.repeat(12) + '_sensitive'
     mocks.listTools.mockReturnValue([{ name }, { name: 'write_file' }])
     const result = externalRules(['mcp__*__*_sensitive'])
     expect({ result, truncated: !alias(name).includes('_sensitive') }).toEqual({
-      result: [alias(name)],
+      result: ['mcp__*__*_sensitive', alias(name)],
       truncated: true
     })
   })
@@ -144,8 +176,10 @@ describe('bounded MCP disable rules', () => {
     mocks.findServer.mockImplementation((key: string) => (key === id ? server : other))
     mocks.listTools.mockReturnValue([{ name: 'read_sensitive' }])
     expect(externalRules(['mcp__*__*_sensitive', 'mcp__*__read*'], [id, mount])).toEqual([
+      'mcp__*__*_sensitive',
       alias('read_sensitive'),
-      alias('read_sensitive', mount, other.id)
+      alias('read_sensitive', mount, other.id),
+      'mcp__*__read*'
     ])
   })
 
@@ -163,11 +197,12 @@ describe('bounded MCP disable rules', () => {
       { name: rule === 'mcp__secondS*__readS*' ? 'write_file' : 'Read_sensitive' },
       { name: name === 'read_[a].file' ? 'read_aXfile' : 'write_file' }
     ])
-    expect(externalRules([rule], ['stored-mount'])).toEqual([alias(name, 'stored-mount', other.id)])
+    expect(externalRules([rule], ['stored-mount'])).toEqual([rule, alias(name, 'stored-mount', other.id)])
   })
 
-  it('drops unmatched cross-server patterns while preserving unknown concrete servers', () => {
+  it('retains unmatched cross-server patterns while preserving unknown concrete servers', () => {
     expect(externalRules(['mcp__*__*_sensitive', 'mcp__concrete-unmounted-id__*_sensitive'])).toEqual([
+      'mcp__*__*_sensitive',
       'mcp__concrete-unmounted-id__*_sensitive'
     ])
   })
