@@ -86,6 +86,7 @@ const providerKeyMap = {
   zhipu: 'provider.zhipu',
   poe: 'provider.poe',
   aionly: 'provider.aionly',
+  aistupidlevel: 'provider.aistupidlevel',
   longcat: 'provider.longcat',
   huggingface: 'provider.huggingface',
   sophnet: 'provider.sophnet',
