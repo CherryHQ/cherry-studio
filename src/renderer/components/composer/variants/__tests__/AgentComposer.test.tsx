@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
@@ -1363,6 +1364,86 @@ describe('AgentComposer', () => {
     })
 
     expect(mocks.sendMessage).not.toHaveBeenCalled()
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
+  })
+
+  it('queues the follow-up only once when the composer remounts while the first enqueue persists', async () => {
+    // Hold the queue POST open so the first request stays unsettled across
+    // the remount below; count POSTs to catch a second minted UUID.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const firstView = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    let firstSend: Promise<unknown> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Navigate away while the enqueue write is still in flight, reopen, and
+    // Send the restored draft before the first request settles: the reopened
+    // instance's fresh local guard must not mint a second queued row
+    // (cherry-pr-review inv_785c705f28b6e100).
+    firstView.unmount()
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    let replayedSend: Promise<unknown> | undefined
+    await act(async () => {
+      replayedSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await Promise.allSettled([firstSend, replayedSend])
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    // The enqueue's revalidation targeted the first (now unmounted) instance;
+    // a later reopen reads the landed queue fresh: exactly one row.
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
     await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
   })
 

@@ -1,5 +1,6 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentType, type ReactNode, useEffect } from 'react'
@@ -2235,6 +2236,65 @@ describe('ChatComposer', () => {
     })
     // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
     view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(onSend).not.toHaveBeenCalled()
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
+  it('queues the follow-up only once when the composer remounts while the first enqueue persists', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    // Hold the queue POST open so the first request stays unsettled across
+    // the remount below; count POSTs to catch a second minted UUID.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const firstView = render(<ChatComposer topic={topic} onSend={onSend} />)
+    let firstSend: Promise<unknown> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Navigate away while the enqueue write is still in flight, reopen, and
+    // Send the restored draft before the first request settles: the reopened
+    // instance's fresh local guard must not mint a second queued row
+    // (cherry-pr-review inv_785c705f28b6e100).
+    firstView.unmount()
+    const secondView = render(<ChatComposer topic={topic} onSend={onSend} />)
+    let replayedSend: Promise<unknown> | undefined
+    await act(async () => {
+      replayedSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await Promise.allSettled([firstSend, replayedSend])
+    })
+    // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
+    secondView.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
     expect(onSend).not.toHaveBeenCalled()
     const queueContent = mocks.surfaceProps?.queueContent as any

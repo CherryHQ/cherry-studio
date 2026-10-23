@@ -136,6 +136,11 @@ import { emptyActions, type ProviderActionHandlers } from './shared/composerProv
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
+import {
+  acquirePendingSubmission,
+  isSubmissionPending,
+  releasePendingSubmission
+} from './shared/pendingSubmissionGuard'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
@@ -1779,7 +1784,11 @@ const AgentComposerInner = ({
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
-      if (directSendInFlightRef.current) return
+      // Cross-instance too: a reopened composer's fresh ref must not re-Send
+      // while this scope's first submission is still in flight
+      // (cherry-pr-review inv_785c705f28b6e100).
+      const submissionScope = `agent:${draftCacheKey}`
+      if (directSendInFlightRef.current || isSubmissionPending(submissionScope)) return
       if (!model) {
         toast.error(t('code.model_required'))
         return
@@ -1804,6 +1813,7 @@ const AgentComposerInner = ({
         // in flight would mint a second UUID and queue a duplicate. The editor stays editable
         // (newer edits win via the revision check) and a failed enqueue keeps the draft.
         directSendInFlightRef.current = true
+        acquirePendingSubmission(submissionScope)
         try {
           const queued = await enqueueFollowup(draft, payload)
           if (queued) {
@@ -1862,17 +1872,20 @@ const AgentComposerInner = ({
           }
         } finally {
           directSendInFlightRef.current = false
+          releasePendingSubmission(submissionScope)
         }
         return
       }
 
       directSendInFlightRef.current = true
+      acquirePendingSubmission(submissionScope)
       setIsDirectSending(true)
       try {
         const sent = await sendQueuedPayload(payload)
         if (sent) clearCurrentDraft()
       } finally {
         directSendInFlightRef.current = false
+        releasePendingSubmission(submissionScope)
         setIsDirectSending(false)
       }
     },
