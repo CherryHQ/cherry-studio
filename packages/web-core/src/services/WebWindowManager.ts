@@ -1,3 +1,4 @@
+import type { Disposable } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 
 import { BrowserWindow, type PageWindow, pageWebContents } from '../runtime/electron'
@@ -17,6 +18,11 @@ export class WebWindowManager {
 
   getWindowId(window: unknown): string | undefined {
     return window === BrowserWindow.getAllWindows()[0] ? PAGE_WINDOW_ID : undefined
+  }
+
+  /** Closing the page ends the Worker, so no window is destroyed while services run. */
+  onWindowDestroyed(): Disposable {
+    return { dispose() {} }
   }
 
   getWindowType(windowId: string): WindowType | undefined {

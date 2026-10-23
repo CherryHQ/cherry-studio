@@ -1,3 +1,5 @@
+// First: modules below parse zod schemas while loading (see src/runtime/zodJitless.ts).
+import '../src/runtime/zodJitless'
 import fs from 'node:fs/promises'
 
 import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'

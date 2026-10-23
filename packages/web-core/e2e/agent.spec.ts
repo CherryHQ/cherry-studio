@@ -1,61 +1,7 @@
 import type { Page } from '@playwright/test'
 
-import type { DataRequest } from '@shared/data/api/types'
-
-import { composerInput, gotoApp, removeAppData } from './appPage'
-import { expect, test as harnessTest } from './fixtures'
-import { MOCK_PROVIDER_PORT } from './mockProvider'
-
-const test = harnessTest.extend<{ page: Page }>({
-  page: async ({ context }, provide) => {
-    await provide(context.pages()[0] ?? (await context.newPage()))
-    await removeAppData(context)
-  }
-})
-
-/** Points the built-in assistant at the mock endpoint in `default` mode, so file changes ask first. */
-async function setUpAssistant(page: Page) {
-  const run = Date.now().toString(36)
-  await page.evaluate(
-    async ({ baseUrl, providerId }) => {
-      const request = async (method: DataRequest['method'], path: string, body?: unknown) => {
-        const response = await window.api.dataApi.request({ id: crypto.randomUUID(), method, path, body })
-        if (response.error) throw new Error(`${method} ${path}: ${response.error.message}`)
-        return response.data as { items: { id: string }[] }
-      }
-      await request('POST', '/providers', {
-        providerId,
-        name: 'Mock provider',
-        defaultChatEndpoint: 'openai-chat-completions',
-        endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
-        apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
-      })
-      await request('POST', '/models', [
-        {
-          providerId,
-          modelId: 'mock-chat',
-          name: 'Mock chat',
-          endpointTypes: ['openai-chat-completions'],
-          capabilities: ['function-call']
-        }
-      ])
-      for (const { id } of (await request('GET', '/agents')).items) {
-        await request('PATCH', `/agents/${id}`, {
-          model: `${providerId}::mock-chat`,
-          configuration: { permission_mode: 'default' }
-        })
-      }
-    },
-    { baseUrl: `http://localhost:${MOCK_PROVIDER_PORT}`, providerId: `mock-${run}` }
-  )
-}
-
-/** Sends a message from the agent composer. */
-async function send(page: Page, text: string) {
-  await composerInput(page).click()
-  await page.keyboard.type(text)
-  await page.keyboard.press('Enter')
-}
+import { gotoApp, send, setUpAssistant, test } from './appPage'
+import { expect } from './fixtures'
 
 /** The files in the agents' system workspaces, read from OPFS beside the running app. */
 function readWorkspaceFiles(page: Page): Promise<Record<string, string>> {
@@ -109,7 +55,10 @@ test('writes a file only after approval and keeps the turn across a reload', asy
 
   // Reads and searches inside the workspace run without asking.
   await send(page, 'please call read {"path":"notes.txt"} call grep {"pattern":"web agent"}')
-  await expect(page.getByText(/^tools said:.*from the web agent.*\|.*notes\.txt:1: from the web agent/)).toBeVisible()
+  // The two calls run together, so their results come back in either order.
+  await expect(
+    page.getByText(/^tools said: (from the web agent \| notes\.txt:1: .*|notes\.txt:1: .* \| from the web agent)$/)
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: /^Allow/ })).toHaveCount(0)
 
   await gotoApp(page, 'Work')
@@ -130,6 +79,26 @@ test('leaves no file when a write is denied', async ({ page }) => {
   await send(page, 'please call ls {} call find {"pattern":"*.txt"}')
   await expect(page.getByText(/^tools said:.*\(empty directory\).*\|.*No files found matching pattern/)).toBeVisible()
   await expect(page.getByRole('button', { name: /^Allow/ })).toHaveCount(0)
+})
+
+test('lists the files the agent writes in the file tree and previews them', async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+
+  await send(page, 'please call write {"path":"notes/first.txt","content":"the first file"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByText('notes', { exact: true }).click()
+  await page.getByText('first.txt', { exact: true }).click()
+  await expect(page.getByText('the first file', { exact: true })).toBeVisible()
+
+  // A file written while the tree is open shows up without reopening it.
+  await page.getByRole('button', { name: 'Back' }).click()
+  await send(page, 'please call write {"path":"second.txt","content":"the second file"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText('second.txt', { exact: true })).toBeVisible()
 })
 
 test('runs Python in the page after approval', async ({ page }) => {
@@ -169,6 +138,13 @@ test('runs JavaScript in a sandbox and stops an endless loop at its timeout', as
   await send(page, `please call js_execute {"code":"console.log('hi'); await Promise.resolve(6 * 7)"}`)
   await page.getByRole('button', { name: /^Allow/ }).click()
   await expect(page.getByText(/^tools said: hi\s+42$/)).toBeVisible()
+
+  // Nothing in the sandbox reaches the network, the app's storage or another context.
+  const globals = ['fetch', 'XMLHttpRequest', 'indexedDB', 'navigator', 'postMessage']
+  const code = `[${globals.map((name) => `typeof ${name}`).join(', ')}].join(' ')`
+  await send(page, `please call js_execute ${JSON.stringify({ code })}`)
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:\s*undefined undefined undefined undefined undefined$/)).toBeVisible()
 
   await send(page, 'please call js_execute {"code":"while (true) {}","timeout":2000}')
   await page.getByRole('button', { name: /^Allow/ }).click()

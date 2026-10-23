@@ -55,6 +55,11 @@ export async function openDatabase(account: string, options: OpenDatabaseOptions
   const started = performance.now()
   const release = await acquireAccountLock(account, handoverTimeoutMs)
   try {
+    if (typeof FileSystemFileHandle === 'undefined' || !('createSyncAccessHandle' in FileSystemFileHandle.prototype)) {
+      throw Object.assign(new Error('The browser has no synchronous OPFS access handles'), {
+        name: 'BrowserUnsupportedError'
+      })
+    }
     await loadSqlite()
     if (!getSqlite().capi.sqlite3_vfs_find(OPFS_VFS)) {
       throw new Error('The OPFS VFS is unavailable: the page must be cross-origin isolated (COOP + COEP)')

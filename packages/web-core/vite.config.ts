@@ -1,9 +1,12 @@
+import { createHash } from 'node:crypto'
 import { isBuiltin } from 'node:module'
 import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { defineConfig, type Plugin, type Rolldown, type UserConfig } from 'vite'
+
+import { PYODIDE_FRAME_SCRIPT } from './src/page/pyodideFrameScript'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 // The desktop sources to build from. An edition that composes its own source tree sets
@@ -140,6 +143,8 @@ export const workerModuleReplacements: Record<string, string> = {
   'ipc/handlers/ipcHandlers.ts': runtime('ipcHandlers.ts'),
   'services/CopilotService.ts': disabled('providers.ts'),
   'services/file/index.ts': disabled('files.ts'),
+  'services/file/tree/search.ts': runtime('fileTreeSearch.ts'),
+  'services/file/watcher.ts': runtime('fileWatcher.ts'),
   'services/webSearch/WebSearchService.ts': disabled('webSearch.ts'),
   'utils/appEdition.ts': runtime('appEdition.ts'),
   'utils/builtinSkills.ts': disabled('skills.ts'),
@@ -150,9 +155,19 @@ export const workerModuleReplacements: Record<string, string> = {
 
 /** Renderer modules replaced in the page, keyed by their path under `src/renderer`. */
 const pageModuleReplacements: Record<string, string> = {
+  'assets/styles/tailwind.css': page('tailwind.css'),
   'components/settingsMenu.ts': page('settingsMenu.ts'),
   'components/AgentRuntimeOption.tsx': page('AgentRuntimeOption.tsx'),
+  'components/UserAccountPanel.tsx': page('UserAccountPanel.tsx'),
+  'components/chat/messages/frame/messageMenuBarActions.tsx': page('messageMenuBarActions.ts'),
+  'components/chat/messages/hooks/useMessageExportActions.ts': page('messageExportActions.ts'),
+  'components/composer/ComposerToolRuntime.tsx': page('composerToolRuntime.ts'),
+  'components/composer/tools/builtinTools.ts': page('composerTools.ts'),
+  'components/composer/variants/shared/ComposerDictationButton.tsx': page('ComposerDictationButton.ts'),
+  'components/layout/HelpMenu.tsx': page('HelpMenu.ts'),
+  'hooks/useLaunchpadAppOrder.ts': page('launchpadAppOrder.ts'),
   'services/sentry.ts': page('sentry.ts'),
+  'windows/main/onboarding/OnboardingPage.tsx': page('OnboardingPage.tsx'),
   'workers/pyodide.worker.ts?worker': page('pyodideWorker.ts')
 }
 
@@ -273,6 +288,44 @@ export const crossOriginIsolation = {
   'Cross-Origin-Embedder-Policy': 'require-corp'
 }
 
+/** Where model requests may go. The community edition reaches any provider the user adds, local ones included. */
+export const ANY_PROVIDER = ['https:', 'http://localhost:*', 'http://127.0.0.1:*']
+
+/**
+ * The Web app's Content Security Policy. `connectSrc` lists where the app may send requests; an
+ * edition narrows it to its own servers. `reportUri` is for the tests, which fail on any violation.
+ */
+export function contentSecurityPolicy({
+  connectSrc = ANY_PROVIDER,
+  reportUri = process.env.WEB_CORE_CSP_REPORT_URI
+} = {}) {
+  const frameScript = `'sha256-${createHash('sha256').update(PYODIDE_FRAME_SCRIPT).digest('base64')}'`
+  const directives = [
+    "default-src 'self'",
+    `script-src 'self' 'wasm-unsafe-eval' ${frameScript} https://cdn.jsdelivr.net/pyodide/`,
+    // The desktop renderer injects its styles at runtime.
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    `connect-src 'self' data: blob: ${connectSrc.join(' ')}`,
+    // The Pyodide worker starts from a `data:` URL in its sandboxed frame.
+    "worker-src 'self' data:",
+    "frame-src 'self' data: blob:",
+    "object-src 'none'",
+    // No `base-uri`: HTML previews set `<base href="about:srcdoc">`, and `script-src` already limits script origins.
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    ...(reportUri ? [`report-uri ${reportUri}`] : [])
+  ]
+  return directives.join('; ')
+}
+
+/** Every response's headers: cross-origin isolation and the CSP. */
+export function webCoreHeaders(options?: Parameters<typeof contentSecurityPolicy>[0]): Record<string, string> {
+  return { ...crossOriginIsolation, 'Content-Security-Policy': contentSecurityPolicy(options) }
+}
+
 // The desktop preload exposes its API directly when context isolation is off; a page has none.
 export const pageDefines = { 'process.contextIsolated': 'false' }
 
@@ -311,8 +364,8 @@ export default defineConfig({
   plugins: [resolveProcessAliases(), replaceDesktopModules(), forbidNodeModules(), migrationsPlugin()],
   worker: coreWorkerConfig,
   optimizeDeps: { exclude: ['@sqlite.org/sqlite-wasm'] },
-  server: { headers: crossOriginIsolation },
-  preview: { headers: crossOriginIsolation },
+  server: { headers: webCoreHeaders() },
+  preview: { headers: webCoreHeaders() },
   build: {
     outDir: resolve(import.meta.dirname, 'dist/harness'),
     rolldownOptions: {

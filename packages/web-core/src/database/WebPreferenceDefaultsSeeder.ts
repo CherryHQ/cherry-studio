@@ -7,11 +7,28 @@ const desktopDefaults = DefaultPreferences.default
 
 const WEB_SIDEBAR_RESOURCES = new Set(['agents', 'assistants'])
 
-/** First-run preferences where the Web edition differs from the desktop: the sidebar offers only chat and agents. */
+/**
+ * First-run preferences where the Web edition differs from the desktop: the sidebar offers only chat
+ * and agents, and desktop-only features (the agent browser, skills, web search, exports to Word and
+ * note apps) are off or left out of the toolbars and menus.
+ */
 const webDefaults: Partial<typeof desktopDefaults> = {
   'ui.sidebar_shortcut': desktopDefaults['ui.sidebar_shortcut'].filter(
     ({ target }) => target.kind === 'resource' && WEB_SIDEBAR_RESOURCES.has(target.locator.resourceId)
-  )
+  ),
+  'app.browser.agent_control.enabled': false,
+  'agent.input.toolbar.pinned_tools': desktopDefaults['agent.input.toolbar.pinned_tools'].filter(
+    (id) => id !== 'skills'
+  ),
+  'chat.input.toolbar.pinned_tools': desktopDefaults['chat.input.toolbar.pinned_tools'].filter(
+    (id) => id !== 'web-search'
+  ),
+  'data.export.menus.docx': false,
+  'data.export.menus.joplin': false,
+  'data.export.menus.notion': false,
+  'data.export.menus.obsidian': false,
+  'data.export.menus.siyuan': false,
+  'data.export.menus.yuque': false
 }
 
 /**
