@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -218,6 +219,33 @@ describe('SkillFileBrowser', () => {
     expect(screen.getByRole('radiogroup', { name: 'preview.label' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'settings.skills.editor.preview' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'settings.skills.editor.edit' })).not.toBeChecked()
+  })
+
+  it.each([
+    ['binary', 'settings.skills.editor.unsupported.encoding'],
+    ['oversized', 'settings.skills.editor.unsupported.size'],
+    ['unreadable', 'settings.skills.editor.loadFailed']
+  ])('can select another file after a %s file fails to open', async (failure, message) => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockImplementation(async (route: string, input: { path?: string }) => {
+      if (route !== 'file.edit.read') return undefined
+      if (input.path?.endsWith('/README.md')) {
+        if (failure === 'oversized') throw new IpcError(fileErrorCodes.EDIT_UNSUPPORTED, 'too large')
+        if (failure === 'unreadable') throw new IpcError(fileErrorCodes.EDIT_PERMISSION, 'permission denied')
+        return { content: new Uint8Array([0xff]), version: { mtime: 1, size: 1 } }
+      }
+      const content = new TextEncoder().encode('# Writer')
+      return { content, version: { mtime: 1, size: content.byteLength } }
+    })
+    renderBrowser('read_write')
+    await screen.findByRole('radio', { name: 'settings.skills.editor.edit' })
+    await user.click(screen.getByRole('button', { name: 'README.md' }))
+    await screen.findByText(message)
+    await user.click(screen.getByRole('button', { name: 'SKILL.md' }))
+    await user.click(await screen.findByRole('radio', { name: 'settings.skills.editor.edit' }))
+    expect(screen.getByRole('textbox', { name: 'code-editor' })).toHaveValue('# Writer')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toEqual([])
   })
 
   it('autosaves editable text through generic file IPC and scopes the following reconcile', async () => {

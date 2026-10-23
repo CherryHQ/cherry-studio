@@ -47,6 +47,8 @@ Entry writes, entry rename/delete/cleanup, and path mutations coordinate in entr
 
 ## Replacement and mutations
 
+If the current acquisition fails before an editing instance exists, `flush()` and `discard()` complete without work so navigation can continue. Loading acquisitions still reject these commands; errors on an existing instance retain its normal draft and write-settlement protections. `reload()` and `keepLocal()` require an instance.
+
 `documentEpoch` changes for an initial document or explicit replacement, not ordinary edits or save receipts. Notes mount editors by session/epoch. Programmatic rich-editor hydration is silent. A separate binding generation rejects callbacks from replaced attachments or before a mutation barrier while preserving the current document and undo history.
 
 `discard()` settles writes and restores the confirmed baseline. `reload()` settles writes before adopting a new disk document. `keepLocal()` seals input, captures the draft, reads a fresh baseline, and conditionally saves the captured text. Failure retains the draft.

@@ -88,6 +88,7 @@ export function useFileEditSession(handle: FileHandle | undefined, ownerId: stri
   }, [manager, ownerId, key, stableHandle, request])
 
   const lease = acquired?.request === request ? acquired?.lease : undefined
+  const acquisitionError = acquired?.request === request ? acquired?.error : undefined
   const snapshot = useSyncExternalStore(lease?.subscribe ?? emptySubscription, lease?.getSnapshot ?? emptySnapshot)
   const activatedLease = useRef<SessionLease | undefined>(undefined)
   useEffect(() => {
@@ -117,10 +118,13 @@ export function useFileEditSession(handle: FileHandle | undefined, ownerId: stri
   )
   const invoke = useCallback(
     (command: 'flush' | 'discard' | 'reload' | 'keepLocal') => {
-      if (!lease) return Promise.reject(new Error('File session is not ready'))
+      if (!lease) {
+        if (acquisitionError && (command === 'flush' || command === 'discard')) return Promise.resolve()
+        return Promise.reject(new Error('File session is not ready'))
+      }
       return lease[command]()
     },
-    [lease]
+    [lease, acquisitionError]
   )
 
   const commands = useMemo(
@@ -138,7 +142,7 @@ export function useFileEditSession(handle: FileHandle | undefined, ownerId: stri
   )
 
   return useMemo(() => {
-    const error = snapshot?.readError ?? (acquired?.request === request ? acquired?.error : undefined)
+    const error = snapshot?.readError ?? acquisitionError
     const unsupportedReason =
       error instanceof UnsupportedFileTextError
         ? error.reason
@@ -163,5 +167,5 @@ export function useFileEditSession(handle: FileHandle | undefined, ownerId: stri
       setDraft,
       ...commands
     }
-  }, [acquired, request, handle, lease, snapshot, setDraft, commands])
+  }, [acquisitionError, handle, lease, snapshot, setDraft, commands])
 }

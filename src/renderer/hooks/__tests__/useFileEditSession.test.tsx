@@ -61,12 +61,17 @@ it('preserves BOM, CRLF and raw Markdown on untouched load and after an actual e
 it.each<[Uint8Array, string]>([
   [new Uint8Array([0xff]), 'encoding'],
   [new TextEncoder().encode('a\r\nb\n'), 'mixed-line-endings']
-])('blocks editing of unsupported text', async (bytes, reason) => {
+])('blocks editing of unsupported text without blocking flush or discard', async (bytes, reason) => {
   disk = bytes
   const { result } = renderHook(() => useFileEditSession(handle, 'notes'), { wrapper })
   await waitFor(() => expect(result.current.status).toBe('unsupported'))
   expect(result.current.unsupportedReason).toBe(reason)
   act(() => result.current.setDraft('replacement'))
+  await expect(result.current.flush()).resolves.toBeUndefined()
+  await expect(result.current.discard()).resolves.toBeUndefined()
+  await expect(result.current.reload()).rejects.toThrow('not ready')
+  await expect(result.current.keepDraft()).rejects.toThrow('not ready')
+  expect(result.current.sessionId).toBeUndefined()
   expect(writes).toEqual([])
 })
 
