@@ -345,6 +345,14 @@ export function useFollowupQueue({
   // park the retry instead of bypassing them.
   const drainBlockedRef = useRef(false)
   drainBlockedRef.current = paused || !queriesReady || !pauseKnown
+  // Post-claim dispatch safety is narrower than pre-claim readiness: once the
+  // atomic claim is won, the row is ours and a query refresh — including the
+  // revalidation our own claim broadcast starts before the grant arrives —
+  // must not read as "not ready" and release the claim without delivery
+  // (cherry-pr-review inv_16b576017347a966). Only Pause/ownership still gate
+  // dispatch here.
+  const dispatchBlockedRef = useRef(false)
+  dispatchBlockedRef.current = paused || !pauseKnown
   // Re-fire the drain when the head arrives after the edge: queue data landing
   // late must not strand an unacknowledged completion.
   const headId = items[0]?.id
@@ -1385,7 +1393,7 @@ export function useFollowupQueue({
       // dispatch or consumption — the unacked completion re-drains when Pause
       // lifts (cherry-pr-review inv_d8f850bf38694710). Deliberate manual
       // steering goes through steer, not this path.
-      if (drainBlockedRef.current) {
+      if (dispatchBlockedRef.current) {
         await settleItem(won.id, false, claimToken)
         // The release settled the claim: the finally below must consider
         // re-driving the still-unconsumed completion — a Resume (or query
