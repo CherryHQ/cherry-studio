@@ -4677,6 +4677,7 @@
   "settings.mcp.builtinServersDescriptions.browser": "Duyệt trang qua ảnh chụp cấu trúc, nhấp và nhập vào các phần tử, chuyển tab và xử lý hộp thoại. Mặc định chạy trong nền.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Máy chủ MCP DiDi cung cấp dịch vụ đặt xe bao gồm tìm kiếm bản đồ, ước tính giá, quản lý đơn hàng và theo dõi tài xế. Chỉ khả dụng tại Trung Quốc Đại lục. Yêu cầu cấu hình biến môi trường DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Triển khai máy chủ MCP của Dify cung cấp một API đơn giản để tương tác với Dify. Yêu cầu cấu hình Khóa Dify",
+  "settings.mcp.builtinServersDescriptions.evolink": "Kết nối với EvoLink để tạo hình ảnh, video, âm nhạc và giọng nói bằng hơn 150 mô hình AI. Tìm kiếm mô hình, xem giá và báo giá đều miễn phí, còn việc tạo nội dung được tính phí vào số dư EvoLink của bạn. Yêu cầu ủy quyền tài khoản EvoLink.",
   "settings.mcp.builtinServersDescriptions.fetch": "MCP server để lấy nội dung web từ URL",
   "settings.mcp.builtinServersDescriptions.filesystem": "Một máy chủ Node.js triển khai Giao thức Ngữ cảnh Mô hình (MCP) cho các thao tác hệ thống tệp. Yêu cầu cấu hình các thư mục được phép truy cập.",
   "settings.mcp.builtinServersDescriptions.flomo": "Kết nối với flomo để nhanh chóng ghi lại ghi chú và ý tưởng qua AI. Yêu cầu ủy quyền tài khoản flomo.",
