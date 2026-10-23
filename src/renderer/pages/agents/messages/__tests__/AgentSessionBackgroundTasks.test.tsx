@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessagePartsScopeProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import AgentSessionBackgroundTasks from '../AgentSessionBackgroundTasks'
 
@@ -11,9 +13,10 @@ const mocks = vi.hoisted(() => ({
   taskEvents: {} as Record<string, Record<string, unknown>>,
   openAgentToolFlow: vi.fn(),
   launchIndex: null as null | {
-    toolCallIds: Set<string>
-    childRootCallIds: Set<string>
-    dshTaskRootCallIds: Set<string>
+    toolCallIds: ReadonlySet<string>
+    childRootCallIds: ReadonlySet<string>
+    dshTaskRootCallIds: ReadonlySet<string>
+    parentedToolCallIds: ReadonlySet<string>
   }
 }))
 
@@ -107,7 +110,8 @@ describe('AgentSessionBackgroundTasks', () => {
     mocks.launchIndex = {
       toolCallIds: new Set(),
       childRootCallIds: new Set(['call-send']),
-      dshTaskRootCallIds: new Set()
+      dshTaskRootCallIds: new Set(),
+      parentedToolCallIds: new Set()
     }
     render(
       <MessagePartsScopeProvider messageId="reply" parts={[{ type: 'text', text: 'done' } as never]}>
@@ -127,7 +131,8 @@ describe('AgentSessionBackgroundTasks', () => {
     mocks.launchIndex = {
       toolCallIds: new Set(['call-send']),
       childRootCallIds: new Set(),
-      dshTaskRootCallIds: new Set()
+      dshTaskRootCallIds: new Set(),
+      parentedToolCallIds: new Set()
     }
     render(
       <MessagePartsScopeProvider messageId="reply" parts={[{ type: 'text', text: 'done' } as never]}>
@@ -147,7 +152,8 @@ describe('AgentSessionBackgroundTasks', () => {
     mocks.launchIndex = {
       toolCallIds: new Set(),
       childRootCallIds: new Set(),
-      dshTaskRootCallIds: new Set(['call-send'])
+      dshTaskRootCallIds: new Set(['call-send']),
+      parentedToolCallIds: new Set()
     }
     render(
       <MessagePartsScopeProvider messageId="reply" parts={[{ type: 'text', text: 'done' } as never]}>
@@ -162,6 +168,53 @@ describe('AgentSessionBackgroundTasks', () => {
     const { container } = render(<AgentSessionBackgroundTasks sessionId="session-1" />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  // A nested launch (parented under another flow) is loaded but never rendered top-level, so it
+  // cannot replace the capsule for its task.
+  it('keeps the capsule when the loaded launch is nested under a paged-out flow', () => {
+    mocks.backgroundTasks = [
+      { id: 'child', type: 'subagent', description: 'Nested review task', toolCallId: 'nested-call' }
+    ]
+    mocks.launchIndex = buildAgentLaunchIndex({
+      earlier: [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'nested-call',
+          toolName: 'Agent',
+          state: 'output-available',
+          input: { description: 'Nested review task' },
+          callProviderMetadata: { 'claude-code': { parentToolCallId: 'parent-call' } }
+        } as unknown as CherryMessagePart
+      ]
+    })
+    render(<AgentSessionBackgroundTasks sessionId="session-1" />)
+
+    expect(screen.getByRole('button', { name: 'Nested review task' })).toBeVisible()
+  })
+
+  // The same rule applies to a parented part in the capsule's own message.
+  it('keeps the capsule when the launch part in this message is nested', () => {
+    mocks.backgroundTasks = [
+      { id: 'child', type: 'subagent', description: 'Nested review task', toolCallId: 'nested-call' }
+    ]
+    render(
+      <MessagePartsScopeProvider
+        messageId="reply"
+        parts={[
+          {
+            type: 'tool-Agent',
+            toolCallId: 'nested-call',
+            state: 'output-available',
+            input: { description: 'Nested review task' },
+            callProviderMetadata: { 'claude-code': { parentToolCallId: 'parent-call' } }
+          } as unknown as CherryMessagePart
+        ]}>
+        <AgentSessionBackgroundTasks sessionId="session-1" />
+      </MessagePartsScopeProvider>
+    )
+
+    expect(screen.getByRole('button', { name: 'Nested review task' })).toBeVisible()
   })
 
   it('renders a local Workflow chip without offering an empty root FlowTab', () => {

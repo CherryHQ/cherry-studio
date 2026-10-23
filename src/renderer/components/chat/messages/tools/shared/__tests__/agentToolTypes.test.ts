@@ -301,6 +301,36 @@ describe('dsh receipt identities', () => {
     expect(getSubagentTaskStatusFromIndex(settled, 'call-launch', 'done', dead)).toBe('done')
   })
 
+  // Nested launches stay in the index (stamped navigation needs them) but are marked parented:
+  // chat never renders them top-level, so they cannot replace a capsule.
+  it('marks a parented launch without narrowing stamped navigation', () => {
+    const nested = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-nested',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { description: 'Nested child' },
+      callProviderMetadata: { 'claude-code': { parentToolCallId: 'call-parent' } }
+    } as unknown as CherryMessagePart
+    const nestedSend = {
+      ...dshSendMessagePart('call-nested-send'),
+      callProviderMetadata: {
+        cherry: { transport: 'dsh-agent' },
+        'claude-code': { parentToolCallId: 'call-parent' }
+      }
+    } as unknown as CherryMessagePart
+    const index = buildAgentLaunchIndex({ m1: [launchPart('call-top', 'agent-top', 'Top child'), nested, nestedSend] })
+
+    expect([...index.toolCallIds].sort()).toEqual(['call-nested', 'call-top'])
+    expect([...index.parentedToolCallIds].sort()).toEqual(['call-nested', 'call-nested-send'])
+    // The stamp guard still finds the nested launch inside the loaded window.
+    expect(resolveResumeReceiptState({ success: true, resumedAgentId: 'other' }, 'call-nested', index, true)).toEqual({
+      kind: 'navigable',
+      toolCallId: 'call-nested',
+      description: 'Nested child'
+    })
+  })
+
   it('answers a launch through its child when the task moved to the resume call', () => {
     const launch = launchPart('call-launch', 'agent-77', 'Inspect renderer')
     const index = buildAgentLaunchIndex(
