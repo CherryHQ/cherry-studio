@@ -183,10 +183,6 @@ export class FollowupQueueService {
   /** Bounded FIFO per scope: recent completions stay fenced, ancient ones age out. */
   private static readonly MAX_CONSUMED_COMPLETIONS_PER_SCOPE = 16
 
-  private hasConsumedCompletion(scopeKey: string, completionAt: number): boolean {
-    return this.consumedCompletions.get(scopeKey)?.some((entry) => entry.completionAt === completionAt) ?? false
-  }
-
   private recordConsumedCompletion(scopeKey: string, completionAt: number, claimToken: string): void {
     const entries = this.consumedCompletions.get(scopeKey) ?? []
     if (!entries.some((entry) => entry.completionAt === completionAt && entry.claimToken === claimToken)) {

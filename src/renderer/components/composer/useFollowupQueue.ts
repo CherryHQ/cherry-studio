@@ -799,6 +799,22 @@ export function useFollowupQueue({
             restoreBody ?? { id: restoreId, scopeKey: scope, draft: item.draft, payload: restoredItem.payload }
           )
         }
+        // The composer is gone and caches the still-visible outgoing draft on
+        // unmount: the landed recovery copy would age out of its hold and
+        // deliver a duplicate of that retained draft. Ownership moved to the
+        // composer cache — remove the copy (cherry-pr-review
+        // inv_ab5b303505a45104). Best-effort: a failed removal leaves the copy
+        // held, never deliverable.
+        if (restoredCopy) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await removeTrigger({ params: { id: restoredCopy.id } })
+              break
+            } catch {
+              // Transient — retry; the copy stays held meanwhile.
+            }
+          }
+        }
         takenEditRef.current = null
         return undefined
       }
@@ -811,7 +827,16 @@ export function useFollowupQueue({
       takenEditRef.current = { item: restoredItem, slot: Math.max(incomingSlot, 0), scopeKey: scope }
       return restoredItem
     },
-    [claimItem, takeDeleteTrigger, enqueueTrigger, reorderTrigger, markFailedTrigger, holdRestoredCopy, t]
+    [
+      claimItem,
+      takeDeleteTrigger,
+      removeTrigger,
+      enqueueTrigger,
+      reorderTrigger,
+      markFailedTrigger,
+      holdRestoredCopy,
+      t
+    ]
   )
 
   // Serialize the complete edit handoff: overlapping takes can both observe
@@ -1345,6 +1370,15 @@ export function useFollowupQueue({
           // (cherry-pr-review inv_d411c32e0bd3cc85).
           scheduleTentativeReconcileRef.current(scope, completionAt)
         }
+        return
+      }
+      // Pause may have taken effect while the claim was in flight: recheck
+      // the automatic-drain gate after winning and release the claim without
+      // dispatch or consumption — the unacked completion re-drains when Pause
+      // lifts (cherry-pr-review inv_d8f850bf38694710). Deliberate manual
+      // steering goes through steer, not this path.
+      if (drainBlockedRef.current) {
+        await settleItem(won.id, false, claimToken)
         return
       }
       const target = itemsRef.current.find((entry) => entry.id === won.id)
