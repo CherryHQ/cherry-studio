@@ -39,6 +39,30 @@ describe('persistent automation kernel', () => {
     expect(effects).toBe(1)
   })
 
+  it('exposes ad rule writing on the bound tab', async () => {
+    const kernel = createKernel()
+    const calls: Array<{ name: string; args: Record<string, unknown>; target?: string }> = []
+    const host = context(async (domain, input) => {
+      const request = input as { name: string; args: Record<string, unknown>; target?: string }
+      if (domain !== 'browser') throw new Error('Unexpected target domain')
+      if (request.name === 'getTab') return { ok: true, value: { tabId: 'tab-1' } }
+      if (request.name === 'blockAds') {
+        calls.push(request)
+        return { ok: true, value: { applied: true, domain: 'example.com' } }
+      }
+      throw new Error(`Unexpected operation: ${request.name}`)
+    })
+    const result = await kernel.execute(
+      {
+        bootstrap: automationBootstrap(),
+        code: 'var tab = await browser.getTab(); await tab.blockAds({css: ".promo", note: "sticky promo"})'
+      },
+      host
+    )
+    expect(result.isError).not.toBe(true)
+    expect(calls).toEqual([{ name: 'blockAds', args: { css: '.promo', note: 'sticky promo' }, target: 'tab-1' }])
+  })
+
   it('marks oversized JS output as incomplete', async () => {
     const result = await createKernel().execute({ bootstrap, code: '"x".repeat(50000)' }, context())
     expect(result.text).toContain('output was OMITTED')

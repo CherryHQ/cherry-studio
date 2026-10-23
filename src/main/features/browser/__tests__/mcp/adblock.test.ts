@@ -12,7 +12,13 @@ vi.mock('@application', async () => {
 import type { BrowserController } from '@main/features/browser/mcp/browserController'
 import { handleBlockAds } from '@main/features/browser/mcp/tools/adblock'
 
-const controller = {} as BrowserController
+function controllerFor(url: string): BrowserController {
+  return {
+    getSession: async () => ({ tabId: 'tab-1', session: { guest: { getURL: () => url } } })
+  } as unknown as BrowserController
+}
+
+const controller = controllerFor('https://www.example.com/page')
 
 function textOf(result: Awaited<ReturnType<typeof handleBlockAds>>): string {
   const part = result.content[0]
@@ -122,5 +128,21 @@ describe('block_ads tool', () => {
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('CSS 选择器')
+  })
+
+  it('refuses a domain that does not cover the page the controller is showing', async () => {
+    const result = await handleBlockAds(controller, { domain: 'other.com', css: '.ad' })
+
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('does not cover the current page')
+    expect(addCustomRule).not.toHaveBeenCalled()
+  })
+
+  it('refuses to scope a rule when the tab has no http(s) page', async () => {
+    const result = await handleBlockAds(controllerFor('about:blank'), { domain: 'example.com', css: '.ad' })
+
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('no http(s) page')
+    expect(addCustomRule).not.toHaveBeenCalled()
   })
 })

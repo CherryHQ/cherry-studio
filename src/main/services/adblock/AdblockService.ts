@@ -8,9 +8,16 @@ import { parse as parseHostname } from 'tldts-experimental'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { SequencerByKey } from '@shared/utils/async'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
-import { type CustomAdblockRule, CustomAdblockRuleStore, type NewCustomAdblockRule } from './customRules'
+import {
+  type CustomAdblockRule,
+  CustomAdblockRuleStore,
+  hostnameMatchesDomain,
+  type NewCustomAdblockRule,
+  scopeNetworkRule
+} from './customRules'
 import { setAdblockGate } from './gate'
 import { getSearchAdsCss } from './searchAds'
 
@@ -38,9 +45,13 @@ interface CosmeticFilterUpdate {
   lifecycle?: string
 }
 
-function domainMatches(hostname: string, domain: string): boolean {
-  return hostname === domain || hostname.endsWith(`.${domain}`)
-}
+/**
+ * Partitions of the standalone `@cherry/browser` MCP server, mirroring
+ * `SESSION_KEY_DEFAULT` / `SESSION_KEY_PRIVATE` in the browser feature. Its tabs
+ * are not created by the app's webview registry, so they are covered here
+ * directly: nothing else owns the request slot of these sessions.
+ */
+const STANDALONE_BROWSER_PARTITIONS = ['persist:default', 'private'] as const
 
 /**
  * Ad blocking for the built-in browser.
@@ -64,7 +75,7 @@ function domainMatches(hostname: string, domain: string): boolean {
 export class AdblockService extends BaseService {
   private engine?: FiltersEngine
   private customEngine?: FiltersEngine
-  private readonly rules = new CustomAdblockRuleStore()
+  private readonly rules = new CustomAdblockRuleStore(application.getPath('feature.adblock.rules_file'))
   private enabled = false
   private hideSearchAds = false
   private blockedRequests = 0
@@ -73,6 +84,7 @@ export class AdblockService extends BaseService {
   private readonly ownedRequestSessions = new Set<Electron.Session>()
   private readonly searchAdsGuests = new WeakSet<Electron.WebContents>()
   private readonly injectedCss = new Map<number, string>()
+  private readonly cssInjections = new SequencerByKey<number>()
   private readonly unsubscribers: Array<() => void> = []
 
   protected async onInit(): Promise<void> {
@@ -88,7 +100,7 @@ export class AdblockService extends BaseService {
     })
     this.registerCosmeticIpc()
     this.syncCosmeticPreloads()
-    this.bridgeSiteSession()
+    this.bridgeRequestSessions()
     setAdblockGate(this.shouldBlock)
 
     this.watchGuests()
@@ -203,10 +215,8 @@ export class AdblockService extends BaseService {
     const filters = this.rules
       .list()
       .filter((rule) => rule.enabled && rule.kind === 'network')
-      .map((rule) => {
-        if (rule.value.includes('domain=')) return rule.value
-        return rule.value.includes('$') ? `${rule.value},domain=${rule.domain}` : `${rule.value}$domain=${rule.domain}`
-      })
+      .map((rule) => scopeNetworkRule(rule.value, rule.domain))
+      .filter((filter): filter is string => filter !== undefined)
     if (filters.length === 0) {
       this.customEngine = undefined
       return
@@ -255,11 +265,11 @@ export class AdblockService extends BaseService {
         getRulesFromHostname: isFirstRun,
         getRulesFromDOM: !isFirstRun
       })
-      const customStyles = this.customCssFor(target)
-      if (!active && !customStyles) return
-      const css = [active ? styles : '', customStyles].filter(Boolean).join('\n')
-      if (css.length > 0) {
-        void event.sender.insertCSS(css, { cssOrigin: 'user' }).catch((error) => {
+      // AI-written cosmetic rules are injected through the tracked page
+      // stylesheet (see `injectPageCss`), never here. A second, untracked copy
+      // from this preload would survive deleting the rule.
+      if (active && styles.length > 0) {
+        void event.sender.insertCSS(styles, { cssOrigin: 'user' }).catch((error) => {
           logger.debug('Failed to inject cosmetic filters', { error })
         })
       }
@@ -291,26 +301,31 @@ export class AdblockService extends BaseService {
     }
     const selectors = this.rules
       .list()
-      .filter((rule) => rule.enabled && rule.kind === 'cosmetic' && domainMatches(hostname, rule.domain))
+      .filter((rule) => rule.enabled && rule.kind === 'cosmetic' && hostnameMatchesDomain(hostname, rule.domain))
       .map((rule) => rule.value)
     if (selectors.length === 0) return ''
     return `${selectors.join(',\n')} {\n  display: none !important;\n}`
   }
 
   /**
-   * Installs its own request listener on the site webview partition only. The
-   * agent browser owns its listener (see {@link gate}) and must not be touched.
+   * Installs an owned request listener on the sessions whose request slot is
+   * free: the site webview and the standalone MCP browser. The agent browser
+   * owns its listener (see {@link gate}) and must not be touched.
    */
-  private bridgeSiteSession(): void {
-    const siteSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.MiniApp))
-    if (this.ownedRequestSessions.has(siteSession)) return
-    this.ownedRequestSessions.add(siteSession)
-    siteSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+  private bridgeRequestSessions(): void {
+    const partitions = [getWebviewPartition(WebviewSecurityProfile.MiniApp), ...STANDALONE_BROWSER_PARTITIONS]
+    for (const partition of partitions) this.ownRequestSession(session.fromPartition(partition))
+  }
+
+  private ownRequestSession(guestSession: Electron.Session): void {
+    if (this.ownedRequestSessions.has(guestSession)) return
+    this.ownedRequestSessions.add(guestSession)
+    guestSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       callback(this.shouldBlock(details) ? { cancel: true } : {})
     })
     this.registerDisposable(() => {
-      siteSession.webRequest.onBeforeRequest(null)
-      this.ownedRequestSessions.delete(siteSession)
+      guestSession.webRequest.onBeforeRequest(null)
+      this.ownedRequestSessions.delete(guestSession)
     })
   }
 
@@ -353,9 +368,12 @@ export class AdblockService extends BaseService {
   }
 
   private browserSessions(): Electron.Session[] {
-    return [WebviewSecurityProfile.MiniApp, WebviewSecurityProfile.AgentBrowser].map((profile) =>
-      session.fromPartition(getWebviewPartition(profile))
-    )
+    const partitions = [
+      getWebviewPartition(WebviewSecurityProfile.MiniApp),
+      getWebviewPartition(WebviewSecurityProfile.AgentBrowser),
+      ...STANDALONE_BROWSER_PARTITIONS
+    ]
+    return partitions.map((partition) => session.fromPartition(partition))
   }
 
   private isBrowserSession(candidate: Electron.Session): boolean {
@@ -373,36 +391,44 @@ export class AdblockService extends BaseService {
     if (contents.isDestroyed() || !this.isBrowserSession(contents.session)) return
     if (this.searchAdsGuests.has(contents)) return
     this.searchAdsGuests.add(contents)
+    const id = contents.id
     contents.on('dom-ready', () => this.injectPageCss(contents))
+    contents.once('destroyed', () => this.injectedCss.delete(id))
   }
 
   /**
    * Replaces the stylesheet this service owns on one page. Search-result rules
    * and AI-written cosmetic rules share one key so removing a rule can take the
    * old selectors with it; the engine-injected styles are managed separately by
-   * the preload.
+   * the preload. Injections are serialized per page, otherwise two overlapping
+   * runs would each insert a sheet while only one key survives.
    */
   private injectPageCss(contents: Electron.WebContents): void {
     if (contents.isDestroyed()) return
-    const url = contents.getURL()
-    const css = [this.hideSearchAds ? getSearchAdsCss(url) : '', this.customCssFor(url)].filter(Boolean).join('\n')
-    const previous = this.injectedCss.get(contents.id)
-    if (!css) {
-      if (previous) {
-        void contents.removeInsertedCSS(previous).catch(() => undefined)
-        this.injectedCss.delete(contents.id)
-      }
-      return
-    }
-    void (async () => {
-      try {
-        if (previous) await contents.removeInsertedCSS(previous).catch(() => undefined)
+    const id = contents.id
+    void this.cssInjections
+      .queue(id, async () => {
+        if (contents.isDestroyed()) return
+        const url = contents.getURL()
+        const css = [this.hideSearchAds ? getSearchAdsCss(url) : '', this.customCssFor(url)].filter(Boolean).join('\n')
+        const previous = this.injectedCss.get(id)
+        if (!css) {
+          if (previous) {
+            await contents.removeInsertedCSS(previous).catch(() => undefined)
+            this.injectedCss.delete(id)
+          }
+          return
+        }
+        if (previous) {
+          await contents.removeInsertedCSS(previous).catch(() => undefined)
+          this.injectedCss.delete(id)
+        }
         const key = await contents.insertCSS(css, { cssOrigin: 'user' })
-        if (!contents.isDestroyed()) this.injectedCss.set(contents.id, key)
-      } catch (error) {
+        if (!contents.isDestroyed()) this.injectedCss.set(id, key)
+      })
+      .catch((error) => {
         logger.debug('Failed to inject page styles', { error })
-      }
-    })()
+      })
   }
 
   private refreshOpenPages(): void {

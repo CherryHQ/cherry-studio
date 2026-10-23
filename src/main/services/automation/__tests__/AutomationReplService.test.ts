@@ -83,7 +83,8 @@ describe('automation run authority', () => {
     expect(first.content).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'text', text: expect.stringContaining('# Automation REPL') }),
-        expect.objectContaining({ type: 'text', text: expect.stringContaining('interface Tab') })
+        expect.objectContaining({ type: 'text', text: expect.stringContaining('interface Tab') }),
+        expect.objectContaining({ type: 'text', text: expect.stringContaining('blockAds(options') })
       ])
     )
     const second = await run.execute(JSON.stringify({ name: 'getTab' }))
@@ -94,6 +95,18 @@ describe('automation run authority', () => {
         expect.objectContaining({ type: 'text', text: expect.stringContaining('interface Tab') })
       ])
     )
+  })
+
+  it('dispatches ad rule writing through the browser control as a recorded action', async () => {
+    const run = service.beginRun(owner, 'run', () => ({ browser: true, computer: false }))
+    const result = await run.execute(JSON.stringify({ name: 'blockAds', args: { css: '.promo' }, target: 'tab-1' }))
+    expect(result.structuredContent).toMatchObject({
+      execution: {
+        events: [{ domain: 'browser', operation: 'blockAds', target: 'tab-1', status: 'completed' }],
+        omitted: 0
+      }
+    })
+    expect(effects).toBe(1)
   })
 
   it('preserves completed input separately from a later failed observation without replay', async () => {

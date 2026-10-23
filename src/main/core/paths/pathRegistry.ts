@@ -101,6 +101,7 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.adblock.rules_file': path.join(appUserData, 'adblock-rules.json'),
     'feature.selection.native_panel_file': path.join(
       appRootResources,
       'binaries',
