@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-23-web-core-hardening.md
-2026-10-23-web-core-hardening.md: 3c6143f6e3b6ac2ceddebd3327730caaedc3a2a9
-2026-10-23-web-core-hardening.zh.md: 9f57a402154a2ad92541024a1c787a09a58b6745
+2026-10-23-web-core-hardening.md: abae587abafe4f5c4fd414d2e253fca075b59c6f
+2026-10-23-web-core-hardening.zh.md: e6b60baf49b19da0d1b7cdd5c42bb7df7530aed0
