@@ -14,8 +14,14 @@ import {
   assertAgentStorageDirectory,
   assertAgentStoragePath,
   ensureAgentStorageDirectory,
-  removeAgentStorageSubdirectory
+  removeAgentStorageSubdirectory,
+  resolveRealOrNearestExistingPath
 } from '@main/ai/agents/agentDataDirectory'
+import {
+  assertWorkspaceDirectoryIdentity,
+  inspectWorkspaceStorage,
+  validateWorkspaceArchive
+} from '@main/ai/agents/agentWorkspaceStorage'
 import { blockWorkspaceRelocation } from '@main/ai/runtime/agentSessionWorkspace'
 import { runForkWorker } from '@main/ai/runtime/fork'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
@@ -161,8 +167,25 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     ...row,
     checkpoint: row.checkpoint ? (JSON.parse(row.checkpoint) as Record<string, unknown>) : undefined
   }))
-  if (history.some((row) => row.messageId)) await assertAgentStorageDirectory(root, newPath)
-  else await assertAgentStoragePath(root, newPath)
+  if (history.some((row) => row.messageId)) {
+    const storage = await inspectWorkspaceStorage(root, newPath)
+    if (!storage?.directory && !storage?.pending) {
+      const record = storage?.record
+      if (storage?.archive) await validateWorkspaceArchive(`${newPath}.tar.gz`)
+      else if (
+        record?.operation === 'restore' &&
+        record.phase === 'prepared' &&
+        record.source === 'pending' &&
+        record.directory
+      ) {
+        await assertWorkspaceDirectoryIdentity(
+          root,
+          path.join(`${newPath}.restoring`, record.operationId),
+          record.directory
+        )
+      } else throw new Error('Workspace storage missing')
+    }
+  } else await assertAgentStoragePath(root, newPath)
   const directory = path.join(root, '.relocation', workspace.id)
   if (await exists(directory)) throw new Error('Unresolved workspace relocation')
   await ensureAgentStorageDirectory(root, directory)
@@ -172,7 +195,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     const { default: createWorker } = await import('./relocationWorker?nodeWorker')
     const workerData: RelocationWorkerInput = {
       oldCwd: workspace.path,
-      newCwd: newPath
+      newCwd: await resolveRealOrNearestExistingPath(newPath)
     }
     const result = z
       .strictObject({

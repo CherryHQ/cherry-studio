@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, link, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { createRequire, stripTypeScriptTypes } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -18,6 +18,8 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
+import * as workspaceStorage from '@main/ai/agents/agentWorkspaceStorage'
+import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { runForkWorker } from '@main/ai/runtime/fork'
 import { loadPiAi, loadPiSdk } from '@main/ai/runtime/pi/piSdk'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
@@ -30,6 +32,16 @@ const workerMocks = vi.hoisted(() => ({
   source: undefined as string | undefined,
   keys: undefined as { oldKey: string; newKey: string } | undefined
 }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    AgentSessionRuntimeService: {
+      cancelSessionForks: vi.fn().mockResolvedValue(undefined),
+      closeSessionForArchive: vi.fn().mockResolvedValue(undefined)
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 // Keep filesystem publication and database recovery real; isolate only the native SDK worker.
 vi.mock('../relocationWorker?nodeWorker', async () => {
@@ -145,6 +157,231 @@ describe('system workspace relocation', () => {
       })
     }).persistAssistant({ status, finalMessage: { id, role: 'assistant', parts: [{ type: 'text', text: status }] } })
   }
+
+  it.each([
+    { runtime: 'pi', linked: false },
+    { runtime: 'claude-code', linked: false },
+    { runtime: 'claude-code', linked: true }
+  ] as const)(
+    'relocates archived $runtime storage without restoring it (linked ancestor: $linked)',
+    async ({ runtime, linked }) => {
+      const workspace = await createWorkspace(runtime)
+      if (linked) {
+        const profile = path.join(temporaryRoot, 'new')
+        const physicalProfile = path.join(temporaryRoot, 'physical-profile')
+        await rename(profile, physicalProfile)
+        await symlink(physicalProfile, profile, process.platform === 'win32' ? 'junction' : 'dir')
+      }
+      const output = Buffer.from([0, 1, 2, 255])
+      await writeFile(path.join(workspace.newPath, 'output.bin'), output)
+      let nativeId: string = randomUUID()
+      let nativeFile: string
+      let leafId: string | undefined
+      let destinationProject: string | undefined
+      if (runtime === 'pi') {
+        const { SessionManager } = await loadPiSdk()
+        const manager = SessionManager.create(workspace.oldPath, path.join(root, '.pi', 'sessions'))
+        manager.appendMessage({ role: 'user', content: 'Save output', timestamp: 1 })
+        leafId = manager.appendMessage({
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Output saved' }],
+          api: 'openai-completions',
+          provider: 'fixture',
+          model: 'fixture',
+          usage: {
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 2,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+          },
+          stopReason: 'stop',
+          timestamp: 2
+        })
+        nativeId = manager.getSessionId()
+        nativeFile = manager.getSessionFile()!
+      } else {
+        const source = await readFile(path.resolve('src/main/ai/agentSession/relocationWorker.ts'), 'utf8')
+        workerMocks.source = stripTypeScriptTypes(source).replaceAll(
+          '@anthropic-ai/claude-agent-sdk',
+          pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
+        )
+        const { default: createWorker } = await import('../relocationWorker?nodeWorker')
+        const keys = (await runForkWorker(
+          createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
+          new AbortController().signal
+        )) as { oldKey: string; newKey: string }
+        nativeFile = await writeHistory(runtime, workspace.id, nativeId, keys.oldKey)
+        destinationProject = path.join(root, '.claude', 'projects', keys.newKey)
+      }
+      const nativeContents = await readFile(nativeFile, 'utf8')
+      const checkpoint =
+        runtime === 'pi'
+          ? { runtime, runtimeSessionId: nativeId, leafId: leafId! }
+          : {
+              runtime,
+              runtimeSessionId: nativeId,
+              messageUuid: 'boundary',
+              configDir: path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
+            }
+      agentSessionMessageService.saveMessage({
+        sessionId: workspace.sessionId,
+        runtimeResumeToken: nativeId,
+        runtimeAnchor: { checkpoint },
+        message: {
+          id: randomUUID(),
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Output saved' }] }
+        }
+      })
+      dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: 123 })
+        .where(eq(agentSessionTable.id, workspace.sessionId))
+        .run()
+      await agentWorkspaceStorageService.archiveWorkspace({ id: workspace.sessionId, path: workspace.newPath })
+      const archive = `${workspace.newPath}.tar.gz`
+      const archiveContents = await readFile(archive)
+
+      expect(await relocateSystemWorkspaces()).toEqual(new Set())
+      expect(workspacePath(workspace.id)).toBe(workspace.newPath)
+      await expect(readdir(workspace.newPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await readFile(archive)).toEqual(archiveContents)
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, workspace.sessionId)).get()!.deletedAt
+      ).toBe(123)
+      expect(await relocateSystemWorkspaces()).toEqual(new Set())
+      await agentWorkspaceStorageService.restoreWorkspaces(
+        [{ id: workspace.sessionId, path: workspacePath(workspace.id) }],
+        () => {
+          dbh.db
+            .update(agentSessionTable)
+            .set({ deletedAt: null })
+            .where(eq(agentSessionTable.id, workspace.sessionId))
+            .run()
+        }
+      )
+      expect(await readFile(path.join(workspace.newPath, 'output.bin'))).toEqual(output)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(nativeId)
+      expect(
+        await readFile(destinationProject ? path.join(destinationProject, `${nativeId}.jsonl`) : nativeFile, 'utf8')
+      ).toBe(nativeContents)
+      if (runtime === 'claude-code') {
+        const [history] = agentSessionMessageService.readWorkspaceRelocationHistory(workspace.id)
+        expect(JSON.parse(history.checkpoint!).configDir).toBe(path.join(root, '.claude'))
+      }
+    }
+  )
+
+  it.each(['packing', 'restoring'] as const)('relocates interrupted archived storage: %s', async (phase) => {
+    const workspace = await createWorkspace('pi')
+    dbh.db
+      .update(agentWorkspaceTable)
+      .set({ path: workspace.newPath })
+      .where(eq(agentWorkspaceTable.id, workspace.id))
+      .run()
+    dbh.db.update(agentSessionTable).set({ deletedAt: 123 }).where(eq(agentSessionTable.id, workspace.sessionId)).run()
+    const nativeId = randomUUID()
+    await writeHistory('pi', workspace.id, nativeId)
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        sessionId: workspace.sessionId,
+        role: 'assistant',
+        status: 'success',
+        runtimeResumeToken: nativeId,
+        data: { parts: [] }
+      })
+      .run()
+    await writeFile(path.join(workspace.newPath, 'output.txt'), 'recoverable output')
+    const packing = vi
+      .spyOn(workspaceStorage, 'packWorkspaceDirectory')
+      .mockRejectedValueOnce(new Error('packing interrupted'))
+    await expect(
+      agentWorkspaceStorageService.archiveWorkspace({ id: workspace.sessionId, path: workspace.newPath })
+    ).rejects.toThrow('packing interrupted')
+    packing.mockRestore()
+    if (phase === 'restoring') {
+      const move = workspaceStorage.moveWorkspacePath
+      const restoring = vi
+        .spyOn(workspaceStorage, 'moveWorkspacePath')
+        .mockImplementation(async (managedRoot, from, to) => {
+          if (to === workspace.newPath) throw new Error('restore interrupted')
+          await move(managedRoot, from, to)
+        })
+      await expect(
+        agentWorkspaceStorageService.restoreWorkspaces(
+          [{ id: workspace.sessionId, path: workspace.newPath }],
+          () => undefined
+        )
+      ).rejects.toThrow('restore interrupted')
+      restoring.mockRestore()
+    }
+    const journal = await readFile(`${workspace.newPath}.storage.json`)
+    const nextRoot = path.join(temporaryRoot, 'moved', 'Data', 'Agents')
+    await mkdir(path.dirname(nextRoot), { recursive: true })
+    await rename(root, nextRoot)
+    root = nextRoot
+    const relocated = path.join(root, 'system', '2026-10-09', workspace.id)
+
+    expect(await relocateSystemWorkspaces()).toEqual(new Set())
+    expect(workspacePath(workspace.id)).toBe(relocated)
+    expect(await readFile(`${relocated}.storage.json`)).toEqual(journal)
+    await expect(readdir(relocated)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await relocateSystemWorkspaces()).toEqual(new Set())
+    await agentWorkspaceStorageService.restoreWorkspaces([{ id: workspace.sessionId, path: relocated }], () => {
+      dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: null })
+        .where(eq(agentSessionTable.id, workspace.sessionId))
+        .run()
+    })
+    expect(await readFile(path.join(relocated, 'output.txt'), 'utf8')).toBe('recoverable output')
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(nativeId)
+    await expect(readFile(`${relocated}.storage.json`)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it.each(['missing', 'corrupt', 'linked', 'hardlinked'] as const)(
+    'retains the old path when archived workspace storage is %s',
+    async (scenario) => {
+      const workspace = await createWorkspace('pi')
+      const nativeId = randomUUID()
+      const nativeFile = await writeHistory('pi', workspace.id, nativeId)
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          sessionId: workspace.sessionId,
+          role: 'assistant',
+          status: 'success',
+          runtimeResumeToken: nativeId,
+          data: { parts: [] }
+        })
+        .run()
+      await writeFile(path.join(workspace.newPath, 'output.txt'), 'preserved')
+      await agentWorkspaceStorageService.archiveWorkspace({ id: workspace.sessionId, path: workspace.newPath })
+      const archive = `${workspace.newPath}.tar.gz`
+      if (scenario === 'missing') await rm(archive)
+      if (scenario === 'corrupt') await writeFile(archive, 'invalid archive')
+      if (scenario === 'hardlinked') await link(archive, path.join(temporaryRoot, 'other.tar.gz'))
+      if (scenario === 'linked') {
+        const outside = path.join(temporaryRoot, 'outside')
+        const date = path.dirname(workspace.newPath)
+        await rename(date, outside)
+        await symlink(outside, date, process.platform === 'win32' ? 'junction' : 'dir')
+      }
+      const contents = scenario === 'missing' ? undefined : await readFile(archive)
+      const nativeContents = await readFile(nativeFile)
+
+      expect(await relocateSystemWorkspaces()).toEqual(new Set([workspace.sessionId]))
+      expect(workspacePath(workspace.id)).toBe(workspace.oldPath)
+      await expect(readdir(workspace.newPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await readFile(nativeFile)).toEqual(nativeContents)
+      if (contents) expect(await readFile(archive)).toEqual(contents)
+      else await expect(readFile(archive)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  )
 
   it.each(
     ['retained', 'removed', 'ambiguous', 'linked', 'target-conflict'].flatMap((scenario) =>
