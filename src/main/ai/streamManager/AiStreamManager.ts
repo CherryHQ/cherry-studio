@@ -1005,7 +1005,36 @@ export class AiStreamManager extends BaseService {
       }
     }
 
-    stream.unadmittedRuntimeSuspended = true
+    // The renderer's stream closes with the suspension: surface the empty turn
+    // as the terminal NoResponseError to renderer listeners only, then detach
+    // them. Other listener classes (channel:, remote:, sse:) keep continuation
+    // semantics — the preempting receive-only turn completes them with an
+    // ordinary isTopicDone=false instead of a failure classification
+    // (cherry-pr-review).
+    const noResponseError: SerializedError = {
+      name: 'NoResponseError',
+      message: 'No response',
+      stack: null,
+      i18nKey: 'no_response'
+    }
+    for (const listener of stream.listeners.values()) {
+      if (!isRendererListener(listener) || listener.terminalPhase) continue
+      try {
+        void listener.onError({
+          error: noResponseError,
+          status: 'error',
+          modelId: undefined,
+          attemptId: undefined,
+          userMessageId: undefined,
+          topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
+          anchorMessageId: undefined,
+          isTopicDone: true
+        })
+      } catch (err) {
+        logger.warn('suspendUnadmittedRuntimeTurn renderer listener threw', { topicId, err })
+      }
+      stream.listeners.delete(listener.id)
+    }
 
     await Promise.allSettled([...stream.executions.values()].map((execution) => execution.loopPromise))
   }
@@ -2100,8 +2129,7 @@ export class AiStreamManager extends BaseService {
       !this.hasPendingSteer(topicId) &&
       !(
         isAgentSessionTopic(topicId) &&
-        application.get('AgentSessionRuntimeService').willContinueTopic(topicId) &&
-        !this.activeStreams.get(topicId)?.unadmittedRuntimeSuspended
+        application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
       ) &&
       isEmptySuccessTurn(exec.finalMessage)
     ) {

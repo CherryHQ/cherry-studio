@@ -190,8 +190,6 @@ export interface ActiveStream {
   expiresAt?: number
   /** Timer handle set by chat `lifecycle.cleanup` so `evictStream` can cancel. */
   cleanupTimer?: ReturnType<typeof setTimeout>
-  /** Set by `suspendUnadmittedRuntimeTurn` so an empty close still errors the renderer. */
-  unadmittedRuntimeSuspended?: boolean
 }
 
 // ── Config ──────────────────────────────────────────────────────────

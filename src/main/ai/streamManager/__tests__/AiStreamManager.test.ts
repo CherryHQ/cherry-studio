@@ -1950,28 +1950,41 @@ describe('AiStreamManager', () => {
       const feed = controlledStream()
       mockStreamText.mockResolvedValueOnce(feed.stream)
       const renderer = new FakeListener(`wc:1:${topicId}`)
+      const channel = new FakeListener(`channel:telegram:${topicId}`)
       const persistence = new FakeListener(`persistence:agents-db:${topicId}:model`)
       const runtime = new FakeListener(`agent-runtime:session-1`)
       startSingle(mgr, {
         topicId,
         modelId: 'provider-a::model-a',
         request: req(topicId),
-        listeners: [renderer, persistence, runtime]
+        listeners: [renderer, channel, persistence, runtime]
       })
       await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
 
       const suspended = mgr.suspendUnadmittedRuntimeTurn(topicId)
-      feed.close()
-      await suspended
 
+      // The renderer's stream closes with the suspension: its terminal
+      // NoResponseError arrives at suspend time, before the upstream closes.
       expect(renderer.errorResults).toHaveLength(1)
       expect(renderer.errorResults[0]).toMatchObject({ error: { name: 'NoResponseError' } })
       expect(renderer.errorResults[0].isTopicDone).toBe(true)
+
+      feed.close()
+      await suspended
+
+      // The renderer was detached at suspend: no late continuation events.
       expect(renderer.doneResults).toEqual([])
+      // Persistence and runtime listeners were detached without terminal events.
       expect(persistence.doneResults).toEqual([])
       expect(runtime.doneResults).toEqual([])
       expect(persistence.errorResults).toEqual([])
       expect(runtime.errorResults).toEqual([])
+      // Channel-class listeners keep continuation semantics: the empty turn
+      // completes as an ordinary continuation, not a failure
+      // (cherry-pr-review).
+      expect(channel.errorResults).toEqual([])
+      expect(channel.doneResults).toHaveLength(1)
+      expect(channel.doneResults[0].isTopicDone).toBe(false)
     })
 
     it('does not let trace flush failure block terminal completion', async () => {
