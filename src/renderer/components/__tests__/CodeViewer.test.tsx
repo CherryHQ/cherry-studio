@@ -576,6 +576,44 @@ describe('CodeViewer', () => {
       expect(view.copy()).toEqual({ text: expected, prevented: true })
     })
 
+    it('accepts a keyboard extension dispatched on the document body', () => {
+      const code = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`).join('\n')
+      mocks.firstRenderedRow = 10
+      mocks.lastRenderedRow = 29
+      const view = setup(false, undefined, code)
+      view.pointer(view.scroller, 'pointerdown')
+      view.select(view.text(10), 0, view.text(29), 2)
+      view.pointer(document.body, 'pointerup')
+      expect(view.copy().text).toHaveLength(553)
+
+      view.select(view.text(10), 0, view.text(28), 0)
+      fireEvent.keyDown(document.body, { key: 'ArrowRight', shiftKey: true, bubbles: true })
+      fireEvent.scroll(view.scroller)
+
+      expect(view.copy()).toEqual({
+        text: 'const value10 = "abcdefghij"\nconst value11 = "abcdefghij"\nconst value12 = "abcdefghij"\nconst value13 = "abcdefghij"\nconst value14 = "abcdefghij"\nconst value15 = "abcdefghij"\nconst value16 = "abcdefghij"\nconst value17 = "abcdefghij"\nconst value18 = "abcdefghij"\nconst value19 = "abcdefghij"\nconst value20 = "abcdefghij"\nconst value21 = "abcdefghij"\nconst value22 = "abcdefghij"\nconst value23 = "abcdefghij"\nconst value24 = "abcdefghij"\nconst value25 = "abcdefghij"\nconst value26 = "abcdefghij"\nconst value27 = "abcdefghij"\n',
+        prevented: true
+      })
+    })
+
+    it('dropping replace permission after a double click', () => {
+      const view = setup()
+      view.pointer(view.scroller, 'pointerdown')
+      view.selectWide()
+      view.pointer(document.body, 'pointerup')
+
+      view.select(view.text(2), 0, view.text(3), 6)
+      fireEvent.doubleClick(view.content(3))
+      fireEvent.scroll(view.scroller)
+      // Model highlighting relocating the endpoint after the double click was committed.
+      view.select(view.text(2), 0, view.content(3), 0)
+
+      expect(view.copy()).toEqual({
+        text: 'const value2 = "abcdefghij"\nconst ',
+        prevented: true
+      })
+    })
+
     it('keeps the snapshot when a touch pan starts and cancels', () => {
       const code = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`).join('\n')
       mocks.firstRenderedRow = 10

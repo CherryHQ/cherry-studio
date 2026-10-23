@@ -526,10 +526,18 @@ const CodeViewer = ({
       savedSelectionRef.current = null
       pointerReplaceRef.current = true
     }
+    const dblclick = () => {
+      startSelection()
+      finish()
+    }
     const contextmenu = () => {
-      if (lastPointerTypeRef.current === 'touch') startSelection()
+      if (lastPointerTypeRef.current === 'touch') {
+        startSelection()
+        finish()
+      }
     }
     const keydown = (event: KeyboardEvent) => {
+      if (!selectionBelongsToViewer(window.getSelection())) return
       if (
         event.shiftKey ||
         event.key.startsWith('Arrow') ||
@@ -553,16 +561,16 @@ const CodeViewer = ({
     }
     scroller.addEventListener('pointerdown', begin)
     scroller.addEventListener('contextmenu', contextmenu)
-    scroller.addEventListener('dblclick', startSelection)
-    scroller.addEventListener('keydown', keydown)
+    scroller.addEventListener('dblclick', dblclick)
+    document.addEventListener('keydown', keydown)
     return () => {
       cleanup()
       scroller.removeEventListener('pointerdown', begin)
       scroller.removeEventListener('contextmenu', contextmenu)
-      scroller.removeEventListener('dblclick', startSelection)
-      scroller.removeEventListener('keydown', keydown)
+      scroller.removeEventListener('dblclick', dblclick)
+      document.removeEventListener('keydown', keydown)
     }
-  }, [commitSelection])
+  }, [commitSelection, selectionBelongsToViewer])
 
   // Listen for copy events
   useEffect(() => {
