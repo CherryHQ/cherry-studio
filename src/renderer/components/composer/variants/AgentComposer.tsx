@@ -423,9 +423,15 @@ const AgentComposerRoot = ({
   // A message-edit composer is not the owner of the session's conversation
   // draft: identical contents must not authorize a settlement to clear an
   // independently owned edit, so its editor registers under a target-scoped
-  // key (cherry-pr-review inv_6986297a343908d7).
+  // key (cherry-pr-review inv_6986297a343908d7). The key is agent-scoped too:
+  // a session reopened under a DIFFERENT agent owns its visible draft
+  // independently, and a delayed settlement from the previous agent must not
+  // clear it through content equality (cherry-pr-review
+  // inv_6caaca041360920a).
   const editingMessageId = launchOptions?.editing?.messageId
-  const draftEditorRegistryKey = editingMessageId ? `${draftCacheKey}:edit:${editingMessageId}` : draftCacheKey
+  const draftEditorRegistryKey = editingMessageId
+    ? `${draftCacheKey}:agent:${agentId}:edit:${editingMessageId}`
+    : `${draftCacheKey}:agent:${agentId}`
   const initialDraftRef = useRef<{
     instanceKey: string
     draft: RestoredAgentComposerDraftCache

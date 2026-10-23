@@ -1448,6 +1448,70 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
   })
 
+  it("does not clear another agent's same-text draft when a delayed enqueue settles after reopen (inv_6caaca041360920a)", async () => {
+    // Hold the queue POST open so agent-1's enqueue settles only after the
+    // session has reopened under agent-2.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const firstView = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Reopen the retained session under a DIFFERENT agent and write the same
+    // document: agent-1's delayed settlement must not reconcile (clear) the
+    // visible draft through content equality — the session-keyed editor
+    // registry entry belongs to agent-2 (cherry-pr-review
+    // inv_6caaca041360920a).
+    firstView.unmount()
+    render(
+      <AgentComposer
+        agentId="agent-2"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('hello'))
+    expect(mocks.surfaceProps?.text).toBe('hello')
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await firstSend
+    })
+    await act(async () => {})
+
+    expect(mocks.surfaceProps?.text).toBe('hello')
+  })
+
   it('treats the steer option as a plain send when idle', async () => {
     render(
       <AgentComposer
