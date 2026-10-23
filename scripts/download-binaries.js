@@ -1077,6 +1077,10 @@ async function main() {
   const argv = process.argv.slice(2)
   const positional = argv.filter((arg) => !arg.startsWith('--'))
   const packaging = argv.includes('--packaging')
+  // `--only=<tool>` lets CI fetch one tool, e.g. FFmpeg for its integration tests.
+  const only = argv.find((arg) => arg.startsWith('--only='))?.slice('--only='.length)
+  const tools = only ? TOOLS.filter((tool) => tool.name === only) : TOOLS
+  if (tools.length === 0) throw new Error(`Unknown tool: ${only}`)
   const platform = positional[0] || process.platform
   const arch = positional[1] || process.arch
   const platformKey = `${platform}-${arch}`
@@ -1089,7 +1093,7 @@ async function main() {
   const cacheRoot = resolveSharedCacheRoot()
   const failed = []
 
-  for (const tool of TOOLS) {
+  for (const tool of tools) {
     const outputDir = cacheRoot ? cachedVersionDir(cacheRoot, platformKey, tool) : bundleDir
     try {
       await downloadTool(tool, platformKey, outputDir, { versionFile: cacheRoot ? null : tool.versionFile })
@@ -1107,7 +1111,7 @@ async function main() {
     return
   }
 
-  const stats = materialize(TOOLS, platformKey, cacheRoot, bundleDir)
+  const stats = materialize(tools, platformKey, cacheRoot, bundleDir)
   let reclaimed = 0
   try {
     reclaimed = sweepUnreferencedVersions(cacheRoot, UNREFERENCED_CACHE_TTL_MS)
