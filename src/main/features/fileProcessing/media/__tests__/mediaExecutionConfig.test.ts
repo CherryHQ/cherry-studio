@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, QWEN3_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID } from '@shared/ai/localVoice'
-import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
+
+import { MEDIA_PIPELINE_VERSION } from '../types'
 
 const state = vi.hoisted(() => ({
   preferences: new Map<string, unknown>(),

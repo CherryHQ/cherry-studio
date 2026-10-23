@@ -14,14 +14,6 @@ import { resolveFileProcessingFileInfo } from '@main/features/fileProcessing/tas
 import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 import type { FileHandle } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import {
-  MEDIA_ANALYSIS_VERSION,
-  type MediaAnalysis,
-  type MediaAnalysisWarningCode,
-  type MediaAudioSegment,
-  type MediaVisualFrame
-} from '@shared/types/mediaAnalysis'
-import { formatMediaAnalysisCompact, formatMediaAnalysisFull, isMediaAnalysis } from '@shared/utils/mediaAnalysis'
 
 import {
   FRAME_SIMILARITY_MAD_THRESHOLD,
@@ -33,6 +25,7 @@ import {
   selectDistinctFrameIndexes
 } from './frameSelection'
 import { readFrameSignature } from './frameSignature'
+import { formatMediaAnalysisCompact, formatMediaAnalysisFull, isMediaAnalysis } from './mediaAnalysisFormat'
 import {
   hashMediaExecutionConfig,
   resolveMediaExecutionConfig,
@@ -41,6 +34,13 @@ import {
 } from './mediaExecutionConfig'
 import type { MediaFfmpegService } from './MediaFfmpegService'
 import type { ClassifiedMediaProbe } from './probeClassification'
+import {
+  MEDIA_ANALYSIS_VERSION,
+  type MediaAnalysis,
+  type MediaAnalysisWarningCode,
+  type MediaAudioSegment,
+  type MediaVisualFrame
+} from './types'
 
 const logger = loggerService.withContext('MediaAnalysisService')
 const CACHE_TTL_MS = 30 * 60 * 1000
