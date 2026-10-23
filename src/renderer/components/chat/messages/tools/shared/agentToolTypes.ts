@@ -440,6 +440,11 @@ export interface AgentLaunchIndex {
    * it: a consumer that rejects an unvouched edge falls back to this outcome, not the row's own.
    */
   terminalTaskStatusByTaskId: ReadonlyMap<string, NonNullable<AgentTaskEventPartData['status']>>
+  /**
+   * Tool-call ids whose part is parented under another call: chat never renders those as
+   * top-level rows, so they cannot replace a capsule for the task they belong to.
+   */
+  parentedToolCallIds: ReadonlySet<string>
 }
 
 /**
@@ -492,6 +497,7 @@ function computeAgentLaunchIndex(
   const latestTaskEventByTaskId = new Map<string, AgentTaskEventPartData>()
   const taskOriginMessageIdByTaskId = new Map<string, string>()
   const terminalTaskStatusByTaskId = new Map<string, NonNullable<AgentTaskEventPartData['status']>>()
+  const parentedToolCallIds = new Set<string>()
   const applyTaskEvent = (data: AgentTaskEventPartData, liveEdge = false): void => {
     if (data.toolUseId && !taskIdByCallId.has(data.toolUseId)) taskIdByCallId.set(data.toolUseId, data.taskId)
     const status = resolveTaskStatusAfter(latestTaskEventByTaskId.get(data.taskId)?.status, data, liveEdge)
@@ -508,7 +514,8 @@ function computeAgentLaunchIndex(
       taskIdByCallId,
       latestTaskEventByTaskId,
       taskOriginMessageIdByTaskId,
-      terminalTaskStatusByTaskId
+      terminalTaskStatusByTaskId,
+      parentedToolCallIds
     }
   for (const [messageId, parts] of Object.entries(partsByMessageId)) {
     for (const part of parts) {
@@ -531,6 +538,8 @@ function computeAgentLaunchIndex(
       const toolPart = part as unknown as Parameters<typeof getToolName>[0]
       if (!isToolUIPart(toolPart)) continue
       const toolName = getToolName(toolPart).trim()
+      // A part parented under another call never renders top-level, whatever tool it is.
+      if (parentToolCallId && typeof record.toolCallId === 'string') parentedToolCallIds.add(record.toolCallId)
       if (toolName === DSH_SEND_MESSAGE_TOOL_NAME && getCherryTransport(part) === DSH_TRANSPORT) {
         if (typeof record.toolCallId === 'string') dshResumeCallIds.add(record.toolCallId)
       }
@@ -580,7 +589,8 @@ function computeAgentLaunchIndex(
     taskIdByCallId,
     latestTaskEventByTaskId,
     taskOriginMessageIdByTaskId,
-    terminalTaskStatusByTaskId
+    terminalTaskStatusByTaskId,
+    parentedToolCallIds
   }
 }
 

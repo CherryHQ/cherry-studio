@@ -6,6 +6,7 @@ import { Button } from '@cherrystudio/ui'
 import { useMessageParts, useMessagePartsScopeId } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import { useAgentLaunchIndex } from '@renderer/components/chat/messages/tools/agent'
+import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 
@@ -26,11 +27,15 @@ export default function AgentSessionBackgroundTasks({ sessionId }: Props) {
         openAgentToolFlow &&
         (task.type === 'subagent' || task.type === 'local_agent') &&
         task.toolCallId &&
-        // The capsule yields only to a loaded row that can navigate to the task's flow — a launch
-        // or receipt the index saw as a part; content parented under a paged-out row proves nothing.
-        (launchIndex?.toolCallIds.has(task.toolCallId) === true ||
-          launchIndex?.dshTaskRootCallIds.has(task.toolCallId) === true ||
-          parts.some((part) => isToolUIPart(part) && part.toolCallId === task.toolCallId))
+        // The capsule yields only to a loaded, actually rendered row that can navigate to the
+        // task's flow — a nested launch renders no top-level entry, so it replaces nothing.
+        ((launchIndex?.toolCallIds.has(task.toolCallId) === true &&
+          launchIndex?.parentedToolCallIds.has(task.toolCallId) !== true) ||
+          (launchIndex?.dshTaskRootCallIds.has(task.toolCallId) === true &&
+            launchIndex?.parentedToolCallIds.has(task.toolCallId) !== true) ||
+          parts.some(
+            (part) => isToolUIPart(part) && part.toolCallId === task.toolCallId && !hasPartParentToolCallId(part)
+          ))
       )
   )
 
