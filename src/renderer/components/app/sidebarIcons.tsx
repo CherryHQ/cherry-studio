@@ -72,7 +72,8 @@ const FILLED_PATHS: Partial<Record<SidebarGlyph, string>> = {
     'M8 1h5v5h5a2 2 0 0 1 2 2v3h2v2h-2v3a2 2 0 0 1-2 2H8l-4 4v-9H2v-2h2V8a2 2 0 0 1 2-2h5V3H8Z M8 10v4h2v-4Z M14 10v4h2v-4Z',
   fileEntry:
     'M6 2h7v5a2 2 0 0 0 2 2h5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z M15 2l5 5h-5Z M8 8v2h3V8Z M8 12v2h8v-2Z M8 16v2h8v-2Z',
-  miniApp: 'M12 2 4 6.5l8 4.5 8-4.5Z M3 8l8 4.5v9L3 17Z M13 12.5 21 8v9l-8 4.5Z'
+  miniApp:
+    'M8.3 3.813 11 2.27a2 2 0 0 1 2 0l7 4a2 2 0 0 1 .38.28L16.5 8.78Z M6.7 4.727 4 6.27a2 2 0 0 0-.38.28L12 11.36l2.9-1.665Z M3 8.03l8.2 4.706v9.095a2 2 0 0 1-.2-.101l-7-4A2 2 0 0 1 3 16Z M21 8.03l-8.2 4.706v9.095a2 2 0 0 0 .2-.101l7-4A2 2 0 0 0 21 16Z'
 }
 
 export function SidebarIcon({
