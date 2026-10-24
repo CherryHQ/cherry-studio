@@ -295,6 +295,49 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
 }
 
 export class AgentSessionMessageService {
+  readWorkspaceRelocationHistory(workspaceId: string) {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({
+        messageId: sessionMessagesTable.id,
+        sessionId: sessionTable.id,
+        runtime: agentTable.type,
+        role: sessionMessagesTable.role,
+        status: sessionMessagesTable.status,
+        userText: sql<
+          string | null
+        >`case when ${sessionMessagesTable.role} = 'user' then ${sessionMessagesTable.searchableText} end`,
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
+        resumeToken: sessionMessagesTable.runtimeResumeToken,
+        checkpoint: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint')`
+      })
+      .from(sessionTable)
+      .leftJoin(sessionMessagesTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
+      .leftJoin(agentTable, eq(agentTable.id, sessionTable.agentId))
+      .where(eq(sessionTable.workspaceId, workspaceId))
+      .all()
+  }
+
+  relocateClaudeConfigTx(tx: DbOrTx, workspaceId: string, oldConfigDir: string, newConfigDir: string): void {
+    tx.update(sessionMessagesTable)
+      .set({
+        data: sql`json_set(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint.configDir', ${newConfigDir})`,
+        updatedAt: sessionMessagesTable.updatedAt
+      })
+      .where(
+        and(
+          inArray(
+            sessionMessagesTable.sessionId,
+            tx.select({ id: sessionTable.id }).from(sessionTable).where(eq(sessionTable.workspaceId, workspaceId))
+          ),
+          sql`json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint.runtime') = 'claude-code'`,
+          sql`json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint.configDir') = ${oldConfigDir}`
+        )
+      )
+      .run()
+  }
+
   readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
     this.assertActiveSession(tx, sessionId)
     const source = tx
