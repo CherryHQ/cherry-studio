@@ -38,6 +38,14 @@ describe('PRESET_MCP_SERVERS', () => {
     )
   })
 
+  it('models Multi Mail as a hosted built-in server that signs in with OAuth', () => {
+    const multiMail = preset(BuiltinMcpServerNames.multiMail)
+    expect(multiMail).toEqual(
+      expect.objectContaining({ type: 'streamableHttp', baseUrl: 'https://mail.lumman.co/mcp', isActive: false })
+    )
+    expect(multiMail?.env).toBeUndefined()
+  })
+
   it('gives every non in-memory preset what it needs to connect', () => {
     // The seeder copies these fields onto installed rows, so a preset missing them
     // would migrate a working server into an unconnectable one.

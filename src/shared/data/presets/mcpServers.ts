@@ -56,6 +56,17 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   },
   {
+    name: BuiltinMcpServerNames.multiMail,
+    reference: 'https://lumman.co/mcp/multi-mail',
+    type: 'streamableHttp',
+    baseUrl: 'https://mail.lumman.co/mcp',
+    headers: { APP: 'Cherry Studio' },
+    isActive: false,
+    provider: 'Lumman',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
     name: BuiltinMcpServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'stdio',

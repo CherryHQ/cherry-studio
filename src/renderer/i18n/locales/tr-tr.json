@@ -4682,6 +4682,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "Yapay zekâ aracılığıyla notları ve fikirleri hızla kaydetmek için flomo'ya bağlanır. flomo hesabı yetkilendirmesi gerekir.",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "MCP hizmetini otomatik olarak yükle (beta)",
   "settings.mcp.builtinServersDescriptions.memory": "Yerel bir bilgi grafiğine dayalı kalıcı bellek uygulaması. Bu, modelin kullanıcıyla ilgili bilgileri farklı konuşmalar arasında hatırlamasını sağlar. MEMORY_FILE_PATH ortam değişkeninin yapılandırılması gerekir.",
+  "settings.mcp.builtinServersDescriptions.multi_mail": "Gmail, Outlook.com, Microsoft 365, iCloud ve Fastmail posta kutularındaki e-postaları aynı anda aramak, okumak, taslak oluşturmak, göndermek ve düzenlemek için Multi Mail'e bağlanın. Lumman hesabı yetkilendirmesi gerektirir.",
   "settings.mcp.builtinServersDescriptions.no": "Açıklama yok",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Nowledge Mem uygulamasının yerel olarak çalışması gerekir. Yapay zekâ sohbetlerini, araçları, notları, ajanları ve dosyaları bilgisayardaki özel bellekte tutar. https://mem.nowledge.co/ adresinden indirin",
   "settings.mcp.builtinServersDescriptions.python": "Python kodunu güvenli bir korumalı alan ortamında yürütür. Çoğu standart kitaplığı ve bilimsel hesaplama paketini destekleyen Pyodide ile Python çalıştırır",

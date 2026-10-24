@@ -4682,6 +4682,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "連接 flomo 透過 AI 快速記錄筆記和想法。需要 flomo 帳號授權。",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "自動安裝 MCP 服務（測試版）",
   "settings.mcp.builtinServersDescriptions.memory": "以本機知識圖譜實作持久記憶，讓模型能在不同對話間記住使用者的相關資訊。需要設定 MEMORY_FILE_PATH 環境變數。",
+  "settings.mcp.builtinServersDescriptions.multi_mail": "連接 Multi Mail，一次搜尋、閱讀、草擬、傳送和整理 Gmail、Outlook.com、Microsoft 365、iCloud 和 Fastmail 信箱中的郵件。需要 Lumman 帳號授權。",
   "settings.mcp.builtinServersDescriptions.no": "無描述",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "需要在本機執行 Nowledge Mem 應用程式。它會將 AI 對話、工具、筆記、Agent 與檔案儲存為電腦上的私人記憶。請從 https://mem.nowledge.co/ 下載。",
   "settings.mcp.builtinServersDescriptions.python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
