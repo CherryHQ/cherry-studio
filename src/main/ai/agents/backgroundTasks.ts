@@ -988,10 +988,11 @@ type MarkerRead = { status: 'unknown' } | { status: 'observable'; holders: Marke
 
 /**
  * The app-side twin of `POSIX_MARKER_PROBE_SOURCE`, which the detached supervisor runs in its own
- * process. Both must read ownership the same way: exact environment membership, and no answer at
- * all when the table cannot show environments.
+ * process. Both must read ownership the same way: exact environment membership, no answer at all
+ * when the table cannot show environments, and never the anchor itself — it carries the marker to
+ * pass it on, and it is the observer the stop must not destroy.
  */
-function readMarkerProcesses(taskId: string): MarkerRead {
+function readMarkerProcesses(taskId: string, anchorPid: number): MarkerRead {
   if (process.platform === 'win32') return { status: 'unknown' }
   const marker = `${BACKGROUND_TASK_MARKER_ENV}=${taskId}`
   const nonce = randomUUID()
@@ -1010,7 +1011,7 @@ function readMarkerProcesses(taskId: string): MarkerRead {
     const trimmed = row.trim()
     if (!trimmed.includes(marker)) continue
     const pid = Number(trimmed.split(/\s+/)[0])
-    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) continue
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid || pid === anchorPid) continue
     const command = trimmed.slice(String(pid).length).trimStart()
     let argv: string
     try {
@@ -1031,13 +1032,13 @@ function readMarkerProcesses(taskId: string): MarkerRead {
 /**
  * SIGKILL every process still carrying the task marker and wait for the table to lose them. Unlike
  * the group signal this reaches a setsid() worker that closed its descriptors; unlike the pipe it
- * works after a restart. `unknown` when the table does not establish ownership either way — never
- * a certification.
+ * works after a restart. The task's anchor is excluded: it carries the marker only to pass it on.
+ * `unknown` when the table does not establish ownership either way — never a certification.
  */
-async function killMarkerSurvivors(taskId: string): Promise<'clear' | 'survivors' | 'unknown'> {
+async function killMarkerSurvivors(taskId: string, anchorPid: number): Promise<'clear' | 'survivors' | 'unknown'> {
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
   while (true) {
-    const read = readMarkerProcesses(taskId)
+    const read = readMarkerProcesses(taskId, anchorPid)
     if (read.status === 'unknown') return 'unknown'
     if (read.holders.length === 0) return 'clear'
     for (const holder of read.holders) {
@@ -1458,6 +1459,8 @@ async function stopDetachedBackgroundTaskUnlocked(
   try {
     if (process.platform === 'win32') {
       await execTaskkill(['/PID', String(record.pid), '/T', ...(force ? ['/F'] : [])])
+    } else if (force) {
+      await killGroupWork(record.pid, record.id)
     } else {
       process.kill(-record.pid, signal)
     }
@@ -1483,13 +1486,20 @@ async function stopDetachedBackgroundTaskUnlocked(
     // The pipe is the in-process proof; after a restart the inherited marker is. Survivors are the
     // task's own, so the kill may reach them even though the group could not, and only their
     // absence certifies the termination.
-    const markers = await killMarkerSurvivors(record.id)
+    const markers = await killMarkerSurvivors(record.id, record.pid)
     if (markers === 'unknown') {
       const unverified: BackgroundTaskRecord = { ...requested, terminationUnverified: true }
       await writeRecord(storageDir, unverified)
       return unverified
     }
     if (markers === 'survivors') return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+    // The anchor was deliberately left alive: it reads the stdio pipes close_fds cannot drop, so
+    // its own exit is the last statement that nothing of the task is left. An anchor still alive
+    // there is holding a survivor's evidence, and the kill did not establish termination.
+    if (!(await waitForLeaderExit(record))) {
+      logger.warn('Force kill left the task anchor holding live output', { taskId: record.id, pgid: record.pid })
+      return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+    }
   }
   // On Windows the kill is only as good as taskkill's live-parent walk, which cannot reach a
   // worker past the shell that spawned it. Until the table proves nothing of the task is left,
@@ -1642,7 +1652,7 @@ export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   // The inherited marker names work that left the group and closed its descriptors, and it is the
   // only evidence a restart can still read. A table that cannot show environments is not evidence
   // that the work is gone.
-  const markers = readMarkerProcesses(record.id)
+  const markers = readMarkerProcesses(record.id, record.pid)
   if (markers.status === 'unknown') return true
   if (markers.holders.length > 0) return true
   // Work that left the group (setsid) is live even when the leader and the group are gone: the
@@ -1671,6 +1681,55 @@ async function waitForGroupDrain(pgid: number): Promise<boolean> {
     else emptyReadings++
     if (Date.now() >= deadline) return false
     if (emptyReadings < 2) await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+  }
+  return true
+}
+
+/**
+ * SIGKILL the group's work while sparing its leader. The anchor is the task's remaining witness —
+ * it holds the stdio pipes close_fds cannot drop — so a group-wide SIGKILL destroys the only proof
+ * that a detached worker is gone, and the closed pipe it leaves behind reads as a termination. It
+ * is left to exit on its own, which it does only once no channel still shows work.
+ */
+async function killGroupWork(pgid: number, taskId: string): Promise<void> {
+  const verified = ownedTaskGroups.get(taskId)
+  const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  while (true) {
+    const members = readGroupMembers(pgid)
+    if (!members) return
+    let killed = 0
+    let pending = 0
+    for (const member of members) {
+      if (member.pid === pgid) continue
+      // A member this app has not verified yet is one that appeared since the identity check; the
+      // membership pulse extends the verified set to it while its leader stands, so the kill waits
+      // for that rather than signalling a row this app never tied to the task.
+      if (verified && verified.members.get(member.pid) !== member.lstart) {
+        pending++
+        continue
+      }
+      try {
+        process.kill(member.pid, 'SIGKILL')
+        killed++
+      } catch {
+        // already gone
+      }
+    }
+    if (Date.now() >= deadline || (killed === 0 && pending === 0)) return
+    await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+  }
+}
+
+/**
+ * Whether the anchor exited by itself after its work was killed. Only its own exit certifies that
+ * every channel it watches — group, descriptors and marker — agreed that nothing is left; an
+ * anchor that survives is waiting on a worker the kill could not reach.
+ */
+async function waitForLeaderExit(record: BackgroundTaskRecord): Promise<boolean> {
+  const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  while (isPidAlive(record.pid) && !isRecycledPid(record)) {
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
   }
   return true
 }

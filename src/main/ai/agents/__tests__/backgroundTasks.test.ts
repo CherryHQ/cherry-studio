@@ -758,6 +758,69 @@ describe('backgroundTasks', () => {
     )
 
     it.skipIf(process.platform === 'win32' || !python3Available)(
+      'does not certify a force kill that kills the only witness of a scrubbed daemon',
+      async () => {
+        // The same daemon as above, but stopped while the supervisor is still the only reader of
+        // the stdio it holds. Destroying that witness leaves a closed liveness pipe and an empty
+        // marker scan, both of which describe a termination the kill never established: the
+        // survivor would be certified stopped and lose its record, controls and workspace.
+        const pidFile = path.join(storageDir, 'witness-worker.pid')
+        const onExit = vi.fn()
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command:
+            `python3 -c "import subprocess,sys; p=subprocess.Popen(['/bin/sleep','120'], start_new_session=True, env={}); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"` +
+            ` & sleep 0.6`,
+          cwd: storageDir,
+          onExit
+        })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(workerPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          await new Promise((resolve) => setTimeout(resolve, 1_000))
+          expect(isPidAlive(workerPid)).toBe(true)
+
+          const afterKill = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(afterKill?.status).toBe('running')
+          expect(onExit).not.toHaveBeenCalled()
+          expect(isPidAlive(workerPid)).toBe(true)
+          // What the workspace-retention and purge guards consult: a false answer sweeps the
+          // survivor's record and workspace while it is still working.
+          await expect(hasLiveTaskEvidence(storageDir, afterKill!)).resolves.toBe(true)
+
+          // A restart forgets the in-memory ownership; the anchor is still the witness, and the
+          // marker names nothing, so the kill must stay unverified either way.
+          forgetDetachedTaskOwnershipForTest(record.id)
+          expect((await stopDetachedBackgroundTask(storageDir, record.id, true))?.status).toBe('running')
+          expect(isPidAlive(workerPid)).toBe(true)
+
+          // The survivor leaving is what settles the task: its stdio closes, the supervisor's
+          // last channel empties, and the stop it was asked for becomes true.
+          process.kill(workerPid, 'SIGKILL')
+          await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+          expect(onExit.mock.calls[0][0].record.status).toBe('stopped')
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32' || !python3Available)(
       'certifies a force kill after a restart through the inherited marker',
       async () => {
         // After a restart no pipe survives. The marker does: it names the setsid worker, so the kill
@@ -1283,11 +1346,22 @@ describe('backgroundTasks', () => {
         // own live leader fails the ownership check and Stop/Kill is refused.
         let signalled = false
         const padded = 'Mon Oct  5 12:34:56 2026'
+        // The group rows come from the real table so the stop can reach the members the padded
+        // leader vouches for; only the leader's stamp is the one this test is about.
+        const paddedGroup = (args: readonly string[]) =>
+          String(execFileSync('/bin/ps', args, { encoding: 'utf8' }))
+            .split('\n')
+            .filter((row) => row.trim().split(/\s+/)[0] === String(record.pid))
+            .map((row) => {
+              const fields = row.trim().split(/\s+/)
+              return fields[1] === String(record.pid) ? [...fields.slice(0, 4), padded].join(' ') : row.trim()
+            })
+            .join('\n')
         psSteer.read = (args) => {
           if (args[0] === '-p') return `${padded}\n`
-          // Empty once the group signal has gone out, so the drain below is not held on a row this
-          // test invented for the identity check.
-          if (args[0] === '-axwwo') return signalled ? '' : `${record.pid} ${record.pid} 1 S ${padded}\n`
+          // Empty once the work has been signalled, so the drain below is not held on rows the
+          // real table still lists while the kill is being delivered.
+          if (args[0] === '-axwwo') return signalled ? '' : paddedGroup(args)
           return null
         }
         const record = await startDetachedBackgroundTask({
@@ -1299,7 +1373,8 @@ describe('backgroundTasks', () => {
 
         const realKill = process.kill.bind(process)
         const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
-          if (pid < 0) signalled = true
+          // Signal 0 is the liveness probe, not a delivery.
+          if (signal !== 0) signalled = true
           return realKill(pid, signal)
         })
         try {
@@ -1601,21 +1676,17 @@ describe('backgroundTasks', () => {
     it.skipIf(process.platform === 'win32')(
       'withholds the stopped record while a group member survives the kill',
       async () => {
-        // A delivered group SIGKILL proves nothing per member: with a privileged worker in the
-        // group (an authorized noninteractive sudo), the shell dies while the worker survives
-        // the credential check. Simulated here by a group signal that "succeeds" without
-        // reaching any member — the state the verification must key on either way.
+        // A delivered SIGKILL proves nothing per member: with a privileged worker in the group
+        // (an authorized noninteractive sudo), the kill is accepted by the kernel while the
+        // worker survives the credential check. Simulated here by a signal that "succeeds"
+        // without reaching any member — the state the verification must key on either way.
         const onExit = vi.fn()
         const record = await startDetachedBackgroundTask({
           storageDir,
           command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
           cwd: storageDir
         })
-        const realKill = process.kill.bind(process)
-        const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
-          if (pid < 0) return true
-          return realKill(pid, signal)
-        })
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
         try {
           const withheld = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
 

@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import type * as FsPromisesModule from 'node:fs/promises'
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -66,7 +66,8 @@ import {
   startAgentBackgroundTask,
   stopAgentBackgroundTask,
   stopAllAgentBackgroundTasks,
-  withDetachedTasksStopped
+  withDetachedTasksStopped,
+  workspaceHasLiveDetachedTasks
 } from '../backgroundTaskActions'
 import * as tasks from '../backgroundTasks'
 import {
@@ -79,6 +80,17 @@ import {
 
 // Double quotes survive both POSIX sh and cmd.exe, including spaced paths.
 const nodeBin = `"${process.execPath}"`
+// A worker that starts its own session and scrubs its environment is expressed through python3.
+const python3Available =
+  process.platform !== 'win32' &&
+  (() => {
+    try {
+      execFileSync('python3', ['--version'], { stdio: 'ignore', timeout: 5_000 })
+      return true
+    } catch {
+      return false
+    }
+  })()
 
 // A worker that outlives its shell: it installs a SIGTERM handler, prints its pid, and keeps
 // running inside the detached group after the shell exits. The supervisor outlives the shell by
@@ -408,6 +420,57 @@ describe('stopAllAgentBackgroundTasks', () => {
       stopSpy.mockRestore()
     }
   })
+
+  it.skipIf(process.platform === 'win32' || !python3Available)(
+    'refuses the purge and keeps the workspace while a force kill leaves a scrubbed daemon alive',
+    async () => {
+      // The daemon leaves the group, closes the liveness pipes and scrubs the marker, so only the
+      // stdio the anchor reads names it. A sweep that certified the kill would erase the record and
+      // the workspace beneath work that is still running.
+      const pidFile = path.join(storageDir, 'scrubbed-worker.pid')
+      const record = await startDetachedBackgroundTask({
+        storageDir,
+        command:
+          `python3 -c "import subprocess,sys; p=subprocess.Popen(['/bin/sleep','120'], start_new_session=True, env={}); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"` +
+          ` & sleep 0.6`,
+        cwd: storageDir
+      })
+      let workerPid = 0
+      try {
+        await vi.waitFor(
+          async () => {
+            workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+            expect(workerPid).toBeGreaterThan(0)
+          },
+          { timeout: 10_000 }
+        )
+        await new Promise((resolve) => setTimeout(resolve, 1_000))
+        expect(isPidAlive(workerPid)).toBe(true)
+
+        await expect(stopAllAgentBackgroundTasks('agent-1')).rejects.toThrow(
+          `Cannot permanently delete Agent agent-1 while background task ${record.id} is running`
+        )
+        await expect(workspaceHasLiveDetachedTasks(storageDir)).resolves.toBe(true)
+        expect(isPidAlive(workerPid)).toBe(true)
+        expect(await readFile(path.join(storageDir, `${record.id}.json`), 'utf8')).toContain('"running"')
+      } finally {
+        try {
+          if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+        } catch {
+          // already gone
+        }
+        // Let the survivor's exit settle the record before the tree is removed.
+        await vi
+          .waitFor(
+            async () => {
+              expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).not.toBe('running')
+            },
+            { timeout: 10_000 }
+          )
+          .catch(() => {})
+      }
+    }
+  )
 
   it.skipIf(process.platform === 'win32')(
     'keeps an unattributable leaderless record through the purge refusal',
