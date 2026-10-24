@@ -1117,7 +1117,7 @@ export class ClaudeCodeStreamAdapter {
     // indented-code line whose whitespace already emitted would be scanned as
     // column-zero text and lose literal code content (cherry-pr-review
     // inv_b4f675e18911386f).
-    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText + ctx.scratchpadStreamRemainder)
+    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText)
     // A delta continues the line the previous chunk left open: carry that
     // line's emitted content so the scanner classifies the combined first
     // line with its real Markdown block context. Without it, a chunk like

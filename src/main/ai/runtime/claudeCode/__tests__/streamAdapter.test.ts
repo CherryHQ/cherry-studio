@@ -4557,6 +4557,33 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it.each([false, true])('keeps fragmented list fences identical, snapshot=%s (inv_41942a64b5683d5b)', (snapshot) => {
+    const { adapter, parts } = createAdapter()
+    const pieces = ['- ~~~xml\n  <thinking', '>literal', '</thinking>\n  ~~~\nDone.']
+    const answer = pieces.join('')
+    const emitted = () =>
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of pieces)
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    if (snapshot)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+      } as any)
+    adapter.handleMessage(successResult())
+    expect(emitted()).toBe(answer)
+  })
+
   it('preserves blockquoted indented code split across deltas, with a matching snapshot (inv_5cfd1b3f92913a5c)', () => {
     const { adapter, parts } = createAdapter()
     const answer = '> Example:\n>\n>     <thinking>literal example</thinking>\n\nDone.'

@@ -11,6 +11,17 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('does not open Markdown spans inside HTML attributes (inv_5e10fb47f657550e)', () => {
+    const input = '<summary>Keep <span title="`"></span><analysis>SECRET_INTERNAL</analysis>Text `code`</summary>'
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET_INTERNAL')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET_INTERNAL')
+  })
+
+  it('keeps quote fence content without marker padding (inv_5ef957f445b2ad1d)', () => {
+    const input = '<summary>\n> ```xml\n><thinking>literal example</thinking>\n> ```\n</summary>'
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+  })
+
   it.each(['\r', '\n', '\r\n'])(
     'does not pair inline spans across new blockquotes: %j (inv_087f3297499105f5)',
     (eol) => {

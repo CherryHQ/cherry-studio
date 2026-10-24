@@ -68,6 +68,14 @@ function parseOpeningTagAt(text: string, offset: number): ParsedOpeningTag | nul
   return null
 }
 
+/** HTML opening-tag attributes are opaque to Markdown code-span openers. */
+function isInsideHtmlOpeningTag(text: string, index: number): boolean {
+  const start = text.lastIndexOf('<', index)
+  if (start < 0 || isBackslashEscaped(text, start)) return false
+  const tag = parseOpeningTagAt(text, start)
+  return tag !== null && index < start + tag.opener.length
+}
+
 function parseLeadingOpeningTag(text: string): ParsedOpeningTag | null {
   const leadingWhitespace = text.match(/^\s*/)?.[0].length ?? 0
   const parsed = parseOpeningTagAt(text, leadingWhitespace)
@@ -156,7 +164,7 @@ function isInsideInlineCodeBefore(text: string, markerStart: number): boolean {
   const lineSlice = text.slice(blockStart, markerStart)
   let i = 0
   while (i < lineSlice.length) {
-    if (lineSlice[i] !== '`') {
+    if (lineSlice[i] !== '`' || isInsideHtmlOpeningTag(lineSlice, i)) {
       i++
       continue
     }
@@ -268,7 +276,7 @@ function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
   while (pos < index) {
     const tick = text.indexOf('`', pos)
     if (tick === -1 || tick >= index) return false
-    if (isBackslashEscaped(text, tick)) {
+    if (isBackslashEscaped(text, tick) || isInsideHtmlOpeningTag(text, tick)) {
       pos = tick + 1
       continue
     }
@@ -349,7 +357,7 @@ function parseFenceContainerSegments(prefix: string): FenceContainerSegment[] {
   const segments: FenceContainerSegment[] = []
   let rest = prefix
   for (;;) {
-    const quote = /^ {0,3}>(?:[ \t]|$)/.exec(rest)
+    const quote = /^ {0,3}>[ \t]?/.exec(rest)
     if (quote) {
       segments.push({ type: 'quote' })
       rest = rest.slice(quote[0].length)
@@ -385,7 +393,7 @@ function fenceCloseMatchesContainerContext(candidatePrefix: string, openerPrefix
   let rest = expandFencePrefixTabs(candidatePrefix)
   for (const segment of segments) {
     if (segment.type === 'quote') {
-      const quote = /^ {0,3}>(?:[ \t]|$)/.exec(rest)
+      const quote = /^ {0,3}>[ \t]?/.exec(rest)
       if (!quote) return false
       rest = rest.slice(quote[0].length)
       continue
@@ -413,7 +421,7 @@ function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: st
     let rest = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
     for (const segment of segments) {
       if (segment.type === 'quote') {
-        const quote = /^ {0,3}>(?: |$)/.exec(rest)
+        const quote = /^ {0,3}> ?/.exec(rest)
         if (!quote) return start
         rest = rest.slice(quote[0].length)
       } else {
@@ -560,7 +568,7 @@ function maskInlineCodeSpans(text: string): {
     // An escaped backtick is literal text: treating it as an opener would
     // pair it with a later backtick and mask real content (including
     // scratchpad closers) between them (cherry-pr-review).
-    if (isBackslashEscaped(text, pos)) {
+    if (isBackslashEscaped(text, pos) || isInsideHtmlOpeningTag(text, pos)) {
       out += text[pos]
       pos++
       continue
@@ -948,7 +956,7 @@ export function textHasUnclosedInlineCode(text: string): boolean {
     // An escaped backtick is literal text, never an opener: pairing it with a
     // later backtick releases an unresolved code span over real content,
     // unlike the masking scanner (cherry-pr-review inv_c15500c90c596f07).
-    if (isBackslashEscaped(text, pos)) {
+    if (isBackslashEscaped(text, pos) || isInsideHtmlOpeningTag(text, pos)) {
       pos++
       continue
     }
