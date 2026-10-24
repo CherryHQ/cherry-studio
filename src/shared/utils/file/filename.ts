@@ -32,6 +32,8 @@
  * shared logging surface lands.
  */
 
+import { clampSurrogateBoundary } from '@shared/utils/text'
+
 export type ValidateFileNameResult = { valid: true } | { valid: false; error: string }
 
 /**
@@ -65,8 +67,6 @@ export type ValidateFileNameResult = { valid: true } | { valid: false; error: st
  * `KnowledgeRelativePathSchema` read path). Too long is `ENAMETOOLONG` at write
  * time, in the same bucket as a full disk.
  */
-import { clampSurrogateBoundary } from '@shared/utils/text'
-
 export const FILE_NAME_MAX_LENGTH = 255
 
 /**
