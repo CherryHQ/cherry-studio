@@ -11,11 +11,17 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => (
   usePartsMap: () => new Map()
 }))
 
+vi.mock('../AgentLaunchIndexContext', () => ({
+  useAgentLaunchIndex: () => null,
+  useAgentTaskLiveness: () => undefined
+}))
+
 vi.mock('../AgentToolCallCard', () => ({
   AgentToolCallCard: (props: Record<string, unknown>) => {
     cardProps.current = props
     return <div data-testid="agent-tool-card" />
-  }
+  },
+  getAgentToolFlowTitle: () => undefined
 }))
 
 import { AgentExecutionTimeline } from '../AgentExecutionTimeline'

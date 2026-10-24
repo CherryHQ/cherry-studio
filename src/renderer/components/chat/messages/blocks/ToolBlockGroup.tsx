@@ -27,8 +27,10 @@ import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
+import { useOptionalMessageListActions } from '../MessageListProvider'
+import { useAgentResumePresentation } from '../tools/agent'
 import MessageTools from '../tools/MessageTools'
-import { AgentToolsType } from '../tools/shared/agentToolTypes'
+import { AgentToolsType, getResumedAgentId } from '../tools/shared/agentToolTypes'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
 import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
@@ -233,14 +235,28 @@ function getMcpToolGroupPresentation(
   return { action, icon, target: target ?? (action ? 'relatedContent' : undefined) }
 }
 
-export function getToolGroupIcon(tool: ToolGroupTool | undefined, toolArguments?: unknown): LucideIcon {
+export function getToolGroupIcon(
+  tool: ToolGroupTool | undefined,
+  toolArguments?: unknown,
+  toolOutput?: unknown
+): LucideIcon {
+  // A SendMessage receipt that resumed an agent presents exactly like that agent's launch.
+  if (tool?.name === AgentToolsType.SendMessage && getResumedAgentId(toolOutput)) return Sparkles
   return (
     (tool && TOOL_GROUP_ICON_BY_NAME[tool.name]) || getMcpToolGroupPresentation(tool, toolArguments)?.icon || Wrench
   )
 }
 
-function ToolGroupContentIcon({ tool, toolArguments }: { tool?: ToolGroupTool; toolArguments?: unknown }) {
-  const Icon = getToolGroupIcon(tool, toolArguments)
+function ToolGroupContentIcon({
+  tool,
+  toolArguments,
+  toolOutput
+}: {
+  tool?: ToolGroupTool
+  toolArguments?: unknown
+  toolOutput?: unknown
+}) {
+  const Icon = getToolGroupIcon(tool, toolArguments, toolOutput)
   return <Icon aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} />
 }
 
@@ -339,6 +355,8 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
   }: ToolBlockGroupHeaderContentProps) => {
     const { t } = useTranslation()
     const partsMap = usePartsMap()
+    const resumePresentation = useAgentResumePresentation()
+    const canOpenFlow = Boolean(useOptionalMessageListActions()?.openAgentToolFlow)
     const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
     const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
     const nextCandidate = React.useMemo<ToolHeaderCandidate>(() => {
@@ -436,7 +454,11 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
     const latestTool = items.at(-1)?.toolResponse
     const latestToolIcon = showContentIcon ? (
-      <ToolGroupContentIcon tool={latestTool?.tool} toolArguments={latestTool?.arguments} />
+      <ToolGroupContentIcon
+        tool={latestTool?.tool}
+        toolArguments={latestTool?.arguments}
+        toolOutput={latestTool?.response}
+      />
     ) : undefined
 
     if (displayCandidate.kind === 'summary') {
@@ -462,12 +484,29 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
       )
     }
 
+    // A send-then-resume receipt heads its group exactly like the launch card. Which receipts those
+    // are, and what the header says, is the Agent host's policy — this shared group only renders
+    // what the host hands it, and falls back to its own title when no host is mounted.
+    const resumeHeader = resumePresentation?.renderResumeHeader(displayCandidate.item.toolResponse, canOpenFlow)
+
+    if (resumeHeader) {
+      return renderWithElapsed(
+        <div className="min-w-0 max-w-full overflow-hidden" key={displayCandidate.item.id}>
+          {resumeHeader}
+        </div>,
+        // A resolved receipt always heads its group with the continuation icon; the result's shape
+        // (a deferred envelope names no child) must not sink it back to the generic tool icon.
+        activityIcon ?? <Sparkles aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} />
+      )
+    }
+
     if (semanticToolTitle) {
       const title = getSemanticToolTitle(displayCandidate, t)
       const icon = showContentIcon ? (
         <ToolGroupContentIcon
           tool={displayCandidate.item.toolResponse.tool}
           toolArguments={displayCandidate.item.toolResponse.arguments}
+          toolOutput={displayCandidate.item.toolResponse.response}
         />
       ) : undefined
       return renderSemanticTitle(title, icon, displayCandidate.item.id)
@@ -514,6 +553,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
               <ToolGroupContentIcon
                 tool={items.at(-1)?.toolResponse.tool}
                 toolArguments={items.at(-1)?.toolResponse.arguments}
+                toolOutput={items.at(-1)?.toolResponse.response}
               />
             )}
           </span>
