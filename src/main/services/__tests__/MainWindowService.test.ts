@@ -1424,7 +1424,13 @@ describe('MainWindowService', () => {
       expect(win.webContents.reload).not.toHaveBeenCalled()
       expect(applicationMock.forceExit).not.toHaveBeenCalled()
       // The crash is still reported — only the recovery attempt is skipped.
-      expect(loggerMock.error).toHaveBeenCalledWith('Renderer process crashed with: {"reason":"crashed"}')
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          operation: 'window.renderer.exit',
+          failure: { source: 'application', kind: 'reliability', reason: 'crashed', outcome: 'failed' }
+        })
+      )
     })
 
     it('neither reloads nor forceExits when only the webContents is destroyed', () => {

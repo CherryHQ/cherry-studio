@@ -439,7 +439,7 @@
     },
     {
       "path": "docs/references/logging/README.md",
-      "sources": ["src/main/core/logger/LoggerService.ts","src/main/services/SentryLogService.ts","src/main/services/sentry.ts","src/renderer/services/LoggerService.ts","src/renderer/services/sentry.ts","src/shared/utils/sentry.ts"]
+      "sources": ["src/main/ai/errorReporting.ts","src/main/ai/mcp/failureFacts.ts","src/main/ai/runtime/aiSdk/failureFacts.ts","src/main/core/logger/LoggerService.ts","src/main/core/logger/logFailure.ts","src/main/data/failureFacts.ts","src/main/services/errorReporting/ErrorReportingService.ts","src/main/services/errorReporting/sentry.ts","src/main/services/file/failureFacts.ts","src/main/services/remoteStorage/failureFacts.ts","src/renderer/services/LoggerService.ts","src/renderer/services/sentry.ts","src/shared/utils/sentry.ts"]
     },
     {
       "path": "docs/references/memory/overview.md",

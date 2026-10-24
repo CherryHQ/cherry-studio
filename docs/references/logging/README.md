@@ -2,11 +2,18 @@
 description: How to log through the unified LoggerService in main and renderer, with levels, contexts, and env filtering
 sources:
   - src/main/core/logger/LoggerService.ts
+  - src/main/core/logger/logFailure.ts
+  - src/main/data/failureFacts.ts
+  - src/main/services/file/failureFacts.ts
+  - src/main/services/remoteStorage/failureFacts.ts
   - src/renderer/services/LoggerService.ts
-  - src/main/services/sentry.ts
-  - src/main/services/SentryLogService.ts
+  - src/main/services/errorReporting/sentry.ts
+  - src/main/services/errorReporting/ErrorReportingService.ts
   - src/renderer/services/sentry.ts
   - src/shared/utils/sentry.ts
+  - src/main/ai/errorReporting.ts
+  - src/main/ai/runtime/aiSdk/failureFacts.ts
+  - src/main/ai/mcp/failureFacts.ts
 ---
 
 # How to use the LoggerService
@@ -26,24 +33,103 @@ exception capture is installed before lifecycle services start. Reporting stays
 blocked until `PreferenceService` is ready and consent is valid; the same check
 runs before sending each envelope, including after preferences stop.
 
-`SentryLogService` owns the main logger's Sentry transport. It starts in
-`BeforeReady`, after `PreferenceService`, and removes the transport on stop or
-destroy. Restarting the service attaches a fresh transport. `AnalyticsService`
-owns only its analytics client; stopping it does not remove the Sentry bridge.
-Stopping `SentryLogService` leaves the SDK's automatic exception capture installed.
-Logged errors before the bridge starts or after it stops remain local.
+`ErrorReportingService` owns the main logger's error observer and the final
+Sentry event policy. It starts in `BeforeReady` after `PreferenceService`, whose
+own dependency is `DbService`. Business services must not depend on reporting:
+stopping telemetry must never cascade into an Agent or a window. The service
+imports no AI runtime, data API, or diagnostic-bundle implementation.
 
-Pass the original `Error` as the first data argument and use a fixed operation identifier:
+The SDK installs automatic exception handlers during preboot. Its `beforeSend`
+and transport consult only the already-existing reporting service. Before that
+service is ready, after it stops, or without consent, outbound reporting is
+blocked. Startup database/migration failures therefore still require local
+logs or a diagnostic bundle. No offline event queue is maintained.
+
+Pass an original `Error` and a fixed operation identifier for ordinary failures:
 
 ```typescript
-logger.error('Save failed', error, { operation: 'translate.history.save' })
+logger.error('Save failed', error, {
+  operation: 'translate.history.save',
+  failure: {
+    source: 'application',
+    kind: 'reliability',
+    reason: 'persistence_failed',
+    outcome: 'failed'
+  }
+})
 ```
 
-For logged errors, only `error` entries with stacks are reported; cancellation and
-telemetry diagnostic errors are excluded. Reports include module/window/process, operation, string error code,
-and React component stack when available. Arbitrary log context is excluded and
-credentials are redacted. Never derive operation identifiers from user input;
-use letters, digits, dots, underscores or hyphens, starting with a letter (max 80 characters).
+`FailureFacts` describes source, kind, stable reason, outcome, and optional
+runtime. Domain classifiers stay with their owners; shared policy decides
+whether those facts warrant reporting. Expected failures and cancellation stay
+local. Retrying failures stay local unless they are program defects. Recovered
+internal faults remain eligible. Structured failures can be captured without a
+JavaScript stack, such as a renderer process crash.
+
+Claude and Pi classify SDK results before losing their semantics. Execution
+limits, known provider failures and cancellation do not become product errors;
+unknown SDK failures remain eligible. Runtime logging preserves bounded payload
+shapes and marks capture ownership on extensible errors. IPC serializes that
+ownership so renderer logging and global capture do not recapture the failure.
+
+Ordinary chat classifies AI SDK failures at the Agent boundary, before stream
+management or IPC projects them. Typed provider authentication, quota, rate
+limit, model availability, context limits and network/server failures stay
+local, including exhausted retry wrappers. Unclassified HTTP 400 failures,
+response/schema parsing failures and native programming errors remain eligible.
+Tool-input rejection and the configured tool-loop limit are expected outcomes.
+The AI helper preserves the SDK's original thrown value and applies the same
+ownership marker to Error instances and structured provider events.
+
+MCP owns classification at connection and request boundaries. Known external
+transport failures, protocol rejections, missing capabilities, auth and
+configuration failures stay local. The corresponding built-in server protocol
+failures remain reportable, as do invalid client lifecycle states and native
+programming errors. A tool's `isError` result stays a tool outcome. Server names,
+URLs, arguments and result bodies are not copied into reporting context.
+
+After consent, classification and rate limits accept an event, the main process
+writes `Error report accepted for delivery` with its Sentry `event_id` as
+`reportId` in the local application log. A diagnostic bundle that includes the
+log can be matched to that report without uploading the bundle. This records
+acceptance for delivery, not successful ingestion; transport can still fail or
+consent can be revoked before sending. Dropped events create no such reference.
+
+DataApi classifies after business error translation: validation and explicit
+conflicts stay local; unhandled SQLite constraints, corrupt storage, inconsistent
+data and missing handlers remain eligible. The response carries reporting
+ownership through `DataApiError` serialization. Database initialization and
+preboot migration log the same facts, but cannot report before consent is ready.
+
+File IPC classifies at its domain boundary. Missing or unwritable user-selected
+paths stay local; missing managed files and metadata failures after a content
+commit remain eligible. Metadata lookups still return null on failure, while
+unexpected faults are recorded. Word export uses the external-path policy.
+Backup/restore retain snapshot and integrity failures; busy writers and
+unsupported backup versions stay local. WebDAV/S3 classify at their SDK
+boundaries so authentication, remote availability and network failures do not
+escape through the outer backup logger. Update cancellation and temporary
+network failures stay local; broken feeds, signatures and checksums remain eligible.
+
+Sensitive data/storage boundaries use `core/logger/logFailure`: local diagnostics
+retain the error, while reporting receives only stable facts and stack frames.
+SQL text, parameters, remote responses and file contents are not reporting fields.
+These helpers do not resolve lifecycle services or depend on Sentry.
+
+Unmigrated error logs with stacks retain compatibility capture. In the main
+process, each unknown/legacy signature gets at most one event per ten minutes;
+other signatures get at most five. A process-wide cap of fifty events per ten
+minutes and a bounded 256-entry LRU prevent unbounded noise/state. Signatures
+use module, operation, failure classification and stack frames, never session
+IDs or error messages. Stopping the service releases this state and the logger
+observer; restarting attaches one observer. Sentry SDK listeners remain
+installed, but the stopped service blocks their outbound events too.
+
+Reports allow only module/window/process, operation, string error code, failure
+facts and React component stack from log context. Arbitrary business context is
+excluded and credentials are redacted. Never derive operation identifiers or
+failure reasons from user input; use letters, digits, dots, underscores or
+hyphens, starting with a letter (max 80 characters).
 
 Renderer errors are captured in their originating process to retain causes and source-map
 Debug IDs. Both processes share the package-based release and `app.version`,

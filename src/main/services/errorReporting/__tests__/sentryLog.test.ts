@@ -1,18 +1,25 @@
+import { Writable } from 'node:stream'
+
 import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
 
 import { BaseService } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
+import { ApiServer } from '@main/data/api/core/ApiServer'
+import { classifyDatabaseFailure } from '@main/data/failureFacts'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { IpcChannel } from '@shared/IpcChannel'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
-const { captureExceptionMock, preferences, tmpLogsDir } = vi.hoisted(() => {
+const { captureExceptionMock, captureEventMock, preferences, tmpLogsDir } = vi.hoisted(() => {
   const { mkdtempSync } = require('node:fs')
   const { tmpdir } = require('node:os')
   const { join } = require('node:path')
   const preferences: Record<string, unknown> = {}
   return {
     captureExceptionMock: vi.fn(),
+    captureEventMock: vi.fn(),
     preferences,
     tmpLogsDir: mkdtempSync(join(tmpdir(), 'sentry-log-test-')) as string
   }
@@ -22,7 +29,7 @@ vi.unmock('@logger')
 vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
 vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
-vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock }))
+vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock, captureEvent: captureEventMock }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
@@ -36,15 +43,15 @@ vi.mock('@application', async () => {
 
 import { loggerService } from '@logger'
 
-import { AnalyticsService } from '../AnalyticsService'
-import { SentryLogService } from '../SentryLogService'
+import { AnalyticsService } from '../../AnalyticsService'
+import { ErrorReportingService } from '../ErrorReportingService'
 
 // LoggerService registers this handler when @logger is imported; clearMocks wipes that call before each test.
 const logToMainHandler = vi
   .mocked(ipcMain.handle)
   .mock.calls.find(([channel]) => channel === IpcChannel.App_LogToMain)![1]
 
-let service: SentryLogService
+let service: ErrorReportingService
 const drainLogs = () => new Promise((resolve) => setImmediate(resolve))
 
 function setConsent(granted: boolean) {
@@ -55,11 +62,12 @@ function setConsent(granted: boolean) {
 beforeEach(async () => {
   BaseService.resetInstances()
   captureExceptionMock.mockReset()
+  captureEventMock.mockReset()
   vi.stubEnv('DEV', false)
   setConsent(false)
   loggerService.getBaseLogger().clear()
   loggerService.getBaseLogger().add(new winston.transports.Console({ silent: true }))
-  service = new SentryLogService()
+  service = new ErrorReportingService()
   await service._doInit()
 })
 
@@ -69,6 +77,128 @@ afterEach(async () => {
 })
 
 describe('Sentry log reporting', () => {
+  it.each([
+    {
+      label: 'database full',
+      error: Object.assign(new Error('database or disk is full'), { code: 'SQLITE_FULL' }),
+      status: 500,
+      reports: 1
+    },
+    {
+      label: 'translated conflict',
+      error: DataApiErrorFactory.conflict('Tag already exists'),
+      status: 409,
+      reports: 0
+    }
+  ])('lets the classified DataApi boundary own capture for $label', async ({ error, status, reports }) => {
+    setConsent(true)
+    const server: ApiServer = new (ApiServer as any)({
+      '/tags': {
+        POST: () => {
+          throw error
+        }
+      }
+    })
+
+    const response = await server.handleRequest({ id: 'request', method: 'POST', path: '/tags' })
+    await drainLogs()
+
+    expect(response.status).toBe(status)
+    expect(response.error?.reportingHandled).toBe(true)
+    expect(captureExceptionMock.mock.calls).toHaveLength(reports)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    if (reports) {
+      const [reported, context] = captureExceptionMock.mock.calls[0]
+      expect(reported).toMatchObject({ name: 'OperationError', message: 'sqlite_full' })
+      expect(context.tags).toMatchObject({
+        operation: 'data.request',
+        'failure.kind': 'reliability',
+        'failure.reason': 'sqlite_full'
+      })
+    }
+  })
+
+  it('keeps SQL and parameters local while reporting a database failure only once', async () => {
+    setConsent(true)
+    const lines: string[] = []
+    loggerService.getBaseLogger().add(
+      new winston.transports.Stream({
+        stream: new Writable({
+          write(chunk, _encoding, callback) {
+            lines.push(chunk.toString())
+            callback()
+          }
+        })
+      })
+    )
+    const error = new Error('Failed query: INSERT secret SQL; params: private-document', {
+      cause: Object.assign(new Error('database damaged'), { code: 'SQLITE_CORRUPT' })
+    })
+    const logger = loggerService.withContext('DataApi:Server')
+    logFailure(logger, 'Request failed', error, 'data.request', classifyDatabaseFailure(error))
+    logFailure(logger, 'Request failed again', error, 'data.request', classifyDatabaseFailure(error))
+    await drainLogs()
+
+    expect(captureExceptionMock.mock.calls).toHaveLength(1)
+    const [reported, context] = captureExceptionMock.mock.calls[0]
+    expect(reported.message).toBe('sqlite_corrupt')
+    expect(reported.stack).not.toMatch(/secret SQL|private-document/)
+    expect(JSON.stringify(context)).not.toMatch(/secret SQL|private-document/)
+    expect(context.tags['failure.kind']).toBe('reliability')
+    expect(lines.join('')).toContain('private-document')
+    expect(service.filterEvent({ type: undefined }, { originalException: error })).toBeNull()
+  })
+
+  it('writes a report reference to local logs without reporting that reference again', async () => {
+    setConsent(true)
+    const lines: string[] = []
+    const stream = new Writable({
+      write(chunk, _encoding, callback) {
+        lines.push(chunk.toString())
+        callback()
+      }
+    })
+    loggerService.getBaseLogger().add(new winston.transports.Stream({ stream }))
+    const event = service.filterEvent({ type: undefined, message: 'private provider response' })
+    await drainLogs()
+    expect(event?.event_id).toMatch(/^[a-f0-9]{32}$/)
+    const output = lines.join('')
+    expect(output).toContain(event!.event_id)
+    expect(output).not.toContain('private provider response')
+    expect(captureExceptionMock).not.toHaveBeenCalled()
+    expect(captureEventMock).not.toHaveBeenCalled()
+  })
+  it('captures structured crashes without a stack and keeps expected SDK failures local', async () => {
+    setConsent(true)
+    const logger = loggerService.withContext('Runtime')
+    logger.error('Output limit', new Error('limit'), {
+      failure: {
+        source: 'sdk',
+        kind: 'expected',
+        reason: 'output_limit',
+        outcome: 'failed',
+        runtime: 'pi'
+      }
+    })
+    logger.error('Renderer exited', {
+      operation: 'window.renderer.exit',
+      failure: {
+        source: 'application',
+        kind: 'reliability',
+        reason: 'crashed',
+        outcome: 'failed'
+      }
+    })
+    await drainLogs()
+    expect(captureExceptionMock).not.toHaveBeenCalled()
+    expect(captureEventMock.mock.calls.map(([event]) => event)).toEqual([
+      expect.objectContaining({
+        message: 'window.renderer.exit',
+        tags: expect.objectContaining({ 'failure.reason': 'crashed' })
+      })
+    ])
+  })
+
   it('reports handled main errors only while consent is enabled', async () => {
     const logger = loggerService.withContext('JobManager', { prompt: 'private conversation' })
     const error = Object.assign(new TypeError('Cannot enqueue job'), { code: 'JOB_PAYLOAD_TOO_LARGE' })
@@ -84,7 +214,7 @@ describe('Sentry log reporting', () => {
     const [reported, context] = captureExceptionMock.mock.calls[0]
     expect(reported).toMatchObject({ name: 'TypeError', message: error.message, stack: error.stack })
     expect(context).toEqual({
-      tags: { module: 'JobManager', code: 'JOB_PAYLOAD_TOO_LARGE', 'event.process': 'main' },
+      tags: { module: 'JobManager', code: 'JOB_PAYLOAD_TOO_LARGE', 'event.process': 'main', 'capture.source': 'log' },
       extra: undefined
     })
 

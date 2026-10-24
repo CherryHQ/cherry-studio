@@ -1,6 +1,7 @@
 import {
   browserApiErrorsIntegration,
   captureException,
+  captureEvent,
   dedupeIntegration,
   eventFiltersIntegration,
   functionToStringIntegration,
@@ -10,6 +11,7 @@ import {
   scopeToMainIntegration
 } from '@sentry/electron/renderer'
 
+import { hasReportingOwner, isCancellation } from '@shared/utils/errorReporting'
 import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '@shared/utils/sentry'
 
 import { name, version } from '../../../package.json'
@@ -37,17 +39,22 @@ export function initSentry(): void {
       dedupeIntegration(),
       scopeToMainIntegration()
     ],
-    beforeSend: (event) =>
-      sanitizeSentryEvent({
+    beforeSend: (event, hint) => {
+      if (hasReportingOwner(hint?.originalException) || isCancellation(hint?.originalException)) return null
+      return sanitizeSentryEvent({
         ...event,
         tags: { ...event.tags, ...buildContext.tags, window: windowSource, 'event.process': 'renderer' }
-      }),
+      })
+    },
     maxBreadcrumbs: 0,
     sendClientReports: false,
     sendDefaultPii: false
   })
-  loggerService.setErrorReporter((error, entry) => {
+  loggerService.setErrorReporter(({ error, entry }) => {
     const context = getSentryLogContext(entry)
-    if (context) captureException(error, context)
+    if (!context) return
+    context.tags['capture.source'] = 'log'
+    if (error) captureException(error, context)
+    else captureEvent({ ...context, level: 'error', message: context.tags.operation ?? context.tags['failure.reason'] })
   })
 }

@@ -4,6 +4,7 @@ import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shar
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
+import { hasReportingOwner } from '@shared/utils/errorReporting'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -35,7 +36,9 @@ function toSerializable(value: unknown): Serializable {
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
 export function serializeError(error: unknown): SerializedError {
-  if (APICallError.isInstance(error)) return serializeNestedProviderError(error) as SerializedError
+  const ownership: Record<string, Serializable> = hasReportingOwner(error) ? { reportingHandled: true } : {}
+  if (APICallError.isInstance(error))
+    return { ...(serializeNestedProviderError(error) as SerializedError), ...ownership }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
     const isRetryError = RetryError.isInstance(error)
@@ -46,6 +49,7 @@ export function serializeError(error: unknown): SerializedError {
       stack: isRetryError ? null : (error.stack ?? null),
       cause: e.cause != null ? String(e.cause) : null
     }
+    if (e.reportingHandled === true) serialized.reportingHandled = true
 
     if ('url' in e) serialized.url = String(e.url ?? '')
     if ('requestBodyValues' in e) serialized.requestBodyValues = toSerializable(e.requestBodyValues)
@@ -107,6 +111,7 @@ export function serializeError(error: unknown): SerializedError {
   return {
     name: null,
     message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
-    stack: null
+    stack: null,
+    ...ownership
   }
 }

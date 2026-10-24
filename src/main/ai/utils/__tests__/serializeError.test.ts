@@ -4,6 +4,22 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('preserves reporting ownership for API errors and structured stream events without leaking payloads', () => {
+    for (const error of [
+      new APICallError({
+        message: 'Unauthorized',
+        url: 'https://provider.invalid',
+        requestBodyValues: { prompt: 'private prompt' },
+        statusCode: 401
+      }),
+      { type: 'error', error: { message: 'Unauthorized' }, prompt: 'private prompt' }
+    ]) {
+      Object.defineProperty(error, 'reportingHandled', { value: true })
+      const serialized = serializeError(error)
+      expect(serialized.reportingHandled).toBe(true)
+      expect(JSON.stringify(serialized)).not.toContain('private prompt')
+    }
+  })
   describe('unknown thrown values', () => {
     it('serializes only the safe message from a structured provider event', () => {
       const result = serializeError({

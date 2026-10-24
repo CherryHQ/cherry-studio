@@ -7,7 +7,8 @@ import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
-import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
+import { logAiFailure } from '@main/ai/errorReporting'
+import { classifyAiSdkFailure } from '@main/ai/runtime/aiSdk'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
@@ -1998,7 +1999,14 @@ export class AiStreamManager extends BaseService {
       })
     } catch (err) {
       if (!signal.aborted) {
-        logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
+        logAiFailure(
+          logger,
+          'streamText failed before stream start',
+          err,
+          'chat.stream.start',
+          classifyAiSdkFailure(err),
+          { topicId, modelId }
+        )
       }
       await this.onExecutionError(topicId, modelId, serializeError(err), exec)
       return
@@ -2039,24 +2047,35 @@ export class AiStreamManager extends BaseService {
     exec.timings.completedAt = result.broadcastCompletedAt
 
     if (result.accumulationError !== undefined) {
-      logger.error('Message accumulation failed', {
-        topicId,
-        modelId,
-        err: chatErrorContext(result.accumulationError.error)
-      })
+      logAiFailure(
+        logger,
+        'Message accumulation failed',
+        result.accumulationError.error,
+        'chat.stream.accumulate',
+        { source: 'application', kind: 'defect', reason: 'message_accumulation_failed', outcome: 'failed' },
+        { topicId, modelId }
+      )
     }
 
     if (result.threw !== undefined) {
-      const fromThrow = serializeError(result.threw.error)
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', { topicId, modelId, err: chatErrorContext(result.threw.error) })
+        logAiFailure(
+          logger,
+          'Execution loop error',
+          result.threw.error,
+          'chat.stream.consume',
+          classifyAiSdkFailure(result.threw.error),
+          { topicId, modelId }
+        )
       }
+      const fromThrow = serializeError(result.threw.error)
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow)
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
+      if (fromThrow.reportingHandled === true) serialized.reportingHandled = true
       await this.onExecutionError(topicId, modelId, serialized, exec)
       return
     }

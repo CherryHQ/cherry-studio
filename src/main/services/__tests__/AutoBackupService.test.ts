@@ -8,6 +8,7 @@ import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type * as LegacyFile from '@main/utils/legacyFile'
 
 import { AutoBackupService } from '../AutoBackupService'
+import type * as BackupModule from '../LegacyBackupManager'
 import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from '../LegacyBackupManager'
 
 const mocks = vi.hoisted(() => ({
@@ -59,8 +60,10 @@ vi.mock('@main/utils/legacyFile', async (importOriginal) => ({
 
 vi.mock('../nutstore/NutstoreService', () => ({ decryptToken: mocks.decryptToken }))
 
-vi.mock('../LegacyBackupManager', () => {
+vi.mock('../LegacyBackupManager', async () => {
+  const { classifyBackupFailure } = await vi.importActual<typeof BackupModule>('../LegacyBackupManager')
   return {
+    classifyBackupFailure,
     BackupActiveWritersError: mocks.BackupActiveWritersError,
     BackupOperationBusyError: mocks.BackupOperationBusyError,
     legacyBackupManager: {

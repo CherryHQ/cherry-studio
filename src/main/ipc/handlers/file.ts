@@ -1,7 +1,10 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
+  classifyFileFailure,
   dispatchHandle,
   getMetadataByPath,
   readByPath,
@@ -38,7 +41,9 @@ function requireManagedSender(senderId: WindowId | null): TreeOwner {
  * Thin adapters for FileManager-backed file routes. Pure SQL file-entry reads stay
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
-export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
+const logger = loggerService.withContext('FileIpc')
+
+const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.edit.open': async ({ handle }, { senderId }) =>
     application.get('FileEditService').open(requireManagedSender(senderId).windowId, handle),
   'file.edit.read': async ({ editId }, { senderId }) =>
@@ -106,7 +111,15 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
             getMetadataByPath
           )
           return [key, metadata] as const
-        } catch {
+        } catch (error) {
+          logFailure(
+            logger,
+            'File metadata unavailable',
+            error,
+            'file.batch_get_metadata',
+            classifyFileFailure(error, handle.kind === 'path'),
+            'warn'
+          )
           return [key, null] as const
         }
       })
@@ -117,7 +130,15 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const fileManager = application.get('FileManager')
     try {
       return await dispatchHandle(handle as FileHandle, (id) => fileManager.getMetadata(id), getMetadataByPath)
-    } catch {
+    } catch (error) {
+      logFailure(
+        logger,
+        'File metadata unavailable',
+        error,
+        'file.get_metadata',
+        classifyFileFailure(error, handle.kind === 'path'),
+        'warn'
+      )
       // Missing / unreadable → null, mirroring batch_get_metadata's per-item null
       // and the former FileStorage.isDirectory swallow. Callers treat null as "no
       // usable file at this path"; genuine transport failures still reject via the
@@ -191,3 +212,31 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     return owner ? application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, owner.id) : false
   }
 }
+
+function usesExternalPath(route: string, input: unknown): boolean {
+  if (['file.copy', 'file.tree.create', 'file.tree.rename'].includes(route)) return true
+  if (!input || typeof input !== 'object') return false
+  const handle = 'handle' in input ? input.handle : input
+  return !!handle && typeof handle === 'object' && 'kind' in handle && handle.kind === 'path'
+}
+
+// Keep classification at the domain boundary; IPC transport only carries the ownership marker.
+export const fileHandlers = Object.fromEntries(
+  Object.entries(handlers).map(([route, handler]) => [
+    route,
+    async (input: never, context: Parameters<typeof handler>[1]) => {
+      try {
+        return await handler(input, context)
+      } catch (error) {
+        logFailure(
+          logger,
+          'File operation failed',
+          error,
+          route,
+          classifyFileFailure(error, usesExternalPath(route, input))
+        )
+        throw error
+      }
+    }
+  ])
+) as typeof handlers

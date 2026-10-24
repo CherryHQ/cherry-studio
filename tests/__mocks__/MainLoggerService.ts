@@ -49,6 +49,7 @@ export class MockMainLoggerService {
   public getBaseLogger(): any {
     return {}
   }
+  public setErrorReporter = vi.fn(() => vi.fn())
 
   public error = vi.fn()
   public warn = vi.fn()

@@ -1,4 +1,5 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { validate as isUuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,8 +51,12 @@ vi.mock('@application', async () => {
 })
 
 import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
 
+import { ErrorReportingService } from '../ErrorReportingService'
 import { initSentry } from '../sentry'
+
+let reporting: ErrorReportingService
 
 function grantConsent() {
   MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
@@ -63,7 +68,7 @@ function initOptions() {
   return initMock.mock.calls[0][0]
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks()
   MockMainPreferenceServiceUtils.resetMocks()
   vi.stubEnv('DEV', false)
@@ -72,14 +77,101 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
   MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.policy_version', '')
   preferenceState.ready = true
+  BaseService.resetInstances()
+  reporting = new ErrorReportingService()
+  const preferenceService = application.get('PreferenceService')
+  vi.mocked(application.getExisting).mockImplementation((name) =>
+    name === 'ErrorReportingService' ? reporting : name === 'PreferenceService' ? preferenceService : undefined
+  )
+  await reporting._doInit()
 })
 
-afterEach(() => {
+afterEach(async () => {
+  await reporting._doDestroy()
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
 })
 
 describe('Sentry consent gate', () => {
+  it('links accepted reports to diagnostic logs without copying event content', () => {
+    const options = initOptions()
+    expect(options.beforeSend({ message: 'private provider response' })).toBeNull()
+    expect(mockMainLoggerService.info).not.toHaveBeenCalled()
+    grantConsent()
+    const event = options.beforeSend({
+      message: 'private provider response',
+      tags: { 'capture.source': 'log', module: 'agentLoop' }
+    })
+    expect(event.event_id).toMatch(/^[a-f0-9]{32}$/)
+    const references = mockMainLoggerService.info.mock.calls.filter(
+      ([message]) => message === 'Error report accepted for delivery'
+    )
+    expect(references).toHaveLength(1)
+    expect(references[0][1]).toMatchObject({ reportId: event.event_id })
+    expect(JSON.stringify(references)).not.toContain('private provider response')
+    expect(options.beforeSend({ tags: { 'capture.source': 'log', module: 'agentLoop' } })).toBeNull()
+    expect(
+      mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Error report accepted for delivery')
+    ).toHaveLength(1)
+  })
+
+  it('blocks both automatic capture and transport after the reporting service stops', async () => {
+    grantConsent()
+    const options = initOptions()
+    const transport = options.transport({})
+    await reporting._doStop()
+    expect(options.beforeSend({ message: 'after stop' })).toBeNull()
+    await transport.send([{}, []])
+    expect(sendMock).not.toHaveBeenCalled()
+    await reporting._doInit()
+    expect(options.beforeSend({ message: 'after restart' })).not.toBeNull()
+  })
+
+  it('applies classification to renderer events at the final main-process boundary', () => {
+    grantConsent()
+    const options = initOptions()
+    expect(
+      options.beforeSend({
+        tags: {
+          'event.process': 'renderer',
+          'failure.source': 'sdk',
+          'failure.kind': 'expected',
+          'failure.reason': 'output_limit',
+          'failure.outcome': 'failed',
+          'failure.runtime': 'pi'
+        }
+      })
+    ).toBeNull()
+    expect(
+      options.beforeSend({ exception: { values: [{ type: 'TypeError', value: 'Broken render' }] } })
+    ).not.toBeNull()
+    expect(
+      options.beforeSend({}, { originalException: Object.assign(new Error('Cancelled'), { code: 'ABORT_ERR' }) })
+    ).toBeNull()
+  })
+
+  it('bounds repeated legacy errors without suppressing a different internal defect', () => {
+    grantConsent()
+    const options = initOptions()
+    const legacy = { tags: { module: 'Legacy', 'capture.source': 'log' } }
+    expect(options.beforeSend(legacy)).not.toBeNull()
+    expect(options.beforeSend(legacy)).toBeNull()
+    expect(
+      options.beforeSend({
+        tags: {
+          module: 'Persistence',
+          'failure.source': 'application',
+          'failure.kind': 'reliability',
+          'failure.reason': 'persistence_failed',
+          'failure.outcome': 'failed'
+        }
+      })
+    ).not.toBeNull()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60 * 1000 + 1)
+    expect(options.beforeSend(legacy)).not.toBeNull()
+    now.mockRestore()
+  })
+
   it('does not initialize in development even with reporting consent', () => {
     vi.stubEnv('DEV', true)
     grantConsent()

@@ -140,7 +140,10 @@ describe('IpcApiService request handling', () => {
 
     const result = await registeredHandler()(trustedEvent, 'demo.add', {})
 
-    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL', message: 'handler exploded' } })
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'INTERNAL', message: 'handler exploded', reportingHandled: true }
+    })
   })
 
   it('removes the ipcMain handler when its disposables are cleaned up', () => {
