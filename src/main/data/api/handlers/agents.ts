@@ -73,6 +73,14 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
+    },
+
+    DELETE: async ({ params }) => {
+      // DataApi is SQLite-only — lifecycle cleanup (pauseRuntimeTurn, closeSession)
+      // stays on the ai.agent.delete IPC path. See AgentLifecycleService.
+      const result = agentService.deleteAgent(params.agentId, { deleteSessions: false })
+      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return undefined
     }
   },
 

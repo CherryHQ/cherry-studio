@@ -6,6 +6,7 @@ const {
   listAgentsMock,
   getAgentMock,
   updateAgentMock,
+  deleteAgentMock,
   reorderMock,
   reorderBatchMock,
   listAllTasksMock,
@@ -18,6 +19,7 @@ const {
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
+  deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   listAllTasksMock: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('@data/services/AgentService', () => ({
     listAgents: listAgentsMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
+    deleteAgent: deleteAgentMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -55,6 +58,8 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
+
+// DELETE uses agentService.deleteAgent (SQLite-only); no @application mock needed.
 
 import { agentHandlers } from '../agents'
 import { skillHandlers } from '../skills'
@@ -184,6 +189,25 @@ describe('agentHandlers', () => {
       await expect(
         agentHandlers['/agents/:agentId'].PATCH({ params: { agentId: AGENT_ID }, body: {} })
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('delegates DELETE to agentService.deleteAgent and returns undefined', async () => {
+      deleteAgentMock.mockReturnValueOnce({ deleted: true })
+
+      const result = await agentHandlers['/agents/:agentId'].DELETE({
+        params: { agentId: AGENT_ID }
+      })
+
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
+      expect(result).toBeUndefined()
+    })
+
+    it('throws notFound when agent does not exist on DELETE', async () => {
+      deleteAgentMock.mockReturnValueOnce({ deleted: false })
+
+      await expect(agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
     })
   })
 
