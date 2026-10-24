@@ -315,13 +315,13 @@ function fenceCloseMatchesContainerContext(candidatePrefix: string, openerPrefix
       rest = rest.slice(quote[0].length)
       continue
     }
-    const repeated = /^( {0,3})([-*+]|\d{1,9}[.)])( +|$)/.exec(rest)
-    if (repeated) {
-      const padding = repeated[3] === '' ? 1 : Math.min(repeated[3].length, 4)
-      if (repeated[1].length + repeated[2].length + padding !== segment.contentCol) return false
-      rest = rest.slice(repeated[0].length)
-      continue
-    }
+    // A repeated list marker begins a SIBLING item, and the opener's item ends
+    // there: a fence opened inside one item is closed implicitly at the item
+    // boundary, so the sibling item's fence marker is a new block's opener,
+    // never this block's closer. Accepting it exposes the remaining content of
+    // the actual fenced block to scratchpad removal (cherry-pr-review
+    // inv_ef115bae05b2a143).
+    if (/^( {0,3})([-*+]|\d{1,9}[.)])( +|$)/.test(rest)) return false
     // A continuation line reaches the item's content column by indentation.
     let spaces = 0
     while (spaces < rest.length && rest[spaces] === ' ') spaces++
@@ -897,11 +897,9 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
   // content, except a spanned closing tag that is the block's last closer -
   // an unmatched backtick then keeps the real boundary instead of leaking the
   // block (cherry-pr-review inv_48f6cb86775e99c6 and its twin).
-  const tagPattern = new RegExp(`<(/?)${tagName}(?=[\\s/>])[^>]*>`, 'gi')
-  tagPattern.lastIndex = afterOpen
+  const lowerTagName = tagName.toLowerCase()
   let depth = 1
   let end = -1
-  let tagMatch: RegExpExecArray | null
   const codeSpans: Array<{ start: number; end: number }> = []
   let spanCursor = afterOpen
   const collectSpansUntil = (limit: number): void => {
@@ -944,27 +942,71 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
     }
     spanCursor = Math.max(spanCursor, limit)
   }
-  while ((tagMatch = tagPattern.exec(text)) !== null) {
-    // Pin the match: closure capture of the loop variable defeats narrowing.
-    const match = tagMatch
-    if (isBackslashEscaped(text, match.index)) continue
-    collectSpansUntil(match.index)
-    const tagEnd = match.index + match[0].length
-    const span = codeSpans.find((s) => match.index > s.start && tagEnd <= s.end)
+  // Scan whole tags one at a time: a quoted attribute value can itself hold
+  // `<tagName>`-shaped text (e.g. `<div title="</analysis>">`), and only the
+  // enclosing tag's full extent proves that text is attribute content rather
+  // than the block boundary (cherry-pr-review inv_2da074292d7f1ad1). Other
+  // tags are skipped whole; the block's own tag falls back to the lenient
+  // legacy pattern when strict parsing fails, preserving the prior tolerance
+  // for malformed markup.
+  let scanPos = afterOpen
+  while (scanPos < text.length) {
+    const lt = text.indexOf('<', scanPos)
+    if (lt === -1) break
+    if (isBackslashEscaped(text, lt)) {
+      scanPos = lt + 1
+      continue
+    }
+    let tagEnd = -1
+    let isClosing = false
+    let isSelfClosing = false
+    let isTargetTag = false
+    if (text.startsWith('</', lt)) {
+      const closeMatch = /^<\/([a-zA-Z][a-zA-Z0-9-]*)\s*>/.exec(text.slice(lt))
+      if (closeMatch) {
+        tagEnd = lt + closeMatch[0].length
+        isClosing = true
+        isTargetTag = closeMatch[1].toLowerCase() === lowerTagName
+      }
+    } else {
+      const parsed = parseOpeningTagAt(text, lt)
+      if (parsed) {
+        tagEnd = lt + parsed.opener.length
+        isSelfClosing = parsed.isSelfClosing
+        isTargetTag = parsed.tagName.toLowerCase() === lowerTagName
+      }
+    }
+    if (tagEnd === -1) {
+      const legacy = new RegExp(`^<(/?)${tagName}(?=[\\s/>])[^>]*>`, 'i').exec(text.slice(lt))
+      if (legacy) {
+        tagEnd = lt + legacy[0].length
+        isClosing = legacy[1] === '/'
+        isSelfClosing = legacy[0].endsWith('/>')
+        isTargetTag = true
+      }
+    }
+    if (tagEnd === -1) {
+      scanPos = lt + 1
+      continue
+    }
+    scanPos = tagEnd
+    if (!isTargetTag) continue
+    collectSpansUntil(lt)
+    const span = codeSpans.find((sp) => lt > sp.start && tagEnd <= sp.end)
     if (span) {
-      if (match[1] !== '/') continue
+      if (!isClosing) continue
       const later = new RegExp(`</${tagName}\\s*>`, 'gi')
       later.lastIndex = span.end
       if (later.test(text)) continue
       // Last closer inside a code span: it stays the boundary.
     }
-    if (match[1] === '/') {
+    if (isClosing) {
       depth--
       if (depth === 0) {
         end = tagEnd
         break
       }
-    } else if (!match[0].endsWith('/>')) {
+    } else if (!isSelfClosing) {
       depth++
     }
   }

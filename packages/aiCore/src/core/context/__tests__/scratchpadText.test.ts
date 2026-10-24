@@ -144,6 +144,25 @@ describe('scratchpadText', () => {
     expect(stripModelScratchpadBlocks(quoted)).toContain('Visible.')
   })
 
+  it('ignores closing tags inside quoted attribute values when finding the block boundary (inv_2da074292d7f1ad1)', () => {
+    // The `</analysis>` inside the div's title attribute is attribute content,
+    // not the block boundary: stopping there leaves the internal tail (and the
+    // real closer) in the output and defeats whole-summary unwrapping.
+    const input = '<analysis>Use <div title="</analysis>"> in the example. SECRET</analysis><summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+    expect(stripKnownModelScratchpadBlocks(input)).toBe('<summary>Keep</summary>')
+  })
+
+  it("treats a sibling list item fence as a new block, not the opener item's closer (inv_ef115bae05b2a143)", () => {
+    // The second `- ``` line starts a sibling item; the first item's fence
+    // closes implicitly at the item boundary. Accepting the sibling fence as
+    // the closer unmasks the second block's content and deletes the literal
+    // scratchpad-shaped XML inside it.
+    const input = '- ```\n  first example\n- ```\n  <thinking>literal example</thinking>\n  ```'
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toContain('<thinking>literal example</thinking>')
+  })
+
   it('recognizes indented code inside Markdown containers (inv_5cfd1b3f92913a5c)', () => {
     // `>     <thinking>...` is an indented code block inside a blockquote:
     // indentation counting must skip the container marker or the literal code
