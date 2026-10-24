@@ -1811,26 +1811,23 @@ export class JobManager extends BaseService {
         const isAbort = controller.signal.aborted
         const abortReason = controller.signal.reason
         const isTimeout = isAbort && abortReason instanceof JobHandlerTimeoutError
-        // For user-initiated cancellation the abort reason (built by `cancel()`
-        // / `cancelMany()`) holds the human message — prefer it over whatever
-        // string the handler chose to throw, so renderers see e.g.
-        // "Job cancelled: user requested" instead of a generic "AbortError".
+        const userCancel = Boolean(jobService.getById(row.id)?.cancelRequested) || (isAbort && !isTimeout)
+        // A timeout reason cannot carry a later cancellation message.
+        // Otherwise prefer the user's abort reason over the handler's error.
         const cancelMessage = abortReason instanceof Error ? abortReason.message : null
-        const error: JobError =
-          isAbort && !isTimeout
-            ? {
-                code: JOB_ERROR_CODES.CANCELLED,
-                message: cancelMessage || (err as Error).message || 'Cancelled',
-                retryable: false
-              }
-            : {
-                code: isTimeout ? JOB_ERROR_CODES.HANDLER_TIMEOUT : JOB_ERROR_CODES.HANDLER_THREW,
-                message: (err as Error).message || String(err),
-                retryable: true
-              }
+        const error: JobError = userCancel
+          ? {
+              code: JOB_ERROR_CODES.CANCELLED,
+              message: isTimeout ? 'Cancelled by user' : cancelMessage || (err as Error).message || 'Cancelled',
+              retryable: false
+            }
+          : {
+              code: isTimeout ? JOB_ERROR_CODES.HANDLER_TIMEOUT : JOB_ERROR_CODES.HANDLER_THREW,
+              message: (err as Error).message || String(err),
+              retryable: true
+            }
 
         const retryPolicy = handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
-        const userCancel = isAbort && !isTimeout
         const canRetry = !userCancel && error.retryable && row.attempt + 1 < row.maxAttempts
 
         if (canRetry) {
@@ -2041,7 +2038,18 @@ export class JobManager extends BaseService {
   ): Promise<void> {
     const dbService = application.get('DbService')
     try {
-      jobService.setDelayedRetryTx(dbService.getDb(), jobId, nextAttempt, scheduledAt, error)
+      const written = jobService.setDelayedRetryTx(dbService.getDb(), jobId, nextAttempt, scheduledAt, error)
+      if (!written) {
+        const snapshot = jobService.getById(jobId)
+        if (snapshot?.cancelRequested && !isTerminalStatus(snapshot.status)) {
+          await this.finalizeJob(jobId, 'cancelled', undefined, {
+            code: JOB_ERROR_CODES.CANCELLED,
+            message: 'Cancelled by user',
+            retryable: false
+          })
+        }
+        return
+      }
     } catch (retryWriteErr) {
       // The single-statement write commits on the one better-sqlite3
       // connection; this fallback defends against persistent failures
