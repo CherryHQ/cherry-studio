@@ -3771,6 +3771,8 @@
   "settings.browser.search": "Verlauf nach Titel oder URL durchsuchen",
   "settings.browser.site_data": "Websitedaten",
   "settings.browser.source": "Browser",
+  "settings.browser.spellcheck": "Rechtschreibprüfung in Browserseiten",
+  "settings.browser.spellcheckHelp": "Rechtschreibung in Seiten prüfen, die im integrierten Browser geöffnet sind. Standardmäßig aus; das verhindert auch, dass Webview-Sitzungen Rechtschreibwörterbücher herunterladen.",
   "settings.browser.title": "Browser",
   "settings.browser.unsupported": "Einige Daten werden nicht unterstützt",
   "settings.channels.title": "Kanäle",

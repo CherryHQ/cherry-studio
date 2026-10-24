@@ -3771,6 +3771,8 @@
   "settings.browser.search": "Cerca nella cronologia per titolo o URL",
   "settings.browser.site_data": "Dati dei siti web",
   "settings.browser.source": "Browser",
+  "settings.browser.spellcheck": "Controllo ortografico nelle pagine del browser",
+  "settings.browser.spellcheckHelp": "Controlla l'ortografia nelle pagine aperte dal browser integrato. È disattivato per impostazione predefinita, il che impedisce anche alle sessioni webview di scaricare i dizionari ortografici.",
   "settings.browser.title": "Browser",
   "settings.browser.unsupported": "Alcuni dati non sono supportati",
   "settings.channels.title": "Canali",

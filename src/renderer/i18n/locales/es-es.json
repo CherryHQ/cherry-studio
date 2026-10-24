@@ -3771,6 +3771,8 @@
   "settings.browser.search": "Buscar historial por título o URL",
   "settings.browser.site_data": "Datos de sitios",
   "settings.browser.source": "Navegador",
+  "settings.browser.spellcheck": "Corrección ortográfica en páginas del navegador",
+  "settings.browser.spellcheckHelp": "Revisar la ortografía en las páginas que abre el navegador integrado. Desactivado por defecto, lo que también impide que las sesiones webview descarguen diccionarios.",
   "settings.browser.title": "Navegador",
   "settings.browser.unsupported": "Algunos datos no son compatibles",
   "settings.channels.title": "Canales",

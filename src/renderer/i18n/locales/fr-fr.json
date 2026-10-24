@@ -3771,6 +3771,8 @@
   "settings.browser.search": "Rechercher par titre ou URL",
   "settings.browser.site_data": "Données des sites",
   "settings.browser.source": "Navigateur",
+  "settings.browser.spellcheck": "Vérification orthographique dans les pages du navigateur",
+  "settings.browser.spellcheckHelp": "Vérifier l'orthographe des pages ouvertes par le navigateur intégré. Désactivé par défaut, ce qui empêche aussi les sessions webview de télécharger des dictionnaires.",
   "settings.browser.title": "Navigateur",
   "settings.browser.unsupported": "Certaines données ne sont pas prises en charge",
   "settings.channels.title": "Chaînes",

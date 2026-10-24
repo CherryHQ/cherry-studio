@@ -8,6 +8,7 @@ import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
+import { applyWebviewSpellcheckPolicy } from '@main/services/webviewSpellcheck'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
@@ -125,8 +126,15 @@ export class BrowserSessionService extends BaseService {
       for (const dispose of guests.values()) dispose()
     })
     this.registerInterval(() => this.sweep(), 60_000)
+    const preferenceService = application.get('PreferenceService')
+    applyWebviewSpellcheckPolicy()
     this.registerDisposable(
-      application.get('PreferenceService').subscribeChange('app.browser.agent_control.enabled', (enabled) => {
+      preferenceService.subscribeMultipleChanges(['app.browser.spellcheck', 'app.spell_check.languages'], () =>
+        applyWebviewSpellcheckPolicy()
+      )
+    )
+    this.registerDisposable(
+      preferenceService.subscribeChange('app.browser.agent_control.enabled', (enabled) => {
         if (!enabled)
           for (const server of this.agentServers)
             void server.close().catch((error) => logger.warn('Failed to release browser control', { error }))
