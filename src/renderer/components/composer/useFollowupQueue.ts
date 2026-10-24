@@ -364,8 +364,18 @@ export function useFollowupQueue({
       // older updatedAt, so the override stays held — holding remains the
       // fail-safe direction.
       const ackedWriteAt = pausedAckedWriteAtRef.current.get(scope)
+      // Timestamp ties carry ordering evidence too: the production service
+      // permits identical updatedAt values, so A's Pause and B's Resume can
+      // commit within the same millisecond. Our acknowledged write RESULTED
+      // in `held` at ackedWriteAt, so a refreshed state at the same
+      // timestamp carrying a different value provably postdates our write -
+      // a strict `>` would retain the stale override and park the drain
+      // forever (cherry-pr-review inv_9dd8c2937847bcc9#f1).
       const superseded =
-        settled && ackedWriteAt !== undefined && ackedWriteAt !== '' && queueState.updatedAt > ackedWriteAt
+        settled &&
+        ackedWriteAt !== undefined &&
+        ackedWriteAt !== '' &&
+        (queueState.updatedAt > ackedWriteAt || (queueState.updatedAt === ackedWriteAt && queueState.paused !== held))
       if (!(settled && held === false && queueState.paused === true) && !superseded) {
         return
       }
