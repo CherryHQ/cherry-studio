@@ -1217,13 +1217,17 @@ export class ClaudeCodeStreamAdapter {
     const lineStart = accumulatedText.lastIndexOf('\n') + 1
     const openLine = accumulatedText.slice(lineStart)
     if (openLine.trim() === '') {
-      // A line boundary can still belong to a list container. Carry its
-      // bounded preceding line so the next quote can detect leaving it.
+      // Partial indentation belongs to the current line, not the previous
+      // paragraph; let the indentation carry preserve its leaf-block context.
+      if (openLine !== '') return ''
+      // A newline can follow any paragraph spelling, including formatting or
+      // non-ASCII text. Keep its bounded context for a following setext line.
       const previousEnd = Math.max(0, lineStart - 1)
       const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
       const previous = accumulatedText.slice(previousStart, previousEnd)
-      if (/^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]/.test(previous) || /^[A-Za-z]/.test(previous))
-        return previous.slice(0, 128) + '\n'
+      // A completed fence marker cannot become a synthetic new opener.
+      if (/^ {0,3}(?:`{3,}|~{3,})/.test(previous)) return ''
+      if (previous.trim() !== '') return previous.slice(0, 128) + '\n'
       return ''
     }
     // Completed plain paragraph context needs its block kind and escape

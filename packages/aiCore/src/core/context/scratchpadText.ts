@@ -687,9 +687,17 @@ function unmaskInlineCodeSpans(text: string, spans: string[], placeholderBase = 
 function stripMarkdownContainerMarkers(line: string): string {
   let rest = expandFencePrefixTabs(line)
   for (;;) {
-    const marker = /^ {0,3}(?:>[ ]?|(?:[-*+]|\d{1,9}[.)]) )/.exec(rest)
-    if (!marker) return rest
-    rest = rest.slice(marker[0].length)
+    const quote = /^ {0,3}>[ ]?/.exec(rest)
+    if (quote) {
+      rest = rest.slice(quote[0].length)
+      continue
+    }
+    const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)/.exec(rest)
+    if (!list) return rest
+    // CommonMark list content uses one to four padding columns. Five or
+    // more means one separator followed by indented code, not wider padding.
+    const padding = list[3].length <= 4 ? list[3].length : 1
+    rest = rest.slice(list[1].length + list[2].length + padding)
   }
 }
 
@@ -761,9 +769,11 @@ function maskIndentedCodeBlocks(text: string): {
     const depth = explicitQuoteDepth(line)
     const previousListColumns = inheritedListColumns
     const expanded = expandFencePrefixTabs(line)
-    const list = /^( {0,3})([-*+]|\d{1,9}[.)]) (.*)$/.exec(expanded)
-    if (list) inheritedListColumns = list[1].length + list[2].length + 1
-    else if (line.trim() !== '' && !line.startsWith(' '.repeat(inheritedListColumns))) inheritedListColumns = 0
+    const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(expanded)
+    if (list) {
+      const padding = list[3].length <= 4 ? list[3].length : 1
+      inheritedListColumns = list[1].length + list[2].length + padding
+    } else if (line.trim() !== '' && !line.startsWith(' '.repeat(inheritedListColumns))) inheritedListColumns = 0
     // A new explicit quote container cannot inherit an outer paragraph.
     // Unmarked lazy continuation lines keep their paragraph's container.
     if ((depth > 0 && depth !== quoteDepth) || isListItemStart(line) || previousListColumns !== inheritedListColumns)

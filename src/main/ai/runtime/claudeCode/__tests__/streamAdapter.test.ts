@@ -4640,6 +4640,36 @@ describe('compaction artifact boundary', () => {
     expect(output()).toBe(first + second + third)
   })
 
+  it.each(['**Example**', '`Example`', '示例', '(Example)'])(
+    'retains formatted setext context and snapshot: %s (inv_e8834c575dc7e480)',
+    (heading) => {
+      const { adapter, parts } = createAdapter()
+      const answer = heading + '\n=======\n    <thinking>literal</thinking>\n\nDone.'
+      const output = () =>
+        parts
+          .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+          .map((part) => part.delta)
+          .join('')
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (const text of [heading + '\n', answer.slice(heading.length + 1)])
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+        )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      expect(output()).toBe(answer)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+      } as any)
+      expect(output()).toBe(answer)
+    }
+  )
+
   it('retains setext paragraph context across newline split (inv_4a0dc3e0a791a9d7)', () => {
     const { adapter, parts } = createAdapter()
     const answer = 'Example\n=======\n    <thinking>literal</thinking>\n\nDone.'

@@ -13,6 +13,15 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it.each(['-   First', '1.  First', '-\tFirst'])(
+    'uses actual list padding for continuation: %s (inv_72d005c389d50445)',
+    (first) => {
+      expect(
+        stripModelScratchpadBlocks(first + '\n\n      <analysis>SECRET</analysis>\n\n<summary>Public</summary>')
+      ).not.toContain('SECRET')
+    }
+  )
+
   it('keeps HTML comment ticks opaque (inv_1f37db24d5849b59)', () => {
     expect(
       stripModelScratchpadBlocks('<summary>Keep<!-- ` --> <analysis>SECRET</analysis> public `x`</summary>')
