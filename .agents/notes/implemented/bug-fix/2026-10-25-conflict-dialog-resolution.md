@@ -20,7 +20,7 @@ Closing the dialog without reloading now resolves the conflict: the cancel path 
 
 ## Consequences
 
-A dismissed conflict now overwrites the external version with the kept draft instead of pausing autosave silently, which matches the button's label and the SkillFileBrowser reference implementation. `prepareMutation`'s all-sessions flush semantics are unchanged.
+A dismissed conflict now overwrites the external version with the kept draft instead of pausing autosave silently, which matches the button's label and the SkillFileBrowser reference implementation. [A follow-up](2026-10-25-file-edit-unblocked-writes.md) stops sessions already in conflict or save failure from blocking `prepareMutation`.
 
 ## Verification
 
