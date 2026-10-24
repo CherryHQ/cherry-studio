@@ -40,6 +40,7 @@ const scope = (overrides: {
   thresholdPercent?: number
   compressionModel?: unknown
   adapterFamily?: string
+  requestedMaxOutputTokens?: number
 }) =>
   ({
     request: {
@@ -52,6 +53,7 @@ const scope = (overrides: {
       enabled: overrides.enabled ?? true,
       compress: { enabled: overrides.compressEnabled ?? true, thresholdPercent: overrides.thresholdPercent ?? 80 }
     },
+    requestedMaxOutputTokens: overrides.requestedMaxOutputTokens,
     compressionModel: 'compressionModel' in overrides ? overrides.compressionModel : COMPRESSION_MODEL
   }) as any
 
@@ -251,6 +253,19 @@ describe('inLoopCompactionFeature', () => {
     )
     // ~60k tokens: under the 80k default trigger, over the 50k configured one.
     await prepareStep({ messages: [userMessage(60_000)] } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+  })
+
+  it('uses the centrally resolved request budget for the compaction trigger', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, requestedMaxOutputTokens: 60_000 })
+    )
+
+    // The 60k output reservation leaves 40k input room and a 32k trigger.
+    // Without that reservation this ~50k prompt would stay below the raw 80k trigger.
+    await prepareStep({ messages: [userMessage(50_000)] } as any)
     expect(compactModelMessages).toHaveBeenCalledOnce()
   })
 
