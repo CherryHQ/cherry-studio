@@ -4,6 +4,7 @@ import type { HistoryEntry, RoundDetails } from '../../../src/core/facts'
 import {
   blockedStreak,
   goalProgress,
+  goalSubagents,
   goalUsage,
   roundStopRequest,
   turnOrigin,
@@ -72,6 +73,38 @@ describe('goal usage', () => {
       runEntry(run('a', { run: 2 }))
     ]
     expect(tokens(history, { a: { running: true, runUsage: [usage(100), usage(50)] } })).toBe(101)
+  })
+
+  // Catches ownership taken from a run's later record: a child a person's turn started, ending after a goal round's
+  // request, billed to that goal (and stopped with its budget) for work it never asked for.
+  it('bills a child run a human turn started to no goal, even when it ends during a goal round', () => {
+    const history = [
+      goalEntry(goal()),
+      user(),
+      assistant('spawn', { usage: usage(1) }),
+      runEntry(run('a')),
+      roundEntry(round(1)),
+      admit(1),
+      assistant('work', { usage: usage(4) }),
+      runEntry(run('a', { status: 'finished', outcome: 'completed' }))
+    ]
+    expect(tokens(history, { a: { runUsage: [usage(100)] } })).toBe(4)
+    expect(goalSubagents(history, 'g1')).toEqual([])
+  })
+
+  // Catches the same ownership lost the other way: a run a goal round started still counts once a human turn follows.
+  it('bills a child run a goal round started to that goal, even when it ends during a human turn', () => {
+    const history = [
+      goalEntry(goal()),
+      roundEntry(round(1)),
+      admit(1),
+      assistant('spawn', { usage: usage(1) }),
+      runEntry(run('a')),
+      user(),
+      assistant('chat', { usage: usage(0) }),
+      runEntry(run('a', { status: 'finished', outcome: 'completed' }))
+    ]
+    expect(tokens(history, { a: { runUsage: [usage(100)] } })).toBe(101)
   })
 })
 
