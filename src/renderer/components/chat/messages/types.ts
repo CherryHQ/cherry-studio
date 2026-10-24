@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import type { MessageSelectionStore } from '@renderer/components/chat/messages/selection/MessageSelectionStore'
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
@@ -473,4 +474,9 @@ export interface MessageListProviderValue {
   state: MessageListState
   actions: MessageListActions
   meta: MessageListMeta
+  /**
+   * Per-message subscriptions to the authoritative selected ids.
+   * Optional for embeds that only expose context-based selection.
+   */
+  selectionStore?: MessageSelectionStore | null
 }
