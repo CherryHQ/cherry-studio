@@ -32,13 +32,14 @@ import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
+import type { DocumentParts, MaterializedDocumentImage } from '@main/features/fileProcessing'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
-import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
+import { allocateInlineCaps, fitsInlineImageBudget, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
@@ -212,7 +213,8 @@ function rejectedMediaKind(mediaType: string, ns: NativeFileSupport): 'image' | 
 async function prepareChatMessage<T extends UIMessage>(
   message: T,
   ctx: PrepareChatContext,
-  pending: PendingInline[]
+  pending: PendingInline[],
+  messageIndex: number
 ): Promise<T> {
   if (!message.parts?.length) return message
 
@@ -225,7 +227,7 @@ async function prepareChatMessage<T extends UIMessage>(
     return true
   }
 
-  for (const part of message.parts) {
+  for (const [partIndex, part] of message.parts.entries()) {
     if (part.type !== 'file') {
       kept.push(part)
       continue
@@ -298,7 +300,7 @@ async function prepareChatMessage<T extends UIMessage>(
           })
           throw new NonVisionImageOcrError(outcome)
         }
-        defer(kept, pending, handle, outcome.text)
+        defer(kept, pending, handle, outcome.text, messageIndex, partIndex)
         continue
       }
 
@@ -309,9 +311,47 @@ async function prepareChatMessage<T extends UIMessage>(
         continue
       }
 
+      if (bareExt === 'docx') {
+        const version = await application.get('FileManager').getVersion(fileEntryId)
+        let canonicalText: string | null = null
+        try {
+          canonicalText = await extractDocumentText(fileEntryId, { signal: ctx.signal })
+        } catch (error) {
+          if (ctx.signal?.aborted || isAbortError(error)) throw error
+        }
+        const source = { entryId: fileEntryId, ...version }
+        let document: DocumentParts
+        try {
+          document = await application
+            .get('FileProcessingService')
+            .extractDocumentParts(source, canonicalText, ctx.signal)
+        } catch (error) {
+          if (ctx.signal?.aborted || isAbortError(error)) throw error
+          document = {
+            source,
+            text: canonicalText,
+            order: 'text-first',
+            parts: canonicalText ? [{ kind: 'text', start: 0, end: canonicalText.length }] : [],
+            images: [],
+            imageCount: { total: null, known: 0 },
+            discoveryFailure: 'unreadable-container'
+          }
+        }
+        defer(
+          kept,
+          pending,
+          handle,
+          canonicalText === null ? '' : canonicalText || noExtractableTextNote(handle),
+          messageIndex,
+          partIndex,
+          document
+        )
+        continue
+      }
+
       // Non-native first-party attachment → inline its (capped) text.
       const body = await extractNonNativeText(fileEntryId, fileType, handle, ctx.signal)
-      defer(kept, pending, handle, body)
+      defer(kept, pending, handle, body, messageIndex, partIndex)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
       if (error instanceof NonVisionImageOcrError) throw error
@@ -333,8 +373,10 @@ export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   ctx: PrepareChatContext
 ): Promise<T[]> {
   const pending: PendingInline[] = []
-  const prepared = await Promise.all(messages.map((message) => prepareChatMessage(message, ctx, pending)))
-  applyInlineCaps(pending, ctx)
+  const prepared = await Promise.all(
+    messages.map((message, messageIndex) => prepareChatMessage(message, ctx, pending, messageIndex))
+  )
+  await applyInlineCaps(pending, ctx)
   return prepared
 }
 
@@ -342,28 +384,208 @@ export async function prepareChatMessages<T extends UIMessage = UIMessage>(
  * A text inline whose cap is not known yet: capping needs every candidate's
  * size, and those only exist once extraction has run across all messages.
  */
-interface PendingInline {
+type PendingInline = {
   parts: UIMessage['parts']
   index: number
+  messageIndex: number
+  partIndex: number
   handle: string
   body: string
-}
+} & ({ kind: 'text' } | { kind: 'document'; document: DocumentParts })
 
-function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: string, body: string): void {
-  pending.push({ parts, index: parts.length, handle, body })
+function defer(
+  parts: UIMessage['parts'],
+  pending: PendingInline[],
+  handle: string,
+  body: string,
+  messageIndex: number,
+  partIndex: number,
+  document?: DocumentParts
+): void {
+  pending.push({
+    parts,
+    index: parts.length,
+    handle,
+    body,
+    messageIndex,
+    partIndex,
+    ...(document ? ({ kind: 'document', document } as const) : ({ kind: 'text' } as const))
+  })
   parts.push({ type: 'text', text: '' })
 }
 
-function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): void {
+const omissionReasons = {
+  duplicate: 'duplicate',
+  'too-small': 'smaller side below 128 px',
+  'broken-relationship': 'missing, invalid, or external image relationship',
+  'missing-image': 'image data missing from the DOCX',
+  'unsupported-image': 'unsupported image format',
+  'unreadable-image': 'unreadable image data',
+  'image-byte-limit': 'image processing size limit exceeded',
+  'source-changed': 'document changed during extraction',
+  'non-vision': 'model does not accept image input',
+  'document-cap': '4-image document limit',
+  'request-cap': '8-image request limit',
+  'context-budget': 'insufficient context budget',
+  'pricing-unavailable': 'image token pricing unavailable'
+} as const
+
+type Omission = keyof typeof omissionReasons
+type DeliveredImage = Extract<MaterializedDocumentImage, { kind: 'image' }>
+type DocumentOutcomes = Map<number, Omission | DeliveredImage>
+
+function documentNote(document: DocumentParts, outcomes: DocumentOutcomes): string {
+  if (document.imageCount.total === null) {
+    const failure = document.discoveryFailure === 'unreadable-container' ? 'DOCX container' : 'word/document.xml'
+    const lowerBound =
+      document.imageCount.known > 0
+        ? ` At least ${document.imageCount.known} image occurrences were identified; the total is unknown.`
+        : ''
+    return `[DOCX embedded images could not be counted/extracted: unreadable ${failure}.${lowerBound} Upload images separately if needed.]`
+  }
+  const counts = new Map<Omission, number>()
+  let delivered = 0
+  for (const outcome of outcomes.values()) {
+    if (typeof outcome === 'string') counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
+    else delivered++
+  }
+  const omitted = [...counts.values()].reduce((sum, count) => sum + count, 0)
+  if (!omitted) return ''
+  const reasons = (Object.keys(omissionReasons) as Omission[])
+    .filter((reason) => counts.has(reason))
+    .map((reason) => `${counts.get(reason)} ${omissionReasons[reason]}`)
+    .join('; ')
+  return `[DOCX images: ${delivered} delivered; ${omitted} omitted (${reasons}). Upload omitted images separately if needed.]`
+}
+
+function projectInline(
+  entry: PendingInline,
+  cap: number,
+  ctx: PrepareChatContext,
+  outcomes?: DocumentOutcomes
+): UIMessage['parts'] {
+  const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, cap)
+  if (entry.kind === 'text') return [{ type: 'text', text: `Attached file "${entry.handle}":\n${capped}` }]
+  const document = entry.document
+  const headEnd = surrogateSafeEnd(entry.body, Math.min(cap, entry.body.length))
+  const parts: UIMessage['parts'] = []
+  let text = document.text === null ? noteOf(entry.handle).text : `Attached file "${entry.handle}":\n`
+  if (!document.text) text += document.text === null ? '' : capped
+  for (const part of document.parts) {
+    if (part.kind === 'text') {
+      if (part.start < headEnd) text += (document.text ?? '').slice(part.start, Math.min(part.end, headEnd))
+    } else {
+      const outcome = outcomes?.get(part.occurrenceIndex)
+      if (!outcome || typeof outcome === 'string') continue
+      if (text) parts.push({ type: 'text', text })
+      text = ''
+      parts.push({
+        type: 'file',
+        mediaType: 'image/png',
+        url: `data:image/png;base64,${Buffer.from(outcome.bytes).toString('base64')}`
+      })
+    }
+  }
+  if (document.text) text += capped.slice(headEnd)
+  const note = documentNote(document, outcomes ?? new Map())
+  if (note) text += `\n\n${note}`
+  if (text) parts.push({ type: 'text', text })
+  return parts
+}
+
+async function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): Promise<void> {
+  pending.sort((a, b) => a.messageIndex - b.messageIndex || a.partIndex - b.partIndex)
   const caps = ctx.budget
     ? allocateInlineCaps(
         pending.map((entry) => entry.body),
         ctx.budget
       )
     : pending.map(() => READ_FILE_PAGE_SIZE)
-
-  pending.forEach((entry, index) => {
-    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, caps[index])
-    entry.parts[entry.index] = { type: 'text', text: `Attached file "${entry.handle}":\n${capped}` }
-  })
+  const outcomes = pending.map(
+    (entry) =>
+      new Map<number, Omission | DeliveredImage>(
+        entry.kind === 'document'
+          ? entry.document.images.map((image) => [
+              image.index,
+              image.omission ?? (ctx.nativeSupport.image ? 'context-budget' : 'non-vision')
+            ])
+          : []
+      )
+  )
+  const admitted: Array<{ entryIndex: number; occurrenceIndex: number; image: DeliveredImage }> = []
+  const fits = () =>
+    !ctx.budget ||
+    fitsInlineImageBudget(
+      ctx.budget,
+      pending.flatMap((entry, index) =>
+        projectInline(entry, caps[index], ctx, outcomes[index]).flatMap((part) =>
+          part.type === 'text' ? [part.text] : []
+        )
+      ),
+      admitted.map(({ image }) => ({ width: image.width, height: image.height }))
+    )
+  for (const [entryIndex, entry] of pending.entries()) {
+    if (entry.kind !== 'document' || !ctx.nativeSupport.image || !entry.document.images.length) continue
+    try {
+      await application.get('FileProcessingService').materializeDocumentImages(entry.document, [], ctx.signal)
+    } catch (error) {
+      if (ctx.signal?.aborted || isAbortError(error)) throw error
+      for (const occurrence of entry.document.images)
+        outcomes[entryIndex].set(occurrence.index, occurrence.omission ?? 'unreadable-image')
+      continue
+    }
+    let documentDelivered = 0
+    for (const occurrence of entry.document.images) {
+      if (occurrence.omission) {
+        outcomes[entryIndex].set(occurrence.index, occurrence.omission)
+        continue
+      }
+      const reason =
+        documentDelivered >= 4
+          ? 'document-cap'
+          : admitted.length >= 8
+            ? 'request-cap'
+            : ctx.budget && !ctx.budget.imageTokens
+              ? 'pricing-unavailable'
+              : undefined
+      if (reason) {
+        outcomes[entryIndex].set(occurrence.index, reason)
+        continue
+      }
+      let image: MaterializedDocumentImage
+      try {
+        ;[image] = await application
+          .get('FileProcessingService')
+          .materializeDocumentImages(entry.document, [occurrence.index], ctx.signal)
+      } catch (error) {
+        if (ctx.signal?.aborted || isAbortError(error)) throw error
+        outcomes[entryIndex].set(occurrence.index, 'unreadable-image')
+        continue
+      }
+      if (image.kind === 'omitted') {
+        outcomes[entryIndex].set(occurrence.index, image.reason)
+        continue
+      }
+      outcomes[entryIndex].set(occurrence.index, image)
+      admitted.push({ entryIndex, occurrenceIndex: occurrence.index, image })
+      if (!fits()) {
+        admitted.pop()
+        outcomes[entryIndex].set(occurrence.index, 'context-budget')
+      } else documentDelivered++
+    }
+    if (entry.document.images.some((image) => image.omission === 'source-changed')) {
+      for (const image of entry.document.images) outcomes[entryIndex].set(image.index, 'source-changed')
+      for (let index = admitted.length - 1; index >= 0; index--) {
+        if (admitted[index].entryIndex === entryIndex) admitted.splice(index, 1)
+      }
+    }
+  }
+  while (admitted.length && !fits()) {
+    const last = admitted.pop()!
+    outcomes[last.entryIndex].set(last.occurrenceIndex, 'context-budget')
+  }
+  for (let index = pending.length - 1; index >= 0; index--) {
+    const entry = pending[index]
+    entry.parts.splice(entry.index, 1, ...projectInline(entry, caps[index], ctx, outcomes[index]))
+  }
 }
