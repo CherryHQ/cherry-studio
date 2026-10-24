@@ -4221,6 +4221,42 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it('preserves the whitespace remainder across suppression when the boundary splits after the block (inv_685fa6678f9069fa)', () => {
+    const { adapter, parts } = createAdapter()
+    // The delta boundary lands after the closed thinking block but before
+    // the indented code: the whitespace remainder holds the separator AND
+    // the first visible line's indentation. Suppressing it with the block
+    // drops the indentation (combined delivery keeps it via
+    // trimAfterScratchpadStrip), and the shortened stream then mismatches
+    // the snapshot, which appends the duplicate suffix.
+    const raw = '<thinking>internal</thinking>\n\n    const x = 1\n    return x'
+    const answer = '    const x = 1\n    return x'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const piece of ['<thinking>internal</thinking>\n\n    ', 'const x = 1\n    return x']) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
   it('retains Markdown block context across parentless delta boundaries (inv_f7b234887ed722ff)', () => {
     const { adapter, parts } = createAdapter()
     // The `#` heading opener and the rest of its line arrive in separate

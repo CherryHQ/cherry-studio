@@ -1410,7 +1410,17 @@ export class ClaudeCodeStreamAdapter {
         if (remainder.trim().length > 0) {
           return { action: 'emit', visible: this.trimAfterScratchpadStrip(probe, remainder) }
         }
-        return { action: 'suppress' }
+        // A whitespace-only remainder is not disposable mid-stream: when the
+        // delta boundary lands right after the closed block, that whitespace
+        // carries the blank-line separator AND the next visible line's
+        // indentation - suppressing it here strips the indentation that
+        // combined delivery preserves (trimAfterScratchpadStrip), and the
+        // shortened stream then mismatches the assistant snapshot, which
+        // appends the duplicate suffix (cherry-pr-review
+        // inv_685fa6678f9069fa#f1). Stay pending so the completed probe
+        // classifies exactly like combined delivery; at block end the
+        // whitespace is trailing and suppresses with the block.
+        return atBlockEnd ? { action: 'suppress' } : { action: 'pending' }
       }
       if (atBlockEnd) {
         return { action: 'emit', visible: probe }
