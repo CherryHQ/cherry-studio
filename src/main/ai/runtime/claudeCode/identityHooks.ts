@@ -4,14 +4,15 @@ import { PromptBuilder } from '@main/ai/agents/prompt'
 
 /** Per-connection identity delivery; SessionStart also runs after native context compaction. */
 export function createClaudeCodeIdentityHooks(
-  agentDataPath: string
+  agentDataPath: string,
+  sessionId?: string
 ): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
   const builder = new PromptBuilder()
   let delivered: string | undefined
   const refresh: HookCallback = async (input, _toolUseId, { signal }) => {
     if (input.hook_event_name !== 'SessionStart' && input.hook_event_name !== 'UserPromptSubmit') return {}
     if (input.agent_id || signal.aborted) return {}
-    const snapshot = await builder.buildMemoriesSection(agentDataPath)
+    const snapshot = await builder.buildMemoriesSection(agentDataPath, sessionId)
     if (signal.aborted) return {}
     if (input.hook_event_name === 'UserPromptSubmit' && snapshot === delivered) return {}
     delivered = snapshot

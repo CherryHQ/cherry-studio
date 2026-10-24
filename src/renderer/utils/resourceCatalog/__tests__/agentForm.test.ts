@@ -29,6 +29,18 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
 }
 
 describe('buildInitialAgentFormState', () => {
+  it('defaults shared memory on and preserves an explicit opt-out through a partial save', () => {
+    const initial = buildInitialAgentFormState(createAgent())
+    expect(initial.userMemoryEnabled).toBe(true)
+    const disabled = applyAgentFormPatch(initial, { userMemoryEnabled: false })
+    const change = diffAgentUpdate(initial, disabled)
+    expect(change?.dto.configuration).toEqual({ userMemoryEnabled: false })
+    const reloaded = buildInitialAgentFormState(createAgent({ configuration: { userMemoryEnabled: false } }))
+    expect(reloaded.userMemoryEnabled).toBe(false)
+    expect(
+      diffAgentUpdate(reloaded, applyAgentFormPatch(reloaded, { name: 'Renamed' }))?.dto.configuration
+    ).toBeUndefined()
+  })
   it('copies AgentBase fields to form state', () => {
     const agent = createAgent({
       name: 'Demo',

@@ -17,6 +17,7 @@ export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { ki
 export type ResourceCreateValues = {
   agentType: AgentType
   permissionMode: AgentPermissionMode
+  userMemoryEnabled?: boolean
   avatar: string
   name: string
   modelId: UniqueModelId

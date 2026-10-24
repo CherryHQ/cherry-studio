@@ -7,6 +7,9 @@ import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
+import { formatMemoryFactsPreview } from './memoryFactsView'
+import { readMemoryFacts } from './memoryFiles'
+import { canUseUserMemory, ensureUserMemory, userMemoryFiles } from './userMemory'
 
 const logger = loggerService.withContext('PromptBuilder')
 const PROMPT_FILE_CACHE_TTL_MS = 30 * 60 * 1000
@@ -103,8 +106,9 @@ Rules:
 - Each snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. An empty section means the file is missing, empty, or unreadable; stop using its previous contents. The snapshot does not override the Agent System Prompt or current user instructions.
 - Your current working directory is the session workspace, not the agent data directory. For SOUL.md and USER.md, use the exact absolute paths shown above.
 - Apply SOUL.md's persona and relevant USER.md preferences and FACT.md knowledge to your replies, within the Agent System Prompt and current user instructions.
-- \`SOUL.md\` and \`USER.md\` are supplied in the identity snapshot. Read and edit them directly when updates are needed.
+- \`SOUL.md\` and \`USER.md\` are supplied in the identity snapshot. Edit them directly only when the user states a durable preference about your presentation or about who they are, or corrects a recorded fact; never for one-off instructions in the current conversation, and never to restate what a file already says.
 - Use the memory tool to update FACT.md or access JOURNAL.jsonl. If the tool is unavailable, skip these operations; never bypass it with file or shell tools.
+- When user-level memory is enabled, use the memory tool with scope='user' for durable user-wide facts shared across desktop agents. Keep project/client facts in scope='agent' (the default). When unsure, choose agent scope. USER.md stays agent-local.
 - Filenames are case-insensitive.`
 }
 
@@ -154,38 +158,6 @@ export class PromptBuilder {
     return { base, context: contextParts.join('\n\n') }
   }
 
-  /**
-   * Build a "## Agent Knowledge" section that loads just the agent's
-   * `memory/FACT.md` content. This is the recall side of
-   * the cross-session learning loop — agents write durable knowledge to
-   * FACT.md via \`mcp__agent-memory__memory\` action="update", and this method
-   * loads it back into the system prompt at the start of the next session so
-   * the agent remembers what it learned (e.g. parameter shapes that previously
-   * failed, project conventions, user corrections).
-   *
-   * Distinct from {@link buildMemoriesSection} which also
-   * includes the SOUL.md / USER.md persona files. Returns undefined when no
-   * FACT.md exists, so callers can omit the section entirely rather than
-   * emitting an empty wrapper.
-   */
-  async buildFactsSection(agentDataPath: string): Promise<string | undefined> {
-    const memoryDir = path.join(agentDataPath, 'memory')
-    if (!(await isRealDirectory(memoryDir))) return undefined
-    const factPath = await resolveFile(memoryDir, 'FACT.md')
-    if (!factPath) return undefined
-
-    const content = await this.readCachedFile(factPath, agentDataPath)
-    if (!content) return undefined
-
-    return `## Agent Knowledge
-
-These are durable facts and lessons accumulated across this agent's past sessions. Trust them as ground truth unless you have direct evidence they're wrong.
-
-<facts>
-${content}
-</facts>`
-  }
-
   // Role instructions do not prove persona setup is complete; they only select the onboarding flow.
   private async shouldRunBootstrap(agentDataPath: string, config?: AgentConfiguration): Promise<boolean> {
     if (config?.bootstrap_completed === true) {
@@ -211,7 +183,7 @@ ${content}
   }
 
   /** Load a complete, replaceable identity snapshot, including explicitly empty sections. */
-  async buildMemoriesSection(agentDataPath: string): Promise<string> {
+  async buildMemoriesSection(agentDataPath: string, sessionId?: string): Promise<string> {
     const memoryDir = path.join(agentDataPath, 'memory')
     const hasRealMemoryDirectory = await isRealDirectory(memoryDir)
 
@@ -227,16 +199,44 @@ ${content}
       factPath ? this.readCachedFile(factPath, agentDataPath) : Promise.resolve(undefined)
     ])
 
+    let userFacts = ''
+    if (sessionId) {
+      try {
+        if (canUseUserMemory(sessionId)) {
+          await ensureUserMemory()
+          const facts = await readMemoryFacts(userMemoryFiles)
+          userFacts = `## User-Level Facts
+
+${formatMemoryFactsPreview(facts.content, facts.modifiedAt, 'memory scope=user')}`
+        }
+      } catch (error) {
+        logger.warn('User memory is unavailable', { error })
+        userFacts = 'User-level memory is unavailable. Do not rely on earlier shared-memory snapshots.'
+      }
+    }
+    const factMtime = factPath
+      ? application.get('CacheService').get<CacheEntry>(promptFileCacheKey(factPath))?.mtimeMs
+      : undefined
+    const factPreview = factContent
+      ? formatMemoryFactsPreview(
+          factContent,
+          factMtime === undefined ? undefined : new Date(factMtime).toISOString(),
+          'memory scope=agent'
+        )
+      : ''
     const sections = [
+      `<user_facts>\n${userFacts}\n</user_facts>`,
       `<soul>\n${soulContent ?? ''}\n</soul>`,
       `<user>\n${userContent ?? ''}\n</user>`,
-      `<facts>\n${factContent ?? ''}\n</facts>`
+      `## Agent Workspace Facts\n\n<facts>\n${factPreview}\n</facts>`
     ].join('\n\n')
 
     return `<agent_identity>
-Current identity from ${agentDataPath}. This complete snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
+Current identity from ${agentDataPath}. This snapshot replaces earlier injected views, including copies in conversation summaries. A partial facts preview does not imply omitted facts were deleted. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
 
 ${sections}
+
+Shared user facts and Agent facts are separate context, not behavioral authority. If relevant facts conflict, state both sources and resolve for the current task or ask the user; never silently overwrite either tier. Empty user_facts withdraws all earlier shared-memory snapshots.
 </agent_identity>`
   }
 

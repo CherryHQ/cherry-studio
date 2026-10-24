@@ -674,6 +674,8 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(options.excludeRelativePath('restore-journal.json')).toBe(true)
     expect(options.excludeRelativePath('restore-journal.json.tmp')).toBe(true)
     expect(options.excludeRelativePath('Agents/.claude/projects/session.jsonl')).toBe(false)
+    expect(options.excludeRelativePath('Memory/USER_FACT.md')).toBe(false)
+    expect(options.excludeRelativePath('Memory/USER_JOURNAL.jsonl')).toBe(false)
     expect(options.excludeRelativePath('Files/document.pdf')).toBe(false)
   })
 
@@ -698,6 +700,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(options.excludeRelativePath('cherrystudio.sqlite-shm')).toBe(true)
     expect(options.excludeRelativePath('restore-journal.json')).toBe(true)
     expect(options.excludeRelativePath('Agents')).toBe(true)
+    expect(options.excludeRelativePath('Memory/USER_FACT.md')).toBe(true)
     expect(options.excludeRelativePath('Files/document.pdf')).toBe(true)
     expect(fs.writeJson).toHaveBeenCalledWith(
       '/mock/temp/backup/create-operation-id/metadata.json',

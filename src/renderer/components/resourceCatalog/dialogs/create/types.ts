@@ -21,6 +21,7 @@ export type ResourceCreateWizardFormValues = {
   agentType: AgentType
   /** Agent permission policy. Ignored for the assistant kind. */
   permissionMode: AgentPermissionMode
+  userMemoryEnabled?: boolean
   modelId: UniqueModelId | null
   prompt: string
   // assistant step 3 / agent step 4

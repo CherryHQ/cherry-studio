@@ -100,7 +100,7 @@ also require their own lifecycle and product decisions.
 The common materializer owns Cherry policy content, semantic authority, and the ordering of blocks carried through its `append` result:
 
 1. instruction precedence when an Agent System Prompt exists;
-2. bootstrap, identity, and memory context from `PromptBuilder` (`SOUL.md`, `USER.md`, `memory/FACT.md`);
+2. bootstrap, identity, and memory context from `PromptBuilder` (`SOUL.md`, `USER.md`, `memory/FACT.md`, plus optional desktop `USER_FACT.md`);
 3. variable-resolved Agent System Prompt text and its authority wrapper;
 4. context required when `system.md` replaces a native base;
 5. linked-channel security policy;
@@ -645,7 +645,7 @@ Allowed in v1:
 - Cherry's runtime-neutral Agent prompt, materialized by `buildAgentRuntimePrompt()` and injected
   through `systemPromptOverride` and `appendSystemPromptOverride`. The materializer uses
   `PromptBuilder` for workspace `system.md` and the current agent data directory's `SOUL.md`,
-  `USER.md`, and `memory/FACT.md`, and adds the same instruction authority, channel security,
+  `USER.md`, `memory/FACT.md`, and eligible desktop `USER_FACT.md`, and adds the same instruction authority, channel security,
   citation, artifact-reporting, and language contracts as the Claude Code runtime.
   These files are a **connection-lifetime snapshot**: editing them deliberately
   does not invalidate a warm connection or its provider prompt cache. Changes

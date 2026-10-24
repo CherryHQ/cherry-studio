@@ -1,0 +1,1 @@
+export const MEMORY_CONFLICT = 'MEMORY_CONFLICT'

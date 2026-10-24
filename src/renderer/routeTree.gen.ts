@@ -54,6 +54,7 @@ import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsSubscriptionRouteImport } from './routes/settings/subscription'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsUsageRouteImport } from './routes/settings/usage'
+import { Route as SettingsUserMemoryRouteImport } from './routes/settings/user-memory'
 import { Route as SettingsVoiceRouteImport } from './routes/settings/voice'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as AppMiniAppIndexRouteImport } from './routes/app/mini-app.index'
@@ -300,6 +301,11 @@ const SettingsUsageRoute = SettingsUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsUserMemoryRoute = SettingsUserMemoryRouteImport.update({
+  id: '/user-memory',
+  path: '/user-memory',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsVoiceRoute = SettingsVoiceRouteImport.update({
   id: '/voice',
   path: '/voice',
@@ -439,6 +445,7 @@ export interface FileRoutesByFullPath {
   '/settings/subscription': typeof SettingsSubscriptionRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/user-memory': typeof SettingsUserMemoryRoute
   '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
@@ -500,6 +507,7 @@ export interface FileRoutesByTo {
   '/settings/subscription': typeof SettingsSubscriptionRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/user-memory': typeof SettingsUserMemoryRoute
   '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings': typeof SettingsIndexRoute
@@ -566,6 +574,7 @@ export interface FileRoutesById {
   '/settings/subscription': typeof SettingsSubscriptionRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/user-memory': typeof SettingsUserMemoryRoute
   '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
@@ -633,6 +642,7 @@ export interface FileRouteTypes {
     | '/settings/subscription'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/user-memory'
     | '/settings/voice'
     | '/settings/websearch'
     | '/settings/'
@@ -694,6 +704,7 @@ export interface FileRouteTypes {
     | '/settings/subscription'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/user-memory'
     | '/settings/voice'
     | '/settings/websearch'
     | '/settings'
@@ -759,6 +770,7 @@ export interface FileRouteTypes {
     | '/settings/subscription'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/user-memory'
     | '/settings/voice'
     | '/settings/websearch'
     | '/settings/'
@@ -1102,6 +1114,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsUsageRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/user-memory': {
+      id: '/settings/user-memory'
+      path: '/user-memory'
+      fullPath: '/settings/user-memory'
+      preLoaderRoute: typeof SettingsUserMemoryRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/voice': {
       id: '/settings/voice'
       path: '/voice'
@@ -1357,6 +1376,7 @@ interface SettingsRouteChildren {
   SettingsSubscriptionRoute: typeof SettingsSubscriptionRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsUsageRoute: typeof SettingsUsageRoute
+  SettingsUserMemoryRoute: typeof SettingsUserMemoryRoute
   SettingsVoiceRoute: typeof SettingsVoiceRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -1394,6 +1414,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsSubscriptionRoute: SettingsSubscriptionRoute,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsUsageRoute: SettingsUsageRoute,
+  SettingsUserMemoryRoute: SettingsUserMemoryRoute,
   SettingsVoiceRoute: SettingsVoiceRoute,
   SettingsWebsearchRoute: SettingsWebsearchRoute,
   SettingsIndexRoute: SettingsIndexRoute,

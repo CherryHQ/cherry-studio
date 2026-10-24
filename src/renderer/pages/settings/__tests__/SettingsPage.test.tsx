@@ -1,13 +1,20 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUiModule from '@cherrystudio/ui'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { ipcApi } from '@renderer/ipc'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import SettingsPage from '../SettingsPage'
+import { UserMemorySettings } from '../UserMemorySettings'
+
+vi.mock('@renderer/components/markdown', () => ({
+  StaticMarkdown: ({ children }: { children: ReactNode }) => <div>{children}</div>
+}))
 
 const { isMacTransparentWindowMock, navigateMock } = vi.hoisted(() => ({
   isMacTransparentWindowMock: vi.fn(),
@@ -233,5 +240,101 @@ describe('SettingsPage', () => {
 
     expect(menuItems.slice(efficiencyStart, efficiencyStart + efficiencyItems.length)).toEqual(efficiencyItems)
     expect(efficiencyItems.at(-1)?.nextElementSibling).toHaveAttribute('data-testid', 'menu-divider')
+  })
+})
+
+describe('User memory settings', () => {
+  let stored: { content: string; revision: string }
+  let rejectStale: boolean
+  let writes: Array<{ content: string; expectedRevision: string }>
+
+  beforeEach(() => {
+    stored = { content: 'Prefer pnpm', revision: 'v1' }
+    rejectStale = false
+    writes = []
+    vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
+      if (route === 'memory.user.facts.read') return { ...stored } as never
+      if (route === 'memory.user.journal.search') {
+        return [{ ts: '2026-10-20T00:00:00.000Z', tags: [], text: 'Historical event' }] as never
+      }
+      if (route === 'memory.user.facts.update') {
+        const input = args[0] as { content: string; expectedRevision: string }
+        writes.push(input)
+        if (rejectStale) {
+          rejectStale = false
+          stored = { content: 'Prefer pnpm\nUse TypeScript', revision: 'v2' }
+        }
+        if (input.expectedRevision !== stored.revision) throw new IpcError('MEMORY_CONFLICT')
+        stored = { content: input.content, revision: 'saved' }
+        return { ...stored } as never
+      }
+      return undefined as never
+    })
+  })
+
+  function openMemory() {
+    render(
+      <SWRConfig value={{ provider: () => new Map(), shouldRetryOnError: false, dedupingInterval: 0 }}>
+        <UserMemorySettings />
+      </SWRConfig>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'settings.user_memory.load' }))
+    return screen.findByDisplayValue('Prefer pnpm')
+  }
+
+  it('does not read or reveal memory until the user loads it, including cached content', async () => {
+    const cache = new Map()
+    const view = () => (
+      <SWRConfig value={{ provider: () => cache }}>
+        <UserMemorySettings />
+      </SWRConfig>
+    )
+    const first = render(view())
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.user_memory.load' }))
+    await screen.findByDisplayValue('Prefer pnpm')
+    await screen.findByText('Historical event')
+    first.unmount()
+    vi.mocked(ipcApi.request).mockClear()
+    render(view())
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByText('Historical event')).not.toBeInTheDocument()
+    expect(ipcApi.request).not.toHaveBeenCalled()
+  })
+
+  it('saves edited facts with the revision read by the editor', async () => {
+    const editor = await openMemory()
+    fireEvent.change(editor, { target: { value: 'Prefer npm' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(stored.content).toBe('Prefer npm'))
+    expect(writes).toEqual([{ content: 'Prefer npm', expectedRevision: 'v1' }])
+  })
+
+  it('preserves a conflicting draft and saves only the explicitly merged version', async () => {
+    const editor = await openMemory()
+    fireEvent.change(editor, { target: { value: 'Prefer yarn' } })
+    rejectStale = true
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    await screen.findByText('settings.user_memory.conflict')
+    await screen.findByText('Prefer pnpm Use TypeScript')
+    expect(editor).toHaveValue('Prefer yarn')
+    expect(stored.content).toBe('Prefer pnpm\nUse TypeScript')
+    expect(screen.getByRole('button', { name: 'common.save' })).toBeDisabled()
+    fireEvent.change(editor, { target: { value: 'Prefer yarn\nUse TypeScript' } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.user_memory.merge' }))
+    await waitFor(() => expect(stored.content).toBe('Prefer yarn\nUse TypeScript'))
+    expect(writes.at(-1)).toEqual({ content: 'Prefer yarn\nUse TypeScript', expectedRevision: 'v2' })
+  })
+
+  it('requires confirmation to clear facts and retains the historical journal', async () => {
+    await openMemory()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.user_memory.clear' }))
+    expect(stored.content).toBe('Prefer pnpm')
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common.delete' }))
+    await waitFor(() => expect(stored.content).toBe(''))
+    expect(screen.getByLabelText('settings.user_memory.title')).toHaveValue('')
+    expect(screen.getByText('Historical event')).toBeInTheDocument()
   })
 })

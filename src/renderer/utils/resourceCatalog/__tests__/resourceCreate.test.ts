@@ -17,6 +17,11 @@ const values: ResourceCreateValues = {
 }
 
 describe('resource create DTO mapping', () => {
+  it('persists an explicit shared memory opt-out when creating an agent', () => {
+    expect(buildCreateAgentCommand({ ...values, userMemoryEnabled: false }).configuration?.userMemoryEnabled).toBe(
+      false
+    )
+  })
   it('maps every assistant-specific field', () => {
     expect(buildCreateAssistantDto(values)).toEqual({
       name: 'Researcher',
