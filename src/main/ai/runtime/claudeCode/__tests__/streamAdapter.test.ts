@@ -3775,6 +3775,60 @@ describe('deferred text-start fidelity', () => {
 })
 
 describe('scratchpad escape carry across buffered partial tags', () => {
+  it('preserves fragmented ordinary-tag quoted attributes (inv_cfcd4583fe4da4de)', () => {
+    const { adapter, parts } = createAdapter()
+    const pieces = ['Before <div title="<thinking>literal</thinking>', '">Useful</div> after']
+    const answer = pieces.join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of pieces) {
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    expect(
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    ).toBe(answer)
+  })
+
+  it.each(Array.from({ length: 64 }, (_, i) => i + 1))('preserves ordinary-tag quote context at split %i', (split) => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'Before <div title="<thinking>literal</thinking>">Useful</div> after'
+    const pieces = [answer.slice(0, split), answer.slice(split)]
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of pieces) {
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    expect(
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    ).toBe(answer)
+  })
+
   it('preserves indented code when flushing a split unmatched backtick (inv_fde51b67ea34c37b)', () => {
     const { adapter, parts } = createAdapter()
     const pieces = ['Example:\n\n    ', '`<thinking>literal</thinking>']

@@ -129,7 +129,8 @@ function isValidFenceLinePrefix(prefix: string): boolean {
         i++
         spaces++
       }
-      if (spaces === 0) return false
+      // Do not restart the three-space allowance inside one container.
+      if (spaces === 0 || prefix[i] === ' ') return false
       continue
     }
     return false
@@ -194,6 +195,12 @@ function isInsideInlineCodeBefore(text: string, markerStart: number): boolean {
   return false
 }
 
+function inlineBlockEnd(text: string, from: number): number {
+  const blank = /\r?\n[ \t]*\r?\n/g
+  blank.lastIndex = from
+  return blank.exec(text)?.index ?? text.length
+}
+
 /**
  * True when `index` sits inside a complete inline-code span. Spans cannot
  * cross a blank line, so the scan starts at the containing block's edge.
@@ -226,7 +233,8 @@ function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
     }
     let j = tick + run
     let closedAt = -1
-    while (j < text.length) {
+    const blockEnd = inlineBlockEnd(text, j)
+    while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
         continue
@@ -349,6 +357,29 @@ function fenceCloseMatchesContainerContext(candidatePrefix: string, openerPrefix
   return /^ {0,3}$/.test(rest)
 }
 
+function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: string): number {
+  const segments = parseFenceContainerSegments(openerPrefix)
+  if (segments.length === 0) return text.length
+  for (let start = openerLineEnd; start < text.length; start = lineEndAfter(text, start)) {
+    let rest = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
+    for (const segment of segments) {
+      if (segment.type === 'quote') {
+        const quote = /^ {0,3}>(?: |$)/.exec(rest)
+        if (!quote) return start
+        rest = rest.slice(quote[0].length)
+      } else {
+        // Blank lines may remain inside a list, but sibling/dedented content
+        // ends its fenced block even without a closing marker.
+        if (rest.trim() === '') break
+        const spaces = rest.match(/^ */)?.[0].length ?? 0
+        if (spaces < segment.contentCol) return start
+        rest = rest.slice(segment.contentCol)
+      }
+    }
+  }
+  return text.length
+}
+
 function findCodeFenceClose(
   text: string,
   searchFrom: number,
@@ -356,10 +387,11 @@ function findCodeFenceClose(
   fenceLen: number,
   openerPrefix = ''
 ): number {
+  const containerEnd = fenceContainerEnd(text, lineEndAfter(text, searchFrom), openerPrefix)
   let pos = searchFrom
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
-    if (rel === -1) return -1
+    if (rel === -1 || pos + rel >= containerEnd) return containerEnd < text.length ? containerEnd : -1
     const markerStart = pos + rel
     if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
       pos = markerStart + 1
@@ -376,7 +408,7 @@ function findCodeFenceClose(
     }
     return lineEndAfter(text, markerStart)
   }
-  return -1
+  return containerEnd < text.length ? containerEnd : -1
 }
 
 /**
@@ -472,7 +504,8 @@ function maskInlineCodeSpans(text: string): {
     const contentStart = i
     let j = contentStart
     let closedAt = -1
-    while (j < text.length) {
+    const blockEnd = inlineBlockEnd(text, j)
+    while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
         continue
@@ -845,7 +878,8 @@ export function textHasUnclosedInlineCode(text: string): boolean {
     const contentStart = i
     let j = contentStart
     let closedAt = -1
-    while (j < text.length) {
+    const blockEnd = inlineBlockEnd(text, j)
+    while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
         continue
@@ -867,9 +901,34 @@ export function textHasUnclosedInlineCode(text: string): boolean {
   return false
 }
 
+/** Keep the outer tag's quote context before interpreting attribute text.
+ * A later '<' or '>' inside an unfinished quoted value is not a new tag. */
+function textHasIncompleteMarkup(text: string): boolean {
+  for (let start = 0; start < text.length; start++) {
+    if (text[start] !== '<' || isBackslashEscaped(text, start) || !/^<(?:[a-z/!?]|$)/i.test(text.slice(start))) continue
+    let quote = ''
+    let end = start + 1
+    for (; end < text.length; end++) {
+      const char = text[end]
+      if (quote) {
+        if (char === quote) quote = ''
+      } else if (char === '"' || char === "'") quote = char
+      else if (char === '>') break
+    }
+    if (end === text.length) return true
+    start = end
+  }
+  return false
+}
+
 /** True when scratchpad filtering should wait for more stream input before stripping. */
 export function shouldDeferScratchpadStripping(text: string): boolean {
-  return textHasUnclosedCodeFence(text) || textEndsWithPartialFenceMarker(text) || textHasUnclosedInlineCode(text)
+  return (
+    textHasIncompleteMarkup(text) ||
+    textHasUnclosedCodeFence(text) ||
+    textEndsWithPartialFenceMarker(text) ||
+    textHasUnclosedInlineCode(text)
+  )
 }
 
 /** True when the text opens a fenced code block that has no closing delimiter yet. */

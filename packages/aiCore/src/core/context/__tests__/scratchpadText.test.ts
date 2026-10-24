@@ -11,6 +11,25 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it.each([
+    '> > ```text\n> > sample\n> outside\n<analysis>SECRET</analysis>',
+    '- ```text\n  sample\n\n<analysis>SECRET</analysis>',
+    '- ```text\n  sample\n- sibling\n<analysis>SECRET</analysis>',
+    'An unmatched `` marker.\n \t\n<analysis>SECRET</analysis>\n\nLater ``example``.',
+    '>     ```\n>     sample\n\n<analysis>SECRET</analysis>'
+  ])('bounds nested/container Markdown masking: %s', (input) => {
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+  })
+
+  it.each([
+    ['inv_489f549a8bf0058e', '> ```text\n> sample\n\n<analysis>SECRET</analysis>\n<summary>Public</summary>'],
+    ['inv_495ad080dbbb70d1', '    ```\n    sample\n\n<analysis>SECRET</analysis>\n<summary>Public</summary>'],
+    ['inv_c7330e8558224a5f', 'An unmatched ` marker.\n\n<analysis>SECRET</analysis>\n\nA later `example` paragraph.']
+  ])('does not shield later scratchpad across Markdown block boundaries (%s)', (_id, input) => {
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+    expect(stripModelScratchpadBlocks(`<summary>${input}</summary>`)).not.toContain('SECRET')
+  })
+
   it('preserves tab-separated list fences without masking following analysis (inv_9c339ad57c3b09fa)', () => {
     const fence = '-\t```xml\n    <thinking>literal</thinking>\n    ```'
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(fence)).toBe(fence)
