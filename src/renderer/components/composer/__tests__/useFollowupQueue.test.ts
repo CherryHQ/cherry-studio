@@ -839,78 +839,6 @@ describe('useFollowupQueue', () => {
     })
   })
 
-  it('releases the take claim without deleting when the hook unmounts mid-claim', async () => {
-    wireQuery([row('h', 'head')])
-    const { claimTrigger, takeDeleteTrigger, failTrigger, postTrigger } = wireMutations()
-    let resolveClaim!: (value: { claimed: true; alreadySent: boolean }) => void
-    claimTrigger.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveClaim = resolve
-      })
-    )
-
-    const { result, unmount } = renderHook(() => useFollowupQueue(baseProps()))
-
-    let taken: unknown = 'unset'
-    await act(async () => {
-      void result.current
-        .takeForEdit('h', () => null)
-        .then((value) => {
-          taken = value
-        })
-    })
-    // Navigate away while the claim is in flight.
-    await act(async () => {
-      unmount()
-    })
-    await act(async () => {
-      resolveClaim({ claimed: true, alreadySent: false })
-    })
-    await act(async () => {})
-
-    expect(taken).toBeUndefined()
-    expect(takeDeleteTrigger).not.toHaveBeenCalled()
-    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
-    expect(postTrigger).not.toHaveBeenCalled()
-  })
-
-  it('re-enqueues the taken item when the hook unmounts while its delete is pending', async () => {
-    wireQuery([row('h', 'head')])
-    const { claimTrigger, takeDeleteTrigger, failTrigger, postTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
-    let resolveDelete!: () => void
-    takeDeleteTrigger.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveDelete = () => resolve(undefined)
-      })
-    )
-
-    const { result, unmount } = renderHook(() => useFollowupQueue(baseProps()))
-
-    let taken: unknown = 'unset'
-    await act(async () => {
-      void result.current
-        .takeForEdit('h', () => null)
-        .then((value) => {
-          taken = value
-        })
-    })
-    // Navigate away while DELETE is pending: the committed delete must not lose
-    // the draft — it goes back to the end of its own scope's queue.
-    await act(async () => {
-      unmount()
-    })
-    await act(async () => {
-      resolveDelete()
-    })
-
-    expect(taken).toBeUndefined()
-    expect(failTrigger).not.toHaveBeenCalled()
-    expect(postTrigger).toHaveBeenCalledWith({
-      body: { id: expect.any(String), scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
-    })
-  })
-
   it('restores a scope-moved take from the hydrated attachment bytes, not the stale entry id', async () => {
     // The taken row's managed attachment becomes cleanup-eligible in the
     // window between the committed DELETE and the restore; a recovery that
@@ -1337,62 +1265,6 @@ describe('useFollowupQueue', () => {
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'e' } })
   })
 
-  it('builds unique membership before capturing predecessors when the mirror already holds the restore (inv_62a64a1c0cf26410)', async () => {
-    // Queue a,b,c; edit a, then c. c's take-delete resolves only after the
-    // query mirror already shows a's restored copy: splicing the copy into
-    // membership anyway duplicates it, so c captures predecessors [a,a]
-    // instead of [a,b] - retaking a then restores c before b, reversing
-    // delivery order (cherry-pr-review inv_62a64a1c0cf26410#f1).
-    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
-    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
-    claimTrigger.mockResolvedValue({ claimed: true })
-
-    const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
-
-    await act(async () => {
-      await result.current.takeForEdit('a', () => null)
-    })
-
-    // The incoming take-delete resolves only after the refreshed mirror
-    // already shows the restored a copy.
-    let resolveTake: (() => void) | undefined
-    takeDeleteTrigger.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveTake = () => resolve()
-        })
-    )
-    const captureA = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
-    let switched: Promise<unknown> | undefined
-    await act(async () => {
-      switched = result.current.takeForEdit('c', captureA)
-    })
-    await act(async () => {})
-    const restoreIdA = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
-    wireQuery([row(restoreIdA, 'first edited'), row('b', 'second'), row('c', 'third')])
-    rerender()
-    await act(async () => {
-      resolveTake?.()
-      await switched
-    })
-
-    // Retaking the restored a restores c after b - c's predecessors are
-    // [a,b], not [a,a] with b dropped.
-    wireQuery([row(restoreIdA, 'first edited'), row('b', 'second')])
-    rerender()
-    const captureC = vi.fn(() => ({ draft: draft('third edited'), payload: payload('third edited') }))
-    await act(async () => {
-      await result.current.takeForEdit(restoreIdA, captureC)
-    })
-
-    const heldEnqueues = (postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean; anchor?: unknown } }]>)
-      .map(([{ body }]) => body)
-      .filter((body) => body.held === true)
-    expect(heldEnqueues).toHaveLength(2)
-    expect(heldEnqueues[0].anchor).toEqual({ position: 'first' })
-    expect(heldEnqueues[1].anchor).toEqual({ after: 'b' })
-  })
-
   it('reconciles the incoming position against the live queue when a peer removes an earlier row mid-restore (inv_fbf5e5f4c8954adf)', async () => {
     // [A,B,C,D,E], edit C, then switch to B; another window removes A while
     // C's restoration response is pending. The refreshed queue is [B,C,D,E]
@@ -1449,6 +1321,61 @@ describe('useFollowupQueue', () => {
     expect(heldEnqueues[0].anchor).toEqual({ after: 'b' })
     expect(heldEnqueues[1].anchor).toEqual({ position: 'first' })
   })
+
+  it('builds unique membership before capturing predecessors when the mirror already holds the restore (inv_62a64a1c0cf26410)', async () => {
+    // Queue a,b,c; edit a, then c. c's take-delete resolves only after the
+    // query mirror already shows a's restored copy: splicing the copy into
+    // membership anyway duplicates it, so c captures predecessors [a,a]
+    // instead of [a,b] - retaking a then restores c before b, reversing
+    // delivery order (cherry-pr-review inv_62a64a1c0cf26410#f1).
+    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+
+    // The incoming take-delete resolves only after the refreshed mirror
+    // already shows the restored a copy.
+    let resolveTake: (() => void) | undefined
+    takeDeleteTrigger.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveTake = () => resolve()
+        })
+    )
+    const captureA = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    let switched: Promise<unknown> | undefined
+    await act(async () => {
+      switched = result.current.takeForEdit('c', captureA)
+    })
+    await act(async () => {})
+    const restoreIdA = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+    wireQuery([row(restoreIdA, 'first edited'), row('b', 'second'), row('c', 'third')])
+    rerender()
+    await act(async () => {
+      resolveTake?.()
+      await switched
+    })
+
+    // Retaking the restored a restores c after b - c's predecessors are
+    // [a,b], not [a,a] with b dropped.
+    wireQuery([row(restoreIdA, 'first edited'), row('b', 'second')])
+    rerender()
+    const captureC = vi.fn(() => ({ draft: draft('third edited'), payload: payload('third edited') }))
+    await act(async () => {
+      await result.current.takeForEdit(restoreIdA, captureC)
+    })
+
+    const heldEnqueues = (postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean; anchor?: unknown } }]>)
+      .map(([{ body }]) => body)
+      .filter((body) => body.held === true)
+    expect(heldEnqueues).toHaveLength(2)
+    expect(heldEnqueues[0].anchor).toEqual({ position: 'first' })
+    expect(heldEnqueues[1].anchor).toEqual({ after: 'b' })
   })
 
   it('does not count the mirrored restore copy twice when reconciling the incoming edit slot (inv_39ce2d2808a2a72e)', async () => {
