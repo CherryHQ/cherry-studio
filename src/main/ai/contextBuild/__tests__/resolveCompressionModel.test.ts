@@ -1,7 +1,7 @@
-import { generateText } from 'ai'
+﻿import { generateText } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveCompressionModel } from '../resolveCompressionModel'
@@ -43,6 +43,30 @@ describe('resolveCompressionModel', () => {
       throw new Error('no such provider')
     })
     expect(await resolveCompressionModel('ghost::model-x', CONVERSATION)).toBeNull()
+  })
+
+  it('rejects embedding-only models early with a clear warning', async () => {
+    modelLookup.mockReturnValue(
+      makeModel({
+        id: 'local::qwen3-embedding',
+        providerId: 'local',
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+    )
+    expect(await resolveCompressionModel('local::qwen3-embedding', CONVERSATION)).toBeNull()
+  })
+
+  it('allows models with function-call capability', async () => {
+    modelLookup.mockReturnValue(
+      makeModel({
+        id: 'openai::gpt-4',
+        providerId: 'openai',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+    )
+    const result = await resolveCompressionModel('openai::gpt-4', CONVERSATION)
+    expect(result).not.toBeNull()
+    expect(result?.contextWindow).toBe(8_000)
   })
 
   it('budgets the summary against the compressor own window', async () => {
