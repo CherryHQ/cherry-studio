@@ -20,6 +20,7 @@ import {
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { getConvertedDocumentArtifacts } from '@shared/ai/documentConversionTool'
 import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -768,6 +769,15 @@ export function buildAgentRightPaneStatus(
               description: artifact.description
             })
           }
+        }
+      }
+      if (part.state === 'output-available') {
+        for (const output of getConvertedDocumentArtifacts(toolName, part.input, part.output)) {
+          artifactByPath.set(output.path, {
+            toolCallId: fallbackId,
+            path: output.path,
+            name: getPathBasename(output.path)
+          })
         }
       }
     })

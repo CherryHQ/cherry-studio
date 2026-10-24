@@ -1,5 +1,7 @@
-import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
+
+import type * as ExcelJS from '@cherrystudio/spreadsheet'
+import { createWorkbook, writeWorkbook } from '@cherrystudio/spreadsheet'
 
 type ChartWorkbookKind = 'basic' | 'no-cache' | 'unsupported'
 type ChartTypeName = 'barChart' | 'lineChart' | 'pieChart' | 'areaChart' | 'scatterChart'
@@ -41,15 +43,11 @@ const escapeXml = (value: string): string =>
     .replaceAll("'", '&apos;')
 
 const toArrayBuffer = async (workbook: ExcelJS.Workbook): Promise<ArrayBuffer> => {
-  const buf = await workbook.xlsx.writeBuffer()
-  const view = buf as unknown as Uint8Array
-  const arrayBuffer = new ArrayBuffer(view.byteLength)
-  new Uint8Array(arrayBuffer).set(view)
-  return arrayBuffer
+  return (await writeWorkbook(workbook)).buffer
 }
 
 const createDataWorkbook = async (): Promise<JSZip> => {
-  const workbook = new ExcelJS.Workbook()
+  const workbook = createWorkbook()
   const ws = workbook.addWorksheet('Data')
   ws.addRow(['Category', 'SeriesA', 'SeriesB'])
   CATEGORIES.forEach((category, i) => {

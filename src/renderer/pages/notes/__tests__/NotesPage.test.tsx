@@ -55,7 +55,8 @@ const mocks = vi.hoisted(() => {
       showTabStatus: true
     },
     sortTree: vi.fn((nodes) => nodes),
-    t: (key: string) => key,
+    t: (key: string, options?: { format?: string }) =>
+      key === 'document_export.as_format' ? `Export as ${options?.format}` : key,
     toggleShowWorkspace: vi.fn(),
     treeRoot: {},
     treeVersion: 0,
@@ -373,6 +374,7 @@ describe('NotesPage print payloads', () => {
     mocks.settings.defaultViewMode = 'edit'
     mocks.ipcRequest.mockImplementation((route: string) => {
       if (route === 'app.get_info') return Promise.resolve({ notesPath: '/notes' })
+      if (route === 'export.document.convert_and_save') return Promise.resolve(null)
       return Promise.resolve(true)
     })
     mocks.commandHandlers.clear()
@@ -398,9 +400,12 @@ describe('NotesPage print payloads', () => {
   })
 
   it.each([
-    ['notes.exportToPDF', 'print.export_pdf'],
+    ['Export as PDF', 'export.document.convert_and_save'],
     ['notes.print', 'print.print']
   ])('uses current source editor content for %s', async (label, route) => {
+    mocks.activeFilePath = '/notes/reports/note.md'
+    mocks.projectedNodes = [{ ...mocks.noteNode, id: mocks.activeFilePath, externalPath: mocks.activeFilePath }]
+    mocks.sourceEditorContent = '# Report\n\n![Chart](../images/chart.png)'
     await renderReadyNotesPage()
 
     fireEvent.click(screen.getByTestId('popover-trigger'))
@@ -408,9 +413,9 @@ describe('NotesPage print payloads', () => {
 
     await waitFor(() => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
-        title: 'note',
+        ...(route === 'print.print' ? { title: 'note' } : { defaultName: 'note', format: 'pdf', assetRoot: '/notes' }),
         markdown: mocks.sourceEditorContent,
-        sourcePath: '/notes/note.md'
+        sourcePath: '/notes/reports/note.md'
       })
     })
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
@@ -422,7 +427,7 @@ describe('NotesPage print payloads', () => {
   })
 
   it.each([
-    ['notes.exportToPDF', 'print.export_pdf'],
+    ['Export as PDF', 'export.document.convert_and_save'],
     ['notes.print', 'print.print']
   ])(
     'uses current rich editor markdown for %s when source is the default but rich editor is mounted',
@@ -439,7 +444,9 @@ describe('NotesPage print payloads', () => {
 
       await waitFor(() => {
         expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
-          title: 'note',
+          ...(route === 'print.print'
+            ? { title: 'note' }
+            : { defaultName: 'note', format: 'pdf', assetRoot: '/notes' }),
           markdown: editedRichContent,
           sourcePath: '/notes/note.md'
         })
@@ -462,7 +469,7 @@ describe('NotesPage print payloads', () => {
 
     mocks.richEditorContent = ''
     fireEvent.click(screen.getByTestId('popover-trigger'))
-    fireEvent.click(screen.getByRole('button', { name: 'notes.exportToPDF' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export as PDF' }))
 
     await waitFor(() => {
       expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
@@ -483,12 +490,12 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', ''))
 
     fireEvent.click(screen.getByTestId('popover-trigger'))
-    fireEvent.click(screen.getByRole('button', { name: 'notes.exportToPDF' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export as PDF' }))
 
     await waitFor(() => {
       expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
     })
-    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('print.export_pdf', expect.anything())
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('export.document.convert_and_save', expect.anything())
   })
 
   it('routes the app.print command through the current source editor content', async () => {

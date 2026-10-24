@@ -119,7 +119,6 @@ describe('PrintService', () => {
     )
     expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
-    expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
     expect(executeJavaScript.mock.invocationCallOrder[0]).toBeLessThan(printToPDF.mock.invocationCallOrder[0])
     expect(printToPDF).toHaveBeenCalledWith({
       pageSize: 'A4',
@@ -174,6 +173,149 @@ describe('PrintService', () => {
     expect(writeFile).not.toHaveBeenCalled()
   })
 
+  it('refuses to produce a PDF with images that failed to load', async () => {
+    executeJavaScript.mockResolvedValue(false)
+    const service = new PrintService()
+
+    await expect(service.toPdfBuffer(payload)).rejects.toThrow('Document images could not be loaded')
+
+    expect(printToPDF).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledWith(windowId)
+    expect(writeFile).not.toHaveBeenCalled()
+  })
+
+  it('closes the print window and rejects when a PDF operation is cancelled', async () => {
+    const controller = new AbortController()
+    printToPDF.mockImplementation(async () => {
+      controller.abort()
+      return Buffer.from('cancelled-pdf')
+    })
+    const service = new PrintService()
+
+    await expect(service.toPdfBuffer(payload, controller.signal)).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+
+    expect(close).toHaveBeenCalledWith(windowId)
+    expect(writeFile).not.toHaveBeenCalled()
+  })
+
+  it('waits for the shared Markdown renderer readiness before printing the matching window', async () => {
+    const service = new PrintService()
+    const pending = service.toDocumentPdfBuffer({ ...payload, images: {} })
+    service.completeDocumentRender('another-window')
+    await Promise.resolve()
+    expect(printToPDF).not.toHaveBeenCalled()
+    service.completeDocumentRender(windowId)
+
+    await expect(pending).resolves.toEqual(Buffer.from('pdf-data'))
+    expect(close).toHaveBeenCalledWith(windowId)
+  })
+
+  it('fails instead of printing partially rendered content when the renderer reports an error', async () => {
+    const service = new PrintService()
+    const pending = service.toDocumentPdfBuffer({ ...payload, images: {} })
+    service.completeDocumentRender(windowId, 'Image failed to decode')
+
+    await expect(pending).rejects.toThrow('Image failed to decode')
+    expect(printToPDF).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledWith(windowId)
+  })
+
+  it('releases a hidden renderer when the conversion is cancelled while rendering', async () => {
+    const service = new PrintService()
+    const controller = new AbortController()
+    const pending = service.toDocumentPdfBuffer({ ...payload, images: {} }, controller.signal)
+    controller.abort()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(printToPDF).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledWith(windowId)
+  })
+
+  it('cancels and closes immediately after rendering even if native PDF printing never settles', async () => {
+    const service = new PrintService()
+    const controller = new AbortController()
+    printToPDF.mockImplementation(() => new Promise(() => {}))
+    const pending = service.toDocumentPdfBuffer({ ...payload, images: {} }, controller.signal)
+    service.completeDocumentRender(windowId)
+    await vi.waitFor(() => expect(printToPDF).toHaveBeenCalled())
+    controller.abort()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(close).toHaveBeenCalledExactlyOnceWith(windowId)
+  })
+
+  it('times out and closes when the print document never becomes ready', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new PrintService()
+      const pending = service.toDocumentPdfBuffer({ ...payload, images: {} })
+      const settled = expect(pending).rejects.toThrow('Document rendering or printing timed out')
+
+      await vi.advanceTimersByTimeAsync(29_999)
+      expect(printToPDF).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+
+      await settled
+      expect(printToPDF).not.toHaveBeenCalled()
+      expect(close).toHaveBeenCalledExactlyOnceWith(windowId)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('times out a print that never finishes after its own deadline when readiness was already late', async () => {
+    vi.useFakeTimers()
+    try {
+      printToPDF.mockImplementation(() => new Promise(() => {}))
+      const service = new PrintService()
+      const pending = service.toDocumentPdfBuffer({ ...payload, images: {} })
+      const settled = expect(pending).rejects.toThrow('Document rendering or printing timed out')
+
+      await vi.advanceTimersByTimeAsync(20_000)
+      service.completeDocumentRender(windowId)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(printToPDF).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(close).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await settled
+      expect(close).toHaveBeenCalledExactlyOnceWith(windowId)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('prints when readiness arrives near the render deadline and printing still needs time', async () => {
+    vi.useFakeTimers()
+    try {
+      printToPDF.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(Buffer.from('pdf-data')), 25_000)
+          })
+      )
+      const service = new PrintService()
+      const pending = service.toDocumentPdfBuffer({ ...payload, images: {} })
+      const settled = expect(pending).resolves.toEqual(Buffer.from('pdf-data'))
+
+      await vi.advanceTimersByTimeAsync(29_999)
+      expect(printToPDF).not.toHaveBeenCalled()
+      service.completeDocumentRender(windowId)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(printToPDF).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(25_000)
+
+      await settled
+      expect(close).toHaveBeenCalledExactlyOnceWith(windowId)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('prints through the main process without passing native print options', async () => {
     let finishPrint!: (success: boolean, failureReason: string) => void
     print.mockImplementation((_options, callback) => {
@@ -189,7 +331,6 @@ describe('PrintService', () => {
     expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
     expect(showInactive).not.toHaveBeenCalled()
-    expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
     expect(executeJavaScript).toHaveBeenCalledTimes(1)
     expect(print).toHaveBeenCalledWith({}, expect.any(Function))
     expect(close).not.toHaveBeenCalled()

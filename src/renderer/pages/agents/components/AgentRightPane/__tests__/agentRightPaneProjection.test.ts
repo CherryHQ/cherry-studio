@@ -753,6 +753,49 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  it('lists only successfully converted document receipts, without requiring report_artifacts', () => {
+    const receipt = { path: 'report.pdf', format: 'pdf', mime: 'application/pdf' }
+    const output = { content: [{ type: 'text', text: JSON.stringify(receipt) }] }
+    const name = 'mcp__cherry-tools__convert_to_document'
+    const parts = [
+      toolPart('pending', name, undefined, 'approval-requested', { output_path: 'pending.pdf' }),
+      toolPart('failed', name, undefined, 'output-error', { output_path: 'failed.pdf' }),
+      toolPart('mcp-error', name, undefined, 'output-available', undefined, { ...output, isError: true }),
+      toolPart('converted', name, undefined, 'output-available', { output_path: 'requested.pdf' }, output),
+      toolPart(
+        'pi-call',
+        'tool_call',
+        undefined,
+        'output-available',
+        { name, params: {} },
+        { ...receipt, path: 'pi-call.pdf' }
+      ),
+      toolPart(
+        'pi-exec-child',
+        name,
+        'pi-exec',
+        'output-available',
+        { output_path: 'pi-exec.pdf' },
+        { ...receipt, path: 'pi-exec.pdf' }
+      ),
+      toolPart('pi-exec', 'tool_exec', undefined, 'output-error', { code: 'throw new Error("failed later")' }),
+      toolPart(
+        'unrelated-call',
+        'tool_call',
+        undefined,
+        'output-available',
+        { name: 'mcp__example__read', params: {} },
+        receipt
+      )
+    ]
+
+    expect(buildAgentRightPaneStatus([message('m1', parts)], { m1: parts }).artifacts).toEqual([
+      { toolCallId: 'converted', path: 'report.pdf', name: 'report.pdf' },
+      { toolCallId: 'pi-call', path: 'pi-call.pdf', name: 'pi-call.pdf' },
+      { toolCallId: 'pi-exec-child', path: 'pi-exec.pdf', name: 'pi-exec.pdf' }
+    ])
+  })
+
   // The completion can land as a part (wake turn) while the late-event cache still holds an earlier
   // in-progress event; the cache applies last, so without the guard every projection rebuild —
   // e.g. a renderer refresh — resurrected the settled row.

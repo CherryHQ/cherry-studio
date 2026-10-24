@@ -8,10 +8,13 @@ import { Button } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@renderer/components/OpenTarget'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
+import { exportDocument, getDocumentExportLabel, getDocumentWarningLabel } from '@renderer/services/documentExport'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import { getDocumentConversionFormats } from '@renderer/utils/documentConversion'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { getConvertedDocumentArtifacts } from '@shared/ai/documentConversionTool'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { archiveExts, getFileTypeByExt } from '@shared/utils/file'
@@ -23,6 +26,7 @@ export type ReportArtifactsToolResponse = McpToolResponse | NormalToolResponse
 interface ReportArtifactView {
   path: string
   description?: string
+  warnings?: string[]
 }
 
 interface ReportArtifactsViewModel {
@@ -32,7 +36,12 @@ interface ReportArtifactsViewModel {
 
 export function isReportArtifactsToolResponse(toolResponse: ReportArtifactsToolResponse): boolean {
   const toolName = toolResponse.tool.name
-  return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
+  return (
+    toolName === REPORT_ARTIFACTS_TOOL_NAME ||
+    toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`) ||
+    (toolResponse.status === 'done' &&
+      getConvertedDocumentArtifacts(toolName, toolResponse.arguments, toolResponse.response).length > 0)
+  )
 }
 
 export function getReportArtifactsViewModel(
@@ -43,6 +52,17 @@ export function getReportArtifactsViewModel(
 
   for (const toolResponse of toolResponses) {
     if (!isReportArtifactsToolResponse(toolResponse)) continue
+
+    const convertedDocuments = getConvertedDocumentArtifacts(
+      toolResponse.tool.name,
+      toolResponse.arguments,
+      toolResponse.response
+    )
+    if (convertedDocuments.length) {
+      for (const output of convertedDocuments)
+        artifactByPath.set(output.path, { path: output.path, warnings: output.warnings })
+      continue
+    }
 
     const parsed = reportArtifactsInputSchema.safeParse(toolResponse.arguments)
     if (!parsed.success) continue
@@ -179,6 +199,28 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onSelect: () => handleOpenTarget(target)
       })
     }
+    const formats = hasAbsoluteTargetPath ? getDocumentConversionFormats(targetPath) : []
+    if (formats.length) {
+      if (items.length > 0) items.push({ type: 'separator' })
+      items.push({
+        type: 'submenu',
+        id: 'artifact.convert',
+        label: t('document_export.convert_to'),
+        children: formats.map((format) => ({
+          type: 'item',
+          id: `artifact.convert.${format}`,
+          label: getDocumentExportLabel(format),
+          onSelect: () =>
+            void exportDocument({
+              filePath: targetPath,
+              format,
+              defaultName: fileName,
+              onPreview: openArtifactFile,
+              assetRoot: resolvePath?.('.')
+            })
+        }))
+      })
+    }
     if (copyText) {
       if (items.length > 0) items.push({ type: 'separator' })
       items.push({
@@ -199,7 +241,10 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     hasAbsoluteTargetPath,
     openArtifactFile,
     t,
-    targets
+    targets,
+    targetPath,
+    fileName,
+    resolvePath
   ])
 
   const card = (
@@ -216,6 +261,11 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
+          {artifact.warnings?.length ? (
+            <span className="truncate text-muted-foreground text-xs leading-4">
+              {artifact.warnings.map(getDocumentWarningLabel).join(' ')}
+            </span>
+          ) : null}
           <span aria-hidden className="grid min-w-0 text-muted-foreground text-xs leading-4">
             <span
               className={

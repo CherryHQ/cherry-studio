@@ -251,6 +251,7 @@ patchedDependencies:
   motion-dom@12.42.0: 5c9bfe486d8d0472ab803d31133ec3a7e34aa8cadde01fdd9923e2dbbc170014
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
+  pptxgenjs@4.0.1: 72313bac6f812c8581017c219934567ba5010c2a19929afdb3f614002848a2f6
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
   rtf.js@3.0.9: 8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24
   sherpa-onnx-node@1.13.6: 63432398c7e4f08be86944fdaf2b39cc5a8ce719db9ae38913d794d8bdcbcf0e
@@ -535,6 +536,9 @@ importers:
       '@cherrystudio/remote-protocol-v0':
         specifier: npm:@cherrystudio/remote-protocol@0.1.0
         version: '@cherrystudio/remote-protocol@0.1.0(zod@4.4.3)'
+      '@cherrystudio/spreadsheet':
+        specifier: workspace:*
+        version: link:packages/spreadsheet
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:packages/ui
@@ -1276,6 +1280,9 @@ importers:
       postcss:
         specifier: 8.5.6
         version: 8.5.6
+      pptxgenjs:
+        specifier: 4.0.1
+        version: 4.0.1(patch_hash=72313bac6f812c8581017c219934567ba5010c2a19929afdb3f614002848a2f6)
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -1757,6 +1764,9 @@ importers:
       '@aiden0z/pptx-renderer':
         specifier: 1.2.2
         version: 1.2.2(patch_hash=cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329)(pdfjs-dist@5.4.296)
+      '@cherrystudio/spreadsheet':
+        specifier: workspace:*
+        version: link:../spreadsheet
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:../ui
@@ -1778,9 +1788,6 @@ importers:
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
-      exceljs:
-        specifier: ^4.4.0
-        version: 4.4.0
       fast-formula-parser:
         specifier: ^1.0.19
         version: 1.0.19
@@ -1919,6 +1926,12 @@ importers:
       ws:
         specifier: ^8.18.3
         version: 8.21.3
+
+  packages/spreadsheet:
+    dependencies:
+      exceljs:
+        specifier: ^4.4.0
+        version: 4.4.0
 
   packages/system-speech:
     dependencies:
@@ -11318,6 +11331,9 @@ packages:
     resolution: {integrity: sha512-ag87y7cJJ9/3+GxFr8Oy4O5faDsGRGnBGsJj/YjOSsSx/5eadKLYTMPlzuR6obgoCDDm0abAAZitXXQkMOPSpA==}
     engines: {node: '>= 20'}
 
+  https@1.0.0:
+    resolution: {integrity: sha512-4EC57ddXrkaF0x83Oj8sM6SLQHAWXw90Skqu2M4AEWENZ3F02dFJE/GARA8igO79tcgYqGrD7ae4f5L3um2lgg==}
+
   human-id@4.2.2:
     resolution: {integrity: sha512-Z+8unD6em/MJwyrkWQ2M3wygRGI1+MztbutiNwk1DCuEPXOZRWGjtcMPZYP1exY9iNZMhd7ZOSMQSo9WYtiQRw==}
     hasBin: true
@@ -11374,6 +11390,11 @@ packages:
   ignore@7.0.8:
     resolution: {integrity: sha512-YYNsSlXBjMk92SKnkwvB5LOVSa6OznlFUGcsvrFgNJbJCd0M1XKeFVRc8ZByeCqz32FivYNHJVooLmdqrmvp/Q==}
     engines: {node: '>= 4'}
+
+  image-size@1.2.1:
+    resolution: {integrity: sha512-rH+46sQJ2dlwfjfhCyNx5thzrv+dtmBIhPHk0zgRUukHzZ/kRueTJXoYYsclBaKcSMBWuGbOFXtioLpzTb5euw==}
+    engines: {node: '>=16.x'}
+    hasBin: true
 
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
@@ -13409,6 +13430,9 @@ packages:
     engines: {node: '>=14.0.0'}
     hasBin: true
 
+  pptxgenjs@4.0.1:
+    resolution: {integrity: sha512-TeJISr8wouAuXw4C1F/mC33xbZs/FuEG6nH9FG1Zj+nuPcGMP5YRHl6X+j3HSUnS1f3at6k75ZZXPMZlA5Lj9A==}
+
   ppu-ocv@3.3.0:
     resolution: {integrity: sha512-JCuw4LgejJ0APAvekR2JxWKmm2u9r3LFtI/5cJvJk6OscH1ygXet4JUY/u436FIWYP+PDtMJguZxdgYcoq1bxA==}
     peerDependencies:
@@ -13603,6 +13627,9 @@ packages:
 
   querystringify@2.2.0:
     resolution: {integrity: sha512-FIqgj2EUvTa7R50u0rGsyTftzjYmv/a3hO345bZNrqabNqjtgiDMgmo4mkUjd+nzU5oF3dClKqFIPUKybUyqoQ==}
+
+  queue@6.0.2:
+    resolution: {integrity: sha512-iHZWu+q3IdFZFX36ro/lKBkSvfkztY5Y7HMiPlOUjhupPcG2JMfst2KKEpu5XndviX/3UhFbRngUPNKtgvtZiA==}
 
   quick-lru@5.1.1:
     resolution: {integrity: sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA==}
@@ -26170,6 +26197,8 @@ snapshots:
       - kerberos
       - supports-color
 
+  https@1.0.0: {}
+
   human-id@4.2.2: {}
 
   human-signals@8.0.1: {}
@@ -26238,6 +26267,10 @@ snapshots:
   ignore@7.0.6: {}
 
   ignore@7.0.8: {}
+
+  image-size@1.2.1:
+    dependencies:
+      queue: 6.0.2
 
   immediate@3.0.6: {}
 
@@ -28588,6 +28621,13 @@ snapshots:
       commander: 9.5.0
     optional: true
 
+  pptxgenjs@4.0.1(patch_hash=72313bac6f812c8581017c219934567ba5010c2a19929afdb3f614002848a2f6):
+    dependencies:
+      '@types/node': 22.20.4
+      https: 1.0.0
+      image-size: 1.2.1
+      jszip: 3.10.1
+
   ppu-ocv@3.3.0:
     dependencies:
       '@napi-rs/canvas': 0.1.97
@@ -28820,6 +28860,10 @@ snapshots:
   quansync@1.0.0: {}
 
   querystringify@2.2.0: {}
+
+  queue@6.0.2:
+    dependencies:
+      inherits: 2.0.4
 
   quick-lru@5.1.1: {}
 

@@ -6,6 +6,7 @@ import {
   Copy,
   CopySlash,
   Eye,
+  FileDown,
   RotateCw,
   Sparkles,
   SquareDashedMousePointer,
@@ -40,7 +41,11 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { canProduceSelectionReference, FilePreview } from '@renderer/components/FilePreview'
+import {
+  canProduceSelectionReference,
+  FilePreview,
+  useOptionalOpenFilePreviewTab
+} from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
@@ -51,9 +56,12 @@ import {
 } from '@renderer/hooks/useFileEditSession'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { exportDocument, getDocumentExportLabel } from '@renderer/services/documentExport'
 import { toast } from '@renderer/services/toast'
 import type { SelectionReference } from '@renderer/types/selectionReference'
+import { getDocumentConversionFormats } from '@renderer/utils/documentConversion'
 import { getFileExtension } from '@renderer/utils/file'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -207,6 +215,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onInsertSelectionReference
   } = props
   const { t } = useTranslation()
+  const openFilePreviewTab = useOptionalOpenFilePreviewTab()
   const activeCmTheme = useCmTheme(editMode === 'edit')
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -381,6 +390,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     filePath: overlayFilePath,
     workspacePath: overlayWorkspacePath
   }
+  const exportDraftRef = useRef<{ path: string; markdown: string } | null>(null)
+  exportDraftRef.current =
+    editMode === 'edit' && fileSession?.status === 'ready' && overlaySelection
+      ? { path: getArtifactPaneSelectionPath(overlaySelection), markdown: fileSession.draft }
+      : null
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
@@ -445,6 +459,43 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [t]
   )
 
+  const getDocumentExportItems = useCallback(
+    (targetPath: string, assetRoot: string | undefined): CommandContextMenuExtraItem[] => {
+      const formats = getDocumentConversionFormats(targetPath)
+      if (!formats.length) return []
+      return [
+        {
+          type: 'submenu',
+          id: 'artifact.export',
+          label: t('document_export.convert_to'),
+          icon: <FileDown size={16} />,
+          children: formats.map((format) => ({
+            type: 'item',
+            id: `artifact.export.${format}`,
+            label: getDocumentExportLabel(format),
+            onSelect: () =>
+              void exportDocument({
+                filePath: targetPath,
+                onPreview: openFilePreviewTab
+                  ? (filePath) => openFilePreviewTab(AbsoluteFilePathSchema.parse(filePath))
+                  : undefined,
+                onConverted: handleRefresh,
+                draft: () =>
+                  exportDraftRef.current?.path === normalizeFilePreviewPath(targetPath)
+                    ? exportDraftRef.current.markdown
+                    : undefined,
+                sourcePath: targetPath,
+                assetRoot,
+                defaultName: getPathBasename(targetPath),
+                format
+              })
+          }))
+        }
+      ]
+    },
+    [t, openFilePreviewTab, handleRefresh]
+  )
+
   const handleCopyPreviewPath = useCallback(async () => {
     const { displayPath } = overlayPathsRef.current
     if (!displayPath) return
@@ -498,9 +549,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         pathKind: node.kind === 'file' ? 'file' : 'directory',
         t
       })
-      return [...openItems, ...copyItems]
+      return [
+        ...openItems,
+        ...(node.kind === 'file' ? getDocumentExportItems(targetPath, workspacePath) : []),
+        ...copyItems
+      ]
     },
-    [copyPath, t, workspacePath]
+    [copyPath, getDocumentExportItems, t, workspacePath]
   )
 
   // Memoized so the file-tree element below keeps its identity across the
@@ -770,10 +825,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     if (currentPreviewKeyRef.current !== previewKey) return buildTabActionItems()
     return [
       ...openTargetItems,
+      ...getDocumentExportItems(getArtifactPaneSelectionPath(overlaySelection), overlaySelection.workspacePath),
       ...(openTargetItems.length ? [{ type: 'separator' } as const] : []),
       ...buildTabActionItems()
     ]
-  }, [buildTabActionItems, overlaySelection, previewKey, t])
+  }, [buildTabActionItems, getDocumentExportItems, overlaySelection, previewKey, t])
 
   const paneHeader =
     props.headerVariant === 'pane' ? (
