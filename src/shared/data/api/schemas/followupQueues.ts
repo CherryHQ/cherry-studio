@@ -13,6 +13,7 @@
 import * as z from 'zod'
 
 import {
+  FOLLOWUP_QUEUE_LIMIT,
   FollowupQueueDraftSchema,
   FollowupQueueIdSchema,
   FollowupQueuePayloadSchema,
@@ -20,7 +21,7 @@ import {
   type FollowupQueueState,
   FollowupQueueScopeKeySchema
 } from '../../types/followupQueue'
-import type { OrderEndpoints } from './_endpointHelpers'
+import { OrderRequestSchema, type OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -43,9 +44,34 @@ export const CreateFollowupQueueSchema = z.strictObject({
   /** Managed file entries created by the renderer for blob attachments in the
    * payload. The service registers durable refs so the idle sweep keeps the
    * bytes alive until the draft is dequeued. */
-  fileEntryIds: z.array(z.uuid()).max(64).optional()
+  fileEntryIds: z.array(z.uuid()).max(64).optional(),
+  /** Insert the row as editor-owned recovery content: it stays ineligible for
+   * delivery (claim and claim:head skip it) until the edit session that owns
+   * it ends — the session removes a superseded copy itself. A copy orphaned
+   * by a crash self-heals once it ages past the stale-claim cutoff
+   * (cherry-pr-review). */
+  held: z.boolean().optional(),
+  /** Best-effort placement for restore handoffs, applied atomically with the
+   * insert: `position` anchors are absolute, `before`/`after` reference an
+   * existing row in the scope. A stale or removed anchor id degrades to a
+   * tail insert rather than an error, so the restore always lands somewhere
+   * deliverable. Inserts are not claim-barred, so an anchored restore keeps
+   * its queue slot even while a peer's send holds the reorder barrier
+   * (cherry-pr-review inv_9ecff9fca3bdab04#f1). Ignored on the duplicate-id
+   * retry path — the landed row keeps its original position. */
+  anchor: OrderRequestSchema.optional(),
+  /** Edit restoration predecessor chain, resolved against live membership in
+   * the insertion transaction. An empty surviving chain places at the head. */
+  restorePredecessors: z.array(z.string()).max(FOLLOWUP_QUEUE_LIMIT).optional()
 })
 export type CreateFollowupQueueDto = z.infer<typeof CreateFollowupQueueSchema>
+
+/** An edit-target DELETE parks the outgoing recovery copy in the same
+ * transaction. No peer may bypass it while its release response is retried. */
+export const RemoveFollowupQueueSchema = z.strictObject({
+  transferHeldId: FollowupQueueIdSchema.optional()
+})
+export type RemoveFollowupQueueDto = z.infer<typeof RemoveFollowupQueueSchema>
 
 /** Body for `PUT /followup-queue-states` (upsert). */
 export const SetFollowupQueueStateSchema = z.strictObject({
@@ -63,7 +89,14 @@ const FollowupQueueClaimTokenSchema = z.string().min(1).max(128)
 
 /** Body for `POST /followup-queues/:id/claim`. */
 export const ClaimFollowupQueueBodySchema = z.strictObject({
-  claimToken: FollowupQueueClaimTokenSchema
+  claimToken: FollowupQueueClaimTokenSchema,
+  /**
+   * The completion a manual delivery is for. Unlike claim:head this never
+   * rejects an already-consumed completion (steering is deliberate); it only
+   * records the consumption so a delayed automatic claim for the same turn
+   * cannot deliver a second row behind the manual send (cherry-pr-review).
+   */
+  completionAt: z.number().optional()
 })
 export type ClaimFollowupQueueBodyDto = z.infer<typeof ClaimFollowupQueueBodySchema>
 
@@ -78,7 +111,13 @@ export type ClaimFollowupQueueResult = z.infer<typeof ClaimFollowupQueueSchema>
 /** Body for `POST /followup-queues/claim:head` (atomic oldest-row claim). */
 export const ClaimFollowupQueueHeadSchema = z.strictObject({
   scopeKey: FollowupQueueScopeKeySchema,
-  claimToken: FollowupQueueClaimTokenSchema
+  claimToken: FollowupQueueClaimTokenSchema,
+  /**
+   * The completion this drain is for. When present, the service grants at most
+   * one claim per completion per scope: a delayed claim for an already-consumed
+   * completion is rejected instead of delivering a second row for one turn.
+   */
+  completionAt: z.number().optional()
 })
 export type ClaimFollowupQueueHeadDto = z.infer<typeof ClaimFollowupQueueHeadSchema>
 
@@ -136,6 +175,7 @@ export type FollowupQueueSchemas = {
     /** Remove one item (hard delete by item id) */
     DELETE: {
       params: { id: string }
+      body?: RemoveFollowupQueueDto
       response: void
     }
   }

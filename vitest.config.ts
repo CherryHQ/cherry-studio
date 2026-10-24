@@ -66,13 +66,21 @@ export default defineConfig({
         extends: true,
         plugins: rendererConfig.plugins.filter((plugin: any) => plugin.name !== 'tailwindcss'),
         resolve: {
-          alias: rendererConfig.resolve.alias
+          alias: {
+            // Cross-boundary contract test imports the real main handler, but mocks its service.
+            '@data/services/FollowupQueueService': resolve('src/main/data/services/FollowupQueueService'),
+            ...rendererConfig.resolve.alias
+          }
         },
         test: {
           name: 'renderer',
           environment: 'jsdom',
           setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
-          include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+          include: [
+            'src/renderer/**/*.{test,spec}.{ts,tsx}',
+            'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}',
+            'tests/renderer-contract/**/*.test.ts'
+          ],
           benchmark: {
             include: ['src/renderer/**/*.bench.{ts,tsx}', 'src/renderer/**/__tests__/**/*.bench.{ts,tsx}']
           }
