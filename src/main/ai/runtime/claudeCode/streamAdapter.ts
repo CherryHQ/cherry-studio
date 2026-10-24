@@ -1127,7 +1127,7 @@ export class ClaudeCodeStreamAdapter {
     // normalized with full-block context - appends the mismatched suffix
     // (cherry-pr-review inv_f7b234887ed722ff). The carry holds any trailing
     // backslash literally, subsuming the escape carry.
-    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText, ctx.scratchpadStreamRemainder)
+    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText)
     const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
     const combined = prefix + ctx.scratchpadStreamRemainder + text
     ctx.scratchpadStreamRemainder = ''
@@ -1210,12 +1210,12 @@ export class ClaudeCodeStreamAdapter {
    * Whitespace-only open lines carry no block type of their own - the indent
    * carry handles those - so only content lines are returned.
    */
-  private emittedOpenLinePrefix(accumulatedText: string, remainder: string): string {
-    const priorText = accumulatedText + remainder
-    const lineStart = priorText.lastIndexOf('\n') + 1
-    let openLine = priorText.slice(lineStart)
-    if (remainder.length >= openLine.length) return ''
-    openLine = openLine.slice(0, openLine.length - remainder.length)
+  private emittedOpenLinePrefix(accumulatedText: string): string {
+    // The remainder starts immediately after emitted text, even when it
+    // spans several lines. Find context BEFORE it, not after its last newline
+    // (inv_8286fc83dcddad15: split '1' + '. ```xml\n').
+    const lineStart = accumulatedText.lastIndexOf('\n') + 1
+    const openLine = accumulatedText.slice(lineStart)
     if (openLine.trim() === '') return ''
     return openLine
   }
@@ -2748,7 +2748,7 @@ export class ClaudeCodeStreamAdapter {
     // Scan the remainder with the same open-line context the streaming filter
     // carries, or flushed literal code can lose its block classification at
     // the boundary (cherry-pr-review inv_f7b234887ed722ff).
-    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText, ctx.scratchpadStreamRemainder)
+    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText)
     const prefix = openLinePrefix !== '' ? openLinePrefix : ctx.scratchpadStreamEscapeCarry ? '\\' : ''
     const pending = prefix + ctx.scratchpadStreamRemainder
     ctx.scratchpadStreamRemainder = ''

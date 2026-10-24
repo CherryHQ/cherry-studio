@@ -283,7 +283,7 @@ function parseFenceContainerSegments(prefix: string): FenceContainerSegment[] {
   const segments: FenceContainerSegment[] = []
   let rest = prefix
   for (;;) {
-    const quote = /^ {0,3}>(?: |$)/.exec(rest)
+    const quote = /^ {0,3}>(?:[ \t]|$)/.exec(rest)
     if (quote) {
       segments.push({ type: 'quote' })
       rest = rest.slice(quote[0].length)
@@ -319,7 +319,7 @@ function fenceCloseMatchesContainerContext(candidatePrefix: string, openerPrefix
   let rest = candidatePrefix
   for (const segment of segments) {
     if (segment.type === 'quote') {
-      const quote = /^ {0,3}>(?: |$)/.exec(rest)
+      const quote = /^ {0,3}>(?:[ \t]|$)/.exec(rest)
       if (!quote) return false
       rest = rest.slice(quote[0].length)
       continue
@@ -1077,7 +1077,9 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
       }
       const parsed = parseOpeningTagAt(out, openIndex)
       if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
-        searchFrom = openIndex + 1
+        // Parsed ordinary tags own their quoted attributes. Do not rescan
+        // attribute text as nested scratchpad markup (inv_ea9aab25c6ad4f7d).
+        searchFrom = parsed ? openIndex + parsed.opener.length : openIndex + 1
         continue
       }
       const end = findScratchpadBlockEnd(out, openIndex, parsed.tagName, parsed.opener.length)

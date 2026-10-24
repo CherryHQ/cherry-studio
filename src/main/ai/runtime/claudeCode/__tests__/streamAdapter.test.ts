@@ -3775,6 +3775,33 @@ describe('deferred text-start fidelity', () => {
 })
 
 describe('scratchpad escape carry across buffered partial tags', () => {
+  it('retains the emitted ordered-list prefix before a multiline remainder (inv_8286fc83dcddad15)', () => {
+    const { adapter, parts } = createAdapter()
+    const pieces = ['Example:\n\n1', '. ```xml\n', '   <thinking>literal</thinking>\n   ```\n\nDone.']
+    const answer = pieces.join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of pieces) {
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    expect(
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    ).toBe(answer)
+  })
+
   it('preserves a literal escaped scratchpad tag split across deltas after the tag prefix', () => {
     const { adapter, parts } = createAdapter()
 

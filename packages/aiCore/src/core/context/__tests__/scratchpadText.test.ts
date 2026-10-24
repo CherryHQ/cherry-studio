@@ -11,6 +11,21 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('keeps scratchpad-shaped text inside ordinary tag attributes opaque (inv_ea9aab25c6ad4f7d)', () => {
+    const markup = '<div title="<thinking>literal example</thinking>">Useful</div>'
+    expect(stripModelScratchpadBlocks(`<summary>${markup}</summary>`)).toBe(markup)
+  })
+
+  it('closes tab-separated blockquote fences before stripping later analysis (inv_66012b96ffb82622)', () => {
+    const visible = 'Keep\n\n>\t```xml\n>\t<example>literal</example>\n>\t```\n\n'
+    const input = `<summary>${visible}<analysis>SECRET</analysis>\n\nDone.</summary>`
+    const result = stripModelScratchpadBlocks(input)
+    expect(result).not.toContain('SECRET')
+    expect(result).not.toContain('<summary>')
+    expect(result).toContain('>\t<example>literal</example>')
+    expect(result).toContain('Done.')
+  })
+
   it('detects scratchpad-shaped text by its opening wrapper tag', () => {
     expect(textStartsWithModelScratchpadTag('<thinking>plan</thinking>')).toBe(true)
     expect(textStartsWithModelScratchpadTag('  <assessment>x</assessment>')).toBe(true)
