@@ -20,6 +20,7 @@ import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useMacInputPreviewSync } from '@renderer/hooks/useMacInputPreviewSync'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
@@ -593,6 +594,8 @@ export default function ComposerSurfaceRuntime({
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
 
   const editingHighlightKey = editingState?.highlightKey
+  const composerAnchorRef = useRef<HTMLDivElement>(null)
+  useMacInputPreviewSync(composerAnchorRef, true)
 
   useLayoutEffect(() => {
     quickPanelRef.current = quickPanel
@@ -2388,8 +2391,9 @@ export default function ComposerSurfaceRuntime({
       ) : null}
     </div>
   )
+
   const inputbarStack = (
-    <div className="relative">
+    <div ref={composerAnchorRef} className="relative">
       {quickPanelElement}
       {inputbarElement}
     </div>
