@@ -500,6 +500,11 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly warmLeaseSenders = new Map<Electron.WebContents, { sessionIds: Set<string>; dispose: () => void }>()
   /** Armed grace timers for sessions whose last holder released (see WARM_LEASE_RELEASE_DELAY_MS). */
   private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
+  /** Input admitted while a plan-model handoff tears its turn down — the teardown's `reset` would
+   *  drop the queue with the entry, so it waits here for the replacement turn. */
+  private readonly handoffQueuedInput = new Map<string, PendingAgentSessionTurn[]>()
+  /** Sessions closing as part of a handoff: that close must keep {@link handoffQueuedInput}. */
+  private readonly handoffTeardowns = new Set<string>()
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
@@ -993,6 +998,7 @@ export class AgentSessionRuntimeService extends BaseService {
           const connected = await this.ensureConnection(entry)
           if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
           await this.admitTurn(entry, turn)
+          this.replayHandoffQueuedInput(entry, turn)
         } catch (error) {
           controller.error(error)
         }
@@ -1138,6 +1144,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   closeSession(sessionId: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
+    // Any close that is not the handoff's own teardown ends the transition its input was kept for.
+    if (!this.handoffTeardowns.has(sessionId)) this.handoffQueuedInput.delete(sessionId)
     const entry = this.entries.get(sessionId)
     // No entry means no connection left to carry an approved execution, so any session-scoped
     // permission is dead — including one a handoff restored across the replacement it needed it
@@ -1707,20 +1715,34 @@ export class AgentSessionRuntimeService extends BaseService {
     const approvedPermission = getSessionEffectivePermissionMode(entry.sessionId, entry.agentId)
     const permissionEditEpoch = agentPermissionEditEpoch(entry.agentId)
     const reassignmentEpoch = sessionReassignmentEpoch(entry.sessionId)
-    streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
-    // Read after the pause: the abort it triggered may already have closed the session through the
-    // stream's own listener, and that close belongs to this teardown. Only the close performed just
-    // below is this handoff's, so any further one is a competing teardown of the same session.
-    const closeGeneration = sessionCloseGeneration(entry.sessionId)
-    await this.closeSession(entry.sessionId)
-    if (
-      approvedPermission &&
-      agentPermissionEditEpoch(entry.agentId) === permissionEditEpoch &&
-      sessionReassignmentEpoch(entry.sessionId) === reassignmentEpoch &&
-      sessionCloseGeneration(entry.sessionId) === closeGeneration + 1 &&
-      agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan'
-    ) {
-      setSessionEffectivePermissionMode(entry.sessionId, entry.agentId, approvedPermission)
+    // Admission queues input while the live turn still runs the old model; the teardown removes the
+    // entry that holds it. Keep it for the replacement turn instead of dropping accepted input.
+    if (entry.runtimeState.queue.length > 0) {
+      this.handoffQueuedInput.set(entry.sessionId, entry.runtimeState.queue.slice())
+    }
+    this.handoffTeardowns.add(entry.sessionId)
+    try {
+      streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
+      // Read after the pause: the abort it triggered may already have closed the session through the
+      // stream's own listener, and that close belongs to this teardown. Only the close performed just
+      // below is this handoff's, so any further one is a competing teardown of the same session.
+      const closeGeneration = sessionCloseGeneration(entry.sessionId)
+      await this.closeSession(entry.sessionId)
+      const competingClose = sessionCloseGeneration(entry.sessionId) !== closeGeneration + 1
+      // A competing close (a Stop or a history replacement) abandoned this handoff and its
+      // follow-up, so there is no turn left to deliver the preserved input into.
+      if (competingClose) this.handoffQueuedInput.delete(entry.sessionId)
+      if (
+        !competingClose &&
+        approvedPermission &&
+        agentPermissionEditEpoch(entry.agentId) === permissionEditEpoch &&
+        sessionReassignmentEpoch(entry.sessionId) === reassignmentEpoch &&
+        agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan'
+      ) {
+        setSessionEffectivePermissionMode(entry.sessionId, entry.agentId, approvedPermission)
+      }
+    } finally {
+      this.handoffTeardowns.delete(entry.sessionId)
     }
   }
 
@@ -2879,6 +2901,30 @@ export class AgentSessionRuntimeService extends BaseService {
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
     })
+  }
+
+  /**
+   * Re-admit input the handoff queued before it removed the entry, now that the replacement turn is
+   * live: `enqueueUserMessage` steers it into that turn when the backend can, else queues it next.
+   */
+  private replayHandoffQueuedInput(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+    const preserved = this.handoffQueuedInput.get(entry.sessionId)
+    if (!preserved || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+    // A headless turn is not where the user's correction belongs — hold it for the interactive one.
+    if (turn.headless === true) return
+    this.handoffQueuedInput.delete(entry.sessionId)
+    for (const pending of preserved) {
+      this.enqueueUserMessage(entry.sessionId, pending.message, {
+        ...(pending.headless !== undefined ? { headless: pending.headless } : {}),
+        ...(pending.trustedNotifyChannels !== undefined
+          ? { trustedNotifyChannels: pending.trustedNotifyChannels }
+          : {}),
+        ...(pending.messageSnapshot ? { messageSnapshot: pending.messageSnapshot } : {}),
+        reasoningEffort: pending.reasoningEffort,
+        serviceTier: pending.serviceTier,
+        fastMode: pending.fastMode
+      })
+    }
   }
 
   private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {

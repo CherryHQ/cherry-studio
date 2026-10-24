@@ -790,6 +790,80 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('replays input admitted during the handoff into the replacement turn', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const settle = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settle.promise)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-steer',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-steer',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-plan'),
+        assistantMessageId: 'assistant-plan'
+      })
+      const result = service.respondToolApproval('approval-plan-steer', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      // The renderer applies the chosen model before Main settles the result, so a correction sent
+      // now no longer matches the frozen turn config and admission queues it behind the live turn.
+      await (service as any).handleAgentUpdated(
+        'agent-1',
+        { model: switchedModelId },
+        { id: 'agent-1', type: 'test-runtime', model: switchedModelId }
+      )
+      service.enqueueUserMessage('session-1', userMessage('user-correct'), {})
+      expect(getEntry(service).pendingTurns.map((pending: any) => pending.message.id)).toEqual(['user-correct'])
+
+      // The plan result settles and the handoff tears the turn down, removing the entry that held it.
+      settle.resolve(true)
+      await vi.waitFor(() => expect((service as any).entries.get('session-1')).toBeUndefined())
+
+      // The renderer's follow-up starts the replacement turn on the chosen model.
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn().mockReturnValue(true),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: switchedModelId })
+      const followUp = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        userMessage: userMessage('user-follow-up'),
+        assistantMessageId: 'assistant-follow-up'
+      })
+      getEntry(service).connection = connection
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUp.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      // The accepted correction reaches the execution turn instead of dying with the teardown.
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+      await vi.waitFor(() =>
+        expect(connection.redirect).toHaveBeenCalledWith(
+          expect.objectContaining({ message: userMessage('user-correct') })
+        )
+      )
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('records the approved execution as a session-scoped permission, leaving the shared agent row alone', async () => {
       // The teardown discards the connection that carried the SDK's post-approval mode shift, and
       // the follow-up's fresh connection would re-read the row: spawning it back into `plan` ("no
