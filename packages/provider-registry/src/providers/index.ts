@@ -56,6 +56,7 @@ import p_radeon_cloud from './radeon-cloud'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
+import p_superbot from './superbot'
 import p_together from './together'
 import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
@@ -92,6 +93,7 @@ export const PROVIDERS: Provider[] = [
   p_new_api,
   p_lmstudio,
   p_litellm,
+  p_superbot,
   p_anthropic,
   p_claude_code,
   p_openai_codex,

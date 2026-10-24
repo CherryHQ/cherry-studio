@@ -146,6 +146,7 @@ import { SmitheryIcon } from './smithery'
 import { SophnetIcon } from './sophnet'
 import { StabilityIcon } from './stability'
 import { StepIcon } from './step'
+import { SuperbotIcon } from './superbot/superbot'
 import { StreamlakeIcon } from './streamlake'
 import { SunoIcon } from './suno'
 import { TavilyIcon } from './tavily'
@@ -312,6 +313,7 @@ export const PROVIDER_ICON_CATALOG = {
   sophnet: SophnetIcon,
   stability: StabilityIcon,
   step: StepIcon,
+  superbot: SuperbotIcon,
   streamlake: StreamlakeIcon,
   suno: SunoIcon,
   tavily: TavilyIcon,

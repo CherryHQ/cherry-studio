@@ -146,6 +146,7 @@ export const PROVIDER_ICON_LOADERS = {
   sophnet: () => import('./sophnet').then(({ SophnetIcon }) => SophnetIcon),
   stability: () => import('./stability').then(({ StabilityIcon }) => StabilityIcon),
   step: () => import('./step').then(({ StepIcon }) => StepIcon),
+  superbot: () => import('./superbot/superbot').then(({ SuperbotIcon }) => SuperbotIcon),
   streamlake: () => import('./streamlake').then(({ StreamlakeIcon }) => StreamlakeIcon),
   suno: () => import('./suno').then(({ SunoIcon }) => SunoIcon),
   tavily: () => import('./tavily').then(({ TavilyIcon }) => TavilyIcon),
