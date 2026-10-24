@@ -12,6 +12,7 @@ import { firecrawl } from '../providers/firecrawl'
 import { getJinaHostCandidates, jina } from '../providers/jina'
 import { parallel } from '../providers/parallel'
 import { querit } from '../providers/querit'
+import { searchapi } from '../providers/searchapi'
 import { discoverSearxngEngines, searxng } from '../providers/searxng'
 import { serply } from '../providers/serply'
 import { tavily } from '../providers/tavily'
@@ -104,6 +105,26 @@ describe('portable provider contracts', () => {
     expect(requests[0].body).toBeUndefined()
     expect(new Headers(requests[0].headers).get('x-api-key')).toBe('test-key')
     expect(result.results[0].content).toBe('Serply Description')
+  })
+
+  it('sends SearchApi keys as a bearer header and keeps only the requested organic results', async () => {
+    const { client, requests } = setup(searchapi, fixture('searchapi-response.json'))
+    const result = await client.execute({
+      ...search('searchapi'),
+      capability: 'searchKeywords',
+      input: 'a&b',
+      config: { apiHost: 'https://service.example/proxy', maxResults: 1 }
+    })
+    expect(requests[0].url).toBe('https://service.example/proxy/api/v1/search?engine=google&q=a%26b')
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      {
+        title: 'SearchApi Title',
+        content: 'SearchApi Snippet',
+        url: 'https://searchapi.example/result',
+        sourceInput: 'a&b'
+      }
+    ])
   })
 
   it('posts DeepSeek search calls and prefers the model-facing summary', async () => {

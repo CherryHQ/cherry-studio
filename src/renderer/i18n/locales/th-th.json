@@ -5738,6 +5738,7 @@
   "settings.tool.websearch.provider_description.jina": "Jina Reader APIs สำหรับค้นหาและอ่าน ดึงเนื้อหาเว็บที่สะอาดมาให้",
   "settings.tool.websearch.provider_description.parallel": "Web search API สำหรับ AI agent ที่ส่งคืนลิงก์ที่จัดอันดับและข้อความที่ดึงมาซึ่งหนาแน่นด้วยโทเค็น",
   "settings.tool.websearch.provider_description.querit": "Querit search and contents APIs สำหรับแอป AI ดึงผลลัพธ์เว็บและเนื้อหาหน้า",
+  "settings.tool.websearch.provider_description.searchapi": "API ค้นหาแบบเรียลไทม์ของ SearchApi ที่ส่งคืนผลการค้นหา Google เป็น JSON แบบมีโครงสร้าง",
   "settings.tool.websearch.provider_description.searxng": "เมตาเสิร์ชเอนจินอินเทอร์เน็ตฟรีที่ติดตั้งเองได้จากหลายแหล่ง",
   "settings.tool.websearch.provider_description.serply": "Serply search API ส่งผลลัพธ์ Google เป็น JSON แบบมีโครงสร้างสำหรับแอป AI",
   "settings.tool.websearch.provider_description.tavily": "เสิร์ชเอนจินที่ปรับให้เหมาะกับ LLM",

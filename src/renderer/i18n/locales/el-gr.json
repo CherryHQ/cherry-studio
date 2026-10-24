@@ -5738,6 +5738,7 @@
   "settings.tool.websearch.provider_description.jina": "APIs αναζήτησης και ανάγνωσης Jina Reader για την ανάκτηση καθαρού περιεχομένου από τον ιστό.",
   "settings.tool.websearch.provider_description.parallel": "API αναζήτησης ιστού για πράκτορες AI, με ταξινομημένους συνδέσμους και πυκνά αποσπάσματα.",
   "settings.tool.websearch.provider_description.querit": "Υπηρεσία αναζήτησης για εφαρμογές AI με αποτελέσματα ανάκτησης από τον ιστό.",
+  "settings.tool.websearch.provider_description.searchapi": "API αναζήτησης πραγματικού χρόνου SearchApi που επιστρέφει αποτελέσματα Google ως δομημένο JSON.",
   "settings.tool.websearch.provider_description.searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
   "settings.tool.websearch.provider_description.serply": "API αναζήτησης Serply που επιστρέφει αποτελέσματα Google ως δομημένο JSON για εφαρμογές AI.",
   "settings.tool.websearch.provider_description.tavily": "Μηχανή αναζήτησης βελτιστοποιημένη για LLM.",
