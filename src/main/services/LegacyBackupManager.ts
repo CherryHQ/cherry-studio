@@ -944,6 +944,9 @@ class BackupManager {
           ])
         )
         this.assertNoActiveDataWriters()
+        // Close retained flows before fingerprinting; shutdown must not persist them afterward.
+        void application.get('AgentSessionRuntimeService').closeAllSessions()
+        this.assertWritersDrained([await agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })])
         const dbService = application.get('DbService')
         dbService.checkpointTruncate()
         const fingerprint = await hashDbFile(application.getPath('app.database.file'))

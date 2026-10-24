@@ -10,7 +10,6 @@ const { browserWindowMock, ipcHandleMock, ipcRemoveHandlerMock, validateSenderMo
 }))
 
 vi.mock('@main/core/platform', () => ({ isDev: false, isMac: false }))
-vi.mock('@application', () => ({ application: { getPath: vi.fn(() => '/app') } }))
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: validateSenderMock }))
 vi.mock('electron', () => ({
   BrowserWindow: browserWindowMock,
@@ -141,6 +140,31 @@ describe('userDataRelocation window', () => {
     expect(invoke(UserDataRelocationIpcChannels.Restart)).toBeUndefined()
     expect(onRestart).toHaveBeenCalledTimes(2)
     expect(window.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes once when a restart callback re-enters through the window close event', () => {
+    let restarts = 0
+    const controller = openUserDataRelocationWindow({
+      getProgress: () => null,
+      onRestart: () => {
+        restarts++
+        if (restarts === 1) window.close()
+      }
+    })
+    window.webContents.emit('did-finish-load')
+    controller.updateProgress({
+      stage: 'completed',
+      from: '/old',
+      to: '/new',
+      bytesCopied: 0,
+      bytesTotal: 0
+    })
+
+    invoke(UserDataRelocationIpcChannels.Restart)
+
+    expect(restarts).toBe(1)
+    expect(controller.hasWindow()).toBe(false)
+    expect(handlers.size).toBe(0)
   })
 
   it('serves current progress through its dedicated channel', () => {

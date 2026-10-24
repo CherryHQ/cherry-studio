@@ -283,6 +283,7 @@ vi.mock('@application', () => ({
       if (name === 'AgentLifecycleService') {
         return mockAgentLifecycle
       }
+      if (name === 'AgentSessionRuntimeService') return { closeAllSessions: async () => {} }
       if (name === 'AgentJobsService') return mockAgentJobs
       if (name === 'JobManager') {
         return mockJobManager
