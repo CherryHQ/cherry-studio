@@ -505,6 +505,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly handoffQueuedInput = new Map<string, PendingAgentSessionTurn[]>()
   /** Sessions closing as part of a handoff: that close must keep {@link handoffQueuedInput}. */
   private readonly handoffTeardowns = new Set<string>()
+  /** Admission order across the two buffers a handoff preserves: the runtime queue and the driver's
+   *  steer buffer. Keyed by message identity so no session bookkeeping has to be retired. */
+  private readonly admissionOrder = new WeakMap<AgentSessionMessageEntity, number>()
+  private nextAdmissionOrder = 0
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
@@ -1026,6 +1030,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (!entry) return
 
+    // A handoff preserves input from two buffers; this is the only record of which came first.
+    this.admissionOrder.set(message, (this.nextAdmissionOrder += 1))
     this.clearIdleTimer(entry)
     // Message attributes ride the payloads themselves: a redirect carries them through the driver
     // round-trip (steer-boundary/steer-undelivered), a queued follow-up carries them on its queue item.
@@ -1734,6 +1740,10 @@ export class AgentSessionRuntimeService extends BaseService {
       }))
     ]
     if (preserved.length > 0) {
+      // Replay in the order they were accepted: concatenating the buffers would let an older
+      // correction supersede a newer one.
+      const rank = (message: AgentSessionMessageEntity) => this.admissionOrder.get(message) ?? Number.MAX_SAFE_INTEGER
+      preserved.sort((a, b) => rank(a.message) - rank(b.message))
       this.handoffQueuedInput.set(entry.sessionId, preserved)
     }
     this.handoffTeardowns.add(entry.sessionId)

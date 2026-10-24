@@ -945,6 +945,92 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('replays corrections from both handoff buffers in the order they were accepted', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const settle = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settle.promise)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-order',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-order',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-plan'),
+        assistantMessageId: 'assistant-plan'
+      })
+      const entry = getEntry(service)
+      const stashed: any[] = []
+      entry.connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn((input: any) => {
+          stashed.push(input)
+          return true
+        }),
+        drainPendingSteers: vi.fn(() => stashed.splice(0)),
+        // The model edit reconciles the live connection; a live turn keeps it (rebuild is deferred).
+        reconcile: vi.fn().mockResolvedValue('patched')
+      } as any
+      entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      const result = service.respondToolApproval('approval-plan-order', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      // Older correction A lands in the driver buffer; the model update then sends newer correction B
+      // to the runtime queue. Concatenating the buffers would replay B before A.
+      service.enqueueUserMessage('session-1', userMessage('user-a'), {})
+      await (service as any).handleAgentUpdated(
+        'agent-1',
+        { model: switchedModelId },
+        { id: 'agent-1', type: 'test-runtime', model: switchedModelId }
+      )
+      service.enqueueUserMessage('session-1', userMessage('user-b'), {})
+      expect(stashed.map((input) => input.message.id)).toEqual(['user-a'])
+      expect(entry.pendingTurns.map((pending: any) => pending.message.id)).toEqual(['user-b'])
+
+      settle.resolve(true)
+      await vi.waitFor(() => expect((service as any).entries.get('session-1')).toBeUndefined())
+
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn().mockReturnValue(true),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: switchedModelId })
+      const followUp = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        userMessage: userMessage('user-follow-up'),
+        assistantMessageId: 'assistant-follow-up'
+      })
+      getEntry(service).connection = connection
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUp.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      await vi.waitFor(() => expect(connection.redirect).toHaveBeenCalledTimes(2))
+      expect(connection.redirect.mock.calls.map((call: any[]) => call[0].message.id)).toEqual(['user-a', 'user-b'])
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('records the approved execution as a session-scoped permission, leaving the shared agent row alone', async () => {
       // The teardown discards the connection that carried the SDK's post-approval mode shift, and
       // the follow-up's fresh connection would re-read the row: spawning it back into `plan` ("no
