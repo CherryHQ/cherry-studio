@@ -312,6 +312,7 @@ export default defineConfig({
         '@cherrystudio/web-search/tools/content': resolve('packages/web-search/src/tools/content.ts'),
         '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts'),
         '@cherrystudio/file-preview/core': resolve('packages/file-preview/src/core.ts'),
+        '@cherrystudio/file-preview/headless': resolve('packages/file-preview/src/headlessDocument.ts'),
         '@cherrystudio/file-preview/react': resolve('packages/file-preview/src/react.ts'),
         '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
@@ -343,7 +344,8 @@ export default defineConfig({
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
-          screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')
+          screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html'),
+          officeRender: resolve(__dirname, 'src/renderer/windows/officeRender/index.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

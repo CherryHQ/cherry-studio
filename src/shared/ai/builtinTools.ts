@@ -481,6 +481,48 @@ export const TO_MARKDOWN_DESCRIPTION =
 export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
 export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
 
+// ── preview_document ─────────────────────────────────────────────
+
+export const PREVIEW_DOCUMENT_TOOL_NAME = 'preview_document'
+
+export const previewDocumentInputSchema = z.object({
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .describe(
+      'Required path to a .pptx, .docx, .pdf or .xlsx file. Relative paths resolve from the session workspace; absolute paths must be an attachment announced with this session or live under the agent data directory.'
+    ),
+  pages: z
+    .array(z.number().int().min(1))
+    .min(1)
+    .max(20)
+    .optional()
+    .describe(
+      'Optional 1-based page (slide / worksheet) numbers to render, at most 20 per call. Omit to render the first 10 pages.'
+    )
+})
+
+export const previewDocumentOutputSchema = z.object({
+  pageCount: z.number().int().nonnegative().describe('Total number of pages (slides) in the document.'),
+  renderedPages: z.array(z.number().int().min(1)).describe('The 1-based page numbers rendered in this call.'),
+  widthPx: z.number().int().positive().describe('Width of the last rendered page in CSS pixels.'),
+  heightPx: z.number().int().positive().describe('Height of the last rendered page in CSS pixels.'),
+  renderNotes: z.array(z.string()).optional().describe('Non-fatal rendering caveats (e.g. nodes that failed to draw).')
+})
+
+export const PREVIEW_DOCUMENT_DESCRIPTION =
+  'Render pages of a .pptx, .docx, .pdf or .xlsx file to images and return them inline so you can visually inspect the document — layout, text overflow, contrast, visual hierarchy. ' +
+  'Use this after generating or editing a document to check the result before declaring it done, or when the user asks what a document looks like. ' +
+  'Renders with Cherry\'s embedded viewers — a close approximation, not pixel-identical to the native apps: pptx slides are the deck\'s real page units; docx pagination is the renderer\'s approximation of Word\'s layout; ' +
+  'PDFs with non-embedded CJK fonts may render with degraded glyphs; each .xlsx worksheet renders as one image of its used range (truncated when very large; charts and floating images are not included). ' +
+  'Leave ~10% slack around text boxes instead of trusting that something "just fits". ' +
+  'Documents with more than 20 pages need multiple calls with `pages`.'
+
+export type PreviewDocumentInput = z.infer<typeof previewDocumentInputSchema>
+export type PreviewDocumentOutput = z.infer<typeof previewDocumentOutputSchema>
+
 // ── report_artifacts ─────────────────────────────────────────────
 
 export const REPORT_ARTIFACTS_TOOL_NAME = 'report_artifacts'
