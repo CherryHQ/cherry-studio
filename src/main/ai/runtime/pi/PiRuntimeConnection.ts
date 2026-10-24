@@ -85,6 +85,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
+import { withPiToolResultReplay } from './piToolResultReplay'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -248,7 +249,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const materializedProvider = await materializePiProviderStream(injection)
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
-      withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
+      withPiRequestEnvironment(withPiToolResultReplay(materializedProvider.streamSimple), injection.requestEnvironment),
       (message, metrics, pricingSnapshot) => this.recordProviderInvocation(message, metrics, pricingSnapshot),
       (model) => this.startProviderSpan(model),
       (model) => this.captureInvocationPricing(model.id)
