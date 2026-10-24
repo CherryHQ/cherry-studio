@@ -62,6 +62,13 @@ export const CreateFollowupQueueSchema = z.strictObject({
 })
 export type CreateFollowupQueueDto = z.infer<typeof CreateFollowupQueueSchema>
 
+/** An edit-target DELETE parks the outgoing recovery copy in the same
+ * transaction. No peer may bypass it while its release response is retried. */
+export const RemoveFollowupQueueSchema = z.strictObject({
+  transferHeldId: FollowupQueueIdSchema.optional()
+})
+export type RemoveFollowupQueueDto = z.infer<typeof RemoveFollowupQueueSchema>
+
 /** Body for `PUT /followup-queue-states` (upsert). */
 export const SetFollowupQueueStateSchema = z.strictObject({
   scopeKey: FollowupQueueScopeKeySchema,
@@ -164,6 +171,7 @@ export type FollowupQueueSchemas = {
     /** Remove one item (hard delete by item id) */
     DELETE: {
       params: { id: string }
+      body?: RemoveFollowupQueueDto
       response: void
     }
   }

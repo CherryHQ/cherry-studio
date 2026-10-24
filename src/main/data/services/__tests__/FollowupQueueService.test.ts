@@ -357,6 +357,93 @@ describe('FollowupQueueService', () => {
       expect(followupQueueService.listByScope(SCOPE_A).map((entry) => entry.id)).toEqual([item.id])
     })
 
+    it('parks a transferred held head across windows until release, including a lost DELETE response (inv_d42203843d6d319f)', () => {
+      const outgoing = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: true
+      })
+      const incoming = enqueueIn(SCOPE_A, 'b')
+      const next = enqueueIn(SCOPE_A, 'c')
+      // The DELETE committed, but its renderer response/release was lost.
+      followupQueueService.remove(incoming.id, outgoing.id)
+      followupQueueService.remove(incoming.id, outgoing.id)
+      expect(followupQueueService.claimHead(SCOPE_A, 'peer')).toEqual({ claimed: false })
+      expect(followupQueueService.claim(outgoing.id, 'manual')).toEqual({ claimed: false, alreadySent: false })
+      followupQueueService.enqueue({
+        id: outgoing.id,
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: false
+      })
+      expect(followupQueueService.claimHead(SCOPE_A, 'peer')).toEqual({
+        claimed: true,
+        id: outgoing.id,
+        alreadySent: false
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).find((item) => item.id === next.id)?.status).toBe('pending')
+    })
+
+    it('lets a crash-orphaned transfer rejoin at its original FIFO slot after aging out', async () => {
+      const outgoing = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: true
+      })
+      const incoming = enqueueIn(SCOPE_A, 'b')
+      enqueueIn(SCOPE_A, 'c')
+      followupQueueService.remove(incoming.id, outgoing.id)
+      await dbh.db
+        .update(followupQueueTable)
+        .set({ updatedAt: Date.now() - 31 * 60 * 1000 })
+        .where(eq(followupQueueTable.id, outgoing.id))
+      expect(followupQueueService.claimHead(SCOPE_A, 'after-crash')).toEqual({
+        claimed: true,
+        id: outgoing.id,
+        alreadySent: false
+      })
+    })
+
+    it('does not re-park an already-released copy when the incoming DELETE retries', () => {
+      const outgoing = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: true
+      })
+      const incoming = enqueueIn(SCOPE_A, 'b')
+      followupQueueService.remove(incoming.id, outgoing.id)
+      followupQueueService.enqueue({
+        id: outgoing.id,
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: false
+      })
+      followupQueueService.remove(incoming.id, outgoing.id)
+      expect(followupQueueService.claimHead(SCOPE_A, 'peer')).toEqual({
+        claimed: true,
+        id: outgoing.id,
+        alreadySent: false
+      })
+    })
+
+    it('does not transfer a held copy from a different scope', async () => {
+      const outgoing = followupQueueService.enqueue({
+        scopeKey: SCOPE_B,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: true
+      })
+      const incoming = enqueueIn(SCOPE_A, 'b')
+      followupQueueService.remove(incoming.id, outgoing.id)
+      const [copy] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, outgoing.id))
+      expect(copy.claimToken).toBe('held:edit-restore')
+    })
+
     it('should skip a live held head instead of stalling the queue behind it', () => {
       const held = followupQueueService.enqueue({
         scopeKey: SCOPE_A,
