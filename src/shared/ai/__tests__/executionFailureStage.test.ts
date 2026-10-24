@@ -196,6 +196,23 @@ describe('execution failure — SSE frame residue', () => {
     expect(failure.failure.stage).toBe('stream')
   })
 
+  it('attributes a provider 504 saying "No response from upstream" to the HTTP stage', () => {
+    // The provider rejected the request; its wording must not be read as a silent runtime.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'No response from upstream',
+      stack: null,
+      statusCode: 504
+    })
+    expect(failure.failure.stage).toBe('http')
+  })
+
+  it('keeps the runtime wording when the failure carries no HTTP status', () => {
+    // The same wording without a provider status is still the runtime stopping before answering.
+    const failure = toExecutionFailure({ name: 'Error', message: 'No response from upstream', stack: null })
+    expect(failure.failure.stage).toBe('runtime')
+  })
+
   it('does not truncate a normal provider message', () => {
     const failure = toExecutionFailure({
       name: 'APICallError',

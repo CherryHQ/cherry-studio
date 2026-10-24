@@ -134,7 +134,11 @@ function deriveStage(
 
   const normalized = `${name} ${raw}`.toLowerCase()
   for (const [needle, stage] of NAMED_STAGE_FOR_MESSAGE) {
-    if (normalized.includes(needle)) return stage
+    if (!normalized.includes(needle)) continue
+    // Explicit provider rejection outranks the generic runtime wording: a 504 whose body reads
+    // "No response from upstream" is the provider's own failure, not a silent runtime.
+    if (stage === 'runtime' && status !== undefined && status >= 400 && status <= 599) continue
+    return stage
   }
 
   if (error.claudeCodeExitCategory !== undefined) return 'runtime'
