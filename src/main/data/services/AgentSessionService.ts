@@ -19,11 +19,14 @@ import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { providerService } from '@data/services/ProviderService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { isPiGatewayCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -40,7 +43,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
-import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -154,6 +157,22 @@ export function agentSessionReadModelEffects(
     { endpoint: '/agent-sessions/:sessionId', entityIds },
     { endpoint: '/agent-sessions/latest' }
   ]
+}
+
+// A Pi runtime only serves gateway-routable models: subscription/CLI-login
+// providers and non-chat models are out, and an override whose provider or
+// model no longer resolves is not servable either.
+function isPiServableUniqueModel(uniqueModelId: string): boolean {
+  try {
+    if (!isUniqueModelId(uniqueModelId)) return false
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    return isPiGatewayCompatibleModel(
+      providerService.getByProviderId(providerId),
+      modelService.getByKey(providerId, modelId)
+    )
+  } catch {
+    return false
+  }
 }
 
 export class AgentSessionService {
@@ -864,7 +883,7 @@ export class AgentSessionService {
 
     const previousAgentId = current.agentId
     const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
-    if (reassigned && patch.model === undefined && previousAgentId != null && current.model != null) {
+    if (reassigned && patch.model === undefined && current.model != null) {
       // A session-level model override is scoped to the runtime that selected
       // it: retaining it across a cross-runtime reassignment (e.g. Claude Code
       // -> Pi) makes the new runtime pick a model it cannot serve — Pi rejects
@@ -875,10 +894,27 @@ export class AgentSessionService {
       const agentTypes = tx
         .select({ id: agentsTable.id, type: agentsTable.type })
         .from(agentsTable)
-        .where(inArray(agentsTable.id, [previousAgentId, patch.agentId as string]))
+        .where(
+          inArray(
+            agentsTable.id,
+            previousAgentId != null ? [previousAgentId, patch.agentId as string] : [patch.agentId as string]
+          )
+        )
         .all()
       const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
-      if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+      if (previousAgentId != null) {
+        if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+          patch.model = null
+        }
+      } else if (typeOf.get(patch.agentId as string) === 'pi' && !isPiServableUniqueModel(current.model)) {
+        // Orphan recovery: the previous agent was permanently deleted and
+        // SQLite nulled the reference, so the old runtime's type is
+        // unrecoverable and the comparison above cannot run. Validate the
+        // inherited override against the new Pi agent instead — a leftover
+        // subscription-model override is not gateway-routable and makes Pi
+        // reject every dispatch with PiUnsupportedProviderError despite the
+        // agent having a usable default (cherry-pr-review
+        // inv_d8d804d915e34926#f1). An override Pi can serve survives.
         patch.model = null
       }
     }

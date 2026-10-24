@@ -1284,6 +1284,119 @@ describe('AgentSessionService', () => {
     expect(updated.model).toBeNull()
   })
 
+  it('clears an orphan session override that the new Pi agent cannot serve (inv_d8d804d915e34926)', async () => {
+    // The previous agent was permanently deleted: SQLite nulled the session's
+    // agentId, so the cross-runtime comparison has no previous type to read.
+    // Reassigning the orphan to a Pi agent must still clear an override Pi
+    // cannot serve — a non-chat (embedding) model is not gateway-routable.
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-pi-orphan-target',
+      type: 'pi',
+      name: 'Pi Orphan Target',
+      instructions: '',
+      orderKey: 'z3'
+    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'anthropic::claude-embed-1',
+        providerId: 'anthropic',
+        modelId: 'claude-embed-1',
+        name: 'claude-embed-1',
+        capabilities: ['embedding'],
+        supportsStreaming: false,
+        orderKey: 'm1'
+      })
+      .onConflictDoNothing()
+    const session = await createSession('Orphaned unservable override')
+    agentSessionService.update(session.id, { model: 'anthropic::claude-embed-1' })
+    await dbh.db.delete(agentTable).where(eq(agentTable.id, 'agent-session-test'))
+    await dbh.db.update(agentSessionTable).set({ agentId: null }).where(eq(agentSessionTable.id, session.id))
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-pi-orphan-target' })
+
+    expect(updated.agentId).toBe('agent-pi-orphan-target')
+    expect(updated.model).toBeNull()
+  })
+
+  it('keeps an orphan session override that the new Pi agent can serve (inv_d8d804d915e34926)', async () => {
+    // Same orphan recovery, but the inherited override is an ordinary
+    // gateway-routable model: validation clears only what Pi cannot serve.
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-pi-orphan-serve',
+      type: 'pi',
+      name: 'Pi Orphan Serve',
+      instructions: '',
+      orderKey: 'z4'
+    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'anthropic::claude-sonnet-4-5',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        name: 'claude-sonnet-4-5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'm0'
+      })
+      .onConflictDoNothing()
+    const session = await createSession('Orphaned servable override')
+    agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
+    await dbh.db.delete(agentTable).where(eq(agentTable.id, 'agent-session-test'))
+    await dbh.db.update(agentSessionTable).set({ agentId: null }).where(eq(agentSessionTable.id, session.id))
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-pi-orphan-serve' })
+
+    expect(updated.agentId).toBe('agent-pi-orphan-serve')
+    expect(updated.model).toBe('anthropic::claude-sonnet-4-5')
+  })
+
+  it('keeps an orphan session override when the new agent is not Pi (inv_d8d804d915e34926)', async () => {
+    // Claude Code serves the runtimes' full model surface: an inherited
+    // override survives orphan recovery onto another Claude Code agent.
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-cc-orphan-target',
+      type: 'claude-code',
+      name: 'Claude Orphan Target',
+      instructions: '',
+      orderKey: 'z5'
+    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'anthropic::claude-sonnet-4-5',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        name: 'claude-sonnet-4-5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'm0'
+      })
+      .onConflictDoNothing()
+    const session = await createSession('Orphaned claude-code override')
+    agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
+    await dbh.db.delete(agentTable).where(eq(agentTable.id, 'agent-session-test'))
+    await dbh.db.update(agentSessionTable).set({ agentId: null }).where(eq(agentSessionTable.id, session.id))
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-cc-orphan-target' })
+
+    expect(updated.agentId).toBe('agent-cc-orphan-target')
+    expect(updated.model).toBe('anthropic::claude-sonnet-4-5')
+  })
+
   it('keeps the session model override when reassignment stays within one runtime', async () => {
     await dbh.db.insert(agentTable).values({
       id: 'agent-cc-reassigned',
