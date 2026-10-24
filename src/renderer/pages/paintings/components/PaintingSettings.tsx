@@ -3,13 +3,13 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InfoTooltip, InputNumber } from '@cherrystudio/ui'
-import { supportsImageRequestTimeout } from '@shared/ai/imageGenerationTimeout'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import type { PaintingData } from '../model/types/paintingData'
+import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
