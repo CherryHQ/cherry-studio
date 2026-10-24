@@ -11,6 +11,8 @@ import { AGENT_TYPES, type AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 const {
+  mockFindMcp,
+  mockCreateBridge,
   mockGetAgent,
   mockGetPathStatus,
   mockMkdir,
@@ -20,6 +22,8 @@ const {
   mockListOrOutlineKnowledge,
   mockEnsureManagedDirectory
 } = vi.hoisted(() => ({
+  mockFindMcp: vi.fn(),
+  mockCreateBridge: vi.fn(),
   mockGetAgent: vi.fn(),
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
@@ -29,6 +33,9 @@ const {
   mockListOrOutlineKnowledge: vi.fn(),
   mockEnsureManagedDirectory: vi.fn()
 }))
+
+vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { findByIdOrName: mockFindMcp } }))
+vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({ createMcpBridgeServer: mockCreateBridge }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -494,4 +501,31 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
 
     expect(mockMkdir).not.toHaveBeenCalled()
   })
+})
+
+describe('user MCP mounting policy', () => {
+  it.each(['doctor', 'support', undefined] as const)(
+    'mounts only effective user bindings for role %s with either snapshot state',
+    (role) => {
+      const server = { id: 'user-mcp', name: 'User server', type: 'stdio', command: 'user-server' }
+      const bound = {
+        ...agent,
+        type: 'claude-code',
+        mcps: ['user-mcp'],
+        configuration: role ? { builtin_role: role } : {}
+      } as AgentEntity
+      mockFindMcp.mockReturnValue(server)
+      for (const snapshots of [undefined, new Map([['user-mcp', server]])]) {
+        mockFindMcp.mockClear()
+        mockCreateBridge.mockClear()
+        const servers = buildMcpServers(session, bound, WITHOUT_HOST_TOOLS, snapshots as never)
+        expect(servers?.['cherry-tools']).toBeDefined()
+        if (role) {
+          expect(Object.keys(servers ?? {})).not.toContain('user-mcp')
+          expect(mockFindMcp).not.toHaveBeenCalled()
+          expect(mockCreateBridge).not.toHaveBeenCalled()
+        } else expect(servers?.['user-mcp']).toBeDefined()
+      }
+    }
+  )
 })

@@ -16,7 +16,11 @@ import { fetch as nodeFetch } from 'undici'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import {
+  resolveAgentCapabilities,
+  resolveAgentUserMcpIds,
+  resolveMountedMcpServers
+} from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
@@ -217,7 +221,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (usesPiGateway(discoverySnapshot.provider, discoverySnapshot.model)) {
       await resolveInjection(discoverySnapshot)
     }
-    await warmAgentMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
+    await warmAgentMcpToolCatalogs(resolveAgentUserMcpIds(discoverySnapshot.agent))
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
