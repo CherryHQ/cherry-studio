@@ -8,6 +8,8 @@ import { and, eq, or } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -2073,7 +2075,36 @@ describe('ModelService.delete', () => {
     const pins = await dbh.db.select().from(pinTable)
     expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+  })
+
+  it('publishes model membership and affected session effects when a session override model is deleted', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+    const siblingModelId = createUniqueModelId('openai', 'gpt-4o-mini')
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: siblingModelId, name: 'GPT-4o mini' })
+      ])
+    await dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'ws-model-delete', name: 'W', path: '/tmp/ws-model-delete', orderKey: 'a0' })
+    await dbh.db.insert(agentSessionTable).values([
+      { id: 'session-target', name: '', workspaceId: 'ws-model-delete', model: targetModelId, orderKey: 'a0' },
+      { id: 'session-sibling', name: '', workspaceId: 'ws-model-delete', model: siblingModelId, orderKey: 'a1' }
+    ])
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.delete('openai', 'gpt-4o')
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/models', kind: 'membership', entityIds: [targetModelId] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-target'] }
+    ])
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'session-target'))
+    expect(session.model).toBeNull()
   })
 
   it('throws NOT_FOUND for non-existent model', async () => {
@@ -2560,6 +2591,55 @@ describe('ModelService.reconcileForProvider', () => {
       expect(dbh.db.select().from(userModelTable).all()).toEqual([])
     }
   )
+
+  it('publishes model membership and affected session effects when reconcile deletes a session override model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+    const siblingModelId = createUniqueModelId('openai', 'gpt-4o-mini')
+    // The override target must be preset-backed: reconcile removals only delete
+    // managed-list rows, not fully custom ones.
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o', presetModelId: 'gpt-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: siblingModelId, name: 'GPT-4o mini' })
+      ])
+    await dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'ws-reconcile-fx', name: 'W', path: '/tmp/ws-reconcile-fx', orderKey: 'a0' })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-reconcile-target',
+        name: '',
+        workspaceId: 'ws-reconcile-fx',
+        model: targetModelId,
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-reconcile-sibling',
+        name: '',
+        workspaceId: 'ws-reconcile-fx',
+        model: siblingModelId,
+        orderKey: 'a1'
+      }
+    ])
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [targetModelId] })
+
+    // Call 1 is the pin purge; call 2 carries the model removal and the
+    // FK-cleared session overrides so every window refetches.
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [{ endpoint: '/pins', kind: 'membership' }])
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
+      { endpoint: '/models', kind: 'membership', entityIds: [targetModelId] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-reconcile-target'] }
+    ])
+    const [session] = await dbh.db
+      .select()
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-reconcile-target'))
+    expect(session.model).toBeNull()
+  })
 
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer

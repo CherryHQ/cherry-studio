@@ -73,6 +73,10 @@ export interface AgentRuntimeConnectInput {
   resumeToken?: string
   /** Independent native identity for an edited first turn with no history to resume. */
   nativeSessionId?: string
+  /** True when this connection's turn is headless: headless turns resolve against the agent
+   *  default and ignore session model overrides, which decides which resolution a captured
+   *  connection model is compared against for stale-capture pinning. */
+  headless?: boolean
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
@@ -251,8 +255,10 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call
    * this before `connect()` instead of hard-coding driver-specific guards.
+   * Headless runs execute the agent default, so drivers must preflight that
+   * model when `opts.headless` is set instead of the session override.
    */
-  validateSession(session: AgentSessionEntity): void | Promise<void>
+  validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): void | Promise<void>
   /** Enumerate the tools this driver exposes for the given MCP server set. */
   listAvailableTools(mcpIds: string[]): Promise<Tool[]>
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection>

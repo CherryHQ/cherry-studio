@@ -145,6 +145,14 @@ interface ConnectionMaterializationFacts {
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
+  promptModelName?: string | null
+}
+
+function resolvePromptModelName(uniqueModelId: UniqueModelId, agent: AgentEntity): string | null {
+  if (uniqueModelId === agent.model) return agent.modelName || null
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const model = modelService.getByKey(providerId, modelId)
+  return model.name ?? modelId
 }
 
 /**
@@ -318,25 +326,34 @@ export async function deriveConnectionConfig(
   connectionModelId?: UniqueModelId,
   reasoningEffort: ReasoningEffortOption = 'default',
   fastMode = false,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
+   *  default while ignoring session overrides. */
+  headless = false
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return unroutable
   const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return unroutable
+  if (!agent) return unroutable
+  // A cleared agent default still routes when the session carries its own
+  // override — only a session with no effective model is unroutable.
+  const effectiveModel = connectionModelId ?? session.model ?? agent.model
+  if (!effectiveModel) return unroutable
   try {
     return {
       ok: true,
       config: await deriveConnectionConfigFromSnapshot(
         session,
         agent,
-        connectionModelId ?? agent.model,
+        effectiveModel,
         reasoningEffort,
         fastMode,
         selectedKnowledgeBaseIds,
-        undefined
+        undefined,
+        connectionModelId,
+        headless
       )
     }
   } catch (error) {
@@ -374,7 +391,9 @@ async function deriveConnectionConfigFromSnapshot(
   reasoningEffort: ReasoningEffortOption,
   fastMode: boolean,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  materialized?: ConnectionMaterializationFacts
+  materialized?: ConnectionMaterializationFacts,
+  connectionModelId?: UniqueModelId,
+  headless = false
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
@@ -387,8 +406,17 @@ async function deriveConnectionConfigFromSnapshot(
   let routeFacts = materialized?.route
   if (!routeFacts) {
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-    // Same pinning semantics as the query-request builder (see its comment).
-    const pinSubModelsToPrimary = uniqueModelId !== agent.model
+    // Same pinning semantics as the query-request builder (see its comment):
+    // pin only a genuinely stale capture, never an ordinary session override
+    // (cherry-pr-review inv_f7cde0553102c364) or a headless capture matching
+    // the agent default — those runs resolve against the default while
+    // ignoring session overrides, so treating the default as stale would
+    // discard the configured sonnet/haiku aliases on every scheduled run
+    // behind an interactive override (cherry-pr-review inv_2a46bb6139db6292#f1). The
+    // dispatch mode, not model equality, decides which resolution the capture is compared
+    // against (cherry-pr-review inv_d81d8d063f588b6a#f1).
+    const pinSubModelsToPrimary =
+      connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -420,7 +448,10 @@ async function deriveConnectionConfigFromSnapshot(
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
-    promptModelName: agent.modelName || null,
+    promptModelName:
+      materialized?.promptModelName !== undefined
+        ? materialized.promptModelName
+        : resolvePromptModelName(uniqueModelId, agent),
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
@@ -497,18 +528,24 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
+   *  default while ignoring session overrides. */
+  headless = false
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
   const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return undefined
+  if (!agent) return undefined
+  // A cleared agent default still routes when the session carries its own
+  // override — only a session with no effective model is unroutable.
+  const uniqueModelId = connectionModelId ?? session.model ?? agent.model
+  if (!uniqueModelId) return undefined
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
-  const uniqueModelId = connectionModelId ?? agent.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
@@ -521,13 +558,23 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
-  // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
-  // capture (the effective model differs from the latest `agent.model`), pin plan/small to it too rather
-  // than read the possibly-edited-ahead latest sub-models — otherwise the captured turn would launch with
-  // the old ANTHROPIC_MODEL but new sonnet/haiku defaults, or be forced onto the gateway by a sub-model
-  // that now points at another provider. With no edit (or a turn-less connection) the latest sub-models
-  // still apply.
-  const pinSubModelsToPrimary = uniqueModelId !== agent.model
+  // edit behind the session's CURRENT resolution. The turn captured only its primary, so when the primary
+  // is a pre-edit capture (the captured model differs from what `session.model ?? agent.model` resolves
+  // to NOW), pin plan/small to it too rather than read the possibly-edited-ahead latest sub-models —
+  // otherwise the captured turn would launch with the old ANTHROPIC_MODEL but new sonnet/haiku defaults,
+  // or be forced onto the gateway by a sub-model that now points at another provider. An ordinary session
+  // override (`session.model` differing from `agent.model`) is current session state, not a stale
+  // capture: the configured sub-model aliases still apply (cherry-pr-review inv_f7cde0553102c364).
+  // Headless runs resolve against the agent default while ignoring session overrides, so a capture
+  // matching the agent default is current for them too — treating it as stale would discard the
+  // configured sonnet/haiku aliases on every scheduled run behind an interactive override
+  // (cherry-pr-review inv_2a46bb6139db6292#f1). An interactive capture matching the agent
+  // default while the session has since switched models is NOT current — model equality cannot
+  // stand in for the dispatch mode, or the old turn launches with the captured primary but the
+  // newer edited aliases (cherry-pr-review inv_d81d8d063f588b6a#f1). With
+  // no capture (or a turn-less connection) the latest sub-models apply as well.
+  const pinSubModelsToPrimary =
+    connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
   const route = await resolveClaudeCodeRuntimeRoute(
@@ -548,6 +595,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
+  const promptModelName = resolvePromptModelName(uniqueModelId, agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -563,7 +611,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
-        effectiveLanguage
+        effectiveLanguage,
+        promptModelName,
+        effectiveModelId: uniqueModelId
       },
       agent
     ),
@@ -590,7 +640,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       }),
-      effectiveLanguage
+      effectiveLanguage,
+      promptModelName
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -1036,7 +1087,13 @@ function mergeRuntimeSettings(
 export async function buildClaudeCodeWarmQueryRequestForAgentSession(
   sessionId: string
 ): Promise<WarmQueryRequest | undefined> {
-  const request = await buildClaudeCodeQueryRequestForAgentSession(sessionId)
+  const session = agentSessionService.getById(sessionId)
+  if (!session?.agentId) return undefined
+  const agent = agentService.getAgent(session.agentId)
+  if (!agent) return undefined
+  // Prewarm the agent default — headless runs ignore session overrides, and interactive
+  // turns pass their effective model when connecting.
+  const request = await buildClaudeCodeQueryRequestForAgentSession(sessionId, undefined, agent.model ?? undefined)
   if (!request) return undefined
   return {
     key: request.key,

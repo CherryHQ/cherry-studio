@@ -772,7 +772,7 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateAgent, updateModel } = useUpdateAgent()
+  const { updateAgent } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -1285,7 +1285,6 @@ const AgentComposerInner = ({
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
       const pendingReasoningEdit =
         pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
-      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
       const previousReasoningOverride = activeReasoningOverride
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -1294,11 +1293,8 @@ const AgentComposerInner = ({
         version
       })
 
-      const updatedAgent = await updateModel(
-        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
-        { showSuccessToast: false }
-      )
-      if (!updatedAgent) {
+      const updatedSession = await updateSession({ id: sessionId, model: nextModel.id }, { showSuccessToast: false })
+      if (!updatedSession) {
         setReasoningOverride((current) => {
           if (current?.agentId !== agent.id || current.version !== version) return current
           if (!previousReasoningOverride) return null
@@ -1312,6 +1308,13 @@ const AgentComposerInner = ({
         })
         return
       }
+      // Never replay the captured pending edit after the session update: the
+      // agents API has no revision evidence or conditional write, and value
+      // equality on a freshness read cannot distinguish "nothing landed yet"
+      // from an intervening same-value save through another surface - either
+      // way a replay can overwrite a newer Agent-wide setting and affect
+      // sibling sessions (cherry-pr-review inv_58f93a93e82c4393#f1). The
+      // selection-time updateAgent lands the edit on its own.
       if (
         pendingReasoningEdit &&
         pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
@@ -1321,7 +1324,17 @@ const AgentComposerInner = ({
       }
       setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
+    [
+      activeReasoningOverride,
+      agent,
+      canChangeModel,
+      canonicalReasoningEffort,
+      model?.id,
+      reasoningEffort,
+      sessionId,
+      updateAgent,
+      updateSession
+    ]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -1380,7 +1393,9 @@ const AgentComposerInner = ({
       void updateAgent(
         {
           id: agent.id,
-          configuration: { reasoning_effort: option }
+          configuration: { reasoning_effort: option },
+          // Validate against the session's effective model: under a session-level override the agent default is unchanged and would normalize away an effort the effective model supports (cherry-pr-review inv_98911732422a84bf).
+          reasoningValidationModelId: model?.id
         },
         { showSuccessToast: false }
       ).then((updatedAgent) => {
@@ -1403,7 +1418,7 @@ const AgentComposerInner = ({
         )
       })
     },
-    [agent, canonicalReasoningEffort, updateAgent]
+    [agent, canonicalReasoningEffort, model?.id, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {

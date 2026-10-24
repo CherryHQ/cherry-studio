@@ -886,6 +886,7 @@ describe('AgentComposer', () => {
       return { configuration: mocks.agentConfiguration }
     })
     mocks.updateSession.mockReset()
+    mocks.updateSession.mockResolvedValue({ id: 'session-1' })
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
@@ -1433,7 +1434,8 @@ describe('AgentComposer', () => {
     expect(mocks.updateAgent).toHaveBeenCalledWith(
       {
         id: 'agent-1',
-        configuration: { reasoning_effort: 'low' }
+        configuration: { reasoning_effort: 'low' },
+        reasoningValidationModelId: model.id
       },
       { showSuccessToast: false }
     )
@@ -1471,7 +1473,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('updates the agent model from the inline model selector when model changes are allowed', () => {
+  it('updates the session model from the inline model selector when model changes are allowed', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1487,13 +1489,11 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-opus-4'
-      },
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-opus-4' },
       { showSuccessToast: false }
     )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
   it('carries a local reasoning edit into a model update only while that edit is pending', () => {
@@ -1513,18 +1513,174 @@ describe('AgentComposer', () => {
     act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith(
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-opus-4' },
+      { showSuccessToast: false }
+    )
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
       {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-opus-4',
-        reasoningEffort: 'high'
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'high' },
+        // The effort save validates against the session-effective model, not
+        // the agent default (inv_98911732422a84bf).
+        reasoningValidationModelId: model.id
       },
       { showSuccessToast: false }
+    )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
+  })
+
+  it('does not replay a captured reasoning edit over a newer external save (inv_b84ca94ae8d72b50)', async () => {
+    // The high edit's own save is still in flight when the model switch
+    // starts; before the switch finishes, another surface (agent settings,
+    // another window) persists low. The component's refs cannot see that
+    // save, so the replay must re-read the agent and stand down.
+    const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string, options?: unknown) => {
+      if (path === '/agents/agent-1') return { id: 'agent-1', configuration: { reasoning_effort: 'low' } }
+      return dataApiGetBase?.(path as never, options as never)
+    }) as never)
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
+    // Only the user's own high save ran: the captured edit must not replay
+    // over the newer external low.
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('never replays a captured reasoning edit after a model switch, even when the persisted value equals the start (inv_58f93a93e82c4393)', async () => {
+    // Same race as inv_b84ca94ae8d72b50, but the intervening external save
+    // re-persisted the SAME value the edit started from (default). Value
+    // equality cannot identify that save and the API has no conditional
+    // write, so the switch must not replay at all: the selection-time save
+    // is the only write (cherry-pr-review inv_58f93a93e82c4393#f1).
+    const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string, options?: unknown) => {
+      if (path === '/agents/agent-1') return { id: 'agent-1', configuration: { reasoning_effort: 'default' } }
+      return dataApiGetBase?.(path as never, options as never)
+    }) as never)
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
+    // Only the user's own high save ran: no replay, however a freshness
+    // read would have answered.
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not replay a captured reasoning edit superseded during the model switch (inv_749a7063976e49cf)', async () => {
+    // The user picks low through the same composer while the model switch is
+    // still in flight. No replay exists anymore (inv_58f93a93e82c4393), so
+    // the two selection-time saves are the only writes.
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
+
+    // Only the user's own high and low saves ran: the captured high edit
+    // must not replay over the newer low selection (cherry-pr-review
+    // inv_749a7063976e49cf#f1).
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(2)
+    expect(mocks.updateAgent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ reasoningValidationModelId: 'anthropic::claude-opus-4' }),
+      expect.anything()
+    )
+  })
+
+  it('does not re-assert a captured reasoning edit against the new model after the switch (inv_58f93a93e82c4393)', async () => {
+    // The replay that re-validated the captured edit against nextModel was
+    // removed: without a conditional write it could overwrite a newer
+    // same-value external save (cherry-pr-review inv_58f93a93e82c4393#f1).
+    // The selection-time save is the only write.
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAgent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ reasoningValidationModelId: 'anthropic::claude-opus-4' }),
+      expect.anything()
     )
   })
 
   it('does not mistake an in-flight model update for a pending reasoning edit', () => {
-    mocks.updateModel.mockImplementation(() => new Promise(() => undefined))
+    mocks.updateSession.mockImplementation(() => new Promise(() => undefined))
 
     render(
       <AgentComposer
@@ -1540,11 +1696,8 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
     fireEvent.click(screen.getByText('select reasoning model'))
 
-    expect(mocks.updateModel).toHaveBeenLastCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-reasoning'
-      },
+    expect(mocks.updateSession).toHaveBeenLastCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-reasoning' },
       { showSuccessToast: false }
     )
   })
@@ -1566,7 +1719,20 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
+    // Two-session outcome (inv_58f93a93e82c4393): the M1 session keeps the
+    // selection-time save of E agent-wide - the model switch must not issue
+    // a second write re-normalizing the shared setting against M2 - while
+    // this session on M2 shows the normalized effective default.
     await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      {
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: model.id
+      },
+      { showSuccessToast: false }
+    )
   })
 
   it('keeps the session reasoning selection when the model update fails', async () => {
@@ -1577,7 +1743,7 @@ describe('AgentComposer', () => {
         selectableEfforts: ['low', 'high']
       }
     }
-    mocks.updateModel.mockResolvedValueOnce(undefined)
+    mocks.updateSession.mockResolvedValueOnce(undefined)
 
     render(
       <AgentComposer
@@ -1609,7 +1775,7 @@ describe('AgentComposer', () => {
       }
     }
     let finishModelUpdate!: (value: object) => void
-    mocks.updateModel.mockImplementationOnce(
+    mocks.updateSession.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finishModelUpdate = resolve
@@ -1692,6 +1858,7 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
+    expect(mocks.updateSession).not.toHaveBeenCalled()
     expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 

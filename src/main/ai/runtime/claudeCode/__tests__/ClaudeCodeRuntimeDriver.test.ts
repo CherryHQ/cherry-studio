@@ -696,7 +696,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'claude-code::sonnet',
       'default',
       false,
-      undefined
+      undefined,
+      false
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -4165,7 +4166,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
       await connection.reconcile({ modelId: 'claude-code::sonnet', knowledgeBaseIds: ['kb-1'] })
 
-      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', false, ['kb-1'])
+      expect(mocks.deriveConfig).toHaveBeenCalledWith(
+        'session-1',
+        'claude-code::sonnet',
+        'default',
+        false,
+        ['kb-1'],
+        false
+      )
     })
 
     it('hot-patches live tool-policy facts and advances the baseline', async () => {
