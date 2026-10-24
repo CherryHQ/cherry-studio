@@ -866,6 +866,58 @@ describe('coding-agent behavior adapter', () => {
     expect(pi.errors).toEqual([])
   })
 
+  // Catches close() missing a person's prompt that Pi still prepares (its input handlers run): Pi's abort sees an idle
+  // session, so once the handlers return the prompt asks the model of a session close() already disposed.
+  it('stops a prompt Pi still prepares before close() disposes its session', async () => {
+    const entered = latch()
+    const gate = latch()
+    let disposed = 0
+    let atClose: ConversationFacts['live'] | undefined
+    const pi = await openPiHarness(
+      (ports) =>
+        ports.lifecycle.register({
+          ...noLifecycle,
+          onClose: async (thread, p) => {
+            atClose = (await p.ledger.read(thread)).live
+          }
+        }),
+      [
+        (api) => {
+          api.on('input', async () => {
+            entered.release()
+            await gate.promise
+            return { action: 'continue' as const }
+          })
+        }
+      ],
+      async (request, open) => {
+        const native = await open(request)
+        return {
+          ...native,
+          dispose: async () => {
+            disposed += 1
+            await native.dispose()
+          }
+        }
+      }
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: 'never' }])
+    await pi.harness.sendUser(t, 'go')
+    await entered.promise
+    const closing = pi.harness.close()
+    // Long enough for close() to dispose the session if it did not stop the prompt first.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    gate.release()
+    await closing
+    // Long enough for a prompt close() left behind to reach the model.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(pi.requests(t)).toEqual([])
+    // The run ended, aborted, before its session was disposed.
+    expect(atClose?.runEnd?.outcome).toBe('aborted')
+    expect(disposed).toBe(1)
+  })
+
   // Catches one session that fails to abort or dispose leaving the others undisposed, the harness open, or a failure
   // unreported.
   it('closes every conversation when one fails to abort and dispose', async () => {

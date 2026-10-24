@@ -387,9 +387,10 @@ or stop comes from the handlers `install` registers and the steps they decide. T
   the host's own child configuration.
 - `withCall(thread, use)` binds the outbound ports to one host call; they expire when `use` settles. `submitUser` (a
   person's text), `compact`, `settled` and `close` are the host's other entries. `close()` first waits for the opens in
-  progress (a session being built, `onOpen`) and then tears them down with the rest. Once it began, no job starts, an
-  open leaves the input queued during it unstarted, and a session built after that is disposed unopened, its open
-  rejecting with the closed error.
+  progress (a session being built, `onOpen`) and then tears them down with the rest. Before it disposes any session it
+  stops every run as `turns.stop` does, a prompt Pi still prepares included, waits for each to end and withdraws the
+  queued input. Once it began, no job starts, an open leaves the input queued during it unstarted, and a session built
+  after that is disposed unopened, its open rejecting with the closed error.
 - Only the adapter starts runs in a session it opens. Use `submitUser` and `compact`, never `session.prompt` or
   `session.compact`, and install no extension there that starts a run (`pi.sendMessage(…, { triggerTurn: true })`,
   `pi.sendUserMessage`), also not while a run settles: the run state below (the request meter's count, the gate's call

@@ -423,9 +423,14 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       // An open that fails, or that close() itself cut, is no failure of close().
       await Promise.allSettled([...launching])
       const all = [...conversations.values()]
+      // Each run through the adapter's stop, joined, its queued input withdrawn: Pi's abort misses a prompt still in its
+      // input handlers, which would start the run once they return.
+      const stops = await Promise.allSettled(all.map((conv) => stopRun(adapter, conv)))
       // Every run first: a parent's tool call may be waiting on a foreground child.
       const aborts = await Promise.allSettled(all.flatMap((conv) => conv.native?.session.abort() ?? []))
-      const failures = aborts.flatMap((abort) => (abort.status === 'rejected' ? [abort.reason as unknown] : []))
+      const failures = [...stops, ...aborts].flatMap((settled) =>
+        settled.status === 'rejected' ? [settled.reason as unknown] : []
+      )
       // A session that fails to abort or dispose does not keep the others open.
       for (const conv of all)
         await conv.native?.dispose().catch((error: unknown) => {
