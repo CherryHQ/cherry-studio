@@ -1121,6 +1121,7 @@ describe('utils/image', () => {
   describe('imageInputToPreviewUrl', () => {
     let previewBlob: Blob | undefined
     let createObjectUrlDescriptor: PropertyDescriptor | undefined
+    let themeStyle: HTMLStyleElement
     const readBlob = (blob: Blob) =>
       new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
@@ -1139,6 +1140,12 @@ describe('utils/image', () => {
           return 'blob:svg-preview'
         })
       })
+      themeStyle = document.createElement('style')
+      themeStyle.textContent = `
+        :root, body { --background: rgb(255, 255, 255); }
+        :root.image-preview-dark, :root.image-preview-dark body { --background: oklch(0.209 0 0 / 0.55); }
+      `
+      document.head.appendChild(themeStyle)
     })
 
     afterEach(() => {
@@ -1147,6 +1154,93 @@ describe('utils/image', () => {
       } else {
         Reflect.deleteProperty(URL, 'createObjectURL')
       }
+      themeStyle.remove()
+      document.documentElement.classList.remove('image-preview-dark')
+    })
+
+    it.each(['light', 'dark'])('keeps a detached transparent SVG transparent in %s mode', async (theme) => {
+      document.documentElement.classList.toggle('image-preview-dark', theme === 'dark')
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.innerHTML = '<path d="M10 50 H190" stroke="#333" />'
+      const original = svg.outerHTML
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
+        .documentElement as unknown as SVGElement
+      expect(previewSvg.style.backgroundColor).toBe('')
+      expect(previewSvg.outerHTML).not.toContain('background-color')
+      expect(previewSvg.querySelector('path')?.getAttribute('stroke')).toBe('#333')
+      expect(svg.outerHTML).toBe(original)
+    })
+
+    it.each(['light', 'dark'])('preserves an embedded stylesheet background in the %s preview', async (theme) => {
+      document.documentElement.classList.toggle('image-preview-dark', theme === 'dark')
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.id = 'embedded-background'
+      // jsdom only applies HTML style elements; keep the stylesheet inside the serialized SVG.
+      const style = document.createElement('style')
+      style.textContent = '#embedded-background { background-color: ivory; }'
+      svg.appendChild(style)
+      document.body.append(svg)
+      const original = svg.outerHTML
+
+      try {
+        expect(getComputedStyle(svg).backgroundColor).toBe('rgb(255, 255, 240)')
+
+        await imageInputToPreviewUrl(svg, { format: 'svg', backgroundColor: 'black' })
+
+        const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
+          .documentElement as unknown as SVGElement
+        expect(previewSvg.style.backgroundColor).toBe('rgb(255, 255, 240)')
+        expect(previewSvg.querySelector('style')?.textContent).toBe(style.textContent)
+        expect(svg.outerHTML).toBe(original)
+      } finally {
+        svg.remove()
+      }
+    })
+
+    it('keeps an explicitly white host canvas white even in dark mode', async () => {
+      document.documentElement.classList.add('image-preview-dark')
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg', backgroundColor: 'rgb(255, 255, 255)' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
+        .documentElement as unknown as SVGElement
+      const probe = document.createElement('div')
+      probe.style.backgroundColor = previewSvg.style.backgroundColor
+      document.body.append(probe)
+      expect(getComputedStyle(probe).backgroundColor).toBe('rgb(255, 255, 255)')
+      probe.remove()
+    })
+
+    it('preserves an authored SVG background and its painted background shapes', async () => {
+      themeStyle.textContent = ':root, body { --background: black; }'
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.style.backgroundColor = 'ivory'
+      svg.innerHTML = '<rect width="200" height="100" fill="pink" />'
+
+      await imageInputToPreviewUrl(svg, { format: 'svg', backgroundColor: 'black' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
+        .documentElement as unknown as SVGElement
+      expect(previewSvg.style.backgroundColor).toBe('ivory')
+      expect(previewSvg.querySelector('rect')?.getAttribute('fill')).toBe('pink')
+      expect(previewSvg.querySelector('rect')?.getAttribute('width')).toBe('200')
+      expect(previewSvg.querySelector('rect')?.getAttribute('height')).toBe('100')
+    })
+
+    it('leaves photo URLs, image elements and blob bytes unchanged', async () => {
+      const url = 'https://example.com/photo.png'
+      const image = document.createElement('img')
+      image.src = url
+      const blob = new Blob(['photo bytes'], { type: 'image/png' })
+
+      expect(await imageInputToPreviewUrl(url)).toBe(url)
+      expect(await imageInputToPreviewUrl(image)).toBe(url)
+      await imageInputToPreviewUrl(blob)
+      expect(previewBlob).toBe(blob)
     })
 
     it('restores viewBox dimensions on a responsive SVG preview without mutating the live node', async () => {
