@@ -30,6 +30,20 @@ export function databasePath(account: string): string {
   return `/cherry-studio/${encodeURIComponent(account)}/cherry-studio.sqlite`
 }
 
+/** Removes the account's database and files from OPFS; fails while another Worker has the account open. */
+export async function deleteAccountData(account: string, handoverTimeoutMs = 3000): Promise<void> {
+  const release = await acquireAccountLock(account, handoverTimeoutMs)
+  try {
+    const root = await navigator.storage.getDirectory()
+    const accounts = await root.getDirectoryHandle('cherry-studio', { create: true })
+    await accounts.removeEntry(encodeURIComponent(account), { recursive: true })
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error
+  } finally {
+    release()
+  }
+}
+
 /**
  * Opens the account's database on the non-pooled `opfs` VFS and migrates it.
  * The pooled `opfs-sahpool` VFS is not used: a Worker killed mid-write

@@ -1,10 +1,12 @@
 import { application } from '@application'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiHandlers } from '@main/ipc/handlers/ai'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { ipcRequestSchemas, type IpcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 import { version } from '../../../../package.json'
+import { isLocalFolderPath } from '../agent/localFolders'
 import { unsupported } from '../disabled/unsupported'
 import { NATIVE_THEME_CHANNEL } from '../worker/protocol'
 import { ipcMain } from './electron'
@@ -16,12 +18,32 @@ ipcMain.on(NATIVE_THEME_CHANNEL, (_event, theme) => {
   application.get('IpcApiService').broadcast('system.native_theme_updated', nativeTheme)
 })
 
-/** IpcApi routes the Web edition serves: chat streams, and Web answers to what the desktop shell asks at start. */
+/**
+ * IpcApi routes the Web edition serves: chat streams, agent creation, tool approvals, the agent
+ * session runtime, local-folder workspaces, and Web answers to what the desktop shell asks at start.
+ * Archiving and deleting agents, sessions and workspaces need the desktop's workspace archives, which
+ * the Web edition does not have yet.
+ */
 const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.open': aiHandlers['ai.stream.open'],
   'ai.stream.attach': aiHandlers['ai.stream.attach'],
   'ai.stream.detach': aiHandlers['ai.stream.detach'],
   'ai.stream.abort': aiHandlers['ai.stream.abort'],
+  'ai.tool.respond_approval': aiHandlers['ai.tool.respond_approval'],
+  'ai.agent.create': aiHandlers['ai.agent.create'],
+  'ai.agent.session.prewarm': aiHandlers['ai.agent.session.prewarm'],
+  'ai.agent.session.close_warm': aiHandlers['ai.agent.session.close_warm'],
+  'ai.agent.session.set_pending_input_count': aiHandlers['ai.agent.session.set_pending_input_count'],
+  'ai.agent.session.refresh_context_usage': aiHandlers['ai.agent.session.refresh_context_usage'],
+  // Edits and forks answer that the runtime cannot fork, as the desktop does for such a runtime.
+  'ai.agent.session.edit_target': aiHandlers['ai.agent.session.edit_target'],
+  'ai.agent.session.edit_resend': aiHandlers['ai.agent.session.edit_resend'],
+  'ai.agent.session.fork': aiHandlers['ai.agent.session.fork'],
+  // A workspace the user picks is a stored local folder; the desktop's storage checks need its disk.
+  'ai.agent.workspace.register': async ({ path, name }) => {
+    if (!isLocalFolderPath(path)) throw new Error(`Not a local folder the user picked: ${path}`)
+    return agentWorkspaceService.findOrCreateByPath(path, { name })
+  },
   'app.get_info': async () => ({
     version,
     isPackaged: true,
@@ -41,6 +63,8 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'window.get_init_data': async () => null,
   'window.main.set_minimum_size': async () => {},
   'window.main.reset_minimum_size': async () => {},
+  // Escape asks the window to leave full screen; the browser already does that for its own full screen.
+  'window.set_full_screen': async () => {},
   'navigation.protocol_dispatch_ready': async () => {},
   'chat.screenshot.target': async () => {},
   'backup.get_auto_sync_state': async () => ({ pendingNotifications: [] })

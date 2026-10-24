@@ -7,13 +7,26 @@ import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js'
 const HASHES = { sha1, sha256 }
 type HashName = keyof typeof HASHES
 
+type Encoding = 'hex' | 'base64url'
+
+function encode(bytes: Uint8Array, encoding: string | undefined, caller: string): string {
+  if (encoding === 'hex') return bytesToHex(bytes)
+  if (encoding === 'base64url') {
+    return btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+  }
+  throw new Error(`${caller}: unsupported encoding "${encoding}" in the browser`)
+}
+
 function hashFor(algorithm: string) {
   const hash = HASHES[algorithm as HashName]
   if (!hash) throw new Error(`createHash(): unsupported algorithm "${algorithm}" in the browser`)
   return hash
 }
 
-/** Synchronous `update(...).digest('hex')` chains, as the services use them. */
+/** Synchronous `update(...).digest(encoding)` chains of UTF-8 text or bytes, as the services use them. */
 class Digest {
   readonly #chunks: Uint8Array[] = []
   readonly #finish: (data: Uint8Array) => Uint8Array
@@ -27,15 +40,14 @@ class Digest {
     return this
   }
 
-  digest(encoding: 'hex'): string {
-    if (encoding !== 'hex') throw new Error(`digest(): unsupported encoding "${encoding}" in the browser`)
+  digest(encoding: Encoding): string {
     const data = new Uint8Array(this.#chunks.reduce((size, chunk) => size + chunk.length, 0))
     let offset = 0
     for (const chunk of this.#chunks) {
       data.set(chunk, offset)
       offset += chunk.length
     }
-    return bytesToHex(this.#finish(data))
+    return encode(this.#finish(data), encoding, 'digest()')
   }
 }
 
@@ -51,8 +63,7 @@ export function createHmac(algorithm: string, key: string | Uint8Array): Digest 
 
 class RandomBytes extends Uint8Array {
   override toString(encoding?: string): string {
-    if (encoding !== 'hex') throw new Error(`randomBytes(): unsupported encoding "${encoding}" in the browser`)
-    return Array.from(this, (byte) => byte.toString(16).padStart(2, '0')).join('')
+    return encode(this, encoding, 'randomBytes()')
   }
 }
 
@@ -62,4 +73,12 @@ export function randomBytes(size: number): RandomBytes {
 
 export function randomUUID(): string {
   return crypto.randomUUID()
+}
+
+/** Reads every byte whatever the inputs hold, so the time taken does not reveal where they differ. */
+export function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) throw new RangeError('Input buffers must have the same byte length')
+  let difference = 0
+  for (let index = 0; index < a.length; index++) difference |= a[index] ^ b[index]
+  return difference === 0
 }

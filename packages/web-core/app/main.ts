@@ -1,6 +1,7 @@
 import '../src/page/preload'
 import { CoreClient } from '../src/client/CoreClient'
 import { connectCore } from '../src/page/electron'
+import { installLocalFolders } from '../src/page/localFolders'
 import { reportNativeTheme } from '../src/page/nativeTheme'
 import { showStartError } from '../src/page/startError'
 
@@ -10,6 +11,7 @@ const LOCAL_ACCOUNT = 'local'
 
 const client = new CoreClient(new Worker(new URL('./coreWorker.ts', import.meta.url), { type: 'module' }))
 connectCore(client)
+installLocalFolders(client)
 reportNativeTheme()
 try {
   await client.open(LOCAL_ACCOUNT)
@@ -18,3 +20,5 @@ try {
   throw error
 }
 await import('@renderer/windows/main/entryPoint')
+// The desktop loads it with the code block view; the Worker's `PythonService` needs its listener from the start.
+await import('@renderer/services/PyodideService')

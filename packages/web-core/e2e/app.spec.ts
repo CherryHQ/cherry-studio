@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
 
-import { composerInput, gotoApp, removeAppData } from './appPage'
+import { composerInput, gotoApp, removeAppData, sidebarApps } from './appPage'
 import { expect, test as harnessTest } from './fixtures'
 import { MOCK_PROVIDER_PORT } from './mockProvider'
 
@@ -25,9 +25,11 @@ test('runs the desktop main window with only the Web edition features', async ({
   page.on('pageerror', (error) => pageErrors.push(error.message))
   await gotoApp(page)
 
-  const sidebarApps = page.locator('[data-ui="app.sidebar"] [data-ui="ui.item"] button')
-  await expect(sidebarApps).toHaveCount(1)
-  await expect(sidebarApps).toHaveAttribute('aria-label', 'Chat')
+  await expect(sidebarApps(page)).toHaveCount(2)
+  expect(await sidebarApps(page).evaluateAll((buttons) => buttons.map((button) => button.ariaLabel))).toEqual([
+    'Work',
+    'Chat'
+  ])
 
   await page.getByRole('button', { name: 'Settings' }).click()
   await expect(page.locator('[data-ui~="part:menu-item"]')).toHaveText([

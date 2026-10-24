@@ -6,12 +6,14 @@ renderer services in the page over emulated Electron IPC. The Web app in `app/` 
 unmodified desktop main window on top of it. See the Agent Notes for the
 [database](../../.agents/notes/proposed/architecture/2026-10-20-web-core-database.md),
 [chat](../../.agents/notes/proposed/architecture/2026-10-20-web-core-ai.md),
-[page bridge](../../.agents/notes/proposed/architecture/2026-10-20-web-core-page-bridge.md) and
-[Web app](../../.agents/notes/proposed/architecture/2026-10-20-web-core-app.md).
+[page bridge](../../.agents/notes/proposed/architecture/2026-10-20-web-core-page-bridge.md),
+[Web app](../../.agents/notes/proposed/architecture/2026-10-20-web-core-app.md),
+[agent](../../.agents/notes/proposed/architecture/2026-10-21-web-core-agent.md) and
+[agent local folders](../../.agents/notes/proposed/architecture/2026-10-23-web-core-local-folder.md).
 
-- `./worker` — `startCoreWorker(self, extraCommands?)` turns a dedicated Worker into a
+- `./worker` — `startCoreWorker(self, extraCommands?, hooks?)` turns a dedicated Worker into a
   Core Worker. Commands: `open` (account), `request` (a DataApi `DataRequest`),
-  `ipc-invoke` / `ipc-send` (the page's `ipcRenderer`), `close`.
+  `ipc-invoke` / `ipc-send` (the page's `ipcRenderer`), `close`. See *Editions* for `hooks`.
 - `./client` — `CoreClient` on the page: `open()`, `request()`, and `onBroadcast()` for
   every `webContents.send` of the Worker (e.g. `DataApi_DataChanged`).
 - `src/page/preload.ts` — imported before any renderer module, it runs the desktop preload
@@ -21,19 +23,23 @@ unmodified desktop main window on top of it. See the Agent Notes for the
 
 The Worker build (`vite.config.ts`) aliases the few main-process modules the services
 touch to browser implementations in `src/runtime/`: `@application` (only the services
-registered by `startCoreWorker`; `getPath` returns `/web/<namespace>` paths nothing opens), `@logger`, `diagnostics`, `platform`, `electron` (the
-`ipcMain` registries, the page as the only window and `app.getLocale()`), `node:crypto`, `node:os`, `node:path`, `node:util`,
+registered by `startCoreWorker`; `getPath` returns `/web/<namespace>` paths), `@logger`, `diagnostics`, `platform`, `electron` (the
+`ipcMain` registries, the page as the only window, `app.getLocale()` / `relaunch()`, `shell.openExternal` and
+`net.fetch`), `node:crypto`, `node:os`, `node:path`, `node:util`,
+`node:fs`, `node:fs/promises` and `node:url` (→ ZenFS, see below),
 `node:buffer`, better-sqlite3 (→ `@cherrystudio/sqlite-wasm-compat`), drizzle's
 file-reading migrator (→ migrations bundled at build time) and the provider registry
 loader (→ the bundled catalog). `BootConfigService` keeps the defaults in memory,
 `validateSender` accepts the page (a dedicated Worker only hears from it), and
-`CacheService`'s persist file lives in memory. Nothing under `src/main` is edited.
+`CacheService`'s persist file lives in memory. `process.platform` reads `'browser'` in every
+source file outside `node_modules`.
+Nothing under `src/main` is edited.
 A build plugin fails on any other Node built-in or Electron import, so a served service
 that grows a desktop-only dependency breaks `build:harness` instead of the browser.
 
 The whole desktop DataApi table is served; a route backed by a left-out feature fails with
-`WebUnsupportedError` when called. Of the IpcApi routes, `ai.stream.*` and the ones the main
-window calls at start are served (`src/runtime/ipcHandlers.ts`); the others answer that the
+`WebUnsupportedError` when called. Of the IpcApi routes, `ai.stream.*`, the agent routes listed
+under agents below and the ones the main window calls at start are served (`src/runtime/ipcHandlers.ts`); the others answer that the
 Web edition lacks them. The page reports its `prefers-color-scheme` on `web:native-theme`,
 which the Worker serves as Electron's `nativeTheme`.
 
@@ -46,15 +52,60 @@ skipped). Traces are dropped: the desktop trace window has no Web
 counterpart. `close` stops live streams before closing the database.
 
 `workerModuleReplacements` swaps the entry modules of desktop features the Web edition leaves
-out (skills, built-in tools, agents and agent sessions, channels, attachments and file storage, model
+out (skills, built-in tools, agent archives and forks, channels, attachments and file storage, model
 listing, web search, Copilot / Grok CLI / Ollama, trace storage, devtools) for stand-ins in
 `src/disabled/` that throw `WebUnsupportedError` when called. Swapping the entry module keeps
 the feature's dependencies out of the bundle. Provider requests use the Worker's `fetch`, so
 an endpoint must allow CORS from the page's origin.
 
-The Worker build moves every eagerly loaded module into a `core` chunk. WebKit evaluates a
-module Worker's script a second time when a lazily loaded chunk imports from it, which
-started a second Core Worker without a database.
+The Worker build moves every eagerly loaded module into a `core` chunk
+(`workerCodeSplitting(entries)`). WebKit evaluates a module Worker's script a second time when a
+lazily loaded chunk imports from it, which started a second Core Worker without a database.
+
+## How agents run here
+
+`open` mounts the account's files with ZenFS: `/web` is the OPFS folder
+`cherry-studio/<account>/files` beside the database, so agent workspaces and data folders
+survive reloads. The Cherry Assistant templates are served in memory at
+`feature.agents.builtin`. `WebCherryAssistantSeeder` replaces the desktop Cherry Assistant
+and support seeders: it adds one Pi Cherry Assistant (no model yet) with a session.
+
+The desktop `AgentSessionRuntimeService` hosts every session. `src/agent/registerDrivers.ts`
+registers `BrowserAgentDriver` as the `pi` runtime; each turn runs the desktop AI SDK `Agent`
+with the tools in `src/agent/fileTools.ts` (`read`, `write`, `edit`, `ls`, `find`, `grep` on
+the workspace, plus `report_artifacts`) and `src/agent/codeTools.ts`:
+`python_execute` is served by the desktop `PythonService`, which asks the page's Pyodide
+(`app/main.ts` loads its listener at start; Pyodide comes from jsDelivr). The desktop Pyodide
+worker runs in a sandboxed iframe (`src/page/pyodideWorker.ts`), whose opaque origin keeps
+Python away from the app's OPFS, IndexedDB and storage. `js_execute`
+runs in QuickJS (`quickjs-wasi`) in a Worker of its own, terminated when the run times out.
+Tool calls go through the desktop Pi approval rules
+(`createPiToolAuthorizer`), and the AI SDK chunks are fed to the desktop `PiStreamAdapter`,
+so tool cards, approvals and stored messages match the desktop's. `sharedModuleReplacements`
+swaps two `src/shared` modules in both the Worker and the page: the Pi tool catalog lists the
+browser tools (`ls`, `find` and `grep` are read-class) and the runtime capabilities turn off
+heartbeat, knowledge bases, MCP, skills and slash commands. Served agent IpcApi routes:
+`ai.agent.create`, `ai.tool.respond_approval` and the session's `prewarm`, `close_warm`,
+`set_pending_input_count`, `refresh_context_usage`, `edit_target`, `edit_resend` and `fork`
+(editing a sent message and forking answer that the checkpoint is unsupported). Deleting or archiving an agent
+or session is not served yet.
+
+### Local folders
+
+The composer's "Add new work directory" lets an agent work in a folder on the user's computer
+(Chrome and Edge only). The page answers the desktop folder dialog (`IpcChannel.File_SelectFolder`)
+with `showDirectoryPicker()` in the same click (`src/page/localFolders.ts`, through `handleInPage`
+in `src/page/electron.ts`) and sends the handle to the Worker (`local-folder.add`). The Worker
+keeps handles per account in IndexedDB `cherry-studio-local-folders` and mounts each at
+`/local/<id>/<folder name>` while the account is open (`src/agent/localFolders.ts`);
+`ai.agent.workspace.register` is served for those paths only.
+
+The mount is `LocalFolderFS` (`src/agent/localFolderFs.ts`): every call runs on the directory
+handle, with no preload or cache, so files changed elsewhere are current; it has async calls only.
+A folder whose permission the browser dropped is mounted as `UnavailableFolderFS`: every call fails
+with `EACCES`, and the first one broadcasts `PageChannel.LocalFolderAccess`, whose toast asks the
+user to allow access (`requestPermission` needs the click) and then sends `local-folder.allow`.
+A browser without the picker shows a toast that local folders need Chrome or Edge.
 
 ## How the page talks to the Worker
 
@@ -77,8 +128,30 @@ opens the `local` account (every visitor shares it until login exists) and then 
 `src/renderer/windows/main/entryPoint.tsx`. If the account does not open, for example while
 another tab holds it, `src/page/startError.ts` replaces the spinner with the reason and a
 reload button. `pageModuleReplacements` swaps renderer modules
-in the page: Sentry is off, and the settings menu keeps the provider, default model,
-general, appearance and about sections. Nothing under `src/renderer` is edited.
+in the page: Sentry is off, the settings menu keeps the provider, default model,
+general, appearance and about sections, creating an agent shows Pi as its runtime
+instead of a choice, and the Pyodide worker starts in a sandboxed iframe. Nothing under
+`src/renderer` is edited.
+
+## Editions
+
+Another edition builds its own Web app on this package, with its own Worker entry and page.
+
+- `WEB_CORE_SOURCE_ROOT` makes `vite.config.ts` resolve `src/main`, `src/renderer` and `src/shared`
+  under another tree, such as an edition's prepared source view, before the edition imports it.
+- `startCoreWorker`'s `hooks`: `createIpcApiService` / `createDataApiService` build the edition's
+  services in place of the desktop ones, `afterOpen(opened, account)` starts the edition's services
+  once the account's have started (a throw closes the account again) and `beforeClose` stops them.
+  It returns the `open` and `close` commands so the edition can reopen another account in place.
+- `application` starts ready with the Worker's window and IPC services, before any account opens,
+  so an edition can serve a sign-in page without a database. `WebServices` can be augmented, and
+  `getContainer()` is the desktop container's lookup.
+- The Worker reaches the page on `PageChannel`: `web:relaunch` (`app.relaunch()`) reloads it,
+  `web:open-external` (`shell.openExternal`) opens a tab, and `web:load-url` (`window.loadURL`)
+  hands the page the entry to show; the page decides whether that means a reload.
+- `resolveProcessAliases(extraPageSources)` treats an edition's page files as page code.
+  `mountOpfsDirectory` mounts any OPFS folder in ZenFS, and `deleteAccountData(account)` removes an
+  account's database and files once no Worker holds it.
 
 ## Database invariants
 
@@ -90,13 +163,15 @@ general, appearance and about sections. Nothing under `src/renderer` is edited.
   reloaded page's previous Worker to release the lock and its file handles.
 - The desktop seeders run on every `open`, as in the desktop `DbService.onInit`.
   `WebPreferenceDefaultsSeeder` runs first and writes the preferences whose Web default
-  differs (the sidebar offers only chat); the desktop seeders skip existing rows.
+  differs (the sidebar offers only agents and chat); the desktop seeders skip existing rows.
 
 ## Tests
 
 `pnpm test:web-core:browser` builds `harness/` and the Web app and runs `e2e/` with Playwright in Chromium,
 WebKit and Firefox (`pnpm exec playwright install chromium webkit firefox` once). The
 harness Worker adds test-only commands (`sql`, `seedMessages`, `integrity`, `searchMessages`,
-`chat`). `harness/bridge.html` loads the desktop preload and renderer services over the same
-Worker for `e2e/bridge.spec.ts`. `e2e/app.spec.ts` drives the Web app (port 4320). `e2e/mockProvider.ts` is the OpenAI-compatible endpoint the chat tests talk to.
+`chat`, and `fsCall` and `revokeFolderPermission` for `e2e/localFolder.spec.ts`, where an OPFS
+directory stands in for a picked folder). `harness/bridge.html` loads the desktop preload and renderer services over the same
+Worker for `e2e/bridge.spec.ts`. `e2e/app.spec.ts` and `e2e/agent.spec.ts` drive the Web app (port 4320). `e2e/mockProvider.ts` is the
+OpenAI-compatible endpoint the chat and agent tests talk to; `call <tool> <json>` makes it call tools.
 `WEB_CORE_SCALE=1` adds the 50k-message timing run.

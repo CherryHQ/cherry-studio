@@ -1,14 +1,22 @@
 import { seeders } from '@data/db/seeding/seederRegistry'
+import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
+import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { CacheService } from '@main/data/CacheService'
 import { DataApiService } from '@main/data/DataApiService'
 import { PreferenceService } from '@main/data/PreferenceService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
+import { PythonService } from '@main/services/PythonService'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { mountBuiltinAgentTemplates } from '../agent/builtinAgentTemplates'
+import { addLocalFolder, allowLocalFolder, mountLocalFolders, unmountLocalFolders } from '../agent/localFolders'
+import { mountAccountFiles, unmountAccountFiles } from '../database/accountFiles'
 import { type OpenedDatabase, openDatabase } from '../database/openDatabase'
+import { WebCherryAssistantSeeder } from '../database/WebCherryAssistantSeeder'
 import { WebPreferenceDefaultsSeeder } from '../database/WebPreferenceDefaultsSeeder'
 import { application } from '../runtime/application'
 import { connectPage, ipcMain } from '../runtime/electron'
@@ -26,19 +34,33 @@ export type CommandHandler = (payload: any, context: CommandContext) => unknown
 /** The part of a dedicated Worker's global scope the host uses. */
 export type WorkerScope = Pick<Worker, 'postMessage' | 'addEventListener'>
 
+/** How an edition's Web app extends the core start-up. */
+export interface CoreWorkerHooks {
+  /** Builds the IpcApi service; an edition passes a subclass that serves its own routes too. */
+  createIpcApiService?(): IpcApiService
+  /** Builds the DataApi service; an edition passes one with its own middleware. */
+  createDataApiService?(): DataApiService
+  /** Runs at the end of `open`, after the account's services have started. */
+  afterOpen?(opened: OpenedDatabase, account: string): Promise<void>
+  /** Runs first in `close`, while the account's services still run. */
+  beforeClose?(): Promise<void>
+}
+
 /** Services that need no database; their IPC handlers answer from the Worker's start. */
-async function startPageServices() {
+async function startPageServices(hooks: CoreWorkerHooks) {
   application.register('WindowManager', new WebWindowManager())
   // The desktop keeps renderer logs in its log file; the page has already written them to its console.
   ipcMain.handle(IpcChannel.App_LogToMain, () => undefined)
   for (const [name, service] of [
     ['CacheService', new CacheService()],
-    ['DataApiService', new DataApiService()],
-    ['IpcApiService', new IpcApiService()]
+    ['DataApiService', hooks.createDataApiService?.() ?? new DataApiService()],
+    ['IpcApiService', hooks.createIpcApiService?.() ?? new IpcApiService()],
+    ['PythonService', new PythonService()]
   ] as const) {
     await service._doInit()
     application.register(name, service)
   }
+  application.markReady()
 }
 
 /**
@@ -49,7 +71,15 @@ async function startPageServices() {
 async function startAccountServices(opened: OpenedDatabase) {
   application.register('DbService', opened.service)
   // The desktop seeds on every start (`DbService.onInit`); PreferenceService only updates existing rows.
-  new SeedRunner(opened.service.getDb()).runAll([new WebPreferenceDefaultsSeeder(), ...seeders])
+  // Its built-in agents run on Claude Code, which the browser cannot run; the Web seeds a Pi assistant.
+  const desktopSeeders = seeders.filter(
+    (seeder) => !(seeder instanceof CherryAssistantSeeder || seeder instanceof CherrySupportSeeder)
+  )
+  new SeedRunner(opened.service.getDb()).runAll([
+    new WebPreferenceDefaultsSeeder(),
+    ...desktopSeeders,
+    new WebCherryAssistantSeeder()
+  ])
   const preferences = new PreferenceService()
   await preferences._doInit()
   application.register('PreferenceService', preferences)
@@ -66,6 +96,11 @@ async function startAccountServices(opened: OpenedDatabase) {
     addSpanEvent() {},
     saveSpans: async () => {}
   })
+  // The agent host releases Claude Code's warm queries for every session; the browser runtime keeps none.
+  application.register('ClaudeCodeWarmQueryManager', { close: async () => {}, closeAgentSessionWarm() {} })
+  const agentSessions = new AgentSessionRuntimeService()
+  await agentSessions._doInit()
+  application.register('AgentSessionRuntimeService', agentSessions)
 }
 
 function serializeError(error: unknown): SerializedError {
@@ -78,14 +113,18 @@ function serializeError(error: unknown): SerializedError {
  * Turns the current dedicated Worker into a Core Worker: it owns the account's database and runs
  * the main-process services for the page, which reaches them through `ipc-invoke` / `ipc-send`
  * (the page's `ipcRenderer`) or the `request` shortcut for DataApi. `extraCommands` lets a host
- * add its own commands next to the core ones.
+ * add its own commands next to the core ones, and `hooks` extend the start-up.
  */
-export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string, CommandHandler> = {}) {
+export function startCoreWorker(
+  scope: WorkerScope,
+  extraCommands: Record<string, CommandHandler> = {},
+  hooks: CoreWorkerHooks = {}
+) {
   installNodeGlobals()
   let opened: OpenedDatabase | undefined
   const post = (message: WorkerMessage) => scope.postMessage(message)
   const ipc = connectPage((channel, args) => post({ kind: 'broadcast', channel, args }))
-  const started = startPageServices()
+  const started = startPageServices(hooks)
 
   const context: CommandContext = {
     database() {
@@ -99,7 +138,16 @@ export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string
       if (opened) throw new Error(`The database is already open at ${opened.path}`)
       await started
       opened = await openDatabase(account, { handoverTimeoutMs })
+      await mountAccountFiles(account)
+      await mountLocalFolders(account)
+      await mountBuiltinAgentTemplates()
       await startAccountServices(opened)
+      try {
+        await hooks.afterOpen?.(opened, account)
+      } catch (error) {
+        await coreCommands.close(undefined)
+        throw error
+      }
       return { path: opened.path, openMs: opened.openMs, migrateMs: opened.migrateMs }
     },
     request: (request) => application.get('DataApiService').getApiServer().handleRequest(request),
@@ -114,12 +162,18 @@ export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string
     },
     async close() {
       if (!opened) return
+      await hooks.beforeClose?.()
       // Let live replies persist their partial text before the database goes away.
+      await application.get('AgentSessionRuntimeService')._doStop()
       await application.get('AiStreamManager')._doStop()
       await application.get('PreferenceService')._doStop()
       opened.close()
+      unmountLocalFolders()
+      unmountAccountFiles()
       opened = undefined
-    }
+    },
+    'local-folder.add': ({ handle }) => addLocalFolder(handle),
+    'local-folder.allow': ({ id }) => allowLocalFolder(id)
   }
   const commands: Record<string, CommandHandler> = { ...extraCommands, ...coreCommands }
 
@@ -133,4 +187,6 @@ export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string
       post({ kind: 'reply', id, ok: false, error: serializeError(error) })
     }
   })
+  // An edition that switches accounts in place opens and closes directly.
+  return { open: coreCommands.open, close: coreCommands.close }
 }
