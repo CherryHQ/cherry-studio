@@ -87,7 +87,7 @@ import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
-import { withReportedOutputUsage, type ReportedOutputUsage } from './reportedOutputUsage'
+import { reportedOutputUsageObserver, type ReportedOutputUsage } from './reportedOutputUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 
@@ -1055,12 +1055,9 @@ function withPiRequestEnvironment(
     return streamSimple(model, context, {
       ...options,
       env: { ...options?.env, ...proxyEnvironment, ...providerEnvironment },
-      fetch: withReportedOutputUsage(
-        // Preserve the Node transport cast: Undici and Electron use distinct RequestInit types.
-        // eslint-disable-next-line typescript/no-unnecessary-type-assertion
-        usesAuthenticatedNodeProxy ? (nodeFetch as unknown as typeof globalThis.fetch) : customFetch,
-        beginReportedUsage()
-      )
+      // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
+      fetch: usesAuthenticatedNodeProxy ? (nodeFetch as unknown as typeof globalThis.fetch) : customFetch,
+      onProviderStreamEvent: reportedOutputUsageObserver(beginReportedUsage(), options?.onProviderStreamEvent)
     })
   }
 }

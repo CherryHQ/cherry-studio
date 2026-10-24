@@ -1,3 +1,5 @@
+import type { StreamOptions } from '@earendil-works/pi-ai'
+
 /** Raw wire counts, captured before SDK adapters fill absent fields with zero. */
 export interface ReportedOutputUsage {
   outputTokens?: number
@@ -35,57 +37,13 @@ export function collectReportedOutputUsage(value: unknown, counts: ReportedOutpu
   }
 }
 
-/** Observe SSE in the consumer's path, without a tee, extra reader, or retained response body. */
-export function withReportedOutputUsage(fetcher: typeof fetch, counts: ReportedOutputUsage): typeof fetch {
-  return async (input, init) => {
-    delete counts.outputTokens
-    delete counts.reasoningTokens
-    const response = await fetcher(input, init)
-    if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) return response
-    const decoder = new TextDecoder()
-    let line = ''
-    let oversized = false
-    const observe = (text: string) => {
-      for (const character of text) {
-        if (character === '\n') {
-          if (!oversized && line.startsWith('data:')) {
-            try {
-              collectReportedOutputUsage(JSON.parse(line.slice(5).trim()), counts)
-            } catch {
-              /* Non-JSON SSE sentinels are not usage. */
-            }
-          }
-          line = ''
-          oversized = false
-        } else if (!oversized) {
-          line += character
-          // Large tool/image payloads are not worth retaining for optional diagnostics.
-          if (line.length > 65536) {
-            line = ''
-            oversized = true
-          }
-        }
-      }
-    }
-    const body = response.body.pipeThrough(
-      new TransformStream<Uint8Array, Uint8Array>({
-        transform(chunk, controller) {
-          observe(decoder.decode(chunk, { stream: true }))
-          controller.enqueue(chunk)
-        },
-        flush() {
-          observe(decoder.decode() + '\n')
-        }
-      })
-    )
-    const observed = new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers
-    })
-    // Reconstructing a Response otherwise loses transport metadata used by SDK diagnostics.
-    for (const key of ['url', 'redirected', 'type'] as const)
-      Object.defineProperty(observed, key, { value: response[key] })
-    return observed
+/** Compose the SDK's read-only pre-normalization hook without retaining response content. */
+export function reportedOutputUsageObserver(
+  counts: ReportedOutputUsage,
+  previous?: StreamOptions['onProviderStreamEvent']
+): NonNullable<StreamOptions['onProviderStreamEvent']> {
+  return async (data, model) => {
+    collectReportedOutputUsage(data, counts)
+    await previous?.(data, model)
   }
 }

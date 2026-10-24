@@ -712,7 +712,7 @@ describe('PiRuntimeConnection', () => {
     await mocks.providerStreamSimple.mock.calls[0][2].fetch('https://provider.invalid')
     expect(customFetch).toHaveBeenCalledWith('https://provider.invalid', undefined)
     expect(mocks.providerStreamSimple.mock.calls[0][2]).toMatchObject({
-      fetch: expect.any(Function),
+      fetch: customFetch,
       env: {
         REQUEST_SCOPED: 'preserved',
         HTTP_PROXY: 'http://127.0.0.1:7890',
@@ -1188,13 +1188,13 @@ describe('PiRuntimeConnection', () => {
     mocks.resolveInjection.mockResolvedValue(injection)
     const conn = await new PiRuntimeConnection(input).start()
     // Counts come from pre-normalization wire presence, not the SDK's default-filled message.
-    const response = new Response(
-      'data: {"usage":{"completion_tokens":8192,"completion_tokens_details":{"reasoning_tokens":7000}}}\n\n',
-      { headers: { 'content-type': 'text/event-stream' } }
-    )
-    vi.mocked(customFetch).mockResolvedValueOnce(response)
     mocks.registerProvider.mock.calls[0][1].streamSimple({}, {}, {})
-    await (await mocks.providerStreamSimple.mock.calls.at(-1)![2].fetch('https://provider.invalid')).text()
+    await mocks.providerStreamSimple.mock.calls
+      .at(-1)![2]
+      .onProviderStreamEvent(
+        { usage: { completion_tokens: 8192, completion_tokens_details: { reasoning_tokens: 7000 } } },
+        {}
+      )
     mocks.subscribeCb!({
       type: 'turn_end',
       message: { role: 'assistant', stopReason: 'length', usage: { output: 8192, reasoning: 7000 } },

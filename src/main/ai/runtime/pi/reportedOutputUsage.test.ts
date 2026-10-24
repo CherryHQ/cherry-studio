@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { collectReportedOutputUsage, withReportedOutputUsage, type ReportedOutputUsage } from './reportedOutputUsage'
+import {
+  collectReportedOutputUsage,
+  reportedOutputUsageObserver,
+  type ReportedOutputUsage
+} from './reportedOutputUsage'
 
 describe('raw output usage before SDK normalization', () => {
   it.each([
@@ -21,29 +25,14 @@ describe('raw output usage before SDK normalization', () => {
     collectReportedOutputUsage(wire, counts)
     expect(counts).toEqual(expected)
   })
-  it('observes fragmented SSE without changing the consumer bytes', async () => {
-    const payload =
-      'data: {"choices":[{"delta":{"content":"hello"}}]}\r\n\r\ndata: {"usage":{"completion_tokens":0,"completion_tokens_details":{"reasoning_tokens":0}}}\n\ndata: [DONE]\n\n'
-    const encoder = new TextEncoder()
+  it('composes the caller observer without mutating the raw event', async () => {
     const counts: ReportedOutputUsage = {}
-    const fetcher = (async () =>
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            for (const character of payload) controller.enqueue(encoder.encode(character))
-            controller.close()
-          }
-        }),
-        { headers: { 'content-type': 'text/event-stream' } }
-      )) as typeof fetch
-    const response = await withReportedOutputUsage(fetcher, counts)('https://provider.invalid')
-    expect(await response.text()).toBe(payload)
-    expect(counts).toEqual({ outputTokens: 0, reasoningTokens: 0 })
-  })
-  it('does not invent counts for missing usage or inspect non-SSE responses', async () => {
-    const counts: ReportedOutputUsage = {}
-    const fetcher = (async () => new Response('{"usage":{"completion_tokens":7}}')) as typeof fetch
-    expect(await (await withReportedOutputUsage(fetcher, counts)('https://provider.invalid')).text()).toContain('7')
-    expect(counts).toEqual({})
+    const data = Object.freeze({ usage: Object.freeze({ completion_tokens: 0 }) })
+    let received: unknown
+    await reportedOutputUsageObserver(counts, async (event) => {
+      received = event
+    })(data, {} as never)
+    expect(received).toBe(data)
+    expect(counts).toEqual({ outputTokens: 0 })
   })
 })
