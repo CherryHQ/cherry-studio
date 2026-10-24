@@ -3055,7 +3055,7 @@ describe('AgentRightPane', () => {
     expect(fileSessionDiscardMock).not.toHaveBeenCalled()
   })
 
-  it('discards the dirty draft before confirming navigation', () => {
+  it('discards the dirty draft before confirming navigation', async () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
       ['README.md', { kind: 'file' }],
@@ -3082,8 +3082,9 @@ describe('AgentRightPane', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    })
     expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
     expect(fileSessionFlushMock).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -3092,7 +3093,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
   })
 
-  it('commits a confirmed workspace change after discard clears the dirty file', () => {
+  it('commits a confirmed workspace change after discard clears the dirty file', async () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
     fileSessionDiscardMock.mockImplementationOnce(() => {
@@ -3115,8 +3116,9 @@ describe('AgentRightPane', () => {
     fileSessionState.isDirty = true
     rerender(renderPane('/workspace-b'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    })
     expect(fileSessionState.isDirty).toBe(false)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-b' })
@@ -3239,7 +3241,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
   })
 
-  it('accepts a later B request after a canceled B is replaced by an uncommitted C', () => {
+  it('accepts a later B request after a canceled B is replaced by an uncommitted C', async () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
     const renderPane = (workspacePath: string) => (
@@ -3268,15 +3270,16 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-a' })
 
     rerender(renderPane('/workspace-b'))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    })
     expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-b' })
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(fileSessionState.isDirty).toBe(true)
   })
 
-  it('keeps the dirty file bound to its original workspace until the workspace transition is confirmed', () => {
+  it('keeps the dirty file bound to its original workspace until the workspace transition is confirmed', async () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
     const renderPane = (workspacePath: string) => (
@@ -3299,8 +3302,9 @@ describe('AgentRightPane', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-a' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    })
     expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
     expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-b' })
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
@@ -3356,7 +3360,7 @@ describe('AgentRightPane', () => {
     })
   })
 
-  it('waits for an in-flight save before allowing discard and navigation', () => {
+  it('waits for an in-flight save before allowing discard and navigation', async () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
       ['README.md', { kind: 'file' }],
@@ -3387,8 +3391,9 @@ describe('AgentRightPane', () => {
 
     fileSessionState.isSaving = false
     rerender(renderPane())
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    })
     expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
   })
@@ -3907,14 +3912,16 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    })
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('src/deep.ts')
 
     await act(async () => artifactMetadata.resolve(fileMetadata))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    })
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md')
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
   })

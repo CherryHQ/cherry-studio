@@ -41,6 +41,7 @@ interface NotesEditorProps {
   activeNodeId?: string
   voiceNoteId?: string
   currentContent: string
+  readOnly?: boolean
   contentLoadError?: Error
   tokenCount: number
   editorRef: RefObject<RichEditorRef | null>
@@ -54,6 +55,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     activeNodeId,
     voiceNoteId,
     currentContent,
+    readOnly = false,
     contentLoadError,
     tokenCount,
     onMarkdownChange,
@@ -72,11 +74,26 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
+    const binding = useMemo(() => ({ mode: tmpViewMode }), [tmpViewMode])
+    const bindingRef = useRef(binding)
+    useLayoutEffect(() => {
+      bindingRef.current = binding
+      return () => {
+        bindingRef.current = { mode: 'read' }
+      }
+    }, [binding])
+    const acceptMarkdown = useCallback(
+      (content: string) => {
+        if (bindingRef.current === binding && !readOnly) onMarkdownChange(content)
+      },
+      [binding, readOnly, onMarkdownChange]
+    )
     const activeCmTheme = useCmTheme(tmpViewMode === 'source')
     const currentViewModeRef = useRef(currentViewMode)
     const activeViewModeRef = useRef(tmpViewMode)
     activeViewModeRef.current = tmpViewMode
     const userViewModeOverrideRef = useRef(false)
+    const composingRef = useRef(false)
     const readButtonRef = useRef<HTMLButtonElement>(null)
     const voiceIdentityRef = useRef(voiceNoteId)
     voiceIdentityRef.current = voiceNoteId
@@ -174,10 +191,10 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     useEffect(() => {
       currentViewModeRef.current = currentViewMode
-      if (!userViewModeOverrideRef.current) {
+      if (!userViewModeOverrideRef.current && !composingRef.current && !readOnly) {
         setTmpViewMode(currentViewMode)
       }
-    }, [currentViewMode])
+    }, [currentViewMode, readOnly])
 
     useEffect(() => {
       userViewModeOverrideRef.current = false
@@ -213,6 +230,13 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       <>
         <div
           data-ui="notes.editor"
+          data-file-edit
+          onCompositionStartCapture={() => {
+            composingRef.current = true
+          }}
+          onCompositionEndCapture={() => {
+            composingRef.current = false
+          }}
           data-note-id={activeNodeId}
           data-voice-target-id={voiceTargetId}
           onFocusCapture={markVoiceTargetCurrent}
@@ -226,7 +250,9 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     ref={setSourceEditorRef}
                     value={currentContent}
                     language="markdown"
-                    onChange={onMarkdownChange}
+                    onChange={acceptMarkdown}
+                    readOnly={readOnly}
+                    editable={!readOnly}
                     className="h-full"
                     expanded={false}
                     height="100%"
@@ -239,9 +265,9 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
                   ref={setRichEditorRef}
                   initialContent={currentContent}
-                  onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
-                  showToolbar={tmpViewMode === 'preview'}
-                  editable={tmpViewMode === 'preview'}
+                  onMarkdownChange={tmpViewMode === 'preview' ? acceptMarkdown : undefined}
+                  showToolbar={tmpViewMode === 'preview' && !readOnly}
+                  editable={tmpViewMode === 'preview' && !readOnly}
                   autoFocus={currentContent.trim().length === 0}
                   showTableOfContents={settings.showTableOfContents}
                   lineBreaks={settings.lineBreaks}
@@ -270,7 +296,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               {voiceNoteId && (
                 <DictationControls
                   targetId={voiceTargetId}
-                  disabled={tmpViewMode === 'read' || !voiceEditorReady}
+                  disabled={readOnly || tmpViewMode === 'read' || !voiceEditorReady}
                   focusInput={focusCurrentEditor}
                 />
               )}
@@ -305,6 +331,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               <Selector
                 value={tmpViewMode}
                 onChange={(value: EditorView) => {
+                  if (composingRef.current || readOnly) return
                   userViewModeOverrideRef.current = true
                   setTmpViewMode(value)
                 }}
