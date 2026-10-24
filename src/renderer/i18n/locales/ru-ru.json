@@ -4682,6 +4682,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "Подключитесь к flomo, чтобы быстро записывать заметки и идеи с помощью ИИ. Требуется авторизация в аккаунте flomo.",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "Автоматическая установка службы MCP (бета-версия)",
   "settings.mcp.builtinServersDescriptions.memory": "реализация постоянной памяти на основе локального графа знаний. Это позволяет модели запоминать информацию о пользователе между различными диалогами. Требуется настроить переменную среды MEMORY_FILE_PATH.",
+  "settings.mcp.builtinServersDescriptions.multi_calendar": "Подключитесь к Multi Calendar, чтобы просматривать события, находить свободное время, создавать, переносить и отменять события и отвечать на приглашения сразу во всех календарях Outlook.com, Microsoft 365 и Google. Требуется авторизация в аккаунте Lumman.",
   "settings.mcp.builtinServersDescriptions.no": "без описания",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Требуется запущенное локально приложение Nowledge Mem. Хранит чаты ИИ, инструменты, заметки, агентов и файлы в приватной памяти на вашем компьютере. Скачать можно на https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Выполняйте код Python в безопасной песочнице. Запускайте Python с помощью Pyodide, поддерживается большинство стандартных библиотек и пакетов для научных вычислений",

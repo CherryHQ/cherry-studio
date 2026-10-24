@@ -4682,6 +4682,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "flomoに接続して、AIを通じてメモやアイデアを素早くキャプチャします。flomoアカウントの認可が必要です。",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "MCPサービスの自動インストール（ベータ版）",
   "settings.mcp.builtinServersDescriptions.memory": "ローカルのナレッジグラフに基づく永続的なメモリの基本的な実装です。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できるようになります。MEMORY_FILE_PATH 環境変数の設定が必要です。",
+  "settings.mcp.builtinServersDescriptions.multi_calendar": "Multi Calendarに接続して、Outlook.com、Microsoft 365、Googleのカレンダーをまとめて確認し、空き時間の検索、予定の作成・変更・キャンセル、招待への返信を行います。Lummanアカウントの認可が必要です。",
   "settings.mcp.builtinServersDescriptions.no": "説明なし",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Nowledge Mem アプリをローカルで実行する必要があります。AI チャット、ツール、ノート、エージェント、ファイルをコンピューター上のプライベートメモリに保存します。https://mem.nowledge.co/ からダウンロードしてください",
   "settings.mcp.builtinServersDescriptions.python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",

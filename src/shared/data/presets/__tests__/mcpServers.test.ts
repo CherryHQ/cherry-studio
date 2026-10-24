@@ -26,6 +26,14 @@ describe('PRESET_MCP_SERVERS', () => {
     )
   })
 
+  it('models Multi Calendar as a hosted built-in server that signs in with OAuth', () => {
+    const multiCalendar = preset(BuiltinMcpServerNames.multiCalendar)
+    expect(multiCalendar).toEqual(
+      expect.objectContaining({ type: 'streamableHttp', baseUrl: 'https://calendar.lumman.co/mcp', isActive: false })
+    )
+    expect(multiCalendar?.env).toBeUndefined()
+  })
+
   it('models QVeris as a configurable hosted built-in server', () => {
     expect(preset(BuiltinMcpServerNames.qveris)).toEqual(
       expect.objectContaining({
