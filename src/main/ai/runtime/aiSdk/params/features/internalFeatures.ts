@@ -14,6 +14,7 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { anthropicThinkingRecoveryFeature } from './anthropicThinkingRecovery'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
@@ -69,5 +70,6 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   steerYieldFeature,
   // Hook only — `prepareStep` rewrites the in-flight prompt with a compacted
   // history when it crosses 80% of the context window (keeps each call under budget).
-  inLoopCompactionFeature
+  inLoopCompactionFeature,
+  anthropicThinkingRecoveryFeature
 ]
