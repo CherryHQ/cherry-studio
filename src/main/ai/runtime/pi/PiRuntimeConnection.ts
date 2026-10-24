@@ -21,7 +21,7 @@ import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observ
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
-import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import { buildAgentUserContent, isManualCompactCommand } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -1104,7 +1104,7 @@ function mapCompactionTrigger(reason: 'manual' | 'threshold' | 'overflow'): Agen
 
 function parseManualCompactCommand(content: string): { instructions: string } | undefined {
   const trimmed = content.trim()
-  if (!/^\/compact(?:\s|$)/.test(trimmed)) return undefined
+  if (!isManualCompactCommand(trimmed)) return undefined
   return { instructions: trimmed.slice('/compact'.length).trim() }
 }
 
