@@ -1,7 +1,9 @@
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { ErrorCode } from '@shared/data/api/errors'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import type { CompletedKnowledgeBase } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import { hashEmbeddingText } from '../../pipeline/vectorstore/indexStore/hashing'
@@ -12,7 +14,9 @@ import {
   createAbortedCtx,
   createBase,
   createCtx,
+  createExternalItem,
   createFileItem,
+  createIndexKnowledgeItem,
   createIndexDocumentsJobHandler,
   createNoteItem,
   createUrlItem,
@@ -20,6 +24,7 @@ import {
   fakeEmbedVector,
   fetchKnowledgeWebPageMock,
   FILE_ITEM_ID,
+  getIndexStoreMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemUpdateSnapshotRelativePathMock,
@@ -29,6 +34,7 @@ import {
   loadKnowledgeItemDocumentsMock,
   loggerWarnMock,
   NOTE_ITEM_ID,
+  prepareKnowledgeMaterial,
   rebuildMaterialMock,
   refineLocalEmbeddingChunksMock
 } from './jobHandlerTestUtils'
@@ -57,6 +63,142 @@ function lastRebuildInput(): RebuildMaterialInput & { embeddings: RebuildMateria
 }
 
 describe('index-documents job handler', () => {
+  it('prepares a completed external descriptor without publishing or mutating its live item', async () => {
+    const item = createExternalItem('staged-external')
+    item.status = 'completed'
+    item.data.relativePath = 'staged/external.md' as PosixRelativeFilePath
+    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([
+      { text: 'staged external body', metadata: { source: item.data.source } }
+    ])
+    const reportProgress = vi.fn()
+
+    const prepared = await prepareKnowledgeMaterial({
+      base: createBase() as CompletedKnowledgeBase,
+      item,
+      signal: new AbortController().signal,
+      reportProgress
+    })
+
+    expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(item)
+    expect(prepared.item).toBe(item)
+    expect(prepared.rebuildInput.material.relativePath).toBe('staged/external.md')
+    expect(prepared.rebuildInput.content.text).toBe('staged external body')
+    expect(
+      prepared.rebuildInput.units.map((unit) => prepared.rebuildInput.content.text.slice(unit.charStart, unit.charEnd))
+    ).toEqual(['staged external body'])
+    expect([...prepared.rebuildInput.embeddings]).toEqual([
+      {
+        embeddingTextHash: hashEmbeddingText('staged external body'),
+        vector: fakeEmbedVector('staged external body')
+      }
+    ])
+    expect(reportProgress).toHaveBeenCalledWith(40, {
+      stage: 'embedding',
+      currentFile: 0,
+      totalFiles: 1
+    })
+    expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
+    expect(knowledgeItemGetByIdMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
+    expect(captureUrlSnapshotFileMock).not.toHaveBeenCalled()
+    expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
+    expect(knowledgeLockManager.runExclusive).not.toHaveBeenCalled()
+    expect(getIndexStoreMock).not.toHaveBeenCalled()
+    expect(rebuildMaterialMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects preparation when the final embedding batch resolves after cancellation', async () => {
+    const controller = new AbortController()
+    let resolveEmbedding!: () => void
+    let markEmbeddingStarted!: () => void
+    const embeddingStarted = new Promise<void>((resolve) => {
+      markEmbeddingStarted = resolve
+    })
+    embedKnowledgeTextsMock.mockImplementationOnce((_base, values: string[]) => {
+      markEmbeddingStarted()
+      return new Promise<number[][]>((resolve) => {
+        resolveEmbedding = () => resolve(values.map(fakeEmbedVector))
+      })
+    })
+
+    const preparation = prepareKnowledgeMaterial({
+      base: createBase() as CompletedKnowledgeBase,
+      item: createExternalItem('cancelled-external'),
+      signal: controller.signal,
+      reportProgress: vi.fn()
+    })
+    await embeddingStarted
+    controller.abort()
+    resolveEmbedding()
+
+    await expect(preparation).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(embedKnowledgeTextsMock).toHaveBeenCalledTimes(1)
+    expect(rebuildMaterialMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a failed base before reading or embedding preparation input', async () => {
+    const failedBase = createBase({ status: 'failed', error: 'missing_embedding_model' })
+
+    await expect(
+      prepareKnowledgeMaterial({
+        base: failedBase as CompletedKnowledgeBase,
+        item: createExternalItem('failed-base-external'),
+        signal: new AbortController().signal,
+        reportProgress: vi.fn()
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalled()
+    expect(embedKnowledgeTextsMock).not.toHaveBeenCalled()
+    expect(getIndexStoreMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['url', () => createUrlItem('uncaptured-url')],
+    [
+      'note',
+      () => {
+        const item = createNoteItem('uncaptured-note')
+        delete item.data.relativePath
+        return item
+      }
+    ]
+  ])('rejects an uncaptured %s before reading preparation input', async (_type, createItem) => {
+    const reportProgress = vi.fn()
+
+    await expect(
+      prepareKnowledgeMaterial({
+        base: createBase() as CompletedKnowledgeBase,
+        item: createItem(),
+        signal: new AbortController().signal,
+        reportProgress
+      })
+    ).rejects.toThrow('has no captured snapshot relativePath for its material')
+
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalled()
+    expect(embedKnowledgeTextsMock).not.toHaveBeenCalled()
+    expect(getIndexStoreMock).not.toHaveBeenCalled()
+    expect(reportProgress).not.toHaveBeenCalled()
+  })
+
+  it('exposes indexing as a feature operation that reads external content from its pinned snapshot', async () => {
+    const indexKnowledgeItem = createIndexKnowledgeItem(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createExternalItem())
+
+    await indexKnowledgeItem({
+      baseId: 'kb-1',
+      itemId: 'external-1',
+      signal: new AbortController().signal,
+      reportProgress: vi.fn()
+    })
+
+    expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(createExternalItem())
+    expect(lastRebuildInput().material.relativePath).toBe('external.md')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('external-1', 'completed')
+  })
+
   it('updates statuses, writes vectors, and completes the item', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))

@@ -1,9 +1,21 @@
+import { externalKnowledgeDocumentService } from '@data/services/ExternalKnowledgeDocumentService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { isIndexableKnowledgeItem } from '../items'
 import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
 import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanup'
+
+export function assertNoActiveExternalOwner(itemIds: readonly string[], operation: string): void {
+  const ownedItemIds = externalKnowledgeDocumentService.getActiveOwnedKnowledgeItemIds(itemIds)
+  if (ownedItemIds.size > 0) {
+    throw DataApiErrorFactory.invalidOperation(
+      operation,
+      `Cannot purge ${ownedItemIds.size} external knowledge item(s) managed by an active document owner`
+    )
+  }
+}
 
 /**
  * Remove a resolved subtree's vectors, on-disk files, and DB rows, in that order.
@@ -24,6 +36,7 @@ export async function purgeKnowledgeSubtreeWithinLock(
   if (subtreeItemIds.length === 0) {
     return
   }
+  assertNoActiveExternalOwner(subtreeItemIds, 'purge knowledge subtree')
   const leafItemIds = subtreeItems.filter((item) => isIndexableKnowledgeItem(item)).map((item) => item.id)
 
   // Vector cleanup precedes DB deletion so a retry can still discover affected item ids.

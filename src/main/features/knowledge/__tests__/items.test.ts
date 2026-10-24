@@ -52,14 +52,26 @@ function createItem(type: KnowledgeItem['type']): KnowledgeItem {
       return { ...base, type, data: { source: 'note', content: 'note' } }
     case 'directory':
       return { ...base, type, data: { source: '/docs' } }
+    case 'external':
+      return {
+        ...base,
+        type,
+        data: {
+          source: 'feishu://document/doc-1',
+          title: 'External doc',
+          relativePath: 'external.md' as PosixRelativeFilePath
+        }
+      }
   }
 }
 
 describe('indexable knowledge item helpers', () => {
-  it('recognizes file, url, and note as indexable leaves', () => {
-    const items = ['file', 'url', 'note', 'directory'].map((type) => createItem(type as KnowledgeItem['type']))
+  it('recognizes file, url, note, and external as indexable leaves', () => {
+    const items = ['file', 'url', 'note', 'external', 'directory'].map((type) =>
+      createItem(type as KnowledgeItem['type'])
+    )
 
-    expect(items.map((item) => isIndexableKnowledgeItem(item))).toEqual([true, true, true, false])
+    expect(items.map((item) => isIndexableKnowledgeItem(item))).toEqual([true, true, true, true, false])
   })
 })
 
@@ -99,10 +111,11 @@ describe('classifyKnowledgeItemRestoreSource', () => {
     await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('file'))).resolves.toBe('rebuildable')
   })
 
-  it('treats note and url items as always rebuildable without touching disk', async () => {
+  it('restores note and url from their in-hand source, and external from its pinned snapshot', async () => {
     await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('note'))).resolves.toBe('rebuildable')
     await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('url'))).resolves.toBe('rebuildable')
-    expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('external'))).resolves.toBe('rebuildable')
+    expect(probeKnowledgeFileMock).toHaveBeenCalledWith('kb-1', 'external.md')
     expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
   })
 
@@ -148,9 +161,11 @@ describe('classifyKnowledgeItemReacquireSource', () => {
     expect(probeKnowledgeSourcePathMock).toHaveBeenCalledWith('/docs')
   })
 
-  it('treats note and url items as always rebuildable without touching disk', async () => {
+  it('rebuilds note and url in hand, and verifies external only against its pinned snapshot', async () => {
     await expect(classifyKnowledgeItemReacquireSource(createItem('note'))).resolves.toBe('rebuildable')
     await expect(classifyKnowledgeItemReacquireSource(createItem('url'))).resolves.toBe('rebuildable')
+    await expect(classifyKnowledgeItemReacquireSource(createItem('external'))).resolves.toBe('rebuildable')
+    expect(probeKnowledgeFileMock).toHaveBeenCalledWith('kb-1', 'external.md')
     expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
   })
 
@@ -234,6 +249,19 @@ describe('toMaterialRelativePath', () => {
       data: { source: 'My note', content: 'hello', relativePath: 'My note.md' as PosixRelativeFilePath }
     }
     expect(toMaterialRelativePath(note)).toBe('My note.md')
+  })
+
+  it('uses an external item’s pinned snapshot path', () => {
+    const external: MaterialFieldSource = {
+      id: 'external-1',
+      type: 'external',
+      data: {
+        source: 'feishu://document/doc-1',
+        title: 'External doc',
+        relativePath: 'external.md' as PosixRelativeFilePath
+      }
+    }
+    expect(toMaterialRelativePath(external)).toBe('external.md')
   })
 
   it('throws for a url that has not been captured yet — a snapshot is always materialized first', () => {
