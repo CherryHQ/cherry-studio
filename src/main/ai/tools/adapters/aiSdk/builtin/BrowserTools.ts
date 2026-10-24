@@ -17,7 +17,10 @@ export function createBrowserToolEntries(): ToolEntry[] {
     applies: (scope) => scope.browserEnabled === true,
     tool: tool({
       description,
-      inputSchema,
+      // zod v4 keeps the object internals in the inferred type, which the AI
+      // SDK's FlexibleSchema overload cannot unify once the tool list is a
+      // union of schemas. Runtime validation is unchanged.
+      inputSchema: inputSchema as never,
       execute: async (args, options) => {
         const { request } = getToolCallContext(options)
         if (!request.topicId || !request.assistant) throw new Error('Browser tools require a conversation owner')

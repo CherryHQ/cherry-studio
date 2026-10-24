@@ -14,6 +14,13 @@ export const browserHandlers: IpcHandlersFor<typeof browserRequestSchemas> = {
     return application.get('BrowserSessionService').pickAndImport(options, window)
   },
   'browser.data.clear': async ({ kind }) => application.get('BrowserSessionService').clearData(kind),
+  'adblock.list_rules': async () => application.get('AdblockService').listCustomRules(),
+  'adblock.remove_rule': async ({ id }) => {
+    await application.get('AdblockService').removeCustomRule(id)
+  },
+  'adblock.set_rule_enabled': async ({ id, enabled }) => {
+    await application.get('AdblockService').setCustomRuleEnabled(id, enabled)
+  },
   'browser.pane.attach': async ({ sessionId, scope, webviewId }, { senderId }) =>
     application
       .get('BrowserSessionService')

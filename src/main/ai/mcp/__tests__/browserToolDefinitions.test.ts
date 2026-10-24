@@ -44,7 +44,7 @@ function numericLiterals(schema: unknown, path: string, found: string[] = []): s
 describe('browser tool definitions', () => {
   it('reaches every provider without a numeric const/enum literal', () => {
     const offenders = sessionToolDefinitions.flatMap(({ name, inputSchema }) =>
-      numericLiterals(zodSchema(inputSchema).jsonSchema, name)
+      numericLiterals(zodSchema(inputSchema as never).jsonSchema, name)
     )
 
     expect(offenders).toEqual([])

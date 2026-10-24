@@ -57,6 +57,7 @@ describe('dataReset ↔ pathRegistry conformance', () => {
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.agents.claude.root'], userData))
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.cherry_account.credentials_file'], userData))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.version_log.file']))
+    expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.adblock.rules_file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['app.session.cache']))
     expect(USER_DATA_WIPE).toContain('cache.json')
     // Legacy restore sidecars are not registered paths.

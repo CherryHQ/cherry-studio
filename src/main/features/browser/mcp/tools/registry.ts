@@ -1,6 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/server'
 
 import type { BrowserController } from '../browserController'
+import { handleBlockAds } from './adblock'
 import { handleDialog } from './dialog'
 import { handleExecute } from './execute'
 import { handleConsoleMessages, handleFind, handleNetworkRequests } from './inspect'
@@ -22,6 +23,7 @@ export const toolHandlers: Record<
   screenshot: handleScreenshot,
   snapshot: handleSnapshot,
   list_tabs: handleListTabs,
+  block_ads: handleBlockAds,
   switch_tab: handleSwitchTab,
   close_tab: handleCloseTab,
   reset: handleReset,
