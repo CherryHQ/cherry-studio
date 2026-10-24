@@ -721,6 +721,35 @@
       "name": "AMD GPU Cloud"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "DotHoosh - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://gateway.dothoosh.com/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://gateway.dothoosh.com"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://gateway.dothoosh.com"
+        }
+      },
+      "id": "dothoosh",
+      "metadata": {
+        "website": {
+          "apiKey": "https://gateway.dothoosh.com/api-keys",
+          "docs": "https://gateway.dothoosh.com/docs",
+          "models": "https://gateway.dothoosh.com/models",
+          "official": "https://gateway.dothoosh.com"
+        }
+      },
+      "name": "DotHoosh"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
@@ -2726,5 +2755,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "1b44511badb438e6"
+  "version": "20caeb300ebbd709"
 }

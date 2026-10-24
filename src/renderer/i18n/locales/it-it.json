@@ -3163,6 +3163,7 @@
   "provider.deepseek": "DeepSeek",
   "provider.dmxapi": "DMXAPI",
   "provider.doc2x": "Doc2X",
+  "provider.dothoosh": "DotHoosh",
   "provider.doubao": "Volcengine",
   "provider.fireworks": "Fireworks",
   "provider.gemini": "Gemini",

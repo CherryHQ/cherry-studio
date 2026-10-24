@@ -1848,3 +1848,246 @@ describe('listModels — huggingFaceFetcher (router dialects)', () => {
     }
   )
 })
+
+describe('listModels — DotHoosh live catalog', () => {
+  const openaiListing = {
+    data: [
+      {
+        id: 'gpt-5',
+        context_length: 400000,
+        max_output_tokens: 50000,
+        pricing: { prompt: '0.00000125', completion: '0.00001', input_cache_read: '0.000000125' },
+        architecture: { input_modalities: ['text'], output_modalities: ['text'] },
+        supported_parameters: ['tools'],
+        protocols: [{ protocol: 'openai-responses' }]
+      }
+    ]
+  }
+  const anthropicListing = { data: [{ id: 'claude-opus-5', type: 'model', display_name: 'Claude Opus 5' }] }
+  const provider = () =>
+    makeProvider({
+      id: 'dothoosh',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://gateway.dothoosh.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://gateway.dothoosh.com/anthropic' }
+      }
+    })
+  const answerByUrl = (anthropic: unknown = anthropicListing) =>
+    aiSdkGetFromApiMock.mockImplementation(async ({ url }: { url: string }) => {
+      if (url.endsWith('/anthropic/v1/models')) {
+        if (anthropic instanceof Error) throw anthropic
+        return { value: anthropic }
+      }
+      return { value: openaiListing }
+    })
+
+  it('lists models, limits and per-million prices from both listings at the keyed base URL', async () => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    answerByUrl()
+
+    const { models } = await listModels(provider())
+
+    const urls = aiSdkGetFromApiMock.mock.calls.map(([arg]) => arg.url)
+    expect(urls).toEqual(
+      expect.arrayContaining([
+        'https://gateway.dothoosh.com/v1/models',
+        'https://gateway.dothoosh.com/anthropic/v1/models'
+      ])
+    )
+    const openaiCall = aiSdkGetFromApiMock.mock.calls.find(
+      ([arg]) => arg.url.endsWith('/v1/models') && !arg.url.includes('anthropic')
+    )!
+    expect(openaiCall[0].headers).toMatchObject({ authorization: 'Bearer dh-key' })
+    expect(openaiCall[0].headers).not.toHaveProperty('x-api-key')
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-5', 'claude-opus-5'])
+    expect(models[0]).toMatchObject({
+      contextWindow: 400000,
+      maxOutputTokens: 50000,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      pricing: {
+        input: { perMillionTokens: 1.25 },
+        output: { perMillionTokens: 10 },
+        cacheRead: { perMillionTokens: 0.125 }
+      }
+    })
+    expect(models[1]).toMatchObject({ name: 'Claude Opus 5', endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+  })
+
+  it('reads the public mirror, with no credentials, before a key exists', async () => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+
+    await listModels(provider())
+
+    const calls = aiSdkGetFromApiMock.mock.calls.map(([arg]) => arg)
+    expect(calls.map((c) => c.url).sort()).toEqual([
+      'https://www.dothoosh.com/gateway/anthropic/v1/models',
+      'https://www.dothoosh.com/gateway/v1/models'
+    ])
+    for (const call of calls) {
+      expect(call.headers).not.toHaveProperty('authorization')
+      expect(call.headers).not.toHaveProperty('x-api-key')
+    }
+  })
+
+  it('keeps the OpenAI-route models when the Anthropic listing fails', async () => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    answerByUrl(new Error('boom'))
+
+    const { models } = await listModels(provider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-5'])
+  })
+
+  const relayProvider = () =>
+    makeProvider({
+      id: 'dothoosh',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example/anthropic' }
+      }
+    })
+  const calledUrls = () => aiSdkGetFromApiMock.mock.calls.map(([arg]) => arg.url as string)
+
+  it('reads a custom base URL, not the mirror, when no key is set', async () => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+
+    await listModels(relayProvider())
+
+    expect(calledUrls().sort()).toEqual([
+      'https://relay.example/anthropic/v1/models',
+      'https://relay.example/v1/models'
+    ])
+    for (const [arg] of aiSdkGetFromApiMock.mock.calls) {
+      expect(arg.headers).not.toHaveProperty('authorization')
+      expect(arg.headers).not.toHaveProperty('x-api-key')
+    }
+  })
+
+  it.each([
+    ['a versioned Anthropic base', 'https://gateway.dothoosh.com', 'https://gateway.dothoosh.com/anthropic/v1'],
+    ['versioned bases on both routes', 'https://gateway.dothoosh.com/v1', 'https://gateway.dothoosh.com/anthropic/v1/'],
+    ['an unversioned Anthropic base', 'https://gateway.dothoosh.com', 'https://gateway.dothoosh.com/anthropic']
+  ])('never doubles the API version for %s', async (_label, chatBase, anthropicBase) => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    answerByUrl()
+
+    await listModels(
+      makeProvider({
+        id: 'dothoosh',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: chatBase },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: anthropicBase }
+        }
+      }),
+      undefined,
+      { throwOnError: true }
+    )
+
+    expect(calledUrls().sort()).toEqual([
+      'https://gateway.dothoosh.com/anthropic/v1/models',
+      'https://gateway.dothoosh.com/v1/models'
+    ])
+  })
+
+  it('sends no provider headers to the public mirror', async () => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+    const withHeaders = makeProvider({
+      id: 'dothoosh',
+      presetProviderId: 'dothoosh',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      settings: { extraHeaders: { 'X-Tenant': 'acme' } },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://gateway.dothoosh.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://gateway.dothoosh.com/anthropic' }
+      }
+    })
+
+    await listModels(withHeaders)
+
+    expect(calledUrls().every((url) => url.startsWith('https://www.dothoosh.com/gateway/'))).toBe(true)
+    for (const [arg] of aiSdkGetFromApiMock.mock.calls) {
+      expect(Object.keys(arg.headers ?? {})).toEqual([])
+    }
+  })
+
+  it('follows has_more on the Anthropic listing and lists every page', async () => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    aiSdkGetFromApiMock.mockImplementation(async ({ url }: { url: string }) => {
+      if (url.endsWith('/anthropic/v1/models')) {
+        return { value: { data: [{ id: 'claude-opus-5' }], has_more: true, last_id: 'claude-opus-5' } }
+      }
+      if (url.endsWith('/anthropic/v1/models?after_id=claude-opus-5')) {
+        return { value: { data: [{ id: 'claude-haiku-5' }], has_more: false } }
+      }
+      return { value: openaiListing }
+    })
+
+    const { models } = await listModels(provider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-5', 'claude-opus-5', 'claude-haiku-5'])
+  })
+
+  it('lists no Anthropic model at all when a later page fails, rather than half of them', async () => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    aiSdkGetFromApiMock.mockImplementation(async ({ url }: { url: string }) => {
+      if (url.endsWith('/anthropic/v1/models')) {
+        return { value: { data: [{ id: 'claude-opus-5' }], has_more: true, last_id: 'claude-opus-5' } }
+      }
+      if (url.includes('/anthropic/v1/models?after_id=')) throw new Error('page 2 down')
+      return { value: openaiListing }
+    })
+
+    const { models } = await listModels(provider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-5'])
+  })
+
+  it('accepts a well-formed empty list on one route for a keyed request', async () => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    aiSdkGetFromApiMock.mockImplementation(async ({ url }: { url: string }) =>
+      url.includes('/anthropic/') ? { value: anthropicListing } : { value: { data: [] } }
+    )
+
+    const { models } = await listModels(provider(), undefined, { throwOnError: true })
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['claude-opus-5'])
+  })
+
+  it.each([
+    ['both routes are empty', { data: [] }, { data: [] }],
+    ['a route has rows but none usable', { data: [{ nope: true }, null] }, anthropicListing]
+  ])('rejects the keyed listing when %s instead of replacing the catalog', async (_name, openai, anthropic) => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    aiSdkGetFromApiMock.mockImplementation(async ({ url }: { url: string }) => ({
+      value: url.includes('/anthropic/') ? anthropic : openai
+    }))
+
+    await expect(listModels(provider(), undefined, { throwOnError: true })).rejects.toThrow(/DotHoosh/)
+  })
+
+  it.each([
+    ['OpenAI', { data: [] }, anthropicListing],
+    ['Anthropic', openaiListing, { data: [] }]
+  ])('rejects the public mirror when its %s listing is empty', async (_route, openai, anthropic) => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    aiSdkGetFromApiMock.mockImplementation(async ({ url }: { url: string }) => ({
+      value: url.includes('/anthropic/') ? anthropic : openai
+    }))
+
+    await expect(listModels(provider(), undefined, { throwOnError: true })).rejects.toThrow(/DotHoosh/)
+  })
+
+  it('fails the list when the OpenAI listing fails and errors are requested', async () => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    aiSdkGetFromApiMock.mockRejectedValue(new Error('down'))
+
+    await expect(listModels(provider(), undefined, { throwOnError: true })).rejects.toThrow('down')
+    expect((await listModels(provider())).models).toEqual([])
+  })
+})

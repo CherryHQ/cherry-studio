@@ -13,6 +13,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('ProviderModelSync')
 
@@ -51,6 +52,12 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
   return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
 }
 
+/** Providers whose own model listing is the source of truth for limits and prices (not the registry snapshot). */
+const LIVE_CATALOG_PROVIDERS: ReadonlySet<string> = new Set([SystemProviderIds.dothoosh])
+
+const savesListedLimits = (providerId: string, model: Pick<Model, 'presetModelId'>): boolean =>
+  !model.presetModelId || LIVE_CATALOG_PROVIDERS.has(providerId)
+
 export function toCreateModelDto(
   providerId: string,
   model: Model,
@@ -69,7 +76,13 @@ export function toCreateModelDto(
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+    // A model unknown to the registry saves its listed limit and prices; a preset-backed one resolves them
+    // from the registry, except on a live-catalog provider whose listing is newer.
+    ...(savesListedLimits(providerId, model) && model.maxOutputTokens
+      ? { maxOutputTokens: model.maxOutputTokens }
+      : {}),
+    ...(savesListedLimits(providerId, model) && model.pricing ? { pricing: model.pricing } : {})
   }
 }
 
@@ -119,6 +132,12 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     'ownedBy'
   ] as const
 
+  // A live-catalog provider's own listing is newer than the registry snapshot: it wins, and the registry
+  // only fills what the listing left out. Every other provider keeps registry-over-listing precedence.
+  const LIVE_FIELDS = new Set<string>(
+    LIVE_CATALOG_PROVIDERS.has(providerId) ? ['contextWindow', 'maxOutputTokens', 'maxInputTokens', 'pricing'] : []
+  )
+
   return filteredModels.map((fetched) => {
     const base = fetched as Model
     const apiId = fetched.apiModelId ?? ''
@@ -142,10 +161,24 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       if (field === 'name' && keepFetchedName) {
         continue
       }
+      if (LIVE_FIELDS.has(field) && base[field] != null) {
+        continue
+      }
       const value = registry[field]
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
         ;(merged as Record<string, unknown>)[field] = value
       }
+    }
+
+    // A registry input cap that no longer fits under the live context window is dropped, not shown
+    // next to a smaller window.
+    if (
+      base.maxInputTokens == null &&
+      merged.maxInputTokens != null &&
+      merged.contextWindow != null &&
+      merged.maxInputTokens > merged.contextWindow
+    ) {
+      delete merged.maxInputTokens
     }
 
     return merged

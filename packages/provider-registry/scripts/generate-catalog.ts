@@ -5,6 +5,7 @@
  * PURE ARTIFACTS — never hand-edit them.
  *
  *   MODELSDEV_CACHE=/tmp/md.json OPENROUTER_CACHE=/tmp/or.json \
+ *     DOTHOOSH_CACHE=/tmp/dh.json DOTHOOSH_ANTHROPIC_CACHE=/tmp/dh-anthropic.json \
  *     OPENROUTER_IMAGE_CACHE=/tmp/or-images.json \
  *     tsx scripts/generate-catalog.ts            # dry run (prints summary)
  *     tsx scripts/generate-catalog.ts --write    # write both JSON files
@@ -32,10 +33,13 @@ import type { ProviderEntry } from '../src/providers/types'
 import { SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
+import type { ProviderModelOverride } from '../src/schemas/provider-models'
+import { readAnthropicListing } from '../src/utils/dothooshListing'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
 import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
+import { DOTHOOSH_MIRROR_ANTHROPIC_MODELS_URL, DOTHOOSH_MIRROR_MODELS_URL, resolveDothooshRows } from './dothoosh'
 import { scopeModelRefresh } from './scopeModelRefresh'
 import {
   type CherryMeta,
@@ -74,7 +78,7 @@ const REPORT = args.report
 // skip when the journal version matches, so a date stamp would let a same-day regeneration change
 // content without changing version — and the seed would silently never run. Upstream (models.dev/
 // OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE /
-// OPENROUTER_IMAGE_CACHE to cache it during dev.
+// OPENROUTER_IMAGE_CACHE / DOTHOOSH_CACHE / DOTHOOSH_ANTHROPIC_CACHE to cache it during dev.
 const contentVersion = (body: unknown): string =>
   createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16)
 
@@ -272,18 +276,27 @@ const sortKeys = (v: any): any =>
         )
       : v
 
+/** Rows of the committed provider-models.json (empty when it does not exist yet), to keep on an upstream outage. */
+function readPreviousProviderModelRows(): any[] {
+  try {
+    return JSON.parse(fs.readFileSync(PROVIDER_MODELS_PATH, 'utf8')).overrides ?? []
+  } catch {
+    return []
+  }
+}
+
+/** Read an upstream JSON source from its cache file (env) or the live URL. */
+async function loadRaw(env: string, url: string): Promise<unknown> {
+  const cache = process.env[env]
+  if (cache) return JSON.parse(fs.readFileSync(cache, 'utf8'))
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`)
+  return res.json()
+}
+
 /** Load an upstream source (cache file or live URL) and validate its top-level shape with zod. */
 async function load<T>(env: string, url: string, schema: ZodType<T>): Promise<T> {
-  const cache = process.env[env]
-  let raw: unknown
-  if (cache) {
-    raw = JSON.parse(fs.readFileSync(cache, 'utf8'))
-  } else {
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`${url} -> ${res.status}`)
-    raw = await res.json()
-  }
-  return schema.parse(raw)
+  return schema.parse(await loadRaw(env, url))
 }
 
 // ── canonical metadata index: canonId → metadata UNIONED across every source ──
@@ -529,7 +542,8 @@ function buildProviderModels(
   md: ModelsDevApi,
   orModels: OpenRouterApi,
   orImageModels: OpenRouterApi,
-  baseIds: Set<string>
+  baseIds: Set<string>,
+  dothooshRows: Partial<ProviderModelOverride>[]
 ): { overrides: any[] } {
   const openRouterStandaloneIds = new Set(
     PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
@@ -591,6 +605,10 @@ function buildProviderModels(
       if (!matchedTemplates.has(template)) addOverride({ providerId: p.id, ...template })
     }
   }
+
+  // DotHoosh serves its catalog (limits, prices, tiers, modalities, endpoints) from its own public
+  // listings, so its rows are derived here rather than hand-written in src/providers/dothoosh.ts.
+  for (const row of dothooshRows) addOverride(row)
 
   // OpenRouter publishes endpoint-specific controls. Attach them to the exact
   // provider-model row; creator metadata remains provider-neutral.
@@ -676,7 +694,26 @@ void (async () => {
   const index = buildIndex(md, or)
   const claimed = await assignCreators(index, md)
   let models = buildModels(index, claimed)
-  let pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  const baseIds = new Set(models.keys())
+  const dothooshRows = await resolveDothooshRows(
+    async () => ({
+      openai: await loadRaw('DOTHOOSH_CACHE', DOTHOOSH_MIRROR_MODELS_URL),
+      anthropic: process.env.DOTHOOSH_ANTHROPIC_CACHE
+        ? await loadRaw('DOTHOOSH_ANTHROPIC_CACHE', DOTHOOSH_MIRROR_ANTHROPIC_MODELS_URL)
+        : await readAnthropicListing(async (afterId) =>
+            loadRaw(
+              'DOTHOOSH_ANTHROPIC_CACHE',
+              afterId
+                ? `${DOTHOOSH_MIRROR_ANTHROPIC_MODELS_URL}?after_id=${encodeURIComponent(afterId)}`
+                : DOTHOOSH_MIRROR_ANTHROPIC_MODELS_URL
+            )
+          )
+    }),
+    readPreviousProviderModelRows(),
+    baseIds,
+    (message) => console.warn(`WARN ${message}`)
+  )
+  let pm = buildProviderModels(md, orModels, orImageModels, baseIds, dothooshRows)
   if (args.model?.length) {
     const scoped = scopeModelRefresh(
       {
