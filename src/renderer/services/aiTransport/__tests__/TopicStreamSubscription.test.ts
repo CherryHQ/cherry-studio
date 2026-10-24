@@ -109,9 +109,10 @@ function createMockAiApi() {
       executionId: UniqueModelId,
       chunk: UIMessageChunk,
       anchorMessageId?: string,
-      attemptId = 1
+      attemptId = 1,
+      seq?: number
     ) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, chunk })
+      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, seq, chunk })
     },
     emitDone: (
       topicId: string,
@@ -400,6 +401,49 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it('delivers live chunks arriving during attach after replay, in protocol order', async () => {
+    // Listeners register before the attach round-trip, so a live chunk emitted
+    // mid-flight must wait for replay instead of jumping ahead of its opener.
+    mock.mockApi.streamAttach.mockImplementationOnce(async () => {
+      mock.emitChunk(TOPIC, A, textChunk('live'))
+      return {
+        status: 'attached',
+        bufferedChunks: [
+          { topicId: TOPIC, executionId: A, attemptId: 1, chunk: { type: 'text-start', id: 't' } },
+          { topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('replay') }
+        ] satisfies StreamChunkPayload[]
+      }
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    await tick()
+    mock.emitDone(TOPIC, A, 'success')
+    expect(await readAll(sa)).toEqual([{ type: 'text-start', id: 't' }, textChunk('replay'), textChunk('live')])
+    sub.dispose()
+  })
+
+  it('drops attach-buffered live chunks already covered by the replay snapshot', async () => {
+    // A stale/parallel listener for this window receives live chunks main also
+    // includes in the snapshot; draining both would duplicate branch content.
+    mock.mockApi.streamAttach.mockImplementationOnce(async () => {
+      mock.emitChunk(TOPIC, A, textChunk('replay'), undefined, 1, 2)
+      mock.emitChunk(TOPIC, A, textChunk('fresh'), undefined, 1, 3)
+      return {
+        status: 'attached',
+        bufferedChunks: [
+          { topicId: TOPIC, executionId: A, attemptId: 1, seq: 1, chunk: { type: 'text-start', id: 't' } },
+          { topicId: TOPIC, executionId: A, attemptId: 1, seq: 2, chunk: textChunk('replay') }
+        ] satisfies StreamChunkPayload[]
+      }
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    await tick()
+    mock.emitDone(TOPIC, A, 'success')
+    expect(await readAll(sa)).toEqual([{ type: 'text-start', id: 't' }, textChunk('replay'), textChunk('fresh')])
+    sub.dispose()
+  })
+
   it('retires covered sibling branches from attach replay when the topic reaches its attempt watermark', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',
@@ -429,7 +473,7 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
-  it('does not reopen covered attempts when the topic terminal arrives before attach replay', async () => {
+  it('routes attach replay before applying a topic terminal that arrived mid-flight', async () => {
     let resolveAttach!: (res: { status: 'attached'; bufferedChunks: StreamChunkPayload[] }) => void
     mock.mockApi.streamAttach.mockImplementationOnce(
       () =>
@@ -452,8 +496,80 @@ describe('TopicStreamSubscription', () => {
     })
     await tick()
 
-    expect(await readAll(live)).toEqual([])
+    // The terminal settles the branch only after its replay is routed — the
+    // covered attempt still closes without reopening for later chunks.
+    expect(await readAll(live)).toEqual([textChunk('replayB')])
     expect(sub.hasAnyOpenBranch()).toBe(false)
+    sub.dispose()
+  })
+
+  it('applies a done arriving during attach only after replay and buffered live chunks', async () => {
+    let resolveAttach!: (res: { status: 'attached'; bufferedChunks: StreamChunkPayload[] }) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(
+      () =>
+        new Promise<{ status: 'attached'; bufferedChunks: StreamChunkPayload[] }>((resolve) => {
+          resolveAttach = resolve
+        })
+    )
+
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    const terminals: Array<{ id: string; attemptId?: number; isAbort: boolean; isError: boolean }> = []
+    sub.onExecutionTerminal((id, terminal) => terminals.push({ id, ...terminal }))
+    await tick()
+
+    // Both arrive while the attach round-trip is in flight: previously the done
+    // settled the branch immediately and the replay below was dropped as late.
+    mock.emitChunk(TOPIC, A, textChunk('live'))
+    mock.emitDone(TOPIC, A, 'success')
+    resolveAttach({
+      status: 'attached',
+      bufferedChunks: [
+        { topicId: TOPIC, executionId: A, attemptId: 1, chunk: { type: 'text-start', id: 't' } },
+        { topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('replay') }
+      ]
+    })
+    await tick()
+
+    expect(await readAll(sa)).toEqual([{ type: 'text-start', id: 't' }, textChunk('replay'), textChunk('live')])
+    expect(terminals).toEqual([{ id: A, attemptId: 1, isAbort: false, isError: false }])
+    sub.dispose()
+  })
+
+  it('enqueues a mid-flight error only after replay is routed', async () => {
+    let resolveAttach!: (res: { status: 'attached'; bufferedChunks: StreamChunkPayload[] }) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(
+      () =>
+        new Promise<{ status: 'attached'; bufferedChunks: StreamChunkPayload[] }>((resolve) => {
+          resolveAttach = resolve
+        })
+    )
+
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    const terminals: Array<{ id: string; attemptId?: number; isAbort: boolean; isError: boolean }> = []
+    sub.onExecutionTerminal((id, terminal) => terminals.push({ id, ...terminal }))
+    await tick()
+
+    // Previously the error part jumped ahead of replay; now it lands after it.
+    mock.emitChunk(TOPIC, A, textChunk('live'))
+    mock.emitError(TOPIC, A)
+    resolveAttach({
+      status: 'attached',
+      bufferedChunks: [
+        { topicId: TOPIC, executionId: A, attemptId: 1, chunk: { type: 'text-start', id: 't' } },
+        { topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('replay') }
+      ]
+    })
+    await tick()
+
+    expect(await readAll(sa)).toEqual([
+      { type: 'text-start', id: 't' },
+      textChunk('replay'),
+      textChunk('live'),
+      { type: 'data-error', data: STREAM_ERROR }
+    ])
+    expect(terminals).toEqual([{ id: A, attemptId: 1, isAbort: false, isError: true }])
     sub.dispose()
   })
 
@@ -478,6 +594,59 @@ describe('TopicStreamSubscription', () => {
     expect(onRetired).toHaveBeenCalledWith([{ executionId: A, attemptId: 1, anchorMessageId: 'assistant-a' }])
     expect(onTerminal).toHaveBeenCalledWith(B, expect.objectContaining({ attemptId: 2, isError: true }))
     expect(sub.hasAnyOpenBranch()).toBe(false)
+    sub.dispose()
+  })
+
+  it('caps attach replay to the most recent MAX_ATTACH_REPLAY_CHUNKS chunks to avoid renderer block on long streams', async () => {
+    // Simulate a long-running agent stream with a huge buffer (10K+ chunks).
+    // Attach replay should be capped so the renderer doesn't block for seconds
+    // processing every buffered chunk synchronously.
+    const totalChunks = 1200
+    const bufferedChunks: StreamChunkPayload[] = Array.from({ length: totalChunks }, (_, i) => ({
+      topicId: TOPIC,
+      executionId: A,
+      attemptId: 1,
+      chunk: textChunk(`chunk-${i}`)
+    }))
+    mock.mockApi.streamAttach.mockResolvedValueOnce({ status: 'attached', bufferedChunks })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    await tick()
+
+    // Emit a done to close the branch so readAll can finish
+    mock.emitDone(TOPIC, A, 'success')
+
+    const chunks = await readAll(sa)
+    // Bare deltas in the retained tail get a synthesized start so the overlay
+    // stream isn't fed orphaned deltas without their protocol opener.
+    expect(chunks.length).toBe(1000)
+    expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
+    expect(chunks[1]).toEqual(textChunk('chunk-201'))
+    expect(chunks[chunks.length - 1]).toEqual(textChunk('chunk-1199'))
+    sub.dispose()
+  })
+
+  it('cap retains protocol opener: slicing mid-execution synthesizes missing text-start', async () => {
+    const startChunk: UIMessageChunk = { type: 'text-start', id: 't' }
+    const bufferedChunks: StreamChunkPayload[] = [
+      { topicId: TOPIC, executionId: A, attemptId: 1, chunk: startChunk },
+      ...Array.from({ length: 1200 }, (_, i) => ({
+        topicId: TOPIC,
+        executionId: A,
+        attemptId: 1,
+        chunk: textChunk(`delta-${i}`)
+      }))
+    ]
+    mock.mockApi.streamAttach.mockResolvedValueOnce({ status: 'attached', bufferedChunks })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    await tick()
+    mock.emitDone(TOPIC, A, 'success')
+    const chunks = await readAll(sa)
+    // Tail (999 deltas) lost its start; cap helper synthesizes one so the
+    // reader receives a valid start→delta sequence.
+    expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
+    expect(chunks[1]).toEqual(textChunk('delta-201'))
     sub.dispose()
   })
 
