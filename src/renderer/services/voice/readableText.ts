@@ -8,7 +8,7 @@ import { unified } from 'unified'
 
 import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
-import { expressiveToSpeech, type SpeechLanguage } from './expressiveText'
+import { expressiveToSpeech, isProtectedCode, protectCodeForSpeech, type SpeechLanguage } from './expressiveText'
 
 export const READABLE_TEXT_CONFIRMATION_THRESHOLD = 5_000
 export const SPEECH_ADAPTER_TEXT_LIMIT = 10_000
@@ -120,6 +120,21 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;')
 }
 
+/**
+ * Raw HTML can carry its own `<code>` spans, including ones split across mdast
+ * inline nodes. Mark their text so the rewrite skips it; spans that already
+ * carry a marker (generated code blocks) are left alone.
+ */
+function protectHtmlCode(html: string): string {
+  return html.replace(
+    /<code(\s[^>]*)?>([\s\S]*?)<\/code>/gi,
+    (match, attributes: string | undefined, inner: string) => {
+      if (isProtectedCode(inner)) return match
+      return `<code${attributes ?? ''}>${protectCodeForSpeech(inner)}</code>`
+    }
+  )
+}
+
 function stripCitationMarkers(value: string): string {
   return value.replace(/([ \t]?)\[cite:(?=[^\]\n]*[\w-])[^\]\n]*\]/g, '')
 }
@@ -131,8 +146,9 @@ function phrasingToHtml(nodes: readonly PhrasingContent[]): string {
 function phrasingNodeToHtml(node: PhrasingContent): string {
   switch (node.type) {
     case 'text':
-    case 'inlineCode':
       return escapeHtml(node.value)
+    case 'inlineCode':
+      return protectCodeForSpeech(escapeHtml(node.value))
     case 'break':
       return '<br>'
     case 'image':
@@ -183,7 +199,7 @@ function blockToHtml(node: RootContent): string {
     case 'html':
       return node.value
     case 'code':
-      return `<pre><code>${escapeHtml(node.value)}</code></pre>`
+      return `<pre><code>${protectCodeForSpeech(escapeHtml(node.value))}</code></pre>`
     case 'text':
     case 'inlineCode':
     case 'break':
@@ -233,7 +249,8 @@ export function normalizeReadableText(input: string, options: ReadableTextOption
   }
 
   const tree = markdownParser.runSync(markdownParser.parse(input), input)
-  const text = normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(blocksToHtml(tree.children))))
+  const html = protectHtmlCode(blocksToHtml(tree.children))
+  const text = normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(html)))
   return expressiveToSpeech(text, language)
 }
 

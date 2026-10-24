@@ -12,6 +12,7 @@ import {
   playbackPhase,
   type PlaybackState
 } from '../../../../main/ai/voice/playbackState'
+import type { ReadableTextPlan } from '../readableText'
 import { SpeechPlaybackService, type SpeechPlaybackStartInput } from '../SpeechPlaybackService'
 import { VoiceDomainError, type VoiceService } from '../VoiceService'
 
@@ -167,7 +168,14 @@ const baseInput: SpeechPlaybackStartInput = {
   sourceEntityId: 'message-1'
 }
 
-function createHarness(options: { chunks?: string[]; audio?: FakeAudio } = {}) {
+function createHarness(
+  options: {
+    chunks?: string[]
+    audio?: FakeAudio
+    planText?: () => ReadableTextPlan
+    loadExpressiveRules?: () => Promise<void>
+  } = {}
+) {
   const voice = new FakeVoiceService()
   const ownerWindow = new EventTarget() as Window
   const audios: FakeAudio[] = []
@@ -184,7 +192,9 @@ function createHarness(options: { chunks?: string[]; audio?: FakeAudio } = {}) {
     createAudio,
     ...(options.chunks && {
       planText: () => ({ status: 'ready' as const, normalizedLength: 10, chunks: options.chunks! })
-    })
+    }),
+    ...(options.planText && { planText: options.planText }),
+    ...(options.loadExpressiveRules && { loadExpressiveRules: options.loadExpressiveRules })
   })
   return { service, voice, ownerWindow, audios, createAudio }
 }
@@ -192,6 +202,24 @@ function createHarness(options: { chunks?: string[]; audio?: FakeAudio } = {}) {
 beforeEach(() => vi.restoreAllMocks())
 
 describe('SpeechPlaybackService planning and playback', () => {
+  it('hydrates expressive rules before planning the first read', async () => {
+    const hydrated = Promise.withResolvers<void>()
+    const planText = vi.fn(() => ({
+      status: 'ready' as const,
+      normalizedLength: 9,
+      chunks: ['hello 😄']
+    }))
+    const { service } = createHarness({ planText, loadExpressiveRules: () => hydrated.promise })
+
+    const starting = service.start({ ...baseInput, trigger: 'auto_read' })
+    await Promise.resolve()
+    expect(planText).not.toHaveBeenCalled()
+
+    hydrated.resolve()
+    await expect(starting).resolves.toEqual({ status: 'started' })
+    expect(planText).toHaveBeenCalledOnce()
+  })
+
   it.each(['readSpeechPreferenceInput', 'initialize'] as const)(
     'cancels pending auto-read during %s when the preference is turned off',
     async (boundary) => {

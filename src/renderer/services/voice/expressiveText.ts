@@ -157,9 +157,28 @@ const KAOMOJI: Array<{ pattern: RegExp; label: Label }> = [
   { pattern: /\(づ[^)]{0,10}づ\)/gu, label: { zh: '抱抱', en: 'hug' } }
 ]
 
-/** Default emoji plus ZWJ sequences, with optional variation selectors and skin tones. */
+/**
+ * Default emoji plus ZWJ sequences, with optional variation selectors and skin
+ * tones. Regional-indicator pairs (flags) and keycaps are matched as one unit so
+ * an exact custom rule such as `🇺🇸` can resolve instead of two broken halves.
+ */
 const EMOJI_PATTERN =
-  /(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)(?:\uFE0F|\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)|\p{Emoji_Modifier})*/gu
+  /(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)(?:\uFE0F|\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)|\p{Emoji_Modifier}|[\u{E0020}-\u{E007F}]+)*/gu
+
+/** Code spans are wrapped in these private-use markers so they stay verbatim. */
+const SPEECH_CODE_OPEN = '\uE000'
+const SPEECH_CODE_CLOSE = '\uE001'
+const SPEECH_CODE_SPAN = /\uE000([\s\S]*?)\uE001/g
+
+/** Marks code so `expressiveToSpeech` reads it literally. */
+export function protectCodeForSpeech(value: string): string {
+  return `${SPEECH_CODE_OPEN}${value}${SPEECH_CODE_CLOSE}`
+}
+
+/** True when a value already carries code markers. */
+export function isProtectedCode(value: string): boolean {
+  return value.includes(SPEECH_CODE_OPEN)
+}
 
 export function speechLanguageFromLocale(locale: string | undefined): SpeechLanguage {
   return locale?.toLowerCase().startsWith('zh') ? 'zh' : 'en'
@@ -192,14 +211,7 @@ export function setCustomExpressiveRules(rules: readonly CustomExpressiveRule[])
   customKaomoji = kaomoji.sort((left, right) => right.match.length - left.match.length)
 }
 
-/**
- * Rewrites emoji and kaomoji as bracketed labels. Unknown emoji are removed:
- * a speech engine either skips them silently or reads a description in the
- * wrong language, and neither is useful.
- */
-export function expressiveToSpeech(text: string, language: SpeechLanguage): string {
-  if (!text || !expressiveEnabled) return text
-
+function rewriteExpressions(text: string, language: SpeechLanguage): string {
   let result = text
   for (const { match, label } of customKaomoji) {
     result = result.split(match).join(`[${label[language]}]`)
@@ -207,10 +219,41 @@ export function expressiveToSpeech(text: string, language: SpeechLanguage): stri
   for (const { pattern, label } of KAOMOJI) {
     result = result.replace(pattern, `[${label[language]}]`)
   }
-  result = result.replace(EMOJI_PATTERN, (match) => {
+  return result.replace(EMOJI_PATTERN, (match) => {
     const label = labelFor(match)
     return label ? `[${label[language]}]` : ''
   })
+}
 
-  return result.replace(/[ \t]{2,}/g, ' ').trim()
+/** Rewrites prose and leaves every protected code span byte-for-byte intact. */
+function rewriteProseOnly(text: string, language: SpeechLanguage): string {
+  let result = ''
+  let last = 0
+  for (const match of text.matchAll(SPEECH_CODE_SPAN)) {
+    const start = match.index ?? 0
+    result += rewriteExpressions(text.slice(last, start), language)
+    result += match[1]
+    last = start + match[0].length
+  }
+  return result + rewriteExpressions(text.slice(last), language)
+}
+
+function stripCodeProtection(text: string): string {
+  return text.replace(SPEECH_CODE_SPAN, '$1')
+}
+
+/**
+ * Rewrites emoji and kaomoji as bracketed labels. Unknown emoji are removed:
+ * a speech engine either skips them silently or reads a description in the
+ * wrong language, and neither is useful. Code wrapped by
+ * `protectCodeForSpeech` is never rewritten.
+ */
+export function expressiveToSpeech(text: string, language: SpeechLanguage): string {
+  if (!text) return text
+
+  const protectedCode = isProtectedCode(text)
+  if (!expressiveEnabled) return protectedCode ? stripCodeProtection(text) : text
+
+  const rewritten = protectedCode ? rewriteProseOnly(text, language) : rewriteExpressions(text, language)
+  return rewritten.replace(/[ \t]{2,}/g, ' ').trim()
 }

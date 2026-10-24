@@ -37,6 +37,41 @@ const MAX_RULES = 500
 
 const EMOJI_PATTERN = /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u
 
+/** Bracketed faces, optionally followed by a question or exclamation mark. */
+const BRACKETED_KAOMOJI = /^[(（[［{｛<＜]([\s\S]*)[)）\]］}｝>＞][?？!！]*$/u
+/** Western faces read as eye, mouth mark, eye (`T_T`, `o_o`, `>_<`). */
+const EYE_MOUTH_EYE = /^[oO0xX^><:;'\-TtUuVv][_\-~.^,][oO0xX^><:;'\-TtUuVv]$/u
+const MOUTH_MARK = /[_\-~.^,]/
+/**
+ * Glyphs that appear in faces but not in ordinary prose. Plain punctuation such
+ * as `.`, `+` or `#` is deliberately absent, so a rule for it cannot rewrite
+ * every sentence.
+ */
+const KAOMOJI_GLYPHS = '＾^▽￣︶・°□¬＠@´｀๑و✧づツᴗง︵┻━益εू༎ຶ⁍⁌ಠಥ⌒ω○●◕◔ヽノﾉヾゞ٩۶♪♡ʖᴥ﹏ﾟ｡･◡‿¯'
+const KAOMOJI_MARK = /[\p{P}\p{S}]/u
+
+function hasKaomojiGlyph(value: string): boolean {
+  for (const char of value) if (KAOMOJI_GLYPHS.includes(char)) return true
+  return false
+}
+
+function faceCore(core: string): boolean {
+  const trimmed = core.trim()
+  if (!trimmed) return false
+  if (EYE_MOUTH_EYE.test(trimmed) || hasKaomojiGlyph(trimmed)) return true
+  const chars = [...trimmed]
+  return chars.length === 3 && chars[0] === chars[2] && MOUTH_MARK.test(chars[1])
+}
+
+/** Rejects punctuation and prose tokens that only look like a kaomoji. */
+function looksLikeKaomoji(match: string): boolean {
+  const bracketed = BRACKETED_KAOMOJI.exec(match)
+  if (bracketed) return faceCore(bracketed[1])
+  if (EYE_MOUTH_EYE.test(match)) return true
+  // Asymmetric faces such as `¯\_(ツ)_/¯` need a face glyph and a mark.
+  return hasKaomojiGlyph(match) && KAOMOJI_MARK.test(match)
+}
+
 function normalizeLabel(value: string, field: 'zh' | 'en'): string {
   const label = value.trim().replace(/\s+/g, ' ')
   if (!label) throw new Error(`${field} label must not be empty`)
@@ -57,6 +92,8 @@ function normalizeMatch(input: SetExpressiveRuleInput): string {
   } else if (/^[\p{L}\p{N}]+$/u.test(match)) {
     // A plain word would rewrite ordinary prose, not a face.
     throw new Error('kaomoji must contain at least one symbol')
+  } else if (!looksLikeKaomoji(match)) {
+    throw new Error('kaomoji must look like a face, not ordinary text')
   }
   return match
 }

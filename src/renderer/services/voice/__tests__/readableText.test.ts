@@ -55,6 +55,20 @@ Read [Cherry Studio](https://example.com/private-path) today. ![Architecture dia
     expect(normalizeReadableText('运行 <code>answer()</code>。')).toBe('运行 answer()。')
   })
 
+  it('leaves emoji and kaomoji inside code spans literal', () => {
+    expect(normalizeReadableText('Use `😄` literally.')).toBe('Use 😄 literally.')
+    expect(normalizeReadableText('代码 `(T_T)` 保持原样。')).toBe('代码 (T_T) 保持原样。')
+    expect(normalizeReadableText('HTML <code>😄</code> 也保持原样。')).toBe('HTML 😄 也保持原样。')
+  })
+
+  it('leaves emoji and kaomoji inside fenced code literal', () => {
+    expect(normalizeReadableText('```\n😄 (T_T)\n```')).toBe('😄 (T_T)')
+  })
+
+  it('rewrites prose around protected code without touching the code itself', () => {
+    expect(normalizeReadableText('完成 😄 后运行 `echo 😄`。')).toBe('完成 [开心] 后运行 echo 😄。')
+  })
+
   it('preserves literal markup and entities inside fenced code', () => {
     expect(normalizeReadableText('```html\n<think>结果</think>\n<p>A &amp; B</p>\n```')).toBe(
       '<think>结果</think>\n<p>A &amp; B</p>'
