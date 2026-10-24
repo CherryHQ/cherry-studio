@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { cpus } from 'node:os'
 import { join } from 'node:path'
 
 import type { TtsInferenceContract } from '../../capabilities/tts/protocol'
@@ -33,7 +34,7 @@ export class KokoroTts {
               dataDir: join(input.modelDir, 'espeak-ng-data'),
               lexicon: ['lexicon-us-en.txt', 'lexicon-zh.txt'].map((file) => join(input.modelDir, file)).join(',')
             },
-            numThreads: 2,
+            numThreads: Math.max(2, Math.min(4, cpus().length - 1)),
             provider: 'cpu',
             debug: false
           },
@@ -49,16 +50,38 @@ export class KokoroTts {
       }
     }
     signal.throwIfAborted()
-    const audio = this.model.generate({
-      text: input.text,
-      sid: Number(input.voice),
-      speed: input.speed,
-      // Electron's V8 sandbox requires audio buffers owned by the JavaScript runtime.
-      enableExternalBuffer: false
-    })
-    signal.throwIfAborted()
-    if (!audio.samples.length || audio.sampleRate <= 0) throw new Error('Speech output is empty')
-    if (audio.samples.length > 300 * audio.sampleRate) throw new Error('Speech output exceeds five minutes')
-    this.runtime.writeWave(input.outputPath, audio)
+    const requests = input.segments?.length ? input.segments : [{ text: input.text, voice: input.voice }]
+    const parts: Float32Array[] = []
+    let sampleRate = 0
+    for (const request of requests) {
+      signal.throwIfAborted()
+      const audio = this.model.generate({
+        text: request.text,
+        sid: Number(request.voice),
+        speed: input.speed,
+        // Electron's V8 sandbox requires audio buffers owned by the JavaScript runtime.
+        enableExternalBuffer: false
+      })
+      signal.throwIfAborted()
+      if (!audio.samples.length || audio.sampleRate <= 0) throw new Error('Speech output is empty')
+      if (sampleRate === 0) sampleRate = audio.sampleRate
+      else if (audio.sampleRate !== sampleRate) throw new Error('Speech segments use different sample rates')
+      parts.push(audio.samples)
+    }
+    // A short pause keeps a voice change from sounding like a cut.
+    const gap = new Float32Array(Math.round(sampleRate * 0.12))
+    const total = parts.reduce((sum, part) => sum + part.length, 0) + gap.length * (parts.length - 1)
+    const samples = new Float32Array(total)
+    let offset = 0
+    for (const part of parts) {
+      samples.set(part, offset)
+      offset += part.length
+      if (offset < total) {
+        samples.set(gap, offset)
+        offset += gap.length
+      }
+    }
+    if (samples.length > 300 * sampleRate) throw new Error('Speech output exceeds five minutes')
+    this.runtime.writeWave(input.outputPath, { samples, sampleRate })
   }
 }
