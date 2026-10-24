@@ -50,6 +50,7 @@ const feishuScopeInputSchema = z.strictObject({
 })
 const feishuApplicationCredentialsSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('personal-agent'), registrationSessionId: sessionIdSchema }),
+  z.strictObject({ kind: z.literal('saved-application'), applicationCredentialId: z.uuid() }),
   z.strictObject({
     kind: z.literal('custom-app'),
     appId: z.string().trim().min(1).max(256),
@@ -94,7 +95,7 @@ export const knowledgeRequestSchemas = {
     output: z.void()
   }),
   'knowledge.feishu.registration.begin': defineRoute({
-    input: z.void(),
+    input: z.strictObject({ applicationCredentialId: z.uuid().optional() }).optional(),
     output: z.strictObject({
       registrationSessionId: sessionIdSchema,
       verificationUri: z.url(),

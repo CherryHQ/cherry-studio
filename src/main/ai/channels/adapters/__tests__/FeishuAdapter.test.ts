@@ -203,49 +203,12 @@ describe('FeishuAdapter', () => {
     expect(mockDisconnect).toHaveBeenCalledTimes(2)
   })
 
-  it('starts QR registration when credentials are missing', async () => {
-    registrationMocks.begin.mockResolvedValue({
-      deviceCode: 'device-code',
-      verificationUri: 'https://accounts.feishu.cn/device/qr',
-      interval: 1,
-      expiresIn: 600
-    })
-    registrationMocks.poll.mockResolvedValue({ appId: 'new-app-id', appSecret: 'new-app-secret' })
+  it('rejects an unconfigured application without implicitly registering one', async () => {
     const adapter = createAdapter({ app_id: '', app_secret: '' })
-    const onQr = vi.fn()
-    const onCredentials = vi.fn()
-    adapter.on('qr', onQr)
-    adapter.on('credentials', onCredentials)
-
-    await adapter.connect()
-
-    await vi.waitFor(() => {
-      expect(onQr).toHaveBeenCalledWith('https://accounts.feishu.cn/device/qr')
-      expect(onCredentials).toHaveBeenCalledWith({ appId: 'new-app-id', appSecret: 'new-app-secret' })
-    })
+    await expect(adapter.connect()).rejects.toThrow()
+    expect(adapter.connected).toBe(false)
+    expect(registrationMocks.begin).not.toHaveBeenCalled()
     expect(mockConnect).not.toHaveBeenCalled()
-  })
-
-  it('does not finish QR registration after disconnect', async () => {
-    let finishPoll!: (result: { appId: string; appSecret: string }) => void
-    registrationMocks.begin.mockResolvedValue({
-      deviceCode: 'device-code',
-      verificationUri: 'https://accounts.feishu.cn/device/qr',
-      interval: 1,
-      expiresIn: 600
-    })
-    registrationMocks.poll.mockReturnValue(new Promise((resolve) => (finishPoll = resolve)))
-    const adapter = createAdapter({ app_id: '', app_secret: '' })
-    const onCredentials = vi.fn()
-    adapter.on('credentials', onCredentials)
-
-    await adapter.connect()
-    await vi.waitFor(() => expect(registrationMocks.poll).toHaveBeenCalledOnce())
-    await adapter.disconnect()
-    finishPoll({ appId: 'new-app-id', appSecret: 'new-app-secret' })
-    await Promise.resolve()
-
-    expect(onCredentials).not.toHaveBeenCalled()
   })
 
   it('sends markdown through the official channel and replies to the inbound message', async () => {

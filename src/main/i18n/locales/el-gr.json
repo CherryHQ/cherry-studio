@@ -93,6 +93,7 @@
   "common.dingtalk_file_type": "Το όνομα αρχείου χρειάζεται επέκταση που υποστηρίζει το DingTalk.",
   "common.dingtalk_processing": "Επεξεργασία…",
   "common.dingtalk_unsupported_message": "Αυτός ο τύπος μηνύματος δεν υποστηρίζεται. Στείλτε κείμενο, φωνητικά μηνύματα, εικόνες, βίντεο ή αρχεία.",
+  "common.feishu_credential_migration_failed": "Δεν ήταν δυνατή η μετεγκατάσταση της αποθηκευμένης εφαρμογής Feishu. Επιλέξτε μια εφαρμογή ή εισαγάγετε ξανά τα διαπιστευτήριά της.",
   "common.inspect": "Επιθεώρηση",
   "common.paste": "Επικόλληση",
   "common.wecom_attachment_failed": "Αδυναμία ανάγνωσης συνημμένων. Στείλτε τα ξανά (20 MB ανά αρχείο, 40 MB συνολικά).",

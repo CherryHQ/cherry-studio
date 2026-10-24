@@ -59,7 +59,16 @@ export class AgentChannelService {
     return {
       ...clean,
       type: row.type,
-      config: normalizeChannelConfig(row.config) as AgentChannelEntity['config'],
+      config: (row.type === 'feishu'
+        ? {
+            applicationCredentialId:
+              typeof row.config.applicationCredentialId === 'string' ? row.config.applicationCredentialId : null,
+            ...(row.config.registrationDomain === 'feishu' || row.config.registrationDomain === 'lark'
+              ? { registrationDomain: row.config.registrationDomain }
+              : {}),
+            allowed_chat_ids: Array.isArray(row.config.allowed_chat_ids) ? row.config.allowed_chat_ids : []
+          }
+        : normalizeChannelConfig(row.config)) as AgentChannelEntity['config'],
       workspace: row.workspace,
       permissionMode: (row.permissionMode ?? undefined) as AgentChannelEntity['permissionMode'],
       createdAt: timestampToISO(row.createdAt),

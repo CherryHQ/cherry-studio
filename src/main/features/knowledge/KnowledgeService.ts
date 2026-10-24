@@ -31,7 +31,6 @@ import {
   ExternalKnowledgeDisconnect
 } from './external/ExternalKnowledgeDisconnect'
 import {
-  type BeginAppRegistrationResult,
   type BeginAuthorizationResult,
   type BeginUserAuthorizationInput,
   ExternalKnowledgeRuntime,
@@ -44,6 +43,7 @@ import {
   type RequestExternalKnowledgeSourceSyncCommand
 } from './external/ExternalKnowledgeSyncAdmission'
 import { ExternalKnowledgeSyncService } from './external/ExternalKnowledgeSyncService'
+import { FEISHU_REQUIRED_USER_SCOPES } from './external/feishuKnowledgeProvider'
 import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
@@ -72,7 +72,14 @@ const logger = loggerService.withContext('Knowledge')
  */
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
+@DependsOn([
+  'KnowledgeVectorStoreService',
+  'JobManager',
+  'FileProcessingService',
+  'WebSearchService',
+  'FeishuCredentialMigrationService',
+  'FeishuRegistrationService'
+])
 export class KnowledgeService extends BaseService {
   private externalKnowledgeAdmissionOpen = false
   private externalKnowledgeInitialReconciled = false
@@ -93,6 +100,7 @@ export class KnowledgeService extends BaseService {
     }
   }
   private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime({
+    isConnectionBlocked: (id) => application.get('FeishuCredentialMigrationService').isConnectionBlocked(id),
     hooks: {
       onReauthorizationRequired: (connectionId) =>
         this.externalKnowledgeSourceLifecycle.pauseForReauthorization(connectionId)
@@ -155,6 +163,12 @@ export class KnowledgeService extends BaseService {
   }
 
   protected async onReady(): Promise<void> {
+    this.registerDisposable(
+      application.get('CredentialStoreService').onDidChange((event) => {
+        if (event.kind === 'application' && event.operation !== 'created')
+          this.externalKnowledgeRuntime.applicationChanged(event.id)
+      })
+    )
     await this.externalKnowledgeRuntime.start()
     try {
       this.externalKnowledgeSourceLifecycle.reconcilePersistedReauthorization()
@@ -254,18 +268,23 @@ export class KnowledgeService extends BaseService {
       })
   }
 
-  async beginFeishuAppRegistration(): Promise<BeginAppRegistrationResult> {
+  async beginFeishuAppRegistration(owner: string | null, requestId: string, applicationCredentialId?: string) {
     this.assertExternalKnowledgeReady()
-    return await this.externalKnowledgeRuntime.beginAppRegistration()
+    return application.get('FeishuRegistrationService').beginWindow(owner, {
+      requestId,
+      domain: 'feishu',
+      purpose: 'knowledge',
+      applicationCredentialId,
+      userScopes: FEISHU_REQUIRED_USER_SCOPES
+    })
   }
 
-  async cancelFeishuAppRegistration(registrationSessionId: string): Promise<void> {
-    await this.externalKnowledgeRuntime.cancelAppRegistration(registrationSessionId)
-  }
-
-  async beginFeishuUserAuthorization(input: BeginUserAuthorizationInput): Promise<BeginAuthorizationResult> {
+  async beginFeishuUserAuthorization(
+    input: BeginUserAuthorizationInput,
+    signal?: AbortSignal
+  ): Promise<BeginAuthorizationResult> {
     this.assertExternalKnowledgeReady()
-    return await this.externalKnowledgeRuntime.beginUserAuthorization(input)
+    return this.externalKnowledgeRuntime.beginUserAuthorization(input, signal)
   }
 
   async completeFeishuUserAuthorization(authorizationSessionId: string): Promise<ExternalKnowledgeConnection> {
@@ -279,10 +298,11 @@ export class KnowledgeService extends BaseService {
 
   async reconnectFeishuConnection(
     connectionId: string,
-    replacement?: BeginUserAuthorizationInput
+    replacement?: BeginUserAuthorizationInput,
+    signal?: AbortSignal
   ): Promise<BeginAuthorizationResult> {
     this.assertExternalKnowledgeReady()
-    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement)
+    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement, signal)
   }
 
   async validateFeishuConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {

@@ -93,6 +93,7 @@
   "common.dingtalk_file_type": "O nome do ficheiro deve incluir uma extensão suportada pelo DingTalk.",
   "common.dingtalk_processing": "A processar…",
   "common.dingtalk_unsupported_message": "Este tipo de mensagem não é suportado. Envie texto, mensagens de voz, imagens, vídeos ou ficheiros.",
+  "common.feishu_credential_migration_failed": "Não foi possível migrar a aplicação Feishu guardada. Selecione uma aplicação ou introduza novamente as suas credenciais.",
   "common.inspect": "Verificar",
   "common.paste": "Colar",
   "common.wecom_attachment_failed": "Não foi possível ler os anexos. Reenvie-os (20 MB por ficheiro, 40 MB no total).",

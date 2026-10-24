@@ -54,7 +54,16 @@ export type ChannelStreamErrorOptions = { suppressDelivery: boolean }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
 type ChannelConfigByType = {
-  [T in AgentChannelType]: Extract<AgentChannelEntity, { type: T }>['config']
+  [T in AgentChannelType]: T extends 'feishu'
+    ? {
+        app_id: string
+        app_secret: string
+        encrypt_key: string
+        verification_token: string
+        domain: 'feishu' | 'lark'
+        allowed_chat_ids: string[]
+      }
+    : Extract<AgentChannelEntity, { type: T }>['config']
 }
 
 /** The config payload for a specific channel type. Indexing keeps `ChannelAdapterConfig` covariant in `T`. */
