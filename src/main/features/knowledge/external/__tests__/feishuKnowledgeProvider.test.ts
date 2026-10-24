@@ -225,7 +225,7 @@ describe('feishuKnowledgeProvider', () => {
             obj_type: 'docx',
             parent_node_token: 'wikcnParent',
             node_type: 'origin',
-            title: 'Architecture',
+            title: 'Architecture / Q&A #1?',
             has_child: false,
             obj_edit_time: '42'
           }
@@ -236,7 +236,8 @@ describe('feishuKnowledgeProvider', () => {
     await expect(getWikiNode(authorization, { token: 'wikcnNode', objType: 'wiki' })).resolves.toMatchObject({
       spaceId: 'space-1',
       nodeToken: 'wikcnNode',
-      objToken: 'doxcnDocument'
+      objToken: 'doxcnDocument',
+      title: 'Architecture / Q&A #1?'
     })
     expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
       'https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node?token=wikcnNode&obj_type=wiki'
@@ -268,6 +269,40 @@ describe('feishuKnowledgeProvider', () => {
       code: 'invalid-response'
     })
     await expect(getWikiNode(authorization, { token: 'shortcut-1', objType: 'wiki' })).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+  })
+
+  it.each([
+    ['node token', { node_token: '../docx/other' }],
+    ['node token whitespace', { node_token: ' wikcnNode ' }],
+    ['parent token', { parent_node_token: 'parent?secret' }],
+    [
+      'shortcut origin token',
+      { node_type: 'shortcut', origin_node_token: 'origin#fragment', origin_space_id: 'space-1' }
+    ]
+  ])('rejects a Wiki response containing a malformed %s', async (_name, malformedFields) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          node: {
+            space_id: 'space-1',
+            node_token: 'wikcnNode',
+            obj_token: 'doxcnDocument',
+            obj_type: 'docx',
+            parent_node_token: 'wikcnParent',
+            node_type: 'origin',
+            title: 'Architecture / Q&A #1?',
+            has_child: false,
+            obj_edit_time: '42',
+            ...malformedFields
+          }
+        }
+      })
+    )
+
+    await expect(getWikiNode(authorization, { token: 'wikcnNode', objType: 'wiki' })).rejects.toMatchObject({
       code: 'invalid-response'
     })
   })
@@ -310,6 +345,25 @@ describe('feishuKnowledgeProvider', () => {
     })
     expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
       'https://open.feishu.cn/open-apis/wiki/v2/spaces/space-1/nodes?page_size=50&parent_node_token=root&page_token=page-1'
+    )
+  })
+
+  it('encodes space identity as one SDK path segment', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { items: [], has_more: false } }))
+
+    await expect(listWikiChildNodes(authorization, 'space/with?query#fragment')).resolves.toEqual({ nodes: [] })
+    const url = new URL(String(vi.mocked(net.fetch).mock.calls[0][0]))
+    expect(url.pathname).toBe('/open-apis/wiki/v2/spaces/space%2Fwith%3Fquery%23fragment/nodes')
+    expect(url.search).toBe('?page_size=50')
+    expect(url.hash).toBe('')
+  })
+
+  it('omits the parent token when listing Wiki space roots', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { items: [], has_more: false } }))
+
+    await expect(listWikiChildNodes(authorization, 'space-1', undefined, 'page-1')).resolves.toEqual({ nodes: [] })
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
+      'https://open.feishu.cn/open-apis/wiki/v2/spaces/space-1/nodes?page_size=50&page_token=page-1'
     )
   })
 

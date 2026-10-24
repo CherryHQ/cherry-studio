@@ -5,6 +5,7 @@
  */
 
 import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+import { chunk } from 'es-toolkit'
 
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
@@ -15,6 +16,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
+  type ExternalItemData,
   type KnowledgeItem,
   type KnowledgeItemData,
   KnowledgeItemSchema,
@@ -408,6 +410,112 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
+  createDeletingExternal(baseId: string, id: string, data: ExternalItemData): KnowledgeItem {
+    const [row] = application.get('DbService').withWriteTx((tx) =>
+      withSqliteErrors(
+        () =>
+          tx
+            .insert(knowledgeItemTable)
+            .values({ id, baseId, groupId: null, type: 'external', data, status: 'deleting', error: null })
+            .returning()
+            .all(),
+        {
+          foreignKey: () => DataApiErrorFactory.notFound('KnowledgeBase', baseId),
+          check: (constraintName) =>
+            DataApiErrorFactory.validation({
+              _root: [
+                constraintName
+                  ? `Knowledge item failed CHECK constraint '${constraintName}'`
+                  : 'Knowledge item failed a CHECK constraint'
+              ]
+            })
+        } satisfies SqliteErrorHandlers
+      )
+    )
+    if (!row) {
+      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Deleting external item create result missing')
+    }
+    return rowToKnowledgeItem(row)
+  }
+
+  promoteDeletingExternalTx(
+    tx: Pick<DbType, 'update'>,
+    baseId: string,
+    id: string,
+    data: ExternalItemData
+  ): KnowledgeItem | null {
+    const [row] = tx
+      .update(knowledgeItemTable)
+      .set({ data, status: 'completed', error: null })
+      .where(
+        and(
+          eq(knowledgeItemTable.id, id),
+          eq(knowledgeItemTable.baseId, baseId),
+          eq(knowledgeItemTable.type, 'external'),
+          eq(knowledgeItemTable.status, 'deleting')
+        )
+      )
+      .returning()
+      .all()
+    return row ? rowToKnowledgeItem(row) : null
+  }
+
+  isDeletingExternalTx(tx: Pick<DbType, 'select'>, baseId: string, id: string): boolean {
+    return Boolean(
+      tx
+        .select({ id: knowledgeItemTable.id })
+        .from(knowledgeItemTable)
+        .where(
+          and(
+            eq(knowledgeItemTable.id, id),
+            eq(knowledgeItemTable.baseId, baseId),
+            eq(knowledgeItemTable.type, 'external'),
+            eq(knowledgeItemTable.status, 'deleting')
+          )
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  updateSettledExternalMetadataTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    id: string,
+    input: { baseId: string; source: string; title: string }
+  ): KnowledgeItem | null {
+    const row = tx
+      .select()
+      .from(knowledgeItemTable)
+      .where(
+        and(
+          eq(knowledgeItemTable.id, id),
+          eq(knowledgeItemTable.baseId, input.baseId),
+          eq(knowledgeItemTable.type, 'external'),
+          inArray(knowledgeItemTable.status, ['completed', 'failed'])
+        )
+      )
+      .limit(1)
+      .get()
+    if (!row) return null
+
+    const item = rowToKnowledgeItem(row)
+    if (item.type !== 'external') return null
+    const [updatedRow] = tx
+      .update(knowledgeItemTable)
+      .set({ data: { ...item.data, source: input.source, title: input.title } })
+      .where(
+        and(
+          eq(knowledgeItemTable.id, id),
+          eq(knowledgeItemTable.baseId, input.baseId),
+          eq(knowledgeItemTable.type, 'external'),
+          inArray(knowledgeItemTable.status, ['completed', 'failed'])
+        )
+      )
+      .returning()
+      .all()
+    return updatedRow ? rowToKnowledgeItem(updatedRow) : null
+  }
+
   private validateGroupOwnerTx(db: Pick<DbType, 'select'>, baseId: string, groupId: string | null | undefined): void {
     if (groupId == null) {
       return
@@ -471,10 +579,9 @@ export class KnowledgeItemService {
     status: 'deleting' | 'failed',
     update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
-    if (status === 'failed') {
-      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
-    }
-    return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
+    return application
+      .get('DbService')
+      .withWriteTx((tx) => this.applySubtreeStatusTx(tx, baseId, rootIds, status, update))
   }
 
   setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting'): string[] {
@@ -501,21 +608,22 @@ export class KnowledgeItemService {
       return []
     }
 
-    const updatedRows = tx.all<{ id: string; groupId: string | null }>(sql`
+    const updatedRows = chunk(uniqueRootIds, 500).flatMap((rootBatch) =>
+      tx.all<{ id: string; groupId: string | null }>(sql`
         WITH RECURSIVE subtree AS (
           SELECT id
           FROM knowledge_item
           WHERE base_id = ${baseId}
             AND id IN (${sql.join(
-              uniqueRootIds.map((id) => sql`${id}`),
+              rootBatch.map((id) => sql`${id}`),
               sql`, `
             )})
 
           UNION ALL
 
           SELECT child.id
-          FROM knowledge_item child
-          INNER JOIN subtree parent ON child.group_id = parent.id
+          FROM subtree parent
+          CROSS JOIN knowledge_item child ON child.group_id = parent.id
           WHERE child.base_id = ${baseId}
         )
         UPDATE knowledge_item
@@ -526,9 +634,10 @@ export class KnowledgeItemService {
           ${status === 'failed' ? sql`AND status != 'deleting'` : sql``}
         RETURNING id, group_id AS "groupId"
       `)
+    )
 
     const updatedIdSet = new Set(updatedRows.map((row) => row.id))
-    const updatedIds = updatedRows.map((row) => row.id)
+    const updatedIds = [...updatedIdSet]
 
     if (status === 'failed') {
       this.reconcileContainers(

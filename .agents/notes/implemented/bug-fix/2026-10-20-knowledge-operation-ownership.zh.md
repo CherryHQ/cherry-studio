@@ -12,6 +12,10 @@ Status: implemented
 
 每次重建执行在知识库变更互斥锁内认领当前子树。获取失败、重置和任务结算只能修改仍归该次执行所有的条目。容器重置也会检查后代条目。重建任务在重启时放弃执行，因此操作归属仅保存在内存中；结算仅释放自己的认领。
 
+只有在变更锁内确认本地所有者已完成时，未变的远端版本或哈希才能跳过索引。失败的本地所有者走正常的暂存发布流程。清理入队和子树状态更新在调用方事务内使用有界批次；所有批次与所有权撤回一起提交或回滚。
+
+大批量回归还发现，递归状态更新的查询计划会为每个根条目扫描整个知识库。递归步骤使用 SQLite CROSS JOIN 将父节点固定为外层循环，使已有的 base/group 索引可直接查找子节点，避免重复扫描整个知识库。
+
 ## 考虑过的替代方案
 
 检查条目状态无法区分 completed → processing → completed。在网络获取期间持有知识库变更锁会阻塞无关变更。持久化代次需要为不会跨重启恢复的工作修改数据库结构。
@@ -24,3 +28,6 @@ Status: implemented
 
 - Regression — `ownedSubtreeJobHandlers.integration.test.ts`：失败的 A 获取等待 B，较新的 A 重建完成后旧失败才结算；通过真实 SQLite 查询边界验证 A 仍已完成且可见。
 - Regression — `reindexSubtreeJobHandler.test.ts`：已有删除、重置、中断和调度回归测试通过。
+
+- Regression — `ExternalKnowledgeSyncService.test.ts`：版本或哈希未变，以及取得锁前发生失败时，都会重建本地所有者。
+- Regression — `subtreeDeletion.integration.test.ts`：33,001 个根条目通过真实 JobManager 的载荷验证与真实 SQLite 状态更新；注入失败会回滚所有任务和状态变更。

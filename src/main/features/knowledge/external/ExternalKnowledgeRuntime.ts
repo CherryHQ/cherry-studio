@@ -6,6 +6,7 @@ import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowl
 import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { FeishuExternalKnowledgeScope } from '@shared/data/types/externalKnowledge'
 import type {
   ExternalKnowledgeDocumentRead,
   ExternalKnowledgeScopePreview,
@@ -48,8 +49,10 @@ import {
   previewFeishuKnowledgeScope,
   readFeishuDocx,
   resolveFeishuKnowledgeScope,
+  scanFeishuKnowledgeSource,
   type FeishuKnowledgeReadOperations,
-  type FeishuKnowledgeReference
+  type FeishuKnowledgeReference,
+  type FeishuKnowledgeSourceScanResult
 } from './feishuKnowledgeReadAdapter'
 
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
@@ -106,7 +109,7 @@ type Provider = {
   listWikiChildNodes(
     authorization: FeishuUserAuthorization,
     spaceId: string,
-    parentNodeToken: string,
+    parentNodeToken?: string,
     pageToken?: string,
     signal?: AbortSignal
   ): Promise<FeishuWikiNodePage>
@@ -576,16 +579,32 @@ export class ExternalKnowledgeRuntime {
 
   async readFeishuDocument(
     connectionId: string,
-    reference: FeishuKnowledgeReference
+    reference: FeishuKnowledgeReference,
+    signal?: AbortSignal
   ): Promise<ExternalKnowledgeDocumentRead> {
-    return await this.runAuthorizedRead(connectionId, async (context) =>
-      readFeishuDocx(reference, this.feishuReadOperations(context), context.signal)
+    return await this.runAuthorizedRead(
+      connectionId,
+      async (context) => readFeishuDocx(reference, this.feishuReadOperations(context), context.signal),
+      signal
+    )
+  }
+
+  async scanFeishuSource(
+    connectionId: string,
+    input: { spaceId: string; scope: FeishuExternalKnowledgeScope },
+    signal?: AbortSignal
+  ): Promise<FeishuKnowledgeSourceScanResult> {
+    return await this.runAuthorizedRead(
+      connectionId,
+      async (context) => scanFeishuKnowledgeSource(input, this.feishuReadOperations(context), context.signal),
+      signal
     )
   }
 
   private async runAuthorizedRead<T>(
     connectionId: string,
-    operation: (context: AuthorizedReadContext) => Promise<T>
+    operation: (context: AuthorizedReadContext) => Promise<T>,
+    callerSignal?: AbortSignal
   ): Promise<T> {
     this.assertAccepting()
     const connection = this.requireConnection(connectionId)
@@ -593,11 +612,12 @@ export class ExternalKnowledgeRuntime {
     const generation = state.generation
     const assertCurrent = () => this.assertCredentialGeneration(state, generation)
     const previous = state.requestTail ?? Promise.resolve()
-    const signal = this.credentialSignal(state)
+    const signal = this.credentialSignal(state, callerSignal)
     const task = previous
       .catch(() => undefined)
       .then(async () => {
         assertCurrent()
+        signal.throwIfAborted()
         try {
           const accessToken = await this.acquireAccessToken(connectionId, signal)
           assertCurrent()
@@ -629,6 +649,7 @@ export class ExternalKnowledgeRuntime {
               )
           })
         } catch (error) {
+          if (callerSignal?.aborted) throw callerSignal.reason ?? error
           assertCurrent()
           throw this.readOperationError(error, connectionId, state, generation)
         }
@@ -641,7 +662,32 @@ export class ExternalKnowledgeRuntime {
     void tail.finally(() => {
       if (state.requestTail === tail) state.requestTail = undefined
     })
-    return await this.track(task)
+    return await this.awaitCallerSignal(this.track(task), callerSignal)
+  }
+
+  private async awaitCallerSignal<T>(task: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (!signal) return await task
+    signal.throwIfAborted()
+    return await new Promise<T>((resolve, reject) => {
+      const cleanup = () => {
+        signal.removeEventListener('abort', onAbort)
+      }
+      const onAbort = () => {
+        cleanup()
+        reject(signal.reason)
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+      void task.then(
+        (value) => {
+          cleanup()
+          resolve(value)
+        },
+        (error) => {
+          cleanup()
+          reject(error)
+        }
+      )
+    })
   }
 
   private assertValidFeishuScopeUrl(url: string): void {
@@ -1322,6 +1368,7 @@ export class ExternalKnowledgeRuntime {
         const endpointWaitMs = (state.endpointNextAllowedAt.get(budget.key) ?? 0) - this.now()
         if (endpointWaitMs > 0) await this.sleep(endpointWaitMs, signal)
       }
+      signal.throwIfAborted()
       this.assertCredentialGeneration(state, generation)
       if (budget) {
         state.endpointNextAllowedAt.set(budget.key, this.now() + budget.minimumIntervalMs)

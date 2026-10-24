@@ -25,7 +25,8 @@ export const KNOWLEDGE_JOB_TYPES = [
   'knowledge.index-documents',
   'knowledge.check-file-processing-result',
   'knowledge.delete-subtree',
-  'knowledge.reindex-subtree'
+  'knowledge.reindex-subtree',
+  'knowledge.sync-external-source'
 ] as const satisfies readonly KnowledgeWorkflowJobType[]
 
 declare const knowledgeBaseIdBrand: unique symbol
@@ -101,6 +102,10 @@ export function knowledgeDeleteSubtreeIdempotencyKey(baseId: KnowledgeBaseId, ro
 export function knowledgeReindexSubtreeIdempotencyKey(baseId: KnowledgeBaseId, rootItemIds: KnowledgeItemId[]): string {
   const rootKey = [...rootItemIds].sort().join(',')
   return `knowledge:${baseId}:${rootKey}:reindex`
+}
+
+export function knowledgeExternalSourceSyncIdempotencyKey(baseId: KnowledgeBaseId, sourceId: string): string {
+  return `knowledge:${baseId}:external-source:${sourceId}:sync`
 }
 
 export function knowledgePrepareIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {

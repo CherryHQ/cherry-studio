@@ -32,6 +32,12 @@ declare module '@main/core/job/jobRegistry' {
       baseId: string
       rootItemIds: string[]
     }
+    'knowledge.sync-external-source': {
+      baseId: string
+      sourceId: string
+      sourceRevision: number
+      trigger: 'initial' | 'manual' | 'scheduled' | 'startup'
+    }
   }
 }
 
@@ -40,3 +46,4 @@ export type KnowledgeIndexDocumentsPayload = JobPayloadOf<'knowledge.index-docum
 export type KnowledgeCheckFileProcessingResultPayload = JobPayloadOf<'knowledge.check-file-processing-result'>
 export type KnowledgeDeleteSubtreePayload = JobPayloadOf<'knowledge.delete-subtree'>
 export type KnowledgeReindexSubtreePayload = JobPayloadOf<'knowledge.reindex-subtree'>
+export type KnowledgeSyncExternalSourcePayload = JobPayloadOf<'knowledge.sync-external-source'>
