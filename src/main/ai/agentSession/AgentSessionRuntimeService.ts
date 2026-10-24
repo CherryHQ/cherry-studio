@@ -3771,6 +3771,14 @@ export class AgentSessionRuntimeService extends BaseService {
     // before the bridge map, which would fail closed on an id it never bound.
     const native = entry ? this.nativeChildOrigin(entry, bridgeOrigin) : undefined
     if (native === true) return { currentTurn: 'headless', userResponse: 'unavailable' }
+    // A known interactive origin answers for itself: a child that outlives the turn that spawned it
+    // must not inherit whichever unattended work still holds the shared responder. Only a BOUND
+    // interactive origin qualifies — an unbound bridge id fails closed below.
+    const interactiveBridge =
+      native === undefined && entry !== undefined && bridgeOrigin !== undefined
+        ? !this.isHeadlessBridgeOrigin(entry, bridgeOrigin)
+        : false
+    if (native === false || interactiveBridge) return { currentTurn: 'interactive', userResponse: 'stream' }
     // A call issued by a headless-spawned child keeps that origin's denial regardless of whose
     // responder the aggregate occupancy currently reports. Checked FIRST: without an explicit
     // provenance the session-level resolution below credits the child with someone else's turn.

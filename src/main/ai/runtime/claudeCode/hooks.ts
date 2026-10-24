@@ -44,6 +44,13 @@ const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
 const SUBAGENT_LAUNCH_TOOL_NAMES: ReadonlySet<string> = new Set(['Task', 'Agent', SKILL_TOOL_NAME])
 
 /**
+ * The pinned SDK's workflow runner (`local_workflow`) launches native children through its own
+ * asynchronous `agent()`, so no spawn CALL announces them. Its authority is recorded as a standing
+ * attribution instead — consumed never, inherited by every child the run starts.
+ */
+const WORKFLOW_TOOL_NAME = 'Workflow'
+
+/**
  * The pinned SDK returns a background agent launch's result BEFORE its `SubagentStart`
  * (`status: 'async_launched'`), so a successful terminal there does not mean "no child is coming".
  */
@@ -113,11 +120,17 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     // the child's `agent_id`. `input.agent_id` is the spawning child; absent means the main thread.
     // Its authority is resolved HERE — a later foreground Skill attempt must not launder a
     // headless child's spawn by queue position.
-    if (SUBAGENT_LAUNCH_TOOL_NAMES.has(toolName) && toolUseId) {
+    if ((SUBAGENT_LAUNCH_TOOL_NAMES.has(toolName) || toolName === WORKFLOW_TOOL_NAME) && toolUseId) {
       const spawner = application
         .get('AgentSessionRuntimeService')
         .getToolGuardInteractionState(sessionId, input.agent_id)
-      sessionState().recordNativeSpawnAttempt(sessionId, toolUseId, spawner.currentTurn === 'headless', input.agent_id)
+      const headless = spawner.currentTurn === 'headless'
+      if (toolName === WORKFLOW_TOOL_NAME) {
+        // Standing: the run may start children long after this call, after the session is reused.
+        sessionState().recordNativeWorkflowAuthority(sessionId, toolUseId, headless)
+      } else {
+        sessionState().recordNativeSpawnAttempt(sessionId, toolUseId, headless, input.agent_id)
+      }
     }
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
@@ -169,7 +182,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     }
     if (decision.effect === 'deny') {
       // A denied spawn never starts a child, so its attribution must not mislabel a later one.
-      if (toolUseId) sessionState().clearNativeSpawnAttempt(sessionId, toolUseId)
+      if (toolUseId) {
+        sessionState().clearNativeSpawnAttempt(sessionId, toolUseId)
+        if (toolName === WORKFLOW_TOOL_NAME) sessionState().clearNativeWorkflowAuthority(sessionId, toolUseId)
+      }
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
     }
     return {
@@ -270,7 +286,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // follow-up). The binding lives until the connection resets — SubagentStop is NOT authoritative.
   const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStart') return {}
-    const spawn = sessionState().takeNativeSpawnAttempt(sessionId)
+    // An announced spawn call wins; otherwise the child may be one of a live workflow's unannounced
+    // launches, which all inherit that run's standing authority without consuming it.
+    const spawn =
+      sessionState().takeNativeSpawnAttempt(sessionId) ?? sessionState().resolveNativeWorkflowAuthority(sessionId)
     application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id, spawn)
     return {}
   }
@@ -290,13 +309,21 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     const event = input as unknown as Record<string, unknown>
     if (
       typeof event.tool_name === 'string' &&
-      SUBAGENT_LAUNCH_TOOL_NAMES.has(event.tool_name) &&
+      (SUBAGENT_LAUNCH_TOOL_NAMES.has(event.tool_name) || event.tool_name === WORKFLOW_TOOL_NAME) &&
       typeof event.tool_use_id === 'string'
     ) {
       // A background launch's child starts AFTER this success, so its attribution must survive to
       // bind it; a failure, a denial, or a call whose child already ran cannot still spawn.
-      if (event.hook_event_name === 'PostToolUse' && isAsyncSpawnResult(event.tool_response)) return {}
+      if (event.hook_event_name === 'PostToolUse' && isAsyncSpawnResult(event.tool_response)) {
+        // A workflow's standing authority covers the whole run, so it must outlive this call — but
+        // only for an in-process run; a remote launch starts its children on another host.
+        if (event.tool_name !== WORKFLOW_TOOL_NAME) return {}
+        if ((event.tool_response as Record<string, unknown> | undefined)?.taskType === 'local_workflow') return {}
+      }
       sessionState().clearNativeSpawnAttempt(sessionId, event.tool_use_id)
+      if (event.tool_name === WORKFLOW_TOOL_NAME) {
+        sessionState().clearNativeWorkflowAuthority(sessionId, event.tool_use_id)
+      }
     }
     return {}
   }

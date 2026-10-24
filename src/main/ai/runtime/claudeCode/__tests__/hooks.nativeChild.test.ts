@@ -24,6 +24,9 @@ const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, a
   // child, so the fake has to carry it between the two hooks like the real service does.
   const state = {
     spawnAttempts: [] as { toolUseId: string; headless: boolean; parentAgentId?: string }[],
+    // Standing authorities of asynchronous workflow runs. Not consumable: every child a run starts
+    // reads the same entry, and it lives until the run's tool call fails or the connection resets.
+    workflowAuthorities: [] as { toolUseId: string; headless: boolean }[],
     getToolPolicySnapshot: vi.fn(),
     getBashNoProgressRun: vi.fn(),
     getSteerHolder: vi.fn(),
@@ -50,6 +53,21 @@ const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, a
     clearNativeSpawnAttempt: vi.fn((_sessionId: string, toolUseId: string) => {
       const index = state.spawnAttempts.findIndex((attempt) => attempt.toolUseId === toolUseId)
       if (index >= 0) state.spawnAttempts.splice(index, 1)
+    }),
+    recordNativeWorkflowAuthority: vi.fn((_sessionId: string, toolUseId: string, headless: boolean) => {
+      state.workflowAuthorities.push({ toolUseId, headless })
+    }),
+    clearNativeWorkflowAuthority: vi.fn((_sessionId: string, toolUseId: string) => {
+      const index = state.workflowAuthorities.findIndex((run) => run.toolUseId === toolUseId)
+      if (index >= 0) state.workflowAuthorities.splice(index, 1)
+    }),
+    resolveNativeWorkflowAuthority: vi.fn(() => {
+      const [first] = state.workflowAuthorities
+      if (!first) return undefined
+      if (state.workflowAuthorities.some((run) => run.headless !== first.headless)) {
+        return { headless: true, ambiguous: true }
+      }
+      return { headless: first.headless, ambiguous: false }
     })
   }
   return {
@@ -235,6 +253,7 @@ beforeEach(async () => {
   state.getSteerHolder.mockReturnValue({ pending: [] })
   cacheService.getShared.mockReturnValue(undefined)
   state.spawnAttempts.length = 0
+  state.workflowAuthorities.length = 0
   // The binding under test lives on the service's entry, so each test gets a fresh real instance
   // (the lifecycle guard forbids more than one at a time).
   BaseService.resetInstances()
@@ -465,6 +484,25 @@ describe('native Claude child authority across a desktop follow-up', () => {
     expect(stateService.takeNativeSpawnAttempt('session-x')).toBeUndefined()
   })
 
+  // Unlike a spawn attempt, a workflow run's authority is standing: an unknown number of children
+  // start from it, so reading it must not consume it. Concurrent runs that disagree fail closed.
+  it('keeps a workflow run’s authority standing for every child it launches', () => {
+    const stateService = new ClaudeCodeSessionStateService()
+    stateService.recordNativeWorkflowAuthority('session-y', 'tool-workflow', true)
+
+    expect(stateService.resolveNativeWorkflowAuthority('session-y')).toEqual({ headless: true, ambiguous: false })
+    expect(stateService.resolveNativeWorkflowAuthority('session-y')).toEqual({ headless: true, ambiguous: false })
+
+    stateService.recordNativeWorkflowAuthority('session-y', 'tool-workflow-2', false)
+    expect(stateService.resolveNativeWorkflowAuthority('session-y')).toEqual({ headless: true, ambiguous: true })
+
+    stateService.clearNativeWorkflowAuthority('session-y', 'tool-workflow')
+    expect(stateService.resolveNativeWorkflowAuthority('session-y')).toEqual({ headless: false, ambiguous: false })
+
+    stateService.clearNativeWorkflowAuthority('session-y', 'tool-workflow-2')
+    expect(stateService.resolveNativeWorkflowAuthority('session-y')).toBeUndefined()
+  })
+
   // A plain skill invocation starts nothing. Its attribution must not survive to claim the next
   // spawn, which would drag the follow-up's own interactive child under the old headless denial.
   it('drops a skill call that spawned no child', async () => {
@@ -636,5 +674,129 @@ describe('native Claude child authority across a desktop follow-up', () => {
     )
     expect(runtime().getSessionToolsAuthorization(SESSION_ID)).toMatchObject({ currentTurn: 'interactive' })
     expect(runtime().getMcpInteractionHost(SESSION_ID)).toMatchObject({ windowId: 'window-1' })
+  })
+
+  // `Workflow` (pinned SDK 0.3.284) starts its children through its own asynchronous `agent()`
+  // runner, so no Task/Skill call announces them and the consumable spawn queue stays empty. The
+  // run's own authority has to cover EVERY child it starts, including after a desktop follow-up
+  // took the session — a single queue entry could only ever cover one of them.
+  it('keeps every child of a headless workflow unattended across a desktop follow-up', async () => {
+    beginTurn(true)
+    await fireGuard({ tool_name: 'Workflow', tool_input: { script: 'export const meta = { name: "audit" }' } })
+    settleTurn()
+
+    beginTurn(false)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'workflow-child-1', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'workflow-child-2', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'workflow-child-1' })).permissionDecision).toBe('deny')
+    expect(decisionOf(await fireGuard({ agent_id: 'workflow-child-2' })).permissionDecision).toBe('deny')
+
+    // The follow-up's own Task child still binds from its own spawn call, not from the workflow.
+    await fireGuard({
+      tool_name: 'Task',
+      tool_input: { description: 'B', prompt: 'go', subagent_type: 'general-purpose' }
+    })
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'child-of-desktop', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    expect(decisionOf(await fireGuard({ agent_id: 'child-of-desktop' })).permissionDecision).toBeUndefined()
+  })
+
+  // A remote workflow runs its children on another host, so it owes no local attribution: the
+  // standing authority must not survive its call and mislabel the follow-up's next child.
+  it('drops a remote workflow’s authority once its call ends', async () => {
+    beginTurn(true)
+    await fireGuard({ tool_name: 'Workflow', tool_input: { script: 'export const meta = { name: "audit" }' } })
+    settleTurn()
+
+    beginTurn(false)
+    await hook('PostToolUse', 2)(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Workflow',
+        tool_use_id: 'tool-use-1',
+        tool_response: { status: 'remote_launched', taskType: 'remote_agent' }
+      } as never,
+      'tool-use-1',
+      { signal: new AbortController().signal }
+    )
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'after-remote-workflow', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'after-remote-workflow' })).permissionDecision).toBeUndefined()
+  })
+
+  // The inverse: a workflow launched by an interactive turn keeps its children interactive even
+  // when a later headless delivery merely owns the session.
+  it('keeps an interactively launched workflow’s child interactive under a headless delivery', async () => {
+    beginTurn(false)
+    await fireGuard({ tool_name: 'Workflow', tool_input: { script: 'export const meta = { name: "audit" }' } })
+    settleTurn()
+
+    beginTurn(true)
+    await hook('SubagentStart')(
+      {
+        hook_event_name: 'SubagentStart',
+        agent_id: 'interactive-workflow-child',
+        agent_type: 'general-purpose'
+      } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID, 'interactive-workflow-child')).toMatchObject({
+      currentTurn: 'interactive'
+    })
+  })
+
+  // The bridge half of the same boundary: a detached child (DSH) forwards its calls under the root
+  // Session id with `cherry.bridgeOrigin`, and its provenance is bound where it was spawned. An
+  // interactive child that outlives its spawning turn must not be denied by unrelated headless work
+  // that still holds the shared responder.
+  it('keeps an interactively spawned detached child’s session tools under headless background work', () => {
+    beginTurn(true)
+    const entry = (runtime() as unknown as { entries: Map<string, any> }).entries.get(SESSION_ID)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        refreshTraceContext: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      },
+      occupancy: {}
+    }
+    // Headless background work activates first, so its responder outlives the turn.
+    ;(runtime() as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+    settleTurn()
+
+    // The desktop follow-up spawns its own detached child while it is the live turn.
+    beginTurn(false)
+    ;(runtime() as any).handleRuntimeEvent(entry, {
+      type: 'background-child-provenance',
+      childSessionId: 'dsh-interactive-child'
+    })
+    settleTurn()
+
+    // Only the headless work is left: an unattributed call still fails closed…
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID)).toMatchObject({ userResponse: 'unavailable' })
+    // …while the child's known interactive origin answers for itself.
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID, 'dsh-interactive-child')).toMatchObject({
+      currentTurn: 'interactive'
+    })
   })
 })

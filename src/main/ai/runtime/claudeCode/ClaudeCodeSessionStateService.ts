@@ -51,6 +51,16 @@ export interface NativeSpawnAttempt {
   headless: boolean
 }
 
+/**
+ * One live asynchronous workflow run. `Workflow` starts children through its own `agent()` runner
+ * long after the tool call, so unlike a spawn attempt this is STANDING: every child the run starts
+ * reads it, and it lives until the run's call fails or the connection resets.
+ */
+export interface NativeWorkflowAuthority {
+  toolUseId: string
+  headless: boolean
+}
+
 /** What a `SubagentStart` may inherit: the spawner's authority, or fail-closed when unattributable. */
 export interface NativeSpawnAttribution {
   parentAgentId?: string
@@ -69,6 +79,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
   private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
   private readonly nativeSpawnAttempts = new Map<string, NativeSpawnAttempt[]>()
+  private readonly nativeWorkflowAuthorities = new Map<string, NativeWorkflowAuthority[]>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -244,6 +255,38 @@ export class ClaudeCodeSessionStateService extends BaseService {
     else this.nativeSpawnAttempts.set(sessionId, remaining)
   }
 
+  /**
+   * Record a workflow run's authority. It is NOT consumed by a `SubagentStart`: the run launches an
+   * unknown number of children through its asynchronous `agent()` runner, so one queue entry could
+   * cover at most one of them.
+   */
+  recordNativeWorkflowAuthority(sessionId: string, toolUseId: string, headless: boolean): void {
+    const runs = this.nativeWorkflowAuthorities.get(sessionId) ?? []
+    runs.push({ toolUseId, headless })
+    this.nativeWorkflowAuthorities.set(sessionId, runs)
+  }
+
+  /** A workflow that never ran (denied, errored, remote-only) must not attribute a later child. */
+  clearNativeWorkflowAuthority(sessionId: string, toolUseId: string): void {
+    const runs = this.nativeWorkflowAuthorities.get(sessionId)
+    if (!runs) return
+    const remaining = runs.filter((run) => run.toolUseId !== toolUseId)
+    if (remaining.length === 0) this.nativeWorkflowAuthorities.delete(sessionId)
+    else this.nativeWorkflowAuthorities.set(sessionId, remaining)
+  }
+
+  /**
+   * The authority a child inherits when no explicit spawn call announced it. Concurrent runs that
+   * disagree are unattributable, so they fail closed like a mixed spawn queue.
+   */
+  resolveNativeWorkflowAuthority(sessionId: string): NativeSpawnAttribution | undefined {
+    const runs = this.nativeWorkflowAuthorities.get(sessionId)
+    if (!runs?.length) return undefined
+    const [first] = runs
+    if (runs.some((run) => run.headless !== first.headless)) return { headless: true, ambiguous: true }
+    return { headless: first.headless, ambiguous: false }
+  }
+
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
@@ -252,6 +295,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     }
     this.bashRewriteOrigins.delete(sessionId)
     this.nativeSpawnAttempts.delete(sessionId)
+    this.nativeWorkflowAuthorities.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
   }
@@ -330,6 +374,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.bashOutcomes.clear()
     this.bashRewriteOrigins.clear()
     this.nativeSpawnAttempts.clear()
+    this.nativeWorkflowAuthorities.clear()
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }
