@@ -135,7 +135,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
   | { type: 'buffer-chunk'; chunk: UIMessageChunk }
   | { type: 'runtime-terminal'; outcome: AgentSessionTerminalOutcome }
   | { type: 'flush-transition' }
-  | { type: 'turn-terminal'; turn: TTurn; status: AgentSessionTerminalStatus }
+  | { type: 'turn-terminal'; turn: TTurn; status: AgentSessionTerminalStatus; continueSteer?: boolean }
   | { type: 'launch-requested'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'launch-started'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'launch-suppressed'; target: AgentSessionRuntimeLaunchTarget }
@@ -570,7 +570,9 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
     case 'turn-terminal': {
       const execution = state.execution
       if (execution.kind === 'steer-transition' && execution.sourceTurn === event.turn) {
-        if (event.status === 'success') {
+        // An empty pre-steer row can persist as error while its injected steer is already in flight.
+        // Continue that roll, but preserve the ordinary error path for a failed continuation launch.
+        if (event.status === 'success' || event.continueSteer) {
           if (execution.sourceStream === 'settled') return { state, effects: [] }
           return {
             state: {

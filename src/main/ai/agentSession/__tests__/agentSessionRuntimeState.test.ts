@@ -253,6 +253,24 @@ describe('agentSessionRuntimeState', () => {
     ])
   })
 
+  it('keeps a steer transition live when its empty source row persists as an error', () => {
+    const original = turn('assistant-1')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(original)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: original }).state
+    state = transitionAgentSessionRuntime(state, { type: 'steer-boundary', inputs: [], headless: false }).state
+
+    const settled = transitionAgentSessionRuntime(state, {
+      type: 'turn-terminal',
+      turn: original,
+      status: 'error',
+      continueSteer: true
+    })
+
+    expect(settled.state.execution).toMatchObject({ kind: 'steer-transition', sourceStream: 'settled' })
+    expect(settled.state.lastTerminal).toBe('error')
+    expect(settled.effects).toEqual([{ type: 'schedule-launch', target: 'steer-continuation' }])
+  })
+
   it.each([false, true])('latches early steer completion and waits for subagents when present (%s)', (background) => {
     const original = turn('assistant-1')
     const continuation = turn('assistant-2')
