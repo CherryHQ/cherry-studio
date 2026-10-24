@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { splitParamValues } from '../../../utils/imageOptions'
 import { buildVendorProviderOptions } from '../wire/buildImageRequest'
-import { DEFAULT_DIFFUSION_REGISTRATION } from '../wire/wireProfile'
+import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from '../wire/wireProfile'
 
 const baseImageModel = vi.fn()
 const languageModel = vi.fn()
@@ -38,7 +38,8 @@ const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn<(...args: any[]) 
 
 const gatewayProviderOptions = (paramValues: Record<string, unknown>) => {
   const { vendorBag } = splitParamValues(paramValues)
-  return buildVendorProviderOptions('gateway', paramValues, DEFAULT_DIFFUSION_REGISTRATION, vendorBag)
+  const registration = WIRE_REGISTRY.gateway ?? DEFAULT_DIFFUSION_REGISTRATION
+  return buildVendorProviderOptions('gateway', paramValues, registration, vendorBag)
 }
 
 describe('isGatewayGeminiImageModel', () => {
@@ -183,7 +184,10 @@ describe('createGatewayWithImageModel', () => {
     for (const entryPoint of ['imageModel', 'image'] as const) {
       const model = provider[entryPoint](modelId)
       const result = await model.doGenerate(
-        callOptions({ aspectRatio: '16:9', providerOptions: gatewayProviderOptions({ imageResolution: '2K' }) })
+        callOptions({
+          aspectRatio: '16:9',
+          providerOptions: gatewayProviderOptions({ imageResolution: '2K', quality: 'low', only: ['google'] })
+        })
       )
 
       expect(model.modelId).toBe(modelId)
@@ -193,6 +197,7 @@ describe('createGatewayWithImageModel', () => {
         expect.objectContaining({
           prompt: [{ role: 'user', content: [{ type: 'text', text: 'a fox' }] }],
           providerOptions: {
+            gateway: { quality: 'low', only: ['google'] },
             google: { responseModalities: ['IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } }
           }
         })
@@ -209,11 +214,18 @@ describe('createGatewayWithImageModel', () => {
       const provider = createGatewayWithImageModel({})
 
       for (const entryPoint of ['imageModel', 'image'] as const) {
-        const result = await provider[entryPoint](modelId).doGenerate(callOptions())
+        const providerOptions = { gateway: { quality: 'low', only: ['openai', 'google'] } }
+        const result = await provider[entryPoint](modelId).doGenerate(callOptions({ providerOptions }))
 
         expect(result.images).toEqual(['NATIVE_IMAGE'])
         expect(baseImageModel).toHaveBeenLastCalledWith(modelId)
-        expect(doGenerate).toHaveBeenLastCalledWith(callOptions())
+        expect(doGenerate).toHaveBeenLastCalledWith(
+          callOptions({
+            providerOptions: modelId.startsWith('openai/')
+              ? { gateway: { only: ['openai', 'google'] }, openai: { quality: 'low' } }
+              : providerOptions
+          })
+        )
       }
       expect(languageModel).not.toHaveBeenCalled()
     }
