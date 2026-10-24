@@ -4,7 +4,8 @@ import {
   ExternalKnowledgeReadDescriptorSchema,
   ExternalKnowledgeDocumentReadSchema,
   ExternalKnowledgeScopePreviewSchema,
-  ExternalKnowledgeScopeResolutionSchema
+  ExternalKnowledgeScopeResolutionSchema,
+  FeishuWikiSpacePreviewSchema
 } from '../externalKnowledgeRead'
 
 const CONNECTION_ID = '0198f3f2-7d1a-7abc-8def-123456789ab2'
@@ -71,18 +72,32 @@ describe('ExternalKnowledgeScopeResolutionSchema', () => {
 })
 
 describe('ExternalKnowledgeScopePreviewSchema', () => {
-  it('represents metadata-only counts without claiming an exact embedding cost', () => {
+  it('accepts public document details but rejects private payloads and unknown skip reasons', () => {
     const preview = {
       resolution,
-      visibleNodeCount: 4,
-      supportedDocxCount: 2,
+      visibleNodeCount: 2,
+      supportedDocxCount: 1,
       unsupportedOrSkippedCount: 1,
+      supportedDocuments: [{ nodeId: 'node-1', title: 'Architecture', documentKind: 'document' }],
+      skippedItems: [{ nodeId: 'sheet-1', title: 'Roadmap', documentKind: 'spreadsheet', reason: 'unsupported-type' }],
       embeddingCostExact: false as const,
       warnings: []
     }
 
-    expect(ExternalKnowledgeScopePreviewSchema.parse(preview)).toEqual(preview)
+    expect(ExternalKnowledgeScopePreviewSchema.safeParse(preview).success).toBe(true)
     expect(ExternalKnowledgeScopePreviewSchema.safeParse({ ...preview, embeddingCostExact: true }).success).toBe(false)
+    expect(
+      ExternalKnowledgeScopePreviewSchema.safeParse({
+        ...preview,
+        supportedDocuments: [{ ...preview.supportedDocuments[0], providerData: { objToken: 'private' } }]
+      }).success
+    ).toBe(false)
+    expect(
+      ExternalKnowledgeScopePreviewSchema.safeParse({
+        ...preview,
+        skippedItems: [{ ...preview.skippedItems[0], reason: 'unknown' }]
+      }).success
+    ).toBe(false)
   })
 
   it('allows a zero-Docx scope with a machine-readable warning', () => {
@@ -92,9 +107,33 @@ describe('ExternalKnowledgeScopePreviewSchema', () => {
         visibleNodeCount: 3,
         supportedDocxCount: 0,
         unsupportedOrSkippedCount: 3,
+        supportedDocuments: [],
+        skippedItems: [
+          { nodeId: 'sheet-1', title: 'Roadmap', documentKind: 'spreadsheet', reason: 'unsupported-type' },
+          { nodeId: 'file-1', title: 'Archive', documentKind: 'file', reason: 'unsupported-type' },
+          { nodeId: 'shortcut-1', title: 'Other Wiki', documentKind: 'document', reason: 'cross-space-shortcut' }
+        ],
         embeddingCostExact: false,
         warnings: ['no-supported-documents']
       }).success
+    ).toBe(true)
+  })
+})
+
+describe('FeishuWikiSpacePreviewSchema', () => {
+  it('requires document details for a whole-space preview', () => {
+    const preview = {
+      space: { spaceId: 'space-1', name: 'Engineering', description: null },
+      visibleNodeCount: 0,
+      supportedDocxCount: 0,
+      unsupportedOrSkippedCount: 0,
+      embeddingCostExact: false,
+      warnings: ['no-supported-documents']
+    }
+
+    expect(FeishuWikiSpacePreviewSchema.safeParse(preview).success).toBe(false)
+    expect(
+      FeishuWikiSpacePreviewSchema.safeParse({ ...preview, supportedDocuments: [], skippedItems: [] }).success
     ).toBe(true)
   })
 })

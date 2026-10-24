@@ -2517,6 +2517,13 @@ describe('KnowledgeService', () => {
     expect(service.getFilePath('url-1')).toBe(knowledgeDataPath('kb-1', 'raw', 'Product Docs.md'))
   })
 
+  it('resolves an external item preview to its pinned local snapshot', () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockReturnValue(createExternalItem())
+
+    expect(service.getFilePath('external-1')).toBe(knowledgeDataPath('kb-1', 'raw', 'external.md'))
+  })
+
   it('rejects URL preview path resolution before a snapshot is captured', () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockReturnValue({
@@ -2542,7 +2549,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
 
     expect(() => service.getFilePath('note-1')).toThrow(
-      "Knowledge item 'note-1' must be a file or URL to preview its source"
+      "Knowledge item 'note-1' must be a file, URL, or external snapshot to preview its source"
     )
   })
 
@@ -2555,7 +2562,7 @@ describe('KnowledgeService', () => {
     })
 
     expect(() => service.getFilePath('directory-1')).toThrow(
-      "Knowledge item 'directory-1' must be a file or URL to preview its source"
+      "Knowledge item 'directory-1' must be a file, URL, or external snapshot to preview its source"
     )
   })
 

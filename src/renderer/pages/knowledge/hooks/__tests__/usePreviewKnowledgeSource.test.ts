@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createDirectoryItem,
+  createExternalItem,
   createFileItem,
   createUrlItem
 } from '@renderer/pages/knowledge/panels/dataSource/__tests__/testUtils'
@@ -77,6 +78,22 @@ describe('usePreviewKnowledgeSource', () => {
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.get_file_path', { itemId: 'file-1' })
     expect(previewFileMock).toHaveBeenCalledWith({
       fileName: 'report.pdf',
+      filePath: '/knowledge/base-1/raw/report.pdf'
+    })
+    expect(mockOpenPath).not.toHaveBeenCalled()
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+  })
+
+  it('previews an external item from its pinned local snapshot', async () => {
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
+
+    await act(async () => {
+      await result.current.previewSource(createExternalItem({ id: 'external-1' }))
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.get_file_path', { itemId: 'external-1' })
+    expect(previewFileMock).toHaveBeenCalledWith({
+      fileName: 'External doc',
       filePath: '/knowledge/base-1/raw/report.pdf'
     })
     expect(mockOpenPath).not.toHaveBeenCalled()

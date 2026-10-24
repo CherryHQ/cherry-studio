@@ -16,6 +16,7 @@ import { ExternalKnowledgeSourceLifecycle } from '../ExternalKnowledgeSourceLife
 import {
   exchangeDeviceAuthorization,
   FEISHU_REQUIRED_USER_SCOPES,
+  FEISHU_SPACE_DISCOVERY_USER_SCOPE,
   FeishuProviderError,
   getDocxMarkdown,
   getWikiNode,
@@ -58,6 +59,7 @@ const token: FeishuUserTokenSet = {
 
 function provider() {
   return {
+    listWikiSpaces: vi.fn(),
     getWikiNode: vi.fn(),
     listWikiChildNodes: vi.fn(),
     getDocxMarkdown: vi.fn(),
@@ -111,6 +113,86 @@ describe('authorization recovery ownership', () => {
     const initial = await runtime.beginUserAuthorization(app)
     return runtime.completeUserAuthorization(initial.authorizationSessionId)
   }
+
+  it('keeps replacement authorization and Sources active after a stale discovery credential read fails', async () => {
+    const api = provider()
+    api.exchangeDeviceAuthorization.mockResolvedValue({
+      ...token,
+      grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
+    })
+    const lifecycle = new ExternalKnowledgeSourceLifecycle({ requestSyncForTrigger: vi.fn() })
+    const runtime = new ExternalKnowledgeRuntime({
+      credentials,
+      provider: api,
+      now: () => 1_000,
+      sleep: async () => {},
+      hooks: { onReauthorizationRequired: (id) => lifecycle.pauseForReauthorization(id) },
+      commitReauthorization: (id, input) => lifecycle.commitReauthorization(id, input)
+    })
+    runtimes.push(runtime)
+    await runtime.start()
+    const original = await connected(runtime)
+    const baseId = '11111111-1111-4111-8111-111111111111'
+    dbh.db
+      .insert(knowledgeBaseTable)
+      .values({ id: baseId, orderKey: 'a0', name: 'Base', status: 'completed', chunkSize: 1024, chunkOverlap: 200 })
+      .run()
+    dbh.db
+      .insert(externalKnowledgeSourceTable)
+      .values({
+        id: '0198f3f2-7d11-7abc-8def-123456789abc',
+        baseId,
+        connectionId: original.id,
+        provider: 'feishu',
+        tenantId: 'tenant',
+        spaceId: 'space',
+        scope: { kind: 'space' },
+        name: 'Wiki',
+        state: 'active',
+        revision: 1
+      })
+      .run()
+
+    const readEntered = deferred()
+    const releaseRead = deferred()
+    const read = credentials.read.bind(credentials)
+    let holdNextRead = false
+    vi.spyOn(credentials, 'read').mockImplementation(async (reference) => {
+      if (holdNextRead) {
+        holdNextRead = false
+        readEntered.resolve()
+        await releaseRead.promise
+        return { status: 'missing' }
+      }
+      return read(reference)
+    })
+    api.listWikiSpaces.mockImplementationOnce(async () => {
+      holdNextRead = true
+      return { spaces: [], nextPageToken: 'second' }
+    })
+    const discovery = runtime.resolveFeishuSpace(original.id, 'space').catch((error) => error)
+    await readEntered.promise
+    try {
+      const reconnect = await runtime.beginReconnect(original.id, app)
+      const replacement = await runtime.completeUserAuthorization(reconnect.authorizationSessionId)
+      const source = dbh.db.select().from(externalKnowledgeSourceTable).get()
+      releaseRead.resolve()
+
+      await expect(discovery).resolves.toMatchObject({ name: 'AbortError' })
+      expect(connections.getById(original.id)).toEqual(replacement)
+      expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toEqual(source)
+      expect(source?.state).toBe('active')
+      await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+      api.listWikiSpaces.mockResolvedValue({ spaces: [{ spaceId: 'space', name: 'Wiki', description: null }] })
+      await expect(runtime.resolveFeishuSpace(original.id, 'space')).resolves.toEqual({
+        tenantId: 'tenant',
+        spaceId: 'space'
+      })
+    } finally {
+      releaseRead.resolve()
+      await discovery
+    }
+  })
 
   it('recovers Wiki preview after an HTTP 400 RPC failure without invalidating authorization', async () => {
     const api = provider()
@@ -340,7 +422,7 @@ describe('authorization recovery ownership', () => {
         })
         .run()
       const source = dbh.db.select().from(externalKnowledgeSourceTable).get()
-      const reconnect = await runtime.beginReconnect(original.id)
+      const reconnect = await runtime.beginReconnect(original.id, undefined, true)
       expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toEqual(source)
       if (failure === 'cancel') {
         await runtime.cancelUserAuthorization(reconnect.authorizationSessionId)

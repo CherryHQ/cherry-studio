@@ -9,6 +9,7 @@ import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
 import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
+import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { jobService } from '@data/services/JobService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 
@@ -219,6 +220,15 @@ describe('ExternalKnowledgeSourceLifecycle', () => {
     })
 
     expect(source.scheduleId).toBe(SCHEDULE_ID)
+    expect(externalKnowledgeSourceService.listByBaseIdWithSchedule(BASE_ID)).toEqual([
+      expect.objectContaining({
+        id: SOURCE_ID,
+        schedule: {
+          policy: { kind: 'daily', time: '09:05', timezone: 'Asia/Shanghai' },
+          nextRunAt: null
+        }
+      })
+    ])
     expect(registerScheduleTxMock).toHaveBeenCalledWith(expect.anything(), {
       type: 'knowledge.sync-external-source',
       name: `external-knowledge-source-${SOURCE_ID}`,
@@ -259,6 +269,11 @@ describe('ExternalKnowledgeSourceLifecycle', () => {
       enabled: true
     })
     expect(dbh.db.select().from(jobScheduleTable).all()).toHaveLength(1)
+    expect(externalKnowledgeSourceService.listByBaseIdWithSchedule(BASE_ID)[0].schedule.policy).toEqual({
+      kind: 'daily',
+      time: '18:30',
+      timezone: 'Europe/Paris'
+    })
     expect(syncTimerMock).toHaveBeenCalledWith(SCHEDULE_ID)
   })
 

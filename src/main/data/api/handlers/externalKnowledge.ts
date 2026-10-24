@@ -9,7 +9,7 @@ import type { HandlersFor } from '@shared/data/api/types'
 
 export const externalKnowledgeHandlers: HandlersFor<ExternalKnowledgeSchemas> = {
   '/knowledge-bases/:id/external-knowledge-sources': {
-    GET: async ({ params }) => externalKnowledgeSourceService.listByBaseId(params.id)
+    GET: async ({ params }) => externalKnowledgeSourceService.listByBaseIdWithSchedule(params.id)
   },
 
   '/external-knowledge-sources/:id': {

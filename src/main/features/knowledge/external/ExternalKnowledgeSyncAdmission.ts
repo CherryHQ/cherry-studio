@@ -12,12 +12,13 @@ import { knowledgeExternalSourceSyncIdempotencyKey, knowledgeQueueName, toKnowle
 import { notifyExternalKnowledgeSourceChange } from './externalKnowledgeDataChange'
 import { ExternalKnowledgeRuntimeError } from './ExternalKnowledgeRuntime'
 
-export type CreateExternalKnowledgeSourceCommand = {
+type CreateExternalKnowledgeSourceBaseCommand = {
   baseId: string
   connectionId: string
-  url: string
   name: string
 }
+export type CreateExternalKnowledgeSourceCommand = CreateExternalKnowledgeSourceBaseCommand &
+  ({ url: string; spaceId?: never } | { spaceId: string; url?: never })
 
 export type RequestExternalKnowledgeSourceSyncCommand = {
   sourceId: string
@@ -25,6 +26,7 @@ export type RequestExternalKnowledgeSourceSyncCommand = {
 
 type ScopeRuntime = {
   resolveFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopeResolution>
+  resolveFeishuSpace(connectionId: string, spaceId: string): Promise<{ tenantId: string; spaceId: string }>
 }
 
 type AdmissionDependencies = {
@@ -59,7 +61,13 @@ export class ExternalKnowledgeSyncAdmission {
     }
     this.dependencies.assertOpen()
     this.dependencies.assertBaseAvailable(input.baseId)
-    const resolution = await this.runtime.resolveFeishuScope(input.connectionId, input.url)
+    const resolution =
+      input.spaceId === undefined
+        ? await this.runtime.resolveFeishuScope(input.connectionId, input.url)
+        : {
+            ...(await this.runtime.resolveFeishuSpace(input.connectionId, input.spaceId)),
+            scope: { kind: 'space' as const }
+          }
     this.dependencies.assertOpen()
     this.dependencies.assertBaseAvailable(input.baseId)
     const dbService = application.get('DbService')

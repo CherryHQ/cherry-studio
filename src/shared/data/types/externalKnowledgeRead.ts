@@ -63,12 +63,48 @@ export const EXTERNAL_KNOWLEDGE_PREVIEW_WARNINGS = ['no-supported-documents'] as
 export const ExternalKnowledgePreviewWarningSchema = z.enum(EXTERNAL_KNOWLEDGE_PREVIEW_WARNINGS)
 export type ExternalKnowledgePreviewWarning = z.infer<typeof ExternalKnowledgePreviewWarningSchema>
 
+const ExternalKnowledgePreviewDocumentSchema = ExternalKnowledgeReadDescriptorSchema.pick({
+  nodeId: true,
+  title: true,
+  documentKind: true
+})
+const ExternalKnowledgeSkippedPreviewItemSchema = ExternalKnowledgePreviewDocumentSchema.extend({
+  reason: z.enum(['unsupported-type', 'cross-space-shortcut'])
+})
+
 export const ExternalKnowledgeScopePreviewSchema = z.strictObject({
   resolution: ExternalKnowledgeScopeResolutionSchema,
   visibleNodeCount: z.number().int().nonnegative(),
   supportedDocxCount: z.number().int().nonnegative(),
   unsupportedOrSkippedCount: z.number().int().nonnegative(),
+  supportedDocuments: z.array(ExternalKnowledgePreviewDocumentSchema),
+  skippedItems: z.array(ExternalKnowledgeSkippedPreviewItemSchema),
   embeddingCostExact: z.literal(false),
   warnings: z.array(ExternalKnowledgePreviewWarningSchema)
 })
 export type ExternalKnowledgeScopePreview = z.infer<typeof ExternalKnowledgeScopePreviewSchema>
+
+export const FeishuWikiSpaceSchema = z.strictObject({
+  spaceId: NonBlankStringSchema,
+  name: NonBlankStringSchema,
+  description: z.string().nullable()
+})
+export type FeishuWikiSpace = z.infer<typeof FeishuWikiSpaceSchema>
+
+export const FeishuWikiSpacePageSchema = z.strictObject({
+  spaces: z.array(FeishuWikiSpaceSchema),
+  nextPageToken: NonBlankStringSchema.optional()
+})
+export type FeishuWikiSpacePage = z.infer<typeof FeishuWikiSpacePageSchema>
+
+export const FeishuWikiSpacePreviewSchema = z.strictObject({
+  space: FeishuWikiSpaceSchema,
+  visibleNodeCount: z.number().int().nonnegative(),
+  supportedDocxCount: z.number().int().nonnegative(),
+  unsupportedOrSkippedCount: z.number().int().nonnegative(),
+  supportedDocuments: z.array(ExternalKnowledgePreviewDocumentSchema),
+  skippedItems: z.array(ExternalKnowledgeSkippedPreviewItemSchema),
+  embeddingCostExact: z.literal(false),
+  warnings: z.array(ExternalKnowledgePreviewWarningSchema)
+})
+export type FeishuWikiSpacePreview = z.infer<typeof FeishuWikiSpacePreviewSchema>

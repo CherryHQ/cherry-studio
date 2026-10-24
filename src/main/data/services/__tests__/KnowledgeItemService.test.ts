@@ -689,6 +689,19 @@ describe('KnowledgeItemService', () => {
   })
 
   describe('external synchronization mutations', () => {
+    it('rolls back an invalid external staging row before it can break cleanup reads', () => {
+      const id = '0198f3f2-7d21-7abc-8def-123456789abc'
+      expect(() =>
+        service.createDeletingExternal(KNOWLEDGE_BASE_ID, id, {
+          source: 'Feishu',
+          title: ' ',
+          relativePath: 'external/invalid.md' as PosixRelativeFilePath
+        })
+      ).toThrow()
+      expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).get()).toBeUndefined()
+      expect(service.getDeletingRootGroups()).toEqual([])
+    })
+
     it('commits a deleting external staging row that stays hidden from normal reads', () => {
       const stagedItemId = '0198f3f2-7d21-7abc-8def-123456789abc'
 

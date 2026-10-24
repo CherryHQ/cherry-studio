@@ -18,6 +18,10 @@ Status: implemented
 
 调度变更与删除知识库共用变更互斥锁和删除准入检查。进行中的断开操作在任务结算和最终删除结束前持有临时排他标记；重新授权跳过这些来源，显式调度或状态变更则拒绝它们。断开失败会释放标记并保留已有的 paused/重试行为；这不引入可跨重启恢复的断开操作。
 
+外部暂存行在插入事务内完成校验，因此无效输入不会留下无法读取的清理行。无标题的飞书节点使用远端对象令牌作为稳定显示名称。预览要求外部条目处于已完成状态。渲染器授权尝试使用单调递增的标识；清理和取消会使其失效，包括 Activity 隐藏再显示的情形。晚到的会话会在打开浏览器前取消，浏览器打开返回后还会再次检查是否允许完成授权。
+
+Wiki 列表分页及请求状态由 `useSWRInfinite` 管理，缓存键包含向导会话、Connection 和分页游标。Activity 隐藏时会断开订阅，但保留组件状态；进行中的读取在缓存中结算，恢复显示后订阅其数据或错误，不会遗留无人清除的加载标志。切换账户使用不同缓存键。分页依据提供方游标继续，包括空页之后的分页，重试仍由用户明确触发。重新授权会明确刷新列表；焦点或网络变化不会额外触发提供方读取。
+
 同步终态清理与结果发布分别处理。授权失效会暂停 Source 并推进其版本，因此旧 Job 不能发布摘要。结算仍可在同一事务中按当前 Source 版本清除该 Job 自己的活跃关联，并在提交后通知。替换 Job 由不同的 id 继续保护。如果清理也要求原版本，成功重新授权后仅手动同步的来源仍会被阻塞。
 
 取消结算完成后，断开流程在最终删除事务内重新读取任务绑定。原任务绑定和已清空的绑定都允许删除，但替换任务不允许。来源版本、暂停状态和调度条件仍须匹配。强制要求取消前的绑定会拒绝正常结算，导致来源已暂停却仍未断开。
@@ -41,6 +45,12 @@ Status: implemented
 - Regression — `ExternalKnowledgeSourceLifecycle.test.ts`：在知识库删除期间排队的调度变更不能留下孤立调度。
 - Regression — `ExternalKnowledgeDisconnect.test.ts`：取消等待期间提交重新授权不会改变断开版本，最终成功删除来源及文档记录。
 
+- Regression — `KnowledgeItemService.test.ts`：空白暂存标题会回滚，不留下清理行。
+- Regression — `externalPreview.integration.test.ts`：真实 SQLite 从 completed 转为 deleting、processing 或 failed 后，不再返回预览路径。
+- Regression — `ExternalSourcesSection.test.tsx`：卸载或 Activity 隐藏再显示后的延迟重连响应会取消会话；延迟返回的浏览器打开操作不能完成已放弃的授权。
+
 - Regression — `ExternalKnowledgeSourceLifecycle.test.ts` 和 `syncExternalSourceJobHandler.test.ts`：凭证失效后，无论结算与重新授权的先后顺序如何，都只清除终态 Job 的关联，保留新版本结果和替换 Job，并在提交后通知。
 
 - Regression — `ExternalKnowledgeDisconnect.test.ts`：通过真实 JobManager 取消和同步处理器结算完成两种断开模式；版本或状态变化及替换任务均保留所有权并回滚本地清理。
+
+- Regression — `FeishuWikiWizard.test.tsx`：分页在隐藏期间或恢复显示后成功、失败，均保留已选 Wiki 和游标进度，错误可重试；旧账户晚到的分页不能清除新账户的加载状态或替换其列表。

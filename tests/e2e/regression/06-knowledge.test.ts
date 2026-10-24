@@ -14,6 +14,17 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
     await closeSettings(page)
     await ensureKnowledgeBase(app, page)
 
+    await test.step('Show the external source entry and cancel its wizard', async () => {
+      await expect(page.getByRole('button', { name: 'Sync sources', exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Add Data Source', exact: true }).click()
+      await page.getByRole('menuitem', { name: 'Feishu Wiki', exact: true }).click()
+      const wizard = page.getByRole('dialog', { name: 'Add Feishu Wiki' })
+      await expect(wizard.getByLabel('App ID', { exact: true })).toBeVisible()
+      await expect(wizard.getByLabel('App Secret', { exact: true })).toBeVisible()
+      await wizard.getByRole('button', { name: 'Cancel' }).click()
+      await expect(wizard).toBeHidden()
+    })
+
     await page.getByRole('button', { name: 'Recall Test', exact: true }).click()
     await page.getByRole('textbox').last().fill('What is the regression knowledge answer?')
     await page

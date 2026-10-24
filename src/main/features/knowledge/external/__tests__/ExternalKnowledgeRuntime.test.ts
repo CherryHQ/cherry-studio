@@ -1,6 +1,7 @@
 import { gunzipSync } from 'node:zlib'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { net } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -20,7 +21,9 @@ import type {
 } from '../ExternalKnowledgeCredentialStore'
 import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
 import {
+  beginDeviceAuthorization,
   FEISHU_REQUIRED_USER_SCOPES,
+  FEISHU_SPACE_DISCOVERY_USER_SCOPE,
   FeishuProviderError,
   getUserIdentity,
   type FeishuUserAuthorization,
@@ -186,6 +189,7 @@ function createProvider(overrides: Record<string, unknown> = {}) {
     }),
     revokeUserToken: vi.fn(),
     getWikiNode: vi.fn(),
+    listWikiSpaces: vi.fn(),
     listWikiChildNodes: vi.fn(),
     getDocxMarkdown: vi.fn(),
     ...overrides
@@ -205,6 +209,211 @@ function validCredential(id: string, now = 1_000): ExternalKnowledgeCredential {
 }
 
 describe('ExternalKnowledgeRuntime', () => {
+  it('keeps an existing connection active when optional space discovery was not granted', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const provider = createProvider()
+    const onReauthorizationRequired = vi.fn()
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider,
+      now: () => 1_000,
+      hooks: { onReauthorizationRequired }
+    })
+    await runtime.start()
+
+    await expect(runtime.listFeishuSpaces(value.id)).rejects.toMatchObject({ code: 'scope-missing' })
+
+    expect(connections.getById(value.id)?.authorizationStatus).toBe('connected')
+    expect(onReauthorizationRequired).not.toHaveBeenCalled()
+    expect(provider.listWikiSpaces).not.toHaveBeenCalled()
+    await runtime.stop()
+  })
+
+  it('keeps the connection active when the app denies the optional list endpoint', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const grantedScopes = [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
+    const value = connection('one', 'ref-one', { grantedScopes })
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', {
+      status: 'ok',
+      credential: { ...validCredential('one'), grantedScopes }
+    })
+    const provider = createProvider({
+      listWikiSpaces: vi
+        .fn()
+        .mockRejectedValue(new FeishuProviderError('app-scope-missing', true, undefined, { providerCode: 99991672 }))
+    })
+    const onReauthorizationRequired = vi.fn()
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider,
+      now: () => 1_000,
+      hooks: { onReauthorizationRequired }
+    })
+    await runtime.start()
+
+    await expect(runtime.listFeishuSpaces(value.id)).rejects.toMatchObject({ code: 'scope-missing' })
+
+    expect(connections.getById(value.id)?.authorizationStatus).toBe('connected')
+    expect(onReauthorizationRequired).not.toHaveBeenCalled()
+    await runtime.stop()
+  })
+
+  it('checks refreshed token scopes before discovery while preserving ordinary connection access', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const grantedScopes = [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
+    const value = connection('one', 'ref-one', { grantedScopes })
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', {
+      status: 'ok',
+      credential: { ...validCredential('one'), grantedScopes, accessTokenExpiresAt: 1_000 }
+    })
+    const provider = createProvider({
+      refreshUserToken: vi.fn(async () => ({
+        accessToken: 'access-one-refreshed',
+        refreshToken: 'refresh-one-refreshed',
+        expiresIn: 7200,
+        refreshTokenExpiresIn: 604800,
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+      })),
+      getUserIdentity: vi.fn(async () => ({
+        accountUserId: value.accountUserId!,
+        accountOpenId: value.accountOpenId!,
+        accountUnionId: null,
+        tenantKey: value.tenantKey!,
+        displayName: value.displayName,
+        avatarUrl: null
+      }))
+    })
+    const onReauthorizationRequired = vi.fn()
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider,
+      now: () => 1_000,
+      hooks: { onReauthorizationRequired }
+    })
+    await runtime.start()
+
+    await expect(runtime.listFeishuSpaces(value.id)).rejects.toMatchObject({ code: 'scope-missing' })
+
+    expect(connections.getById(value.id)?.authorizationStatus).toBe('connected')
+    expect(onReauthorizationRequired).not.toHaveBeenCalled()
+    expect(provider.listWikiSpaces).not.toHaveBeenCalled()
+    await runtime.stop()
+  })
+
+  it('previews a selected whole space after finding it on a later list page', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const grantedScopes = [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
+    const value = connection('one', 'ref-one', { grantedScopes })
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', {
+      status: 'ok',
+      credential: { ...validCredential('one'), grantedScopes }
+    })
+    const provider = createProvider({
+      listWikiSpaces: vi
+        .fn()
+        .mockResolvedValueOnce({ spaces: [], nextPageToken: 'second' })
+        .mockResolvedValueOnce({ spaces: [{ spaceId: 'space-1', name: 'Engineering', description: null }] }),
+      listWikiChildNodes: vi.fn().mockResolvedValue({
+        nodes: [
+          {
+            spaceId: 'space-1',
+            nodeToken: 'root',
+            objToken: 'document-1',
+            objType: 'docx',
+            parentNodeToken: null,
+            nodeType: 'origin',
+            originNodeToken: null,
+            originSpaceId: null,
+            title: 'Readme',
+            hasChild: false,
+            objEditTime: null
+          }
+        ]
+      })
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(runtime.previewFeishuSpace(value.id, 'space-1')).resolves.toEqual({
+      space: { spaceId: 'space-1', name: 'Engineering', description: null },
+      visibleNodeCount: 1,
+      supportedDocxCount: 1,
+      unsupportedOrSkippedCount: 0,
+      supportedDocuments: [{ nodeId: 'root', title: 'Readme', documentKind: 'document' }],
+      skippedItems: [],
+      embeddingCostExact: false,
+      warnings: []
+    })
+    expect(provider.listWikiSpaces).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ accessToken: 'access-one' }),
+      'second',
+      expect.any(AbortSignal)
+    )
+    await runtime.stop()
+  })
+
+  it('previews an empty but listed space without inventing a root node', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const grantedScopes = [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
+    const value = connection('one', 'ref-one', { grantedScopes })
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: { ...validCredential('one'), grantedScopes } })
+    const provider = createProvider({
+      listWikiSpaces: vi.fn().mockResolvedValue({
+        spaces: [{ spaceId: 'empty-space', name: 'Empty space', description: null }]
+      }),
+      listWikiChildNodes: vi.fn().mockResolvedValue({ nodes: [] })
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(runtime.previewFeishuSpace(value.id, 'empty-space')).resolves.toMatchObject({
+      space: { spaceId: 'empty-space' },
+      visibleNodeCount: 0,
+      supportedDocxCount: 0,
+      supportedDocuments: [],
+      skippedItems: [],
+      warnings: ['no-supported-documents']
+    })
+    expect(provider.getWikiNode).not.toHaveBeenCalled()
+    await runtime.stop()
+  })
+
+  it('rejects a repeating discovery cursor before admitting a selected space', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const grantedScopes = [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
+    const value = connection('one', 'ref-one', { grantedScopes })
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: { ...validCredential('one'), grantedScopes } })
+    const provider = createProvider({
+      listWikiSpaces: vi.fn().mockResolvedValue({ spaces: [], nextPageToken: 'same' })
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(runtime.resolveFeishuSpace(value.id, 'missing')).rejects.toMatchObject({
+      code: 'invalid-provider-response'
+    })
+    expect(provider.listWikiSpaces).toHaveBeenCalledTimes(2)
+    await runtime.stop()
+  })
+
   it('rejects an untrusted scope URL before reading credentials or making a provider request', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
@@ -467,6 +676,38 @@ describe('ExternalKnowledgeRuntime', () => {
       unsupportedOrSkippedCount: 0,
       canonicalReferences: [{ descriptor: { nodeId: 'root', remoteObjectId: 'doc-root' } }]
     })
+  })
+
+  it('logs safe Feishu read diagnostics when a source scan fails', async () => {
+    mockMainLoggerService.warn.mockClear()
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const provider = createProvider({
+      listWikiChildNodes: vi.fn(async () => {
+        throw new FeishuProviderError('invalid-response', false, undefined, {
+          endpoint: 'wiki.list-nodes',
+          invalidFields: ['data.items.0.node_token']
+        })
+      })
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(
+      runtime.scanFeishuSource(value.id, { spaceId: 'space-1', scope: { kind: 'space' } })
+    ).rejects.toMatchObject({
+      code: 'invalid-provider-response'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Feishu knowledge read failed', {
+      origin: 'provider',
+      category: 'invalid-response',
+      endpoint: 'wiki.list-nodes',
+      invalidFields: ['data.items.0.node_token']
+    })
+    expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain('access-one')
   })
 
   it('propagates the caller cancellation unchanged while scanning a persisted source', async () => {
@@ -819,6 +1060,56 @@ describe('ExternalKnowledgeRuntime', () => {
       expect(connected.authorizationStatus).toBe('connected')
       expect([...connections.values.keys()]).toEqual([connected.id])
       expect(credentials.values.size).toBe(1)
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it('reports missing discovery permission without residue and accepts an explicit link-only authorization', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const provider = createProvider({
+      beginDeviceAuthorization: vi.fn(async (_credentials, _signal, includeSpaceDiscovery = false) => {
+        if (includeSpaceDiscovery) throw new FeishuProviderError('app-scope-missing', true)
+        return {
+          deviceCode: 'device-code',
+          userCode: 'ABCD-EFGH',
+          verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+          expiresIn: 600,
+          interval: 5
+        }
+      }),
+      exchangeDeviceAuthorization: vi.fn(async () => ({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        expiresIn: 7200,
+        refreshTokenExpiresIn: 604800,
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+      }))
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider })
+    const application = { kind: 'custom-app' as const, appId: 'cli_manual', appSecret: 'app-secret' }
+    await runtime.start()
+
+    try {
+      await expect(
+        runtime.beginUserAuthorization({ ...application, includeSpaceDiscovery: true })
+      ).rejects.toMatchObject({
+        name: 'ExternalKnowledgeRuntimeError',
+        code: 'scope-missing'
+      })
+      expect(connections.values.size).toBe(0)
+      expect(credentials.values.size).toBe(0)
+
+      const fallback = await runtime.beginUserAuthorization({ ...application, includeSpaceDiscovery: false })
+      const connected = await runtime.completeUserAuthorization(fallback.authorizationSessionId)
+      expect(connected.authorizationStatus).toBe('connected')
+      expect(connected.grantedScopes).not.toContain('wiki:space:retrieve')
+      expect(connections.values.size).toBe(1)
+
+      const omitted = await runtime.beginUserAuthorization(application)
+      await runtime.cancelUserAuthorization(omitted.authorizationSessionId)
+      expect([...connections.values.keys()]).toEqual([connected.id])
     } finally {
       await runtime.stop()
     }
@@ -1853,6 +2144,7 @@ describe('ExternalKnowledgeRuntime', () => {
   })
 
   it('preserves the old credential and application metadata on a terminal reconnect failure', async () => {
+    mockMainLoggerService.warn.mockClear()
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
     const value = connection('one', 'ref-one', { authorizationStatus: 'reauthorization-required' })
@@ -1871,7 +2163,10 @@ describe('ExternalKnowledgeRuntime', () => {
           interval: 5
         })),
         exchangeDeviceAuthorization: vi.fn(async () => {
-          throw new FeishuProviderError('authorization-denied', true)
+          throw new FeishuProviderError('authorization-denied', true, undefined, {
+            httpStatus: 400,
+            oauthError: 'access_denied'
+          })
         })
       })
     })
@@ -1885,6 +2180,13 @@ describe('ExternalKnowledgeRuntime', () => {
     await expect(runtime.completeUserAuthorization(begun.authorizationSessionId)).rejects.toMatchObject({
       code: 'authorization-failed'
     })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Feishu authorization failed', {
+      stage: 'complete',
+      category: 'authorization-denied',
+      httpStatus: 400,
+      oauthError: 'access_denied'
+    })
+    expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain('candidate-secret')
     expect([...credentials.values.keys()]).toEqual(['ref-one'])
     await expect(credentials.read('ref-one')).resolves.toEqual({ status: 'ok', credential: originalCredential })
     expect(connections.values.get(value.id)).toEqual(value)
@@ -2554,7 +2856,8 @@ describe('ExternalKnowledgeRuntime', () => {
 
     expect(provider.beginDeviceAuthorization).toHaveBeenCalledWith(
       { appId: 'cli_automatic', appSecret: 'automatic-secret' },
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      true
     )
     expect(authorization.connection).toMatchObject({
       appId: 'cli_automatic',
@@ -2951,6 +3254,160 @@ describe('ExternalKnowledgeRuntime', () => {
     await removing
     expect(lateOperation).not.toHaveBeenCalled()
   })
+})
+
+describe('ExternalKnowledgeRuntime reconnect discovery consent', () => {
+  setupTestDatabase()
+
+  it.each([
+    {
+      scenario: 'link-only reconnect',
+      existingDiscovery: false,
+      replace: false,
+      discovery: undefined,
+      upgrade: false,
+      expectedDiscovery: false
+    },
+    {
+      scenario: 'preserved discovery',
+      existingDiscovery: true,
+      replace: false,
+      discovery: undefined,
+      upgrade: false,
+      expectedDiscovery: true
+    },
+    {
+      scenario: 'explicit reconnect upgrade',
+      existingDiscovery: false,
+      replace: false,
+      discovery: undefined,
+      upgrade: true,
+      expectedDiscovery: true
+    },
+    {
+      scenario: 'replacement with discovery omitted',
+      existingDiscovery: true,
+      replace: true,
+      discovery: undefined,
+      upgrade: false,
+      expectedDiscovery: false
+    },
+    {
+      scenario: 'replacement with discovery disabled',
+      existingDiscovery: true,
+      replace: true,
+      discovery: false,
+      upgrade: false,
+      expectedDiscovery: false
+    },
+    {
+      scenario: 'replacement with discovery enabled',
+      existingDiscovery: false,
+      replace: true,
+      discovery: true,
+      upgrade: false,
+      expectedDiscovery: true
+    },
+    {
+      scenario: 'replacement with explicit request upgrade',
+      existingDiscovery: false,
+      replace: true,
+      discovery: false,
+      upgrade: true,
+      expectedDiscovery: true
+    }
+  ])(
+    'completes $scenario with the app-supported scopes',
+    async ({ existingDiscovery, replace, discovery, upgrade, expectedDiscovery }) => {
+      const credentials = new MemoryCredentials()
+      const initialScopes = [
+        ...FEISHU_REQUIRED_USER_SCOPES,
+        ...(existingDiscovery ? [FEISHU_SPACE_DISCOVERY_USER_SCOPE] : [])
+      ]
+      const created = externalKnowledgeConnectionService.create({
+        appId: 'cli_one',
+        appCredentialSource: 'custom-app',
+        credentialReference: 'ref-one'
+      })
+      externalKnowledgeConnectionService.markConnected(created.id, {
+        accountUserId: 'user_one',
+        accountOpenId: 'ou_one',
+        accountUnionId: null,
+        tenantKey: 'tenant_one',
+        displayName: 'User',
+        avatarUrl: null,
+        grantedScopes: initialScopes
+      })
+      credentials.values.set('ref-one', {
+        status: 'ok',
+        credential: { ...validCredential('one'), grantedScopes: initialScopes }
+      })
+      let grantedScopes: string[] = []
+      vi.mocked(net.fetch)
+        .mockReset()
+        .mockImplementation(async (_url, options) => {
+          const form = new URLSearchParams(String(options?.body))
+          grantedScopes = form.get('scope')?.split(' ') ?? []
+          if (!expectedDiscovery && grantedScopes.includes(FEISHU_SPACE_DISCOVERY_USER_SCOPE)) {
+            return Response.json({ error: 'invalid_scope' }, { status: 400 })
+          }
+          return Response.json({
+            device_code: 'device-code',
+            user_code: 'ABCD-EFGH',
+            verification_uri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+            expires_in: 600,
+            interval: 5
+          })
+        })
+      const provider = createProvider({
+        beginDeviceAuthorization,
+        exchangeDeviceAuthorization: vi.fn(async () => ({
+          accessToken: 'access-one',
+          refreshToken: 'replacement-refresh',
+          expiresIn: 7200,
+          refreshTokenExpiresIn: 604800,
+          grantedScopes
+        })),
+        listWikiSpaces: vi.fn(async () => ({ spaces: [] }))
+      })
+      const runtime = new ExternalKnowledgeRuntime({ credentials, provider, now: () => 1_000 })
+      await runtime.start()
+      try {
+        const session = await runtime.beginReconnect(
+          created.id,
+          replace
+            ? {
+                kind: 'custom-app',
+                appId: 'cli_replacement',
+                appSecret: 'replacement-secret',
+                includeSpaceDiscovery: discovery
+              }
+            : undefined,
+          upgrade
+        )
+        const connected = await runtime.completeUserAuthorization(session.authorizationSessionId)
+        const expectedScopes = [
+          ...FEISHU_REQUIRED_USER_SCOPES,
+          ...(expectedDiscovery ? [FEISHU_SPACE_DISCOVERY_USER_SCOPE] : [])
+        ]
+        expect(externalKnowledgeConnectionService.getById(created.id)).toMatchObject({
+          authorizationStatus: 'connected',
+          appId: replace ? 'cli_replacement' : 'cli_one',
+          grantedScopes: expectedScopes
+        })
+        await expect(credentials.read(connected.credentialReference)).resolves.toMatchObject({
+          status: 'ok',
+          credential: { grantedScopes: expectedScopes, refreshToken: 'replacement-refresh' }
+        })
+        await expect(runtime.acquireAccessToken(created.id)).resolves.toBe('access-one')
+        if (expectedDiscovery) await expect(runtime.listFeishuSpaces(created.id)).resolves.toEqual({ spaces: [] })
+        else await expect(runtime.listFeishuSpaces(created.id)).rejects.toMatchObject({ code: 'scope-missing' })
+      } finally {
+        await runtime.stop()
+        vi.mocked(net.fetch).mockReset()
+      }
+    }
+  )
 })
 
 describe('ExternalKnowledgeRuntime interrupted initial authorization', () => {
