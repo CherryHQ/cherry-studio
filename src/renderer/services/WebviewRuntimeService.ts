@@ -85,6 +85,16 @@ export class WebviewRuntimeService {
     this.publish([...ordered, ...surviving.values()])
   }
 
+  restart(key: string): void {
+    const current = this.get(key)
+    if (!current) return
+    this.publish(
+      this.resources.map((resource) =>
+        resource === current ? { ...resource, instance: ++this.nextInstance, element: null, loaded: false } : resource
+      )
+    )
+  }
+
   bind(key: string, instance: number, element: WebviewTag | null): void {
     this.update(key, instance, { element, loaded: false })
   }

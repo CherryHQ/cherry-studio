@@ -30,10 +30,23 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/components/AgentBrowserRuntimeHost', () => ({ AgentBrowserRuntimeHost: () => null }))
 vi.mock('@renderer/hooks/command', () => ({ useCommandContextKey: () => {} }))
 vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
-  default: ({ isWebviewReady, onReload }: { isWebviewReady: boolean; onReload: () => void }) => (
-    <button type="button" disabled={!isWebviewReady} onClick={onReload}>
-      Reload guest
-    </button>
+  default: ({
+    isWebviewReady,
+    onReload,
+    onRestart
+  }: {
+    isWebviewReady: boolean
+    onReload: () => void
+    onRestart: () => void
+  }) => (
+    <>
+      <button type="button" disabled={!isWebviewReady} onClick={onReload}>
+        Reload guest
+      </button>
+      <button type="button" onClick={onRestart}>
+        Restart guest
+      </button>
+    </>
   )
 }))
 vi.mock('@renderer/components/WebviewSearch', () => ({ default: () => null }))
@@ -124,6 +137,35 @@ const mount = () =>
   )
 
 describe('MiniApp guest ownership', () => {
+  it.each([false, true])('restarts only the requested guest from its configured URL (ready: %s)', async (ready) => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open B'))
+    const b = getGuest('b')
+    await user.click(screen.getByText('Open A'))
+    await user.click(screen.getByText('Split B'))
+    const original = getGuest('a')
+    original.getWebContentsId = () => 42
+    if (ready) await act(() => original.dispatchEvent(new Event('dom-ready')))
+    original.setAttribute('src', 'https://a.example.com/conversation')
+
+    await user.click(screen.getByRole('button', { name: 'Restart guest' }))
+
+    const replacement = getGuest('a')
+    expect(replacement).not.toBe(original)
+    expect(original).not.toBeInTheDocument()
+    expect(replacement).toHaveAttribute('src', createMiniApp('a').url)
+    expect(replacement).toHaveAttribute('partition', 'persist:webview')
+    expect(getGuest('b')).toBe(b)
+    expect(screen.getByLabelText('tabs')).toHaveTextContent('home,b,a')
+    expect(screen.getByLabelText('secondary')).toHaveTextContent('b')
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeDisabled()
+
+    replacement.getWebContentsId = () => 43
+    await act(() => replacement.dispatchEvent(new Event('dom-ready')))
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeEnabled()
+  })
+
   it('keeps the guest usable while navigation is in progress or aborted', async () => {
     const user = userEvent.setup()
     mount()
