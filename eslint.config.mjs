@@ -1405,5 +1405,31 @@ export default defineConfig([
     rules: {
       'data-schema-key/valid-key': 'error'
     }
+  },
+  {
+    files: ['src/renderer/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
+    ignores: ['packages/ui/src/lib/code-highlight/**', 'packages/ui/src/code-highlight.ts'],
+    plugins: {
+      'highlight-boundary': {
+        rules: {
+          'public-entry': {
+            meta: {
+              type: 'problem',
+              schema: [],
+              messages: { private: 'Import the headless highlighting API through @cherrystudio/ui/code-highlight.' }
+            },
+            create(context) {
+              return {
+                ImportDeclaration(node) {
+                  if (typeof node.source.value === 'string' && node.source.value.includes('lib/code-highlight'))
+                    context.report({ node, messageId: 'private' })
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: { 'highlight-boundary/public-entry': 'error' }
   }
 ])

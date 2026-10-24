@@ -77,19 +77,18 @@ describe('TextFilePreview', () => {
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('rejects files over 2 MiB before reading their contents', async () => {
-    renderPreview(0, 2 * 1024 * 1024 + 1)
+  it('rejects files over 8 MiB before reading their contents', async () => {
+    renderPreview(0, 8 * 1024 * 1024 + 1)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.text.too_large.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.text.too_large.description')
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('reads files at exactly the 2 MiB limit', async () => {
-    renderPreview(0, 2 * 1024 * 1024)
+  it('reads files at exactly the 8 MiB limit', async () => {
+    renderPreview(0, 8 * 1024 * 1024)
 
-    expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
-    expect(mocks.readText).toHaveBeenCalledWith(filePath)
+    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
   })
 
   it('renders non-empty whitespace as source content', async () => {

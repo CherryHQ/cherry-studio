@@ -64,6 +64,11 @@ without splitting a surrogate pair; an empty normalized excerpt produces `null`.
 Callback references are stabilized inside `Preview`, so inline callbacks do not
 reopen documents or repeat a selection notification merely because the host rendered.
 
+DOCX text supports native selection and copying with Ctrl+C (Cmd+C on macOS),
+including across paragraphs. Copying uses the browser selection, not the normalized
+or length-limited reference excerpt. While paragraph picking is enabled, ending a
+text drag preserves the existing paragraph pick; a plain click still picks or clears it.
+
 Recognized `source.mediaType` values take precedence over the filename extension;
 missing or unrecognized media types fall back to the extension. `supportsPreview`
 and `canSelectPreview` accept the same optional media type as their second argument.
@@ -101,8 +106,7 @@ PDF workers belong to individual previews and never change pdf.js global options
 Cleanup awaits the pdf.js loading task's destruction before terminating its worker,
 allowing document fonts to be released. There is no forced teardown timeout: an
 already-unresponsive worker can leave that destruction promise pending.
-Translations use an independent i18next instance with resources for all 13 desktop
-languages; other locales fall back to English.
+Translations use an independent i18next instance with resources for 14 languages; other locales fall back to English.
 
 `FilePreviewLayout.Shell` owns the shared header and toolbar placement.
 `FilePreviewLayout`, `FilePreviewToolbar` and its portal provider/host are also used

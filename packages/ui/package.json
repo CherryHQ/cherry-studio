@@ -77,7 +77,17 @@
       "default": "./dist/icons/providers/index.js"
     },
     "./styles/tokens.css": "./dist/styles/tokens.css",
-    "./styles/theme.css": "./dist/styles/theme.css"
+    "./styles/theme.css": "./dist/styles/theme.css",
+    "./code-highlight": {
+      "import": {
+        "types": "./dist/code-highlight.d.mts",
+        "default": "./dist/code-highlight.mjs"
+      },
+      "require": {
+        "types": "./dist/code-highlight.d.cts",
+        "default": "./dist/code-highlight.cjs"
+      }
+    }
   },
   "scripts": {
     "build": "pnpm theme:build && tsdown && mkdir -p dist/styles && cp -R src/styles/. dist/styles/",
@@ -100,6 +110,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hello-pangea/dnd": "^18.0.1",
+    "@pierre/highlights": "0.2.0",
     "@radix-ui/primitive": "^1.1.3",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -120,7 +131,6 @@
     "@radix-ui/react-use-callback-ref": "^1.1.1",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@streamdown/cjk": "^1.0.3",
-    "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.2",
     "@streamdown/mermaid": "^1.0.2",
     "@tanstack/react-table": "^8.21.3",

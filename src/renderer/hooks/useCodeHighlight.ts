@@ -1,107 +1,77 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ThemedToken } from 'shiki/core'
 
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import type { HighlightRange, HighlightResult } from '@renderer/types/codeHighlight'
 
 interface UseCodeHighlightOptions {
-  rawLines: string[]
+  value: string
   language: string
   callerId: string
 }
 
-interface UseCodeHighlightReturn {
-  tokenLines: ThemedToken[][]
-  highlightLines: (count?: number) => Promise<void>
-  resetHighlight: () => void
-}
-
-/**
- * 用于 shiki 流式代码高亮
- */
-export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighlightOptions): UseCodeHighlightReturn => {
-  const { activeShikiTheme, highlightStreamingCode, cleanupTokenizers } = useCodeStyle()
-  const [tokenLines, setTokenLines] = useState<ThemedToken[][]>([])
-  const processingRef = useRef(false)
-  const latestRequestedContentRef = useRef<string | null>(null)
-  const tokenLinesCountRef = useRef(0)
-  // 每次 resetHighlight() 递增，用于丢弃 reset 之前起飞、reset 之后才返回的旧异步高亮结果
-  const generationRef = useRef(0)
-  const shikiThemeRef = useRef(activeShikiTheme)
-
-  useEffect(() => {
-    tokenLinesCountRef.current = tokenLines.length
-  }, [tokenLines])
+export function useCodeHighlight({ value, language, callerId }: UseCodeHighlightOptions) {
+  const { activeCodeTheme, highlightRange, cleanupTokenizers } = useCodeStyle()
+  type Request = {
+    value: string
+    language: string
+    theme: string
+    range: HighlightRange
+    generation: number
+    run: typeof highlightRange
+    callerId: string
+  }
+  const [highlighted, setHighlighted] = useState<{ request: Request; result: HighlightResult } | null>(null)
+  const pending = useRef<Request | null>(null)
+  const processing = useRef(false)
+  const generation = useRef(0)
 
   const highlightLines = useCallback(
-    async (count?: number) => {
-      const targetCount = count === undefined ? rawLines.length : Math.min(count, rawLines.length)
-
-      // 数量相等也可能内容不同，交给 ShikiStreamService 处理
-      if (targetCount < tokenLinesCountRef.current) return
-
-      const currentContent = rawLines.slice(0, targetCount).join('\n').trimEnd()
-
-      // 记录最新要处理的内容，为了保证最终状态正确
-      latestRequestedContentRef.current = currentContent
-
-      // 如果正在处理，先跳出，等到完成后会检查是否有新内容
-      if (processingRef.current) return
-
-      processingRef.current = true
-      const generation = generationRef.current
-
+    async (start: number, end: number) => {
+      pending.current = {
+        value,
+        language,
+        theme: activeCodeTheme,
+        range: { start, end },
+        generation: generation.current,
+        run: highlightRange,
+        callerId
+      }
+      if (processing.current) return
+      processing.current = true
       try {
-        // 循环处理，确保会处理最新内容
-        while (latestRequestedContentRef.current !== null) {
-          const contentToProcess = latestRequestedContentRef.current
-          latestRequestedContentRef.current = null // 标记开始处理
-
-          // 传入完整内容，让 ShikiStreamService 检测变化并处理增量高亮
-          const result = await highlightStreamingCode(contentToProcess, language, callerId)
-
-          // 本次请求进行中若发生过 resetHighlight()，丢弃这次的旧结果，避免把已释放的 token state 写回
-          if (generationRef.current !== generation) break
-
-          // 如有结果，更新 tokenLines
-          if (result.lines.length > 0 || result.recall !== 0) {
-            setTokenLines((prev) => {
-              return result.recall === -1
-                ? result.lines
-                : [...prev.slice(0, Math.max(0, prev.length - result.recall)), ...result.lines]
-            })
-          }
+        while (pending.current) {
+          const request = pending.current
+          pending.current = null
+          const result = await request.run(request.value, request.language, request.callerId, request.range)
+          if (request.generation === generation.current && !pending.current) setHighlighted({ request, result })
         }
       } finally {
-        processingRef.current = false
+        processing.current = false
       }
     },
-    [rawLines, highlightStreamingCode, language, callerId]
+    [value, language, activeCodeTheme, highlightRange, callerId]
   )
 
   const resetHighlight = useCallback(() => {
-    generationRef.current += 1
+    generation.current++
+    pending.current = null
+    setHighlighted(null)
     cleanupTokenizers(callerId)
-    setTokenLines([])
-  }, [callerId, cleanupTokenizers])
+  }, [cleanupTokenizers, callerId])
 
-  // 主题变化时强制重新高亮
-  useEffect(() => {
-    if (shikiThemeRef.current !== activeShikiTheme) {
-      shikiThemeRef.current = activeShikiTheme
-      resetHighlight()
-    }
-  }, [activeShikiTheme, resetHighlight])
-
-  // 组件卸载时清理资源
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
+      generation.current++
+      pending.current = null
       cleanupTokenizers(callerId)
-    }
-  }, [callerId, cleanupTokenizers])
+    },
+    [callerId, cleanupTokenizers]
+  )
 
-  return {
-    tokenLines,
-    highlightLines,
-    resetHighlight
-  }
+  const current = highlighted?.request
+  const tokens =
+    highlighted && current?.value === value && current.language === language && current.theme === activeCodeTheme
+      ? highlighted.result
+      : null
+  return { tokens, highlightLines, resetHighlight }
 }

@@ -11,7 +11,7 @@ import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markd
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
 
 import type { FilePreviewPluginProps } from '../../types'
@@ -19,8 +19,7 @@ import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
 
 const logger = loggerService.withContext('MarkdownFilePreview')
-const MARKDOWN_PREVIEW_MAX_SIZE_MIB = 2
-const MARKDOWN_PREVIEW_MAX_SIZE_BYTES = MARKDOWN_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
+const MARKDOWN_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
 const YAML_FRONTMATTER_PATTERN = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[^\S\r\n]*(?:\r?\n|$)/
 const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 
@@ -194,7 +193,7 @@ export default function MarkdownFilePreview({
             ? await Promise.resolve().then(sourceMetadata)
             : { kind: 'file', size: sourceMetadata }
         if (cancelled || loadedMetadata?.kind !== 'file') return
-        if (loadedMetadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {
+        if (loadedMetadata.size > FILE_EDIT_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }

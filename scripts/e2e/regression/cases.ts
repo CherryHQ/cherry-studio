@@ -72,6 +72,20 @@ export const REGRESSION_CASES = [
     title: 'Settings navigation opens each section and settings search finds them',
     task: 'about'
   },
+  {
+    id: 'SET-02',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Changing a setting persists after restart',
+    task: 'settings'
+  },
+  {
+    id: 'SET-03',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Changing the newline shortcut persists after restart',
+    task: 'settings'
+  },
   { id: 'T-01', capabilities: [], phase: '04-translation', title: 'Translate text', task: 'translation' },
   {
     id: 'T-02',

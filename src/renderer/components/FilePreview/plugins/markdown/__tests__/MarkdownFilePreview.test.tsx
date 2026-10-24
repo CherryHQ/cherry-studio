@@ -270,12 +270,19 @@ describe('MarkdownFilePreview', () => {
     expect(screen.queryByRole('heading')).not.toBeInTheDocument()
   })
 
-  it('rejects files over 2 MiB before reading their contents', async () => {
-    renderPreview({ size: 2 * 1024 * 1024 + 1 })
+  it('rejects files over 8 MiB before reading their contents', async () => {
+    renderPreview({ size: 8 * 1024 * 1024 + 1 })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.markdown.too_large.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.markdown.too_large.description')
     expect(mocks.readText).not.toHaveBeenCalled()
+  })
+
+  it('renders files at exactly the 8 MiB limit', async () => {
+    mocks.readText.mockResolvedValueOnce('# Boundary content')
+    renderPreview({ size: 8 * 1024 * 1024 })
+
+    expect(await screen.findByRole('heading', { name: 'Boundary content' })).toBeInTheDocument()
   })
 
   it('logs the actual read error but shows only a localized description', async () => {

@@ -240,9 +240,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
 - The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
-  callback, so the plugin cannot). Text selection is never the capture gesture: most previews render
-  inside the app-wide `user-select: none` (the PDF viewer is the exception — it opts back in with
-  `.selectable` so its text layer stays copyable), and a block pick does not depend on it either way.
+  callback, so the plugin cannot). Text selection is never the capture gesture. PDF and DOCX opt back
+  into text selection with `.selectable` despite the app-wide `user-select: none`. DOCX supports native
+  Ctrl+C / Cmd+C copying and ignores the click ending a text selection when updating a paragraph pick.
+  Copying does not use the normalized, length-limited reference excerpt.
 - Known limitation: a click on an in-document jump link picks nothing. The PDF and PPTX renderers both
   navigate from their own listener before the pick handler runs — pdf.js binds an internal destination
   with `link.onclick`, and the PPTX renderer's in-deck links are `role="link"` spans that stop
