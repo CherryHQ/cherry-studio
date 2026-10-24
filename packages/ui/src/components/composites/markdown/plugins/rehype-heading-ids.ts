@@ -15,12 +15,18 @@ export interface HeadingSlugger {
 
 export interface RehypeHeadingIdsOptions {
   prefix?: string
+  /**
+   * Heading slugs already assigned at the document level, keyed by normalized heading text and
+   * listed in document order. A windowed preview passes each piece its own headings' slugs so
+   * duplicates keep the ids the unsplit document would give them.
+   */
+  slugs?: ReadonlyMap<string, readonly string[]>
 }
 
-export function createSlugger(): HeadingSlugger {
-  const seen = new Map<string, number>()
-  const normalize = (text: string): string => {
-    const slug = (text || 'section')
+/** The slug form of a heading's text — the key shared assignments are looked up by. */
+export function normalizeHeadingText(text: string): string {
+  return (
+    (text || 'section')
       .toLowerCase()
       .trim()
       // 移除常见分隔符和标点
@@ -31,13 +37,15 @@ export function createSlugger(): HeadingSlugger {
       // 合并多余的 '-'
       .replace(/-{2,}/g, '-')
       // 去除首尾 '-'
-      .replace(/^-|-$/g, '')
+      .replace(/^-|-$/g, '') || 'section'
+  )
+}
 
-    return slug || 'section'
-  }
+export function createSlugger(): HeadingSlugger {
+  const seen = new Map<string, number>()
 
   const slug = (text: string): string => {
-    const base = normalize(text)
+    const base = normalizeHeadingText(text)
     const count = seen.get(base) || 0
     seen.set(base, count + 1)
     return count === 0 ? base : `${base}-${count}`
@@ -62,15 +70,38 @@ export function extractTextFromNode(node: Node | Text | Element | null | undefin
 
 export default function rehypeHeadingIds(options?: RehypeHeadingIdsOptions): (tree: Root) => void {
   return (tree: Root): void => {
-    const slugger = createSlugger()
     const prefix = options?.prefix ? `${options.prefix}--` : ''
+    // Assignments are consumed in order, so each run copies its own — a re-parse of the same
+    // source starts from the same slugs instead of an emptied map.
+    const assigned = options?.slugs && new Map(Array.from(options.slugs, ([key, slugs]) => [key, [...slugs]]))
+    // Every id the document's own numbering has given out, the assignments this run will hand back
+    // included: a heading the scan never saw falls to the counter below, and one of those ids
+    // falling out of it a second time would put two elements under one id.
+    const taken = options?.slugs && new Set<string>(Array.from(options.slugs, ([, slugs]) => slugs).flat())
+    const seen = new Map<string, number>()
+    const fallback = (text: string): string => {
+      const base = normalizeHeadingText(text)
+      let count = seen.get(base) ?? 0
+      let id = count === 0 ? base : `${base}-${count}`
+      count += 1
+      if (taken?.has(id)) {
+        while (taken.has(`${base}-${count}`)) count += 1
+        id = `${base}-${count}`
+        count += 1
+      }
+      seen.set(base, count)
+      taken?.add(id)
+      return id
+    }
     visit(tree, 'element', (node) => {
       if (!node || typeof node.tagName !== 'string') return
       const tag = node.tagName.toLowerCase()
       if (!/^h[1-6]$/.test(tag)) return
 
       const text = extractTextFromNode(node)
-      const id = prefix + slugger.slug(text)
+      // An unclaimed heading takes the counter's next id, so the fallbacks keep the document's own
+      // order — an assigned id is one that numbering already gave out, not one to number onto.
+      const id = prefix + (assigned?.get(normalizeHeadingText(text))?.shift() ?? fallback(text))
       node.properties = node.properties || {}
       if (!node.properties.id) node.properties.id = id
     })

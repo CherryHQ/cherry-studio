@@ -1009,6 +1009,9 @@ importers:
       dayjs:
         specifier: ^1.11.11
         version: 1.11.19
+      decode-named-character-reference:
+        specifier: 1.3.0
+        version: 1.3.0
       devtools-protocol:
         specifier: 0.0.1692173
         version: 0.0.1692173
@@ -1216,6 +1219,9 @@ importers:
       mermaid:
         specifier: ^11.13.0
         version: 11.13.0
+      micromark-util-decode-numeric-character-reference:
+        specifier: 2.0.2
+        version: 2.0.2
       micromark-util-types:
         specifier: ^2.0.2
         version: 2.0.2
@@ -28392,7 +28398,7 @@ snapshots:
       '@types/unist': 2.0.11
       character-entities-legacy: 3.0.0
       character-reference-invalid: 2.0.1
-      decode-named-character-reference: 1.2.0
+      decode-named-character-reference: 1.3.0
       is-alphanumerical: 2.0.1
       is-decimal: 2.0.1
       is-hexadecimal: 2.0.1

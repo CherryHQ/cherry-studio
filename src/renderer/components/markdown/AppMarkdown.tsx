@@ -26,6 +26,8 @@ export interface AppMarkdownProps {
   children: string
   /** Content identity. Changing it resets renderer state and the block parser. */
   id?: string
+  /** Heading slugs assigned at the document level, keyed by normalized heading text. */
+  headingSlugs?: ReadonlyMap<string, readonly string[]>
   isStreaming?: boolean
   singleDollarMath?: boolean
   className?: string
@@ -49,6 +51,7 @@ export function AppMarkdown(props: AppMarkdownProps) {
 function MarkdownContent({
   children,
   id,
+  headingSlugs,
   isStreaming = false,
   singleDollarMath = true,
   className,
@@ -83,6 +86,7 @@ function MarkdownContent({
   const markdownComponents = useMarkdownComponents({ components, hasStyleElement: /<style\b[^>]*>/i.test(content) })
   const commonProps = {
     id,
+    headingSlugs,
     plugins,
     components: markdownComponents,
     remarkPlugins: resolvedRemarkPlugins,

@@ -1527,6 +1527,7 @@
   "file_preview.markdown.mode.label": "Modalità di visualizzazione Markdown",
   "file_preview.markdown.mode.preview": "Anteprima",
   "file_preview.markdown.mode.source": "Codice sorgente",
+  "file_preview.markdown.plain_fallback.description": "Questo file è mostrato come testo semplice perché visualizzarlo rallenterebbe l'app.",
   "file_preview.markdown.read_error.title": "Impossibile leggere questo file",
   "file_preview.markdown.too_large.description": "Impossibile visualizzare l'anteprima di file Markdown superiori a {{limit}} MiB.",
   "file_preview.markdown.too_large.title": "File troppo grande",
