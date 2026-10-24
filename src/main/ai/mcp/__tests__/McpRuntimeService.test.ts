@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
+import { McpOAuthClientProvider } from '../oauth/provider'
+
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
@@ -520,6 +522,45 @@ describe('McpRuntimeService connect retry gate', () => {
     await expect(service.listTools(server.id)).rejects.toBeInstanceOf(UnauthorizedError)
     expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(1)
   })
+
+  it.each(['restart', 'headers'] as const)(
+    'holds unsupported OAuth registration until recovery through %s',
+    async (recovery) => {
+      const provider = new McpOAuthClientProvider({ serverUrlHash: 'unsupported-registration' })
+      const failure = await provider
+        .withAuthorizationFlow(async () => {
+          throw new Error('Incompatible auth server: does not support dynamic client registration')
+        })
+        .catch((error: unknown) => error)
+      const service = new McpRuntimeService()
+      connectionFactoryMocks.createExternal.mockRejectedValue(failure)
+
+      await expect(service.listTools(server.id)).rejects.toBe(failure)
+      const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 86_400_000)
+      try {
+        await expect(service.listTools(server.id)).rejects.toBe(failure)
+        await expect(service.getServerVersion(server.id)).resolves.toBeNull()
+        expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(1)
+        expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({
+          state: 'error',
+          lastError: expect.stringContaining('Authorization=Bearer YOUR_GITHUB_PAT')
+        })
+
+        connectionFactoryMocks.createExternal.mockResolvedValue(connection)
+        if (recovery === 'restart') await service.restartServer(server.id)
+        else {
+          getByIdMock.mockReturnValue({ ...server, headers: { Authorization: 'Bearer fixture-pat' } })
+          await expect(service.listTools(server.id)).resolves.toEqual([])
+        }
+        expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({
+          state: 'connected'
+        })
+        expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(2)
+      } finally {
+        now.mockRestore()
+      }
+    }
+  )
 
   it('lets a caller that can open the browser sign in after a background attempt needed authorization', async () => {
     const service = new McpRuntimeService()

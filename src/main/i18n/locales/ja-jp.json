@@ -181,6 +181,7 @@
   "settings.mcp.oauth.callback.title": "認証成功",
   "settings.mcp.oauth.cancelled": "認可がキャンセルされました。",
   "settings.mcp.oauth.not_completed": "ブラウザーでの認可が完了しませんでした。",
+  "settings.mcp.oauth.registration_required": "このサーバーは OAuth クライアントの自動登録に対応していません。OAuth には事前登録済みのクライアントが必要です。GitHub の場合は、このサーバーの「ヘッダー」に個人用アクセストークンを使って Authorization=Bearer YOUR_GITHUB_PAT を追加し、保存してサーバーを再起動してください。",
   "settings.mcp.oauth.required": "サインインが必要です。",
   "settings.title": "設定",
   "skill.import.directory_missing_skill_md": "選択したフォルダーに SKILL.md が見つかりませんでした。SKILL.md が直接含まれているフォルダーを選択してください。",

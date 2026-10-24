@@ -181,6 +181,7 @@
   "settings.mcp.oauth.callback.title": "Authentification Réussie",
   "settings.mcp.oauth.cancelled": "L'autorisation a été annulée.",
   "settings.mcp.oauth.not_completed": "L'autorisation dans le navigateur n'a pas été terminée.",
+  "settings.mcp.oauth.registration_required": "Ce serveur ne prend pas en charge l’enregistrement automatique des clients OAuth. OAuth nécessite un client préenregistré. Pour GitHub, ajoutez Authorization=Bearer YOUR_GITHUB_PAT dans les En-têtes de ce serveur avec votre jeton d’accès personnel, puis enregistrez et redémarrez le serveur.",
   "settings.mcp.oauth.required": "Connexion requise.",
   "settings.title": "Paramètres",
   "skill.import.directory_missing_skill_md": "SKILL.md est introuvable dans le dossier sélectionné. Sélectionnez le dossier qui contient directement SKILL.md.",

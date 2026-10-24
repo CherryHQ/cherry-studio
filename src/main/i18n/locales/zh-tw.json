@@ -181,6 +181,7 @@
   "settings.mcp.oauth.callback.title": "認證成功",
   "settings.mcp.oauth.cancelled": "已取消授權。",
   "settings.mcp.oauth.not_completed": "瀏覽器中的授權未完成。",
+  "settings.mcp.oauth.registration_required": "此伺服器不支援自動註冊 OAuth 用戶端，使用 OAuth 需要預先註冊的用戶端。對於 GitHub，請在此伺服器的「請求標頭」中新增 Authorization=Bearer YOUR_GITHUB_PAT，將 YOUR_GITHUB_PAT 替換為你的個人存取權杖，然後儲存並重新啟動伺服器。",
   "settings.mcp.oauth.required": "需要登入授權。",
   "settings.title": "設定",
   "skill.import.directory_missing_skill_md": "在所選資料夾中找不到 SKILL.md。請選擇直接包含 SKILL.md 的資料夾。",

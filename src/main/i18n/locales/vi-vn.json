@@ -181,6 +181,7 @@
   "settings.mcp.oauth.callback.title": "Xác thực thành công",
   "settings.mcp.oauth.cancelled": "Đã hủy ủy quyền.",
   "settings.mcp.oauth.not_completed": "Chưa hoàn tất ủy quyền trong trình duyệt.",
+  "settings.mcp.oauth.registration_required": "Máy chủ này không hỗ trợ đăng ký ứng dụng khách OAuth tự động. OAuth yêu cầu ứng dụng khách đã được đăng ký trước. Với GitHub, hãy thêm Authorization=Bearer YOUR_GITHUB_PAT vào mục Tiêu đề của máy chủ bằng mã thông báo truy cập cá nhân của bạn, sau đó lưu và khởi động lại máy chủ.",
   "settings.mcp.oauth.required": "Cần đăng nhập.",
   "settings.title": "Cài đặt",
   "skill.import.directory_missing_skill_md": "Không tìm thấy SKILL.md trong thư mục đã chọn. Hãy chọn thư mục chứa trực tiếp SKILL.md.",

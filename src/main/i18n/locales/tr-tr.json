@@ -181,6 +181,7 @@
   "settings.mcp.oauth.callback.title": "Kimlik Doğrulama Başarılı",
   "settings.mcp.oauth.cancelled": "Yetkilendirme iptal edildi.",
   "settings.mcp.oauth.not_completed": "Tarayıcıdaki yetkilendirme tamamlanmadı.",
+  "settings.mcp.oauth.registration_required": "Bu sunucu otomatik OAuth istemci kaydını desteklemiyor. OAuth için önceden kaydedilmiş bir istemci gerekir. GitHub için kişisel erişim belirtecinizi kullanarak bu sunucunun Üst Bilgiler alanına Authorization=Bearer YOUR_GITHUB_PAT ekleyin, ardından kaydedip sunucuyu yeniden başlatın.",
   "settings.mcp.oauth.required": "Oturum açmanız gerekiyor.",
   "settings.title": "Ayarlar",
   "skill.import.directory_missing_skill_md": "Seçilen klasörde SKILL.md bulunamadı. Doğrudan SKILL.md içeren klasörü seçin.",

@@ -181,6 +181,7 @@
   "settings.mcp.oauth.callback.title": "认证成功",
   "settings.mcp.oauth.cancelled": "已取消授权。",
   "settings.mcp.oauth.not_completed": "浏览器中的授权未完成。",
+  "settings.mcp.oauth.registration_required": "此服务器不支持自动注册 OAuth 客户端，使用 OAuth 需要预先注册的客户端。对于 GitHub，请在此服务器的“请求头”中添加 Authorization=Bearer YOUR_GITHUB_PAT，将 YOUR_GITHUB_PAT 替换为你的个人访问令牌，然后保存并重启服务器。",
   "settings.mcp.oauth.required": "需要登录授权。",
   "settings.title": "设置",
   "skill.import.directory_missing_skill_md": "未在所选文件夹中找到 SKILL.md。请选择直接包含 SKILL.md 的文件夹。",

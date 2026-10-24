@@ -181,6 +181,7 @@
   "settings.mcp.oauth.callback.title": "Επιτυχής Ταυτοποίηση",
   "settings.mcp.oauth.cancelled": "Η εξουσιοδότηση ακυρώθηκε.",
   "settings.mcp.oauth.not_completed": "Η εξουσιοδότηση στο πρόγραμμα περιήγησης δεν ολοκληρώθηκε.",
+  "settings.mcp.oauth.registration_required": "Αυτός ο διακομιστής δεν υποστηρίζει αυτόματη εγγραφή πελάτη OAuth. Το OAuth απαιτεί ήδη εγγεγραμμένο πελάτη. Για το GitHub, προσθέστε Authorization=Bearer YOUR_GITHUB_PAT στις Κεφαλίδες αυτού του διακομιστή με το προσωπικό σας διακριτικό πρόσβασης, αποθηκεύστε και επανεκκινήστε τον διακομιστή.",
   "settings.mcp.oauth.required": "Απαιτείται σύνδεση.",
   "settings.title": "Ρυθμίσεις",
   "skill.import.directory_missing_skill_md": "Δεν βρέθηκε το SKILL.md στον επιλεγμένο φάκελο. Επιλέξτε τον φάκελο που περιέχει απευθείας το SKILL.md.",

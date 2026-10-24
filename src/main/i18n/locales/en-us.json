@@ -181,6 +181,7 @@
   "settings.mcp.oauth.callback.title": "Authentication Successful",
   "settings.mcp.oauth.cancelled": "Authorization was cancelled.",
   "settings.mcp.oauth.not_completed": "Authorization was not completed in the browser.",
+  "settings.mcp.oauth.registration_required": "This server does not support automatic OAuth client registration. OAuth requires a pre-registered client. For GitHub, add Authorization=Bearer YOUR_GITHUB_PAT to this server's Headers using your personal access token, then save and restart the server.",
   "settings.mcp.oauth.required": "Sign-in required.",
   "settings.title": "Settings",
   "skill.import.directory_missing_skill_md": "SKILL.md was not found in the selected folder. Select the folder that directly contains SKILL.md.",
