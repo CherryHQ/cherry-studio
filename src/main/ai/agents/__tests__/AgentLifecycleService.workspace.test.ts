@@ -387,6 +387,92 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
   })
 
+  it('retains a system workspace while a detached task still works in it', async () => {
+    // A detached task runs with the session workspace as its cwd and outlives the turn. Archiving
+    // the session must not rename and remove that directory from under it: the workspace is
+    // retained while the task is live, and the sweep archives it once the task has finished.
+    const parent = workspacePath(root, 'system')
+    const taskDir = path.join(root, 'agent', 'background-tasks')
+    await mkdir(taskDir, { recursive: true })
+    const recordFile = path.join(taskDir, 'bt-live.json')
+    const writeTask = (status: 'running' | 'completed') =>
+      writeFile(
+        recordFile,
+        JSON.stringify({
+          id: 'bt-live',
+          name: 'live',
+          command: 'true',
+          pid: process.pid,
+          cwd: parent,
+          startedAt: new Date().toISOString(),
+          logFile: path.join(taskDir, 'bt-live.log'),
+          status,
+          exitCode: status === 'completed' ? 0 : null,
+          signal: null
+        })
+      )
+    await writeTask('running')
+
+    await lifecycle.archiveSessions(['system'])
+    expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
+    expect(existsSync(`${parent}.tar.gz`)).toBe(false)
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).not.toBeNull()
+
+    await writeTask('completed')
+    await lifecycle.sweepOrphans()
+    expect(existsSync(parent)).toBe(false)
+    expect(existsSync(`${parent}.tar.gz`)).toBe(true)
+  })
+
+  // A detached task outlives its session and keeps the session workspace as its cwd. Archival
+  // already retains that directory; permanently deleting the session — and the retention purge
+  // that follows it — removes its claim and reaches the same removal through the purge path, so
+  // both must defer to the task rather than delete the directory from under it.
+  it.each(['purge', 'retention'] as const)(
+    'defers removing the workspace of a live detached task on session %s',
+    async (mode) => {
+      const parent = workspacePath(root, 'system')
+      const taskDir = path.join(root, 'agent', 'background-tasks')
+      await mkdir(taskDir, { recursive: true })
+      const recordFile = path.join(taskDir, 'bt-live.json')
+      const writeTask = (status: 'running' | 'completed') =>
+        writeFile(
+          recordFile,
+          JSON.stringify({
+            id: 'bt-live',
+            name: 'live',
+            command: 'true',
+            pid: process.pid,
+            cwd: parent,
+            startedAt: new Date().toISOString(),
+            logFile: path.join(taskDir, 'bt-live.log'),
+            status,
+            exitCode: status === 'completed' ? 0 : null,
+            signal: null
+          })
+        )
+      await writeTask('running')
+
+      // The session is deleted either way; only its workspace removal may not go through.
+      await lifecycle.archiveSessions(['system'])
+      await lifecycle.purgeSessions(['system'])
+      expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
+      expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
+
+      // The task has finished: the deferred removal completes on the next sweep. The sweep reads
+      // the newest mtime under the workspace, so the whole tree is aged past its freshness window.
+      await writeTask('completed')
+      const stale = new Date(Date.now() - 10 * 60_000)
+      await utimes(parent, stale, stale)
+      await utimes(path.join(parent, 'output.txt'), stale, stale)
+      if (mode === 'retention') await lifecycle.purgeExpiredSessions(Number.MAX_SAFE_INTEGER, 10)
+      await lifecycle.sweepOrphans()
+      expect(existsSync(parent)).toBe(false)
+    }
+  )
+
   it('keeps the directory if runtime shutdown fails', async () => {
     mocks.closeSession.mockRejectedValueOnce(new Error('runtime still holds files'))
     await lifecycle.archiveSessions(['system'])

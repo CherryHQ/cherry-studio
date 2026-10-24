@@ -305,8 +305,21 @@ function stubPath() {
   })
 }
 
+let withDetachedTasksStoppedImpl: (commit: () => Promise<unknown>) => Promise<unknown> = (commit) => commit()
+
+function stubDetachedTasks() {
+  vi.doMock('@main/ai/agents/backgroundTaskActions', () => {
+    class DetachedTasksBusyError extends Error {}
+    return {
+      DetachedTasksBusyError,
+      withDetachedTasksStopped: (commit: () => Promise<unknown>) => withDetachedTasksStoppedImpl(commit)
+    }
+  })
+}
+
 function stubAll(marker: DataResetMarker) {
   stubElectron()
+  stubDetachedTasks()
   stubApplication()
   stubI18n()
   stubFs()
@@ -378,6 +391,7 @@ function wipedEntries(): string[] {
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  withDetachedTasksStoppedImpl = (commit) => commit()
 })
 
 describe('runDataReset', () => {
@@ -951,6 +965,25 @@ describe('requestDataReset', () => {
     expect(defaultSession.clearData).not.toHaveBeenCalled()
     expect(applicationMock.shutdown).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
+  })
+
+  it('refuses to stage when a detached background task cannot be stopped and verified', async () => {
+    // The reset would erase the record, log and workspace the task runs in. A survivor would keep
+    // working with no Cherry path to list, stop, or purge it, so staging is refused entirely.
+    stubAll(null)
+    const tasks = await import('@main/ai/agents/backgroundTaskActions')
+    withDetachedTasksStoppedImpl = async () => {
+      throw new tasks.DetachedTasksBusyError('a background task is still running')
+    }
+
+    await expect(requestReset()).resolves.toBeUndefined()
+
+    expect(fsCtl.commits).toHaveLength(0)
+    expect(markerExists()).toBe(false)
+    expect(defaultSession.clearData).not.toHaveBeenCalled()
+    expect(applicationMock.shutdown).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.stringContaining('background task'))
   })
 })
 
