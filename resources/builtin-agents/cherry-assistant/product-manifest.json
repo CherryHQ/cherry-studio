@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "1b44511badb438e6",
-    "count": 66,
+    "version": "ded186e1fc6b5b88",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -694,6 +694,10 @@
       {
         "id": "mistral",
         "name": "Mistral"
+      },
+      {
+        "id": "mizumi",
+        "name": "Mizumi"
       },
       {
         "id": "jina",
