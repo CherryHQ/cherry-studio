@@ -403,6 +403,18 @@ describe('ModelSpeedControl UI', () => {
     expect(screen.getByRole('button', { name: 'agent.speed.fast' })).toBeInTheDocument()
     expect(screen.queryByTestId('reasoning-slider')).not.toBeInTheDocument()
   })
+
+  it('hides reasoning controls when the capability is disabled', () => {
+    render(
+      <ModelSpeedControl
+        model={{ ...codexModel, capabilities: [], supportsFastMode: false }}
+        reasoningEffort="high"
+        onReasoningEffortChange={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'agent.speed.title' })).not.toBeInTheDocument()
+  })
 })
 
 describe('ModelSpeedControl summary verbosity', () => {
