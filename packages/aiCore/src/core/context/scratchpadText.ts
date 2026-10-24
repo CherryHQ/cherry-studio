@@ -459,10 +459,10 @@ function fenceCloseMatchesContainerContext(candidatePrefix: string, openerPrefix
   return /^ {0,3}$/.test(rest)
 }
 
-function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: string): number {
+function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: string, limit = text.length): number {
   const segments = parseFenceContainerSegments(openerPrefix)
-  if (segments.length === 0) return text.length
-  for (let start = openerLineEnd; start < text.length; start = lineEndAfter(text, start)) {
+  if (segments.length === 0) return limit
+  for (let start = openerLineEnd; start < limit; start = lineEndAfter(text, start)) {
     let rest = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
     for (const segment of segments) {
       if (segment.type === 'quote') {
@@ -479,7 +479,7 @@ function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: st
       }
     }
   }
-  return text.length
+  return limit
 }
 
 /** Precompute list-container extents once instead of scanning every prefix per fence. */
@@ -513,12 +513,16 @@ function findCodeFenceClose(
   inheritedPrefix = inheritedFencePrefixLookup(text)
 ): number {
   openerPrefix = inheritedPrefix(lineStartBefore(text, searchFrom), openerPrefix)
-  const containerEnd = fenceContainerEnd(text, lineEndAfter(text, searchFrom), openerPrefix)
+  let boundaryStart = lineEndAfter(text, searchFrom)
   let pos = searchFrom
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
-    if (rel === -1 || pos + rel >= containerEnd) return containerEnd < text.length ? containerEnd : -1
+    if (rel === -1) break
     const markerStart = pos + rel
+    const candidateEnd = lineEndAfter(text, markerStart)
+    const containerEnd = fenceContainerEnd(text, boundaryStart, openerPrefix, candidateEnd)
+    if (containerEnd < candidateEnd) return containerEnd
+    boundaryStart = candidateEnd
     if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
       pos = markerStart + 1
       continue
@@ -532,8 +536,9 @@ function findCodeFenceClose(
       pos = markerStart + 1
       continue
     }
-    return lineEndAfter(text, markerStart)
+    return candidateEnd
   }
+  const containerEnd = fenceContainerEnd(text, boundaryStart, openerPrefix)
   return containerEnd < text.length ? containerEnd : -1
 }
 

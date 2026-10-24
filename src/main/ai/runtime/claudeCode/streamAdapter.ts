@@ -1246,6 +1246,12 @@ export class ClaudeCodeStreamAdapter {
       const previousEnd = lineStart - 1
       const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
       const previous = accumulatedText.slice(previousStart, previousEnd)
+      if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(previous)) && previousStart > 0) {
+        const paragraphEnd = previousStart - 1
+        const paragraphStart = accumulatedText.lastIndexOf('\n', paragraphEnd - 1) + 1
+        const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd)
+        if (paragraph.trim() !== '') return paragraph.slice(0, 128) + '\n' + previous + '\n' + openLine
+      }
       if (previous.trim() !== '') return previous.slice(0, 128) + '\n' + openLine
     }
     // Completed plain paragraph context needs its block kind and escape

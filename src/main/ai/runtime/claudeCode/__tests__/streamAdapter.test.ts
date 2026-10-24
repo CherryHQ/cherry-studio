@@ -87,6 +87,28 @@ it.each([500, 1000])('bounds separated indented snapshots %s (inv_b1a33e302e563e
   expect(performance.now() - start).toBeLessThan(750)
 })
 
+it.each([1000, 2000])('bounds continuous quoted fences %s (inv_72a782e19afadd9f)', (count) => {
+  const { adapter, parts } = createAdapter()
+  const answer = '> ```xml\n> <thinking>literal</thinking>\n> ```\n>\n'.repeat(count)
+  const start = performance.now()
+  adapter.handleMessage({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    session_id: 'sdk-1',
+    uuid: crypto.randomUUID(),
+    message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+  } as any)
+  const elapsed = performance.now() - start
+  console.log({ quotedFenceCharacters: answer.length, elapsed })
+  expect(
+    parts
+      .filter((part) => part.type === 'text-delta')
+      .map((part) => (part as any).delta)
+      .join('')
+  ).toBe(answer)
+  expect(elapsed).toBeLessThan(1000)
+})
+
 it.each([1000, 2000])('bounds quoted fenced snapshots %s (inv_ad23ebfecae34f4b)', (count) => {
   const { adapter, parts } = createAdapter()
   const answer = '> ```xml\n> <thinking>literal</thinking>\n> ```\n\n'.repeat(count)
@@ -4704,6 +4726,70 @@ describe('compaction artifact boundary', () => {
     expect(output()).toContain(second)
     adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     expect(output()).toBe(first + second + third)
+  })
+
+  it.each(Array.from({ length: 63 }, (_, index) => index + 1))(
+    'preserves quoted heading at every split %s',
+    (split) => {
+      const full = '> Example\n> =======\n>     <thinking>literal</thinking>\n\nDone.'
+      const chunks = [full.slice(0, split), full.slice(split)]
+      const answer = chunks.join('')
+      for (const delivery of [chunks, [answer]]) {
+        const { adapter, parts } = createAdapter()
+        const output = () =>
+          parts
+            .filter((part) => part.type === 'text-delta')
+            .map((part) => (part as any).delta)
+            .join('')
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+        )
+        for (const text of delivery)
+          adapter.handleMessage(
+            streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+          )
+        adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+        expect(output()).toBe(answer)
+        adapter.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+        } as any)
+        expect(output()).toBe(answer)
+      }
+    }
+  )
+
+  it('retains heading across partial quoted indentation (inv_a032bec5b5463879)', () => {
+    const chunks = ['> Example\n> =======\n>    ', ' <thinking>literal</thinking>\n\nDone.']
+    const answer = chunks.join('')
+    for (const delivery of [chunks, [answer]]) {
+      const { adapter, parts } = createAdapter()
+      const output = () =>
+        parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part) => (part as any).delta)
+          .join('')
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (const text of delivery)
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+        )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      expect(output()).toBe(answer)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+      } as any)
+      expect(output()).toBe(answer)
+    }
   })
 
   it('retains paragraph across split quote marker (inv_c50ff90150b49457)', () => {
