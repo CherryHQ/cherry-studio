@@ -275,7 +275,20 @@ const fakePi = {
     }
   },
   createAgentSession: mocks.createAgentSession,
-  createBashToolDefinition: mocks.createBashToolDefinition
+  createBashToolDefinition: mocks.createBashToolDefinition,
+  // The action-fusion extension builds its fused edit/write tools from these.
+  createEditToolDefinition: () => ({
+    name: 'edit',
+    label: 'edit',
+    parameters: { type: 'object', properties: {} },
+    execute: async () => ({ content: [], details: undefined })
+  }),
+  createWriteToolDefinition: () => ({
+    name: 'write',
+    label: 'write',
+    parameters: { type: 'object', properties: {} },
+    execute: async () => ({ content: [], details: undefined })
+  })
 }
 
 const input: AgentRuntimeConnectInput = {
@@ -2191,6 +2204,7 @@ describe('PiRuntimeConnection', () => {
       for (const factory of factories) {
         await factory({
           registerProvider: vi.fn(),
+          registerTool: () => {},
           on: (event: string, handler: typeof beforeStart) => {
             if (event === 'before_agent_start') beforeStart = handler
           }
