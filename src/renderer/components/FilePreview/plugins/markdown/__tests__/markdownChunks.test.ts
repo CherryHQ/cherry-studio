@@ -667,6 +667,36 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('does not let a carried footnote definition absorb the indented code a chunk opens with', () => {
+    // The note is unused, so the copied definition must not continue with the code the chunk
+    // below it opens with — the parser would read it as the note's content and drop the block.
+    const content = ['    important code', '', 'Ordinary prose.', '', '[^n]: An unused note.'].join('\n')
+    const codeBlocks = (source: string): string[] => {
+      const tree = parsed(source) as unknown as { children: Array<{ type: string; value?: string }> }
+      return tree.children.filter((node) => node.type === 'code').map((node) => String(node.value))
+    }
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(codeBlocks(content)).toEqual(['important code'])
+    expect(codeBlocks(joined(chunks))).toEqual(codeBlocks(content))
+  })
+
+  it('separates the carried definitions so a footnote cannot swallow the link definition below it', () => {
+    // Joined without a blank line, the link definition becomes the note's lazy continuation, so
+    // every chunk that copies the pair loses the destination its references need.
+    const content = ['[^n]: An unused note.', '', '[guide]: /right', '', 'see [guide]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [guide]'))
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(resolvedReferenceUrls(content)).toEqual(['/right'])
+    expect(referencing).toHaveLength(1)
+    expect(resolvedReferenceUrls(referencing[0].text)).toEqual(['/right'])
+  })
+
   it('leaves a footnote-shaped line whose label holds whitespace the paragraph it is', () => {
     // GFM reads no whitespace inside a footnote label, so `[^see below]:` is ordinary text the
     // document renders once — carrying it as a definition would print the paragraph twice.
@@ -1009,6 +1039,20 @@ describe('splitMarkdownChunks', () => {
     expect(referenceTarget(content, 'label')).toBe('/right')
     expect(referenceTarget(joined(chunks), 'label')).toBe('/right')
     expect(chunks.filter((chunk) => chunk.text.includes('/wrong'))).toHaveLength(1)
+  })
+
+  it('keeps a standalone setext underline paragraph text instead of completing a heading', () => {
+    // `===` with no paragraph above it is prose, so the definition shape below it stays in that
+    // paragraph; reading the underline as a completed heading hoisted the literal `/wrong` line.
+    const content = ['===\n[guide]: /wrong', '', '[guide]: /right', '', '[guide]'].join('\n')
+
+    const chunks = chunksOf(content)
+    // The reference inside the prose paragraph resolves to the one real definition as well.
+    const unsplit = resolvedReferenceUrls(content)
+
+    expect(unsplit).toEqual(['/right', '/right'])
+    expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(unsplit)
+    expect(hoistedDefinition(content)).toBe('[guide]: /right')
   })
 
   it('still carries a definition-shaped line a quote marker opens behind a paragraph', () => {

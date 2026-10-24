@@ -360,12 +360,23 @@ function normalizeReferenceLabel(label: string): string {
 }
 
 /**
- * A bare link destination — not starting with `<`, which belongs to the angle brackets, and free of
- * the characters micromark stops one at: ASCII controls, space and line endings. `\S` cannot stand
- * in for that set, because it also excludes U+00A0 and the Unicode spaces a destination may hold.
- * Its parentheses have to balance, which `balancedParens` checks where it is accepted.
+ * The length of the bare destination opening at `open`, or 0 when none does. It ends at an ASCII
+ * control or space — not `\S`, which also excludes the U+00A0 a destination may hold.
  */
-const LINK_BARE_DESTINATION = /^[ \t]*(?!<)[^\x00-\x20\x7F]+/
+function bareDestinationLength(line: string, open: number): number {
+  // `<` belongs to the angle bracket form, never to a bare destination.
+  if (line[open] === '<') return 0
+  let index = open
+  while (index < line.length) {
+    const code = line.charCodeAt(index)
+    if (code <= 0x20 || code === 0x7f) break
+    index += 1
+  }
+  return index - open
+}
+
+/** The whitespace that may lead a definition's destination on its line. */
+const LEADING_WHITESPACE = /^[ \t]*/
 
 /**
  * The length of an angle-bracketed destination opening at `open`, or 0 when none does.
@@ -453,11 +464,12 @@ function pastDestination(line: string): string | null {
     const length = angleDestinationLength(line, open[0].length - 1)
     return length === 0 ? null : line.slice(open[0].length - 1 + length)
   }
-  const match = LINK_BARE_DESTINATION.exec(line)
-  if (!match) return null
-  const destination = match[0].trimStart()
+  const indent = LEADING_WHITESPACE.exec(line)?.[0].length ?? 0
+  const length = bareDestinationLength(line, indent)
+  if (length === 0) return null
+  const destination = line.slice(indent, indent + length)
   if (!balancedParens(destination)) return null
-  return line.slice(match[0].length)
+  return line.slice(indent + length)
 }
 
 const INDENTED_LINE = /^\s+\S/
@@ -832,12 +844,12 @@ function isSetextUnderline(line: string): boolean {
 
 /**
  * Whether a line that opens no definition is complete where it stands, so the line below starts a
- * new block rather than continuing a paragraph: an ATX heading, the underline that makes the line
- * above a setext heading, or a thematic break.
+ * new block rather than continuing a paragraph: an ATX heading, a thematic break, or the underline
+ * that makes an open paragraph above it a setext heading — prose where no paragraph precedes it.
  */
-function isCompletedBlock(line: string, container: string | null): boolean {
+function isCompletedBlock(line: string, container: string | null, paragraphOpen: boolean): boolean {
   const content = container === null ? line : line.slice(container.length)
-  return ATX_HEADING.test(content) || isSetextUnderline(line) || THEMATIC_BREAK.test(line)
+  return ATX_HEADING.test(content) || (paragraphOpen && isSetextUnderline(line)) || THEMATIC_BREAK.test(line)
 }
 
 /**
@@ -2072,6 +2084,9 @@ export function splitMarkdownChunks(
   }
 
   const definitions: string[] = []
+  // The index in `definitions` each definition opens at, so a carried footnote's continuation lines
+  // stay one block while separate definitions are given the blank line the parser needs between them.
+  const definitionBlocks: number[] = []
   // A definition may cover up to three source lines while occupying one entry here, so the carried
   // prefix is measured in lines rather than entries — the virtualizer estimates from this count.
   let definitionLines = 0
@@ -2446,6 +2461,7 @@ export function splitMarkdownChunks(
     const footnoteStart = containerHoldsCode ? null : FOOTNOTE_DEFINITION_START.exec(uncontained)
     if (footnoteStart) {
       definedFootnotes.add(footnoteStart[1].toLowerCase())
+      definitionBlocks.push(definitions.length)
       definitions.push(uncontained)
       definitionLines += 1
       inDefinition = true
@@ -2472,6 +2488,7 @@ export function splitMarkdownChunks(
     const definition =
       (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode ? null : linkDefinition(lines, i)
     if (definition) {
+      definitionBlocks.push(definitions.length)
       definitions.push(definition.text)
       definedLabels.add(normalizeReferenceLabel(definition.label))
       definitionLines += definition.lines
@@ -2524,10 +2541,12 @@ export function splitMarkdownChunks(
       // A setext underline may turn the whole open paragraph into a heading, so its first line is
       // remembered: a line that opens a block of its own ends the paragraph above rather than
       // joining it.
-      if (previousStatus !== 'paragraph' || opensBlock) paragraphStart = i
+      const paragraphOpen = previousStatus === 'paragraph'
+      if (!paragraphOpen || opensBlock) paragraphStart = i
       // Indented code is a block of its own, so the line under it starts from no open paragraph —
       // which is what lets the definition there stand instead of reading as paragraph text.
-      previousStatus = indentedCode || isCompletedBlock(line, container?.[0] ?? null) ? 'block' : 'paragraph'
+      previousStatus =
+        indentedCode || isCompletedBlock(line, container?.[0] ?? null, paragraphOpen) ? 'block' : 'paragraph'
       paragraphContainer = container?.[0] ?? null
     }
 
@@ -2601,8 +2620,13 @@ export function splitMarkdownChunks(
     }
   }
 
-  const prefix = definitions.length > 0 ? `${definitions.join('\n')}\n\n` : ''
-  const prefixLines = definitionLines > 0 ? definitionLines + 1 : 0
+  // A blank line between definitions keeps a footnote's lazy continuation from swallowing the
+  // definition below it; the empty comment ends the last one so the body's indented lines stay code.
+  const definitionText = definitionBlocks
+    .map((start, index) => definitions.slice(start, definitionBlocks[index + 1] ?? definitions.length).join('\n'))
+    .join('\n\n')
+  const prefix = definitionBlocks.length > 0 ? `${definitionText}\n\n<!---->\n\n` : ''
+  const prefixLines = definitionBlocks.length > 0 ? definitionLines + (definitionBlocks.length - 1) + 3 : 0
   const chunks: MarkdownChunk[] = []
   let start = 0
   for (const end of [...boundaries, lines.length]) {
