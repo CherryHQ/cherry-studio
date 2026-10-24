@@ -89,6 +89,15 @@ beforeEach(() => {
 })
 
 describe('BasicInfoStep', () => {
+  it.each([false, true])('exposes memory last with the correct default for agent=%s', async (agent) => {
+    const user = userEvent.setup()
+    render(<Harness runtimeSelectable={agent} />)
+    const toggle = screen.getByRole('switch', { name: 'settings.user_memory.enabled' })
+    expect(toggle).toHaveAttribute('aria-checked', String(agent))
+    expect(toggle.closest('[data-slot="form-item"]')?.nextElementSibling).toBeNull()
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', String(!agent))
+  })
   it('focuses the name field by default', async () => {
     render(<Harness />)
 

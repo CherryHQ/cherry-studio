@@ -32,7 +32,7 @@ Cherry Studio v1.x had a fourth mechanism, **Global Memory**: a Settings toggle 
 If you relied on Global Memory in v1:
 
 - For Agents, use **Agent File Memory** — it serves the same remember-about-the-user role via `USER.md`, scoped per agent.
-- For Assistants, the shared file tier is available through an explicit settings opt-in (runtime support; UI control pending). Assistant prompts and **Knowledge Base** remain separate context sources.
+- For Assistants, the shared file tier is available through an explicit settings opt-in. Assistant prompts and **Knowledge Base** remain separate context sources.
 
 ## Details
 
@@ -69,7 +69,7 @@ If you relied on Global Memory in v1:
 
 ### Ordinary Assistant access
 
-Ordinary Assistants opt in with `settings.userMemoryEnabled: true` in their existing settings JSON; omitted or false keeps memory disabled. This runtime layer does not yet add a form control. The shared files and Settings page are the same ones used by Agents; no Assistant-local `USER.md` or Agent workspace memory is exposed.
+Ordinary Assistants opt in with `settings.userMemoryEnabled: true` in their existing settings JSON; omitted or false keeps memory disabled. The create form places the switch last and defaults it off; the edit dialog exposes it under Basic. Assistant duplication and preset export/import preserve the opt-in, while presets contain no shared-memory facts or journal contents. The shared files and Settings page are the same ones used by Agents; no Assistant-local `USER.md` or Agent workspace memory is exposed.
 
 Only non-headless persistent desktop chat dispatch grants access. Temporary chats, channel/Agent dispatch, and auxiliary requests do not receive that grant. The main process validates the topic/Assistant association and the live setting before loading facts, and again whenever a memory operation resolves its directory. Reassigning or deleting the topic, deleting the Assistant, or disabling the setting rejects subsequent operations.
 

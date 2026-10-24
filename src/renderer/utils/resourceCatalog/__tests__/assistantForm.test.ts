@@ -412,3 +412,21 @@ describe('diffAssistantSaveIntent', () => {
     })
   })
 })
+
+describe('Assistant shared memory form', () => {
+  it('defaults old assistants to off and patches only the changed preference', () => {
+    const assistant = createAssistant({ settings: { ...DEFAULT_ASSISTANT_SETTINGS, userMemoryEnabled: undefined } })
+    const baseline = initialAssistantFormState(assistant)
+    expect(baseline.userMemoryEnabled).toBe(false)
+    expect(diffAssistantUpdate({ ...baseline, userMemoryEnabled: true }, baseline, assistant)?.dto).toEqual({
+      settings: { userMemoryEnabled: true }
+    })
+    const enabled = createAssistant({ settings: { ...DEFAULT_ASSISTANT_SETTINGS, userMemoryEnabled: true } })
+    const reopened = initialAssistantFormState(enabled)
+    expect(reopened.userMemoryEnabled).toBe(true)
+    expect(diffAssistantUpdate({ ...reopened, userMemoryEnabled: false }, reopened, enabled)?.dto).toEqual({
+      settings: { userMemoryEnabled: false }
+    })
+    expect(diffAssistantUpdate({ ...reopened, name: 'Renamed' }, reopened, enabled)?.dto).toEqual({ name: 'Renamed' })
+  })
+})

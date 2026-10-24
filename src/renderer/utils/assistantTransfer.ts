@@ -26,6 +26,7 @@ interface AssistantExportRecord {
   description: string
   regularPhrases: AssistantExportPhrase[]
   type: 'agent'
+  settings?: { userMemoryEnabled: boolean }
 }
 
 interface AssistantExportPhrase {
@@ -98,7 +99,10 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
       prompt,
       emoji: readString(record.emoji) || '🤖',
       description: readString(record.description),
-      settings: DEFAULT_ASSISTANT_SETTINGS,
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        userMemoryEnabled: isRecord(record.settings) && record.settings.userMemoryEnabled === true
+      },
       regularPhrases: readRegularPhrases(record.regularPhrases)
     },
     groupName
@@ -111,6 +115,7 @@ function buildExportRecord(
   groupName?: string
 ): AssistantExportRecord {
   return {
+    ...(assistant.settings.userMemoryEnabled === true ? { settings: { userMemoryEnabled: true } } : {}),
     name: assistant.name,
     emoji: assistant.emoji,
     group: groupName ? [groupName] : [],

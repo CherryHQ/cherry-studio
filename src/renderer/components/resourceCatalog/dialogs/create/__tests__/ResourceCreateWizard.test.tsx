@@ -75,6 +75,9 @@ vi.mock('../steps/BasicInfoStep', async () => {
         <>
           <div data-testid="model-id">{modelId ?? 'empty'}</div>
           <div data-testid="name">{name || 'empty'}</div>
+          <button type="button" onClick={() => form.setValue('userMemoryEnabled', true)}>
+            enable memory
+          </button>
           <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
             fill name
           </button>
@@ -177,6 +180,7 @@ describe('ResourceCreateWizard', () => {
       name: 'My Resource',
       agentType: 'claude-code',
       permissionMode: 'auto',
+      userMemoryEnabled: false,
       modelId: 'provider::default',
       description: '',
       prompt: '',
@@ -281,6 +285,7 @@ describe('ResourceCreateWizard', () => {
       name: 'My Resource',
       agentType: 'claude-code',
       permissionMode: 'auto',
+      userMemoryEnabled: false,
       modelId: 'provider::model',
       description: '',
       prompt: 'be helpful',
@@ -427,4 +432,16 @@ describe('ResourceCreateWizard', () => {
       await waitFor(() => expect(screen.getByTestId('model-id')).toHaveTextContent('provider::default'))
     }
   )
+})
+
+it('submits an explicit Assistant memory opt-in', async () => {
+  const user = userEvent.setup()
+  const onSubmit = vi.fn()
+  render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+  await user.click(screen.getByRole('button', { name: 'fill basic' }))
+  await user.click(screen.getByRole('button', { name: 'enable memory' }))
+  await user.click(screen.getByRole('button', { name: NEXT }))
+  await user.click(screen.getByRole('button', { name: NEXT }))
+  await user.click(screen.getByRole('button', { name: CREATE }))
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ userMemoryEnabled: true }))
 })

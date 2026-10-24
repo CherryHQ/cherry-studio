@@ -803,6 +803,21 @@ function createDeferred<T>() {
 }
 
 describe('edit dialogs', () => {
+  it('saves the shared memory opt-in and restores it when reopened', async () => {
+    const saved = { ...ASSISTANT, settings: { ...ASSISTANT.settings, userMemoryEnabled: true } }
+    updateAssistantMock.mockResolvedValue(saved)
+    const first = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    const toggle = screen.getByRole('switch', { name: 'settings.user_memory.enabled' })
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { userMemoryEnabled: true } } })
+    )
+    first.unmount()
+    render(<AssistantEditDialog open resource={saved} onOpenChange={vi.fn()} />)
+    expect(screen.getByRole('switch', { name: 'settings.user_memory.enabled' })).toBeChecked()
+  })
+
   it.each(['agent', 'assistant'] as const)(
     'opens global prompt settings from an empty %s prompt panel',
     async (type) => {

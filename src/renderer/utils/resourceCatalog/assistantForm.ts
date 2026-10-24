@@ -43,6 +43,7 @@ export interface AssistantFormState {
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
+  userMemoryEnabled: boolean
   enableBrowser: boolean
   mcpMode: AssistantSettings['mcpMode']
   // context management (P2-D assistant override). `contextOverrideEnabled` is
@@ -92,6 +93,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     maxToolCalls: settings.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
+    userMemoryEnabled: settings.userMemoryEnabled === true,
     enableBrowser: settings.enableBrowser ?? true,
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
     // Only an offload/compression field means "override": a lone maxMessages is
@@ -161,6 +163,7 @@ export function diffAssistantUpdate(
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
   const settings: NonNullable<UpdateAssistantDto['settings']> = {
+    ...(baseline.userMemoryEnabled !== form.userMemoryEnabled ? { userMemoryEnabled: form.userMemoryEnabled } : {}),
     ...(baseline.temperature !== form.temperature ? { temperature: form.temperature } : {}),
     ...(baseline.enableTemperature !== form.enableTemperature ? { enableTemperature: form.enableTemperature } : {}),
     ...(baseline.topP !== form.topP ? { topP: form.topP } : {}),

@@ -54,6 +54,17 @@ function createPrompt(overrides: Partial<Prompt> = {}): Prompt {
 }
 
 describe('assistantTransfer', () => {
+  it.each([true, false])(
+    'round-trips the shared-memory preference without exporting memory contents: %s',
+    (enabled) => {
+      const assistant = createAssistant()
+      assistant.settings.userMemoryEnabled = enabled
+      const exported = serializeAssistantForExport(assistant, [])
+      const [imported] = parseAssistantImportContent(exported)
+      expect(imported.dto.settings?.userMemoryEnabled).toBe(enabled)
+      expect(exported).not.toContain('USER_FACT')
+    }
+  )
   it('serializes assistants using the legacy preset export shape', () => {
     const content = serializeAssistantForExport(createAssistant(), [createPrompt()], '写作')
 

@@ -17,6 +17,9 @@ const values: ResourceCreateValues = {
 }
 
 describe('resource create DTO mapping', () => {
+  it.each([true, false])('persists explicit Assistant shared memory selection: %s', (enabled) => {
+    expect(buildCreateAssistantDto({ ...values, userMemoryEnabled: enabled }).settings?.userMemoryEnabled).toBe(enabled)
+  })
   it('persists an explicit shared memory opt-out when creating an agent', () => {
     expect(buildCreateAgentCommand({ ...values, userMemoryEnabled: false }).configuration?.userMemoryEnabled).toBe(
       false
