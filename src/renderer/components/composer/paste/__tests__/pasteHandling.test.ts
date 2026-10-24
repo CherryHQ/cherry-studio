@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { anyFileExt } from '@renderer/utils/file'
@@ -879,6 +880,128 @@ describe('pasteHandling', () => {
 
     expect(await pasteHandling.handlePaste(event, [anyFileExt], vi.fn())).toBe(false)
     expect(event.preventDefault).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true, undefined])(
+    'applies image policy %s to a mixed path-backed paste without losing text files',
+    async (allow) => {
+      vi.spyOn(ipcApi, 'request').mockResolvedValue({ kind: 'file', type: 'text' })
+      const image = { ...selectedFile, path: '/tmp/pic.png', ext: '.png', type: FILE_TYPE.IMAGE }
+      vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+      vi.mocked(window.api.file.get).mockImplementation(async (path) => (path === image.path ? image : selectedFile))
+      let files: ComposerAttachment[] = []
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: { getData: () => '', files: [new File([''], 'pic.png'), new File([''], 'pasted_text.txt')] }
+      } as unknown as ClipboardEvent
+      await pasteHandling.handlePaste(
+        event,
+        ['.png'],
+        (updater) => {
+          files = updater(files)
+        },
+        undefined,
+        undefined,
+        undefined,
+        (key) => key,
+        allow === undefined ? undefined : () => allow
+      )
+      expect(files.map((file) => file.path)).toEqual(
+        allow === false ? [selectedFile.path] : [image.path, selectedFile.path]
+      )
+      if (allow === false) {
+        expect(toast.info).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported')
+        expect(toast.error).not.toHaveBeenCalled()
+      }
+    }
+  )
+
+  it.each([false, true, undefined])(
+    'applies image policy %s to clipboard bytes before any temp-file work',
+    async (allow) => {
+      const arrayBuffer = vi.fn(async () => new Uint8Array([1, 2, 3]).buffer)
+      const image = { name: 'pic.png', arrayBuffer } as unknown as File
+      vi.mocked(window.api.file.get).mockResolvedValue({ ...selectedFile, ext: '.png', type: FILE_TYPE.IMAGE })
+      let files: ComposerAttachment[] = []
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: { getData: () => '', files: [image, image] }
+      } as unknown as ClipboardEvent
+      await pasteHandling.handlePaste(
+        event,
+        ['.png'],
+        (updater) => {
+          files = updater(files)
+        },
+        undefined,
+        undefined,
+        undefined,
+        (key) => key,
+        allow === undefined ? undefined : () => allow
+      )
+      expect(files).toHaveLength(allow === false ? 0 : 2)
+      if (allow === false) {
+        expect(arrayBuffer).not.toHaveBeenCalled()
+        expect(window.api.file.createTempFile).not.toHaveBeenCalled()
+        expect(window.api.file.write).not.toHaveBeenCalled()
+        expect(toast.info).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported')
+      } else {
+        expect(files[0]).toMatchObject({ origin_name: 'pic.png', type: FILE_TYPE.IMAGE })
+      }
+    }
+  )
+
+  it('rechecks the image policy after a pending metadata read', async () => {
+    let allow = true
+    vi.mocked(window.api.file.getPathForFile).mockReturnValue('/tmp/pic.png')
+    vi.mocked(window.api.file.get).mockImplementation(async () => {
+      allow = false
+      return { ...selectedFile, ext: '.png', type: FILE_TYPE.IMAGE }
+    })
+    let files: ComposerAttachment[] = []
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: [new File([''], 'pic.png')] }
+    } as unknown as ClipboardEvent
+    await pasteHandling.handlePaste(
+      event,
+      ['.png'],
+      (updater) => {
+        files = updater(files)
+      },
+      undefined,
+      undefined,
+      undefined,
+      (key) => key,
+      () => allow
+    )
+    expect(files).toEqual([])
+    expect(toast.info).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported')
+  })
+
+  it('still creates long-text attachments when image input is disallowed', async () => {
+    let files: ComposerAttachment[] = []
+    const text = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => text, files: [] }
+    } as unknown as ClipboardEvent
+    await pasteHandling.handlePaste(
+      event,
+      ['.txt'],
+      (updater) => {
+        files = updater(files)
+      },
+      true,
+      undefined,
+      undefined,
+      (key) => key,
+      () => false
+    )
+    expect(files).toEqual([
+      expect.objectContaining({ type: FILE_TYPE.TEXT, composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT })
+    ])
+    expect(window.api.file.write).toHaveBeenCalledWith('/tmp/pasted_text.txt', text)
   })
 
   describe('handler registration and lifecycle', () => {

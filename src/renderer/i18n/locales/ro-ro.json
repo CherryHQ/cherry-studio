@@ -3019,6 +3019,7 @@
   "paintings.image_file_required": "Te rugăm să încarci mai întâi o imagine",
   "paintings.image_file_retry": "Te rugăm să reîncarci mai întâi o imagine",
   "paintings.image_handle_required": "Te rugăm să încarci mai întâi o imagine.",
+  "paintings.image_input_not_supported": "Imaginile de referință nu sunt disponibile pentru acest model. Eliminați-le sau alegeți un model care acceptă imagini ca intrare.",
   "paintings.image_mix_failed": "Nu s-au putut combina imaginile",
   "paintings.image_placeholder": "Nicio imagine disponibilă",
   "paintings.image_size_options.auto": "Auto",

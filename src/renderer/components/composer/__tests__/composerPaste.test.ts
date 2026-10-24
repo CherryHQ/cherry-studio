@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { FILE_TYPE } from '@renderer/types/file'
 import {
   createComposerClipboardFragment,
   readComposerClipboardFragment
@@ -243,6 +244,7 @@ describe('composer paste handling', () => {
 
     expect(getComposerClipboardPasteOverride(fragment, {})).toEqual({
       content: [{ type: 'text', text: 'report.pdf' }],
+      rejectedImageCount: 0,
       files: []
     })
   })
@@ -302,6 +304,7 @@ describe('composer paste handling', () => {
         },
         { type: 'text', text: ' now' }
       ],
+      rejectedImageCount: 0,
       files: []
     })
   })
@@ -335,6 +338,7 @@ describe('composer paste handling', () => {
           }
         }
       ],
+      rejectedImageCount: 0,
       files: []
     })
   })
@@ -369,6 +373,7 @@ describe('composer paste handling', () => {
         { type: 'text', text: folderPath },
         { type: 'text', text: ' now' }
       ],
+      rejectedImageCount: 0,
       files: []
     })
   })
@@ -376,4 +381,44 @@ describe('composer paste handling', () => {
   it('delegates text longer than the long-text threshold to the file handler', () => {
     expect(getComposerPlainTextPasteOverride('a'.repeat(1501), {})).toBeNull()
   })
+  it.each([false, true, undefined])(
+    'restores private images only when the image policy %s permits them, preserving surrounding content',
+    (allowImageAttachments) => {
+      const fragment = readComposerClipboardFragment(
+        createComposerClipboardFragment([
+          { type: 'text', text: 'before ' },
+          {
+            type: 'token',
+            fallbackText: '[reference.png]',
+            token: {
+              id: 'file:reference',
+              kind: 'file',
+              label: 'reference.png',
+              payload: {
+                fileTokenSourceId: 'reference',
+                path: '/tmp/reference.png',
+                ext: '.png',
+                type: FILE_TYPE.IMAGE
+              }
+            }
+          },
+          { type: 'token', fallbackText: '/pdf/', token: { id: 'skill:pdf', kind: 'skill', label: 'PDF' } },
+          { type: 'text', text: ' after' }
+        ])
+      )
+      const result = getComposerClipboardPasteOverride(fragment, { allowImageAttachments, resolveSkillMarker })
+      expect(result?.rejectedImageCount).toBe(allowImageAttachments === false ? 1 : 0)
+      expect(result?.files).toEqual(
+        allowImageAttachments === false ? [] : [expect.objectContaining({ path: '/tmp/reference.png' })]
+      )
+      expect(result?.content).toEqual([
+        { type: 'text', text: 'before ' },
+        allowImageAttachments === false
+          ? { type: 'text', text: '[reference.png]' }
+          : expect.objectContaining({ type: 'composerToken', attrs: expect.objectContaining({ kind: 'file' }) }),
+        expect.objectContaining({ type: 'composerToken', attrs: expect.objectContaining({ kind: 'skill' }) }),
+        { type: 'text', text: ' after' }
+      ])
+    }
+  )
 })

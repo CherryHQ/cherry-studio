@@ -158,7 +158,7 @@ describe('canonicalGenerate', () => {
     ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
 
     const inputFiles = [{ id: 'file-1', ext: 'png' }] as unknown as FileEntry[]
-    await canonicalGenerate(makeInput({}, { inputFiles }))
+    await canonicalGenerate(makeInput({}, { inputFiles }), { acceptsImageInput: true })
 
     expect(binaryImage).toHaveBeenCalledWith('file-1.png')
     const call = lastGenerateCall()
@@ -177,6 +177,7 @@ describe('canonicalGenerate', () => {
 
     await expect(
       canonicalGenerate(makeInput({}, { inputFiles }), {
+        acceptsImageInput: true,
         mode: 'edit',
         support: { modes: { edit: { supports: {}, maxInputImages: 1 } } }
       })
@@ -194,12 +195,40 @@ describe('canonicalGenerate', () => {
       { id: 'note', ext: 'txt' },
       { id: 'pic', ext: 'png' }
     ] as unknown as FileEntry[]
-    await canonicalGenerate(makeInput({}, { inputFiles }))
+    await canonicalGenerate(makeInput({}, { inputFiles }), { acceptsImageInput: true })
 
     // Only the image was fetched/encoded; the .txt was filtered out.
     expect(binaryImage).toHaveBeenCalledTimes(1)
     expect(binaryImage).toHaveBeenCalledWith('pic.png')
     expect(lastGenerateCall().inputImages).toEqual(['data:image/png;base64,AQID'])
+  })
+
+  it.each([undefined, false])(
+    'rejects images without affirmative permission (%s) before limits, prompt or bytes',
+    async (acceptsImageInput) => {
+      const binaryImage = vi.fn()
+      ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+      const inputFiles = [{ id: 'pic', ext: 'png' }] as unknown as FileEntry[]
+      await expect(
+        canonicalGenerate(makeInput({}, { inputFiles, prompt: '' }), {
+          acceptsImageInput,
+          support: { modes: { edit: { supports: {}, maxInputImages: 0 } } }
+        })
+      ).rejects.toMatchObject({ code: 'IMAGE_INPUT_NOT_SUPPORTED', presentation: 'modal' })
+      expect(binaryImage).not.toHaveBeenCalled()
+      expect(generatePaintingMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps missing-model validation ahead of image capability validation', async () => {
+    const binaryImage = vi.fn()
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+    const inputFiles = [{ id: 'pic', ext: 'png' }] as unknown as FileEntry[]
+    await expect(canonicalGenerate(makeInput({}, { model: undefined, inputFiles }))).rejects.toMatchObject({
+      code: 'MISSING_REQUIRED_FIELDS'
+    })
+    expect(binaryImage).not.toHaveBeenCalled()
+    expect(generatePaintingMock).not.toHaveBeenCalled()
   })
 
   it('throws EDIT_IMAGE_REQUIRED for an image-requiring mode with no image input', async () => {
@@ -215,7 +244,11 @@ describe('canonicalGenerate', () => {
     })
   })
 
-  it('allows the generate mode without any input image', async () => {
-    await expect(canonicalGenerate(makeInput({}), { mode: 'generate' })).resolves.toEqual([])
-  })
+  it.each([undefined, false, true])(
+    'allows generation without images with permission %s',
+    async (acceptsImageInput) => {
+      await expect(canonicalGenerate(makeInput({}), { mode: 'generate', acceptsImageInput })).resolves.toEqual([])
+      expect(lastGenerateCall()).not.toHaveProperty('inputImages')
+    }
+  )
 })

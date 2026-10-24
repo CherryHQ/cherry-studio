@@ -1,10 +1,11 @@
 import { Plus, X } from 'lucide-react'
-import { type FC, type MouseEvent, useCallback, useMemo, useState } from 'react'
+import { type FC, type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useComposerToolDispatch, useComposerToolState } from '@renderer/components/composer/ComposerToolRuntime'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import ImageViewer from '@renderer/components/ImageViewer'
+import { toast } from '@renderer/services/toast'
 import { FILE_TYPE } from '@renderer/types/file'
 import { toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -24,7 +25,16 @@ const stop = (event: MouseEvent) => event.stopPropagation()
  */
 export const PaintingImageAddButton: FC = () => {
   const { t } = useTranslation()
-  const { extensions } = useComposerToolState()
+  const { extensions, couldAddImageFile } = useComposerToolState()
+  const allowImagesRef = useRef(couldAddImageFile)
+  allowImagesRef.current = couldAddImageFile
+  // A model switch or unmount must revoke permission before the pending native dialog attaches files.
+  useEffect(
+    () => () => {
+      allowImagesRef.current = false
+    },
+    []
+  )
   const { setFiles } = useComposerToolDispatch()
   const [selecting, setSelecting] = useState(false)
 
@@ -37,12 +47,16 @@ export const PaintingImageAddButton: FC = () => {
         filters: [{ name: 'Images', extensions: extensions.map((ext) => ext.replace(/^\./, '')) }]
       })
       if (picked?.length) {
+        if (!allowImagesRef.current) {
+          toast.info(t('chat.input.file_not_supported'))
+          return
+        }
         setFiles((current) => [...current, ...toComposerAttachments(picked)])
       }
     } finally {
       setSelecting(false)
     }
-  }, [extensions, selecting, setFiles])
+  }, [extensions, selecting, setFiles, t])
 
   return (
     <button
