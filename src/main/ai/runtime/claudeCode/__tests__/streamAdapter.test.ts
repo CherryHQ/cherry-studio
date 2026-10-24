@@ -4557,13 +4557,16 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
-  it('keeps filtering scratchpad after long paragraph context compression', () => {
+  it.each([
+    ['<analysis', '>PRIVATE</analysis>public'],
+    ['<analysis>PRIVATE', '</analysis>public']
+  ])('keeps filtering scratchpad across long paragraph splits: %j', (first, second) => {
     const { adapter, parts } = createAdapter()
     const visible = 'ordinary text '.repeat(40)
     adapter.handleMessage(
       streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
     )
-    for (const text of [visible, '<analysis', '>PRIVATE</analysis>public'])
+    for (const text of [visible, first, second])
       adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
     adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     const output = parts

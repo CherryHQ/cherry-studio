@@ -1045,10 +1045,18 @@ function textHasIncompleteMarkup(text: string): boolean {
   return false
 }
 
+function textHasUnclosedScratchpad(text: string): boolean {
+  if (!/<(?:analysis|assessment|thinking)\b/i.test(text)) return false
+  const fenced = maskCodeFences(text).text
+  const indented = maskIndentedCodeBlocks(fenced).text
+  return enclosingScratchpadTag(indented, indented.length) !== null
+}
+
 /** True when scratchpad filtering should wait for more stream input before stripping. */
 export function shouldDeferScratchpadStripping(text: string): boolean {
   return (
     textHasIncompleteMarkup(text) ||
+    textHasUnclosedScratchpad(text) ||
     textHasUnclosedCodeFence(text) ||
     textEndsWithPartialFenceMarker(text) ||
     textHasUnclosedInlineCode(text)
