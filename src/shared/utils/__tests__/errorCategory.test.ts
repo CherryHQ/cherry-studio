@@ -16,6 +16,82 @@ describe('classifyErrorCategory HTTP 400', () => {
   })
 })
 
+describe('classifyErrorCategory content-filter rejection wording', () => {
+  const report = 'This request was blocked by our content filtering policy. Please revise your message.'
+
+  it.each([
+    report,
+    'AI_APICallError: This request was blocked by our content filtering policy. Please revise your message. (request id: 202610131228436002837148268d9d6lvrPR1di',
+    'This request was blocked by the content filtering policy.',
+    'This request was blocked by content filtering.',
+    'This request was blocked by our content filter.',
+    'This request was blocked by the content filter policy.',
+    'This request was blocked by content filter.',
+    'THIS REQUEST WAS BLOCKED BY OUR CONTENT FILTERING POLICY. PLEASE REVISE YOUR MESSAGE.',
+    'AI_APICallError: This request was blocked by our content filtering policy. Please revise your message.\n(request id: 202610131228436002837148268d9d6lvrPR1di'
+  ])('diagnoses a rejected request: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('content')
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('content')
+  })
+
+  it.each([
+    ['content filtering service timeout', 'network'],
+    ['MCP server content filter failed to initialize', 'mcp'],
+    ['OCR content filtering engine not initialized', 'ocr'],
+    ['Failed to parse content filtering configuration', 'parse'],
+    ['MCP server blocked by our policy: executable is outside allowed workspace', 'mcp'],
+    ['content moderation service timeout', 'network']
+  ] as const)('preserves the diagnosis for %s', (text, category) => {
+    expect(classifyErrorCategory({ text })).toBe(category)
+    expect(classifyErrorCategory({ text, status: 400 })).toBe(category)
+  })
+
+  it.each([
+    'Unknown parameter: content filtering',
+    'Parameter flagged by schema validator',
+    'Invalid input: temperature must be positive',
+    'This request was unblocked by our content filtering policy.',
+    'This request was blocked by our content filterable rule.',
+    'This request was blocked by a content filter.',
+    'This request was blocked due to content filtering.',
+    'This request was blocked\nby our content filtering policy.'
+  ])('does not infer content rejection from %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+  })
+
+  it.each(['content_filter triggered', 'safety', 'blocked by safety'])(
+    'preserves the existing content signal %s',
+    (text) => {
+      expect(classifyErrorCategory({ text })).toBe('content')
+      expect(classifyErrorCategory({ text, status: 400 })).toBe('content')
+    }
+  )
+
+  it.each(['content-filter', 'content_filter', 'SAFETY', 'RECITATION'])(
+    'preserves structured finish reason %s even over HTTP 503',
+    (finishReason) => {
+      expect(classifyErrorCategory({ finishReason })).toBe('content')
+      expect(classifyErrorCategory({ finishReason, status: 503 })).toBe('content')
+    }
+  )
+
+  it.each([
+    [403, '', 'permission'],
+    [503, '', 'server'],
+    [400, 'unauthorized ', 'auth'],
+    [400, 'unsupported_country ', 'region'],
+    [400, 'model_not_found ', 'model'],
+    [400, 'insufficient balance ', 'quota'],
+    [400, 'rate_limit ', 'rate_limit'],
+    [400, 'context_length_exceeded ', 'context_length'],
+    [400, 'payload too large ', 'payload'],
+    [400, 'unauthorized client ', 'permission']
+  ] as const)('preserves HTTP %i and %s precedence', (status, prefix, category) => {
+    expect(classifyErrorCategory({ text: prefix + report, status })).toBe(category)
+  })
+})
+
 // Transport failures from #19926 must reach a recovery category (network /
 // stream / proxy) instead of falling through to 'unknown', which hides the
 // settings recovery action and triggers a needless AI diagnosis call.
