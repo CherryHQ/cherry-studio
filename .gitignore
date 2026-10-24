@@ -44,6 +44,7 @@ stats.html
 # Downloaded native binaries (mise, etc.)
 resources/binaries/
 scripts/linux-native/prebuilt/
+/build/vc-runtime-version.generated.nsh
 
 # ENV
 .env

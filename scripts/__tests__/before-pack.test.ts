@@ -4,7 +4,8 @@
  * stopped materialising both CPU architectures for the host OS — the packaging bug that
  * shipped a macOS x64 build without `@img/sharp-darwin-x64`.
  */
-import { readFileSync } from 'node:fs'
+import fs, { readFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { Arch } from 'electron-builder'
@@ -18,6 +19,7 @@ import {
   prepareNativeModulesForElectron,
   prepareSystemSpeechHelper
 } from '../packaging/before-pack'
+import { prepareWindowsRuntimeFloor } from '../packaging/windows-vc-runtime'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
@@ -87,13 +89,17 @@ describe('prepareNativeModulesForElectron', () => {
         arch,
         packager: {
           platform: { name: platformName },
+          info: { buildResourcesDir: 'fixture-build' },
           config: {
             electronVersion: '41.8.0',
             electronDownload: { mirror: 'https://npmmirror.com/mirrors/electron/' }
           }
         }
       },
-      rebuild
+      rebuild,
+      undefined,
+      () => {},
+      async () => {}
     )
 
     expect(rebuild).toHaveBeenCalledWith({
@@ -134,6 +140,138 @@ describe('prepareNativeModulesForElectron', () => {
       arch: archName
     })
     expect(rebuild).not.toHaveBeenCalled()
+  })
+})
+
+describe('Windows runtime preparation ordering', () => {
+  const context = (buildResourcesDir, arch = Arch.x64) => ({
+    arch,
+    packager: { platform: { name: 'windows' }, config: { electronVersion: '41.8.0' }, info: { buildResourcesDir } }
+  })
+
+  it('rejects preparation without starting a native rebuild', async () => {
+    let rebuilt = false
+    await expect(
+      prepareNativeModulesForElectron(
+        context('unused'),
+        async () => {
+          rebuilt = true
+        },
+        undefined,
+        () => {
+          throw new Error('unverified floor')
+        }
+      )
+    ).rejects.toThrow('unverified floor')
+    expect(rebuilt).toBe(false)
+  })
+
+  it.each([Arch.x64, Arch.arm64])('writes the common include before rebuilding %s', async (arch) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-hook-'))
+    try {
+      let observed
+      await prepareNativeModulesForElectron(
+        context(dir, arch),
+        async () => {
+          observed = fs.readFileSync(path.join(dir, 'vc-runtime-version.generated.nsh'), 'utf8')
+        },
+        undefined,
+        (options) =>
+          prepareWindowsRuntimeFloor(options, {
+            hostPlatform: 'win32',
+            inspect: () => ({
+              toolsets: [{ path: 'tools', version: '14.44.35207' }],
+              redists: ['x64', 'arm64'].map((arch) => ({ path: arch, arch, version: [14, 44, 35211, 0] }))
+            })
+          }),
+        async () => {}
+      )
+      expect(observed).toBe(
+        '!define VC_RUNTIME_MIN_MAJOR 14\n!define VC_RUNTIME_MIN_MINOR 44\n!define VC_RUNTIME_MIN_BUILD 35211\n!define VC_RUNTIME_MIN_PACKED 917548\n'
+      )
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // Catches verifying a per-architecture floor or starting the rebuild before verification completes.
+  it.each([Arch.x64, Arch.arm64])('verifies the generated common floor before rebuilding %s', async (arch) => {
+    const events: string[] = []
+    const floor = { major: 14, minor: 51, build: 36247 }
+    await prepareNativeModulesForElectron(
+      context('fixture-build', arch),
+      async () => {
+        events.push('rebuild')
+      },
+      undefined,
+      () => {
+        events.push('prepare')
+        return floor
+      },
+      async (generatedFloor, options) => {
+        expect(generatedFloor).toBe(floor)
+        expect(options).toEqual({ arch: Arch[arch] })
+        expect(events).toEqual(['prepare'])
+        await Promise.resolve()
+        events.push('verify')
+      }
+    )
+    expect(events).toEqual(['prepare', 'verify', 'rebuild'])
+  })
+
+  // Catches ignoring a verification rejection and rebuilding an unsatisfiable package.
+  it('aborts before native rebuild when payload verification fails', async () => {
+    const events: string[] = []
+    await expect(
+      prepareNativeModulesForElectron(
+        context('fixture-build'),
+        async () => {
+          events.push('rebuild')
+        },
+        undefined,
+        () => {
+          events.push('prepare')
+          return { major: 14, minor: 51, build: 36247 }
+        },
+        async () => {
+          events.push('verify')
+          throw new Error('payload below floor')
+        }
+      )
+    ).rejects.toThrow('payload below floor')
+    expect(events).toEqual(['prepare', 'verify'])
+  })
+
+  it('rejects a Windows target on a non-Windows host before rebuilding', async () => {
+    let rebuilt = false
+    await expect(
+      prepareNativeModulesForElectron(
+        context('unused'),
+        async () => {
+          rebuilt = true
+        },
+        undefined,
+        (options) => prepareWindowsRuntimeFloor(options, { hostPlatform: 'darwin' })
+      )
+    ).rejects.toThrow(
+      'VC runtime floor generation failed: Windows-target packaging requires a Windows host; cannot verify MSVC on darwin.'
+    )
+    expect(rebuilt).toBe(false)
+  })
+
+  it('rejects unsupported Windows target architectures before preparation or rebuild', async () => {
+    await expect(
+      prepareNativeModulesForElectron(
+        context('unused', Arch.ia32),
+        async () => {
+          throw new Error('unexpected rebuild')
+        },
+        undefined,
+        () => {
+          throw new Error('unexpected preparation')
+        }
+      )
+    ).rejects.toThrow('Unsupported Windows packaging architecture:')
   })
 })
 
