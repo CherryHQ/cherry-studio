@@ -6,8 +6,11 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
 
-const { getApplicationIdMock } = vi.hoisted(() => ({
-  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
+import { MAIN_LAG_HOOK_PAUSE_MS } from '../mainLagHookPolicy'
+
+const { getApplicationIdMock, platformMock } = vi.hoisted(() => ({
+  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio'),
+  platformMock: { isWin: false }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
@@ -18,7 +21,9 @@ vi.mock('@main/core/platform', () => ({
   isDev: false,
   isLinux: false,
   isMac: true,
-  isWin: false
+  get isWin() {
+    return platformMock.isWin
+  }
 }))
 
 const { SelectionService } = await import('../SelectionService')
@@ -273,6 +278,246 @@ describe('SelectionService macOS toolbar', () => {
       skipTransformProcessType: true
     })
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
+  })
+})
+
+describe('SelectionService main-lag OS hook pause/resume', () => {
+  type HookMock = {
+    stop: ReturnType<typeof vi.fn>
+    start: ReturnType<typeof vi.fn>
+    setGlobalFilterMode: ReturnType<typeof vi.fn>
+    setFineTunedList: ReturnType<typeof vi.fn>
+    setSelectionPassiveMode: ReturnType<typeof vi.fn>
+    on: ReturnType<typeof vi.fn>
+    off: ReturnType<typeof vi.fn>
+    removeAllListeners: ReturnType<typeof vi.fn>
+  }
+
+  // Avoid intersecting private SelectionService fields (TS reduces that to never).
+  type LagTestable = {
+    selectionHook: HookMock | null
+    hooksPausedForMainLag: boolean
+    mainLagSampleInFlight: boolean
+    lastCtrlkeyDownTime: number
+    triggerMode: string
+    filterMode: string
+    filterList: string[]
+    isCtrlkeyListenerActive: boolean
+    startMainLagHookWatchdog(): void
+    stopMainLagHookWatchdog(): void
+    pauseOsHooksForMainLag(): void
+    resumeOsHooksAfterMainLag(): void
+    sampleMainLagForHooks(expectedAt?: number): void
+    processTriggerMode(): void
+    handleKeyDownCtrlkeyMode(data: { uniKey: string; vkCode: number }): void
+    handleMouseWheelCtrlkeyMode(): void
+    handleMouseDownCtrlkeyMode(): void
+    releaseActivationResources(): void
+    isActivated: boolean
+  }
+
+  let svc: LagTestable
+  let hook: HookMock
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    svc = new SelectionService() as unknown as LagTestable
+    hook = {
+      stop: vi.fn(() => true),
+      start: vi.fn(() => true),
+      setGlobalFilterMode: vi.fn(() => true),
+      setFineTunedList: vi.fn(() => true),
+      setSelectionPassiveMode: vi.fn(() => true),
+      on: vi.fn(),
+      off: vi.fn(),
+      removeAllListeners: vi.fn()
+    }
+    svc.selectionHook = hook
+    svc.triggerMode = 'selected'
+    svc.filterMode = 'default'
+    svc.filterList = []
+    Object.defineProperty(svc, 'isActivated', { configurable: true, get: () => true })
+  })
+
+  afterEach(() => {
+    platformMock.isWin = false
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it('drops a lag sample queued by the previous activation', async () => {
+    // Real bug: a setImmediate sample from the last session still runs after reactivation.
+    // Its elapsed time includes the gap, so it pauses the newly started hook.
+    platformMock.isWin = true
+    let now = 10_000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    svc.sampleMainLagForHooks()
+    svc.releaseActivationResources()
+    hook.stop.mockClear()
+    now += MAIN_LAG_HOOK_PAUSE_MS
+
+    await flushImmediate()
+
+    expect(hook.stop).not.toHaveBeenCalled()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+
+    svc.sampleMainLagForHooks()
+    now += MAIN_LAG_HOOK_PAUSE_MS
+    await flushImmediate()
+
+    expect(hook.stop).toHaveBeenCalledOnce()
+    expect(svc.hooksPausedForMainLag).toBe(true)
+  })
+
+  it('counts interval callback delay as main-thread lag without carrying debt forward', async () => {
+    platformMock.isWin = true
+    let now = 10_000
+    let tick: (() => void) | undefined
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const proto = Object.getPrototypeOf(svc)
+    vi.spyOn(proto, 'setHookGlobalFilterMode').mockImplementation(() => {})
+    vi.spyOn(proto, 'setHookFineTunedList').mockImplementation(() => {})
+    vi.spyOn(global, 'setInterval').mockImplementation((callback) => {
+      tick = callback
+      return { unref: vi.fn() } as unknown as ReturnType<typeof setInterval>
+    })
+
+    svc.startMainLagHookWatchdog()
+    expect(tick).toBeDefined()
+
+    now += 100 + MAIN_LAG_HOOK_PAUSE_MS
+    tick!()
+    await flushImmediate()
+
+    expect(hook.stop).toHaveBeenCalledOnce()
+    expect(svc.hooksPausedForMainLag).toBe(true)
+
+    now += 100
+    tick!()
+    await flushImmediate()
+
+    expect(hook.start).toHaveBeenCalledOnce()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+    svc.stopMainLagHookWatchdog()
+  })
+
+  it('uses a monotonic clock for lag samples', async () => {
+    platformMock.isWin = true
+    let monotonicNow = 10_000
+    let wallClockNow = 10_000
+    vi.spyOn(performance, 'now').mockImplementation(() => monotonicNow)
+    vi.spyOn(Date, 'now').mockImplementation(() => wallClockNow)
+
+    svc.sampleMainLagForHooks()
+    wallClockNow += MAIN_LAG_HOOK_PAUSE_MS * 10
+    monotonicNow += 1
+    await flushImmediate()
+
+    expect(hook.stop).not.toHaveBeenCalled()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('isolates errors thrown by the deferred lag sample', async () => {
+    platformMock.isWin = true
+    let now = 10_000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    vi.spyOn(svc, 'pauseOsHooksForMainLag').mockImplementation(() => {
+      throw new Error('pause failed unexpectedly')
+    })
+    const logError = vi.spyOn(Object.getPrototypeOf(svc), 'logError').mockImplementation(() => undefined)
+
+    svc.sampleMainLagForHooks()
+    now += MAIN_LAG_HOOK_PAUSE_MS
+    await flushImmediate()
+
+    expect(logError).toHaveBeenCalledWith(
+      'Failed to sample main-thread lag for selection hooks:',
+      expect.objectContaining({ message: 'pause failed unexpectedly' })
+    )
+    expect(svc.mainLagSampleInFlight).toBe(false)
+  })
+
+  it('stops OS hooks when main-thread lag requires a pause', () => {
+    // Real bug: WH_*_LL stay installed while Electron main cannot drain hook callbacks (#20732).
+    svc.pauseOsHooksForMainLag()
+
+    expect(hook.stop).toHaveBeenCalledOnce()
+    expect(svc.hooksPausedForMainLag).toBe(true)
+  })
+
+  it('does not arm the pause latch when stopping hooks fails', () => {
+    hook.stop.mockReturnValue(false)
+
+    svc.pauseOsHooksForMainLag()
+
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('resets an interrupted Ctrl gesture before pausing and after resuming', () => {
+    const ctrlKey = { uniKey: 'Control', vkCode: 162 }
+    vi.spyOn(Date, 'now').mockReturnValue(10_000)
+    svc.triggerMode = 'ctrlkey'
+
+    svc.handleKeyDownCtrlkeyMode(ctrlKey)
+    svc.handleMouseWheelCtrlkeyMode()
+    expect(svc.lastCtrlkeyDownTime).toBe(-1)
+
+    svc.pauseOsHooksForMainLag()
+
+    expect(svc.lastCtrlkeyDownTime).toBe(0)
+    expect(hook.off).toHaveBeenCalledWith('mouse-wheel', svc.handleMouseWheelCtrlkeyMode)
+    expect(hook.off).toHaveBeenCalledWith('mouse-down', svc.handleMouseDownCtrlkeyMode)
+
+    // The physical Ctrl release occurs while hooks are stopped and is never delivered.
+    hook.off.mockClear()
+    svc.resumeOsHooksAfterMainLag()
+    svc.handleKeyDownCtrlkeyMode(ctrlKey)
+
+    expect(hook.off).toHaveBeenCalledWith('mouse-wheel', svc.handleMouseWheelCtrlkeyMode)
+    expect(hook.off).toHaveBeenCalledWith('mouse-down', svc.handleMouseDownCtrlkeyMode)
+    expect(svc.lastCtrlkeyDownTime).toBe(10_000)
+  })
+
+  it('restarts OS hooks and restores trigger config after lag recovers', () => {
+    svc.hooksPausedForMainLag = true
+    const proto = Object.getPrototypeOf(svc)
+    const setFilter = vi.spyOn(proto, 'setHookGlobalFilterMode').mockImplementation(() => {})
+    const setFineTuned = vi.spyOn(proto, 'setHookFineTunedList').mockImplementation(() => {})
+
+    svc.resumeOsHooksAfterMainLag()
+
+    expect(hook.start).toHaveBeenCalledWith({ debug: false })
+    expect(setFilter).toHaveBeenCalledWith('default', [])
+    expect(setFineTuned).toHaveBeenCalledOnce()
+    expect(hook.setSelectionPassiveMode).toHaveBeenCalledWith(false)
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('does not restart hooks when pause was never armed', () => {
+    svc.resumeOsHooksAfterMainLag()
+
+    expect(hook.start).not.toHaveBeenCalled()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('keeps the pause latch armed when restarting hooks fails', () => {
+    svc.hooksPausedForMainLag = true
+    hook.start.mockReturnValue(false)
+
+    svc.resumeOsHooksAfterMainLag()
+
+    expect(svc.hooksPausedForMainLag).toBe(true)
+  })
+
+  it('clears the lag-pause latch when activation resources are released', () => {
+    svc.hooksPausedForMainLag = true
+
+    svc.releaseActivationResources()
+
+    expect(hook.stop).toHaveBeenCalled()
+    expect(svc.hooksPausedForMainLag).toBe(false)
   })
 })
 
