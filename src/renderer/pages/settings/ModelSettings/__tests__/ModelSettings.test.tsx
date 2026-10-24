@@ -17,6 +17,7 @@ const harness = vi.hoisted(() => ({
   onDefaultModelSelected: vi.fn(),
   selectorCallbacks: [] as Array<(model: Model | undefined) => void>,
   selectorFilters: [] as Array<((model: Model) => boolean) | undefined>,
+  selectorIncludeAgentOnly: [] as Array<boolean | undefined>,
   preferenceValues: {} as Record<string, unknown>,
   preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>,
   topicPanelModuleEvaluated: vi.fn(),
@@ -86,14 +87,17 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     onSelect,
     trigger,
-    filter
+    filter,
+    includeAgentOnlyModels
   }: {
     onSelect: (model: Model | undefined) => void
     trigger: ReactNode
     filter?: (model: Model) => boolean
+    includeAgentOnlyModels?: boolean
   }) => {
     harness.selectorCallbacks.push(onSelect)
     harness.selectorFilters.push(filter)
+    harness.selectorIncludeAgentOnly.push(includeAgentOnlyModels)
     return trigger
   }
 }))
@@ -176,6 +180,7 @@ describe('ModelSettings', () => {
     harness.translateModel = undefined
     harness.selectorCallbacks = []
     harness.selectorFilters = []
+    harness.selectorIncludeAgentOnly = []
     harness.preferenceValues = {}
     harness.preferenceSetters = {}
     harness.setDefaultModel.mockResolvedValue(undefined)
@@ -275,6 +280,15 @@ describe('ModelSettings', () => {
         outputModalities: ['text']
       })
     ).toBe(false)
+  })
+
+  // The plan-execution handoff can retarget the agent onto agent-only providers (external-CLI CLIs,
+  // Cherry Cloud in the cn edition) — external-CLI models that run the approved plan must be
+  // selectable here, while ordinary model rows keep excluding them.
+  it('admits agent-only models for plan execution but not for the other model rows', () => {
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(harness.selectorIncludeAgentOnly).toEqual([undefined, undefined, undefined, true])
   })
 
   it.each([

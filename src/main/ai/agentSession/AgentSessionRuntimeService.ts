@@ -54,6 +54,8 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
+import { isPlanExitToolName } from '@shared/ai/tool'
+import type { PlanModelHandoffResult } from '@shared/ai/transport'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -115,6 +117,17 @@ import {
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
+import {
+  agentPermissionEditEpoch,
+  clearSessionEffectivePermissionMode,
+  getSessionEffectivePermissionMode,
+  retireAgentSessionPermissionModes,
+  retireReassignedSessionPermissionMode,
+  sessionCloseGeneration,
+  sessionReassignmentEpoch,
+  setSessionEffectivePermissionMode,
+  tracksSessionPermission
+} from './sessionPermissionOverrides'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -128,6 +141,8 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+/** How long the handoff waits for the approved plan tool's result to reach persistence. */
+const PLAN_TOOL_SETTLE_TIMEOUT_MS = 5_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -508,6 +523,28 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+    this.registerDisposable(
+      agentSessionService.onSessionUpdated(({ sessionId }) => {
+        this.handleSessionUpdated(sessionId)
+      })
+    )
+  }
+
+  /**
+   * A session reassigned to another agent must not carry the previous agent's approved-plan
+   * override: the read paths refuse a foreign owner anyway, and retiring it outright also moves
+   * the session's reassignment epoch so a pending handoff restore cannot resurrect it. The
+   * override's own lifetime cannot gate this — `closeSession` deletes it synchronously while the
+   * handoff teardown is still awaiting the connection close — so any session with override history
+   * is observed. Most sessions never enter the handoff, so they stay off the DB path.
+   */
+  private handleSessionUpdated(sessionId: string): void {
+    if (!tracksSessionPermission(sessionId)) return
+    try {
+      retireReassignedSessionPermissionMode(sessionId, agentSessionService.getById(sessionId).agentId)
+    } catch (error) {
+      logger.warn('Failed to retire a reassigned session permission override', { sessionId, error })
+    }
   }
 
   private reconcileStalePendingMessages(): void {
@@ -832,6 +869,12 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
+    // An explicit permission-mode edit is the user's own choice again — retire any approved-plan
+    // session override for every session of the agent. Overrides outlive their runtime entry (a
+    // handoff restores one after `closeSession` removed it), so entry ownership cannot decide here.
+    if (updates.configuration && Object.prototype.hasOwnProperty.call(updates.configuration, 'permission_mode')) {
+      retireAgentSessionPermissionModes(agentId)
+    }
     const reconciles: Promise<void>[] = []
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId) continue
@@ -1096,7 +1139,14 @@ export class AgentSessionRuntimeService extends BaseService {
   closeSession(sessionId: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
-    if (!entry) return priorClosing?.promise ?? Promise.resolve()
+    // No entry means no connection left to carry an approved execution, so any session-scoped
+    // permission is dead — including one a handoff restored across the replacement it needed it
+    // for. Replacing the approved-plan history closes a session the handoff already emptied, and
+    // without this it would keep that override alive against the saved row.
+    if (!entry) {
+      clearSessionEffectivePermissionMode(sessionId)
+      return priorClosing?.promise ?? Promise.resolve()
+    }
     const fallbackConnection = this.currentConnection(entry)
     const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
     let closing: Promise<void>
@@ -1111,6 +1161,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
+      clearSessionEffectivePermissionMode(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
     return barrier
@@ -1517,16 +1568,26 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * Resolve a Claude `canUseTool` approval registered against this runtime session. Persisted
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
-   * Returns `false` if no registry entry matches so the caller can fall back to the MCP path.
+   * `dispatched: false` means no registry entry matched, so the caller can fall back to the MCP
+   * path; `handoff` reports what happened to a requested execution model so the caller never has to
+   * guess whether one was honored — `refused` with `dispatched: true` means the approval itself ran
+   * but the model switch did not, and the caller must surface that instead of implying it did.
    */
-  respondToolApproval(approvalId: string, decision: DispatchDecision, anchorId?: string): boolean {
+  respondToolApproval(
+    approvalId: string,
+    decision: DispatchDecision,
+    anchorId?: string,
+    options?: { executionModelId?: string }
+  ): { dispatched: boolean; handoff: PlanModelHandoffResult } {
+    const executionModelId = options?.executionModelId
+    const requested = typeof executionModelId === 'string'
     const pending = toolApprovalRegistry.peek(approvalId)
-    if (!pending) return false
+    if (!pending) return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
 
     if (pending.presentation === 'message') {
       if (!anchorId) {
         logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
-        return false
+        return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
       }
       const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
         approvalId,
@@ -1539,7 +1600,7 @@ export class AgentSessionRuntimeService extends BaseService {
           approvalId,
           anchorId
         })
-        return false
+        return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
       }
     }
 
@@ -1549,14 +1610,118 @@ export class AgentSessionRuntimeService extends BaseService {
       approvalId,
       decision.approved ? decision : { ...decision, reasonSource: 'user' }
     )
-    if (!dispatched) return false
+    if (!dispatched) return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
 
     if (dispatched.presentation === 'stream') {
       application
         .get('AiStreamManager')
         .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
     }
-    return true
+
+    // Only an approval has an execution to switch; a denial's model id is meaningless and must not
+    // fail the decision it rides on.
+    if (typeof executionModelId !== 'string' || !decision.approved)
+      return { dispatched: true, handoff: 'not-requested' }
+    if (!isPlanExitToolName(dispatched.toolName)) return { dispatched: true, handoff: 'refused' }
+    // A `message` presentation is the requesting agent outliving its parent turn (background work or
+    // subagents); its session entry also carries unrelated turns, so a handoff would stop them too.
+    if (dispatched.presentation !== 'stream') return { dispatched: true, handoff: 'refused' }
+    return {
+      dispatched: true,
+      handoff: this.stopTurnForModelHandoff(dispatched.sessionId, executionModelId, dispatched.toolCallId)
+    }
+  }
+
+  /**
+   * Plan-approval model handoff: the plan was approved (the SDK history records the tool result as
+   * allowed), but the user asked for a different execution model. The running model is spawn-frozen
+   * for the live turn's connection, so the handoff stops the turn here — the same teardown a user
+   * Stop performs — and the renderer completes it by switching the agent model and sending the
+   * execution follow-up, which starts a fresh turn on the new model with the session resumed.
+   * `already-current` when the turn runs that model already; `refused` when there is no live turn
+   * to stop — the caller must not report a handoff that cannot happen.
+   */
+  private stopTurnForModelHandoff(
+    sessionId: string,
+    executionModelId: string,
+    toolCallId: string
+  ): PlanModelHandoffResult {
+    const entry = this.entries.get(sessionId)
+    // Without a live turn nothing can be restarted, and closing the session would tear down
+    // unrelated work for a handoff that can never happen.
+    const turn = entry ? this.liveTurn(entry) : undefined
+    if (!entry || !turn) return 'refused'
+    const runningModelId = turn.modelId
+    if (runningModelId === executionModelId) return 'already-current'
+
+    // The teardown removes the connection that carried the SDK's post-approval mode shift, so the
+    // follow-up's fresh connection would re-read this row — leaving `plan` there would spawn it
+    // into "no execution of tools" and the approved plan could not run (Options.permissionMode
+    // contract). The approved execution is a property of THIS session (the CLI's own shift was),
+    // so it is recorded as a session-scoped effective permission for the replacement connections
+    // instead of reconciling every session of the agent out of its Plan Only restriction.
+    if (agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan') {
+      setSessionEffectivePermissionMode(entry.sessionId, entry.agentId, 'acceptEdits')
+    }
+
+    logger.info('Stopping approved plan turn for execution-model handoff', {
+      sessionId,
+      executionModelId,
+      runningModelId
+    })
+    void this.stopApprovedPlanTurn(entry, turn, toolCallId)
+    return 'started'
+  }
+
+  /**
+   * Tear the approved plan's turn down once the plan tool's successful result settles in the
+   * persistence accumulator (the approval dispatch resolved its continuation, so the result is on
+   * its way). Pausing first shuts the stream before the result lands, and persistence saves the
+   * approved plan as `output-error` "Interrupted by user". The wait is bounded: a result that never
+   * comes really was interrupted, so the teardown proceeds and that record stands.
+   *
+   * The close retires session-scoped state with the entry, but the approved permission recorded for
+   * this handoff must outlive it — the replacement startup re-derives its permission mode from the
+   * override registry, so it is carried back across. An agent row that left `plan` while the result
+   * settled is the user's own edit, a session reassigned away (even back) is no longer this
+   * handoff's to restore, and a Stop landing while the teardown awaits drops the follow-up the
+   * override existed to bridge; each keeps the override retired.
+   */
+  private async stopApprovedPlanTurn(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    toolCallId: string
+  ): Promise<void> {
+    const streamManager = application.get('AiStreamManager')
+    await streamManager.awaitToolSettled(entry.topicId, toolCallId, PLAN_TOOL_SETTLE_TIMEOUT_MS)
+    // The entry may have closed (or been replaced) while the result settled — this approval must
+    // never pause a successor turn's stream.
+    if (!this.isCurrentEntry(entry)) return
+    if (this.liveTurn(entry) && this.liveTurn(entry) !== turn) return
+    // Capture before pausing: the pause aborts the stream whose listener runs `closeSession`, which
+    // retires the override synchronously — reading afterwards would hand the restart `plan` again.
+    // The stamps ride along: an explicit permission edit, a reassignment, or a further close (the
+    // user's Stop, or the edit that replaces the approved-plan history) landing while the teardown
+    // awaits is newer than this handoff and must not be resurrected past it. The reassignment epoch
+    // and the close generation are independent of the override, which the close already deleted.
+    const approvedPermission = getSessionEffectivePermissionMode(entry.sessionId, entry.agentId)
+    const permissionEditEpoch = agentPermissionEditEpoch(entry.agentId)
+    const reassignmentEpoch = sessionReassignmentEpoch(entry.sessionId)
+    streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
+    // Read after the pause: the abort it triggered may already have closed the session through the
+    // stream's own listener, and that close belongs to this teardown. Only the close performed just
+    // below is this handoff's, so any further one is a competing teardown of the same session.
+    const closeGeneration = sessionCloseGeneration(entry.sessionId)
+    await this.closeSession(entry.sessionId)
+    if (
+      approvedPermission &&
+      agentPermissionEditEpoch(entry.agentId) === permissionEditEpoch &&
+      sessionReassignmentEpoch(entry.sessionId) === reassignmentEpoch &&
+      sessionCloseGeneration(entry.sessionId) === closeGeneration + 1 &&
+      agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan'
+    ) {
+      setSessionEffectivePermissionMode(entry.sessionId, entry.agentId, approvedPermission)
+    }
   }
 
   /**

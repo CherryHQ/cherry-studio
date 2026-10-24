@@ -2,6 +2,7 @@ import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { loggerService } from '@logger'
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -18,8 +19,9 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { cacheService } from '@renderer/data/CacheService'
-import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -41,6 +43,7 @@ import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_STOPPED_CACHE_KEY } from '@shared/ai/agentSessionStopped'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentType } from '@shared/data/types/agent'
@@ -50,6 +53,8 @@ import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { agentSessionForkReasonLabel } from './messages/agentSessionFork'
+
+const logger = loggerService.withContext('useAgentChatRuntimeState')
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -134,8 +139,16 @@ export interface AgentChatRuntimeState {
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
+  /**
+   * Whether any window explicitly stopped this session. The host page gates the plan-execution
+   * handoff on it: a handoff armed in one window must die when another window stops the session,
+   * and the follow-up must not be sent against a cancellation the stopping window never saw.
+   */
+  sessionStopped: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
+  /** Sends the execution follow-up for an approved plan; a failure is reported, never thrown. */
+  sendPlanExecutionFollowUp: () => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
   composerContext: ComposerContextValue
@@ -153,6 +166,22 @@ interface UseAgentChatRuntimeStateParams {
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
+  /**
+   * Plan-approval model handoff: Main approved the plan, stopped the turn, and reported the
+   * chosen execution model. The host page completes the handoff — switch the agent model, wait
+   * for the stopped turn to settle, then send the execution follow-up on a fresh turn.
+   */
+  onPlanModelHandoff?: (modelId: string) => void
+  /** The agent's runtime-compatibility gate for the Settings-configured plan-execution model. */
+  modelFilter?: ModelSelectorFilter
+  /** The availability gate for that same model. */
+  isModelDisabled?: ModelSelectorFilter
+  /**
+   * Runs on every user stop, before the abort. The host page disarms a pending plan-execution
+   * handoff here: the follow-up effect fires once the turn settles, which a cancelled turn still
+   * does, so cancelling the user's cancellation would restart the plan.
+   */
+  onStop?: () => void
 }
 
 export function useAgentChatRuntimeState({
@@ -161,7 +190,11 @@ export function useAgentChatRuntimeState({
   agentType,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
-  reservedMessages
+  reservedMessages,
+  onPlanModelHandoff,
+  modelFilter,
+  isModelDisabled,
+  onStop
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { t } = useTranslation()
@@ -223,7 +256,29 @@ export function useAgentChatRuntimeState({
     void seedReservedMessages(reservedMessages)
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
-  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { activeExecutions, setMessages, stop: stopHistory } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const onStopRef = useRef(onStop)
+  onStopRef.current = onStop
+  // Invalidation counter: a stop bumps it, so a respond callback already in flight sees the bump
+  // when its request resolves and drops the handoff instead of arming one the user just cancelled.
+  const stopGenerationRef = useRef(0)
+  // Any window can stop this session, so the invalidation cannot live in the stopping window: this
+  // flag is the session-wide authority the handoff arming and follow-up both check.
+  const [sessionStopped, setSessionStopped] = useSharedCache(AGENT_SESSION_STOPPED_CACHE_KEY(sessionId))
+  // Mirrors the flag so a callback in flight reads the current value rather than the one captured at
+  // render time: the same reason `stopGenerationRef` is a ref, since a stop from another window
+  // lands with no re-render of this one in between.
+  const sessionStoppedRef = useRef(sessionStopped)
+  sessionStoppedRef.current = sessionStopped
+  const stop = useCallback(async () => {
+    stopGenerationRef.current += 1
+    // Publish before the abort: an approval callback already in flight must see the flag when its
+    // request resolves, whichever window had armed the handoff.
+    sessionStoppedRef.current = true
+    setSessionStopped(true)
+    onStopRef.current?.()
+    await stopHistory()
+  }, [setSessionStopped, stopHistory])
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -249,7 +304,12 @@ export function useAgentChatRuntimeState({
     historyAdapter,
     ensureConversation,
     buildStreamRequest,
-    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
+    onAccepted: (ack) => {
+      errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages)
+      // A new turn supersedes the stop it followed, so a later approval must be armable again.
+      sessionStoppedRef.current = false
+      setSessionStopped(false)
+    },
     onError: (error, input) =>
       input.editTarget ? reportEditError(error) : errorToastsRef.current?.report(error, modelId),
     openStream: async (request, input) => {
@@ -276,6 +336,17 @@ export function useAgentChatRuntimeState({
     },
     [send]
   )
+  // Main has already stopped the approved turn here, so a follow-up that will not go out leaves no
+  // automatic path left — and retrying blind could run the plan twice. Report and let the user re-send.
+  const sendPlanExecutionFollowUp = useCallback(async () => {
+    try {
+      return await send({ text: t('agent.toolPermission.executionModel.followUp') })
+    } catch (error) {
+      logger.error('Failed to send the plan execution follow-up', error as Error)
+      toast.error(formatErrorMessage(error))
+      return false
+    }
+  }, [send, t])
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
@@ -381,6 +452,7 @@ export function useAgentChatRuntimeState({
       const { match, approved, reason, updatedInput } = input
       const approvalId = match.approvalId
       const optimisticToolCallId = isAskUserQuestionApprovalResponse(input) ? match.toolCallId : undefined
+      const stopGeneration = stopGenerationRef.current
 
       if (optimisticToolCallId) {
         setOptimisticAskUserQuestionInputsByToolCallId((current) => ({
@@ -397,7 +469,8 @@ export function useAgentChatRuntimeState({
           reason,
           updatedInput,
           topicId: sessionTopicId,
-          anchorId: match.messageId
+          anchorId: match.messageId,
+          executionModelId: input.executionModelId
         })
       } catch (error) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
@@ -408,15 +481,29 @@ export function useAgentChatRuntimeState({
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
         throw new Error('Tool approval response was not accepted')
       }
+      // The approval ran but Main could not stop the turn for the requested model (no live turn, or
+      // a background/subagent approval). The card promised that model, so say out loud that the plan
+      // is staying on the current one instead of leaving the claim to stand.
+      if (result.handoff === 'refused' && input.executionModelId) {
+        toast.warning(t('agent.toolPermission.executionModel.notApplied'))
+      }
+      // A stop that landed while this approval was in flight already cancelled the plan: arming the
+      // handoff now would execute it despite the cancellation. The flag is session-wide, so a stop
+      // from any window counts — this one may never have seen it.
+      if (result.executionModelId && stopGenerationRef.current === stopGeneration && !sessionStoppedRef.current) {
+        onPlanModelHandoff?.(result.executionModelId)
+      }
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
+    [onPlanModelHandoff, refresh, removeOptimisticAskUserQuestionInput, sessionTopicId, t]
   )
+  const planExecution = useMemo(() => ({ modelFilter, isModelDisabled }), [isModelDisabled, modelFilter])
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
-    onRespond: respondToolApproval
+    onRespond: respondToolApproval,
+    planExecution
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
@@ -501,8 +588,10 @@ export function useAgentChatRuntimeState({
     loadOlder,
     selectAllPagination,
     isPending,
+    sessionStopped,
     stop,
     sendMessage,
+    sendPlanExecutionFollowUp,
     deleteMessage,
     respondToolApproval,
     composerContext,

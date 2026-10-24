@@ -33,6 +33,7 @@ import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
@@ -44,7 +45,7 @@ import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
@@ -195,6 +196,19 @@ const AgentChat = ({
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
   const [sessionAgentChanging, setSessionAgentChanging] = useState(false)
+  // Plan-approval model handoff, once Main has stopped the approved turn: switch the agent model,
+  // then (once the stopped turn has settled) send the execution follow-up on a fresh turn.
+  const [planExecutionHandoff, setPlanExecutionHandoff] = useState<{
+    sessionId: string
+    agentId: string | null
+    modelId: UniqueModelId
+    modelApplied?: boolean
+  }>()
+  // Latest (session, agent) pair, readable from stale respond callbacks that survive navigation.
+  const latestSessionKeyRef = useRef<{ id: string | null; agentId: string | null }>({ id: null, agentId: null })
+  // A user stop must disarm an in-flight handoff: the follow-up effect fires when the turn settles,
+  // and a stopped turn settles too — so a handoff left armed would restart the cancelled plan.
+  const disarmPlanExecutionHandoff = useCallback(() => setPlanExecutionHandoff(undefined), [])
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
@@ -210,7 +224,18 @@ const AgentChat = ({
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
-  const agentModelFilter = useAgentModelFilter(activeAgent?.type)
+  // Fail closed while the agent has not resolved: an unknown runtime must not become "every chat
+  // model fits", or a plan-approval handoff would target models the agent cannot run.
+  const agentModelFilter = useAgentModelFilter(activeAgent?.type, activeAgent !== undefined)
+  // Cloud availability gates the handoff target alongside runtime compatibility: the agent picker
+  // hides models the server no longer entitles outright and quota exhausts the rest, so an
+  // unusable execution target keeps the plan on the agent's current model instead of a handoff
+  // the Cloud transport would refuse after the turn was stopped.
+  const { isModelHidden, isModelUnavailable } = useCherryCloudModelAvailability()
+  const isHandoffModelUnavailable = useCallback(
+    (model: Model) => isModelHidden(model, true) || isModelUnavailable(model),
+    [isModelHidden, isModelUnavailable]
+  )
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
@@ -225,6 +250,12 @@ const AgentChat = ({
   useEffect(() => {
     setCitationPanelState(null)
   }, [currentSessionId])
+  useEffect(() => {
+    latestSessionKeyRef.current = { id: sessionSnapshot?.id ?? null, agentId: sessionSnapshot?.agentId ?? null }
+    // A pending handoff belongs to the (session, agent) pair it was approved on; navigating away
+    // or rebinding the session's agent drops it so a stale follow-up cannot fire.
+    setPlanExecutionHandoff(undefined)
+  }, [currentSessionId, sessionSnapshot?.agentId])
 
   const handleOpenCitationsPanel = useCallback(
     ({ citations }: { citations: Citation[] }) => {
@@ -254,7 +285,25 @@ const AgentChat = ({
     agentType: activeAgent?.type,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
-    reservedMessages: EMPTY_MESSAGES
+    reservedMessages: EMPTY_MESSAGES,
+    modelFilter: agentModelFilter,
+    isModelDisabled: isHandoffModelUnavailable,
+    onStop: disarmPlanExecutionHandoff,
+    onPlanModelHandoff: (modelId) => {
+      // The respond callback can outlive navigation and hold a stale session: only arm while the
+      // session snapshot still matches what is on screen, so a cleared handoff cannot resurrect.
+      const latest = latestSessionKeyRef.current
+      if (!isUniqueModelId(modelId) || sessionSnapshot?.id !== latest.id || sessionSnapshot?.agentId !== latest.agentId)
+        return
+      // A stop from any window already cancelled this plan, so arming here would send the execution
+      // follow-up for a plan the user abandoned.
+      if (runtime.sessionStopped) return
+      setPlanExecutionHandoff({
+        sessionId: sessionSnapshot?.id ?? '',
+        agentId: sessionSnapshot?.agentId ?? null,
+        modelId
+      })
+    }
   })
   const {
     hasOlder: runtimeHasOlder,
@@ -263,6 +312,73 @@ const AgentChat = ({
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
+  // Any window can stop this session, and the handoff is armed in whichever one approved the plan —
+  // so the stopping window's own state cannot be the invalidation. The session-wide flag is.
+  const sessionStopped = runtime.sessionStopped
+  useEffect(() => {
+    if (!sessionStopped) return
+    // Distinct from the teardown clear below: teardown retires a handoff the flow itself finished,
+    // this one retires a handoff the user cancelled — possibly from another window.
+    disarmPlanExecutionHandoff()
+  }, [sessionStopped, disarmPlanExecutionHandoff])
+  // Complete the plan-approval model handoff. Main already resolved the plan as approved and
+  // stopped the turn; switch the agent to the chosen model, wait for the stopped turn's stream to
+  // settle, then send the execution follow-up — a fresh turn captures the new model.
+  useEffect(() => {
+    const handoff = planExecutionHandoff
+    // A rebound agent changes the session's owner without changing its id — the approved plan
+    // must not execute against it.
+    if (
+      !handoff ||
+      handoff.sessionId !== sessionSnapshot?.id ||
+      handoff.agentId !== (sessionSnapshot?.agentId ?? null) ||
+      !activeAgent
+    )
+      return
+    if (handoff.modelApplied) {
+      if (runtime.isPending) return
+      setPlanExecutionHandoff(undefined)
+      // Last check before the send: a stop that landed while the model switch was applying would
+      // otherwise restart the cancelled plan once the shared stream settled.
+      if (sessionStopped) return
+      void runtime.sendPlanExecutionFollowUp()
+      return
+    }
+    // The update revalidates the agent query, handing `activeAgent` a fresh identity while this
+    // effect is still awaiting it. Content, not identity, decides whether the update phase is
+    // done — otherwise the re-run would issue a second update and cancel this one's result.
+    if (activeAgent.model === handoff.modelId) {
+      setPlanExecutionHandoff({ ...handoff, modelApplied: true })
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      // `updateModel` never throws — it toasts and resolves `undefined` on failure. Dropping the
+      // handoff is the only honest path: executing on the old model is not the approved plan.
+      const updated = await updateModel(
+        { agentId: activeAgent.id, modelId: handoff.modelId },
+        { showSuccessToast: false }
+      )
+      // A superseded run must not touch the handoff — the run that re-ran this effect owns it.
+      if (cancelled) return
+      if (!updated) {
+        setPlanExecutionHandoff(undefined)
+        return
+      }
+      setPlanExecutionHandoff({ ...handoff, modelApplied: true })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeAgent,
+    planExecutionHandoff,
+    runtime.isPending,
+    runtime.sendPlanExecutionFollowUp,
+    sessionSnapshot?.id,
+    sessionStopped,
+    updateModel
+  ])
   const openDiagnosticReport = useCallback(
     (description = '') => {
       if (!currentSessionId) return

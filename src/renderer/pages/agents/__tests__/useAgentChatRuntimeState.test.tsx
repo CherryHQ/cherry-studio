@@ -5,6 +5,7 @@ import { act, render, renderHook, waitFor } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import {
   readAskUserQuestionDraftCache,
   writeAskUserQuestionDraftCache
@@ -17,6 +18,7 @@ import type * as ToastServiceModule from '@renderer/services/toast'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import { AGENT_SESSION_STOPPED_CACHE_KEY } from '@shared/ai/agentSessionStopped'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { ActiveExecution, AiStreamOpenResponse } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity, AgentType } from '@shared/data/types/agent'
@@ -111,6 +113,11 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: mocks.invalidateMessages
 }))
+
+// The session-wide stop flag is cross-window state, so the mock store has to behave like the real
+// shared cache: one value per key that every hook instance — each test's "window" — observes, and a
+// write from one of them reaches the others. It is layered on the global mock's own store so the
+// read-only `useSharedCacheValue` the hook also uses keeps seeing the same data.
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -516,6 +523,217 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
+  })
+  function makePlanApprovalInput(executionModelId?: string) {
+    return {
+      match: {
+        part: {
+          type: 'tool-ExitPlanMode',
+          toolName: 'ExitPlanMode',
+          toolCallId: 'call-plan',
+          state: 'approval-requested',
+          input: { plan: '# Plan' },
+          approval: { id: 'approval-plan' }
+        },
+        state: 'approval-requested',
+        toolCallId: 'call-plan',
+        messageId: 'assistant-1',
+        approvalId: 'approval-plan',
+        input: { plan: '# Plan' }
+      },
+      approved: true,
+      ...(executionModelId ? { executionModelId } : {})
+    } as unknown as MessageToolApprovalInput
+  }
+
+  // The card promised the plan would run on the plan-execution model, so a handoff Main could not
+  // perform has to be said out loud — "approved" alone would leave that claim standing.
+  it('warns when the requested plan-execution model was not applied', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: true, handoff: 'refused' })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(() => result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5')))
+
+    expect(mocks.toastWarning).toHaveBeenCalledWith('agent.toolPermission.executionModel.notApplied')
+  })
+
+  it('stays quiet when no plan-execution model was requested', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: true, handoff: 'not-requested' })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(() => result.current.respondToolApproval(makePlanApprovalInput()))
+
+    expect(mocks.toastWarning).not.toHaveBeenCalled()
+  })
+
+  // Stop lands while the approval is still in flight: the plan the user just cancelled must not
+  // arm a handoff, or the follow-up fires once the stopped turn settles and executes it anyway.
+  it('drops a plan-execution handoff the user stopped while the approval was in flight', async () => {
+    let releaseApproval: (value: unknown) => void = () => {}
+    mocks.respondToolApproval.mockReturnValueOnce(new Promise((resolve) => (releaseApproval = resolve)))
+    const handoff = vi.fn()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: handoff
+      })
+    )
+
+    const approval = act(() => result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5')))
+    await act(async () => {
+      await result.current.stop()
+      releaseApproval({ ok: true, handoff: 'started', executionModelId: 'anthropic::claude-opus-5' })
+    })
+    await approval
+
+    expect(mocks.chatStop).toHaveBeenCalled()
+    expect(handoff).not.toHaveBeenCalled()
+  })
+
+  it('still hands off an approved plan-execution model when the user did not stop', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({
+      ok: true,
+      handoff: 'started',
+      executionModelId: 'anthropic::claude-opus-5'
+    })
+    const handoff = vi.fn()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: handoff
+      })
+    )
+
+    await act(() => result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5')))
+
+    expect(handoff).toHaveBeenCalledWith('anthropic::claude-opus-5')
+  })
+
+  it('disarms a pending handoff when the user stops', async () => {
+    const onStop = vi.fn()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onStop
+      })
+    )
+
+    await act(async () => {
+      await result.current.stop()
+    })
+
+    expect(onStop).toHaveBeenCalledTimes(1)
+    expect(mocks.chatStop).toHaveBeenCalled()
+  })
+
+  // Two windows, one session: A arms the handoff, B stops it. The follow-up fires when the shared
+  // stream turns terminal, which a cross-window stop still does — so B's stop must reach A or A
+  // restarts the plan the user just cancelled.
+  it('publishes a stop so another window cannot keep an armed handoff', async () => {
+    const windowA = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: vi.fn()
+      })
+    )
+    // B holds no handoff at all: only the session-wide stop state carries the cancellation.
+    const windowB = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    await act(async () => {
+      await windowB.result.current.stop()
+    })
+    expect(MockUseCacheUtils.getSharedCacheValue(AGENT_SESSION_STOPPED_CACHE_KEY('session-1'))).toBe(true)
+
+    // A never heard about B's stop locally, so its own handoff state is untouched — the shared flag
+    // is what has to reach it, and the arming and follow-up guards both read it.
+    await act(async () => {
+      windowA.rerender()
+    })
+    expect(windowA.result.current.sessionStopped).toBe(true)
+  })
+
+  it('will not arm a handoff once any window has stopped the session', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({
+      ok: true,
+      handoff: 'started',
+      executionModelId: 'anthropic::claude-opus-5'
+    })
+    const handoff = vi.fn()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: handoff
+      })
+    )
+
+    await act(async () => {
+      await result.current.stop()
+    })
+    await act(async () => {
+      await result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5'))
+    })
+
+    expect(handoff).not.toHaveBeenCalled()
+  })
+
+  it('arms a handoff again after a new turn supersedes the stop', async () => {
+    mocks.respondToolApproval.mockResolvedValue({
+      ok: true,
+      handoff: 'started',
+      executionModelId: 'anthropic::claude-opus-5'
+    })
+    const handoff = vi.fn()
+    const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+      '@renderer/hooks/useConversationTurnController'
+    )
+    mocks.controllerOptions.mockImplementation(useConversationTurnController)
+    mocks.streamOpen.mockResolvedValue({ mode: 'started' })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: handoff
+      })
+    )
+
+    await act(async () => {
+      await result.current.stop()
+    })
+    // The user sends again, so the session is running fresh work: the stop it followed is spent.
+    await act(async () => {
+      await result.current.sendMessage({ text: 'try again' })
+    })
+    await act(async () => {
+      await result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5'))
+    })
+
+    expect(MockUseCacheUtils.getSharedCacheValue(AGENT_SESSION_STOPPED_CACHE_KEY('session-1'))).toBe(false)
+    expect(handoff).toHaveBeenCalledWith('anthropic::claude-opus-5')
   })
 
   it.each([
