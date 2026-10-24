@@ -17,6 +17,7 @@ import {
 import { getAutomationReplKind } from './automation/automationRepl'
 import { MessageAutomationRepl } from './automation/MessageAutomationRepl'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
+import { MessageCodeExecution } from './MessageCodeExecution'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
 import { isGenerateImageToolName } from './painting/generateImageTool'
 import { MessageGenerateImageToolTitle } from './painting/MessageGenerateImage'
@@ -57,6 +58,9 @@ const isAgentTool = (toolName: string) => {
 
 export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | null {
   const toolName = toolResponse.tool.name
+  if (toolResponse.tool.type === 'provider' && toolName === 'codeExecution') {
+    return <MessageCodeExecution toolResponse={toolResponse} />
+  }
   if (getAutomationReplKind(toolResponse.tool)) return <MessageAutomationRepl toolResponse={toolResponse} />
   if (isMetaToolName(toolName)) {
     return <MessageMetaTool toolResponse={toolResponse} />

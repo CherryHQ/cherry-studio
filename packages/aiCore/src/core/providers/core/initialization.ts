@@ -262,6 +262,9 @@ const XaiExtension = ProviderExtension.create({
       name: 'xAI Responses',
       resolveModel: (provider: XaiProvider, modelId: string) => provider.responses(modelId),
       toolFactories: {
+        codeExecution: (provider: XaiProvider) => () => ({
+          tools: { codeExecution: provider.tools.codeExecution() }
+        }),
         webSearch:
           (provider: XaiProvider) =>
           (config: {
