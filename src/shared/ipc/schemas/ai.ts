@@ -303,7 +303,7 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.stream.abort': defineRoute({
-    input: z.strictObject({ topicId: z.string().min(1) }),
+    input: z.strictObject({ topicId: z.string().min(1), stopId: z.string().min(1).optional() }),
     output: z.void()
   }),
 

@@ -84,6 +84,12 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+/** How long to wait for the CLI to answer the interrupt control request. Interactive interrupts
+ *  are acknowledged in milliseconds; a CLI still booting cannot answer at all. */
+const GRACEFUL_INTERRUPT_TIMEOUT_MS = 5_000
+/** How long to wait for the interrupted turn to settle after the interrupt was acknowledged. */
+const GRACEFUL_TURN_SETTLE_TIMEOUT_MS = 5_000
+const GRACEFUL_TURN_SETTLE_POLL_MS = 50
 
 function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
   return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
@@ -348,6 +354,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
    *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
+  /** Invalidates a `send()` still materializing attachments when a Stop lands in that window. */
+  private sendSequence = 0
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -460,19 +468,36 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
-  async send(input: AgentRuntimeUserInput): Promise<void> {
+  async send(input: AgentRuntimeUserInput): Promise<boolean> {
     this.lastMainAssistantUuid = undefined
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    this.adapter?.beginTurn()
-
+    const sendId = ++this.sendSequence
+    const baselineGeneration = this.adapter?.turnGeneration
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
+    // Attachment materialization is async, so a Stop can land in that window. The stopped prompt
+    // never reached the CLI — admitting it now would execute it inside the settlement window.
+    if (sendId !== this.sendSequence) return false
+    // Claim the session-scoped adapter only once the prompt is actually on its way to the CLI, so
+    // a stop arriving before then sees an idle turn instead of one that never started. A generation
+    // the adapter opened on its own during materialization must not be reset: wait it out, then claim.
+    while (
+      this.adapter?.isTurnActive === true &&
+      this.adapter.turnGeneration !== baselineGeneration &&
+      sendId === this.sendSequence &&
+      !this.abortController.signal.aborted
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, GRACEFUL_TURN_SETTLE_POLL_MS))
+    }
+    if (sendId !== this.sendSequence) return false
+    this.adapter?.beginTurn()
     this.sdkInputQueue.push(sdkMessage)
+    return true
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -641,6 +666,46 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       logger.warn('stopTask failed', { sessionId: this.input.sessionId, taskId, error })
       return false
     }
+  }
+
+  async abortTurn(): Promise<boolean> {
+    const query = this.query
+    if (!query) return false
+    // Invalidate any send still materializing attachments: its prompt is not in the CLI yet, so it
+    // must never be admitted behind this stop. The discarded send resolves `false` so the host can
+    // demote the turn's admission instead of letting it claim another turn's completion.
+    this.sendSequence++
+    const adapter = this.adapter
+    // A warm connection whose turn already settled has nothing to interrupt: report success so
+    // the stop keeps the preserved runtime instead of falling back to the teardown.
+    if (adapter?.isTurnActive !== true) return true
+    // Latch the generation this stop interrupts: the connection-wide turn flag is re-armed by
+    // background content opening a successor generation, whose lifetime must not decide the verdict.
+    const interruptedGeneration = adapter.turnGeneration
+    logger.info('Gracefully interrupting Claude Code turn', { sessionId: this.input.sessionId })
+    let ackTimeout: ReturnType<typeof setTimeout> | undefined
+    const acknowledged = await Promise.race([
+      query.interrupt().then(
+        () => true,
+        (error) => {
+          logger.warn('Claude Code interrupt request failed', { sessionId: this.input.sessionId, error })
+          return false
+        }
+      ),
+      new Promise<boolean>((resolve) => {
+        ackTimeout = setTimeout(() => resolve(false), GRACEFUL_INTERRUPT_TIMEOUT_MS)
+      })
+    ])
+    // A settling interrupt leaves the timeout scheduled and referenced for its full period.
+    clearTimeout(ackTimeout)
+    if (!acknowledged) return false
+    // The interrupt control response only says the CLI took the request; wait (bounded) for the
+    // SDK's interrupt-truncated result so the host only trusts a turn that actually settled.
+    const deadline = Date.now() + GRACEFUL_TURN_SETTLE_TIMEOUT_MS
+    while (adapter.isGenerationActive(interruptedGeneration) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, GRACEFUL_TURN_SETTLE_POLL_MS))
+    }
+    return !adapter.isGenerationActive(interruptedGeneration)
   }
 
   close(): Promise<void> {

@@ -195,7 +195,15 @@ export interface AgentRuntimeConnection {
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
   readonly usageCapture?: AgentSessionUsageCapture
-  send(input: AgentRuntimeUserInput): void | Promise<void>
+  /**
+   * Submit a user prompt to the runtime. Returns/resolves `false` when the driver discarded the
+   * prompt before submission (a stop invalidated it mid-preparation) — the host must not treat it
+   * as admitted. Any other result means the prompt was handed to the runtime.
+   *
+   * Asynchronous void stays assignable so a wrapper that only forwards to another connection
+   * (a fallback connection, say) can implement this without fabricating a submission result.
+   */
+  send(input: AgentRuntimeUserInput): boolean | void | Promise<boolean | void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
    * when the message was stashed for injection (a turn is live) — the host then folds it into the
@@ -238,6 +246,17 @@ export interface AgentRuntimeConnection {
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   stopTask?(taskId: string): Promise<boolean>
+  /**
+   * Gracefully stop the current turn without tearing the connection down. Resolves true when the
+   * turn was interrupted and the connection stays alive — the turn then settles through its normal
+   * stream, and the session's runtime (background tasks, subagents) survives. A warm connection
+   * whose turn already settled also resolves true — it has nothing to interrupt, and declining
+   * would tear down a runtime a prior stop preserved. Resolves false when the driver cannot
+   * gracefully stop (no live connection, unsupported, or the runtime did not answer in time) —
+   * the host must then tear the session down via `close()`. Omitted ⇒ the host always tears the
+   * session down.
+   */
+  abortTurn?(): Promise<boolean>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>

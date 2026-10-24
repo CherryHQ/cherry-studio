@@ -262,6 +262,12 @@ export interface AiStreamDetachRequest {
 /** Abort the active generation on a topic. */
 export interface AiStreamAbortRequest {
   topicId: string
+  /**
+   * Identity of the user Stop that sent this abort. A renderer Stop arrives twice — the explicit
+   * abort plus `sdkStop`'s transport signal — and both carry the same id, so main can tell a
+   * duplicate of one gesture from a Stop for a later turn.
+   */
+  stopId?: string
 }
 
 /** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */

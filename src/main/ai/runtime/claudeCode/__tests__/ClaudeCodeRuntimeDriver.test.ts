@@ -256,6 +256,7 @@ vi.mock('../streamAdapter', async (importActual) => {
       readonly finalizeOpenTextParts = vi.fn()
       // Mirrors the real adapter: session-scoped, content only flows inside a turn.
       private turnActive = false
+      private turnSequence = 0
       private turnHasActivity = false
       private autonomous = false
       private pendingInit: any
@@ -268,13 +269,23 @@ vi.mock('../streamAdapter', async (importActual) => {
         return this.turnActive
       }
 
+      get turnGeneration() {
+        return this.turnSequence
+      }
+
+      isGenerationActive(generation: number) {
+        return this.turnActive && this.turnSequence === generation
+      }
+
       get hasTurnActivity() {
         return this.turnHasActivity
       }
 
       beginTurn() {
+        this.turnSequence++
         this.turnHasActivity = false
         this.turnActive = true
+        this.autonomous = false
         if (this.pendingInit) {
           this.pendingInit = undefined
           this.emitInitMetadata()
@@ -299,6 +310,11 @@ vi.mock('../streamAdapter', async (importActual) => {
       }
 
       handleMessage(message: any) {
+        // Mirrors the real adapter: a task-notification result belongs to the task, not the turn.
+        if (message.type === 'result' && message.origin?.kind === 'task-notification' && !this.autonomous) {
+          this.options.onSessionId(message.session_id)
+          return { type: 'continue' }
+        }
         if (message.type !== 'system' && message.type !== 'tool_progress' && !this.turnActive) {
           if (message.type === 'result') {
             this.options.onSessionId(message.session_id)
@@ -308,13 +324,13 @@ vi.mock('../streamAdapter', async (importActual) => {
           }
           const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
           if (!isContent) return { type: 'continue' }
-          this.autonomous = true
           this.options.statusSink.emit({
             type: 'autonomous-turn-state',
             state: 'started',
             origin: { kind: 'background-work' }
           })
           this.beginTurn()
+          this.autonomous = true
         }
         if (message.type === 'truncate-now') {
           throw new Error('Claude Code SDK output ended unexpectedly; truncated response')
@@ -813,6 +829,332 @@ describe('ClaudeCodeRuntimeDriver', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('interrupts a live turn gracefully and leaves the subprocess running', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => undefined),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+
+    const aborting = connection.abortTurn!()
+    // The CLI answers the interrupt by ending the turn with its interrupt-truncated result.
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'session-1' })
+    await expect(aborting).resolves.toBe(true)
+
+    expect(query.interrupt).toHaveBeenCalledOnce()
+    // Graceful: the subprocess survives — no teardown and the shared abort signal stays clean.
+    expect(query.close).not.toHaveBeenCalled()
+    expect(query.return).not.toHaveBeenCalled()
+    expect(mocks.createClaudeQuery.mock.calls[0][0].options.abortController.signal.aborted).toBe(false)
+
+    // The session teardown path is untouched by the graceful turn stop.
+    await connection.close()
+    expect(query.close).toHaveBeenCalledOnce()
+  })
+
+  it('hands the fallback decision back to the host when the interrupt is not acknowledged in time', async () => {
+    vi.useFakeTimers()
+    try {
+      const queryQueue = createAsyncQueue<any>()
+      // A CLI still booting never answers the interrupt control request.
+      const query = {
+        ...queryQueue.iterable,
+        interrupt: vi.fn(() => new Promise<void>(() => {})),
+        close: vi.fn(),
+        return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+      }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      await connection.send({ message: userMessage() })
+
+      const aborting = connection.abortTurn!()
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(aborting).resolves.toBe(false)
+
+      expect(query.interrupt).toHaveBeenCalledOnce()
+      expect(query.close).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reports a rejected interrupt so the host tears the session down', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => {
+        throw new Error('awaitControlResponse: CLI error verdict')
+      }),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+
+    await expect(connection.abortTurn!()).resolves.toBe(false)
+    expect(query.interrupt).toHaveBeenCalledOnce()
+    expect(query.close).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('reports success when a stop lands on a warm connection with no active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    // A re-dispatched user stop finds the turn already gone: there is nothing to interrupt, and
+    // declining here would fall back to the teardown of a runtime a prior stop preserved.
+    await expect(connection.abortTurn!()).resolves.toBe(true)
+    expect(query.interrupt).not.toHaveBeenCalled()
+    expect(query.close).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('settles the stop on the interrupted generation when background work re-opens the turn', async () => {
+    vi.useFakeTimers()
+    try {
+      const queryQueue = createAsyncQueue<any>()
+      const query = {
+        ...queryQueue.iterable,
+        interrupt: vi.fn(async () => undefined),
+        close: vi.fn(),
+        return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+      }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      await connection.send({ message: userMessage() })
+
+      const aborting = connection.abortTurn!()
+      await vi.advanceTimersByTimeAsync(0)
+      // The CLI answers the interrupt by ending the interrupted turn...
+      queryQueue.push({ type: 'result', subtype: 'success', session_id: 'session-1' })
+      await vi.advanceTimersByTimeAsync(0)
+      // ...and background work immediately wakes the main agent into a new generation.
+      queryQueue.push({ type: 'stream_event', event: {}, session_id: 'session-1' })
+      // The stop must not spend its settle window on that successor generation: waiting it out
+      // returns false and the host tears down the subprocess the stop meant to preserve.
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(aborting).resolves.toBe(true)
+
+      expect(query.close).not.toHaveBeenCalled()
+      expect(query.return).not.toHaveBeenCalled()
+      void connection.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('discards a prompt whose Stop landed while its attachments were still materializing', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => undefined),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    // A turn is live on the CLI, so the Stop really interrupts work.
+    await connection.send({ message: userMessage() })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const pulled: any[] = []
+    const consuming = (async () => {
+      for await (const message of sdkInput) pulled.push(message)
+    })()
+    await vi.waitFor(() => expect(pulled).toHaveLength(1))
+
+    // The follow-up's attachments are still being read when the user hits Stop.
+    const materializing = createDeferred<any>()
+    mocks.materializeNativeFilePart.mockReturnValueOnce(materializing.promise)
+    const sending = connection.send({
+      message: {
+        ...userMessage(),
+        id: 'user-2',
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // The interrupt reaches a CLI that already has the stopped turn; the pending prompt is not in it.
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'session-1' })
+    await expect(connection.abortTurn!()).resolves.toBe(true)
+    materializing.resolve({ type: 'file', url: 'data:image/png;base64,QUJD', mediaType: 'image/png' })
+    await sending
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(pulled.map((message) => message.message.content)).toEqual(['hello'])
+    void connection.close()
+    await consuming
+  })
+
+  it('submits a prepared prompt only after a generation opened mid-materialization ends', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => undefined),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const pulled: any[] = []
+    const consuming = (async () => {
+      for await (const message of sdkInput) pulled.push(message)
+    })()
+    const events: any[] = []
+    const consumingEvents = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+
+    // The follow-up's attachments are still being read when background content arrives.
+    const materializing = createDeferred<any>()
+    mocks.materializeNativeFilePart.mockReturnValueOnce(materializing.promise)
+    const sending = connection.send({
+      message: {
+        ...userMessage(),
+        id: 'user-2',
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // Parentless content with no turn open: the adapter opens an autonomous generation.
+    queryQueue.push({ type: 'stream_event', event: {}, session_id: 'session-1' })
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(expect.objectContaining({ type: 'autonomous-turn-state', state: 'started' }))
+    )
+
+    // Claiming the adapter now would reset that generation, so the prepared prompt must wait.
+    materializing.resolve({ type: 'file', url: 'data:image/png;base64,QUJD', mediaType: 'image/png' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(pulled).toHaveLength(0)
+
+    // The generation settles through its own result, reported to the host as an autonomous finish...
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'session-1',
+      origin: { kind: 'task-notification' }
+    })
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(expect.objectContaining({ type: 'autonomous-turn-state', state: 'finished' }))
+    )
+
+    // ...and only then is the prepared prompt admitted behind it.
+    await sending
+    expect(pulled).toHaveLength(1)
+    void connection.close()
+    await Promise.all([consuming, consumingEvents])
+  })
+
+  it('reports a stop-fenced send as discarded instead of silently dropping the prompt', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => undefined),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const pulled: any[] = []
+    const consuming = (async () => {
+      for await (const message of sdkInput) pulled.push(message)
+    })()
+    const consumingEvents = (async () => {
+      // No connection events are expected in this scenario; draining keeps the queue open.
+      for await (const _event of connection.events) {
+        void _event
+      }
+    })()
+
+    // The prompt is still materializing its attachment when the stop lands.
+    const materializing = createDeferred<any>()
+    mocks.materializeNativeFilePart.mockReturnValueOnce(materializing.promise)
+    const sending = connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // The stop fence invalidates the prepared prompt: it never reaches the CLI and the send must
+    // report the discard so the host cannot treat the prompt as admitted.
+    await expect(connection.abortTurn!()).resolves.toBe(true)
+    materializing.resolve({ type: 'file', url: 'data:image/png;base64,QUJD', mediaType: 'image/png' })
+    await expect(sending).resolves.toBe(false)
+    expect(pulled).toHaveLength(0)
+
+    // A later prompt is submitted for real and reports the delivery.
+    await expect(connection.send({ message: userMessage() })).resolves.toBe(true)
+    await vi.waitFor(() => expect(pulled).toHaveLength(1))
+    void connection.close()
+    await Promise.all([consuming, consumingEvents])
   })
 
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {

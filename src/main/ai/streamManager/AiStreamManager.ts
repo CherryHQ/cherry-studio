@@ -41,7 +41,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 
-import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
+import { USER_STOP_ABORT_REASON, extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type {
   AiStreamRequest,
@@ -76,6 +76,8 @@ import type {
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
+/** How many recent Stop identities a topic remembers, so a delayed twin of any of them is deduped. */
+const MAX_RETAINED_STOP_IDS = 16
 type ManagedAiStreamRequest = AiStreamRequest & {
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
@@ -370,6 +372,17 @@ export class AiStreamManager extends BaseService {
   /** In-flight steer-continuation launches (registered synchronously in `scheduleNextChatTurn`),
    *  part of `drainInFlight`'s wait-set — a launch admitted before a pause must be awaited. */
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
+  /** Stop drains in flight by topic and reason, so duplicate abort requests join instead of stacking. */
+  private readonly drainingTopics = new Map<string, Promise<void>>()
+  /**
+   * Stop ids each topic already drained, so the duplicate requests of that same Stop — the explicit
+   * abort and `sdkStop`'s transport signal — return early. Keyed by the Stop's identity, not by a
+   * turn id: the graceful interrupt resumes a queued successor under the live turn, so a turn-id
+   * key would swallow a genuinely new Stop for that successor. Identities accumulate across later
+   * Stops (a twin can arrive after another Stop started and resolved) and are bounded by
+   * `MAX_RETAINED_STOP_IDS`.
+   */
+  private readonly stoppedStopsByTopic = new Map<string, Set<string>>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -1241,20 +1254,53 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
-  async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
-    await this.withDispatchLock(topicId, async () => {
+  async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void, stopId?: string): Promise<void> {
+    // A renderer Stop sends its abort twice (explicit abort + `sdkStop`'s transport signal). The
+    // duplicate must join the running drain: once the lock releases it would capture — and cancel —
+    // the queued successor the first stop just resumed. Only hookless callers join: a `beforeAbort`
+    // (remote cancellation validating `expectedExecutionId`) owns its guard and its cancellation.
+    const drainKey = `${topicId}\u0000${reason}`
+    // A UI Stop is the only reason whose twin can arrive after its drain resolved. The twin is
+    // recognised by the Stop's own identity, which both of its requests carry: recording the turn
+    // id instead would also swallow a separate Stop for the successor the graceful interrupt
+    // resumed under the live turn.
+    const stopIdOfUserStop = reason === USER_STOP_ABORT_REASON && isAgentSessionTopic(topicId) ? stopId : undefined
+    const inFlight = beforeAbort ? undefined : this.drainingTopics.get(drainKey)
+    if (inFlight) {
+      // A Stop that joins this drain must still leave its identity behind: its delayed transport
+      // twin can land after the drain resolves and the successor resumes, and would drain it.
+      this.recordStoppedStop(topicId, stopIdOfUserStop)
+      return inFlight
+    }
+    if (stopIdOfUserStop !== undefined) {
+      // Earlier Stops stay recorded: their twins can arrive after a later Stop drained and
+      // resolved, and forgetting them would let such a twin cancel the later Stop's successor.
+      if (this.stoppedStopsByTopic.get(topicId)?.has(stopIdOfUserStop)) return
+      this.recordStoppedStop(topicId, stopIdOfUserStop)
+    }
+    const draining = this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
-
+      const agentSession = isAgentSessionTopic(topicId)
+        ? { runtime: application.get('AgentSessionRuntimeService'), sessionId: extractAgentSessionId(topicId) }
+        : undefined
+      // Bind the stop to the turn being drained: terminal handling can admit a queued successor
+      // while this lock is held, and the driver cancel is identity-free.
+      const stoppedTurnId = agentSession ? agentSession.runtime.getLiveTurnId(agentSession.sessionId) : undefined
       this.abort(topicId, reason)
       await Promise.allSettled(loopPromises)
 
-      if (isAgentSessionTopic(topicId)) {
-        const runtimeClosing = application
-          .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId))
+      if (agentSession) {
+        const { runtime, sessionId } = agentSession
+        // A UI Stop gives the runtime a chance to gracefully interrupt the turn — the SDK
+        // subprocess (background tasks, subagents) survives — falling back to the session teardown
+        // when the driver cannot. Every other drain reason tears the session down outright.
+        const runtimeClosing =
+          reason === USER_STOP_ABORT_REASON
+            ? runtime.handleUserStop(sessionId, stoppedTurnId)
+            : runtime.closeSession(sessionId)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -1271,11 +1317,31 @@ export class AiStreamManager extends BaseService {
           }
         }
 
-        await drainReplacementLoops()
+        if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
         await runtimeClosing
-        await drainReplacementLoops()
+        if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
       }
+    }).finally(() => {
+      if (this.drainingTopics.get(drainKey) === draining) this.drainingTopics.delete(drainKey)
     })
+    this.drainingTopics.set(drainKey, draining)
+    return draining
+  }
+
+  /** Retain a Stop identity for the topic, so its delayed twin returns early; keeps the newest ones. */
+  private recordStoppedStop(topicId: string, stopId: string | undefined): void {
+    if (stopId === undefined) return
+    let stopped = this.stoppedStopsByTopic.get(topicId)
+    if (!stopped) {
+      stopped = new Set()
+      this.stoppedStopsByTopic.set(topicId, stopped)
+    }
+    stopped.add(stopId)
+    while (stopped.size > MAX_RETAINED_STOP_IDS) {
+      const oldest = stopped.values().next().value
+      if (oldest === undefined) break
+      stopped.delete(oldest)
+    }
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────

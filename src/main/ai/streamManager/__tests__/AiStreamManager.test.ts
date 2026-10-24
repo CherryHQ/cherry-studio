@@ -147,6 +147,8 @@ const fakeCacheService = {
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
+const mockHandleUserStop = vi.fn<(sessionId: string, turnId?: string) => Promise<void>>(async () => undefined)
+const mockGetLiveTurnId = vi.fn<(sessionId: string) => string | undefined>(() => 'turn-drain-1')
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -162,6 +164,8 @@ vi.mock('@application', async () => {
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
+      handleUserStop: mockHandleUserStop,
+      getLiveTurnId: mockGetLiveTurnId,
       closeSession: mockCloseSession
     }
   } as Parameters<typeof mockApplicationFactory>[0])
@@ -287,6 +291,11 @@ describe('AiStreamManager', () => {
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
     mockAbortPendingTurn.mockReturnValue(false)
+    // Default: a user stop resolves like the runtime's graceful-or-close handling.
+    mockHandleUserStop.mockImplementation((sessionId: string) => mockCloseSession(sessionId))
+    // `clearAllMocks` keeps implementations, so a test that made `getLiveTurnId` advance would leak
+    // it into every later test that expects the default turn id.
+    mockGetLiveTurnId.mockImplementation(() => 'turn-drain-1')
     mockGetMessageById.mockReset()
     sharedCacheStore.clear()
   })
@@ -1903,7 +1912,7 @@ describe('AiStreamManager', () => {
       expect(mockCloseSession).not.toHaveBeenCalled()
     })
 
-    it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
+    it('drains an agent continuation launched during non-user teardown before releasing admission', async () => {
       vi.useRealTimers()
       const continuationListener = new FakeListener('persistence:continuation', 'persistence')
       let releaseContinuationPersistence!: () => void
@@ -1927,7 +1936,7 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener]
       })
 
-      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'agent-session-purge')
       let nextTurnAdmitted = false
       const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
         nextTurnAdmitted = true
@@ -1941,6 +1950,393 @@ describe('AiStreamManager', () => {
       await expect(stopping).resolves.toBeUndefined()
       await expect(nextTurn).resolves.toBeUndefined()
       expect(nextTurnAdmitted).toBe(true)
+    })
+
+    it('does not abort a replacement stream launched while a user Stop settles', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      const runtimeListener = new FakeListener('agent-runtime:session-1')
+      runtimeListener.onPausedImpl = () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      }
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener]
+      })
+
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+
+      expect(continuationListener.pausedResults).toHaveLength(0)
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
+    })
+
+    it('joins a duplicate user Stop so it cannot cancel the successor the first stop resumed', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let successorAdmitted!: () => void
+      const successorStarted = new Promise<void>((resolve) => {
+        successorAdmitted = resolve
+      })
+      mockHandleUserStop.mockImplementation(async () => {
+        // The graceful stop resumes a queued successor while still holding the dispatch lock.
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+        successorAdmitted()
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      await successorStarted
+      // A renderer Stop sends its abort twice: the explicit abort plus `sdkStop`'s transport
+      // signal. The duplicate arrives while the first drain still holds the lock.
+      const duplicate = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(duplicate).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
+      // The successor the first stop admitted is not the duplicate's target: it must keep running.
+      expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
+    it('rejects a duplicate user Stop that lands after the first drain already resolved', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      // The live turn id advances once the graceful stop resumes the queued successor. A constant
+      // `getLiveTurnId` here would let a turn-id comparison pass for the wrong reason.
+      mockGetLiveTurnId.mockImplementationOnce(() => 'turn-drain-1').mockImplementation(() => 'turn-successor')
+      mockHandleUserStop.mockImplementation(async () => {
+        // The graceful stop resumes a queued successor while still holding the dispatch lock.
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+
+      // The second IPC message of the same Stop runs only now, after the first drain released its
+      // dedup entry. The turn it would abort is the successor the first stop admitted, so a fresh
+      // drain here would capture and cancel it — the user's one Stop must not kill the next turn.
+      await expect(
+        mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      ).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
+    it('retains the identity of a user Stop that joins another Stop’s live drain', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let releaseDrain!: () => void
+      let successorAdmitted!: () => void
+      const successorStarted = new Promise<void>((resolve) => {
+        successorAdmitted = resolve
+      })
+      mockHandleUserStop.mockImplementationOnce(async () => {
+        // The graceful stop resumes a queued successor while still holding the dispatch lock, then
+        // parks so a second window's Stop can join this drain before it resolves.
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+        successorAdmitted()
+        await new Promise<void>((resolve) => {
+          releaseDrain = resolve
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      await successorStarted
+      // A second window stops the same turn: its request joins the live drain, while its own
+      // transport duplicate is only delivered later.
+      const joining = mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-2')
+      releaseDrain()
+
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(joining).resolves.toBeUndefined()
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+
+      // The joining Stop's delayed twin lands after the drain resolved and the successor is live.
+      // Without its retained identity it starts a fresh drain and cancels that successor.
+      await expect(
+        mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-2')
+      ).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
+    it('rejects a duplicate user Stop against the Stop identity, not the successor live turn id', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      // The live turn changes as the drain progresses: turn A while the first Stop drains, turn B
+      // once that Stop's graceful interrupt resumes the queued successor. The duplicate must be
+      // recognised as the same Stop — comparing turn ids here would read B and miss it.
+      const liveTurnIds = ['turn-drain-1', 'turn-successor']
+      let liveTurnCall = 0
+      mockGetLiveTurnId.mockImplementation(() => liveTurnIds[Math.min(liveTurnCall++, liveTurnIds.length - 1)])
+      mockHandleUserStop.mockImplementation(async () => {
+        // The graceful stop resumes a queued successor while still holding the dispatch lock.
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
+
+      // The twin of the same Stop, arriving after the first drain resolved. `getLiveTurnId()` now
+      // returns the resumed successor, so a turn-id comparison cannot see the match — the Stop's
+      // own identity must travel with both requests.
+      await expect(
+        mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      ).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
+    it('keeps an earlier Stop’s identity through a later fresh Stop', async () => {
+      vi.useRealTimers()
+      const firstController = new AbortController()
+      const secondController = new AbortController()
+      const thirdController = new AbortController()
+      const firstListener = new FakeListener('persistence:first', 'persistence')
+      const secondListener = new FakeListener('persistence:second', 'persistence')
+      const thirdListener = new FakeListener('persistence:third', 'persistence')
+      // Each graceful stop resumes the queued successor under a new live turn.
+      const liveTurnIds = ['turn-a', 'turn-b', 'turn-c']
+      let liveTurnCalls = 0
+      mockGetLiveTurnId.mockImplementation(() => liveTurnIds[Math.min(liveTurnCalls, liveTurnIds.length - 1)])
+      let successorCount = 0
+      mockHandleUserStop.mockImplementation(async () => {
+        successorCount++
+        liveTurnCalls++
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [successorCount === 1 ? secondListener : thirdListener],
+          abortController: successorCount === 1 ? secondController : thirdController
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [firstListener],
+        abortController: firstController
+      })
+      // S1 stops turn A and resumes B; S2 (a genuinely new Stop) stops B and resumes C.
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-2')
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+      expect(secondController.signal.aborted).toBe(true)
+      expect(thirdController.signal.aborted).toBe(false)
+
+      // S1's own transport duplicate arrives only now. Forgetting it when S2 started a new
+      // generation lets it drain again and abort the successor no Stop ever targeted.
+      await expect(
+        mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      ).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+      expect(thirdController.signal.aborted).toBe(false)
+      expect(thirdListener.pausedResults).toHaveLength(0)
+    })
+
+    it('stops a fresh user Stop aimed at the successor the previous Stop resumed', async () => {
+      vi.useRealTimers()
+      const firstController = new AbortController()
+      const successorController = new AbortController()
+      const firstListener = new FakeListener('persistence:first', 'persistence')
+      const successorListener = new FakeListener('persistence:successor', 'persistence')
+      // The live turn advances as the first Stop settles: turn A while it drains, turn B once its
+      // graceful interrupt resumes the queued successor.
+      let liveTurnId: string | undefined = 'turn-a'
+      mockGetLiveTurnId.mockImplementation(() => liveTurnId)
+      mockHandleUserStop.mockImplementation(async () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [successorListener],
+          abortController: successorController
+        })
+        liveTurnId = 'turn-b'
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [firstListener],
+        abortController: firstController
+      })
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(firstController.signal.aborted).toBe(true)
+      expect(successorController.signal.aborted).toBe(false)
+
+      // A separate Stop click for the resumed successor. It is a new user request, so it must reach
+      // the graceful interrupt instead of being swallowed by the previous Stop's record.
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-2')
+
+      expect(successorController.signal.aborted).toBe(true)
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+      expect(mockHandleUserStop).toHaveBeenLastCalledWith('session-1', 'turn-b')
+    })
+
+    it('still drains a user Stop for a turn the previous Stop did not handle', async () => {
+      vi.useRealTimers()
+      const firstListener = new FakeListener('persistence:first', 'persistence')
+      const secondListener = new FakeListener('persistence:second', 'persistence')
+      // The first Stop drains turn A and resumes nothing; the user then starts turn B and stops it.
+      let liveTurnId: string | undefined = 'turn-a'
+      mockGetLiveTurnId.mockImplementation(() => liveTurnId)
+      mockHandleUserStop.mockResolvedValue(undefined)
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [firstListener]
+      })
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(1)
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-a')
+
+      liveTurnId = 'turn-b'
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [secondListener]
+      })
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+
+      // The new turn is a different Stop target: it must run its own graceful drain, not be
+      // swallowed by the previous Stop's record.
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+      expect(mockHandleUserStop).toHaveBeenLastCalledWith('session-1', 'turn-b')
+      expect(secondListener.pausedResults).toHaveLength(1)
+    })
+
+    it('runs a queued remote cancellation through its own guard instead of joining a stale drain', async () => {
+      vi.useRealTimers()
+      const topicId = 'agent-session:session-1'
+      const abortController = new AbortController()
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [],
+        abortController
+      })
+
+      // Occupy the dispatch lock so the stale cancellation registers as the drain while it queues.
+      let releaseLock!: () => void
+      let lockAcquired!: () => void
+      const entered = new Promise<void>((resolve) => {
+        lockAcquired = resolve
+      })
+      const holder = mgr.withDispatchLock(topicId, async () => {
+        await new Promise<void>((resolve) => {
+          releaseLock = resolve
+          lockAcquired()
+        })
+      })
+      await entered
+
+      // A cancellation carrying a stale `expectedExecutionId` queues first and its guard must reject.
+      const stale = mgr.abortAndDrain(topicId, 'remote-cancel', () => {
+        throw new Error('Execution is not active')
+      })
+      // The valid cancellation for the live execution follows under the same reason: it must run
+      // its own guard and cancel the execution, not inherit the stale command's rejection.
+      let validGuardRan = false
+      const valid = mgr.abortAndDrain(topicId, 'remote-cancel', () => {
+        validGuardRan = true
+      })
+
+      const staleRejected = expect(stale).rejects.toThrow('Execution is not active')
+      releaseLock()
+      await holder
+      await staleRejected
+      await expect(valid).resolves.toBeUndefined()
+
+      expect(validGuardRan).toBe(true)
+      expect(abortController.signal.aborted).toBe(true)
+    })
+
+    it('routes a user Stop through the runtime graceful path and every other drain through closeSession', async () => {
+      vi.useRealTimers()
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:agent')]
+      })
+
+      mockHandleUserStop.mockImplementation(async () => undefined)
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
+      expect(mockCloseSession).not.toHaveBeenCalled()
+
+      mockHandleUserStop.mockImplementation((sessionId: string) => mockCloseSession(sessionId))
+      await mgr.abortAndDrain('agent-session:session-1', 'agent-session-purge')
+      expect(mockCloseSession).toHaveBeenCalledWith('session-1')
     })
   })
 
