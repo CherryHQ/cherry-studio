@@ -3548,6 +3548,54 @@ describe('useFollowupQueue', () => {
     expect(claimHeadTrigger).toHaveBeenCalled()
   })
 
+  it('drops an acknowledged Pause override when the peer Resume commits within the same millisecond (inv_9dd8c2937847bcc9)', async () => {
+    // Interleaving from review: the production service permits identical
+    // updatedAt values, so A's Pause and B's Resume commit within the same
+    // millisecond and A's ack arrives after the refresh already shows B's
+    // unpaused state. A strict timestamp comparison cannot order the tie -
+    // but A's acknowledged write RESULTED in `paused=true` at that
+    // timestamp, so a refreshed `false` at the same timestamp provably
+    // postdates it; retaining the override parks the drain forever
+    // (cherry-pr-review inv_9dd8c2937847bcc9#f1).
+    wireQuery([row('h', 'head')], false, '2026-01-01T00:00:00.000Z')
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let resolvePause!: () => void
+    setPausedTrigger.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePause = () =>
+            resolve({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '2026-01-01T00:00:10.000Z' })
+        })
+    )
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
+    )
+
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+
+    // B's Resume commits at the SAME timestamp as A's acknowledged Pause.
+    wireQuery([row('h', 'head')], false, '2026-01-01T00:00:10.000Z')
+    rerender({ completion: { status: 'streaming', lastCompletedAt: null } })
+
+    // The delayed ack lands: the tie must resolve to the peer's write, or
+    // completions never drain again.
+    await act(async () => {
+      resolvePause()
+    })
+    expect(result.current.paused).toBe(false)
+
+    await act(async () => {
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalled()
+  })
+
   it('retains an acknowledged Pause override when the unpaused read predates its write (inv_a8056ce80780fca8)', async () => {
     // Same race, but the refreshed cache is a STALE read issued before A's
     // Pause committed: its updatedAt predates the acknowledged write, so the
