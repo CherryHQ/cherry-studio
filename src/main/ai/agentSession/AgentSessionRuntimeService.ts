@@ -2993,6 +2993,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     // A dead connection can never deliver the receive-only wake the hold was opened for, so this
     // detach is one of the "no successor is coming" edges the held stream has to be settled on.
+    // Its completion debt dies with it first: the release waits for a wake while any is owed, and
+    // no wake can run here, so keeping the ledger would strand the hold past this last edge.
+    this.completedBackgroundTasks.delete(entry.sessionId)
     this.releaseDrainedTopicStream(entry)
     const cache = application.get('CacheService')
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
@@ -3001,7 +3004,6 @@ export class AgentSessionRuntimeService extends BaseService {
     this.outboundBackgroundTaskIds.delete(entry.sessionId)
     this.drainedBackgroundTaskIds.delete(entry.sessionId)
     this.backgroundTaskAuthorities.delete(entry.sessionId)
-    this.completedBackgroundTasks.delete(entry.sessionId)
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {

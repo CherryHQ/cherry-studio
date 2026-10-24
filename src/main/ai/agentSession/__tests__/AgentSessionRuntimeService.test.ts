@@ -1111,6 +1111,35 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    // A task that left membership after the reply settled still owes the chat a wake. The dead
+    // connection will never run it, so that debt must be retired before the release is evaluated:
+    // leaving it in place makes the release wait for a wake that cannot come, and the detach then
+    // deletes the ledger without a retry — stranding the held topic as visibly pending.
+    it('releases the held topic stream when a settled completion still owes a wake on a dying connection', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const connection = warmConnection()
+      entry.connection = connection
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} } as any
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      // The task settles: membership empties, so its authority is owed to the wake that will report it.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-tasks',
+        tasks: [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
+      expect((service as any).completedBackgroundTasks.get('session-1')?.size).toBe(1)
+
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
     // The same edge reached from the other direction: `closeSession` drops the entry, and the entry
     // was the hold's last driver. `willContinueTopic` goes false the moment the entry is gone, so a
     // later check would never see this — the release has to be armed from the pre-close state.
