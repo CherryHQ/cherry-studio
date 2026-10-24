@@ -1447,7 +1447,8 @@ describe('AgentComposer', () => {
     expect(mocks.updateAgent).toHaveBeenCalledWith(
       {
         id: 'agent-1',
-        configuration: { reasoning_effort: 'low' }
+        configuration: { reasoning_effort: 'low' },
+        reasoningValidationModelId: model.id
       },
       { showSuccessToast: false }
     )
@@ -1530,7 +1531,13 @@ describe('AgentComposer', () => {
       { showSuccessToast: false }
     )
     expect(mocks.updateAgent).toHaveBeenCalledWith(
-      { id: 'agent-1', configuration: { reasoning_effort: 'high' } },
+      {
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'high' },
+        // The effort save validates against the session-effective model, not
+        // the agent default (inv_98911732422a84bf).
+        reasoningValidationModelId: model.id
+      },
       { showSuccessToast: false }
     )
     expect(mocks.updateModel).not.toHaveBeenCalled()

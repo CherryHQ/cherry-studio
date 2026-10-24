@@ -776,7 +776,9 @@ export class AgentService {
             }
 
             const nextConfiguration = applyAgentConfigurationPatch(persistedConfiguration, configurationPatch)
-            const effectiveModelId = updates.model !== undefined ? updates.model : current.model
+            // Normalize a reasoning-effort patch against the model the caller is actually steering: with a session-level model override the agent's own model is unchanged, and validating against it would drop an effort the session's effective model supports (cherry-pr-review inv_98911732422a84bf).
+            const effectiveModelId =
+              updates.reasoningValidationModelId ?? (updates.model !== undefined ? updates.model : current.model)
             if (!reasoningEffortRemoved && effectiveModelId && (modelChanged || reasoningEffortPatched)) {
               const nextModel = modelService.findByIdTx(tx, effectiveModelId)
               if (nextModel) {

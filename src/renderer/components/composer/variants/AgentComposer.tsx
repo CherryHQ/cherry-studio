@@ -1309,7 +1309,12 @@ const AgentComposerInner = ({
         pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
       if (pendingReasoningEdit && pendingEditStillCurrent) {
         await updateAgent(
-          { id: agent.id, configuration: { reasoning_effort: pendingReasoningEdit.effort } },
+          {
+            id: agent.id,
+            configuration: { reasoning_effort: pendingReasoningEdit.effort },
+            // The session just moved to nextModel: the replayed effort must validate against it, not the unchanged agent default (cherry-pr-review inv_98911732422a84bf).
+            reasoningValidationModelId: nextModel.id
+          },
           { showSuccessToast: false }
         )
       }
@@ -1391,7 +1396,9 @@ const AgentComposerInner = ({
       void updateAgent(
         {
           id: agent.id,
-          configuration: { reasoning_effort: option }
+          configuration: { reasoning_effort: option },
+          // Validate against the session's effective model: under a session-level override the agent default is unchanged and would normalize away an effort the effective model supports (cherry-pr-review inv_98911732422a84bf).
+          reasoningValidationModelId: model?.id
         },
         { showSuccessToast: false }
       ).then((updatedAgent) => {
@@ -1414,7 +1421,7 @@ const AgentComposerInner = ({
         )
       })
     },
-    [agent, canonicalReasoningEffort, updateAgent]
+    [agent, canonicalReasoningEffort, model?.id, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {
