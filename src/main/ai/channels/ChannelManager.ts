@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -21,12 +23,20 @@ const logger = loggerService.withContext('ChannelManager')
 
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'FileManager', 'PowerService', 'FeishuCredentialMigrationService'])
+@DependsOn([
+  'WindowManager',
+  'FileManager',
+  'PowerService',
+  'FeishuCredentialMigrationService',
+  'FeishuRegistrationService'
+])
 export class ChannelManager extends BaseService {
   readonly registration = new ChannelRegistration()
   private readonly runtimes = new Map<string, ChannelRuntime>()
   private readonly channelLogs = new ChannelLogBuffer()
   private acceptingConnections = false
+  private readonly feishuRegistrations = new Map<string, { id: string; owner: string }>()
+  private readonly registrationFlights = new Set<Promise<void>>()
 
   protected async onReady(): Promise<void> {
     this.registerDisposable(application.get('PowerService').onResume(() => this.handleSystemResume()))
@@ -77,6 +87,8 @@ export class ChannelManager extends BaseService {
   async stop(): Promise<void> {
     this.acceptingConnections = false
     this.registration.dispose()
+    for (const id of this.feishuRegistrations.keys()) this.cancelFeishuRegistration(id)
+    await Promise.allSettled([...this.registrationFlights])
     logger.info('Stopping channel manager')
     const runtimes = [...this.runtimes.values()]
     for (const runtime of runtimes) runtime.requestReconcile()
@@ -87,14 +99,18 @@ export class ChannelManager extends BaseService {
   }
 
   requestReconcile(channelId: string): void {
+    this.cancelFeishuRegistration(channelId)
     this.getOrCreateRuntime(channelId).requestReconcile()
   }
 
   async reconcileChannel(channelId: string): Promise<void> {
+    this.cancelFeishuRegistration(channelId)
     await this.getOrCreateRuntime(channelId).reconcile()
   }
 
   waitForQrAndReconcile(agentId: string, channelId: string, timeoutMs = 30_000): Promise<string> {
+    const channel = channelService.getChannel(channelId)
+    if (channel?.type === 'feishu') return this.beginFeishuRegistration(agentId, channelId)
     const runtime = this.getOrCreateRuntime(channelId)
     const qrUrl = runtime.waitForQrUrl(agentId, timeoutMs)
     runtime.requestReconcile()
@@ -102,6 +118,7 @@ export class ChannelManager extends BaseService {
   }
 
   async removeChannel(channelId: string): Promise<void> {
+    this.cancelFeishuRegistration(channelId)
     const runtime = this.runtimes.get(channelId)
     this.runtimes.delete(channelId)
     this.channelLogs.remove(channelId)
@@ -149,7 +166,6 @@ export class ChannelManager extends BaseService {
       loadAdapter: loadChannelAdapter,
       onMessage: (adapter, event) => this.handleMessage(adapter, event),
       onCommand: (adapter, event) => this.handleCommand(adapter, event),
-      onCredentials: (agentId, id, credentials, isCurrent) => this.saveCredentials(agentId, id, credentials, isCurrent),
       onDynamicChatId: (id, chatId) => this.persistDynamicChatId(id, chatId),
       onLog: (entry) => this.publishLog(entry),
       onStatus: (status) => this.publishStatus(status),
@@ -163,7 +179,11 @@ export class ChannelManager extends BaseService {
     if (!this.acceptingConnections) return { kind: 'disconnected' }
     const channel = channelService.getChannel(channelId)
     if (!channel?.isActive || !channel.agentId) return { kind: 'disconnected' }
-    if (channel.type === 'feishu' && application.get('FeishuCredentialMigrationService').isChannelBlocked(channelId))
+    if (
+      channel.type === 'feishu' &&
+      (!channel.config.applicationCredentialId ||
+        application.get('FeishuCredentialMigrationService').isChannelBlocked(channelId))
+    )
       return { kind: 'disconnected' }
     if (agentService.getLifecycleState(channel.agentId) !== 'active') return { kind: 'disconnected' }
     return { kind: 'connected', channel, agentId: channel.agentId }
@@ -246,51 +266,70 @@ export class ChannelManager extends BaseService {
     }
   }
 
-  private async saveCredentials(
-    agentId: string,
-    channelId: string,
-    credentials: { appId: string; appSecret: string },
-    isCurrent: () => boolean
-  ): Promise<void> {
+  private cancelFeishuRegistration(channelId: string): void {
+    const pending = this.feishuRegistrations.get(channelId)
+    if (!pending) return
+    this.feishuRegistrations.delete(channelId)
+    application.get('FeishuRegistrationService').cancel(pending.owner, pending.id)
+  }
+
+  private async beginFeishuRegistration(agentId: string, channelId: string): Promise<string> {
+    const channel = channelService.getChannel(channelId)
+    if (
+      !this.acceptingConnections ||
+      channel?.type !== 'feishu' ||
+      channel.agentId !== agentId ||
+      !channel.isActive ||
+      channel.config.applicationCredentialId ||
+      application.get('FeishuCredentialMigrationService').isChannelBlocked(channelId)
+    )
+      throw new CredentialStoreError('invalid')
+    this.cancelFeishuRegistration(channelId)
+    const pending = { id: randomUUID(), owner: `agent:${agentId}` }
+    this.feishuRegistrations.set(channelId, pending)
+    const registration = application.get('FeishuRegistrationService')
     try {
-      const channel = channelService.getChannel(channelId)
-      if (
-        !channel ||
-        channel.type !== 'feishu' ||
-        channel.agentId !== agentId ||
-        channel.config.applicationCredentialId ||
-        !isCurrent()
-      )
-        return
-      const store = application.get('CredentialStoreService')
-      const app = await store.create({
-        connector: 'feishu',
-        kind: 'application',
-        label: channel.name,
-        payload: { domain: channel.config.registrationDomain ?? 'feishu', ...credentials }
+      const begun = await registration.beginAgent(agentId, {
+        requestId: pending.id,
+        purpose: 'channel',
+        domain: channel.config.registrationDomain ?? 'feishu'
       })
-      await store.withReferences([app.id], () => {
-        const latest = channelService.getChannel(channelId)
-        if (
-          !isCurrent() ||
-          latest?.type !== 'feishu' ||
-          latest.agentId !== agentId ||
-          latest.config.applicationCredentialId
-        )
-          throw new CredentialStoreError('conflict')
-        channelService.updateChannel(channelId, {
-          config: { applicationCredentialId: app.id, allowed_chat_ids: latest.config.allowed_chat_ids }
-        })
-      })
-      if (isCurrent()) this.sendToRenderer('channel.feishu.qr_login', { channelId, url: '', status: 'confirmed' })
-      this.requestReconcile(channelId)
+      if (this.feishuRegistrations.get(channelId) !== pending) throw new CredentialStoreError('conflict')
+      const flight = (async () => {
+        try {
+          const app = await registration.complete(pending.owner, pending.id)
+          await application.get('CredentialStoreService').withReferences([app.id], () => {
+            const latest = channelService.getChannel(channelId)
+            if (
+              this.feishuRegistrations.get(channelId) !== pending ||
+              latest?.type !== 'feishu' ||
+              latest.agentId !== agentId ||
+              !latest.isActive ||
+              latest.config.applicationCredentialId
+            )
+              throw new CredentialStoreError('conflict')
+            channelService.updateChannel(channelId, {
+              config: { applicationCredentialId: app.id, allowed_chat_ids: latest.config.allowed_chat_ids }
+            })
+          })
+          if (this.feishuRegistrations.get(channelId) === pending) {
+            this.sendToRenderer('channel.feishu.qr_login', { channelId, url: '', status: 'confirmed' })
+            this.cancelFeishuRegistration(channelId)
+            this.requestReconcile(channelId)
+          }
+        } catch {
+          if (this.feishuRegistrations.get(channelId) === pending) {
+            this.sendToRenderer('channel.feishu.qr_login', { channelId, url: '', status: 'error' })
+            this.cancelFeishuRegistration(channelId)
+          }
+        }
+      })()
+      this.registrationFlights.add(flight)
+      void flight.finally(() => this.registrationFlights.delete(flight))
+      return begun.verificationUri
     } catch (error) {
-      if (isCurrent()) this.sendToRenderer('channel.feishu.qr_login', { channelId, url: '', status: 'error' })
-      logger.error('Failed to save channel credentials', {
-        agentId,
-        channelId,
-        code: error instanceof CredentialStoreError ? error.code : 'unavailable'
-      })
+      if (this.feishuRegistrations.get(channelId) === pending) this.cancelFeishuRegistration(channelId)
+      throw error
     }
   }
 

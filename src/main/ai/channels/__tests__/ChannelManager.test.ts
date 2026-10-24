@@ -38,6 +38,9 @@ class TestFileManager {
 @Injectable('PowerService')
 class TestPowerService {}
 
+@Injectable('FeishuRegistrationService')
+class TestFeishuRegistrationService {}
+
 @Injectable('FeishuCredentialMigrationService')
 class TestFeishuCredentialMigrationService {}
 
@@ -153,6 +156,7 @@ describe('ChannelManager', () => {
     container.register(TestFileManager)
     container.register(TestPowerService)
     container.register(TestFeishuCredentialMigrationService)
+    container.register(TestFeishuRegistrationService)
     container.register(ChannelManager)
     manager = container.get(ChannelManager)
   })

@@ -7,10 +7,14 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { applicationInput, setupCredentialStore } from '@main/services/credential/__tests__/credentialTestSetup'
+import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
+import { FeishuRegistrationService } from '@main/services/FeishuRegistrationService'
 
 import { ChannelAdapter } from '../ChannelAdapter'
 import { loadChannelAdapter } from '../channelAdapterLoader'
 import { ChannelManager } from '../ChannelManager'
+
+vi.mock('@main/services/feishuAppRegistration', () => ({ registrationBegin: vi.fn(), registrationPoll: vi.fn() }))
 
 vi.mock('../channelAdapterLoader', () => ({ loadChannelAdapter: vi.fn() }))
 
@@ -24,17 +28,29 @@ class RegistrationAdapter extends ChannelAdapter {
 describe('Feishu registration persistence', () => {
   const fixture = setupCredentialStore()
   let manager: ChannelManager
+  let registration: FeishuRegistrationService
+  let agentId: string
   let channelId: string
   let events: Array<{ status: string; config: unknown }>
 
   beforeEach(async () => {
     const fallback = vi.mocked(application.get).getMockImplementation()!
     vi.mocked(application.get).mockImplementation((name) => {
+      if (name === 'FeishuRegistrationService') return registration
       if (name === 'CredentialStoreService') return fixture.store
       if (name === 'FeishuCredentialMigrationService') return { isChannelBlocked: () => false } as never
       return fallback(name)
     })
-    const agentId = randomUUID()
+    registration = new FeishuRegistrationService()
+    await registration._doInit()
+    vi.mocked(registrationBegin).mockResolvedValue({
+      deviceCode: 'code',
+      verificationUri: 'https://accounts.feishu.cn/verify',
+      interval: 1,
+      expiresIn: 600
+    })
+    vi.mocked(registrationPoll).mockResolvedValue({ appId: 'cli_registered', appSecret: 'registered-secret' })
+    agentId = randomUUID()
     fixture.dbh.db
       .insert(agentTable)
       .values({
@@ -81,11 +97,12 @@ describe('Feishu registration persistence', () => {
     })
     manager = new ChannelManager()
     await manager.start()
-    await vi.waitFor(() => expect(manager.getAdapter(channelId)).toBeDefined())
+    expect(manager.getAdapter(channelId)).toBeUndefined()
   })
 
   afterEach(async () => {
     await manager?.stop()
+    await registration?._doStop()
   })
 
   it('confirms only after the application file and reference are saved', async () => {
@@ -97,7 +114,7 @@ describe('Feishu registration persistence', () => {
       await gate.promise
       return create(input)
     })
-    manager.getAdapter(channelId)!.emit('credentials', { appId: 'cli_registered', appSecret: 'registered-secret' })
+    await manager.waitForQrAndReconcile(agentId, channelId)
     await entered.promise
     expect(events).toEqual([])
     expect(agentChannelService.getChannel(channelId)?.config).toEqual({
@@ -119,7 +136,7 @@ describe('Feishu registration persistence', () => {
 
   it('reports persistence failure without confirming or replacing the unconfigured channel', async () => {
     vi.spyOn(fixture.store, 'create').mockRejectedValueOnce(new Error('disk unavailable'))
-    manager.getAdapter(channelId)!.emit('credentials', { appId: 'cli_registered', appSecret: 'registered-secret' })
+    await manager.waitForQrAndReconcile(agentId, channelId)
     await vi.waitFor(() => expect(events).toHaveLength(1))
     expect(events).toEqual([{ status: 'error', config: { applicationCredentialId: null, allowed_chat_ids: ['chat'] } }])
     expect(await fixture.store.listSummaries()).toEqual([])
@@ -129,27 +146,18 @@ describe('Feishu registration persistence', () => {
     const selected = await fixture.store.create(applicationInput)
     const gate = Promise.withResolvers<void>()
     const entered = Promise.withResolvers<void>()
-    const finished = Promise.withResolvers<void>()
     const create = fixture.store.create.bind(fixture.store)
     vi.spyOn(fixture.store, 'create').mockImplementationOnce(async (input) => {
       entered.resolve()
       await gate.promise
       return create(input)
     })
-    const references = fixture.store.withReferences.bind(fixture.store)
-    vi.spyOn(fixture.store, 'withReferences').mockImplementation(async (...args) => {
-      try {
-        return await references(...args)
-      } finally {
-        finished.resolve()
-      }
-    })
-    manager.getAdapter(channelId)!.emit('credentials', { appId: 'cli_registered', appSecret: 'registered-secret' })
+    await manager.waitForQrAndReconcile(agentId, channelId)
     await entered.promise
     agentChannelService.updateChannel(channelId, { configPatch: { applicationCredentialId: selected.id } })
     await manager.reconcileChannel(channelId)
     gate.resolve()
-    await finished.promise
+    await registration._doStop()
     expect(agentChannelService.getChannel(channelId)?.config).toEqual({
       applicationCredentialId: selected.id,
       allowed_chat_ids: ['chat']

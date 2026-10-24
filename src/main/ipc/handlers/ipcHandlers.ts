@@ -20,6 +20,7 @@ import { doctorHandlers } from './doctor'
 import { doctorAgentHandlers } from './doctorAgent'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
+import { feishuHandlers } from './feishu'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { hermesDashboardHandlers } from './hermesDashboard'
@@ -83,6 +84,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...hermesDashboardHandlers,
+  ...feishuHandlers,
   ...credentialHandlers,
   ...knowledgeHandlers,
   ...localModelHandlers,

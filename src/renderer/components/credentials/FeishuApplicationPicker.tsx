@@ -1,17 +1,33 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
+import type { CredentialSummary } from '@shared/types/credential'
+
+import { FeishuRegistrationPanel } from './FeishuRegistrationPanel'
 
 export function FeishuApplicationPicker({
   value,
-  onChange
+  onChange,
+  registrationDomain = 'feishu',
+  purpose = 'channel',
+  onRegistered
 }: {
+  registrationDomain?: 'feishu' | 'lark'
+  purpose?: 'channel' | 'knowledge'
+  onRegistered?: (app: CredentialSummary, registrationSessionId: string) => Promise<void> | void
   value: string | null
   onChange: (id: string | null) => void
 }) {
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   const { t } = useTranslation()
   const id = useId()
   const { data, error, isLoading, mutate } = useSWR('credential.feishu.applications', () =>
@@ -20,9 +36,15 @@ export function FeishuApplicationPicker({
   const [adding, setAdding] = useState(false)
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [domain, setDomain] = useState<'feishu' | 'lark'>('feishu')
+  const [domain, setDomain] = useState<'feishu' | 'lark'>(registrationDomain)
   const [fields, setFields] = useState({ appId: '', appSecret: '', encryptKey: '', verificationToken: '' })
-  const applications = data?.filter((entry) => entry.status === 'available' && entry.kind === 'application') ?? []
+  const applications =
+    data?.filter(
+      (entry): entry is Extract<CredentialSummary, { kind: 'application' }> =>
+        entry.status === 'available' &&
+        entry.kind === 'application' &&
+        (purpose === 'channel' || entry.domain === 'feishu')
+    ) ?? []
 
   async function save() {
     setSaving(true)
@@ -36,14 +58,15 @@ export function FeishuApplicationPicker({
         ...(fields.encryptKey.trim() && { encryptKey: fields.encryptKey.trim() }),
         ...(fields.verificationToken.trim() && { verificationToken: fields.verificationToken.trim() })
       })
-      await mutate()
+      void mutate()
+      if (!mounted.current) return
       onChange(app.id)
       setAdding(false)
       setFields({ appId: '', appSecret: '', encryptKey: '', verificationToken: '' })
     } catch {
-      setFailed(true)
+      if (mounted.current) setFailed(true)
     } finally {
-      setSaving(false)
+      if (mounted.current) setSaving(false)
     }
   }
 
@@ -91,6 +114,18 @@ export function FeishuApplicationPicker({
           </Button>
         </div>
       )}
+      {!adding && (purpose === 'knowledge' || !value) && (
+        <FeishuRegistrationPanel
+          domain={registrationDomain}
+          purpose={purpose}
+          applicationCredentialId={purpose === 'knowledge' ? (value ?? undefined) : undefined}
+          onRegistered={(app, sessionId) => {
+            void mutate()
+            if (onRegistered) return onRegistered(app, sessionId)
+            onChange(app.id)
+          }}
+        />
+      )}
       {adding && (
         <div className="flex flex-col gap-3">
           <Label htmlFor={`${id}-domain`}>{t('agent.channels.feishu.domain')}</Label>
@@ -100,7 +135,7 @@ export function FeishuApplicationPicker({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="feishu">{t('agent.channels.feishu.domainFeishu')}</SelectItem>
-              <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>
+              {purpose === 'channel' && <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>}
             </SelectContent>
           </Select>
           {(['appId', 'appSecret', 'encryptKey', 'verificationToken'] as const).map((key) => (

@@ -16,12 +16,6 @@ export interface ChannelRuntimeHooks {
   loadAdapter: ChannelAdapterLoader
   onMessage: (adapter: ChannelAdapter, event: ChannelMessageEvent) => void
   onCommand: (adapter: ChannelAdapter, event: ChannelCommandEvent) => void
-  onCredentials: (
-    agentId: string,
-    channelId: string,
-    credentials: { appId: string; appSecret: string },
-    isCurrent: () => boolean
-  ) => void | Promise<void>
   onDynamicChatId: (channelId: string, chatId: string) => void
   onLog: (entry: ChannelLogEntry) => void
   onStatus: (status: ChannelStatusEvent) => void
@@ -198,12 +192,6 @@ export class ChannelRuntime {
       clearTimeout(waiter.timer)
       this.qrWaiter = undefined
       waiter.resolve(url)
-    })
-    adapter.on('credentials', (credentials) => {
-      if (!this.isCurrent(ownership)) return
-      Promise.resolve(
-        this.hooks.onCredentials(adapter.agentId, this.channelId, credentials, () => this.isCurrent(ownership))
-      ).catch((error) => this.hooks.onError(this.channelId, error))
     })
     adapter.on('log', (entry) => {
       if (this.isCurrent(ownership)) this.hooks.onLog(entry)

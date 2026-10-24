@@ -1,10 +1,7 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { fileTypeFromBuffer } from 'file-type'
 
-import { application } from '@application'
-import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
@@ -174,15 +171,8 @@ class FeishuAdapter extends ChannelAdapter {
     this.notifyChatIds = [...this.allowedChatIds]
   }
 
-  protected override async checkReady(): Promise<boolean> {
-    return !!(this.appId && this.appSecret)
-  }
-
   protected override async performConnect(signal: AbortSignal): Promise<void> {
-    if (!this.appId || !this.appSecret) {
-      this.startRegistrationInBackground(signal)
-      return
-    }
+    if (!this.appId || !this.appSecret) throw new Error('Feishu application is not configured')
 
     const sdkLogger: Lark.Logger = {
       error: (...args) => this.log.error('Feishu SDK error', { detail: args.map(String).join(' ') }),
@@ -262,40 +252,6 @@ class FeishuAdapter extends ChannelAdapter {
     this.log.info('Feishu bot connected (WebSocket)')
   }
 
-  private startRegistrationInBackground(signal: AbortSignal): void {
-    this.log.info('Starting Feishu app registration flow (background)', { domain: this.domain })
-    this.sendQrToRenderer('', 'pending')
-
-    registrationBegin(this.domain)
-      .then(({ deviceCode, verificationUri, interval, expiresIn }) => {
-        if (signal.aborted) return
-        this.emit('qr', verificationUri)
-        this.sendQrToRenderer(verificationUri, 'pending')
-        return registrationPoll(this.domain, deviceCode, { interval, expiresIn, signal })
-      })
-      .then((result) => {
-        if (!result || signal.aborted) return
-        this.appId = result.appId
-        this.appSecret = result.appSecret
-        this.emit('credentials', { appId: result.appId, appSecret: result.appSecret })
-        this.log.info('Feishu app registration completed')
-      })
-      .catch((error) => {
-        if (signal.aborted) return
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        this.sendQrToRenderer('', /expired|timed out/i.test(errorMessage) ? 'expired' : 'error')
-        this.log.warn(`Registration failed: ${errorMessage}`)
-      })
-  }
-
-  private sendQrToRenderer(url: string, status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'): void {
-    application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.feishu.qr_login', {
-      channelId: this.channelId,
-      url,
-      status
-    })
-  }
-
   protected override async performDisconnect(): Promise<void> {
     for (const stream of this.streams.values()) stream.dispose()
     this.streams.clear()
@@ -306,7 +262,6 @@ class FeishuAdapter extends ChannelAdapter {
     if (channel) {
       await this.disconnectChannel(channel)
     }
-    this.sendQrToRenderer('', 'disconnected')
     this.log.info('Feishu bot stopped')
   }
 

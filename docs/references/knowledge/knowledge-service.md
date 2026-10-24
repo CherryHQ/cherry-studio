@@ -214,9 +214,12 @@ Knowledge transport failures use the existing bounded retries; registration
 request timeouts retry within the registration deadline. Other registration
 network failures remain request errors, and malformed JSON/schema responses
 remain distinct from transport failures.
-A registration session is claimed synchronously before a consumer awaits its
-polling result, so it cannot be consumed twice but remains cancellable while its
-first consumer runs.
+`FeishuRegistrationService` owns registration for both Channels and Knowledge. Renderer sessions
+belong to their managed window; closing the window, cancellation, expiry, or shutdown invalidates
+late results. Repeated completion returns the same safe application summary. Knowledge claims
+one handoff into user authorization, and cancellation also fences an in-flight handoff before it
+can publish a pending connection. Channel activation never implicitly registers an application;
+UI setup and the explicit agent QR command register before binding through the credential store.
 
 ## Caller Contract
 

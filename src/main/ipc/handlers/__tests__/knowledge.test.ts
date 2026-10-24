@@ -15,7 +15,6 @@ import { knowledgeHandlers } from '../knowledge'
 
 const knowledgeService = {
   beginFeishuAppRegistration: vi.fn(),
-  cancelFeishuAppRegistration: vi.fn(),
   beginFeishuUserAuthorization: vi.fn(),
   completeFeishuUserAuthorization: vi.fn(),
   cancelFeishuUserAuthorization: vi.fn(),
@@ -42,8 +41,6 @@ beforeEach(() => {
   })
 })
 
-// Knowledge handlers ignore IpcContext (they act on shared business data, not the
-// caller's window), so the senderId value is irrelevant — pass a stable stub.
 const ctx = { senderId: 'w1' }
 
 type In<R extends keyof typeof knowledgeHandlers> = Parameters<(typeof knowledgeHandlers)[R]>[0]
@@ -173,25 +170,6 @@ describe('knowledgeHandlers', () => {
     for (const privateValue of ['provider-payload', 'cli_private', 'user_private', 'feishu:credential-private']) {
       expect(JSON.stringify(error)).not.toContain(privateValue)
     }
-  })
-
-  it('delegates registration cancellation and connection removal as void commands', async () => {
-    knowledgeService.cancelFeishuAppRegistration.mockResolvedValue(undefined)
-    knowledgeService.removeExternalKnowledgeConnection.mockResolvedValue(undefined)
-
-    await knowledgeHandlers['knowledge.feishu.registration.cancel'](
-      { registrationSessionId: '01960000-0000-7000-8000-000000000002' },
-      ctx
-    )
-    await knowledgeHandlers['knowledge.feishu.connection.remove'](
-      { connectionId: '01960000-0000-7000-8000-000000000001' },
-      ctx
-    )
-
-    expect(knowledgeService.cancelFeishuAppRegistration).toHaveBeenCalledWith('01960000-0000-7000-8000-000000000002')
-    expect(knowledgeService.removeExternalKnowledgeConnection).toHaveBeenCalledWith(
-      '01960000-0000-7000-8000-000000000001'
-    )
   })
 
   it('create_base unwraps { base } and returns KnowledgeService.createBase result', async () => {

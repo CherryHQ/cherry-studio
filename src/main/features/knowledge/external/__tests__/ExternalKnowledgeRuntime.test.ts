@@ -1,5 +1,3 @@
-import { gunzipSync } from 'node:zlib'
-
 import { setupTestDatabase } from '@test-helpers/db'
 import { net } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
@@ -8,7 +6,6 @@ import {
   externalKnowledgeConnectionService,
   type ExternalKnowledgeConnection
 } from '@data/services/ExternalKnowledgeConnectionService'
-import { registrationBegin } from '@main/services/feishuAppRegistration'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 
 import type {
@@ -986,23 +983,20 @@ describe('ExternalKnowledgeRuntime', () => {
       connections,
       credentials,
       provider,
-      registration: {
-        begin: vi.fn(async () => ({
-          deviceCode: 'registration-code',
-          verificationUri: 'https://accounts.feishu.cn/registration',
-          interval: 5,
-          expiresIn: 600
-        })),
-        poll: vi.fn(async () => ({ appId: 'cli_replacement', appSecret: 'replacement-secret' }))
-      },
+
       now: () => 1_000
     })
     await runtime.start()
 
-    const registration = await runtime.beginAppRegistration()
+    credentials.readApplication.mockResolvedValue({
+      appId: 'cli_replacement',
+      appSecret: 'replacement-secret',
+      applicationName: 'Cherry Studio Knowledge'
+    })
     const begun = await runtime.beginReconnect(value.id, {
-      kind: 'personal-agent',
-      registrationSessionId: registration.registrationSessionId
+      kind: 'saved-application',
+      applicationCredentialId: 'shared-app',
+      source: 'personal-agent'
     })
     const reauthorized = await runtime.completeUserAuthorization(begun.authorizationSessionId)
 
@@ -1601,185 +1595,6 @@ describe('ExternalKnowledgeRuntime', () => {
     }
   })
 
-  it('configures PersonalAgent registration with the user_info identity field permission', async () => {
-    vi.mocked(net.fetch)
-      .mockResolvedValueOnce(new Response('{}'))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            device_code: 'registration-code',
-            verification_uri_complete: 'https://accounts.feishu.cn/registration',
-            expire_in: 600,
-            interval: 5
-          })
-        )
-      )
-    const runtime = new ExternalKnowledgeRuntime({
-      connections: new MemoryConnections(),
-      credentials: new MemoryCredentials(),
-      registration: {
-        begin: registrationBegin,
-        poll: vi.fn(async () => ({ appId: 'cli_automatic', appSecret: 'automatic-secret' }))
-      }
-    })
-    await runtime.start()
-    try {
-      const registration = await runtime.beginAppRegistration()
-      const addons = new URL(registration.verificationUri).searchParams.get('addons')!
-      const configured = JSON.parse(gunzipSync(Buffer.from(addons, 'base64url')).toString('utf8'))
-      expect(configured.scopes.user).toContain('contact:user.employee_id:readonly')
-      expect(configured.scopes.user).not.toContain('auth:user.id:read')
-    } finally {
-      await runtime.stop()
-    }
-  })
-
-  it.each([false, true])(
-    'updates a selected application without forcing creation and rejects a switched application: %s',
-    async (switched) => {
-      vi.mocked(net.fetch)
-        .mockResolvedValueOnce(new Response('{}'))
-        .mockResolvedValueOnce(
-          Response.json({
-            device_code: 'registration-code',
-            verification_uri_complete: 'https://accounts.feishu.cn/registration',
-            expire_in: 600,
-            interval: 5
-          })
-        )
-      const credentials = new MemoryCredentials()
-      credentials.readApplication.mockResolvedValue({
-        appId: 'cli_existing',
-        appSecret: 'saved-secret',
-        applicationName: 'Existing bot'
-      })
-      const provider = createProvider({
-        beginDeviceAuthorization: vi.fn(async () => ({
-          deviceCode: 'device',
-          userCode: 'code',
-          verificationUri: 'https://accounts.feishu.cn/verify',
-          expiresIn: 600,
-          interval: 5
-        }))
-      })
-      const runtime = new ExternalKnowledgeRuntime({
-        connections: new MemoryConnections(),
-        credentials,
-        provider,
-        registration: {
-          begin: registrationBegin,
-          poll: vi.fn(async () => ({ appId: switched ? 'cli_other' : 'cli_existing', appSecret: 'saved-secret' }))
-        }
-      })
-      await runtime.start()
-      try {
-        const begun = await runtime.beginAppRegistration('application-id')
-        const url = new URL(begun.verificationUri)
-        expect(url.searchParams.get('clientID')).toBe('cli_existing')
-        for (const key of ['createOnly', 'name', 'desc']) expect(url.searchParams.has(key)).toBe(false)
-        const addons = JSON.parse(gunzipSync(Buffer.from(url.searchParams.get('addons')!, 'base64url')).toString())
-        expect(addons).toEqual({ scopes: { user: [...FEISHU_REQUIRED_USER_SCOPES] } })
-        const authorization = runtime.beginUserAuthorization({
-          kind: 'personal-agent',
-          registrationSessionId: begun.registrationSessionId
-        })
-        if (switched) {
-          await expect(authorization).rejects.toMatchObject({ code: 'authorization-failed' })
-          expect(provider.beginDeviceAuthorization).not.toHaveBeenCalled()
-        } else {
-          const result = await authorization
-          expect(result.connection).toMatchObject({
-            appId: 'cli_existing',
-            appCredentialSource: 'custom-app',
-            applicationName: 'Existing bot'
-          })
-          expect(JSON.stringify(result)).not.toContain('saved-secret')
-          await runtime.cancelUserAuthorization(result.authorizationSessionId)
-        }
-      } finally {
-        await runtime.stop()
-      }
-    }
-  )
-
-  it('cancels an in-flight PersonalAgent registration', async () => {
-    const controllerObserved = deferred<AbortSignal>()
-    const runtime = new ExternalKnowledgeRuntime({
-      connections: new MemoryConnections(),
-      credentials: new MemoryCredentials(),
-      provider: createProvider(),
-      registration: {
-        begin: vi.fn(async (_domain, options) => ({
-          deviceCode: 'registration-code',
-          verificationUri: 'https://accounts.feishu.cn/registration',
-          interval: 5,
-          expiresIn: 600,
-          signal: options?.signal
-        })),
-        poll: vi.fn((_domain, _code, options) => {
-          controllerObserved.resolve(options.signal)
-          return new Promise<never>((_resolve, reject) => {
-            options.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), {
-              once: true
-            })
-          })
-        })
-      }
-    })
-    await runtime.start()
-
-    const begun = await runtime.beginAppRegistration()
-    const signal = await controllerObserved.promise
-    await runtime.cancelAppRegistration(begun.registrationSessionId)
-
-    expect(signal.aborted).toBe(true)
-  })
-
-  it('expires an abandoned PersonalAgent registration at the protocol deadline', async () => {
-    vi.useFakeTimers()
-    const controllerObserved = deferred<AbortSignal>()
-    const runtime = new ExternalKnowledgeRuntime({
-      connections: new MemoryConnections(),
-      credentials: new MemoryCredentials(),
-      provider: createProvider(),
-      registration: {
-        begin: vi.fn(async () => ({
-          deviceCode: 'registration-code',
-          verificationUri: 'https://accounts.feishu.cn/registration',
-          interval: 5,
-          expiresIn: 600
-        })),
-        poll: vi.fn((_domain, _code, options) => {
-          controllerObserved.resolve(options.signal)
-          return new Promise<never>((_resolve, reject) => {
-            options.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), {
-              once: true
-            })
-          })
-        })
-      }
-    })
-
-    try {
-      await runtime.start()
-      const begun = await runtime.beginAppRegistration()
-      const signal = await controllerObserved.promise
-
-      await vi.advanceTimersByTimeAsync(600_000)
-
-      expect(signal.aborted).toBe(true)
-      await expect(
-        runtime.beginUserAuthorization({
-          kind: 'personal-agent',
-          registrationSessionId: begun.registrationSessionId
-        })
-      ).rejects.toMatchObject({ code: 'session-not-found' })
-    } finally {
-      await runtime.stop()
-      vi.useRealTimers()
-    }
-  })
-
   it('expires an abandoned user authorization and removes its pending connection', async () => {
     vi.useFakeTimers()
     const connections = new MemoryConnections()
@@ -1824,85 +1639,43 @@ describe('ExternalKnowledgeRuntime', () => {
     }
   })
 
-  it('allows only one consumer to claim a PersonalAgent registration session', async () => {
-    const registrationResult = deferred<{ appId: string; appSecret: string }>()
-    const provider = createProvider({
-      beginDeviceAuthorization: vi.fn(async () => ({
-        deviceCode: 'device-code',
-        userCode: 'ABCD-EFGH',
-        verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify?user_code=ABCD-EFGH',
-        expiresIn: 600,
-        interval: 5
-      }))
-    })
+  it('does not create a connection after its registration caller cancels during device authorization', async () => {
+    const connections = new MemoryConnections()
+    const gate = deferred<{
+      deviceCode: string
+      userCode: string
+      verificationUri: string
+      interval: number
+      expiresIn: number
+    }>()
+    const entered = deferred<void>()
+    const controller = new AbortController()
     const runtime = new ExternalKnowledgeRuntime({
-      connections: new MemoryConnections(),
+      connections,
       credentials: new MemoryCredentials(),
-      provider,
-      registration: {
-        begin: vi.fn(async () => ({
-          deviceCode: 'registration-code',
-          verificationUri: 'https://accounts.feishu.cn/registration',
-          interval: 5,
-          expiresIn: 600
-        })),
-        poll: vi.fn(() => registrationResult.promise)
-      }
-    })
-    await runtime.start()
-    const registration = await runtime.beginAppRegistration()
-
-    const first = runtime.beginUserAuthorization({
-      kind: 'personal-agent',
-      registrationSessionId: registration.registrationSessionId
-    })
-    const second = runtime
-      .beginUserAuthorization({
-        kind: 'personal-agent',
-        registrationSessionId: registration.registrationSessionId
-      })
-      .catch((error) => error)
-    registrationResult.resolve({ appId: 'cli_automatic', appSecret: 'automatic-secret' })
-
-    await expect(second).resolves.toMatchObject({ code: 'session-not-found' })
-    const authorization = await first
-    expect(provider.beginDeviceAuthorization).toHaveBeenCalledOnce()
-    await runtime.cancelUserAuthorization(authorization.authorizationSessionId)
-  })
-
-  it('can cancel a PersonalAgent registration after its session is claimed', async () => {
-    const runtime = new ExternalKnowledgeRuntime({
-      connections: new MemoryConnections(),
-      credentials: new MemoryCredentials(),
-      provider: createProvider(),
-      registration: {
-        begin: vi.fn(async () => ({
-          deviceCode: 'registration-code',
-          verificationUri: 'https://accounts.feishu.cn/registration',
-          interval: 5,
-          expiresIn: 600
-        })),
-        poll: vi.fn((_domain, _code, options) => {
-          return new Promise<never>((_resolve, reject) => {
-            options.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), {
-              once: true
-            })
-          })
+      provider: createProvider({
+        beginDeviceAuthorization: vi.fn(() => {
+          entered.resolve()
+          return gate.promise
         })
-      }
+      })
     })
     await runtime.start()
-    const registration = await runtime.beginAppRegistration()
-    const authorization = runtime
-      .beginUserAuthorization({
-        kind: 'personal-agent',
-        registrationSessionId: registration.registrationSessionId
-      })
+    const result = runtime
+      .beginUserAuthorization({ kind: 'custom-app', appId: 'cli_cancel', appSecret: 'secret' }, controller.signal)
       .catch((error) => error)
-
-    await runtime.cancelAppRegistration(registration.registrationSessionId)
-
-    await expect(authorization).resolves.toMatchObject({ code: 'authorization-failed' })
+    await entered.promise
+    controller.abort()
+    gate.resolve({
+      deviceCode: 'late',
+      userCode: 'late',
+      verificationUri: 'https://accounts.feishu.cn/verify',
+      interval: 5,
+      expiresIn: 600
+    })
+    expect(await result).toBeInstanceOf(Error)
+    expect(connections.values.size).toBe(0)
+    await runtime.stop()
   })
 
   it('feeds automatic PersonalAgent credentials into the same device authorization flow', async () => {
@@ -1920,23 +1693,19 @@ describe('ExternalKnowledgeRuntime', () => {
     const runtime = new ExternalKnowledgeRuntime({
       connections,
       credentials,
-      provider,
-      registration: {
-        begin: vi.fn(async () => ({
-          deviceCode: 'registration-code',
-          verificationUri: 'https://accounts.feishu.cn/registration',
-          interval: 5,
-          expiresIn: 600
-        })),
-        poll: vi.fn(async () => ({ appId: 'cli_automatic', appSecret: 'automatic-secret' }))
-      }
+      provider
     })
     await runtime.start()
 
-    const registration = await runtime.beginAppRegistration()
+    credentials.readApplication.mockResolvedValue({
+      appId: 'cli_automatic',
+      appSecret: 'automatic-secret',
+      applicationName: 'Cherry Studio Knowledge'
+    })
     const authorization = await runtime.beginUserAuthorization({
-      kind: 'personal-agent',
-      registrationSessionId: registration.registrationSessionId
+      kind: 'saved-application',
+      applicationCredentialId: 'shared-app',
+      source: 'personal-agent'
     })
 
     expect(provider.beginDeviceAuthorization).toHaveBeenCalledWith(

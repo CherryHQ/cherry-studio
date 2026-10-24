@@ -214,73 +214,23 @@ export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) 
   )
 }
 
-type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
-
 export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   const cfg = channel.config as FeishuAgentChannelConfig
-  const hasCredentials = !!cfg.applicationCredentialId
-  const [qrUrl, setQrUrl] = useState<string | null>(null)
-  const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
-
-  useIpcOn('channel.feishu.qr_login', (data) => {
-    if (data.channelId !== channel.id) return
-    if (data.status === 'confirmed') {
-      setQrUrl(null)
-      setStatus('confirmed')
-    } else if (data.status === 'expired') {
-      setQrUrl(null)
-      setStatus('expired')
-    } else if (data.status === 'error') {
-      setQrUrl(null)
-      setStatus('error')
-    } else if (data.url) {
-      setQrUrl(data.url)
-      setStatus('pending')
-    }
-  })
-
   return (
     <div className="flex flex-col gap-3">
-      {!hasCredentials && (
-        <div className="flex items-center gap-2">
-          {status === 'pending' && <span className="text-xs text-info">{t('agent.channels.feishu.qrHint')}</span>}
-          {status === 'expired' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-error" />
-              <span className="text-xs text-error">{t('agent.channels.feishu.qrExpired')}</span>
-            </>
-          )}
-          {status === 'error' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-error" />
-              <span className="text-xs text-error">{t('agent.channels.error')}</span>
-            </>
-          )}
-          {status === 'idle' && <span className="text-xs text-info">{t('agent.channels.feishu.loginHint')}</span>}
-        </div>
-      )}
-      {hasCredentials && (
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full bg-success" />
-          <span className="text-xs text-success">{t('common.saved')}</span>
-        </div>
-      )}
-      {!hasCredentials && (
-        <div className="flex flex-col gap-1">
-          <Label>{t('agent.channels.feishu.domain')}</Label>
-          <Select
-            value={cfg.registrationDomain ?? 'feishu'}
-            onValueChange={(domain) => onConfigChange({ config: { ...cfg, registrationDomain: domain } })}>
-            <SelectTrigger aria-label={t('agent.channels.feishu.domain')}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="feishu">{t('agent.channels.feishu.domainFeishu')}</SelectItem>
-              <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      {!cfg.applicationCredentialId && (
+        <Select
+          value={cfg.registrationDomain ?? 'feishu'}
+          onValueChange={(domain) => onConfigChange({ config: { ...cfg, registrationDomain: domain } })}>
+          <SelectTrigger aria-label={t('agent.channels.feishu.domain')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="feishu">{t('agent.channels.feishu.domainFeishu')}</SelectItem>
+            <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>
+          </SelectContent>
+        </Select>
       )}
       <ChannelFieldsForm
         channel={channel}
@@ -290,6 +240,7 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           <div className="col-span-2">
             <FeishuApplicationPicker
               value={cfg.applicationCredentialId}
+              registrationDomain={cfg.registrationDomain ?? 'feishu'}
               onChange={(id) => onConfigChange({ config: { ...cfg, applicationCredentialId: id } })}
             />
           </div>
@@ -300,24 +251,6 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           hint: t('agent.channels.feishu.chatIdsHint')
         }}
       />
-
-      <Dialog
-        open={!!qrUrl}
-        onOpenChange={(open) => {
-          if (open) return
-          setQrUrl(null)
-          if (status === 'pending') setStatus('idle')
-        }}>
-        <DialogContent closeOnOverlayClick={false} className="max-w-90">
-          <DialogHeader>
-            <DialogTitle>{t('agent.channels.feishu.qrTitle')}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
-            <span className="text-center text-xs text-muted-foreground">{t('agent.channels.feishu.qrScanHint')}</span>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
