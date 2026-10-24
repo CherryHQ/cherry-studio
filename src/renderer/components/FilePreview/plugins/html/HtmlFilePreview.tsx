@@ -13,6 +13,7 @@ import HtmlPreviewFrame, {
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
+import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -21,8 +22,7 @@ import type { FilePreviewPluginProps } from '../../types'
 import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePreviewToolbar'
 
 const logger = loggerService.withContext('HtmlFilePreview')
-const HTML_PREVIEW_MAX_SIZE_MIB = 2
-const HTML_PREVIEW_MAX_SIZE_BYTES = HTML_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
+const HTML_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
 const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 type HtmlFileLoadState =
   | { status: 'error'; error: Error }
@@ -163,7 +163,7 @@ export default function HtmlFilePreview({
             ? await Promise.resolve().then(sourceMetadata)
             : { kind: 'file', size: sourceMetadata }
         if (cancelled || loadedMetadata?.kind !== 'file') return
-        if (loadedMetadata.size > HTML_PREVIEW_MAX_SIZE_BYTES) {
+        if (loadedMetadata.size > FILE_EDIT_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }

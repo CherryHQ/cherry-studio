@@ -1,3 +1,4 @@
+export { createCodeHighlightPlugin } from './code-highlight'
 export {
   createSlugger,
   extractTextFromNode,

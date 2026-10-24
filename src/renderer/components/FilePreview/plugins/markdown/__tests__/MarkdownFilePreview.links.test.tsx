@@ -1,11 +1,12 @@
-import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
+import type * as CodeStyleModule from '@renderer/hooks/useCodeStyle'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import MarkdownFilePreview from '../MarkdownFilePreview'
@@ -33,7 +34,8 @@ vi.mock('@tanstack/react-virtual', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeStyleModule>()),
   useCodeStyle: () => ({ activeCmTheme: 'light' }),
   useCmTheme: () => 'light'
 }))

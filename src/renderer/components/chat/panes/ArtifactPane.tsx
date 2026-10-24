@@ -113,8 +113,7 @@ export interface ArtifactPaneProps {
 
 export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@renderer/hooks/useFileEditSession'
 
-/** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
-const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
+const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = `${ARTIFACT_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MiB`
 const DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES = 25 * 1024 * 1024
 const COPYABLE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx'])
 const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods'])
@@ -587,8 +586,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     }
   }, [fileSessionFlush])
 
-  const handleDiscardFailedSave = useCallback(() => {
-    fileSessionDiscard?.()
+  const handleDiscardFailedSave = useCallback(async () => {
+    try {
+      await fileSessionDiscard?.()
+    } catch {
+      /* The retained session exposes the failure. */
+    }
   }, [fileSessionDiscard])
 
   const nextEditorMode = editMode === 'preview' ? 'edit' : 'preview'
@@ -989,10 +992,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         )}
         {/* The inset pads inside the editor's scroll container (not this wrapper) so the
             editor runs full height under the elevated composer with trailing scroll room. */}
-        <div className="relative min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
+        <div
+          data-file-edit
+          className="relative min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
             <LazyCodeEditor
-              key={previewKey}
+              key={`${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
+              readOnly={fileSession.readOnly}
+              editable={!fileSession.readOnly}
               value={fileSession.draft}
               language={getFileExtension(overlaySelection.filePath)}
               theme={activeCmTheme}
