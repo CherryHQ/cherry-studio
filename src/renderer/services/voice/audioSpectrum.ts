@@ -5,7 +5,7 @@ const logger = loggerService.withContext('AudioSpectrum')
 export interface AudioSpectrum {
   readonly analyser: AnalyserNode
   resume(): Promise<void>
-  dispose(): void
+  dispose(): Promise<void>
 }
 
 export function createAudioSpectrum(input: MediaStream | HTMLAudioElement): AudioSpectrum | undefined {
@@ -19,6 +19,7 @@ export function createAudioSpectrum(input: MediaStream | HTMLAudioElement): Audi
     analyser.smoothingTimeConstant = 0.8
     const microphone = 'getTracks' in input
     const source = microphone ? context.createMediaStreamSource(input) : context.createMediaElementSource(input)
+    let closing: Promise<void> | undefined
     if (!microphone) source.connect(context.destination)
     source.connect(analyser)
     if (microphone)
@@ -27,9 +28,10 @@ export function createAudioSpectrum(input: MediaStream | HTMLAudioElement): Audi
       analyser,
       resume: () => context.resume(),
       dispose() {
+        if (closing) return closing
         source.disconnect()
         analyser.disconnect()
-        void context.close().catch((error: unknown) => logger.warn('Could not close audio spectrum', { error }))
+        return (closing = context.close())
       }
     }
   } catch (error) {

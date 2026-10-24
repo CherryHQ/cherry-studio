@@ -112,6 +112,11 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
       return 'content'
   }
 
+  // A structured HTTP status outranks message-only category signals.
+  if (status !== undefined && status >= 500 && status < 600) {
+    return 'server'
+  }
+
   const msg = (text ?? '').toLowerCase()
 
   // Geo-block responses often use HTTP 403, so region signals must win over auth.
@@ -312,8 +317,6 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   // Server errors (5xx / overloaded)
   if (
-    status === 529 ||
-    (status !== undefined && status >= 500) ||
     msg.includes('overloaded') ||
     msg.includes('overload') ||
     msg.includes('service unavailable') ||
@@ -346,7 +349,12 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('failed to parse') ||
     msg.includes('json parse') ||
     msg.includes('invalid json') ||
-    msg.includes('malformed json')
+    msg.includes('malformed json') ||
+    msg.includes('invalid input: expected object, received undefined') ||
+    msg.includes('type validation failed:') ||
+    msg.includes("expected 'function.name' to be a string.") ||
+    msg.includes("expected 'id' to be a string.") ||
+    msg.includes('response stream ended without a finish reason.')
   ) {
     return 'parse'
   }

@@ -1,7 +1,7 @@
 /**
  * Normalizes function-tool JSON Schemas into what providers actually accept.
  *
- * Two passes, both always on — the keywords involved are advisory hints no
+ * Keyword passes are always on — the keywords involved are advisory hints no
  * provider enforces, so dropping them everywhere costs nothing and beats
  * per-provider gating:
  *   - every function tool loses `$schema` (dialect metadata Gemini's parser
@@ -11,6 +11,10 @@
  *     the strict subset — Anthropic and OpenAI compile that schema into a
  *     sampling grammar and 400 the whole request otherwise (issue #18037).
  *     Zod emits them freely (`.int()` alone adds safe-integer bounds).
+ *   - a root-only pass adds missing `properties: {}` to explicit object schemas
+ *     for compatibility (issue #21957); this is validation-neutral because absent
+ *     `properties` and `{}` declare the same empty property set while
+ *     `additionalProperties` keeps its meaning.
  *   - a Gemini-only pass replaces non-string `enum`/`const` values with their
  *     bare type (Gemini's Schema proto types `enum` as string lists only) and
  *     drops a function tool when an array has no typed `items` schema; there
@@ -142,6 +146,24 @@ function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<stri
   return mapSchemas(schema, (node) => dropKeywords(node, keywords))
 }
 
+/**
+ * Some OpenAI-compatible validators reject the whole request when a function's
+ * `parameters` is an object schema without a `properties` member — a
+ * parameterless MCP tool from a Go-SDK server serializes as
+ * `{ "type": "object", "additionalProperties": false }` (issue #21957).
+ * Adding the empty map is validation-neutral: a missing `properties` and `{}`
+ * declare the same empty property set, `additionalProperties` keeps its
+ * meaning, and the original schema still validates tool calls locally.
+ * A root `$ref` is left alone because providers (the pinned Google adapter)
+ * merge root siblings over the referenced definition, so an empty `properties`
+ * map would erase the referenced parameters.
+ */
+function addMissingProperties(node: JSONSchema7Definition): JSONSchema7Definition {
+  if (typeof node !== 'object' || Array.isArray(node)) return node
+  if (node.type !== 'object' || node.$ref !== undefined || Object.hasOwn(node, 'properties')) return node
+  return { ...node, properties: {} }
+}
+
 /** The single simple type shared by every value, if one exists. */
 function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | undefined {
   if (values.length === 0) return undefined
@@ -249,6 +271,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     }
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
     let inputSchema = stripKeywords(tool.inputSchema, keywords)
+    inputSchema = addMissingProperties(inputSchema)
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, expandTypeArrays)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)

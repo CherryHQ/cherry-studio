@@ -24,7 +24,7 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
   class RegistryLoader {
     loadProviders() {
       return [
-        ...registry.providers.filter(({ id }) => id === 'huggingface'),
+        ...registry.providers.filter(({ id }) => ['huggingface', 'openai'].includes(id)),
         {
           id: 'cherryin',
           endpointConfigs: {
@@ -74,6 +74,22 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
 
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
+
+  it('restores OpenAI summary permission for a seed-shaped row with no stored dialect', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'openai',
+        presetProviderId: 'openai',
+        name: 'OpenAI',
+        orderKey: 'a0'
+      })
+      .run()
+
+    const provider = providerService.getByProviderId('openai')
+
+    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.dialect?.reasoningSummary).toBe(true)
+  })
 
   it.each(['huggingface', 'huggingface-copy'])(
     'preserves the saved Responses destination for an unpinned model on %s',
