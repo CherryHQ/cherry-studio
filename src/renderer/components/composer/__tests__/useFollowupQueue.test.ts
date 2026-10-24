@@ -44,7 +44,7 @@ const row = (
 const draft = (text: string) => ({ text, tokens: [] }) as never
 const payload = (text: string) => ({ text, userMessageParts: [] }) as never
 
-function wireQuery(rows: FollowupQueueRow[], paused = false) {
+function wireQuery(rows: FollowupQueueRow[], paused = false, stateUpdatedAt = '') {
   const refetch = vi.fn()
   const refetchState = vi.fn()
   mockUseQuery.mockImplementation((path: string) => {
@@ -53,7 +53,7 @@ function wireQuery(rows: FollowupQueueRow[], paused = false) {
     }
     if (path === '/followup-queue-states') {
       return {
-        data: { scopeKey: SCOPE, paused, createdAt: '', updatedAt: '' },
+        data: { scopeKey: SCOPE, paused, createdAt: '', updatedAt: stateUpdatedAt },
         isLoading: false,
         isRefreshing: false,
         error: undefined,
@@ -3382,6 +3382,94 @@ describe('useFollowupQueue', () => {
     // the persisted peer Pause owns the flag.
     await act(async () => {
       resolveResume()
+    })
+    expect(result.current.paused).toBe(true)
+
+    await act(async () => {
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
+    expect(onDrain).not.toHaveBeenCalled()
+  })
+
+  it('drops an acknowledged Pause override once the refreshed state provably postdates its write (inv_a8056ce80780fca8)', async () => {
+    // Interleaving from review: A's Pause PUT commits, then B's Resume
+    // commits, then A's ack arrives. A's refreshed cache already shows the
+    // peer Resume with a strictly newer updatedAt, so the acknowledged `true`
+    // override is spent — retaining it parks the drain forever once B closes
+    // (cherry-pr-review inv_a8056ce80780fca8#f1).
+    wireQuery([row('h', 'head')], false, '2026-01-01T00:00:00.000Z')
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let resolvePause!: () => void
+    setPausedTrigger.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePause = () =>
+            resolve({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '2026-01-01T00:00:10.000Z' })
+        })
+    )
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
+    )
+
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+
+    // B's Resume commits while A's ack is in flight: the refreshed cache
+    // reports unpaused with an updatedAt newer than A's acknowledged write.
+    wireQuery([row('h', 'head')], false, '2026-01-01T00:00:20.000Z')
+    rerender({ completion: { status: 'streaming', lastCompletedAt: null } })
+
+    // The delayed ack lands: the override must yield to the newer
+    // authoritative write, or completions never drain again.
+    await act(async () => {
+      resolvePause()
+    })
+    expect(result.current.paused).toBe(false)
+
+    await act(async () => {
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalled()
+  })
+
+  it('retains an acknowledged Pause override when the unpaused read predates its write (inv_a8056ce80780fca8)', async () => {
+    // Same race, but the refreshed cache is a STALE read issued before A's
+    // Pause committed: its updatedAt predates the acknowledged write, so the
+    // override stays held — dropping it would drain against the persisted
+    // pause. This pins the fail-safe direction of the reconciliation.
+    wireQuery([row('h', 'head')], false, '2025-12-31T23:59:50.000Z')
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let resolvePause!: () => void
+    setPausedTrigger.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePause = () =>
+            resolve({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '2026-01-01T00:00:10.000Z' })
+        })
+    )
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
+    )
+
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+
+    wireQuery([row('h', 'head')], false, '2025-12-31T23:59:50.000Z')
+    rerender({ completion: { status: 'streaming', lastCompletedAt: null } })
+
+    await act(async () => {
+      resolvePause()
     })
     expect(result.current.paused).toBe(true)
 
