@@ -86,6 +86,23 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
       const isWebm = ['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType)
       const wavMetadata = input.mediaType === 'audio/wav' ? inspectCanonicalWav(audio) : undefined
       if (!isWebm && !wavMetadata) throw new VoiceRuntimeError('invalid_audio')
+      if (wavMetadata) {
+        // FunASR accepts a narrower PCM fmt contract than the shared RIFF validator.
+        const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength)
+        for (let offset = 12; offset < audio.byteLength;) {
+          const chunkSize = view.getUint32(offset + 4, true)
+          const payloadOffset = offset + 8
+          if (String.fromCharCode(...audio.subarray(offset, offset + 4)) === 'fmt ') {
+            if (
+              (chunkSize !== 16 && chunkSize !== 18) ||
+              (chunkSize === 18 && view.getUint16(payloadOffset + 16, true) !== 0)
+            )
+              throw new VoiceRuntimeError('invalid_audio')
+            break
+          }
+          offset = payloadOffset + chunkSize + (chunkSize % 2)
+        }
+      }
       await requireReady(input.abortSignal)
       return withScratch(
         async (directory) => {
