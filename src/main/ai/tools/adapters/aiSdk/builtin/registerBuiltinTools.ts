@@ -8,7 +8,6 @@
  *
  * Tests can pass a fresh `ToolRegistry` to keep the global singleton clean.
  */
-
 import { registry, type ToolRegistry } from '../registry'
 import { createAutomationReplToolEntries } from './AutomationReplTools'
 import { createFsReadToolEntry } from './FsReadTool'
@@ -20,6 +19,7 @@ import { createMcpResourceListToolEntry } from './McpResourceListTool'
 import { createMcpResourceReadToolEntry } from './McpResourceReadTool'
 import { createGenerateImageToolEntry } from './PaintingTool'
 import { createReadFileToolEntry } from './ReadFileTool'
+import { createUserMemoryToolEntry } from './UserMemoryTool'
 import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
@@ -27,6 +27,7 @@ export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   // Gated per request (see createFsReadToolEntry), and always confined to the
   // request's persisted-output allow-list — an empty list denies every read.
   for (const entry of createAutomationReplToolEntries()) reg.register(entry)
+  reg.register(createUserMemoryToolEntry())
   reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())

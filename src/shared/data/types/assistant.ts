@@ -46,6 +46,7 @@ export const MAX_TOOL_CALLS = 1000
  * default takes effect. This removes the need for nullable value fields.
  */
 export const AssistantSettingsSchema = z.object({
+  userMemoryEnabled: z.boolean().optional(),
   // -- Inference parameters --
   /** from DEFAULT_TEMPERATURE */
   temperature: z.number().min(0).max(2),
@@ -102,6 +103,7 @@ export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
 /** Pre-computed default settings object — avoids runtime parse() on every row conversion */
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
+  userMemoryEnabled: false,
   temperature: 1.0,
   enableTemperature: false,
   topP: 1,

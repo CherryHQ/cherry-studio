@@ -46,3 +46,16 @@ describe('ImportAssistantSchema', () => {
     expect(UpdateAssistantSchema.safeParse({ settings: { service_tier: 'turbo' } }).success).toBe(false)
   })
 })
+
+describe('Assistant shared memory configuration', () => {
+  it('preserves explicit opt-in and opt-out without introducing defaults into partial updates', () => {
+    expect(UpdateAssistantSchema.parse({ settings: { userMemoryEnabled: true } }).settings).toEqual({
+      userMemoryEnabled: true
+    })
+    expect(UpdateAssistantSchema.parse({ settings: { userMemoryEnabled: false } }).settings).toEqual({
+      userMemoryEnabled: false
+    })
+    expect(UpdateAssistantSchema.parse({ settings: { temperature: 0.5 } }).settings).toEqual({ temperature: 0.5 })
+    expect(UpdateAssistantSchema.safeParse({ settings: { userMemoryEnabled: 'true' } }).success).toBe(false)
+  })
+})

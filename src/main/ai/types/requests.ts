@@ -77,6 +77,8 @@ export interface AiRequest {
 
 /** Text generation (streaming or not): a conversation plus everything that shapes a turn. */
 export interface AiChatRequest extends AiRequest {
+  /** Main-only grant from persistent desktop chat dispatch; never accepted on IPC. */
+  userMemoryContext?: { assistantId: string; topicId: string }
   conversation: ConversationRef
   mcpToolIds?: string[]
   /** Canonical per-turn reasoning selection captured when the message was submitted. */

@@ -664,3 +664,27 @@ export type McpResourceSavedBlob = z.infer<typeof mcpResourceSavedBlobSchema>
 export type McpResourceListOutput = z.infer<typeof mcpResourceListOutputSchema>
 export type McpResourceReadOutput = z.infer<typeof mcpResourceReadOutputSchema>
 export type McpResourceReadResult = z.infer<typeof mcpResourceReadResultSchema>
+
+export const USER_MEMORY_TOOL_NAME = 'user_memory'
+
+export const userMemoryInputSchema = z.discriminatedUnion('action', [
+  z.strictObject({
+    action: z.literal('read'),
+    offset: z.number().int().nonnegative().optional(),
+    expectedRevision: z.string().optional()
+  }),
+  z.strictObject({
+    action: z.literal('patch'),
+    oldText: z.string().min(1),
+    newText: z.string(),
+    expectedRevision: z.string().min(1)
+  }),
+  z.strictObject({ action: z.literal('update'), content: z.string(), expectedRevision: z.string().min(1) }),
+  z.strictObject({ action: z.literal('append'), text: z.string().min(1), tags: z.array(z.string()).default([]) }),
+  z.strictObject({
+    action: z.literal('search'),
+    query: z.string().optional(),
+    tag: z.string().optional(),
+    limit: z.number().int().min(1).max(200).default(20)
+  })
+])
