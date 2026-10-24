@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cherrystudio/agent-behavior": "workspace:*",
     "@cherrystudio/agent-runtime": "workspace:*",
     "@earendil-works/pi-ai": "1.3.0",
     "@earendil-works/pi-coding-agent": "1.3.0"
