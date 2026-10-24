@@ -13,6 +13,12 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('ignores CDATA backticks during inline matching (inv_51b0729e38ad3e6f)', () => {
+    expect(
+      stripModelScratchpadBlocks('<summary>Keep<![CDATA[`]]><analysis>SECRET</analysis> public `x`</summary>')
+    ).not.toContain('SECRET')
+  })
+
   it('ignores CDATA-contained closing tags (inv_05530378ffef12c7)', () => {
     expect(
       stripModelScratchpadBlocks('<analysis>Use <![CDATA[</analysis>]]> SECRET</analysis><summary>Public</summary>')

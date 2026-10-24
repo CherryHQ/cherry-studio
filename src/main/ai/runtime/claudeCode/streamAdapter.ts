@@ -1238,7 +1238,11 @@ export class ClaudeCodeStreamAdapter {
     }
     // A partial setext underline needs the preceding paragraph too; the
     // underline can arrive one marker at a time across delta boundaries.
-    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(openLine)) && lineStart > 0) {
+    if (
+      (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(openLine)) ||
+        /^ {0,3}(?:> ?)+[ \t]*$/.test(openLine)) &&
+      lineStart > 0
+    ) {
       const previousEnd = lineStart - 1
       const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
       const previous = accumulatedText.slice(previousStart, previousEnd)

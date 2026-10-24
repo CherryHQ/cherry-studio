@@ -83,11 +83,10 @@ function htmlOpeningTagLookup(text: string): (index: number) => boolean {
   while (pos < text.length) {
     const start = text.indexOf('<', pos)
     if (start < 0) break
-    if (text.startsWith('<!--', start)) {
-      const close = text.indexOf('-->', start + 4)
-      const end = close < 0 ? text.length : close + 3
-      ranges.push({ start, end })
-      pos = end
+    const opaqueEnd = opaqueMarkupEnd(text, start)
+    if (opaqueEnd !== null) {
+      ranges.push({ start, end: opaqueEnd })
+      pos = opaqueEnd
       continue
     }
     const tag = isBackslashEscaped(text, start) ? null : parseOpeningTagAt(text, start)
@@ -792,6 +791,8 @@ function maskIndentedCodeBlocks(text: string): {
     return false
   }
 
+  const inlineRanges = maskInlineCodeSpans(text).ranges
+  const scratchpadScan = { pos: 0, stack: [] as string[] }
   const outLines: string[] = []
   let i = 0
   let paragraphOpen = false
@@ -827,7 +828,7 @@ function maskIndentedCodeBlocks(text: string): {
       i++
       continue
     }
-    if (enclosingScratchpadTag(text, lineOffsets[i]) !== null) {
+    if (enclosingScratchpadTag(text, lineOffsets[i], inlineRanges, scratchpadScan) !== null) {
       // Indented content of a real scratchpad block must stay visible to
       // boundary detection; masking it could swallow the block's closer.
       paragraphOpen = true
