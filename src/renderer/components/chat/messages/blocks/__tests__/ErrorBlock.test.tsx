@@ -396,6 +396,24 @@ describe('ErrorBlock', () => {
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  it('shows the context headline instead of generic HTTP 400 while retaining the numeric rejection diagnostic', () => {
+    mocks.translations.set('error.diagnosis.context_length', enUS['error.diagnosis.context_length'])
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
+    const diagnostic = 'Input length 17063468 exceeds the maximum length 1048566'
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'APICallError', message: diagnostic, stack: null, statusCode: 400 }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.context_length'])).toBeVisible()
+    expect(screen.queryByText(enUS['error.diagnosis.bad_request'])).not.toBeInTheDocument()
+    expect(screen.getByText(diagnostic, { exact: false })).toBeVisible()
+  })
+
   it('uses injected diagnosis capability for unknown errors', async () => {
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
     mocks.actions = {

@@ -1,2 +1,3 @@
 {"level":"error","message":"AI_APICallError: This model's maximum context length is 1048576 tokens","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 11:00:00"}
 {"level":"error","message":"Request rejected: prompt is too long for the selected model","timestamp":"2026-08-19 11:00:00"}
+{"level":"error","message":"API Error: 400 Input length 2000000 exceeds the maximum length 1000000.","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 12:00:00"}

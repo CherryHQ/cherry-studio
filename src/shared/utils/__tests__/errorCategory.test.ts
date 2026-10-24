@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
+import { classifyErrorCategory, type ErrorCategoryInput, isProxyErrorMessage } from '../errorCategory'
 
 describe('classifyErrorCategory HTTP 400', () => {
   it('identifies a provider request failure without guessing its cause', () => {
@@ -13,6 +13,79 @@ describe('classifyErrorCategory HTTP 400', () => {
     ['prompt is too long', 'context_length']
   ] as const)('preserves the specific diagnosis for %s', (text, category) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe(category)
+  })
+})
+
+describe('classifyErrorCategory numeric input-length rejection', () => {
+  const sentence = 'Input length 17063468 exceeds the maximum length 1048566.'
+
+  it.each([
+    ['reported HTTP 400 falling through to bad_request', 400, `API Error: 400 ${sentence}`],
+    [
+      'uppercase rejection falling through to bad_request',
+      400,
+      'INPUT LENGTH 2000000 EXCEEDS THE MAXIMUM LENGTH 1000000.'
+    ],
+    ['status-less rejection falling through to unknown', undefined, sentence]
+  ] as const)('prevents %s', (_bug, status, text) => {
+    expect(classifyErrorCategory({ status, text })).toBe('context_length')
+  })
+
+  it.each([
+    'Input length must be positive',
+    'Input length 5 is within the maximum length 10',
+    'Input length exceeds the maximum limit',
+    'Request length 2000000 exceeds the maximum length 1000000 bytes',
+    'Output length 200 exceeds the maximum length 100'
+  ])('avoids misclassifying unrelated validation as context overflow: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+  })
+
+  it.each([
+    [
+      'generic provider failure swallowed by context recognition',
+      { status: 400, text: 'API Error: 400 Provider returned error' },
+      'bad_request'
+    ],
+    [
+      'parameter validation swallowed by context recognition',
+      { status: 400, text: 'Invalid input: temperature must be positive' },
+      'bad_request'
+    ],
+    ['HTTP 413 losing payload diagnosis', { status: 413, text: sentence }, 'payload'],
+    ['payload prose losing payload diagnosis', { status: 400, text: `payload too large: ${sentence}` }, 'payload'],
+    [
+      'entity-size prose losing payload diagnosis',
+      { status: 400, text: `request entity too large: ${sentence}` },
+      'payload'
+    ],
+    ['quota prose losing billing diagnosis', { status: 400, text: `quota exhausted: ${sentence}` }, 'quota'],
+    ['HTTP 401 losing authentication diagnosis', { status: 401, text: sentence }, 'auth'],
+    ['HTTP 402 losing billing diagnosis', { status: 402, text: sentence }, 'quota'],
+    ['HTTP 403 losing permission diagnosis', { status: 403, text: sentence }, 'permission'],
+    ['HTTP 404 losing model diagnosis', { status: 404, text: sentence }, 'model'],
+    ['HTTP 429 losing rate-limit diagnosis', { status: 429, text: sentence }, 'rate_limit'],
+    ['HTTP 500 losing server diagnosis', { status: 500, text: sentence }, 'server'],
+    ['regional refusal losing region diagnosis', { status: 403, text: `unsupported_country: ${sentence}` }, 'region'],
+    [
+      'safety finish reason losing content diagnosis',
+      { status: 400, text: sentence, finishReason: 'safety' },
+      'content'
+    ]
+  ] satisfies ReadonlyArray<readonly [string, ErrorCategoryInput, string]>)('prevents %s', (_bug, input, expected) => {
+    expect(classifyErrorCategory(input)).toBe(expected)
+  })
+
+  it.each([
+    'content_filter',
+    'content_policy',
+    'safety',
+    'prohibited_content',
+    'responsible_ai',
+    'output_blocked',
+    'recitation'
+  ])('prevents %s prose losing content diagnosis to numeric context recognition', (prefix) => {
+    expect(classifyErrorCategory({ status: 400, text: `${prefix}: ${sentence}` })).toBe('content')
   })
 })
 

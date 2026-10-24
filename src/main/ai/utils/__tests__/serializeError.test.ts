@@ -4,6 +4,22 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('retains numeric context overflow diagnosis and the original HTTP 400 diagnostic across serialization', () => {
+    const message = 'Input length 17063468 exceeds the maximum length 1048566'
+    const error = new APICallError({
+      message,
+      url: 'https://example.com/v1/chat/completions',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+
+    expect(serializeError(error)).toMatchObject({
+      providerErrorCategory: 'context_length',
+      message,
+      statusCode: 400
+    })
+  })
+
   describe('unknown thrown values', () => {
     it('serializes only the safe message from a structured provider event', () => {
       const result = serializeError({
