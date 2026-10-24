@@ -3,7 +3,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
-import type { JobHandler } from '@main/core/job/types'
+import type { JobHandler, JobSettledEvent } from '@main/core/job/types'
 import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
@@ -80,6 +80,11 @@ type SyncService = Pick<ExternalKnowledgeSyncService, 'syncSource'>
 
 export type SyncExternalSourceJobHandlerDependencies = {
   now(): number
+  dispatchScheduledEnvelope?(input: KnowledgeSyncExternalSourcePayload, trigger: 'scheduled' | 'startup'): Promise<void>
+}
+
+function isScheduleEnvelope(input: KnowledgeSyncExternalSourcePayload): boolean {
+  return input.dispatch === 'schedule'
 }
 
 function parseSummary(value: unknown): ExternalKnowledgeSourceSyncSummary {
@@ -92,6 +97,55 @@ function parseMetadata(
 ): { code: z.infer<typeof MetadataCodeSchema>; summary: ExternalKnowledgeSourceSyncSummary } | null {
   const result = MetadataSchema.safeParse(value)
   return result.success ? result.data : null
+}
+
+export function settleExternalSourceSync(
+  event: Pick<
+    JobSettledEvent<KnowledgeSyncExternalSourcePayload>,
+    'jobId' | 'input' | 'status' | 'output' | 'error' | 'metadata'
+  >,
+  finishedAt: number
+): boolean {
+  if (isScheduleEnvelope(event.input)) return false
+  const completedSummary = event.status === 'completed' ? parseSummary(event.output) : null
+  const failedMetadata = event.status === 'completed' ? null : parseMetadata(event.metadata.externalKnowledgeSync)
+  const summary = completedSummary ?? failedMetadata?.summary ?? { ...EMPTY_SUMMARY, warnings: [] }
+  const outcome =
+    event.status === 'completed' ? (summary.warningCount > 0 ? 'completed-with-warnings' : 'completed') : event.status
+  const errorSummary =
+    event.status === 'completed'
+      ? null
+      : event.status === 'cancelled'
+        ? 'cancelled'
+        : event.error?.code === JOB_ERROR_CODES.HANDLER_TIMEOUT
+          ? 'timeout'
+          : (failedMetadata?.code ?? 'failed')
+  const settled = application.get('DbService').withWriteTx((tx) => {
+    const projected = externalKnowledgeSourceService.settleSyncTx(tx, {
+      sourceId: event.input.sourceId,
+      expectedRevision: event.input.sourceRevision,
+      jobId: event.jobId,
+      finishedAt,
+      outcome,
+      indexedCount: summary.indexedCount,
+      unchangedCount: summary.unchangedCount,
+      skippedCount: summary.skippedCount,
+      warningCount: summary.warningCount,
+      errorSummary
+    })
+    if (projected) return true
+    const source = externalKnowledgeSourceService.getByIdTx(tx, event.input.sourceId)
+    if (!source || source.baseId !== event.input.baseId) return false
+    return externalKnowledgeSourceService.clearActiveJobTx(tx, {
+      sourceId: source.id,
+      expectedRevision: source.revision,
+      expectedActiveJobId: event.jobId
+    })
+  })
+  if (settled) {
+    notifyExternalKnowledgeSourceChange(event.input.baseId, event.input.sourceId, 'projection')
+  }
+  return settled
 }
 
 export function createSyncExternalSourceJobHandler(
@@ -112,6 +166,16 @@ export function createSyncExternalSourceJobHandler(
     cancelTimeoutMs: Math.floor(SERVICE_STOP_TIMEOUT_MS / 2),
 
     async execute(ctx) {
+      if (isScheduleEnvelope(ctx.input)) {
+        if (!dependencies.dispatchScheduledEnvelope) {
+          throw new Error('External knowledge schedule dispatch is unavailable')
+        }
+        await dependencies.dispatchScheduledEnvelope(
+          ctx.input,
+          ctx.metadata.scheduleTrigger === 'startup' ? 'startup' : 'scheduled'
+        )
+        return
+      }
       ctx.reportProgress(0, { stage: 'scanning' })
       try {
         const result = await syncService.syncSource({
@@ -156,40 +220,7 @@ export function createSyncExternalSourceJobHandler(
     },
 
     async onSettled(event) {
-      const completedSummary = event.status === 'completed' ? parseSummary(event.output) : null
-      const failedMetadata = event.status === 'completed' ? null : parseMetadata(event.metadata.externalKnowledgeSync)
-      const summary = completedSummary ?? failedMetadata?.summary ?? { ...EMPTY_SUMMARY, warnings: [] }
-      const outcome =
-        event.status === 'completed'
-          ? summary.warningCount > 0
-            ? 'completed-with-warnings'
-            : 'completed'
-          : event.status
-      const errorSummary =
-        event.status === 'completed'
-          ? null
-          : event.status === 'cancelled'
-            ? 'cancelled'
-            : event.error?.code === JOB_ERROR_CODES.HANDLER_TIMEOUT
-              ? 'timeout'
-              : (failedMetadata?.code ?? 'failed')
-      const settled = application.get('DbService').withWriteTx((tx) =>
-        externalKnowledgeSourceService.settleSyncTx(tx, {
-          sourceId: event.input.sourceId,
-          expectedRevision: event.input.sourceRevision,
-          jobId: event.jobId,
-          finishedAt: dependencies.now(),
-          outcome,
-          indexedCount: summary.indexedCount,
-          unchangedCount: summary.unchangedCount,
-          skippedCount: summary.skippedCount,
-          warningCount: summary.warningCount,
-          errorSummary
-        })
-      )
-      if (settled) {
-        notifyExternalKnowledgeSourceChange(event.input.baseId, event.input.sourceId, 'projection')
-      }
+      settleExternalSourceSync(event, dependencies.now())
     }
   }
 }

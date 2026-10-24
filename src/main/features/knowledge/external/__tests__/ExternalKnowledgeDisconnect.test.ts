@@ -1,0 +1,456 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
+import { externalKnowledgeDocumentTable } from '@data/db/schemas/externalKnowledgeDocument'
+import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import type { DbOrTx } from '@data/db/types'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { JobManager } from '@main/core/job/JobManager'
+import { BaseService } from '@main/core/lifecycle/BaseService'
+import { ErrorCode } from '@shared/data/api/errors'
+import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
+
+const { cancelMock, enqueueTxMock, getJobMock, unregisterScheduleMock, notifyDataChangeMock } = vi.hoisted(() => ({
+  cancelMock: vi.fn(),
+  enqueueTxMock: vi.fn(),
+  getJobMock: vi.fn(),
+  unregisterScheduleMock: vi.fn(),
+  notifyDataChangeMock: vi.fn()
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    JobManager: {
+      cancel: cancelMock,
+      enqueueTx: enqueueTxMock,
+      get: getJobMock,
+      unregisterJobScheduleById: unregisterScheduleMock
+    }
+  })
+})
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
+
+const { createSyncExternalSourceJobHandler } = await import('../../tasks/syncExternalSourceJobHandler')
+const { ExternalKnowledgeDisconnect } = await import('../ExternalKnowledgeDisconnect')
+const { ExternalKnowledgeSourceLifecycle } = await import('../ExternalKnowledgeSourceLifecycle')
+
+const BASE_ID = '11111111-1111-4111-8111-111111111111'
+const CONNECTION_ID = '0198f3f2-7d10-7abc-8def-123456789abc'
+const SOURCE_ID = '0198f3f2-7d11-7abc-8def-123456789abc'
+const DOCUMENT_ID = '0198f3f2-7d12-7abc-8def-123456789abc'
+const UNAVAILABLE_DOCUMENT_ID = '0198f3f2-7d13-7abc-8def-123456789abc'
+const ITEM_ID = '0198f3f2-7d14-7abc-8def-123456789abc'
+const ACTIVE_JOB_ID = '0198f3f2-7d15-7abc-8def-123456789abc'
+const SCHEDULE_ID = '22222222-2222-4222-8222-222222222222'
+const DELETION_JOB_ID = '0198f3f2-7d16-7abc-8def-123456789abc'
+const REPLACEMENT_JOB_ID = '0198f3f2-7d17-7abc-8def-123456789abc'
+
+describe('ExternalKnowledgeDisconnect', () => {
+  const dbh = setupTestDatabase()
+
+  const seedSource = () => {
+    dbh.db
+      .insert(knowledgeBaseTable)
+      .values({
+        orderKey: 'a0',
+        id: BASE_ID,
+        name: 'Knowledge',
+        dimensions: null,
+        embeddingModelId: null,
+        status: 'completed',
+        error: null,
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+      .run()
+    dbh.db
+      .insert(externalKnowledgeConnectionTable)
+      .values({
+        id: CONNECTION_ID,
+        provider: 'feishu',
+        appId: 'cli_example',
+        appCredentialSource: 'personal-agent',
+        authorizationStatus: 'connected',
+        credentialReference: 'cred_example',
+        accountUserId: 'user-1',
+        accountOpenId: 'open-1',
+        tenantKey: 'tenant-1',
+        grantedScopes: ['wiki:node:read'],
+        authorizedAt: 100
+      })
+      .run()
+    dbh.db
+      .insert(jobScheduleTable)
+      .values({
+        id: SCHEDULE_ID,
+        type: 'knowledge.sync-external-source',
+        name: `external-source.${SOURCE_ID}`,
+        trigger: { kind: 'cron', expr: '0 9 * * *', timezone: 'Asia/Shanghai' },
+        jobInputTemplate: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 3, trigger: 'scheduled' },
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 },
+        enabled: true
+      })
+      .run()
+    dbh.db
+      .insert(jobTable)
+      .values({
+        id: ACTIVE_JOB_ID,
+        type: 'knowledge.sync-external-source',
+        status: 'pending',
+        queue: `base.${BASE_ID}`,
+        idempotencyKey: `knowledge:${BASE_ID}:external-source:${SOURCE_ID}:sync`,
+        scheduledAt: 100,
+        input: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 3, trigger: 'manual' }
+      })
+      .run()
+    dbh.db
+      .insert(externalKnowledgeSourceTable)
+      .values({
+        id: SOURCE_ID,
+        baseId: BASE_ID,
+        connectionId: CONNECTION_ID,
+        provider: 'feishu',
+        tenantId: 'tenant-1',
+        spaceId: 'space-1',
+        scope: { kind: 'space' },
+        name: 'Engineering Wiki',
+        state: 'active',
+        scheduleId: SCHEDULE_ID,
+        revision: 3,
+        activeJobId: ACTIVE_JOB_ID,
+        lastTrigger: 'manual',
+        lastStartedAt: 100
+      })
+      .run()
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({
+        id: ITEM_ID,
+        baseId: BASE_ID,
+        groupId: null,
+        type: 'external',
+        data: {
+          source: 'Feishu Wiki',
+          title: 'Architecture',
+          relativePath: KnowledgeRelativePathSchema.parse('external/architecture.md')
+        },
+        status: 'completed',
+        error: null
+      })
+      .run()
+    dbh.db
+      .insert(externalKnowledgeDocumentTable)
+      .values([
+        {
+          id: DOCUMENT_ID,
+          sourceId: SOURCE_ID,
+          remoteObjectId: 'doc-1',
+          title: 'Architecture',
+          originalUrl: 'https://example.feishu.cn/wiki/node-1',
+          remoteRevision: '1',
+          contentHash: 'hash-1',
+          lastSeenAt: 100,
+          availability: 'active',
+          knowledgeItemId: ITEM_ID,
+          currentWarning: null
+        },
+        {
+          id: UNAVAILABLE_DOCUMENT_ID,
+          sourceId: SOURCE_ID,
+          remoteObjectId: 'doc-2',
+          title: 'Unavailable',
+          originalUrl: 'https://example.feishu.cn/wiki/node-2',
+          remoteRevision: null,
+          contentHash: null,
+          lastSeenAt: 100,
+          availability: 'unavailable',
+          knowledgeItemId: null,
+          currentWarning: 'Unavailable'
+        }
+      ])
+      .run()
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    seedSource()
+    unregisterScheduleMock.mockImplementation(async (scheduleId: string) => {
+      const result = dbh.db.delete(jobScheduleTable).where(eq(jobScheduleTable.id, scheduleId)).run()
+      return result.changes > 0
+    })
+    const jobManager = new JobManager()
+    jobManager.registerHandler(
+      'knowledge.sync-external-source',
+      createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 200 })
+    )
+    cancelMock.mockImplementation(jobManager.cancel.bind(jobManager))
+    getJobMock.mockImplementation(async (jobId: string) =>
+      dbh.db.select().from(jobTable).where(eq(jobTable.id, jobId)).limit(1).get()
+    )
+    enqueueTxMock.mockImplementation((tx: DbOrTx, type: string, input: unknown, options: { queue: string }) => {
+      tx.insert(jobTable)
+        .values({
+          id: DELETION_JOB_ID,
+          type,
+          status: 'pending',
+          queue: options.queue,
+          scheduledAt: 200,
+          input
+        })
+        .run()
+      return { id: DELETION_JOB_ID, snapshot: {}, finished: Promise.resolve({}) }
+    })
+  })
+
+  it('preserves an in-flight disconnect while reauthorization commits', async () => {
+    const disconnect = new ExternalKnowledgeDisconnect(new KeyedMutex())
+    const lifecycle = new ExternalKnowledgeSourceLifecycle(
+      { requestSyncForTrigger: vi.fn() },
+      {
+        isDisconnecting: (id) => disconnect.isDisconnecting(id)
+      }
+    )
+    let finish!: () => void
+    const cancelled = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    cancelMock.mockImplementationOnce(async () => {
+      await cancelled
+      dbh.db.update(jobTable).set({ status: 'cancelled', finishedAt: 200 }).where(eq(jobTable.id, ACTIVE_JOB_ID)).run()
+      return { outcome: 'cancelled' }
+    })
+    const pending = disconnect.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })
+    await vi.waitFor(() => expect(dbh.db.select().from(externalKnowledgeSourceTable).get()?.state).toBe('paused'))
+    dbh.db
+      .update(externalKnowledgeConnectionTable)
+      .set({ authorizationStatus: 'reauthorization-required' })
+      .where(eq(externalKnowledgeConnectionTable.id, CONNECTION_ID))
+      .run()
+    const commit = lifecycle.commitReauthorization(CONNECTION_ID, {
+      expectedCredentialReference: 'cred_example',
+      candidateCredentialReference: 'replacement',
+      appId: 'cli_example',
+      appCredentialSource: 'personal-agent',
+      applicationName: null,
+      identity: {
+        accountUserId: 'user-1',
+        accountOpenId: 'open-1',
+        accountUnionId: null,
+        tenantKey: 'tenant-1',
+        displayName: 'User',
+        avatarUrl: null,
+        grantedScopes: ['wiki:node:read']
+      }
+    })
+    commit.afterCommit()
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({ state: 'paused', revision: 4 })
+    await expect(
+      lifecycle.updateSchedulePolicy({ sourceId: SOURCE_ID, policy: { kind: 'daily', time: '09:00', timezone: 'UTC' } })
+    ).rejects.toMatchObject({ code: ErrorCode.CONCURRENT_MODIFICATION })
+    finish()
+    await pending
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+    expect(dbh.db.select().from(jobScheduleTable).all()).toEqual([])
+    expect(disconnect.isDisconnecting(SOURCE_ID)).toBe(false)
+  })
+
+  it('keeps completed local content ownerless while deleting the source and every document record', async () => {
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
+
+    await service.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })
+
+    expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, ACTIVE_JOB_ID)).get()).toMatchObject({
+      status: 'cancelled'
+    })
+
+    expect(unregisterScheduleMock).toHaveBeenCalledWith(SCHEDULE_ID)
+    expect(cancelMock).toHaveBeenCalledWith(ACTIVE_JOB_ID, 'external-knowledge-source-disconnect')
+    expect(unregisterScheduleMock.mock.invocationCallOrder[0]).toBeLessThan(cancelMock.mock.invocationCallOrder[0])
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+    expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
+      id: ITEM_ID,
+      status: 'completed'
+    })
+    expect(dbh.db.select().from(externalKnowledgeConnectionTable).all()).toHaveLength(1)
+    expect(enqueueTxMock).not.toHaveBeenCalled()
+  })
+
+  it('durably marks owned content deleting and enqueues subtree cleanup before removing ownership', async () => {
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
+
+    await service.disconnect({ sourceId: SOURCE_ID, mode: 'remove-local' })
+
+    expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, ACTIVE_JOB_ID)).get()).toMatchObject({
+      status: 'cancelled'
+    })
+
+    expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
+      id: ITEM_ID,
+      status: 'deleting'
+    })
+    expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, DELETION_JOB_ID)).get()).toMatchObject({
+      type: 'knowledge.delete-subtree',
+      input: { baseId: BASE_ID, rootItemIds: [ITEM_ID] }
+    })
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeConnectionTable).all()).toHaveLength(1)
+  })
+
+  it('leaves the source untouched when schedule unregistering fails', async () => {
+    unregisterScheduleMock.mockResolvedValueOnce(false)
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
+
+    await expect(service.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+
+    expect(cancelMock).not.toHaveBeenCalled()
+    expect(
+      dbh.db.select().from(externalKnowledgeSourceTable).where(eq(externalKnowledgeSourceTable.id, SOURCE_ID)).get()
+    ).toMatchObject({ state: 'active', revision: 3, scheduleId: SCHEDULE_ID })
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(2)
+  })
+
+  it('stops destructive cleanup when active work cannot settle', async () => {
+    cancelMock.mockResolvedValueOnce({ outcome: 'timed-out' })
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
+
+    await expect(service.disconnect({ sourceId: SOURCE_ID, mode: 'remove-local' })).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+
+    expect(
+      dbh.db.select().from(externalKnowledgeSourceTable).where(eq(externalKnowledgeSourceTable.id, SOURCE_ID)).get()
+    ).toMatchObject({ state: 'paused', revision: 4, scheduleId: null, activeJobId: ACTIVE_JOB_ID })
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(2)
+    expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
+      status: 'completed'
+    })
+    expect(enqueueTxMock).not.toHaveBeenCalled()
+  })
+
+  describe.each(['keep-local', 'remove-local'] as const)('%s concurrent changes', (mode) => {
+    it.each(['revision', 'state', 'replacement-job'] as const)(
+      'rejects a changed %s after settlement',
+      async (change) => {
+        const cancel = cancelMock.getMockImplementation()!
+        cancelMock.mockImplementationOnce(async (jobId: string, reason: string) => {
+          const result = await cancel(jobId, reason)
+          expect(dbh.db.select().from(externalKnowledgeSourceTable).get()?.activeJobId).toBeNull()
+          if (change === 'replacement-job') {
+            dbh.db
+              .insert(jobTable)
+              .values({
+                id: REPLACEMENT_JOB_ID,
+                type: 'knowledge.sync-external-source',
+                status: 'pending',
+                queue: `base.${BASE_ID}`,
+                scheduledAt: 200,
+                input: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 4, trigger: 'manual' }
+              })
+              .run()
+          }
+          dbh.db
+            .update(externalKnowledgeSourceTable)
+            .set(
+              change === 'revision'
+                ? { revision: 5 }
+                : change === 'state'
+                  ? { state: 'active' }
+                  : { activeJobId: REPLACEMENT_JOB_ID }
+            )
+            .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+            .run()
+          return result
+        })
+        const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
+
+        await expect(service.disconnect({ sourceId: SOURCE_ID, mode })).rejects.toMatchObject({
+          code: ErrorCode.CONCURRENT_MODIFICATION
+        })
+
+        expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toMatchObject([
+          { activeJobId: change === 'replacement-job' ? REPLACEMENT_JOB_ID : null }
+        ])
+        expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(2)
+        expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, DELETION_JOB_ID)).get()).toBeUndefined()
+        if (change === 'replacement-job') {
+          expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, REPLACEMENT_JOB_ID)).get()).toMatchObject({
+            status: 'pending'
+          })
+        }
+        expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
+          status: 'completed'
+        })
+      }
+    )
+  })
+
+  it('never awaits active job cancellation while holding the base mutex', async () => {
+    let lockHeld = false
+    const lockManager = {
+      runExclusive: vi.fn(async (_key: string, task: () => unknown) => {
+        lockHeld = true
+        try {
+          return await task()
+        } finally {
+          lockHeld = false
+        }
+      })
+    } as unknown as KeyedMutex
+    cancelMock.mockImplementationOnce(async () => {
+      expect(lockHeld).toBe(false)
+      return { outcome: 'cancelled' }
+    })
+    const service = new ExternalKnowledgeDisconnect(lockManager)
+
+    await service.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })
+
+    expect(lockManager.runExclusive).toHaveBeenCalledTimes(2)
+  })
+
+  it('unregisters base schedules without deleting canonical source or document rows', async () => {
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
+
+    const sourceIds = await service.prepareExternalSourcesForBaseDeletion(BASE_ID)
+
+    expect(unregisterScheduleMock).toHaveBeenCalledWith(SCHEDULE_ID)
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toMatchObject([
+      { id: SOURCE_ID, scheduleId: null }
+    ])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(2)
+    expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
+      id: ITEM_ID,
+      status: 'completed'
+    })
+    expect(dbh.db.select().from(externalKnowledgeConnectionTable).all()).toHaveLength(1)
+    expect(cancelMock).not.toHaveBeenCalled()
+    expect(sourceIds).toEqual([SOURCE_ID])
+
+    service.notifyExternalSourcesDeleted(BASE_ID, sourceIds)
+    expect(notifyDataChangeMock).toHaveBeenCalled()
+  })
+
+  it('keeps base sources and documents when schedule cleanup fails', async () => {
+    unregisterScheduleMock.mockResolvedValueOnce(false)
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
+
+    await expect(service.prepareExternalSourcesForBaseDeletion(BASE_ID)).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(2)
+    expect(dbh.db.select().from(externalKnowledgeConnectionTable).all()).toHaveLength(1)
+  })
+})

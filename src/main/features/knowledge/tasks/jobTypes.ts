@@ -37,6 +37,8 @@ declare module '@main/core/job/jobRegistry' {
       sourceId: string
       sourceRevision: number
       trigger: 'initial' | 'manual' | 'scheduled' | 'startup'
+      /** Schedule-owned dispatch envelope; omitted for provider-work jobs. */
+      dispatch?: 'schedule'
     }
   }
 }

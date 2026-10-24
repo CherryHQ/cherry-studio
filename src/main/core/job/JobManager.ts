@@ -2318,7 +2318,8 @@ export class JobManager extends BaseService {
         const scheduledAt = nowMs + action.enqueueDelayMs
         this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
           scheduleId: schedule.id,
-          scheduledAt
+          scheduledAt,
+          metadata: { scheduleTrigger: 'startup' }
         })
         logger.info('Catch-up enqueued', { scheduleId: schedule.id, type: schedule.type, scheduledAt })
       }

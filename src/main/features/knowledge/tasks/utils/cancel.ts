@@ -1,15 +1,26 @@
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-import { ACTIVE_JOB_STATUSES, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { ACTIVE_JOB_STATUSES, isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_JOB_TYPES, knowledgeQueueName, toKnowledgeBaseId } from '../../types'
 import { narrowKnowledgeJobInput } from './jobInput'
 
-export async function cancelJobOrThrow(jobId: string, reason: string): Promise<void> {
-  const result = await application.get('JobManager').cancel(jobId, reason)
+export async function cancelJobAndConfirmStopped(jobId: string, reason: string): Promise<void> {
+  const jobManager = application.get('JobManager')
+  const result = await jobManager.cancel(jobId, reason)
   if (result.outcome === 'timed-out') {
     throw new Error(`Job cancel timed out: ${jobId}`)
   }
+  if (result.outcome === 'not-cancellable') {
+    const job = await jobManager.get(jobId)
+    if (job && !isTerminalStatus(job.status)) {
+      throw new Error(`Job is still active after cancellation: ${jobId} (${job.status})`)
+    }
+  }
+}
+
+export async function cancelJobOrThrow(jobId: string, reason: string): Promise<void> {
+  await cancelJobAndConfirmStopped(jobId, reason)
 }
 
 export interface CancelActiveKnowledgeJobsOptions {
@@ -22,10 +33,11 @@ export interface CancelActiveKnowledgeJobsOptions {
   excludeJobId?: string
   /** Exclude job types whose handlers can safely converge under the base lock. */
   excludeJobTypes?: readonly (typeof KNOWLEDGE_JOB_TYPES)[number][]
-  /** 'throw': `cancelJobOrThrow` semantics — a cancel timeout throws, because subtree
+  /** 'throw': strict cancellation confirmation — a timeout or a non-terminal re-read
+   *  throws, because subtree
    *  cleanup cannot proceed while the handler it is racing is still running.
-   *  'proceed': cancel without checking outcome — base deletion must not get stuck on
-   *  one slow-to-cancel job. */
+   *  'proceed': best-effort cancellation for callers that do not perform destructive
+   *  work after this function returns. */
   onCancelTimeout: 'throw' | 'proceed'
 }
 
@@ -58,7 +70,7 @@ export async function cancelActiveKnowledgeJobs(
   const queue = knowledgeQueueName(toKnowledgeBaseId(baseId))
   const cancelOne: (jobId: string) => Promise<unknown> =
     onCancelTimeout === 'throw'
-      ? (jobId) => cancelJobOrThrow(jobId, reason)
+      ? (jobId) => cancelJobAndConfirmStopped(jobId, reason)
       : (jobId) => jobManager.cancel(jobId, reason)
 
   const collectAndCancel = async (activeJobs: JobSnapshot[]): Promise<void> => {

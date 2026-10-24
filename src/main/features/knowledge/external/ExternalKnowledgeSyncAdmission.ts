@@ -30,6 +30,7 @@ type ScopeRuntime = {
 type AdmissionDependencies = {
   now(): number
   assertOpen(): void
+  assertBaseAvailable(baseId: string): void
 }
 
 export type ExternalKnowledgeAdmissionErrorCode = 'source-conflict' | 'target-unavailable'
@@ -57,8 +58,10 @@ export class ExternalKnowledgeSyncAdmission {
       throw DataApiErrorFactory.validation({ name: ['Name must not be blank'] })
     }
     this.dependencies.assertOpen()
+    this.dependencies.assertBaseAvailable(input.baseId)
     const resolution = await this.runtime.resolveFeishuScope(input.connectionId, input.url)
     this.dependencies.assertOpen()
+    this.dependencies.assertBaseAvailable(input.baseId)
     const dbService = application.get('DbService')
     let sourceId: string
     try {
@@ -104,12 +107,20 @@ export class ExternalKnowledgeSyncAdmission {
   }
 
   async requestSync(input: RequestExternalKnowledgeSourceSyncCommand): Promise<ExternalKnowledgeSource> {
+    return this.requestSyncForTrigger(input, 'manual')
+  }
+
+  async requestSyncForTrigger(
+    input: RequestExternalKnowledgeSourceSyncCommand,
+    trigger: Exclude<ExternalKnowledgeSyncTrigger, 'initial'>
+  ): Promise<ExternalKnowledgeSource> {
     this.dependencies.assertOpen()
     const changed = application.get('DbService').withWriteTx((tx) => {
       const source = externalKnowledgeSourceService.getByIdTx(tx, input.sourceId)
       if (!source) throw DataApiErrorFactory.notFound('ExternalKnowledgeSource', input.sourceId)
+      this.dependencies.assertBaseAvailable(source.baseId)
       this.assertSourceCanSync(source)
-      return this.enqueueSyncTx(tx, source, 'manual')
+      return this.enqueueSyncTx(tx, source, trigger)
     })
 
     const source = externalKnowledgeSourceService.getById(input.sourceId)
