@@ -12,7 +12,7 @@ Ollama 通过 `/api/show` 声明模型特有的思考控制，但模型发现只
 
 模型发现将支持的原生取值转换为模型固有的思考控制。模型创建和更新通过现有 reasoning JSON 列保留这些控制。原生 Ollama 的模型读取和请求时解析优先使用已保存的控制，再考虑目录推断；仅声明 `false` 的模型使用显式空控制。请求时解析仍保留目录的协议配置。其他端点格式保留现有的目录优先级。
 
-Ollama 预设默认使用 `ollama-chat`。即使服务商选择了其他默认端点，明确指定原生接口的模型也使用该端点投影思考配置。
+Ollama 预设默认使用 `ollama-chat`。投影思考和请求控制时，模型保存的第一个端点优先于服务商和目录的默认值。选择非原生端点时，原生档位仍保存在数据库中，但由当前端点决定展示哪些选项。切回原生端点后会恢复原生档位。
 
 获取模型操作通过模型批量 API 更新已有记录，仅改变思考元数据及其能力标记。缺少元数据不会清空已保存的控制。即使原生元数据当前与目录相同，也会保存下来。SDK 补丁接受布尔值或字符串形式的 `think`；应用封闭的思考取值集合决定哪些命名档位可供选择。
 
@@ -32,5 +32,5 @@ Ollama 预设默认使用 `ollama-chat`。即使服务商选择了其他默认�
 - Regression — `ModelService.test.ts`：自定义、可识别和预设记录在读取与更新时保留原生控制，并保留其他用户设置。
 - Regression — `modelSync.test.ts` 和 `useProviderModelPullReconcile.test.ts`：目录补全和创建保留原生选项；缺少元数据和未变化的投影不会覆盖已保存的配置。
 - Regression — `ollama.chatReasoning.test.ts`：SDK 的流式和非流式请求原样发送 `false`、`low`、`medium` 和 `xhigh`，默认选项省略 `think`。
-- Regression — `ollamaReasoning.integration.test.ts`：模型发现、持久化和请求构建在目录仅声明开关控制时仍保留 Nemotron 原生的 `medium`；SDK 的流式和非流式请求体发送 `false`、`true` 和 `medium`，默认选项省略 `think`。
+- Regression — `ollamaReasoning.integration.test.ts`：模型发现、持久化和请求构建在目录仅声明开关控制时仍保留 Nemotron 原生的 `medium`；SDK 的流式和非流式请求体发送 `false`、`true` 和 `medium`，默认选项省略 `think`。保存为 Anthropic 优先的端点时展示目录开关选项；切回 Ollama 优先后恢复原生 `medium` 并原样发送。
 - Regression — Electron 搭配 Ollama 0.34.3 和 `qwen3.8:27b`：获取模型会刷新已保存的控制并保留自定义上下文长度；界面选择发送各原生取值，默认选项省略参数；关闭思考时完成真实的 `OK` 回复。其他选项在抓取请求后取消。应用重启后，思考控制和自定义上下文长度仍然保留。

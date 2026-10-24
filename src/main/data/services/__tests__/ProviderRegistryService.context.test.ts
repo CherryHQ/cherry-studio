@@ -106,6 +106,17 @@ describe('ProviderRegistryService explicit provider context', () => {
     expect(result.serviceTierControl).toBeUndefined()
   })
 
+  it('uses a saved model endpoint ahead of catalog endpoints and the provider default', () => {
+    const result = providerRegistryService.resolveModel(
+      { id: 'relay', presetProviderId: 'groq', defaultChatEndpoint: 'openai-chat-completions' },
+      'gpt-oss-120b',
+      'anthropic-messages'
+    )
+
+    expect(result.reasoningProfile.format).toBe('anthropic')
+    expect(result.serviceTierControl).toBeUndefined()
+  })
+
   it('resolves caller-owned provider changes inside a transaction without falling back to global DB', () => {
     vi.spyOn(application.get('DbService'), 'getDb').mockImplementation(() => {
       throw new Error('Database is not initialized')

@@ -23,7 +23,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -34,7 +34,11 @@ const { resolveModelMock } = vi.hoisted(() => ({
   // Default to no registry match; individual cases supply the preset contract
   // needed to verify stored overrides and resolved model behavior.
   resolveModelMock: vi.fn<
-    (providerContext: ProviderRegistryServiceModule.ReasoningProviderContext, modelId: string) => any
+    (
+      providerContext: ProviderRegistryServiceModule.ReasoningProviderContext,
+      modelId: string,
+      endpointType?: EndpointType
+    ) => any
   >(() => ({
     presetModel: null,
     registryOverride: null,
@@ -160,11 +164,11 @@ describe('Ollama discovered reasoning persistence', () => {
         reasoning
       })
     )
-    resolveModelMock.mockImplementation((context) => ({
+    resolveModelMock.mockImplementation((context, _modelId, endpointType) => ({
       presetModel: null,
       registryOverride: null,
       reasoningProfile:
-        context.defaultChatEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT
+        (endpointType ?? context.defaultChatEndpoint) === ENDPOINT_TYPE.OLLAMA_CHAT
           ? OLLAMA_REASONING_PROFILE
           : { format: 'anthropic', wire: { disabled: true } }
     }))

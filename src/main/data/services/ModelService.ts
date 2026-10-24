@@ -49,7 +49,7 @@ import type {
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -727,14 +727,10 @@ class ModelService {
     return rows.flatMap((row) => {
       const context = providerContexts.get(row.providerId)
       if (!context) return []
-      const providerContext =
-        row.endpointTypes?.[0] === ENDPOINT_TYPE.OLLAMA_CHAT
-          ? { ...context, defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT }
-          : context
       if (row.presetModelId) {
         try {
           const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-            providerRegistryService.resolveModel(providerContext, row.modelId)
+            providerRegistryService.resolveModel(context, row.modelId, row.endpointTypes?.[0])
           if (providerModel) {
             return {
               ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row, reasoningProfile), row),
@@ -771,7 +767,7 @@ class ModelService {
       if (!modelId) return model
       try {
         const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-          providerRegistryService.resolveModel(providerContext, modelId)
+          providerRegistryService.resolveModel(context, modelId, row.endpointTypes?.[0])
         if (providerModel) {
           return {
             ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row, reasoningProfile), row),
