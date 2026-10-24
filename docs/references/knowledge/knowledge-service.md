@@ -221,8 +221,11 @@ Current persisted `knowledge_base` columns include:
   `missing_embedding_model` or `missing_vector_store`.
 
 For a completed BM25-only base, `knowledge.enable_embedding_model` sets the
-first embedding model and dimensions in place, then reindexes all non-deleting
-roots to backfill vectors. Changing a base that already has an embedding model
+first embedding model and dimensions in place and, in the same transaction,
+moves every `completed` leaf back to `processing`; `failed` leaves are left as
+they are. It then schedules each of those leaves' regular indexing job, which
+reads the base's own copy to backfill vectors
+(see [operation guards](./operation-guards.md#enableembeddingmodel)). Changing a base that already has an embedding model
 is rejected by this path; that operation uses `restore_base` because the
 existing vector contract must be rebuilt in a new base.
 

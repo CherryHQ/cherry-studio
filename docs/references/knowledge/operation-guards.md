@@ -226,9 +226,9 @@ The reindex job owns the destructive and stateful work:
 - reset subtree item state;
 - call `scheduleItem` for each selected root.
 
-Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows. The cost is on restart: the jobs use `recovery: 'abandon'`, so a root whose job is still queued when the app quits is cancelled untouched. It keeps its old index, so a refresh simply does not happen, but an embedding backfill leaves that item `completed` without vectors. `main` has the same gap until its single backfill job reaches its lock section (#22365); per-root jobs widen it to the whole time a backfill's jobs are queued.
+Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows. The cost is on restart: the jobs use `recovery: 'abandon'`, so a root whose job is still queued when the app quits is cancelled untouched. It keeps its old index, so a refresh simply does not happen.
 
-One job per root matters because delete and `replace` cancel every job whose roots touch the subtree they remove. Roots sharing one job, such as the whole base when an embedding model is first enabled, would all be interrupted by a delete of any one of them, and the ones already activated would end up `failed`.
+One job per root matters because delete and `replace` cancel every job whose roots touch the subtree they remove. Roots sharing one job would all be interrupted by a delete of any one of them, and the ones already activated would end up `failed`.
 
 ### Delete Wins Reindex Races
 
@@ -259,15 +259,38 @@ Leaf indexing reads from the current `knowledge_item.data` and rewrites derived 
 ## `enableEmbeddingModel`
 
 This operation is only for a completed BM25-only base that has no embedding
-model. It first applies the same terminal-subtree and source-availability checks
-as reindex. It then persists the model/dimensions through
-`KnowledgeBaseService.update(..., { allowEmbeddingModelBackfill: true })` and
-enqueues reindex for every non-deleting root.
+model. It first requires every non-deleting root subtree to be `completed` or
+`failed`, like reindex, but it does not check whether the items' originals still
+exist: the backfill never reads them.
+
+It also rejects while any `knowledge.reindex-subtree` job of the base is pending
+or running. That check runs under the base mutation lock, just before the write
+transaction. A refresh keeps its items `completed` until its job resets them,
+so statuses alone cannot show it. A backfill admitted beside it could index the
+old copy over the refreshed one, and the refresh would then skip the item as
+already `completed`.
+
+Under the base mutation lock, one write transaction persists the
+model/dimensions through `KnowledgeBaseService.updateTx(..., { allowEmbeddingModelBackfill: true })`
+and moves every `completed` leaf to `processing` (`activateCompletedLeavesTx`),
+rolling their containers up to `processing`. Either both commit or neither does,
+so no leaf reads as `completed` without vectors. `failed` leaves keep their
+status and error: search never returns them, and any later reindex indexes them
+with the model. A failed URL may also have no snapshot, and scheduling it would
+fetch the page.
+After the lock, each activated leaf goes through `scheduleItem` like a newly
+added item: its own `knowledge.index-documents` job reads the `raw/` file, its
+pinned processed artifact, or the captured URL/note snapshot, and
+`rebuildMaterial` replaces the BM25-only material. A leaf whose scheduling
+throws is marked `failed` with the reason; the others are still scheduled.
+
+Recovery is the indexing jobs' own: they use `recovery: 'abandon'`, so after a
+quit the boot sweep fails every leaf still in flight with `indexing_interrupted`,
+while leaves that already finished stay `completed`.
 
 It cannot switch an already-configured embedding model; that remains a restore
 operation because existing vectors were built under a different contract. If
-the base has no roots, only the configuration changes and no reindex job is
-needed.
+the base has no items, only the configuration changes.
 
 ## `prepare-root`
 
@@ -317,7 +340,7 @@ When changing these operations, check the operation-specific failure behavior be
 | `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
 | `reindexItems` | Reject | Yes | Entire subtree terminal; selected root sources available | None | Throw; no active state was written |
-| `enableEmbeddingModel` | Reject | All non-deleting roots | BM25-only base; same reindex admission checks | Model/dimensions committed before reindex enqueue | Propagate the reindex enqueue error; config remains enabled |
+| `enableEmbeddingModel` | Reject | All `completed` leaves | BM25-only base; every root subtree terminal (no source check); no active reindex job | Model/dimensions and every `completed` leaf's `processing` in one transaction | Mark that leaf `failed`; schedule the rest; config remains enabled |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

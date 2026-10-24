@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
@@ -303,10 +304,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    * update` still rejects switching an already-configured model this way; that case
    * keeps going through `restoreBase` because it does invalidate existing vectors.
    *
-   * Runs the same admission checks `reindexItems` would run, but before committing the
-   * model — a base whose backfill is doomed (missing source, subtree still running, ...)
-   * must never end up with a model set and no vectors to back it, since there is nothing
-   * to roll back to once it is committed.
+   * The model and every `completed` leaf's move back to `processing` commit in one transaction, so
+   * no leaf reads as `completed` without vectors, even after a quit. Each leaf is then indexed by
+   * its own regular job from the base's own copy; nothing is re-acquired from the originals.
+   * `failed` leaves are left alone: they are not searchable, and any later reindex embeds them.
    */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
@@ -314,16 +315,60 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     if (rootItemIds.length > 0) {
       assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
-      await this.assertSubtreesCanReindex(baseId, rootItemIds)
+      this.assertSubtreesSettled(knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true }))
     }
 
-    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+    const { updatedBase, leafItemIds } = await this.knowledgeLockManager.runExclusive(baseId, async () => {
+      await this.assertNoReindexPending(baseId)
+      return application.get('DbService').withWriteTx((tx) => ({
+        updatedBase: knowledgeBaseService.updateTx(tx, baseId, patch, { allowEmbeddingModelBackfill: true }),
+        leafItemIds: knowledgeItemService.activateCompletedLeavesTx(tx, baseId)
+      }))
+    })
 
-    if (rootItemIds.length > 0) {
-      await this.reindexItems(baseId, rootItemIds)
-    }
-
+    await this.scheduleBackfillLeaves(baseId, leafItemIds)
     return updatedBase
+  }
+
+  /**
+   * A queued or still-copying reindex leaves its items `completed`, so only its job shows it is
+   * pending; a backfill admitted next to it would index the old copy over the refreshed one.
+   */
+  private async assertNoReindexPending(baseId: string): Promise<void> {
+    const [reindexJob] = await application.get('JobManager').list({
+      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+      type: 'knowledge.reindex-subtree',
+      status: [...ACTIVE_JOB_STATUSES],
+      limit: 1
+    })
+    if (reindexJob) {
+      throw DataApiErrorFactory.validation(
+        { base: [`Knowledge base '${baseId}' has a reindex in progress`] },
+        'Cannot enable an embedding model until the reindex finishes'
+      )
+    }
+  }
+
+  /** Give each activated leaf its own indexing job; a leaf that cannot be scheduled fails on its own. */
+  private async scheduleBackfillLeaves(baseId: string, leafItemIds: string[]): Promise<void> {
+    for (const itemId of leafItemIds) {
+      try {
+        await this.scheduleItem(toKnowledgeBaseId(baseId), toKnowledgeItemId(itemId))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error(
+          'Failed to schedule embedding backfill for knowledge item',
+          error instanceof Error ? error : new Error(message),
+          {
+            baseId,
+            itemId
+          }
+        )
+        knowledgeItemService.setSubtreeStatus(baseId, [itemId], 'failed', {
+          error: `Failed to schedule knowledge item job: ${message}`
+        })
+      }
+    }
   }
 
   async scheduleItem(
@@ -572,14 +617,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
     })
 
-    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
-    for (const item of subtreeItems) {
-      if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
-        continue
-      }
-      blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
-    }
-
     if (missingSourceItemIds.length > 0) {
       throw DataApiErrorFactory.validation(
         {
@@ -596,6 +633,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         },
         'Could not verify the knowledge item source (it may be temporarily unavailable); please try again'
       )
+    }
+
+    this.assertSubtreesSettled(subtreeItems)
+  }
+
+  /** Reject while any item of the given subtrees is still running or being deleted. */
+  private assertSubtreesSettled(subtreeItems: KnowledgeItem[]): void {
+    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
+    for (const item of subtreeItems) {
+      if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
+        continue
+      }
+      blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
     }
 
     if (blockingStatusCounts.size === 0) {

@@ -481,6 +481,39 @@ export class KnowledgeItemService {
     return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
   }
 
+  /**
+   * Move every `completed` leaf of a base back to `processing` on the caller's transaction and roll
+   * their containers up, so the leaves read as unfinished until each is indexed again.
+   *
+   * @returns The activated leaf ids, oldest first.
+   */
+  activateCompletedLeavesTx(tx: DbOrTx, baseId: string): string[] {
+    const rows = tx
+      .update(knowledgeItemTable)
+      .set({ status: 'processing' })
+      .where(
+        and(
+          eq(knowledgeItemTable.baseId, baseId),
+          ne(knowledgeItemTable.type, 'directory'),
+          eq(knowledgeItemTable.status, 'completed')
+        )
+      )
+      .returning({
+        id: knowledgeItemTable.id,
+        groupId: knowledgeItemTable.groupId,
+        createdAt: knowledgeItemTable.createdAt
+      })
+      .all()
+    this.reconcileContainersTx(
+      tx,
+      baseId,
+      rows.map((row) => row.groupId)
+    )
+    return rows
+      .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
+      .map((row) => row.id)
+  }
+
   setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting'): string[] {
     return this.applySubtreeStatusTx(tx, baseId, rootIds, status)
   }
