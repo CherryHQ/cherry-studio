@@ -1178,6 +1178,27 @@ describe('PiRuntimeConnection', () => {
     expect((await collectUntilTerminal(conn.events)).some((event) => event.type === 'usage')).toBe(false)
   })
 
+  it('reports configured cap and final provider output on truncation (#22331)', async () => {
+    const injection = await mocks.resolveInjection()
+    injection.providerConfig.models = [{ id: 'm', maxTokens: 8192 }]
+    mocks.resolveInjection.mockResolvedValue(injection)
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.subscribeCb!({
+      type: 'turn_end',
+      message: { role: 'assistant', stopReason: 'length', usage: { output: 8192, reasoning: 7000 } },
+      toolResults: []
+    } as unknown as AgentSessionEvent)
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    const events = await collectUntilTerminal(conn.events)
+    const failure = events.find(
+      (event): event is Extract<AgentRuntimeEvent, { type: 'error' }> => event.type === 'error'
+    )
+    expect(String(failure?.error)).toContain('Configured maximum output: 8192 tokens')
+    expect(String(failure?.error)).toContain('provider-reported output tokens: 8192')
+    expect(String(failure?.error)).toContain('provider-reported reasoning tokens: 7000')
+    expect(mocks.prompt).not.toHaveBeenCalled()
+  })
+
   it('send routes normal messages to prompt', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     conn.send(userInput('hello'))
