@@ -90,6 +90,12 @@ export function healthCheckErrorToDisplayString(error: SerializedError | string 
   if (msg) {
     return msg
   }
+  if (typeof error.i18nKey === 'string') {
+    const key = `error.${error.i18nKey}`
+    if (i18n.exists(key)) {
+      return i18n.t(key)
+    }
+  }
   const name = error.name?.trim()
   if (name) {
     return name
