@@ -1,14 +1,18 @@
 import { application } from '@application'
 import { BlockAdsSchema } from '@main/ai/mcp/browserToolDefinitions'
-import { hostnameMatchesDomain, normalizeDomain } from '@main/services/adblock'
+import { isAllowedScope, normalizeDomain } from '@main/services/adblock'
 
 import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
 /** Host of the page the controller is looking at, or `undefined` when it has no http(s) page. */
-async function currentHostname(controller: BrowserController): Promise<string | undefined> {
-  const { session } = await controller.getSession()
+async function currentHostname(
+  controller: BrowserController,
+  privateMode: boolean | undefined,
+  tabId: string | undefined
+): Promise<string | undefined> {
+  const { session } = await controller.getSession(privateMode, tabId)
   const url = session.guest.getURL()
   if (!/^https?:/i.test(url)) return undefined
   try {
@@ -34,13 +38,13 @@ export async function handleBlockAds(controller: BrowserController, args: unknow
     if (!service.isAiRuleWritingEnabled()) {
       return errorResponse('AI ad rules are turned off in Settings → Browser.')
     }
-    const onPage = await currentHostname(controller)
+    const onPage = await currentHostname(controller, input.privateMode, input.tabId)
     if (!onPage) {
       return errorResponse('The current browser tab has no http(s) page to scope the rule to.')
     }
     const domain = normalizeDomain(input.domain)
-    if (!hostnameMatchesDomain(onPage, domain)) {
-      return errorResponse(`Domain ${domain} does not cover the current page (${onPage}).`)
+    if (!isAllowedScope(onPage, domain)) {
+      return errorResponse(`Domain ${domain} is not the current page (${onPage}) or its registrable domain.`)
     }
     const result = await service.addCustomRule({
       domain,

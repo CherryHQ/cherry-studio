@@ -225,6 +225,24 @@ describe('AdblockService', () => {
     await (service as unknown as { onStop: () => Promise<void> }).onStop()
   })
 
+  it('emits one CSS block per selector so one bad entry cannot discard the rest', async () => {
+    const service = await startService()
+    await service.addCustomRule({
+      domain: 'example.com',
+      kind: 'cosmetic',
+      value: '.good, .also-good',
+      source: 'ai'
+    })
+    const css = (service as unknown as { customCssFor: (url: string) => string }).customCssFor(
+      'https://www.example.com/page'
+    )
+
+    expect(css).toContain('.good {')
+    expect(css).toContain('.also-good {')
+    expect(css).not.toContain('.good,')
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+  })
+
   it('removes the tracked stylesheet when its cosmetic rule is disabled', async () => {
     const service = await startService()
     const { rule } = await service.addCustomRule({

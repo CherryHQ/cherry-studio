@@ -134,7 +134,17 @@ describe('block_ads tool', () => {
     const result = await handleBlockAds(controller, { domain: 'other.com', css: '.ad' })
 
     expect(result.isError).toBe(true)
-    expect(textOf(result)).toContain('does not cover the current page')
+    expect(textOf(result)).toContain('not the current page')
+    expect(addCustomRule).not.toHaveBeenCalled()
+  })
+
+  it('refuses a public suffix as the rule scope', async () => {
+    const result = await handleBlockAds(controllerFor('https://merchant.co.uk/page'), {
+      domain: 'co.uk',
+      css: '.promo'
+    })
+
+    expect(result.isError).toBe(true)
     expect(addCustomRule).not.toHaveBeenCalled()
   })
 
@@ -143,6 +153,62 @@ describe('block_ads tool', () => {
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('no http(s) page')
+    expect(addCustomRule).not.toHaveBeenCalled()
+  })
+
+  it('forwards a private or non-active tab instead of the active normal tab', async () => {
+    const getSession = vi.fn(async () => ({
+      tabId: 'private-tab',
+      session: { guest: { getURL: () => 'https://private.example.net/page' } }
+    }))
+    addCustomRule.mockResolvedValue({
+      existing: false,
+      rule: {
+        id: 'rule-3',
+        domain: 'private.example.net',
+        kind: 'cosmetic',
+        value: '.ad',
+        note: '',
+        source: 'ai',
+        enabled: true,
+        createdAt: 1
+      }
+    })
+
+    const result = await handleBlockAds({ getSession } as unknown as BrowserController, {
+      domain: 'private.example.net',
+      css: '.ad',
+      privateMode: true,
+      tabId: 'private-tab'
+    })
+
+    expect(getSession).toHaveBeenCalledWith(true, 'private-tab')
+    expect(result.isError).toBe(false)
+    expect(addCustomRule).toHaveBeenCalledWith({
+      domain: 'private.example.net',
+      kind: 'cosmetic',
+      value: '.ad',
+      note: undefined,
+      source: 'ai'
+    })
+  })
+
+  it('still rejects a public suffix on the observed private tab', async () => {
+    const getSession = vi.fn(async () => ({
+      tabId: 'private-tab',
+      session: { guest: { getURL: () => 'https://merchant.co.uk/page' } }
+    }))
+
+    const result = await handleBlockAds({ getSession } as unknown as BrowserController, {
+      domain: 'co.uk',
+      css: '.promo',
+      privateMode: true,
+      tabId: 'private-tab'
+    })
+
+    expect(getSession).toHaveBeenCalledWith(true, 'private-tab')
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('Invalid domain')
     expect(addCustomRule).not.toHaveBeenCalled()
   })
 })
