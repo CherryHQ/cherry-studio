@@ -29,6 +29,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
 import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -202,6 +203,24 @@ describe('MessageService', () => {
       .insert(fileEntryTable)
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
+
+  it('round-trips a marker-only successful handoff through SQLite without changing genuine historical empties', () => {
+    const topic = topicService.create({ name: 'marker handoff' })
+    const assistant = messageService.create(topic.id, { role: 'assistant', data: mainText(''), status: 'pending' })
+    messageService.finalizeAssistantMessage(assistant.id, {
+      data: { parts: [{ type: 'step-start' }, { type: 'data-steer-handoff', data: {} }] },
+      status: 'success'
+    })
+    const reloaded = messageService.getById(assistant.id)
+    expect(reloaded.status).toBe('success')
+    expect(reloaded.data.parts).toEqual([{ type: 'step-start' }, { type: 'data-steer-handoff', data: {} }])
+    const historical = messageService.create(topic.id, {
+      role: 'assistant',
+      data: { parts: [{ type: 'step-start' }] },
+      status: 'success'
+    })
+    expect(messageService.getById(historical.id).data.parts).toEqual([{ type: 'step-start' }])
+  })
 
   describe('trashed Topic message addressability', () => {
     const topicId = 'topic-message-gate'
@@ -600,6 +619,22 @@ describe('MessageService', () => {
       expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(Date.parse(before.updatedAt))
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
+    })
+
+    it('allows in-place retry when only a no-response dismissal marker remains', async () => {
+      await seedMultiModelTree()
+      dbh.db
+        .update(messageTable)
+        .set({
+          data: { parts: [createDismissedNoResponsePart()], modelSelection: 'explicit' },
+          status: 'success'
+        })
+        .where(eq(messageTable.id, 'm-a1'))
+        .run()
+
+      const reset = messageService.resetAssistantForRetry('m-a1')
+      expect(reset.status).toBe('pending')
+      expect(reset.data.parts).toEqual([])
     })
   })
 
@@ -1893,6 +1928,42 @@ describe('MessageService', () => {
 
       expect(updated.data.parts).toEqual(mainText('edited').parts)
       expect(updated.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
+    })
+
+    it('applies a parts update when expectedParts matches the stored parts', async () => {
+      const topicId = 'topic-expected-parts-match'
+      await seedTopicWithRoot(topicId)
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: mainText('before'),
+        status: 'error'
+      })
+
+      const updated = messageService.update(message.id, {
+        data: mainText('after'),
+        expectedParts: mainText('before').parts
+      })
+
+      expect(updated.data.parts).toEqual(mainText('after').parts)
+    })
+
+    it('rejects a parts update when expectedParts no longer matches', async () => {
+      const topicId = 'topic-expected-parts-conflict'
+      await seedTopicWithRoot(topicId)
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: mainText('before'),
+        status: 'error'
+      })
+      messageService.update(message.id, { data: mainText('retry answer') })
+
+      expect(() =>
+        messageService.update(message.id, {
+          data: mainText('dismissed'),
+          expectedParts: mainText('before').parts
+        })
+      ).toThrowError(expect.objectContaining({ code: ErrorCode.CONCURRENT_MODIFICATION }))
+      expect(messageService.getById(message.id).data.parts).toEqual(mainText('retry answer').parts)
     })
   })
 

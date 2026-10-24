@@ -135,6 +135,15 @@ export interface AiStreamRequest extends AiChatRequest {
   retainedContext?: RetainedContext
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
   /**
+   * Terminal policy for turns that complete with no renderable content.
+   * The API gateway sets this: its external clients own caller-defined tool
+   * namespaces the Cherry renderer has no card for. Mini-app chat sets this
+   * as well: its contract resolves `{ok:true}` whenever the stream ends and
+   * only text deltas reach the guest. Ordinary chat leaves it unset and such
+   * turns become a `NoResponseError`.
+   */
+  allowEmptySuccess?: boolean
+  /**
    * Attribution for callers with no assistant to derive it from. Neutral on purpose:
    * `usageContext` identifies a trusted agent turn; reusing it for source
    * attribution would misclassify a mini app's call as an agent turn.

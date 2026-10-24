@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
+import { DISMISSED_NO_RESPONSE_PART_TYPE } from '@shared/data/types/uiParts'
 
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
@@ -144,6 +145,34 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
     }
   })
   return out ?? messages
+}
+
+/**
+ * Drop UI-only no-response and successful-handoff markers before conversion.
+ *
+ * The marker is renderer UI state ("don't show the fallback again") persisted
+ * on the assistant message. Left in place, a marker-only turn converts to
+ * empty content and `ensureNonEmptyAssistantContent` sends a literal `'...'`
+ * assistant message on every later request. Stripped, the turn converts as if
+ * the marker were never there — a marker-only turn drops out of history like
+ * any other empty turn, while a dismissed persisted error keeps its #16195
+ * placeholder.
+ */
+function stripDismissedNoResponseMarkers<T extends UIMessage>(messages: T[]): T[] {
+  return messages.map((message) => {
+    if (
+      !message.parts?.some(
+        (part) => part.type === DISMISSED_NO_RESPONSE_PART_TYPE || part.type === 'data-steer-handoff'
+      )
+    )
+      return message
+    return {
+      ...message,
+      parts: message.parts.filter(
+        (part) => part.type !== DISMISSED_NO_RESPONSE_PART_TYPE && part.type !== 'data-steer-handoff'
+      )
+    }
+  })
 }
 
 /**
@@ -286,7 +315,8 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
  * render persisted tool-output envelopes back into their <persisted-output> markers →
  * attribute a user's denial reason to the user → make legacy v1 tool names wire-legal →
  * strip media the model can't accept → drop tool
- * calls parked on an unanswered approval → drop tool parts with non-object replay inputs →
+ * calls parked on an unanswered approval → drop renderer-only dismissal markers →
+ * drop tool parts with non-object replay inputs →
  * restore inferable legacy step boundaries →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
@@ -302,7 +332,9 @@ export async function toModelMessages(
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
     deduplicateLocalToolParts(
-      dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
+      dropNonObjectToolInputs(
+        dropUnansweredApprovals(stripUnsupportedMedia(stripDismissedNoResponseMarkers(rendered), caps ?? ALL_MEDIA))
+      )
     )
   )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
