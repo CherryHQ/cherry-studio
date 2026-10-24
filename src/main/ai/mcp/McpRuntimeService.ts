@@ -1,5 +1,9 @@
 import {
   isInputRequiredResult,
+  ProtocolError,
+  ProtocolErrorCode,
+  SdkError,
+  SdkErrorCode,
   SdkHttpError,
   SseError,
   UnauthorizedError,
@@ -133,6 +137,19 @@ interface ConnectFailure {
 
 function canAuthorizeInteractively(requestContext?: McpInteractionContext | null): boolean {
   return requestContext === undefined || Boolean(requestContext?.windowId)
+}
+
+/** An unsupported probe method says nothing about the transport; timeouts and real errors do. */
+export function isUnsupportedProbeError(error: unknown): boolean {
+  for (let cause: unknown = error, depth = 0; cause instanceof Error && depth < 5; cause = cause.cause, depth++) {
+    if (SdkHttpError.isInstance(cause) || SseError.isInstance(cause)) return false
+    if (
+      (SdkError.isInstance(cause) && cause.code === SdkErrorCode.MethodNotSupportedByProtocolVersion) ||
+      (ProtocolError.isInstance(cause) && cause.code === ProtocolErrorCode.MethodNotFound)
+    )
+      return true
+  }
+  return false
 }
 
 /** Delay before the next automatic connect; Infinity waits for restart or a config change. */
@@ -543,14 +560,21 @@ export class McpRuntimeService extends BaseService {
       try {
         await existing.health()
       } catch (error) {
-        assertCurrent()
-        getServerLogger(server).warn('Existing MCP connection failed health check', { error })
-        this.recordConnectionFailure(server, error, false)
-        this.setServerStatus(server.id, 'error', error)
-        await this.closeConnection(serverKey, existing).catch((closeError) => {
-          getServerLogger(server).warn('Failed to close unhealthy MCP connection', { error: closeError })
-        })
-        throw error
+        if (isUnsupportedProbeError(error)) {
+          // A server that does not implement the probe method is not a dead transport.
+          getServerLogger(server).warn('Existing MCP connection probe method unsupported; keeping connection', {
+            error
+          })
+        } else {
+          assertCurrent()
+          getServerLogger(server).warn('Existing MCP connection failed health check', { error })
+          this.recordConnectionFailure(server, error, false)
+          this.setServerStatus(server.id, 'error', error)
+          await this.closeConnection(serverKey, existing).catch((closeError) => {
+            getServerLogger(server).warn('Failed to close unhealthy MCP connection', { error: closeError })
+          })
+          throw error
+        }
       }
       assertCurrent()
       this.connectFailures.delete(serverKey)
