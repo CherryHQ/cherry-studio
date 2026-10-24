@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "1b44511badb438e6",
-    "count": 66,
+    "version": "9fd755912792bf21",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -766,6 +766,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "demonroute",
+        "name": "DemonRoute"
       }
     ]
   },
