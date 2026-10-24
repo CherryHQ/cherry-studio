@@ -86,6 +86,19 @@ describe('execution failure — pipeline stage', () => {
     expect(failure.failure.reasonCode).toBe('quota')
   })
 
+  it('names the stream stage when an accepted response carried the provider failure', () => {
+    // The stream opened with 2xx and the provider then reported an error inside it; the request
+    // was never rejected at the HTTP layer, so neither `http` nor a bare `unknown` is honest.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'You exceeded your current quota.',
+      stack: null,
+      statusCode: 200
+    })
+    expect(failure.failure.stage).toBe('stream')
+    expect(failure.failure.reasonCode).toBe('quota')
+  })
+
   it('leaves the stage unknown rather than guessing when nothing identifies it', () => {
     const failure = toExecutionFailure({ name: 'Error', message: 'Insufficient balance', stack: null })
     expect(failure.failure.stage).toBe('unknown')

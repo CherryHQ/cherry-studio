@@ -147,6 +147,9 @@ function deriveStage(
   if (category === 'network' || category === 'proxy') return 'transport'
   if (category === 'stream') return 'stream'
   if (category === 'parse') return 'parse'
+  // A 2xx that still failed is the stream itself: the provider accepted the request and errored
+  // inside the response, as an error frame does after the body has begun.
+  if (status !== undefined && status >= 200 && status <= 299) return 'stream'
   return 'unknown'
 }
 
