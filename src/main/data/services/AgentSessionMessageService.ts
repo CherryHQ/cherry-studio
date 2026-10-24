@@ -1266,6 +1266,10 @@ export class AgentSessionMessageService {
    * Persist one cross-session user message and its trusted sender/receiver envelope atomically.
    * The caller supplies only its runtime-bound identity; both addresses are re-read in this
    * transaction so a stale or forged tool context cannot impersonate another Session.
+   *
+   * `senderExecutionOwnerId` is the one exception: the data layer cannot read runtime state, so a
+   * caller whose accepted turn still runs on an agent the row no longer names must validate that
+   * ownership itself and pass it here.
    */
   acceptSessionDelivery(input: {
     senderAgentId: string
@@ -1273,6 +1277,7 @@ export class AgentSessionMessageService {
     receiverSessionId: string
     content: string
     replyPolicy?: AgentSessionDeliveryReplyPolicy
+    senderExecutionOwnerId?: string
   }): AgentSessionMessageEntity {
     const content = input.content.trim()
     if (!content) throw DataApiErrorFactory.validation({ content: ['must not be empty'] })
@@ -1296,6 +1301,7 @@ export class AgentSessionMessageService {
     sessionName: string
     workspace: AgentSessionWorkspaceSource
     content: string
+    senderExecutionOwnerId?: string
   }): { session: AgentSessionEntity; message: AgentSessionMessageEntity } {
     const content = input.content.trim()
     if (!content) throw DataApiErrorFactory.validation({ content: ['must not be empty'] })
@@ -1314,7 +1320,8 @@ export class AgentSessionMessageService {
             senderSessionId: input.senderSessionId,
             receiverSessionId: sessionId,
             content,
-            replyPolicy: 'completion'
+            replyPolicy: 'completion',
+            ...(input.senderExecutionOwnerId ? { senderExecutionOwnerId: input.senderExecutionOwnerId } : {})
           })
         }),
       {
@@ -1342,16 +1349,38 @@ export class AgentSessionMessageService {
       receiverSessionId: string
       content: string
       replyPolicy?: AgentSessionDeliveryReplyPolicy
+      /**
+       * Owner of the accepted turn still executing on the sender Session's connection, when a
+       * top-bar switch re-pointed the row away from it. Validated by the runtime, not by this
+       * layer: the data layer cannot see runtime state, so a caller must pass this only after
+       * {@link AgentSessionRuntimeService.getAcceptedTurnAgentId} confirmed it.
+       */
+      senderExecutionOwnerId?: string
     }
   ): AgentSessionMessageEntity {
     const [sender] = tx
-      .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
+      .select({ agentId: sessionTable.agentId, sessionName: sessionTable.name })
       .from(sessionTable)
-      .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
       .where(and(eq(sessionTable.id, input.senderSessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
-    if (!sender || sender.agentId !== input.senderAgentId || sender.agentName === null) {
+    // The sender's NAME comes from the agent the admission validated, never from the row's current
+    // agent: after a switch the row names the replacement, and joining through it would attribute
+    // agent A's message to agent B.
+    const [senderAgent] = tx
+      .select({ name: agentTable.name })
+      .from(agentTable)
+      .where(and(eq(agentTable.id, input.senderAgentId), isNull(agentTable.deletedAt)))
+      .limit(1)
+      .all()
+    // The row is authoritative once its turn is gone. While an accepted turn still runs on the
+    // previous agent's connection, that owner keeps executing and keeps its own Session tools
+    // working, so a delivery naming it is legitimate — but only while the row still belongs to
+    // this Session, which the query above already established.
+    const senderOwnsSession = sender?.agentId === input.senderAgentId
+    const executionOwnsSession =
+      input.senderExecutionOwnerId !== undefined && input.senderExecutionOwnerId === input.senderAgentId
+    if (!sender || !senderAgent?.name || (!senderOwnsSession && !executionOwnsSession)) {
       throw new AgentSessionDeliveryRoutingError(
         AGENT_SESSION_DELIVERY_ERROR_CODES.SENDER_FORBIDDEN,
         'The active runtime no longer owns the sender Session'
@@ -1403,7 +1432,7 @@ export class AgentSessionMessageService {
         sessionId: input.receiverSessionId
       },
       senderSnapshot: {
-        agentName: sender.agentName,
+        agentName: senderAgent.name,
         sessionName: sender.sessionName
       },
       receiverSnapshot: {

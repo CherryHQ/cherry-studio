@@ -51,7 +51,19 @@ export interface PiConnectionSnapshot {
   signature: string
 }
 
-export class PiInvalidConnectionSnapshotError extends Error {}
+export class PiInvalidConnectionSnapshotError extends Error {
+  /**
+   * `reassigned`: the snapshot rejected only because the session row no longer points at this
+   * connection's frozen agent. `unavailable`: the session or the frozen agent's own configured
+   * model is gone — a derivation failure that must fail closed.
+   */
+  constructor(
+    message: string,
+    readonly reason: 'reassigned' | 'unavailable' = 'unavailable'
+  ) {
+    super(message)
+  }
+}
 
 /**
  * Capture every reconcilable fact consumed while constructing a Pi connection.
@@ -69,12 +81,17 @@ export async function capturePiConnectionSnapshot(
   sessionId: string,
   agentId: string,
   requestedModelId?: UniqueModelId,
-  selectedKnowledgeBaseIds?: readonly string[]
+  selectedKnowledgeBaseIds?: readonly string[],
+  opts?: { servesAcceptedTurn?: boolean }
 ): Promise<PiConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
-  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
-    throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
+  if (!session || !agent?.model) {
+    throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`, 'unavailable')
+  }
+  // Ownership alone: the frozen agent above resolved, so a live turn may keep this connection.
+  if (!opts?.servesAcceptedTurn && (!session.agentId || session.agentId !== agentId)) {
+    throw new PiInvalidConnectionSnapshotError(`Reassigned Pi session snapshot: ${sessionId}`, 'reassigned')
   }
 
   const modelId = requestedModelId ?? agent.model

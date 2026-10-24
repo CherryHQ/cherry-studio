@@ -33,7 +33,8 @@ export function buildMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext?: AgentNotificationContext
+  notificationContext?: AgentNotificationContext,
+  servesAcceptedTurn = false
 ): Record<string, McpServerConfig> | undefined {
   const servers = buildAgentMcpServers(
     session,
@@ -43,7 +44,8 @@ export function buildMcpServers(
     linkedChannelSnapshot,
     agentDataPath,
     selectedKnowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    servesAcceptedTurn
   )
 
   return Object.fromEntries(

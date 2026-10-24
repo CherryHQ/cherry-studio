@@ -1021,6 +1021,24 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
+   * Wait until every aborted execution on this topic has finished its terminal dispatch — the loop
+   * that forwards the last chunks and runs `PersistenceListener`. A caller that aborts a turn and
+   * then starts a replacement must use this: `whenTerminalDispatchSettled` covers only a dispatch
+   * ALREADY registered, and an abort's loop unwinds asynchronously, so evicting the stream in
+   * between strands the assistant row `pending` and drops its partial output.
+   */
+  async awaitAbortedExecutions(topicId: string): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+    await Promise.allSettled(
+      [...stream.executions.values()]
+        .filter((execution) => execution.status === 'aborted')
+        .map((exec) => exec.loopPromise)
+    )
+    await this.whenTerminalDispatchSettled(topicId)
+  }
+
+  /**
    * Wait until a failed execution has finished notifying/persisting its terminal event, then decide
    * whether a retry can replace that exact slot or should start a fresh one-model stream because the
    * sibling turn finished in the meantime. Called under the topic dispatch lock.

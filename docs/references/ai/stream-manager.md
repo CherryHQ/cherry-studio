@@ -282,6 +282,15 @@ broadcast and `onConversationCompleted`). The inverse invariant follows:
 a terminal listener must never await the topic's dispatch lock, or the
 admission waiting on that dispatch would deadlock with it.
 
+A caller that ABORTS a turn and then starts its replacement has a different
+race: `whenTerminalDispatchSettled` only covers a dispatch already
+registered, and the aborted loop unwinds asynchronously, so it can resolve
+before `onExecutionPaused` has begun. `awaitAbortedExecutions(topicId)`
+awaits those loops first, then the dispatch. `AgentSessionRuntimeService`
+uses it when dissolving a retained agent's reply, so the next turn's
+`startRuntimeTurn` cannot evict the stream whose `PersistenceListener` has
+not written the row yet.
+
 ### PersistenceListener — strategy pattern
 
 One listener + four backends:

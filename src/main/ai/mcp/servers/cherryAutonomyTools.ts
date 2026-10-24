@@ -67,6 +67,12 @@ export interface AutonomyToolsContext {
   trustedNotifyChannels: readonly NotifyChannel[]
   /** Source-channel turns may explicitly select another live channel owned by this Agent. */
   allowAnyOwnedNotifyChannel: boolean
+  /**
+   * True when {@link agentId} is the owner of the turn this context was mounted for rather than the
+   * agent the Session row currently names — a top-bar switch re-pointed the row mid-turn. Delivery
+   * admission reads the row, so it needs this to keep the executing turn's own tools working.
+   */
+  servesAcceptedTurn?: boolean
 }
 
 /**
@@ -306,9 +312,24 @@ const SessionSendInputSchema = z.object({
 
 function assertCurrentSessionIdentity(ctx: AutonomyToolsContext): void {
   const session = agentSessionService.getById(ctx.sessionId)
-  if (session.agentId !== ctx.agentId) {
+  // A top-bar switch re-points the row while this turn's connection still serves its own agent, so
+  // the row is authoritative only once that turn is gone. Accepting the connection's owner keeps an
+  // accepted turn's own Session tools working; a genuinely orphaned context (no runtime, or a
+  // connection serving a third agent) still fails closed.
+  const acceptedTurnAgentId = application.get('AgentSessionRuntimeService').getAcceptedTurnAgentId(ctx.sessionId)
+  if (session.agentId !== ctx.agentId && acceptedTurnAgentId !== ctx.agentId) {
     throw new AgentSessionDeliveryRoutingError('SENDER_FORBIDDEN', 'The active runtime no longer owns this Session')
   }
+}
+
+/**
+ * Delivery admission re-reads the sender row, which a top-bar switch has already re-pointed, so it
+ * needs the ownership the runtime validates NOW. A connection primed while idle baked its tool
+ * context before any turn was accepted; only the live lookup knows the executing turn's owner.
+ */
+function resolvedExecutionOwnerId(ctx: AutonomyToolsContext): string | undefined {
+  const acceptedTurnAgentId = application.get('AgentSessionRuntimeService').getAcceptedTurnAgentId(ctx.sessionId)
+  return acceptedTurnAgentId === ctx.agentId ? ctx.agentId : undefined
 }
 
 function assertSessionToolsAuthorized(ctx: AutonomyToolsContext): void {
@@ -508,12 +529,14 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
     }
   }
 
+  const senderExecutionOwnerId = resolvedExecutionOwnerId(ctx)
   const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
     senderAgentId: ctx.agentId,
     senderSessionId: ctx.sessionId,
     sessionName: title,
     workspace: resolveWorkspaceForNewSession(ctx, targetAgentId),
     content,
+    ...(senderExecutionOwnerId ? { senderExecutionOwnerId } : {}),
     ...(targetAgentId ? { targetAgentId } : {})
   })
   return {
@@ -538,12 +561,14 @@ function sendSessionMessage(ctx: AutonomyToolsContext, args: z.output<typeof Ses
   if (!receiverSessionId) throw new Error("'target_session_id' is required")
   if (!content) throw new Error("'message' is required")
 
+  const senderExecutionOwnerId = resolvedExecutionOwnerId(ctx)
   const accepted = application.get('AgentSessionDeliveryService').accept({
     senderAgentId: ctx.agentId,
     senderSessionId: ctx.sessionId,
     receiverSessionId,
     content,
-    replyPolicy: args.reply ?? 'none'
+    replyPolicy: args.reply ?? 'none',
+    ...(senderExecutionOwnerId ? { senderExecutionOwnerId } : {})
   })
   return {
     content: [

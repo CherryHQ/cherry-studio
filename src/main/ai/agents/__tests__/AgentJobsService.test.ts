@@ -164,6 +164,7 @@ describe('AgentJobsService', () => {
           return {
             isSessionBusy: () => false,
             isSessionBusyForArchive: () => false,
+            listSessionIdsByExecutingAgent: () => [],
             closeSession: async () => {},
             closeSessionForArchive: async () => {},
             cancelSessionForks: async () => {},

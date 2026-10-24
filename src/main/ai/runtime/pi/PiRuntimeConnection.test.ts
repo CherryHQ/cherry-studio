@@ -590,6 +590,8 @@ describe('PiRuntimeConnection', () => {
 
     const connection = await new PiRuntimeConnection({ ...input, modelId: cloudModelId }).start()
 
+    // The host's agent-switch gate keys off this: the connection declares the agent it serves.
+    expect(connection.agentId).toBe('agent-1')
     expect(mocks.resolveInjection).toHaveBeenCalledTimes(2)
     expect(mocks.createAgentSession).toHaveBeenCalledOnce()
     await connection.close()
@@ -1848,6 +1850,22 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.captureConnectionSnapshot).toHaveBeenCalledTimes(2)
   })
 
+  // The host may only keep a connection serving an accepted turn when the snapshot rejected
+  // OWNERSHIP (the frozen agent still resolves). A missing agent/model is a config failure.
+  it('separates a reassigned snapshot from an unavailable one', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const { PiInvalidConnectionSnapshotError } = await import('./piConnectionSignature')
+    const reassigned = Object.assign(new (PiInvalidConnectionSnapshotError as any)('reassigned'), {
+      reason: 'reassigned'
+    })
+    mocks.captureConnectionSnapshot.mockRejectedValueOnce(reassigned)
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('stale-owner')
+
+    mocks.captureConnectionSnapshot.mockRejectedValueOnce(new (PiInvalidConnectionSnapshotError as any)('gone'))
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('invalid')
+    await conn.close()
+  })
+
   it('applies an exact camelCase MCP disable immediately before requesting a tool-catalog rebuild', async () => {
     const toolName = 'mcp__githubServer__searchIssues'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.', mcps: ['srv-1'] })
@@ -2124,7 +2142,9 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
-        ['kb-1']
+        ['kb-1'],
+        undefined,
+        false
       )
       await expect(conn.reconcile({ modelId: 'p::m', knowledgeBaseIds: ['kb-1'] })).resolves.toBe('current')
       await expect(conn.reconcile({ modelId: 'p::m', knowledgeBaseIds: ['kb-2'] })).resolves.toBe('rebuild')
@@ -2224,7 +2244,9 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
-        undefined
+        undefined,
+        undefined,
+        false
       )
     })
 
@@ -2289,7 +2311,9 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         { id: 'chan-1', type: 'telegram' },
         AGENT_DATA_PATH,
-        undefined
+        undefined,
+        undefined,
+        false
       )
     })
 
