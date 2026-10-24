@@ -1,5 +1,6 @@
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { expect, test } from './fixture'
+import { miniAppPinning } from './miniAppPinning'
 import { dismissOnboarding, openLaunchpad, openLaunchpadApp, selectSidebarApp } from './navigation'
 
 test(...caseDefinition('APP-01'), async ({ mainWindow: page }) => {
@@ -22,13 +23,12 @@ test(...caseDefinition('N-01'), async ({ app, mainWindow }) => {
   let page = mainWindow
   await openLaunchpadApp(page, 'Notes')
 
-  const notesView = page.locator('[data-ui~="notes.view"]')
+  const notesView = page.locator('[data-ui="notes.view"]').first()
   await expect(notesView).toBeVisible()
   const existing = page.getByText('Cherry Regression Note 31415', { exact: true })
   if (!(await existing.isVisible().catch(() => false))) {
-    const navigation = notesView.locator('[data-ui~="notes.navigation"]')
-    await navigation.getByRole('button', { name: 'Create a new note', exact: true }).click()
-    const title = notesView.getByRole('textbox')
+    await notesView.getByRole('button', { name: 'Create a new note', exact: true }).first().click()
+    const title = notesView.locator('input')
     await title.fill('Cherry Regression Note 31415')
     await title.press('Enter')
     const editor = page.locator('[data-ui="notes.editor"] [contenteditable="true"]')
@@ -50,4 +50,8 @@ test(...caseDefinition('N-01'), async ({ app, mainWindow }) => {
   else await openLaunchpadApp(page, 'Notes')
   await page.getByText('Cherry Regression Note 31415', { exact: true }).click()
   await expect(page.locator('[data-ui="notes.view"]')).toContainText('NOTE_AUTOSAVE_PASS_27182')
+})
+
+test(...caseDefinition('MP-103'), async ({ app, mainWindow }, testInfo) => {
+  await miniAppPinning(app, mainWindow, testInfo)
 })

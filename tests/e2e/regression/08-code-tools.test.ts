@@ -3,6 +3,7 @@ import type { Locator, Page } from '@playwright/test'
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { listOwnedProcessIds, observeOwnedProcess } from '../../../scripts/e2e/regression/processEvidence'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
+import { verifyCodeMatePermissions } from './codeMatePermissions'
 import { expect, test } from './fixture'
 import { CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from './models'
 import { openLaunchpadApp } from './navigation'
@@ -91,4 +92,8 @@ test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
   await expect
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
+})
+
+test(...caseDefinition('MP-97'), async ({ app, mainWindow: page }, testInfo) => {
+  await verifyCodeMatePermissions(app, page, testInfo)
 })

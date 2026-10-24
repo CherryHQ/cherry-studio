@@ -1,0 +1,964 @@
+import { execFileSync } from 'node:child_process'
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile, access, readFile } from 'node:fs/promises'
+import { join, dirname } from 'node:path'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+import type { InputFor, OutputFor } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { caseDefinition } from '../../../scripts/e2e/regression/cases'
+import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
+import { expect, test } from './fixture'
+import { selectSidebarApp } from './navigation'
+import * as XLSX from '@e965/xlsx'
+import sharp from 'sharp'
+import { FileEntrySchema, InternalEntrySchema } from '@shared/data/types/file'
+import { openSettingsSection } from './settings'
+import type { Locator } from '@playwright/test'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { AssistantSchema } from '@shared/data/types/assistant'
+import { createUniqueModelId } from '@shared/data/types/model'
+import { TopicSchema } from '@shared/data/types/topic'
+import { evaluateCdpExpression } from '../../../scripts/e2e/regression/cdpClient'
+import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
+import { startMockChatServer } from '../../helpers/http/mockChatServer'
+import { sendChatMarker } from './chat'
+import { referenceLibraryFile } from './referenceLibraryFile'
+import { createRtfPreviewFixtures } from './rtfPreviewFixtures'
+
+test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
+  let page = mainWindow
+  const fixtures = await createRtfPreviewFixtures(join(app.paths.fixtures, 'MP-150'))
+  testInfo.annotations.push({
+    type: 'coverage-note',
+    description: 'Shift-JIS / Big5：无此类文件未验。Chat transport uses the repository mock; preview rendering is real.'
+  })
+  const preferences = await page.evaluate(async () => ({
+    theme: await window.api.preference.get('ui.theme_mode'),
+    naming: await window.api.preference.get('topic.naming.enabled')
+  }))
+  const screenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const upload = async (name: string, button: Locator) => {
+    await button.click({ noWaitAfter: true })
+    chooseNativeFile(app.record.platform, app.paths, fixtures[name])
+  }
+  const filesView = () => page.locator('[data-ui~="files.view"]:visible')
+  const filePreview = (name: string) => filesView().getByRole('region', { name, exact: true })
+  const openLibraryFile = async (name: string) => {
+    await filesView().getByText(name, { exact: true }).first().click()
+    await expect(filePreview(name)).toBeVisible()
+  }
+  const assertRichDocument = async (preview: Locator) => {
+    await expect(preview.getByText('中文富文本预览', { exact: true })).toBeVisible()
+    await expect(preview).not.toContainText('\\rtf1')
+    await expect(preview.getByText('Bold MP150', { exact: true })).toHaveCSS('font-weight', /^(bold|[7-9]00)$/)
+    await expect(preview.getByText('Italic MP150', { exact: true })).toHaveCSS('font-style', 'italic')
+    await expect(preview.locator('[contenteditable="true"], textarea, input')).toHaveCount(0)
+    const image = preview.getByRole('img').first()
+    await expect(image).toBeVisible()
+    await expect
+      .poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0))
+      .toBe(true)
+  }
+  const server = await startMockChatServer()
+  const providerId = `mp150-${Date.now()}`
+  let assistantId: string | undefined
+  let inspectorUrl: string | undefined
+  const importedIds: string[] = []
+  try {
+    await test.step('1. Upload simple.rtf through Files and assert formatted read-only content', async () => {
+      await selectSidebarApp(page, 'Files')
+      await upload('simple.rtf', filesView().getByRole('button', { name: 'Upload files', exact: true }))
+      await openLibraryFile('simple.rtf')
+      await screenshot('MP-150 Files RTF preview')
+      await assertRichDocument(filePreview('simple.rtf'))
+    })
+
+    await test.step('2. Send RTF attachments in a new conversation and open the right preview panel', async () => {
+      const seeded = await page.evaluate(
+        async ({ providerId, baseUrl, modelId }) => {
+          const request = window.api.dataApi.request
+          const provider = await request({
+            id: 'mp150-provider',
+            method: 'POST',
+            path: '/providers',
+            body: {
+              providerId,
+              name: 'MP150 mock',
+              isEnabled: true,
+              defaultChatEndpoint: 'openai-chat-completions',
+              endpointConfigs: { 'openai-chat-completions': { baseUrl } },
+              apiKeys: [{ id: 'mock', key: 'mock-key', isEnabled: true }]
+            }
+          })
+          const models = await request({
+            id: 'mp150-model',
+            method: 'POST',
+            path: '/models',
+            body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+          })
+          const assistant = await request({
+            id: 'mp150-assistant',
+            method: 'POST',
+            path: '/assistants',
+            body: { name: 'MP150 RTF assistant', modelId: `${providerId}::${modelId}` }
+          })
+          return { provider, models, assistant }
+        },
+        { providerId, baseUrl: server.baseUrl, modelId: server.modelId }
+      )
+      expect(seeded.provider.status).toBe(201)
+      expect(seeded.models.status).toBe(201)
+      expect(createUniqueModelId(providerId, server.modelId)).toBe(`${providerId}::${server.modelId}`)
+      assistantId = AssistantSchema.parse(seeded.assistant.data).id
+      const topic = await page.evaluate(async (assistantId) => {
+        await window.api.preference.set('topic.naming.enabled', false)
+        return window.api.dataApi.request({
+          id: 'mp150-topic',
+          method: 'POST',
+          path: '/topics',
+          body: { name: 'MP150 RTF topic', assistantId }
+        })
+      }, assistantId)
+      expect(topic.status).toBe(201)
+      TopicSchema.parse(topic.data)
+      await page.reload()
+      await selectSidebarApp(page, 'Chat')
+      const group = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: 'MP150 RTF assistant' })
+      await group.hover()
+      const expand = group.getByRole('button', { name: 'Expand', exact: true })
+      if (await expand.isVisible()) await expand.click()
+      await page.getByTestId('topic-list-row').filter({ hasText: 'MP150 RTF topic' }).click()
+      for (const name of ['simple.rtf', 'contrast.png', 'gbk.rtf']) {
+        await upload(name, page.getByRole('button', { name: 'Upload attachment', exact: true }))
+        await expect(page.locator('[data-ui~="chat.composer"]').getByText(name, { exact: true })).toBeVisible()
+      }
+      await Promise.all([
+        sendChatMarker(page, 'Read the attached documents.', 'MP150 attachments received'),
+        (async () => {
+          const request = await server.nextRequest()
+          request.complete('MP150 attachments received')
+        })()
+      ])
+      await page.locator('[data-ui~="chat.message"]').getByText('simple.rtf', { exact: true }).first().click()
+      await expect(page.getByTestId('artifact-pane-header')).toContainText('simple.rtf')
+      await assertRichDocument(page.getByTestId('artifact-file-preview-overlay'))
+      await screenshot('MP-150 Chat right panel RTF preview')
+    })
+
+    await test.step('3. Decode an actual GBK document', async () => {
+      await page.locator('[data-ui~="chat.message"]').getByText('gbk.rtf', { exact: true }).first().click()
+      const preview = page.getByTestId('artifact-file-preview-overlay')
+      await expect(preview.getByText('中文旧文档', { exact: true })).toBeVisible()
+      await expect(preview).not.toContainText('�')
+    })
+
+    await test.step('4. Reject oversized and truncated RTF without a blank screen or crash', async () => {
+      await selectSidebarApp(page, 'Files')
+      for (const name of ['big.rtf', 'truncated.rtf']) {
+        await upload(name, filesView().getByRole('button', { name: 'Upload files', exact: true }))
+        await openLibraryFile(name)
+        const error = filePreview(name).getByRole('alert')
+        await expect(error).toBeVisible()
+        await expect(error).toContainText(/large|limit|corrupt|invalid|unsupported|cannot|failed|unable|error/i)
+        await screenshot(`MP-150 ${name} readable error`)
+        await filePreview(name).getByRole('button', { name: 'Back', exact: true }).click()
+        await expect(filesView().getByRole('button', { name: 'Upload files', exact: true })).toBeVisible()
+      }
+    })
+
+    await test.step('5. Switch simple.rtf → PNG → GBK without stale content', async () => {
+      await selectSidebarApp(page, 'Chat')
+      const preview = page.getByTestId('artifact-file-preview-overlay')
+      for (const name of ['simple.rtf', 'contrast.png', 'gbk.rtf']) {
+        await page.locator('[data-ui~="chat.message"]').getByText(name, { exact: true }).first().click()
+        await expect(page.getByTestId('artifact-pane-header')).toContainText(name)
+        if (name === 'simple.rtf') await assertRichDocument(preview)
+        else {
+          await expect(preview.getByText('Bold MP150', { exact: true })).toHaveCount(0)
+          if (name === 'gbk.rtf') await expect(preview.getByText('中文旧文档', { exact: true })).toBeVisible()
+          else await expect(preview.getByRole('img').first()).toBeVisible()
+        }
+      }
+    })
+
+    await test.step('6. Keep light/dark documents readable in a 360px panel', async () => {
+      await page.locator('[data-ui~="chat.message"]').getByText('simple.rtf', { exact: true }).first().click()
+      const preview = page.getByTestId('artifact-file-preview-overlay')
+      const handle = page.getByRole('separator').filter({ visible: true }).last()
+      const box = await handle.boundingBox()
+      const viewport = await page.evaluate(() => innerWidth)
+      expect(box).not.toBeNull()
+      await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(viewport - 360, box!.y + box!.height / 2, { steps: 15 })
+      await page.mouse.up()
+      for (const theme of [ThemeMode.light, ThemeMode.dark]) {
+        await page.evaluate((theme) => window.api.preference.set('ui.theme_mode', theme), theme)
+        await assertRichDocument(preview)
+        const bounds = await preview.boundingBox()
+        expect(bounds!.width).toBeGreaterThanOrEqual(320)
+        expect(bounds!.width).toBeLessThanOrEqual(400)
+        const text = preview.getByText('中文富文本预览', { exact: true })
+        await expect(text).not.toHaveCSS('color', 'rgba(0, 0, 0, 0)')
+        await expect(preview).toHaveCSS('filter', 'none')
+        await screenshot(`MP-150 ${theme} narrow panel`)
+      }
+    })
+
+    await test.step('7. Dispatch safe external links and block unsafe protocols', async () => {
+      const inspectorArg = app.record.args.find((arg) => /^--inspect(?:-brk)?=/.test(arg))
+      const port = inspectorArg?.split('=').at(-1)?.split(':').at(-1) ?? '9229'
+      const targets = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as Array<{
+        type: string
+        webSocketDebuggerUrl: string
+      }>
+      inspectorUrl = targets.find((target) => target.type === 'node')?.webSocketDebuggerUrl
+      expect(inspectorUrl).toBeTruthy()
+      // Observe the actual OS dispatch boundary; never replace the parser, sanitization or link handlers.
+      await evaluateCdpExpression(
+        inspectorUrl!,
+        `(() => { const { shell } = process.mainModule.require('electron'); globalThis.__mp150 = { original: shell.openExternal, urls: [] }; shell.openExternal = async (url) => { globalThis.__mp150.urls.push(url) } })()`
+      )
+      const preview = page.getByTestId('artifact-file-preview-overlay')
+      const originalUrl = page.url()
+      for (const [label, url] of [
+        ['HTTPS MP150', 'https://example.com/mp150'],
+        ['HTTP MP150', 'http://example.com/mp150'],
+        ['Email MP150', 'mailto:mp150@example.com']
+      ]) {
+        await preview.getByRole('link', { name: label, exact: true }).click()
+        await expect
+          .poll(() => evaluateCdpExpression<string[]>(inspectorUrl!, 'globalThis.__mp150.urls'))
+          .toContain(url)
+      }
+      const safe = await evaluateCdpExpression<string[]>(inspectorUrl!, 'globalThis.__mp150.urls')
+      for (const label of ['Unsafe JS MP150', 'Unsafe File MP150'])
+        await preview.getByText(label, { exact: true }).click()
+      await page.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      )
+      expect(await evaluateCdpExpression(inspectorUrl!, 'globalThis.__mp150.urls')).toEqual(safe)
+      expect(page.url()).toBe(originalUrl)
+      await assertRichDocument(preview)
+      await evaluateCdpExpression(
+        inspectorUrl!,
+        `(() => { process.mainModule.require('electron').shell.openExternal = globalThis.__mp150.original; delete globalThis.__mp150 })()`
+      )
+      inspectorUrl = undefined
+    })
+
+    await test.step('8. Restart Electron and reopen the persisted RTF', async () => {
+      page = await app.restart()
+      await selectSidebarApp(page, 'Files')
+      await openLibraryFile('simple.rtf')
+      await assertRichDocument(filePreview('simple.rtf'))
+      await screenshot('MP-150 formatted RTF after restart')
+    })
+  } finally {
+    await server.close()
+    if (inspectorUrl)
+      await evaluateCdpExpression(
+        inspectorUrl,
+        `(() => { if (globalThis.__mp150) { process.mainModule.require('electron').shell.openExternal = globalThis.__mp150.original; delete globalThis.__mp150 } })()`
+      )
+    await page.evaluate(
+      async ({ preferences, assistantId, providerId, importedIds }) => {
+        await window.api.preference.setMultiple({
+          'ui.theme_mode': preferences.theme,
+          'topic.naming.enabled': preferences.naming
+        })
+        if (assistantId) {
+          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
+          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+        }
+        await window.api.dataApi.request({
+          id: 'mp150-delete-provider',
+          method: 'DELETE',
+          path: `/providers/${providerId}`
+        })
+        if (importedIds.length) await window.api.ipcApi.request('file.batch_remove_from_library', { ids: importedIds })
+      },
+      { preferences, assistantId, providerId, importedIds }
+    )
+  }
+})
+
+test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
+  let page = mainWindow
+  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp68-assets-'))
+  const upload = join(root, 'upload')
+  const documents = join(root, 'test-assets', 'documents')
+  const images = join(root, 'test-assets', 'images')
+  const video = join(root, 'test-assets', 'video')
+  await Promise.all([upload, documents, images, video].map((path) => mkdir(path, { recursive: true })))
+  const pdf = await PDFDocument.create()
+  pdf.addPage().drawText('MP-68 real file library upload')
+  await writeFile(join(documents, 'sample.pdf'), await pdf.save())
+  await writeFile(
+    join(images, 'sample.png'),
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7l8AAAAASUVORK5CYII=',
+      'base64'
+    )
+  )
+  const movie = join(video, 'sample-5s.mp4')
+  execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-f',
+    'lavfi',
+    '-i',
+    'color=c=blue:s=160x120:d=5',
+    '-c:v',
+    'libx264',
+    '-pix_fmt',
+    'yuv420p',
+    movie
+  ])
+  await copyFile(join(documents, 'sample.pdf'), join(upload, 'sample.pdf'))
+  await copyFile(join(images, 'sample.png'), join(upload, 'sample.png'))
+  const fixtures = [
+    { name: 'sample.pdf', path: join(documents, 'sample.pdf'), category: 'Document', format: 'PDF' },
+    { name: 'sample.png', path: join(images, 'sample.png'), category: 'Image', format: 'PNG' },
+    { name: 'sample-5s.mp4', path: movie, category: 'Video', format: 'MP4' }
+  ]
+  const screenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const view = () => page.locator('[data-ui="files.view"]')
+  const row = (name: string) =>
+    view()
+      .locator('div.group.absolute')
+      .filter({ has: page.getByText(name, { exact: true }) })
+  const entries = async () => {
+    const response = await page.evaluate(() =>
+      window.api.dataApi.request({
+        id: 'mp68-read-files',
+        method: 'GET',
+        path: '/files/entries?limit=100'
+      })
+    )
+    expect(response.status).toBe(200)
+    return (response.data as { items: { id: string; name: string; ext: string; size: number; origin: string }[] }).items
+  }
+  const drop = async (path: string, removeBeforeDrop = false) => {
+    // A browser-backed File retains its real path; a synthetic new File does not in Electron.
+    const input = await page.evaluateHandle(() => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      document.body.append(input)
+      return input
+    })
+    try {
+      await input.asElement()!.setInputFiles(path)
+      if (removeBeforeDrop) await rm(path)
+      await view()
+        .locator('[data-ui="files.content"]')
+        .evaluate((target, input) => {
+          const dataTransfer = new DataTransfer()
+          dataTransfer.items.add(input.files![0])
+          target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }))
+          target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }))
+        }, input)
+    } finally {
+      await input.evaluate((element) => element.remove())
+      await input.dispose()
+    }
+  }
+  try {
+    const chooseFiles = async (path: string, multiple: boolean) => {
+      await view().getByRole('button', { name: 'Upload files', exact: true }).click()
+      if (app.record.platform !== 'macos') throw new Error('MP-68 multi-file native chooser requires macOS automation')
+      const script = [
+        'on run argv',
+        'tell application "System Events"',
+        'tell (first application process whose unix id is (item 2 of argv as integer))',
+        'set frontmost to true',
+        'log "MP-68 waiting for native Open dialog"',
+        'repeat 100 times',
+        'if exists (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开") then exit repeat',
+        'delay 0.1',
+        'end repeat',
+        'if not (exists (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开")) then error "Native file dialog was not found"',
+        'log "MP-68 native dialog found"',
+        'keystroke "g" using {command down, shift down}',
+        'repeat 100 times',
+        'if exists text field 1 of sheet 1 of window 1 then exit repeat',
+        'delay 0.1',
+        'end repeat',
+        'if not (exists text field 1 of sheet 1 of window 1) then error "Go to Folder input was not found"',
+        'keystroke "a" using command down',
+        'keystroke (item 1 of argv)',
+        'delay 0.5',
+        'key code 36',
+        'repeat 100 times',
+        'if not (exists sheet 1 of window 1) then exit repeat',
+        'delay 0.1',
+        'end repeat',
+        'delay 1',
+        ...(multiple ? ['key code 36', 'delay 0.5', 'keystroke "a" using command down'] : []),
+        'delay 0.3',
+        'click (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开")',
+        'end tell',
+        'end tell',
+        'end run'
+      ].join('\n')
+      execFileSync('osascript', ['-e', script, '--', multiple ? `${path}/` : path, String(app.record.electronPid)], {
+        timeout: 45_000,
+        stdio: 'inherit'
+      })
+    }
+    await selectSidebarApp(page, 'Files')
+    await expect(view()).toBeVisible()
+    await screenshot('MP-68 file library before upload')
+    await chooseFiles(upload, true)
+    await expect(row('sample.pdf')).toBeVisible()
+    await expect(row('sample.png')).toBeVisible()
+    await drop(movie)
+    await expect(row('sample-5s.mp4')).toBeVisible()
+    await screenshot('MP-68 document image and video uploaded')
+    for (const fixture of fixtures) {
+      const size = (await stat(fixture.path)).size
+      const stored = (await entries()).filter((entry) => `${entry.name}.${entry.ext}` === fixture.name)
+      expect(stored).toHaveLength(1)
+      expect(stored[0]).toMatchObject({ origin: 'internal', size })
+      await expect(row(fixture.name)).toContainText(fixture.format)
+      const sizeText = await row(fixture.name).locator(':scope > span').first().innerText()
+      const match = /^(\d+(?:\.\d+)?) (B|KB|MB|GB)$/.exec(sizeText)
+      expect(match, `Visible size for ${fixture.name}`).not.toBeNull()
+      const factor = 1024 ** ['B', 'KB', 'MB', 'GB'].indexOf(match![2])
+      const precision = match![1].includes('.') ? 0.1 : 1
+      expect(Math.abs(Number(match![1]) * factor - size)).toBeLessThanOrEqual((factor * precision) / 2)
+      await view().locator('[data-ui="files.navigation"]').getByText(fixture.category, { exact: true }).click()
+      await expect(view().getByText(fixture.name, { exact: true })).toBeVisible()
+      for (const other of fixtures.filter((other) => other !== fixture)) {
+        await expect(view().getByText(other.name, { exact: true })).toHaveCount(0)
+      }
+      await view().locator('[data-ui="files.navigation"]').getByText('All Files', { exact: true }).click()
+    }
+    const pdfId = (await entries()).find((entry) => entry.ext === 'pdf' && entry.name === 'sample')!.id
+    await chooseFiles(join(documents, 'sample.pdf'), false)
+    await expect
+      .poll(async () => (await entries()).filter((entry) => entry.ext === 'pdf' && entry.name === 'sample').length)
+      .toBe(1)
+    await expect(row('sample.pdf')).toHaveCount(1)
+    expect((await entries()).find((entry) => entry.id === pdfId)).toBeDefined()
+    const interrupted = join(root, 'interrupted.pdf')
+    await copyFile(join(documents, 'sample.pdf'), interrupted)
+    await drop(interrupted, true)
+    await expect(page.getByText(/Failed to import files|Some files could not be imported/)).toBeVisible()
+    await expect(view().getByText('interrupted.pdf', { exact: true })).toHaveCount(0)
+    await screenshot('MP-68 failed import reports an error')
+    const before = (await entries()).filter((entry) =>
+      fixtures.some((fixture) => `${entry.name}.${entry.ext}` === fixture.name)
+    )
+    expect(before).toHaveLength(3)
+    await page.reload()
+    await selectSidebarApp(page, 'Files')
+    for (const fixture of fixtures) await expect(row(fixture.name)).toBeVisible()
+    page = await app.restart()
+    await selectSidebarApp(page, 'Files')
+    for (const fixture of fixtures) await expect(row(fixture.name)).toBeVisible()
+    expect((await entries()).filter((entry) => before.some(({ id }) => id === entry.id))).toEqual(before)
+    await screenshot('MP-68 files persist after restart')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test(...caseDefinition('MP-69'), async ({ mainWindow: page }, testInfo) => {
+  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp69-assets-'))
+  const prefix = `mp69-${Date.now()}`
+  const fixtures = [
+    { name: `${prefix}-sample.pdf`, type: 'document', label: 'Document' },
+    { name: `${prefix}-sample.png`, type: 'image', label: 'Image' },
+    { name: `${prefix}-sample.mp4`, type: 'video', label: 'Video' },
+    { name: `${prefix}-sample.wav`, type: 'audio', label: 'Audio' },
+    { name: `${prefix}-sample.bin`, type: 'other', label: 'Other' },
+    { name: `${prefix}-control.pdf`, type: 'document', label: 'Document' }
+  ] as const
+  const ids: string[] = []
+  const view = page.locator('[data-ui~="files.view"]')
+  const navigation = view.locator('[data-ui~="files.navigation"]')
+  const content = view.locator('[data-ui~="files.content"]')
+  const fileRequest = async <
+    R extends 'file.batch_create_internal_entries' | 'file.batch_trash' | 'file.batch_permanent_delete_from_trash'
+  >(
+    route: R,
+    input: InputFor<R>
+  ) => {
+    const result = (await page.evaluate(({ route, input }) => window.api.ipcApi.request(route, input), {
+      route,
+      input
+    })) as IpcResult<OutputFor<R>>
+    if (!result.ok) throw new Error(`${route}: ${result.error.message}`)
+    return result.data
+  }
+  const screenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const readFiles = async (type?: string) => {
+    const response = await page.evaluate(
+      (type) =>
+        window.api.dataApi.request({
+          id: 'mp69-read-files',
+          method: 'GET',
+          path: '/files/entries',
+          params: { limit: 100, inTrash: false, ...(type ? { fileType: type } : {}) }
+        }),
+      type
+    )
+    expect(response.status).toBe(200)
+    return response.data as {
+      items: { id: string; name: string; ext: string | null }[]
+      total: number
+      nextCursor?: string
+    }
+  }
+
+  try {
+    // Real files establish the precondition; filtering and searching use the application UI.
+    const pdf = await PDFDocument.create()
+    pdf.addPage().drawText(`MP-69 sample ${prefix}`)
+    await writeFile(join(root, fixtures[0].name), await pdf.save())
+    const control = await PDFDocument.create()
+    control.addPage().drawText(`MP-69 nonmatching control ${prefix}`)
+    await writeFile(join(root, fixtures[5].name), await control.save())
+    await writeFile(
+      join(root, fixtures[1].name),
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7l8AAAAASUVORK5CYII=',
+        'base64'
+      )
+    )
+    execFileSync('ffmpeg', [
+      '-v',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=green:s=160x120:d=1',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      join(root, fixtures[2].name)
+    ])
+    execFileSync('ffmpeg', [
+      '-v',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:duration=1',
+      join(root, fixtures[3].name)
+    ])
+    await writeFile(join(root, fixtures[4].name), Buffer.from(`MP-69 binary ${prefix}\0`))
+    for (const fixture of fixtures) {
+      const result = await fileRequest('file.batch_create_internal_entries', {
+        items: [
+          { source: 'path', path: AbsoluteFilePathSchema.parse(join(root, fixture.name)), cleanupPolicy: 'manual' }
+        ]
+      })
+      ids.push(...result.succeeded.map(({ id }) => id))
+      expect(result.failed).toEqual([])
+      expect(result.succeeded).toHaveLength(1)
+    }
+    await selectSidebarApp(page, 'Files')
+    await expect(view).toBeVisible()
+    await screenshot('MP-69 file library with seeded files')
+    const all = await readFiles()
+    expect(all.nextCursor, 'All fixtures and existing files must fit in the verification page').toBeUndefined()
+    const allNames = all.items.map(({ name, ext }) => (ext ? `${name}.${ext}` : name))
+    const assertAllFiles = async () => {
+      await expect(content.getByRole('checkbox', { name: /^Select / })).toHaveCount(all.total + 1)
+      for (const name of allNames) await expect(content.getByText(name, { exact: true })).toBeVisible()
+    }
+    await assertAllFiles()
+    await expect(navigation.getByRole('button', { name: /^All Files/ })).toContainText(String(all.total))
+
+    await test.step('Each category shows only its files and the correct count', async () => {
+      for (const fixture of fixtures.slice(0, 5)) {
+        const expected = await readFiles(fixture.type)
+        const category = navigation.getByRole('button', { name: new RegExp(`^${fixture.label}`) })
+        await expect(category).toHaveText(new RegExp(`^${fixture.label}\\s*${expected.total}$`))
+        await category.click()
+        for (const entry of expected.items) {
+          await expect(content.getByText(`${entry.name}.${entry.ext}`, { exact: true })).toBeVisible()
+        }
+        for (const other of fixtures.filter(({ type }) => type !== fixture.type)) {
+          await expect(content.getByText(other.name, { exact: true })).toHaveCount(0)
+        }
+        if (fixture.type === 'image') {
+          await expect(content.getByRole('img')).toHaveCount(expected.total)
+        } else {
+          await expect(content.getByRole('checkbox', { name: /^Select / })).toHaveCount(expected.total + 1)
+        }
+        await screenshot(`MP-69 ${fixture.label} filter and count`)
+      }
+    })
+
+    await navigation.getByText('All Files', { exact: true }).click()
+    await assertAllFiles()
+    await screenshot('MP-69 all files before search')
+    const search = content
+      .getByRole('searchbox')
+      .or(content.getByRole('textbox', { name: /search/i }))
+      .or(content.getByPlaceholder(/search/i))
+    await expect(search, 'MP-69 requires a file-name search input in the file library').toBeVisible({ timeout: 5000 })
+    await search.fill('sample')
+    const matches = allNames.filter((name) => name.toLowerCase().includes('sample'))
+    for (const name of matches) {
+      const filename = content.getByText(name, { exact: true })
+      await expect(filename).toBeVisible()
+      await expect(filename.locator('mark')).toHaveText(/sample/i)
+    }
+    for (const name of allNames.filter((name) => !matches.includes(name))) {
+      await expect(content.getByText(name, { exact: true })).toHaveCount(0)
+    }
+    await screenshot('MP-69 filename search with highlighted matches')
+    await search.fill(`${prefix}-does-not-exist`)
+    for (const name of allNames) await expect(content.getByText(name, { exact: true })).toHaveCount(0)
+    await expect(content.getByText('No matching files found', { exact: true })).toBeVisible()
+    await screenshot('MP-69 no matching files')
+    await navigation.getByText('Document', { exact: true }).click()
+    await search.clear()
+    await navigation.getByText('All Files', { exact: true }).click()
+    await expect(search).toHaveValue('')
+    await expect(content.getByText('No matching files found', { exact: true })).toHaveCount(0)
+    await assertAllFiles()
+    await screenshot('MP-69 all files restored after clearing search and filter')
+  } finally {
+    if (ids.length) {
+      const trashed = await fileRequest('file.batch_trash', { ids })
+      const deleted = await fileRequest('file.batch_permanent_delete_from_trash', { ids: trashed.succeeded })
+      expect([...trashed.failed, ...deleted.failed]).toEqual([])
+    }
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => {
+  const attachScreenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const directory = join(app.paths.fixtures, 'MP-70')
+  await mkdir(directory, { recursive: true })
+  const pdf = await PDFDocument.create()
+  const font = await pdf.embedFont(StandardFonts.Helvetica)
+  for (const number of [1, 2]) {
+    pdf.addPage([612, 792]).drawText(`MP70 searchable page ${number}`, { x: 72, y: 700, font, size: 20 })
+  }
+  await writeFile(join(directory, 'sample.pdf'), await pdf.save())
+  await sharp({ create: { width: 320, height: 180, channels: 3, background: '#b53035' } })
+    .png()
+    .toFile(join(directory, 'sample.png'))
+  execFileSync(
+    'ffmpeg',
+    [
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=size=320x180:rate=24',
+      '-t',
+      '5',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-movflags',
+      '+faststart',
+      join(directory, 'sample-5s.mp4')
+    ],
+    { stdio: 'pipe', timeout: 30_000 }
+  )
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ['MP70 workbook', 'Amount'],
+      ['Preview value', 70]
+    ]),
+    'MP70 sheet'
+  )
+  XLSX.writeFile(workbook, join(directory, 'sample.xlsx'))
+  const paths = ['sample.pdf', 'sample.png', 'sample-5s.mp4', 'sample.xlsx'].map((name) =>
+    AbsoluteFilePathSchema.parse(join(directory, name))
+  )
+  const importResult = await page.evaluate(
+    (paths) =>
+      window.api.ipcApi.request('file.batch_create_internal_entries', {
+        items: paths.map((path) => ({ source: 'path' as const, path, cleanupPolicy: 'manual' as const }))
+      }) as Promise<IpcResult<OutputFor<'file.batch_create_internal_entries'>>>,
+    paths
+  )
+  expect(importResult.ok).toBe(true)
+  if (!importResult.ok) throw new Error(JSON.stringify(importResult.error))
+  const imported = importResult.data
+  expect(imported.failed).toEqual([])
+  expect(imported.succeeded).toHaveLength(4)
+  const ids = imported.succeeded.map(({ id }) => id)
+  try {
+    await selectSidebarApp(page, 'Files')
+    const files = page.locator('[data-ui~="files.view"]')
+    const back = files.getByRole('button', { name: 'Back', exact: true })
+    await files.getByText('sample.pdf', { exact: true }).click()
+    const pdfPreview = files.getByTestId('pdf-file-preview')
+    await expect(pdfPreview).toBeVisible()
+    await expect(pdfPreview.locator('.textLayer').getByText('MP70 searchable page 1', { exact: true })).toBeVisible()
+    await files.getByRole('button', { name: 'Next', exact: true }).click()
+    await expect(files.getByTestId('pdf-preview-page-indicator').getByRole('textbox')).toHaveValue('2')
+    await expect(
+      pdfPreview.locator('.page[data-page-number="2"] .textLayer').getByText('MP70 searchable page 2', { exact: true })
+    ).toBeVisible()
+    await attachScreenshot('MP-70 PDF page 2 text layer')
+    await back.click()
+
+    await files.getByText('sample.png', { exact: true }).click()
+    const imageDialog = page.getByTestId('image-preview-dialog')
+    const image = imageDialog.getByTestId('image-preview-viewport').locator('img')
+    await expect(image).toBeVisible()
+    await expect.poll(() => image.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(320)
+    const bounds = await image.boundingBox()
+    expect(bounds).not.toBeNull()
+    await imageDialog.getByRole('button', { name: 'Zoom In', exact: true }).click()
+    await expect.poll(async () => (await image.boundingBox())!.width).toBeGreaterThan(bounds!.width)
+    const enlarged = await image.boundingBox()
+    await imageDialog.getByRole('button', { name: 'Rotate Right', exact: true }).click()
+    await expect.poll(async () => Math.abs((await image.boundingBox())!.width - enlarged!.height)).toBeLessThan(1)
+    await attachScreenshot('MP-70 image zoomed and rotated')
+    await imageDialog.getByRole('button', { name: 'Close Preview', exact: true }).click()
+    await expect(imageDialog).toBeHidden()
+
+    await files.getByText('sample-5s.mp4', { exact: true }).click()
+    const video = files.locator('video')
+    await expect.soft(video, 'MP4 must offer native video playback').toBeVisible({ timeout: 10_000 })
+    if (await video.isVisible()) {
+      await expect(video).toHaveJSProperty('controls', true)
+      await expect.poll(() => video.evaluate((video: HTMLVideoElement) => video.readyState)).toBeGreaterThanOrEqual(2)
+      await video.focus()
+      await page.keyboard.press('Space')
+      await expect
+        .poll(() => video.evaluate((video: HTMLVideoElement) => video.currentTime), { timeout: 10_000 })
+        .toBeGreaterThanOrEqual(3)
+      expect(await video.evaluate((video: HTMLVideoElement) => video.error)).toBeNull()
+    }
+    await attachScreenshot('MP-70 video preview result')
+    await back.click()
+
+    const pdfId = imported.succeeded.find(({ sourceRef }) => sourceRef === '#0')!.id
+    const physicalResult = await page.evaluate(
+      (id) =>
+        window.api.ipcApi.request('file.batch_get_physical_paths', { ids: [id] }) as Promise<
+          IpcResult<OutputFor<'file.batch_get_physical_paths'>>
+        >,
+      pdfId
+    )
+    expect(physicalResult.ok).toBe(true)
+    if (!physicalResult.ok) throw new Error(JSON.stringify(physicalResult.error))
+    const pdfPath = physicalResult.data[pdfId]
+    expect(pdfPath).toBeTruthy()
+    await files.getByText('sample.pdf', { exact: true }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Show in folder', exact: true }).click()
+    let selectedPath: string | undefined
+    const finderSelection = () => {
+      selectedPath = execFileSync(
+        'osascript',
+        [
+          '-e',
+          [
+            'tell application "Finder"',
+            'set selectedPaths to {}',
+            'repeat with selectedItem in (get selection)',
+            'set end of selectedPaths to POSIX path of (selectedItem as alias)',
+            'end repeat',
+            'return selectedPaths as text',
+            'end tell'
+          ].join('\n')
+        ],
+        { encoding: 'utf8', timeout: 10_000 }
+      ).trim()
+      return selectedPath
+    }
+    await expect.soft.poll(finderSelection, { timeout: 15_000 }).toBe(pdfPath)
+    if (selectedPath === pdfPath) {
+      const finderDirectory = execFileSync(
+        'osascript',
+        ['-e', 'tell application "Finder" to get POSIX path of (target of front window as alias)'],
+        { encoding: 'utf8', timeout: 10_000 }
+      )
+        .trim()
+        .replace(/\/$/, '')
+      expect(finderDirectory).toBe(dirname(pdfPath!))
+      await testInfo.attach('MP-70 Finder location', {
+        body: JSON.stringify({ selected: finderSelection(), directory: finderDirectory }),
+        contentType: 'application/json'
+      })
+    }
+    await page.bringToFront()
+    await attachScreenshot('MP-70 PDF reveal action completed')
+
+    await files.getByText('sample.xlsx', { exact: true }).click()
+    const spreadsheet = files.getByTestId('spreadsheet-file-preview')
+    const unsupported = files.getByText('This file type cannot be previewed yet.', { exact: true })
+    await expect(spreadsheet.or(unsupported)).toBeVisible()
+    if (await spreadsheet.isVisible()) {
+      await expect(spreadsheet.getByRole('tab', { name: 'MP70 sheet', exact: true })).toBeVisible()
+      await expect(spreadsheet.getByText('MP70 workbook', { exact: true })).toBeVisible()
+      await expect(spreadsheet.getByText('Preview value', { exact: true })).toBeVisible()
+      await expect(spreadsheet.getByText('70', { exact: true })).toBeVisible()
+    } else {
+      await expect(files.getByRole('button', { name: 'Open with default app', exact: true })).toBeEnabled()
+    }
+    await attachScreenshot('MP-70 spreadsheet preview result')
+    await back.click()
+  } finally {
+    await page.keyboard.press('Escape')
+    await page.evaluate(async (ids) => {
+      await window.api.ipcApi.request('file.batch_trash', { ids })
+      await window.api.ipcApi.request('file.batch_permanent_delete_from_trash', { ids })
+    }, ids)
+  }
+})
+
+test(...caseDefinition('MP-71'), async ({ app, mainWindow: page }, testInfo) => {
+  const attachScreenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const directory = join(app.paths.fixtures, 'MP-71')
+  await mkdir(directory, { recursive: true })
+  const source = AbsoluteFilePathSchema.parse(join(directory, 'sample.txt'))
+  const renamedPath = join(directory, 'QA-renamed.txt')
+  const internalSource = AbsoluteFilePathSchema.parse(join(directory, 'MP71-internal.txt'))
+  const externalContent = 'MP-71 external original must survive library removal.\n'
+  const internalContent = 'MP-71 internal content must survive archive and restore.\n'
+  await writeFile(source, externalContent)
+  await writeFile(internalSource, internalContent)
+  // Seed real files through production APIs; all tested mutations use the application UI.
+  const internal = FileEntrySchema.parse(
+    await page.evaluate(
+      (path) => window.api.file.createInternalEntry({ source: 'path', path, cleanupPolicy: 'manual' }),
+      internalSource
+    )
+  )
+  const external = FileEntrySchema.parse(
+    await page.evaluate(
+      (path) => window.api.file.ensureExternalEntry({ externalPath: path, cleanupPolicy: 'manual' }),
+      source
+    )
+  )
+  const readEntry = async (id: string) => {
+    const result = await page.evaluate(
+      (id) => window.api.dataApi.request({ id: 'MP71-read', method: 'GET', path: `/files/entries/${id}` }),
+      id
+    )
+    expect(result.status).toBe(200)
+    return FileEntrySchema.parse(result.data)
+  }
+  const internalPath = await page.evaluate((id) => window.api.file.getPhysicalPath({ id }), internal.id)
+  try {
+    await selectSidebarApp(page, 'Files')
+    const files = page.locator('[data-ui~="files.view"]')
+    await files.getByText('sample.txt', { exact: true }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
+    const rename = files.getByRole('textbox').filter({ visible: true })
+    await rename.fill('QA-renamed.txt')
+    await rename.press('Enter')
+    await expect(files.getByText('QA-renamed.txt', { exact: true })).toBeVisible()
+    await expect(files.getByText('sample.txt', { exact: true })).toHaveCount(0)
+    await expect.poll(() => readFile(renamedPath, 'utf8')).toBe(externalContent)
+    await expect(access(source)).rejects.toThrow()
+    expect(await readEntry(external.id)).toMatchObject({
+      origin: 'external',
+      name: 'QA-renamed',
+      externalPath: renamedPath
+    })
+    await attachScreenshot('MP-71 renamed file matches disk')
+
+    await files.getByText('MP71-internal.txt', { exact: true }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
+    const confirmation = page.getByRole('dialog')
+    await expect.soft(confirmation, 'Internal-file Delete must ask for confirmation before archiving').toBeVisible({
+      timeout: 3_000
+    })
+    if (await confirmation.isVisible()) {
+      await expect(confirmation).toContainText(/Archive|recycle|trash/i)
+      await expect(confirmation).not.toContainText('The original files on disk will not be affected.')
+      await attachScreenshot('MP-71 internal delete confirmation')
+      await confirmation.getByRole('button', { name: /^(Confirm|Delete|Move to Archive)$/ }).click()
+    } else {
+      await attachScreenshot('MP-71 missing internal delete confirmation')
+    }
+    await expect(files.getByText('MP71-internal.txt', { exact: true })).toHaveCount(0)
+    await expect
+      .poll(async () => InternalEntrySchema.parse(await readEntry(internal.id)).deletedAt)
+      .toEqual(expect.any(Number))
+    expect(await readFile(internalPath, 'utf8')).toBe(internalContent)
+    await openSettingsSection(page, 'Archive')
+    await page.getByRole('tab', { name: 'Files', exact: true }).click()
+    const archived = page.locator('[data-slot="item"]').filter({ hasText: 'MP71-internal.txt' })
+    await expect(archived).toBeVisible()
+    await attachScreenshot('MP-71 internal file in Archive')
+    await archived.getByRole('button', { name: 'Restore', exact: true }).click()
+    await expect(archived).toHaveCount(0)
+    await expect.poll(async () => InternalEntrySchema.parse(await readEntry(internal.id)).deletedAt).toBeUndefined()
+    expect(await readFile(internalPath, 'utf8')).toBe(internalContent)
+    await selectSidebarApp(page, 'Files')
+    await expect(files.getByText('MP71-internal.txt', { exact: true })).toBeVisible()
+
+    await files.getByText('QA-renamed.txt', { exact: true }).click({ button: 'right' })
+    await expect(page.getByRole('menuitem', { name: 'Delete', exact: true })).toHaveCount(0)
+    await page.getByRole('menuitem', { name: 'Remove from library', exact: true }).click()
+    const removal = page.getByRole('dialog', { name: 'Remove from library?', exact: true })
+    await expect(removal).toBeVisible()
+    await expect(removal).toContainText('The original files on disk will not be affected.')
+    await attachScreenshot('MP-71 external removal confirmation preserves disk original')
+    await removal.getByRole('button', { name: 'Remove from library', exact: true }).click()
+    await expect(removal).toBeHidden()
+    await expect(files.getByText('QA-renamed.txt', { exact: true })).toHaveCount(0)
+    const removed = await page.evaluate(
+      (id) => window.api.dataApi.request({ id: 'MP71-removed', method: 'GET', path: `/files/entries/${id}` }),
+      external.id
+    )
+    expect(removed.status).toBe(404)
+    expect(await readFile(renamedPath, 'utf8')).toBe(externalContent)
+    await page.reload()
+    await selectSidebarApp(page, 'Files')
+    await expect(files.getByText('QA-renamed.txt', { exact: true })).toHaveCount(0)
+    await expect(files.getByText('MP71-internal.txt', { exact: true })).toBeVisible()
+    expect(await readFile(renamedPath, 'utf8')).toBe(externalContent)
+    await attachScreenshot('MP-71 removal persisted and internal file restored')
+    await testInfo.attach('MP-71 disk evidence', {
+      body: JSON.stringify({ renamedPath, externalContent: await readFile(renamedPath, 'utf8'), internalPath }),
+      contentType: 'application/json'
+    })
+  } finally {
+    await page.keyboard.press('Escape')
+    await page.evaluate(
+      async ({ internalId, externalId }) => {
+        await window.api.ipcApi.request('file.batch_remove_from_library', { ids: [externalId] })
+        await window.api.ipcApi.request('file.batch_trash', { ids: [internalId] })
+        await window.api.ipcApi.request('file.batch_permanent_delete_from_trash', { ids: [internalId] })
+      },
+      { internalId: internal.id, externalId: external.id }
+    )
+  }
+})
+
+test(...caseDefinition('MP-72'), async ({ app, mainWindow }, testInfo) => {
+  await referenceLibraryFile(app, mainWindow, testInfo)
+})

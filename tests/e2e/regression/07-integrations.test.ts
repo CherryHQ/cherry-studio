@@ -3,13 +3,15 @@ import { join } from 'node:path'
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import type { Message } from '../../../src/shared/data/types/message'
-import { startBuiltinAssistantTask } from './agents'
+import { startNewAgentTask } from './agents'
 import { customAssistantName, ensureCustomAssistant } from './assistants'
 import { sendChatMarker } from './chat'
 import { expect, test } from './fixture'
 import { ensureCustomChatProvider, selectVisibleModel } from './models'
 import { dismissOnboarding, selectSidebarApp } from './navigation'
 import { closeSettings, openSettingsSection } from './settings'
+import { skillChatTrigger } from './skillChatTrigger'
+import { toolSettings } from './toolSettings'
 
 async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Promise<void> {
   const direct = page.locator('[data-ui~="chat.composer"]:visible').getByRole('button', { name: 'Skills', exact: true })
@@ -40,9 +42,9 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
   ) {
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await page.getByText('Quick Create', { exact: true }).click()
-    await page.getByPlaceholder('Name').fill('everything')
+    await page.locator('input[name="name"]').fill('everything')
     await page.getByLabel('Command*').fill('npx')
-    await page.getByLabel('Arguments').last().fill('--offline\n-y\n@modelcontextprotocol/server-everything@1.0.0')
+    await page.getByLabel('Arguments').last().fill('-y\n@modelcontextprotocol/server-everything')
     await page.getByRole('button', { name: 'Add', exact: true }).click()
   }
   await page
@@ -148,7 +150,7 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   if (await startGateway.isVisible()) await startGateway.click()
   await expect(stopGateway).toBeVisible({ timeout: 30_000 })
   await closeSettings(page)
-  await startBuiltinAssistantTask(page)
+  await startNewAgentTask(page, 'Cherry Assistant')
   const agentView = page.locator('[data-ui~="agent.view"]:visible')
   await agentView
     .getByRole('button', { name: 'Select Model', exact: true })
@@ -180,4 +182,12 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
     .last()
   await expect(answer).toBeVisible({ timeout: 5 * 60_000 })
   await expect(response.getByTestId('completed-process-trigger')).toBeVisible()
+})
+
+test(...caseDefinition('MP-139'), async ({ app, mainWindow: page }, testInfo) => {
+  await toolSettings(app, page, testInfo)
+})
+
+test(...caseDefinition('MP-138'), async ({ app, mainWindow: page }, testInfo) => {
+  await skillChatTrigger(app, page, testInfo)
 })
