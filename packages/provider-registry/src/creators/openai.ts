@@ -21,6 +21,32 @@ const gptImageFullImageGeneration = {
   }
 }
 
+const gptImage25ImageGeneration = {
+  modes: {
+    generate: {
+      supports: {
+        quality: gptImageFullSupports.quality,
+        size: {
+          default: '1024x1024',
+          options: [
+            'auto',
+            '1024x1024',
+            '1536x1024',
+            '1024x1536',
+            '1536x864',
+            '864x1536',
+            '1536x960',
+            '3840x2160',
+            '2160x3840'
+          ],
+          render: 'chips' as const,
+          type: 'enum' as const
+        }
+      }
+    }
+  }
+}
+
 export default defineCreator({
   id: 'openai',
   name: 'OpenAI',
@@ -203,6 +229,24 @@ export default defineCreator({
         systemMessage: true
       },
       reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }] }
+    },
+    {
+      id: 'gpt-image-2-5-flare',
+      name: 'GPT Image 2.5 Flare',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: gptImage25ImageGeneration
+    },
+    {
+      id: 'gpt-image-2-5-sunburst',
+      name: 'GPT Image 2.5 Sunburst',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: gptImage25ImageGeneration
     },
     {
       id: 'gpt-image-1-mini',

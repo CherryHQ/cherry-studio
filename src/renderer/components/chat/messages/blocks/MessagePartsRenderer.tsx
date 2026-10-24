@@ -30,6 +30,7 @@ import {
   subscribeCachedMessageUiState,
   updateCachedMessageUiState
 } from '@renderer/services/messageUiStateCache'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Citation } from '@renderer/types/message'
 import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
@@ -232,6 +233,7 @@ function toImageSource(part: CherryMessagePart): MessageImageSource | undefined 
 export interface HoistedFileAttachment {
   key: string
   handle: FileHandle
+  inputFilePreview?: InputFilePreview
   name: string
   ext: string
 }
@@ -241,7 +243,20 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
   if (!handle) return undefined
 
   const name = (part as { filename?: string }).filename ?? ''
-  return { key, handle, name, ext: name.match(/\.[^.]+$/)?.[0] ?? '' }
+  const preview = readOnlyFileTokenPreviewFromPart(part)
+  const previewPath = getPreviewPathFromFileUrl(preview?.url)
+  const inputFilePreview =
+    preview && previewPath
+      ? {
+          displayName: name,
+          previewPath,
+          fileEntryId: preview.fileEntryId,
+          originalPath: preview.originalPath,
+          mediaType: preview.mediaType,
+          composerFileKind: preview.composerFileKind
+        }
+      : undefined
+  return { key, handle, name, ext: name.match(/\.[^.]+$/)?.[0] ?? '', inputFilePreview }
 }
 
 // Must agree with what the hoisting container actually renders, or a dropped entry
@@ -885,6 +900,7 @@ function renderPart(
         <MessageAttachments
           key={partId}
           handle={attachment.handle}
+          inputFilePreview={attachment.inputFilePreview}
           name={attachment.name}
           ext={attachment.ext}
           createdAt={message.createdAt}
@@ -1388,6 +1404,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   entries,
   isActive,
   isStreamLive,
+  keepIntermediateAssistantText,
   message,
   renderOptions
 }: {
@@ -1395,6 +1412,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   entries: readonly PartEntry[]
   isActive: boolean
   isStreamLive: boolean
+  keepIntermediateAssistantText: boolean
   message: MessageListItem
   renderOptions: RenderGroupedEntryOptions
 }) {
@@ -1402,19 +1420,28 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   const projectedLiveItems = useMemo(
     () =>
       isActive
-        ? projectLiveMessageParts(entries).filter(
+        ? projectLiveMessageParts(entries, { keepIntermediateAssistantText }).filter(
             (item) => item.kind !== 'part' || !isReportArtifactEntry(item.entry, message.id)
           )
         : [],
-    [entries, isActive, message.id]
+    [entries, isActive, keepIntermediateAssistantText, message.id]
   )
   const liveProcessBoundary = useMemo(() => findLastLiveProcessBoundaryIndex(projectedLiveItems), [projectedLiveItems])
-  // Preserve hard-boundary parts in the ordered process prefix; only the trailing result stays outside.
-  const liveProcessItems = projectedLiveItems.slice(0, liveProcessBoundary + 1)
-  const liveResultItems = projectedLiveItems.slice(liveProcessBoundary + 1)
+  // Keep hard-boundary parts in process history while enabled text stays in the response lane.
+  const liveProcessItems = projectedLiveItems
+    .slice(0, liveProcessBoundary + 1)
+    .filter((item) => !keepIntermediateAssistantText || item.kind !== 'part' || item.entry.part.type !== 'text')
+  const liveResultItems = projectedLiveItems.filter(
+    (item, index) =>
+      index > liveProcessBoundary ||
+      (keepIntermediateAssistantText && item.kind === 'part' && item.entry.part.type === 'text')
+  )
   const openTextTailIndex = isActive && isStreamLive ? findOpenTextTailIndex(entries) : null
 
-  const completedLayout = useMemo(() => (isActive ? null : projectCompletedMessageParts(entries)), [entries, isActive])
+  const completedLayout = useMemo(
+    () => (isActive ? null : projectCompletedMessageParts(entries, { keepIntermediateAssistantText })),
+    [entries, isActive, keepIntermediateAssistantText]
+  )
   const completedRenderOptions = useMemo(
     () => ({ ...renderOptions, settleActiveTools: true, settleStreamingReasoning: true }),
     [renderOptions]
@@ -1559,6 +1586,7 @@ interface MessagePartsRendererContentProps extends Props {
   collapseCompletedToolHistory: boolean
   isActiveTurnProcessing: boolean
   isStreamLive: boolean
+  keepIntermediateAssistantText: boolean
   messageParts: CherryMessagePart[]
   priorCitationParts: readonly CherryMessagePart[]
 }
@@ -1573,13 +1601,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   hoistAttachments,
   isActiveTurnProcessing,
   isStreamLive,
+  keepIntermediateAssistantText,
   message,
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
   const { subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
-  const hoistNonImageFiles = !!hoistAttachments && !previewInputFile && !!(previewFile || openFile)
+  const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
   const { t } = useTranslation()
   const subscribeDisclosures = React.useCallback(
     (listener: () => void) => subscribeCachedMessageUiState(message.id, listener),
@@ -1816,6 +1845,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         entries={displayEntries}
         isActive={isActiveTurnProcessing}
         isStreamLive={isStreamLive}
+        keepIntermediateAssistantText={keepIntermediateAssistantText}
         message={message}
         renderOptions={renderOptions}
       />
@@ -1899,11 +1929,12 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
   const messageParts = useMessageParts(message.id)
   const { isActiveTurnProcessing, isStreamLive } = useMessageListItemActivityState(message)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
-  const { collapseCompletedToolHistory } = useMessageRenderConfig()
+  const { collapseCompletedToolHistory, keepIntermediateAssistantText } = useMessageRenderConfig()
 
   return (
     <MessagePartsRendererContent
       collapseCompletedToolHistory={collapseCompletedToolHistory}
+      keepIntermediateAssistantText={keepIntermediateAssistantText}
       hoistAttachments={hoistAttachments}
       isActiveTurnProcessing={isActiveTurnProcessing}
       isStreamLive={isStreamLive}

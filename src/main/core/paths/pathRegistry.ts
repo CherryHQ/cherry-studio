@@ -144,7 +144,8 @@ export function buildPathRegistry() {
     // sherpa-onnx native binding and its private onnxruntime, downloaded on demand.
     'feature.sherpa_onnx.binary': path.join(appUserDataToolchain, 'sherpa-onnx'),
 
-    // FunASR Nano and Silero VAD model files, downloaded on demand.
+    // ASR model files, downloaded on demand.
+    'feature.asr.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-asr-1.7b-8bit'),
     'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
     'feature.mlx.binary': path.join(appUserDataToolchain, 'mlx-node'),
     'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),

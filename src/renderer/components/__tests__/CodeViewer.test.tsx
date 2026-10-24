@@ -1,392 +1,462 @@
 // @vitest-environment jsdom
-
-import type { useVirtualizer as RealUseVirtualizer } from '@tanstack/react-virtual'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render } from '@testing-library/react'
+import { fireEvent, render, waitFor } from '@testing-library/react'
+import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '../../utils/image'
 import CodeViewer from '../CodeViewer'
 
-type VirtualizerOptions = { count: number; estimateSize?: (index: number) => number }
+vi.mock('html-to-image', () => ({ toCanvas: vi.fn() }))
 
-function createVirtualizerMock(options: VirtualizerOptions) {
-  const sizes = Array.from({ length: options.count }, (_, index) => options.estimateSize?.(index) ?? 20)
-  let totalSize = 0
-  const virtualItems = sizes.map((size, index) => {
-    const start = totalSize
-    totalSize += size
-    return { index, key: `row-${index}`, start, size }
-  })
-
-  return {
-    getTotalSize: () => totalSize,
-    getVirtualItems: () => virtualItems,
-    measureElement: vi.fn(),
-    measure: mocks.measure,
-    resizeItem: mocks.resizeItem
-  }
-}
-
-const mocks = vi.hoisted(() => ({
-  highlightLines: vi.fn(),
-  resetHighlight: vi.fn(),
-  measureElement: vi.fn(),
-  measure: vi.fn(),
-  resizeItem: vi.fn(),
-  useVirtualizer: vi.fn((options: VirtualizerOptions) => createVirtualizerMock(options))
-}))
-
-vi.mock('@renderer/hooks/useCodeHighlight', () => ({
-  useCodeHighlight: ({ rawLines }: { rawLines: string[] }) => ({
-    tokenLines: rawLines.map((line) => [
-      {
-        content: line,
-        offset: 0,
-        color: 'inherit',
-        bgColor: 'inherit',
-        htmlStyle: {}
-      }
-    ]),
-    highlightLines: mocks.highlightLines,
-    resetHighlight: mocks.resetHighlight
-  })
-}))
-
+const getCodePreProperties = async () => ({ class: 'shiki' })
+const captureHighlight = vi.hoisted(() => ({ read: vi.fn(), cleanup: vi.fn() }))
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
-    getShikiPreProperties: vi.fn(async () => ({ class: 'shiki' })),
-    isShikiThemeDark: false
+    getCodePreProperties,
+    isCodeThemeDark: false,
+    highlightRange: captureHighlight.read,
+    cleanupTokenizers: captureHighlight.cleanup
   })
 }))
-
-vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: mocks.useVirtualizer
+vi.mock('@renderer/hooks/useCodeHighlight', () => ({
+  useCodeHighlight: () => ({ tokens: null, highlightLines, resetHighlight })
 }))
+const highlightLines = async () => {}
+const resetHighlight = () => {}
+const originalDescriptors = Object.getOwnPropertyDescriptors(HTMLElement.prototype)
+let prefixHeight = 0
+let scrollHeight = 1200
+let measuredRowHeight: (element: HTMLElement) => number = () => 21
 
-const originalClientHeightDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientHeight')
-const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
-const originalScrollHeightDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'scrollHeight')
-
-function mockScrollGeometry(geometry: { scrollHeight: number; clientHeight: number; clientWidth?: number }) {
-  Object.defineProperties(window.HTMLElement.prototype, {
-    clientHeight: { configurable: true, get: () => geometry.clientHeight },
-    clientWidth: { configurable: true, get: () => geometry.clientWidth ?? 640 },
-    scrollHeight: { configurable: true, get: () => geometry.scrollHeight }
+beforeEach(() => {
+  captureHighlight.read.mockReset()
+  captureHighlight.cleanup.mockReset()
+  MockUsePreferenceUtils.resetMocks()
+  MockUsePreferenceUtils.setMultiplePreferenceValues({
+    'chat.code.show_line_numbers': false,
+    'chat.message.font_size': 14
   })
-}
-
-function restoreDescriptor(
-  key: 'clientHeight' | 'clientWidth' | 'scrollHeight' | 'offsetHeight' | 'offsetWidth' | 'scrollTo',
-  descriptor?: PropertyDescriptor
-) {
-  if (descriptor) {
-    Object.defineProperty(window.HTMLElement.prototype, key, descriptor)
-    return
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  prefixHeight = 0
+  scrollHeight = 1200
+  measuredRowHeight = () => 21
+  Object.defineProperties(HTMLElement.prototype, {
+    clientWidth: { configurable: true, get: () => 640 },
+    clientHeight: { configurable: true, get: () => 300 },
+    offsetWidth: { configurable: true, get: () => 640 },
+    offsetHeight: {
+      configurable: true,
+      get() {
+        return this.hasAttribute('data-index') ? measuredRowHeight(this) : 300
+      }
+    },
+    scrollHeight: { configurable: true, get: () => scrollHeight },
+    scrollTo: {
+      configurable: true,
+      value({ top }: { top: number }) {
+        this.scrollTop = top
+      }
+    }
+  })
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const parent = this.closest<HTMLElement>('[data-testid="outer"]')
+    const top = this.classList.contains('shiki-list') ? prefixHeight - (parent?.scrollTop ?? 0) : 0
+    return { top, bottom: top + 300, left: 0, right: 640, width: 640, height: 300, x: 0, y: top, toJSON() {} }
+  })
+})
+afterEach(() => {
+  vi.restoreAllMocks()
+  for (const key of ['clientWidth', 'clientHeight', 'offsetWidth', 'offsetHeight', 'scrollHeight', 'scrollTo']) {
+    const descriptor = originalDescriptors[key]
+    if (descriptor) Object.defineProperty(HTMLElement.prototype, key, descriptor)
+    else Reflect.deleteProperty(HTMLElement.prototype, key)
   }
-  delete (window.HTMLElement.prototype as unknown as Record<string, unknown>)[key]
-}
+})
 
 describe('CodeViewer', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'chat.code.show_line_numbers': false,
-      'chat.message.font_size': 14
+  it.each(['data-url', 'blob', 'failure', 'offscreen-highlighted'] as const)(
+    'captures every source line and restores virtualization after %s',
+    async (mode) => {
+      const lines = [...Array.from({ length: 120 }, (_, index) => `line ${index}  `), '']
+      lines[119] = 'final line 🍒  '
+      const highlighted = mode === 'offscreen-highlighted'
+      if (highlighted) prefixHeight = 5000
+      captureHighlight.read.mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return { start: 0, lines: lines.map((content) => [{ content, offset: 0, color: '#ff0000' }]) }
+      })
+      const { container } = render(
+        <CodeViewer value={lines.join('\n')} language="text" expanded options={{ highlight: highlighted }} />
+      )
+      expect(container.querySelectorAll('.line-content').length).toBeLessThan(lines.length)
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (root) => {
+        expect([...root.querySelectorAll('.line-content')].map((line) => line.textContent)).toEqual(lines)
+        if (highlighted)
+          expect(root.querySelector('[data-index="119"] .line-content span')).toHaveStyle({ color: '#ff0000' })
+        if (mode === 'failure') throw new Error('rasterization failed')
+        return Object.assign(document.createElement('canvas'), { toDataURL: () => 'data:image/png;base64,dGVzdA==' })
+      })
+      const result =
+        mode === 'blob'
+          ? captureScrollableAsBlob({ current: container }, (blob) => {
+              expect(blob?.type).toBe('image/png')
+              expect(blob?.size).toBe(4)
+            })
+          : captureScrollableAsDataUrl({ current: container })
+      if (mode === 'failure') {
+        await waitFor(() => expect(result).rejects.toThrow('rasterization failed'))
+      } else {
+        await waitFor(() =>
+          expect(result).resolves.toBe(mode === 'blob' ? undefined : 'data:image/png;base64,dGVzdA==')
+        )
+      }
+      expect(container.querySelectorAll('.line-content').length).toBeLessThan(lines.length)
+    }
+  )
+
+  it('restores prepared viewers when another viewer cannot prepare its capture', async () => {
+    const value = Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')
+    captureHighlight.read.mockRejectedValueOnce(new Error('preparation failed'))
+    const { container } = render(
+      <>
+        <CodeViewer value={value} language="text" expanded options={{ highlight: false }} />
+        <CodeViewer value={value} language="text" expanded />
+      </>
+    )
+    const result = captureScrollableAsDataUrl({ current: container })
+    await waitFor(() => expect(result).rejects.toThrow('preparation failed'))
+    for (const viewer of container.querySelectorAll('.code-viewer')) {
+      expect(viewer.querySelectorAll('.line-content').length).toBeLessThan(120)
+      expect(viewer.querySelector('[data-index="119"]')).toBeNull()
+    }
+  })
+
+  it('keeps expanded documents virtualized and scrolls using the outer viewport and list offset', async () => {
+    prefixHeight = 600
+    const lines = Array.from({ length: 10000 }, (_, index) => `line ${index}`)
+    const { container, getByTestId } = render(
+      <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        <div style={{ height: prefixHeight }} />
+        <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+      </div>
+    )
+    const outer = getByTestId('outer')
+    expect(container.querySelectorAll('[data-index]')).toHaveLength(0)
+    outer.scrollTop = prefixHeight
+    fireEvent.scroll(outer)
+    await waitFor(() => expect(container.querySelector('.line-content')?.textContent).toBe('line 0'))
+    expect(container.querySelectorAll('[data-index]').length).toBeLessThan(80)
+    outer.scrollTop = prefixHeight + 10000 * 21 - 300
+    fireEvent.scroll(outer)
+    await waitFor(() => expect(container.querySelector('[data-index="9999"]')?.textContent).toBe('line 9999'))
+    expect(container.querySelectorAll('[data-index]').length).toBeLessThan(80)
+    const first = container.querySelector<HTMLElement>('[data-index]')!
+    expect(first.parentElement?.style.transform).toBe(`translateY(${Number(first.dataset.index) * 21}px)`)
+  })
+
+  it('preserves trailing whitespace and blank lines with highlighting disabled', () => {
+    const { container } = render(
+      <CodeViewer
+        value={'hello  \n\t🍒\n'}
+        language="text"
+        expanded={false}
+        height={300}
+        options={{ highlight: false }}
+      />
+    )
+    const lines = [...container.querySelectorAll('.line-content')]
+    expect(lines).toHaveLength(3)
+    expect(lines[0].textContent).toBe('hello  ')
+    expect(lines[1].textContent).toBe('\t🍒')
+    expect(lines[0].querySelector('span')?.style.opacity).toBe('1')
+  })
+
+  it('copies complete line contents when selection endpoints are elements', () => {
+    const { container } = render(
+      <CodeViewer value={'const first = "🍒"\nconst last = 42'} language="text" expanded={false} height={300} />
+    )
+    const lines = container.querySelectorAll('.line-content')
+    const range = document.createRange()
+    range.setStart(lines[0], 0)
+    range.setEnd(lines[1], lines[1].childNodes.length)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    let copied = ''
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        setData(type: string, value: string) {
+          if (type === 'text/plain') copied = value
+        }
+      }
     })
-    mockScrollGeometry({ scrollHeight: 1200, clientHeight: 300 })
+    lines[0].dispatchEvent(event)
+    selection.removeAllRanges()
+    expect(copied).toBe('const first = "🍒"\nconst last = 42')
+    expect(event.defaultPrevented).toBe(true)
   })
 
-  afterEach(() => {
-    restoreDescriptor('clientHeight', originalClientHeightDescriptor)
-    restoreDescriptor('clientWidth', originalClientWidthDescriptor)
-    restoreDescriptor('scrollHeight', originalScrollHeightDescriptor)
+  it('copies a new selection immediately after saving a different range on scroll', () => {
+    const { container, getByText } = render(
+      <div style={{ overflowY: 'auto', height: 300 }}>
+        <CodeViewer value={'line 1\nline 2\nline 3'} language="text" expanded />
+      </div>
+    )
+    const selection = window.getSelection()!
+    const select = (text: string) => {
+      const range = document.createRange()
+      range.selectNodeContents(getByText(text))
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+    select('line 3')
+    fireEvent.scroll(container.querySelector('.shiki-scroller')!)
+    select('line 2')
+    let copied = ''
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        setData: (_type: string, value: string) => {
+          copied = value
+        }
+      }
+    })
+    getByText('line 2').dispatchEvent(event)
+    selection.removeAllRanges()
+    expect(copied).toBe('line 2')
   })
 
-  it('keeps the collapsed internal scroller pinned to bottom while content grows', () => {
-    const { container, rerender } = render(
-      <CodeViewer value="line 1" language="typescript" expanded={false} maxHeight="350px" autoScrollToBottom />
+  it('retains the source range when virtualization removes a selection endpoint', async () => {
+    const lines = Array.from({ length: 100 }, (_, index) => `line ${index}`)
+    const { container, getByText, queryByText } = render(
+      <CodeViewer value={lines.join('\n')} language="text" expanded={false} wrapped={false} height={300} />
     )
-    const scroller = container.querySelector('.shiki-scroller') as HTMLElement
+    const range = document.createRange()
+    range.setStart(getByText('line 2').firstChild!, 0)
+    range.setEnd(getByText('line 30').firstChild!, 7)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const scroller = container.querySelector<HTMLElement>('.shiki-scroller')!
+    scroller.scrollTop = 900
+    fireEvent.scroll(scroller)
+    await waitFor(() => expect(queryByText('line 2')).toBeNull())
+    let copied = ''
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        setData: (_type: string, value: string) => {
+          copied = value
+        }
+      }
+    })
+    scroller.dispatchEvent(event)
+    selection.removeAllRanges()
+    expect(copied).toBe(lines.slice(2, 31).join('\n'))
+  })
 
-    rerender(
-      <CodeViewer value="line 1\nline 2" language="typescript" expanded={false} maxHeight="350px" autoScrollToBottom />
+  it('copies the logical range after both endpoints unmount, until the user starts another selection', async () => {
+    const lines = Array.from({ length: 10_000 }, (_, index) => `line ${index}`)
+    const { getByText, queryByText, getByTestId } = render(
+      <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+      </div>
     )
+    const range = document.createRange()
+    range.setStart(getByText('line 2').firstChild!, 0)
+    range.setEnd(getByText('line 10').firstChild!, 7)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const outer = getByTestId('outer')
+    outer.scrollTop = 3000
+    fireEvent.scroll(outer)
+    await waitFor(() => expect(queryByText('line 10')).toBeNull())
+    expect(queryByText('line 2')).toBeNull()
+    expect(selection.isCollapsed).toBe(true)
+    fireEvent(document, new Event('selectionchange'))
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    const copy = () => {
+      let copied = ''
+      const event = new Event('copy', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', {
+        value: {
+          setData: (_type: string, value: string) => {
+            copied = value
+          }
+        }
+      })
+      document.body.dispatchEvent(event)
+      return { copied, prevented: event.defaultPrevented }
+    }
+    expect(copy()).toEqual({ copied: lines.slice(2, 11).join('\n'), prevented: true })
+    fireEvent.pointerDown(outer)
+    expect(copy()).toEqual({ copied: '', prevented: false })
+    selection.removeAllRanges()
+  })
 
+  it.each(['forward', 'backward'] as const)(
+    'copies the original anchor through a held %s drag and allows immediate reselection',
+    async (direction) => {
+      const lines = Array.from({ length: 1000 }, (_, index) => `line ${index}`)
+      const { getByText, queryByText, getByTestId } = render(
+        <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+          <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+        </div>
+      )
+      const outer = getByTestId('outer')
+      const selection = window.getSelection()!
+      const forward = direction === 'forward'
+      if (!forward) {
+        outer.scrollTop = 3000
+        fireEvent.scroll(outer)
+        await waitFor(() => expect(getByText('line 145')).toBeInTheDocument())
+      }
+      const anchorLine = forward ? 2 : 145
+      const anchor = getByText(lines[anchorLine]).firstChild!
+      fireEvent(getByText(lines[anchorLine]), new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      selection.setBaseAndExtent(anchor, 1, anchor, 1)
+      fireEvent(document, new Event('selectionchange'))
+      const initialFocus = getByText(lines[forward ? 10 : 140]).firstChild!
+      selection.setBaseAndExtent(anchor, 1, initialFocus, 3)
+      fireEvent(document, new Event('selectionchange'))
+      outer.scrollTop = forward ? 3000 : 0
+      fireEvent.scroll(outer)
+      await waitFor(() => expect(queryByText(lines[anchorLine])).toBeNull())
+      const focusLine = forward ? 150 : 5
+      // Chromium reanchors to a mounted row when the original anchor is evicted.
+      selection.setBaseAndExtent(
+        getByText(lines[forward ? 125 : 30]).firstChild!,
+        0,
+        getByText(lines[focusLine]).firstChild!,
+        3
+      )
+      fireEvent(document, new Event('selectionchange'))
+      fireEvent(document, new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+      const copy = () => {
+        let text = ''
+        const event = new Event('copy', { bubbles: true, cancelable: true })
+        Object.defineProperty(event, 'clipboardData', {
+          value: {
+            setData: (_type: string, value: string) => {
+              text = value
+            }
+          }
+        })
+        document.body.dispatchEvent(event)
+        return text
+      }
+      const expected = forward
+        ? [lines[2].slice(1), ...lines.slice(3, 150), lines[150].slice(0, 3)]
+        : [lines[5].slice(3), ...lines.slice(6, 145), lines[145].slice(0, 1)]
+      expect(copy()).toBe(expected.join('\n'))
+      const fresh = getByText(lines[focusLine])
+      fireEvent(fresh, new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      selection.setBaseAndExtent(fresh.firstChild!, 1, fresh.firstChild!, 4)
+      fireEvent(document, new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+      expect(copy()).toBe(lines[focusLine].slice(1, 4))
+      selection.removeAllRanges()
+    }
+  )
+
+  it.each(['unchanged', 'changed-with-event', 'changed-before-copy', 'collapsed-before-copy'] as const)(
+    'reconciles a secondary click after anchor eviction when the native range is %s',
+    async (scenario) => {
+      const lines = Array.from({ length: 1000 }, (_, index) => `line ${index}`)
+      const { getByText, queryByText, getByTestId } = render(
+        <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+          <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+        </div>
+      )
+      const selection = window.getSelection()!
+      const anchor = getByText('line 2')
+      fireEvent(anchor, new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      selection.setBaseAndExtent(anchor.firstChild!, 0, getByText('line 30').firstChild!, 7)
+      fireEvent(document, new Event('selectionchange'))
+      fireEvent(document, new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+      const outer = getByTestId('outer')
+      outer.scrollTop = 600
+      fireEvent.scroll(outer)
+      await waitFor(() => expect(queryByText('line 2')).toBeNull())
+      // Chromium retains a shortened native range while the complete source range is saved.
+      selection.setBaseAndExtent(getByText('line 10').firstChild!, 0, getByText('line 30').firstChild!, 7)
+      const target = getByText('line 25')
+      fireEvent(target, new MouseEvent('pointerdown', { bubbles: true, button: 2 }))
+      if (scenario === 'unchanged') {
+        fireEvent(target, new MouseEvent('pointerup', { bubbles: true, button: 2 }))
+      } else {
+        selection.setBaseAndExtent(target.firstChild!, 1, target.firstChild!, 4)
+        if (scenario === 'collapsed-before-copy') selection.collapse(target.firstChild, 1)
+        if (scenario === 'changed-with-event') fireEvent(document, new Event('selectionchange'))
+      }
+      let copied = ''
+      const event = new Event('copy', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', {
+        value: {
+          setData: (_type: string, value: string) => {
+            copied = value
+          }
+        }
+      })
+      document.body.dispatchEvent(event)
+      expect(copied).toBe(
+        scenario === 'unchanged' ? lines.slice(2, 31).join('\n') : scenario === 'collapsed-before-copy' ? '' : 'ine'
+      )
+      expect(event.defaultPrevented).toBe(scenario !== 'collapsed-before-copy')
+      selection.removeAllRanges()
+    }
+  )
+
+  it('does not copy an obsolete range after dragging back to the original anchor', () => {
+    const { getByText } = render(<CodeViewer value={'first line\nsecond line'} language="text" />)
+    const anchor = getByText('first line').firstChild!
+    const focus = getByText('second line').firstChild!
+    const selection = window.getSelection()!
+    fireEvent(getByText('first line'), new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    selection.setBaseAndExtent(anchor, 2, focus, 3)
+    fireEvent(document, new Event('selectionchange'))
+    selection.setBaseAndExtent(anchor, 2, anchor, 2)
+    fireEvent(document, new Event('selectionchange'))
+    fireEvent(document, new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    document.body.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    selection.removeAllRanges()
+  })
+
+  it('keeps a growing collapsed viewer pinned until the user scrolls away', () => {
+    const props = { language: 'text', expanded: false, height: 300, autoScrollToBottom: true } as const
+    const { container, rerender } = render(<CodeViewer {...props} value="first" />)
+    const scroller = container.querySelector<HTMLElement>('.shiki-scroller')!
     expect(scroller.scrollTop).toBe(1200)
-  })
-
-  it('does not force the collapsed internal scroller back to bottom after the user scrolls away', () => {
-    const { container, rerender } = render(
-      <CodeViewer value="line 1" language="typescript" expanded={false} maxHeight="350px" autoScrollToBottom />
-    )
-    const scroller = container.querySelector('.shiki-scroller') as HTMLElement
+    scrollHeight = 1400
+    rerender(<CodeViewer {...props} value={'first\nsecond'} />)
+    expect(scroller.scrollTop).toBe(1400)
     scroller.scrollTop = 100
     fireEvent.scroll(scroller)
-
-    rerender(
-      <CodeViewer value="line 1\nline 2" language="typescript" expanded={false} maxHeight="350px" autoScrollToBottom />
-    )
-
+    scrollHeight = 1600
+    rerender(<CodeViewer {...props} value={'first\nsecond\nthird'} />)
     expect(scroller.scrollTop).toBe(100)
   })
 
-  it('highlights only viewport-visible viewers immediately when many code blocks mount together', async () => {
-    vi.useFakeTimers()
-    const rectSpy = vi
-      .spyOn(window.HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: HTMLElement) {
-        const viewportState = this.closest('[data-viewport-state]')?.getAttribute('data-viewport-state')
-        return viewportState === 'visible' ? new DOMRect(10, 10, 320, 80) : new DOMRect(10, 10_000, 320, 80)
-      })
-    const lineCounts = Array.from({ length: 12 }, (_, index) => index + 1)
-    const requestedCounts = () => mocks.highlightLines.mock.calls.map(([count]) => count).sort((a, b) => a - b)
-
-    try {
-      render(
-        <>
-          {lineCounts.map((lineCount) => (
-            <div key={lineCount} data-viewport-state={lineCount <= 2 ? 'visible' : 'offscreen'}>
-              <CodeViewer
-                value={Array.from({ length: lineCount }, (_, index) => `line ${index + 1}`).join('\n')}
-                language="typescript"
-              />
-            </div>
-          ))}
-        </>
-      )
-
-      expect(requestedCounts()).toEqual([1, 2])
-
-      await vi.runAllTimersAsync()
-      expect(requestedCounts()).toEqual(lineCounts)
-    } finally {
-      rectSpy.mockRestore()
-      vi.clearAllTimers()
-      vi.useRealTimers()
-    }
-  })
-
-  it('debounces every highlight request after the first one', async () => {
-    vi.useFakeTimers()
-    const rectSpy = vi
-      .spyOn(window.HTMLElement.prototype, 'getBoundingClientRect')
-      .mockReturnValue(new DOMRect(10, 10, 320, 80))
-    try {
-      const { rerender } = render(<CodeViewer value={'line 1'} language="typescript" />)
-      mocks.highlightLines.mockClear()
-
-      rerender(<CodeViewer value={'line 1\nline 2'} language="typescript" />)
-      expect(mocks.highlightLines).not.toHaveBeenCalled()
-
-      await vi.advanceTimersByTimeAsync(300)
-      expect(mocks.highlightLines).toHaveBeenCalledWith(2)
-    } finally {
-      rectSpy.mockRestore()
-      vi.useRealTimers()
-    }
-  })
-
-  it('does not request syntax highlighting when highlighting is disabled', () => {
-    render(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
-
-    expect(mocks.highlightLines).not.toHaveBeenCalled()
-    expect(mocks.resetHighlight).not.toHaveBeenCalled()
-  })
-
-  it('clears highlighting resources when highlighting is disabled after being enabled', () => {
-    const { rerender } = render(<CodeViewer value="line 1" language="typescript" options={{ highlight: true }} />)
-
-    rerender(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
-
-    expect(mocks.resetHighlight).toHaveBeenCalled()
-  })
-
-  it('renders code at full opacity while highlighting is disabled, not dimmed', () => {
-    const { container } = render(
-      <CodeViewer value="const a = 1" language="typescript" options={{ highlight: false }} />
-    )
-
-    const tokenSpans = container.querySelectorAll('.line-content > span')
-    expect(tokenSpans.length).toBeGreaterThan(0)
-    tokenSpans.forEach((span) => {
-      expect((span as HTMLElement).style.opacity).not.toBe('0.35')
-    })
-    // The un-highlighted fallback renders the raw text at full opacity
-    expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
-  })
-
-  it('estimates taller virtual rows for wrapped long lines than short lines', () => {
-    const longLine = 'x'.repeat(500)
-    const props = {
-      value: `${longLine}\nshort`,
-      language: 'python',
-      wrapped: true,
-      expanded: false,
-      maxHeight: '350px'
-    } as const
-    const { rerender } = render(<CodeViewer {...props} />)
-
-    // Re-render once so estimateSize sees the mounted scroller width.
-    rerender(<CodeViewer {...props} />)
-
-    const virtualizerOptions = mocks.useVirtualizer.mock.calls.at(-1)?.[0] as VirtualizerOptions
-    expect(virtualizerOptions.estimateSize?.(0)).toBeGreaterThan(virtualizerOptions.estimateSize?.(1) ?? 0)
-
-    const virtualItems = createVirtualizerMock(virtualizerOptions).getVirtualItems()
-    expect(virtualItems[0]?.size).toBeGreaterThan(virtualItems[1]?.size ?? 0)
-    expect(virtualItems[1]?.start).toBe(virtualItems[0]?.size)
-
-    mocks.resizeItem.mockClear()
-    mocks.measure.mockClear()
-    rerender(<CodeViewer {...props} value={`${longLine}more\nshort`} />)
-
-    // A streamed value update resizes only the changed rows; it must never run a
-    // full remeasure, which would discard every row's DOM measurement.
-    expect(mocks.measure).not.toHaveBeenCalled()
-    expect(mocks.resizeItem).toHaveBeenCalledTimes(1)
-  })
-
-  it('remeasures wrapped rows when the gutter layout changes', () => {
-    const props = {
-      value: 'line 1\nline 2',
-      language: 'python',
-      wrapped: true,
-      expanded: false,
-      maxHeight: '350px'
-    } as const
-    const { rerender } = render(<CodeViewer {...props} />)
-    mocks.measure.mockClear()
-
-    rerender(<CodeViewer {...props} options={{ lineNumbers: true }} />)
-    expect(mocks.measure).toHaveBeenCalledTimes(1)
-
-    // Re-rendering with the same layout signature must not remeasure again.
-    rerender(<CodeViewer {...props} options={{ lineNumbers: true }} />)
-    expect(mocks.measure).toHaveBeenCalledTimes(1)
-  })
-
-  it('renders streamed wrapped rows at their measured virtual offsets', async () => {
-    const { useVirtualizer: realUseVirtualizer } = await vi.importActual<{ useVirtualizer: typeof RealUseVirtualizer }>(
-      '@tanstack/react-virtual'
-    )
-    const defaultUseVirtualizerImpl = mocks.useVirtualizer.getMockImplementation()
-
-    // Simulated layout: every row is line-height tall per visual row and wraps at
-    // the same width the estimator assumes, so DOM sizes match estimates — except
-    // the streamed line, which wraps to more visual rows than the char-count
-    // estimate predicts (the real-world variable-width-glyph case the offset math
-    // must survive).
-    const fontSize = 13
-    const lineHeightPx = Math.round(fontSize * 1.6)
-    const scrollerClientWidth = 640
-    const scrollerViewportHeight = 300
-    const estimateCharsPerRow = Math.floor((scrollerClientWidth - fontSize * 2) / (fontSize * 0.6))
-    const estimateVisualRows = (line: string) => Math.max(1, Math.ceil(line.length / estimateCharsPerRow))
+  it('uses measured wrapped heights after streaming changes a row', () => {
     const streamedLine = 'y'.repeat(200)
-    const streamedLineVisualRows = 5
-    const rowHeight = (line: string) =>
-      lineHeightPx * (line === streamedLine ? streamedLineVisualRows : estimateVisualRows(line))
-    const rowOffsetHeight = (element: HTMLElement) => {
-      if (element.hasAttribute('data-index')) return rowHeight(element.textContent ?? '')
-      if (element.classList.contains('shiki-scroller')) return scrollerViewportHeight
-      return 0
-    }
-
-    const originalOffsetHeight = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'offsetHeight')
-    const originalOffsetWidth = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'offsetWidth')
-    const originalScrollTo = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'scrollTo')
-
-    try {
-      Object.defineProperty(window.HTMLElement.prototype, 'offsetHeight', {
-        configurable: true,
-        get: function (this: HTMLElement) {
-          return rowOffsetHeight(this)
-        }
-      })
-      Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', {
-        configurable: true,
-        get: function (this: HTMLElement) {
-          return this.hasAttribute('data-index') || this.classList.contains('shiki-scroller') ? scrollerClientWidth : 0
-        }
-      })
-      // jsdom does not implement Element.scrollTo; the real virtualizer calls it.
-      Object.defineProperty(window.HTMLElement.prototype, 'scrollTo', {
-        configurable: true,
-        value: () => {},
-        writable: true
-      })
-
-      // Run the real @tanstack/react-virtual against the simulated geometry; the
-      // module-level mock must be restored so later tests keep their virtualizer stub.
-      mocks.useVirtualizer.mockImplementation(
-        realUseVirtualizer as unknown as NonNullable<typeof defaultUseVirtualizerImpl>
-      )
-
-      const longLine = 'x'.repeat(100)
-      const lines = Array.from({ length: 40 }, () => longLine)
-      const estimateRowPx = lineHeightPx * estimateVisualRows(longLine)
-      const props = { language: 'python', wrapped: true, expanded: false, maxHeight: '350px' } as const
-
-      const { container, rerender } = render(<CodeViewer {...props} value={lines.join('\n')} />)
-
-      const list = container.querySelector('.shiki-list') as HTMLElement
-      const offsetContainer = list.firstElementChild as HTMLElement
-
-      // All rows measure to the same simulated wrapped height, so total size and the
-      // first row's offset come from DOM measurements, not single-line guesses.
-      expect(list.style.height).toBe(`${lines.length * estimateRowPx}px`)
-      expect(offsetContainer.style.transform).toBe('translateY(0px)')
-
-      // Stream a longer first line whose true wrapped height exceeds its estimate:
-      // the virtualizer must receive the DOM height, not the estimate.
-      const streamedLines = [streamedLine, ...lines.slice(1)]
-      rerender(<CodeViewer {...props} value={streamedLines.join('\n')} />)
-
-      const streamedRowPx = lineHeightPx * streamedLineVisualRows
-      expect(list.style.height).toBe(`${streamedRowPx + (lines.length - 1) * estimateRowPx}px`)
-      expect(offsetContainer.style.transform).toBe('translateY(0px)')
-
-      // Scrolling into the estimated region: the first rendered row must sit at the
-      // cumulative true height of every row before it — the overlap regression
-      // behind issue #21151.
-      const scroller = container.querySelector('.shiki-scroller') as HTMLElement
-      scroller.scrollTop = 1500
-      fireEvent.scroll(scroller)
-
-      const renderedRows = Array.from(container.querySelectorAll('[data-index]'))
-      expect(renderedRows.length).toBeGreaterThan(0)
-      const firstRenderedIndex = parseInt(renderedRows[0].getAttribute('data-index') ?? '0', 10)
-      expect(firstRenderedIndex).toBeGreaterThan(0)
-      const expectedOffset = streamedLines.slice(0, firstRenderedIndex).reduce((acc, line) => acc + rowHeight(line), 0)
-      expect(offsetContainer.style.transform).toBe(`translateY(${expectedOffset}px)`)
-    } finally {
-      if (defaultUseVirtualizerImpl) {
-        mocks.useVirtualizer.mockImplementation(defaultUseVirtualizerImpl)
-      }
-      restoreDescriptor('offsetHeight', originalOffsetHeight)
-      restoreDescriptor('offsetWidth', originalOffsetWidth)
-      restoreDescriptor('scrollTo', originalScrollTo)
-    }
-  })
-
-  it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
-    // The wrapped line-content must be able to shrink below its min-content width
-    // (base64, URLs, minified JSON), otherwise long lines overflow the container
-    // and get clipped by the line's paint containment with no way to scroll to them.
-    const { container } = render(
-      <CodeViewer
-        value="long=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        language="text"
-        wrapped
-      />
-    )
-
-    const lineContent = container.querySelector('.line-content')
-    expect(lineContent).toHaveClass('min-w-0')
-    // The descendants-facing wrap classes must carry `!important` so they win
-    // over `.markdown pre span { white-space: pre }` inside chat code blocks.
-    expect(lineContent).toHaveClass('[&_*]:whitespace-pre-wrap!')
-    expect(lineContent).toHaveClass('[&_*]:break-words!')
+    measuredRowHeight = (element) => (element.textContent === streamedLine ? 105 : 42)
+    const lines = Array.from({ length: 100 }, () => 'x'.repeat(100))
+    const props = { language: 'text', expanded: false, height: 300, wrapped: true } as const
+    const { container, rerender } = render(<CodeViewer {...props} value={lines.join('\n')} />)
+    const list = container.querySelector<HTMLElement>('.shiki-list')!
+    expect(list.style.height).toBe('4200px')
+    rerender(<CodeViewer {...props} value={[streamedLine, ...lines.slice(1)].join('\n')} />)
+    expect(list.style.height).toBe('4263px')
+    const scroller = container.querySelector<HTMLElement>('.shiki-scroller')!
+    scroller.scrollTop = 2000
+    fireEvent.scroll(scroller)
+    const first = container.querySelector<HTMLElement>('[data-index]')!
+    const index = Number(first.dataset.index)
+    expect(index).toBeGreaterThan(0)
+    expect(first.parentElement?.style.transform).toBe(`translateY(${105 + (index - 1) * 42}px)`)
   })
 })

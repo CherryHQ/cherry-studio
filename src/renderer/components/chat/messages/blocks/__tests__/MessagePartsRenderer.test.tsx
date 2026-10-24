@@ -339,7 +339,7 @@ vi.mock('../PlaceholderBlock', () => ({
   usePlaceholderElapsedMs: mockUsePlaceholderElapsedMs
 }))
 
-import MessagePartsRenderer from '../MessagePartsRenderer'
+import MessagePartsRenderer, { getHoistedAttachments } from '../MessagePartsRenderer'
 
 const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem => ({
   id: 'msg-1',
@@ -1046,56 +1046,6 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
     })
 
-    it('keeps non-image attachment tokens visible when attachments are hoisted', () => {
-      const previewInputFile = vi.fn()
-
-      renderParts(
-        [
-          {
-            type: 'text',
-            text: 'see the doc',
-            providerMetadata: {
-              cherry: {
-                composer: {
-                  version: 1,
-                  tokens: [{ id: 'file:hoisted-doc', kind: 'file', label: 'report.pdf', index: 0, textOffset: 0 }]
-                }
-              }
-            }
-          },
-          {
-            type: 'file',
-            url: 'file:///tmp/report.pdf',
-            mediaType: 'application/pdf',
-            filename: 'report.pdf',
-            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-doc' } }
-          }
-        ] as unknown as CherryMessagePart[],
-        msg({ role: 'user' }),
-        { previewInputFile },
-        defaultMessageRenderConfig,
-        [],
-        true
-      )
-
-      expect(screen.getByText('see the doc')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-attachments')).toBeNull()
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
-
-      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('hoisted-doc')
-      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
-        id: 'file:hoisted-doc',
-        kind: 'file',
-        label: 'report.pdf'
-      })
-
-      expect(previewInputFile).toHaveBeenCalledWith({
-        displayName: 'report.pdf',
-        previewPath: '/tmp/report.pdf',
-        mediaType: 'application/pdf'
-      })
-    })
-
     it('opens uniquely named sent files from their read-only tokens when parts omit fileTokenSourceId', () => {
       const previewInputFile = vi.fn()
 
@@ -1161,7 +1111,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
@@ -1237,7 +1187,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
@@ -1288,7 +1238,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
@@ -1346,7 +1296,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       const cards = screen.getAllByTestId('mock-attachments')
@@ -1407,7 +1357,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
@@ -1691,7 +1641,32 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('Open')).toBeInTheDocument()
     })
 
-    it('keeps one right-pane file token when previewInputFile is available', () => {
+    it('preserves original file identity when moving a managed attachment outside the bubble', () => {
+      const { files } = getHoistedAttachments(
+        [
+          {
+            type: 'file',
+            url: 'file:///managed/report%20copy.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report', originalPath: '/original/report.pdf' } }
+          }
+        ] as CherryMessagePart[],
+        'message-1',
+        true
+      )
+
+      expect(files).toHaveLength(1)
+      expect(files[0].inputFilePreview).toEqual({
+        displayName: 'report.pdf',
+        previewPath: '/managed/report copy.pdf',
+        fileEntryId: 'entry-report',
+        originalPath: '/original/report.pdf',
+        mediaType: 'application/pdf'
+      })
+    })
+
+    it('hides the inline file token when its external card supports right-pane preview', () => {
       const previewInputFile = vi.fn()
       renderParts(
         [
@@ -1732,15 +1707,9 @@ describe('MessagePartsRenderer', () => {
         true
       )
 
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
-      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('source-report')
-      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
-        id: 'file:source-report',
-        kind: 'file',
-        label: 'report.pdf'
-      })
-      expect(previewInputFile).toHaveBeenCalledTimes(1)
+      expect(screen.getByText('Open')).toBeInTheDocument()
     })
 
     it('hides a duplicate attachment when its composer file token is visible', () => {
@@ -2179,6 +2148,41 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('active layout', () => {
+    it('shows intermediate prose inline while keeping tools and reasoning in one live fold', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          { type: 'text', text: 'First update' },
+          toolPart('read'),
+          { type: 'text', text: 'Second update' },
+          { type: 'reasoning', text: 'Checking result', state: 'done' },
+          toolPart('edit'),
+          { type: 'text', text: 'Final answer', state: 'streaming' }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
+      )
+
+      for (const text of ['First update', 'Second update', 'Final answer']) {
+        expect(screen.getByText(text).closest('[data-testid="live-tool-group"]')).toBeNull()
+      }
+      expect(
+        screen.getByText('First update').compareDocumentPosition(screen.getByText('Second update')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        screen.getByText('Second update').compareDocumentPosition(screen.getByText('Final answer')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(screen.getAllByTestId('live-tool-group')).toHaveLength(1)
+      expect(latestMainTextProps(5)?.isStreaming).toBe(true)
+      expandCollapsedLiveToolGroups()
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Checking result')
+      expect(screen.getAllByText('First update')).toHaveLength(1)
+    })
+
     it('uses one top-level disclosure for separated process parts without swallowing answer text', () => {
       activateTurn()
       const pendingMessage = msg({ status: 'pending' })
@@ -2740,6 +2744,41 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(historyTrigger)
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
+    })
+
+    it('shows each completed prose part inline and leaves tools and reasoning in the fold', () => {
+      renderParts(
+        [
+          { type: 'text', text: 'First update' },
+          toolPart('read'),
+          { type: 'text', text: 'Second update' },
+          { type: 'reasoning', text: 'Checking result', state: 'done' },
+          toolPart('edit'),
+          { type: 'text', text: 'Final answer' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
+      )
+
+      for (const text of ['First update', 'Second update', 'Final answer']) {
+        expect(screen.getByText(text).closest('[data-testid="tool-history-content"]')).toBeNull()
+      }
+      expect(
+        screen.getByText('First update').compareDocumentPosition(screen.getByText('Second update')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        screen.getByText('Second update').compareDocumentPosition(screen.getByText('Final answer')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.click(historyTrigger)
+      expect(screen.getAllByTestId('child-tool-group')).toHaveLength(1)
+      expandCollapsedChildToolGroups()
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Checking result')
+      expect(screen.getAllByText('First update')).toHaveLength(1)
     })
 
     it('keeps channel authentication QR tools outside collapsed process history', () => {

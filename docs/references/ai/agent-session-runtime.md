@@ -259,8 +259,10 @@ durable request reaches `accepted`; it never waits for scheduling or target exec
 
 `session_create` reuses the same completion-request path. Omitting `target_agent_id` creates a
 same-Agent Session; providing it creates a Session owned by the selected Agent. The sender remains
-the trusted calling Agent/Session, and the current workspace policy is retained. The model is not a
-tool argument because Sessions use their owning Agent's model.
+the trusted calling Agent/Session. A same-Agent Session continues the sender's workspace; a
+cross-Agent Session continues the target Agent's most recent workspace, falling back to the
+sender's workspace when that Agent has no Session. The model is not a tool argument because
+Sessions use their owning Agent's model.
 
 ### Deliberate security ceiling
 
