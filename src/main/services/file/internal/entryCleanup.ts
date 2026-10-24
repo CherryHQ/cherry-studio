@@ -16,6 +16,7 @@ import { loggerService } from '@logger'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { EntryCleanupSummary } from '@shared/types/file'
 
+import { runPathMutationExclusive } from '../pathMutationLock'
 import type { FileManagerDeps } from './deps'
 import { cleanupDeletedEntry } from './entry/lifecycle'
 import type { IntakeStore } from './IntakeStore'
@@ -104,41 +105,45 @@ export async function runEntryCleanup(
 
     for (const candidate of batch) {
       try {
-        const outcome = deps.fileEntryService.withWriteTx((tx): CandidateOutcome => {
-          const row = deps.fileEntryService.findByIdTx(tx, candidate.id)
-          if (
-            row === null ||
-            row.cleanupPolicy !== 'delete_when_unreferenced' ||
-            intakeProtection?.isProtected(candidate.id)
-          ) {
-            return { kind: 'gone-or-pinned' }
-          }
-          if (
-            retainedEntries.has(candidate.id) ||
-            deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0
-          ) {
-            return { kind: 'refs-reappeared' }
-          }
-          deps.fileEntryService.deleteTx(tx, candidate.id)
-          return { kind: 'deleted', entry: row }
-        })
+        await deps.contentWriteLock.runExclusive(candidate.id, () =>
+          runPathMutationExclusive(async () => {
+            const outcome = deps.fileEntryService.withWriteTx((tx): CandidateOutcome => {
+              const row = deps.fileEntryService.findByIdTx(tx, candidate.id)
+              if (
+                row === null ||
+                row.cleanupPolicy !== 'delete_when_unreferenced' ||
+                intakeProtection?.isProtected(candidate.id)
+              ) {
+                return { kind: 'gone-or-pinned' }
+              }
+              if (
+                retainedEntries.has(candidate.id) ||
+                deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0
+              ) {
+                return { kind: 'refs-reappeared' }
+              }
+              deps.fileEntryService.deleteTx(tx, candidate.id)
+              return { kind: 'deleted', entry: row }
+            })
 
-        switch (outcome.kind) {
-          case 'deleted': {
-            deleted++
-            const { unlinkFailed } = await cleanupDeletedEntry(deps, outcome.entry)
-            if (unlinkFailed) unlinkFailures++
-            break
-          }
-          case 'refs-reappeared':
-            skippedRefsReappeared++
-            break
-          case 'gone-or-pinned':
-            gonePinned++
-            break
-          default:
-            assertNever(outcome)
-        }
+            switch (outcome.kind) {
+              case 'deleted': {
+                deleted++
+                const { unlinkFailed } = await cleanupDeletedEntry(deps, outcome.entry)
+                if (unlinkFailed) unlinkFailures++
+                break
+              }
+              case 'refs-reappeared':
+                skippedRefsReappeared++
+                break
+              case 'gone-or-pinned':
+                gonePinned++
+                break
+              default:
+                assertNever(outcome)
+            }
+          })
+        )
       } catch (err) {
         // Stateless retry (spec §5.6): the next pass re-derives this candidate.
         failed++

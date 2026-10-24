@@ -346,6 +346,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           mountedPolicies
             .filter(({ approval, bypassApproval }) => approval === 'required' && bypassApproval === 'enforce')
             .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        delegationTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'delegation')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
         )
       }
       const mcpServers = buildAgentMcpServers(
@@ -887,7 +892,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return
       }
       // Auto-compaction failure stays non-terminal — the surrounding turn owns the terminal event.
-      this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
+      this.eventQueue.push({
+        type: 'compaction-error',
+        error: event.errorMessage ?? 'pi compaction aborted',
+        aborted: event.aborted
+      })
       return
     }
     // `willRetry` keeps the surrounding agent turn open; it does not defer this compaction result.

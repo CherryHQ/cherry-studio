@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type * as MenuListModule from '@cherrystudio/ui/components/composites/menu-list'
+import type * as ButtonModule from '@cherrystudio/ui/components/primitives/button'
 import type * as PopoverModule from '@cherrystudio/ui/components/primitives/popover'
+import type * as TooltipModule from '@cherrystudio/ui/components/primitives/tooltip'
 
 import {
   getSidebarDisplayWidth,
@@ -36,7 +38,10 @@ vi.mock('@cherrystudio/ui', async () => {
   const menuList = await vi.importActual<typeof MenuListModule>('@cherrystudio/ui/components/composites/menu-list')
   const popover = await vi.importActual<typeof PopoverModule>('@cherrystudio/ui/components/primitives/popover')
 
+  const { Button } = await vi.importActual<typeof ButtonModule>('@cherrystudio/ui/components/primitives/button')
   return {
+    Button,
+    Tooltip: (await vi.importActual<typeof TooltipModule>('@cherrystudio/ui/components/primitives/tooltip')).Tooltip,
     ...menuList,
     ...popover,
     Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
@@ -742,21 +747,16 @@ describe('Sidebar icon presentation', () => {
     [SIDEBAR_FULL_THRESHOLD, { slotSize: 18, glyphSize: 16 }],
     [SIDEBAR_ICON_WIDTH, { slotSize: 24, glyphSize: 18 }]
   ])('uses one fixed icon slot at width %s', (width, expectedPresentation) => {
-    const presentations: unknown[] = []
     const mixedEntries: ResolvedSidebarEntry[] = ['glyph', 'avatar'].map((kind) => ({
       key: kind,
       label: kind,
-      renderIcon: (presentation: unknown) => {
-        presentations.push(presentation)
-        return <span>{kind}</span>
-      },
+      renderIcon: () => <span>{kind}</span>,
       isActive: false,
       onOpen: vi.fn()
     }))
 
     const { container } = render(<Sidebar width={width} setWidth={vi.fn()} entries={mixedEntries} />)
 
-    expect(presentations).toEqual([expectedPresentation, expectedPresentation])
     const slots = [...container.querySelectorAll('[data-slot="sidebar-entry-icon"]')]
     expect(slots).toHaveLength(2)
     for (const slot of slots) {

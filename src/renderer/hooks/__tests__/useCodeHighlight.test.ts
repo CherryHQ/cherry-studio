@@ -1,91 +1,84 @@
 // @vitest-environment jsdom
-
 import { act, renderHook } from '@testing-library/react'
-import type { ThemedToken } from 'shiki/core'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { HighlightResult } from '@renderer/types/codeHighlight'
 
 import { useCodeHighlight } from '../useCodeHighlight'
 
-interface Deferred<T> {
-  promise: Promise<T>
-  resolve: (value: T) => void
-}
-
-function createDeferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
-    resolve = res
-  })
-  return { promise, resolve }
-}
-
-const mocks = vi.hoisted(() => ({
-  highlightStreamingCode: vi.fn(),
-  cleanupTokenizers: vi.fn()
-}))
-
+const mocks = vi.hoisted(() => ({ highlightRange: vi.fn(), cleanupTokenizers: vi.fn(), theme: 'one-light' }))
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
-    activeShikiTheme: 'github-light',
-    highlightStreamingCode: mocks.highlightStreamingCode,
+    activeCodeTheme: mocks.theme,
+    highlightRange: mocks.highlightRange,
     cleanupTokenizers: mocks.cleanupTokenizers
   })
 }))
-
-const sampleToken = (content: string): ThemedToken => ({
-  content,
-  offset: 0,
-  color: 'inherit'
-})
+const resultFor = (content: string, start = 0): HighlightResult => ({ start, lines: [[{ content, offset: 0 }]] })
+function deferred() {
+  let resolve!: (result: HighlightResult) => void
+  const promise = new Promise<HighlightResult>((done) => {
+    resolve = done
+  })
+  return { resolve, promise }
+}
 
 describe('useCodeHighlight', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.theme = 'one-light'
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  it('returns a scrolled range without requiring tokens for preceding lines', async () => {
+    mocks.highlightRange.mockResolvedValue(resultFor('last', 9999))
+    const { result } = renderHook(() => useCodeHighlight({ value: 'first\nlast', language: 'text', callerId: 'range' }))
+    await act(() => result.current.highlightLines(9999, 10000))
+    expect(result.current.tokens).toEqual(resultFor('last', 9999))
   })
 
-  it('populates tokenLines from a highlight result', async () => {
-    mocks.highlightStreamingCode.mockResolvedValue({ lines: [[sampleToken('const a = 1')]], recall: 0 })
-
-    const { result } = renderHook(() =>
-      useCodeHighlight({ rawLines: ['const a = 1'], language: 'typescript', callerId: 'c1' })
-    )
-
-    await act(async () => {
-      await result.current.highlightLines()
-    })
-
-    expect(result.current.tokenLines).toHaveLength(1)
-  })
-
-  it('drops a stale async highlight result that returns after resetHighlight()', async () => {
-    const deferred = createDeferred<{ lines: ThemedToken[][]; recall: number }>()
-    mocks.highlightStreamingCode.mockReturnValue(deferred.promise)
-
-    const { result } = renderHook(() =>
-      useCodeHighlight({ rawLines: ['const a = 1'], language: 'typescript', callerId: 'c1' })
-    )
-
-    // Fire a highlight request that is still in-flight (awaiting)
+  it('discards an in-flight response after highlighting is disabled', async () => {
+    const request = deferred()
+    mocks.highlightRange.mockReturnValue(request.promise)
+    const { result } = renderHook(() => useCodeHighlight({ value: 'old', language: 'text', callerId: 'reset' }))
     let pending!: Promise<void>
     act(() => {
-      pending = result.current.highlightLines()
+      pending = result.current.highlightLines(0, 1)
     })
-
-    // Reset while the request is in-flight — this must invalidate the pending result
-    act(() => {
-      result.current.resetHighlight()
-    })
-
-    // Now the old request resolves; its write-back must be discarded
+    act(() => result.current.resetHighlight())
     await act(async () => {
-      deferred.resolve({ lines: [[sampleToken('const a = 1')]], recall: 0 })
+      request.resolve(resultFor('old'))
       await pending
     })
+    expect(result.current.tokens).toBeNull()
+  })
 
-    expect(result.current.tokenLines).toEqual([])
+  it('coalesces pending revisions and uses the new theme resolver after an in-flight request', async () => {
+    const first = deferred()
+    mocks.highlightRange.mockReturnValue(first.promise)
+    const { result, rerender } = renderHook(
+      ({ value }) => useCodeHighlight({ value, language: 'text', callerId: 'stream' }),
+      { initialProps: { value: 'old' } }
+    )
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.highlightLines(0, 1)
+    })
+    rerender({ value: 'intermediate' })
+    act(() => {
+      void result.current.highlightLines(0, 1)
+    })
+    mocks.theme = 'nord'
+    mocks.highlightRange = vi.fn(async () => resultFor('latest dark'))
+    rerender({ value: 'latest' })
+    act(() => {
+      void result.current.highlightLines(0, 1)
+    })
+    await act(async () => {
+      first.resolve(resultFor('old'))
+      await pending
+    })
+    expect(result.current.tokens).toEqual(resultFor('latest dark'))
+    rerender({ value: 'replaced' })
+    expect(result.current.tokens).toBeNull()
   })
 })

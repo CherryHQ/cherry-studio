@@ -1,6 +1,7 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,9 +18,11 @@ async function helper(source: string) {
   const directory = await mkdtemp(join(tmpdir(), 'speech-client-'))
   directories.push(directory)
   const helperPath = join(directory, 'helper')
-  await writeFile(helperPath, `#!${process.execPath}\n${source}\n`)
-  await chmod(helperPath, 0o700)
-  return { directory, helperPath }
+  const sourcePath = join(directory, 'scenario.cjs')
+  await writeFile(sourcePath, `${source}\n`)
+  // Keep the executable immutable: Linux can reject a newly written executable with ETXTBSY.
+  await symlink(fileURLToPath(new URL('./fixtures/runScenario.cjs', import.meta.url)), helperPath)
+  return { directory, helperPath, sourcePath }
 }
 
 function response(value: unknown): string {
@@ -27,6 +30,19 @@ function response(value: unknown): string {
 }
 
 describe.skipIf(process.platform === 'win32')('SystemSpeechNativeClient with POSIX executable fixtures', () => {
+  it('runs a writable scenario without executing its writable inode', async () => {
+    const value = { operation: 'resolve_voice', result: { voice: null } }
+    const setup = await helper(response({ ok: true, value }))
+    const writer = await open(setup.sourcePath, 'r+')
+    try {
+      await expect(
+        new SystemSpeechNativeClient(setup).request({ operation: 'resolve_voice', locale: 'zh-CN' })
+      ).resolves.toEqual(value)
+    } finally {
+      await writer.close()
+    }
+  })
+
   it.each([null, { id: 'native.default', name: 'Default', locale: 'zh-CN', quality: 1 }])(
     'decodes a native default voice or explicit absence',
     async (voice) => {
@@ -41,8 +57,8 @@ describe.skipIf(process.platform === 'win32')('SystemSpeechNativeClient with POS
     const setup = await helper('')
     const capture = join(setup.directory, 'stdin.json')
     await writeFile(
-      setup.helperPath,
-      `#!${process.execPath}\nconst fs=require('node:fs');let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{fs.writeFileSync(${JSON.stringify(capture)},input);const request=JSON.parse(input);process.stdout.write(JSON.stringify({ok:true,value:{operation:'synthesize',result:{outputPath:request.outputPath,voiceId:request.voiceId,sampleRate:16000,channels:1,frameCount:16000}}}))})\n`
+      setup.sourcePath,
+      `const fs=require('node:fs');let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{fs.writeFileSync(${JSON.stringify(capture)},input);const request=JSON.parse(input);process.stdout.write(JSON.stringify({ok:true,value:{operation:'synthesize',result:{outputPath:request.outputPath,voiceId:request.voiceId,sampleRate:16000,channels:1,frameCount:16000}}}))})\n`
     )
     const request = {
       operation: 'synthesize',
@@ -136,8 +152,8 @@ describe.skipIf(process.platform === 'win32')('SystemSpeechNativeClient with POS
     const ready = join(setup.directory, 'ready')
     const closed = join(setup.directory, 'closed')
     await writeFile(
-      setup.helperPath,
-      `#!${process.execPath}\nconst fs=require('node:fs');process.on('SIGTERM',()=>setTimeout(()=>{fs.writeFileSync(${JSON.stringify(closed)},'done');process.exit(0)},80));fs.writeFileSync(${JSON.stringify(ready)},'ready');setInterval(()=>{},1000)\n`
+      setup.sourcePath,
+      `const fs=require('node:fs');process.on('SIGTERM',()=>setTimeout(()=>{fs.writeFileSync(${JSON.stringify(closed)},'done');process.exit(0)},80));fs.writeFileSync(${JSON.stringify(ready)},'ready');setInterval(()=>{},1000)\n`
     )
     const controller = new AbortController()
     const result = new SystemSpeechNativeClient({ ...setup, killGraceMs: 500 })
