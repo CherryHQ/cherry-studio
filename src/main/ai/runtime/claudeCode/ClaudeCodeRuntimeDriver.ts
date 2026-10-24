@@ -495,6 +495,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
+  drainPendingSteers(): AgentRuntimeUserInput[] {
+    return this.steerHolder?.pending.splice(0) ?? []
+  }
+
   async reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']

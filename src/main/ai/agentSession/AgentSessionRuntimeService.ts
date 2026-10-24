@@ -1717,8 +1717,24 @@ export class AgentSessionRuntimeService extends BaseService {
     const reassignmentEpoch = sessionReassignmentEpoch(entry.sessionId)
     // Admission queues input while the live turn still runs the old model; the teardown removes the
     // entry that holds it. Keep it for the replacement turn instead of dropping accepted input.
-    if (entry.runtimeState.queue.length > 0) {
-      this.handoffQueuedInput.set(entry.sessionId, entry.runtimeState.queue.slice())
+    // A correction admitted through `redirect()` sits in the driver's steer buffer instead — the
+    // teardown disposes it, so drain it here and replay both through the same path.
+    const redirected = this.currentConnection(entry)?.drainPendingSteers?.() ?? []
+    const preserved: PendingAgentSessionTurn[] = [
+      ...entry.runtimeState.queue,
+      ...redirected.map((input) => ({
+        message: input.message,
+        reasoningEffort: turn.reasoningEffort,
+        serviceTier: turn.serviceTier,
+        knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
+        fastMode: turn.fastMode,
+        steer: true,
+        ...(input.headless ? { headless: true } : {}),
+        ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
+      }))
+    ]
+    if (preserved.length > 0) {
+      this.handoffQueuedInput.set(entry.sessionId, preserved)
     }
     this.handoffTeardowns.add(entry.sessionId)
     try {

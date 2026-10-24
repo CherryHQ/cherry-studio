@@ -206,6 +206,12 @@ export interface AgentRuntimeConnection {
    */
   redirect?(input: AgentRuntimeUserInput): boolean
   /**
+   * Remove and return the steers `redirect()` stashed that no hook has injected yet. A host tearing
+   * the turn down (an automatic model handoff) must carry them into the replacement turn instead of
+   * letting the teardown drop accepted input. Omitted ⇒ the driver keeps no such state.
+   */
+  drainPendingSteers?(): AgentRuntimeUserInput[]
+  /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for
    * permission-mode changes: those stay frozen for an active turn and apply at the next turn
