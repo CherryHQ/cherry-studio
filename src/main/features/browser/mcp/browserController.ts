@@ -5,7 +5,7 @@ export type BrowserController = Pick<
   CdpBrowserController,
   'open' | 'fetch' | 'execute' | 'screenshot' | 'takeNewTabId' | 'listTabs' | 'dispose' | 'validateUrl'
 > &
-  Partial<Pick<CdpBrowserController, 'switchTab' | 'closeTab' | 'reset'>> &
+  Partial<Pick<CdpBrowserController, 'switchTab' | 'closeTab' | 'markTab' | 'reset'>> &
   Pick<BrowserPageController, 'getSession'> & {
     readonly signal?: AbortSignal
     takeHostEvents?: (tabId: string) => Record<string, unknown>

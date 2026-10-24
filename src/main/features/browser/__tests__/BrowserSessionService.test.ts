@@ -10,6 +10,7 @@ import { BaseService, Signal } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../BrowserSessionService'
 import * as browserProfiles from '../import/browserProfiles'
+import { handleMarkTab } from '../mcp/tools/tabs'
 import { createGuest } from './guestFixture'
 
 let events: EventEmitter
@@ -315,5 +316,93 @@ describe('Browser data cleanup', () => {
     await vi.waitFor(() =>
       expect(cache.getPersist('browser.favicons')['https://example.com']).toMatch(/^data:image\/png;base64,/)
     )
+  })
+})
+
+describe('Browser session freeze', () => {
+  it('freezes a marked tab after two idle minutes and thaws on the next send', async () => {
+    const { guest, mock } = createGuest()
+    const session = await service.acquire(guest, 'mcp', { ownership: 'managed', close: mock.close })
+    session.retention = 'deliverable'
+    await session.send('Page.getNavigationHistory')
+    mock.debugger.sendCommand.mockClear()
+    mock.debugger.detach.mockClear()
+
+    await vi.advanceTimersByTimeAsync(2 * 60_000 + 1_000)
+    expect(session.frozen).toBe(true)
+    expect(mock.setBackgroundThrottling).toHaveBeenCalledWith(true)
+    expect(mock.debugger.sendCommand).toHaveBeenCalledWith('Page.setWebLifecycleState', { state: 'frozen' })
+    expect(mock.debugger.isAttached()).toBe(false)
+
+    mock.debugger.sendCommand.mockClear()
+    await session.send('Page.getNavigationHistory')
+    expect(session.frozen).toBe(false)
+    expect(mock.debugger.sendCommand).toHaveBeenCalledWith('Page.setWebLifecycleState', { state: 'active' })
+    expect(mock.debugger.isAttached()).toBe(true)
+  })
+
+  it('keeps temporary tabs unfrozen and closes them only after five idle minutes', async () => {
+    const { guest, mock } = createGuest()
+    const session = await service.acquire(guest, 'mcp', { ownership: 'managed', close: mock.close })
+    await session.send('Page.getNavigationHistory')
+
+    await vi.advanceTimersByTimeAsync(2 * 60_000 + 1_000)
+    expect(session.frozen).toBe(false)
+    expect(service.get(guest.id)).toBe(session)
+
+    await vi.advanceTimersByTimeAsync(3 * 60_000)
+    expect(service.get(guest.id)).toBeUndefined()
+    expect(mock.close).toHaveBeenCalled()
+  })
+
+  it('skips busy and observed sessions until they go quiet', async () => {
+    const { guest, mock } = createGuest()
+    const session = await service.acquire(guest, 'mcp', { ownership: 'managed', close: mock.close })
+    session.retention = 'handoff'
+    await session.send('Page.getNavigationHistory')
+
+    let releaseGate!: () => void
+    const gate = new Promise<void>((resolve) => (releaseGate = resolve))
+    mock.debugger.sendCommand.mockImplementation(async (method: string) => {
+      if (method === 'Page.navigateToHistoryEntry') await gate
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'document-1' } } }
+      return {}
+    })
+    const inFlight = session.send('Page.navigateToHistoryEntry', { entryId: 1 }, { deadline: Date.now() + 10 * 60_000 })
+
+    await vi.advanceTimersByTimeAsync(3 * 60_000)
+    expect(session.frozen).toBe(false)
+    releaseGate()
+    await inFlight
+
+    const observation = await session.observe()
+    try {
+      await vi.advanceTimersByTimeAsync(2 * 60_000)
+      expect(session.frozen).toBe(false)
+    } finally {
+      observation.dispose()
+    }
+
+    await vi.advanceTimersByTimeAsync(2 * 60_000)
+    expect(session.frozen).toBe(true)
+  })
+
+  it('marks tabs through the mark_tab tool envelope', async () => {
+    const calls: Array<[boolean, string, string]> = []
+    const marked = await handleMarkTab(
+      { markTab: async (privateMode, tabId, retention) => void calls.push([privateMode, tabId, retention]) } as never,
+      { tabId: 'tab-1', retention: 'handoff' }
+    )
+    const payload = marked.content[0]
+    if (payload.type !== 'text') throw new Error('unexpected content kind')
+    expect(marked.isError).toBe(false)
+    expect(JSON.parse(payload.text)).toEqual({ marked: 'tab-1', retention: 'handoff' })
+    expect(calls).toEqual([[false, 'tab-1', 'handoff']])
+
+    const unsupported = await handleMarkTab({} as never, { tabId: 'tab-1', retention: 'temporary' })
+    const failure = unsupported.content[0]
+    if (failure.type !== 'text') throw new Error('unexpected content kind')
+    expect(unsupported.isError).toBe(true)
+    expect(failure.text).toBe('not_allowed')
   })
 })

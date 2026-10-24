@@ -6,6 +6,10 @@ consumers. Resolve it through `application.get('BrowserSessionService')`.
 - `managed` guests are engine-created tabs. Their controller supplies the close
   callback. A five-minute idle sweep and per-owner/global budgets reclaim
   temporary tabs; retained tabs are protected according to their retention mark.
+  A two-minute idle sweep freezes managed `deliverable`/`handoff` tabs —
+  background throttling, `Page.setWebLifecycleState frozen`, then debugger
+  detach — and skips busy tabs (downloads included) and observed tabs. The next
+  `send` or a tab-bar switch thaws them; `mark_tab` sets the retention mark.
 - `borrowed` guests belong to the user or another feature. Releasing the last
   lease detaches the debugger; the engine never closes or freezes these pages.
 - Ownership is fixed when a guest enters the registry. Every acquisition needs a

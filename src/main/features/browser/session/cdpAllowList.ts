@@ -8,6 +8,7 @@ const allowedMethods = [
   'WebMCP.cancelInvocation',
   'Page.enable',
   'Page.navigate',
+  'Page.setWebLifecycleState',
   'Page.getNavigationHistory',
   'Page.navigateToHistoryEntry',
   'Page.captureScreenshot',

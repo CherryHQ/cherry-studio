@@ -35,6 +35,7 @@ export class GuestSession implements Disposable {
   readonly ownership: SessionOwnership['ownership']
   retention: TabRetention = 'temporary'
   lastActive = Date.now()
+  private isFrozen = false
   private currentDocumentId = ''
   private currentMainFrameId = ''
   pendingDialog?: BrowserDialog
@@ -127,6 +128,54 @@ export class GuestSession implements Disposable {
 
   get busy() {
     return this.operations > 0 || this.pending.size > 0 || this.downloadItems.size > 0
+  }
+
+  get frozen() {
+    return this.isFrozen
+  }
+
+  /** Freeze eligibility: quiescent, unobserved, debugger releasable. Downloads count as busy. */
+  get freezable() {
+    return (
+      !this.disposed &&
+      !this.isFrozen &&
+      !this.busy &&
+      this.observers === 0 &&
+      !this.guest.isDestroyed() &&
+      !this.guest.isDevToolsOpened()
+    )
+  }
+
+  /**
+   * Freeze this retained tab: throttle, freeze the renderer while the debugger is
+   * attached, then release the debugger. Safe to call repeatedly; a failed attempt
+   * stays unfrozen and detaches, so the sweep can retry later.
+   */
+  async freeze(options: CommandOptions = {}): Promise<void> {
+    if (!this.freezable) return
+    try {
+      this.guest.setBackgroundThrottling(true)
+      await this.send(
+        'Page.setWebLifecycleState',
+        { state: 'frozen' },
+        { deadline: options.deadline ?? Date.now() + 5_000, signal: options.signal }
+      )
+      this.isFrozen = true
+    } finally {
+      this.detach()
+    }
+  }
+
+  /** Undo {@link freeze}: resume the renderer and restore baseline throttling. */
+  async thaw(options: CommandOptions = {}): Promise<void> {
+    if (!this.isFrozen || this.disposed || this.guest.isDestroyed()) return
+    this.isFrozen = false
+    this.guest.setBackgroundThrottling(true)
+    await this.send(
+      'Page.setWebLifecycleState',
+      { state: 'active' },
+      { deadline: options.deadline ?? Date.now() + 5_000, signal: options.signal }
+    )
   }
 
   isAvailable(): boolean {
@@ -327,6 +376,7 @@ export class GuestSession implements Disposable {
       if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
       if (this.pendingDialog && method !== 'Page.handleJavaScriptDialog')
         throw new BrowserSessionError('dialog_open', this.pendingDialog)
+      if (this.isFrozen && method !== 'Page.setWebLifecycleState') await this.thaw(options)
       if (method === 'Page.captureScreenshot' && this.guest.getType() === 'webview') {
         // Keep Chromium producing frames until the CDP copy completes, even for an occluded guest.
         if (this.captures === 0) this.guest.beginFrameSubscription(true, () => undefined)
