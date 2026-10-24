@@ -1,8 +1,11 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import type { UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as LoggerModule from '@renderer/services/LoggerService'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 
 import { IpcChatTransport } from '../IpcChatTransport'
@@ -236,6 +239,96 @@ describe('IpcChatTransport', () => {
     await expect(reader.read()).resolves.toMatchObject({ done: true })
   })
 
+  // The renderer drops `info` before it reaches main's `app.log` (LoggerService's
+  // logToMain threshold is WARN), so without the forcing marker the only record of a
+  // transport-driven abort is main's `Aborting stream`, which cannot name a caller.
+  // Asserting the marker alone would only prove the call site opted in, so the globally
+  // mocked logger is routed into the real LoggerService — the one production forwards
+  // with — and the assertion is on the channel main actually receives.
+  describe('abort attribution', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('puts the line naming the transport as the abort caller onto main log channel', async () => {
+      const { LoggerService } = await vi.importActual<typeof LoggerModule>('@renderer/services/LoggerService')
+      const realLogger = new LoggerService()
+      realLogger.initWindowSource('mainWindow')
+      vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(
+        (message: string, payload: object, forceMarker: object) => realLogger.info(message, payload, forceMarker)
+      )
+      vi.spyOn(console, 'info').mockImplementation(() => {})
+      const invoke = vi.spyOn(window.electron.ipcRenderer, 'invoke').mockResolvedValue(undefined).mockClear()
+
+      const abortController = new AbortController()
+      const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+      const reader = stream.getReader()
+      abortController.abort()
+      await reader.read()
+
+      expect(invoke).toHaveBeenCalledWith(
+        IpcChannel.App_LogToMain,
+        expect.objectContaining({ process: 'renderer', window: 'mainWindow' }),
+        'info',
+        'Stream abort requested',
+        [{ topicId }]
+      )
+    })
+  })
+
+  describe('a stop that named its origin', () => {
+    it('sends one abort, with that origin, when the SDK abort fires first', async () => {
+      // The SDK's stop aborts the signal; the transport used to answer with its own request,
+      // which could reach main before the caller's and take the attribution.
+      const abortController = new AbortController()
+      const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+      const reader = stream.getReader()
+
+      await transport.withAttributedStop(topicId, async () => {
+        abortController.abort()
+        await ipcMock.request('ai.stream.abort', { topicId, origin: 'user-stop' })
+      })
+
+      expect((await reader.read()).done).toBe(true)
+      expect(mock.mockApi.streamAbort.mock.calls).toEqual([[{ topicId, origin: 'user-stop' }]])
+    })
+
+    it('does not answer an already-aborted signal either', async () => {
+      const abortController = new AbortController()
+      abortController.abort()
+
+      await transport.withAttributedStop(topicId, async () => {
+        const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+        expect((await stream.getReader().read()).done).toBe(true)
+      })
+
+      expect(mock.mockApi.streamAbort).not.toHaveBeenCalled()
+    })
+
+    it('leaves a later abort of the topic to the transport again', async () => {
+      await transport.withAttributedStop(topicId, async () => {})
+
+      const abortController = new AbortController()
+      const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+      const reader = stream.getReader()
+      abortController.abort()
+      await reader.read()
+
+      expect(mock.mockApi.streamAbort.mock.calls).toEqual([[{ topicId, origin: 'transport-abort-signal' }]])
+    })
+
+    it('only holds back the topic it was given', async () => {
+      const abortController = new AbortController()
+      const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+      const reader = stream.getReader()
+
+      await transport.withAttributedStop('another-topic', async () => {
+        abortController.abort()
+        await reader.read()
+      })
+
+      expect(mock.mockApi.streamAbort.mock.calls).toEqual([[{ topicId, origin: 'transport-abort-signal' }]])
+    })
+  })
+
   it('calls streamAbort on abort signal', async () => {
     const abortController = new AbortController()
     const stream = await transport.sendMessages({
@@ -254,7 +347,7 @@ describe('IpcChatTransport', () => {
       chunks.push(value)
     }
 
-    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId, origin: 'transport-abort-signal' })
     expect(chunks).toHaveLength(1)
   })
 
@@ -270,7 +363,7 @@ describe('IpcChatTransport', () => {
 
     const { done } = await reader.read()
     expect(done).toBe(true)
-    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId, origin: 'transport-abort-signal' })
   })
 
   it('cleans up IPC listeners after done', async () => {

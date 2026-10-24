@@ -1,5 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { IpcChannel } from '@shared/IpcChannel'
+
 import type * as LoggerModule from '../LoggerService'
 
 // `@logger` is globally mocked in renderer.setup.ts, and it resolves to the same
@@ -102,5 +104,94 @@ describe('LoggerService window source resolution', () => {
       errorMessage: 'User cancelled',
       stack: error.stack
     })
+  })
+})
+
+// `logToMain` defaults to WARN, so the `info` lines that name who asked for a stream
+// abort never reach main's `app.log` on a packaged build. This is the escape hatch those
+// call sites rely on; if it stops forcing, they go silent again without a failing test.
+describe('LoggerService forced forwarding to main', () => {
+  beforeEach(() => {
+    document.head.innerHTML = '<meta name="logger-window-source" content="mainWindow" />'
+    // The stubbed bridge is one shared vi.fn for the whole file; clear it so "never
+    // forwarded" means this test's logger, not an empty history.
+    vi.spyOn(window.electron.ipcRenderer, 'invoke').mockResolvedValue(undefined).mockClear()
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('keeps an unmarked info line out of main at the default threshold', () => {
+    new LoggerService().info('Stream abort requested', { topicId: 'agent-session:session-1' })
+
+    expect(window.electron.ipcRenderer.invoke).not.toHaveBeenCalled()
+  })
+
+  it('forwards a marked info line to main without the marker in the payload', () => {
+    new LoggerService().info('Stream abort requested', { topicId: 'agent-session:session-1' }, { logToMain: true })
+
+    const call = vi.mocked(window.electron.ipcRenderer.invoke).mock.calls.at(-1)!
+    expect(call[0]).toBe(IpcChannel.App_LogToMain)
+    expect(call[3]).toBe('Stream abort requested')
+    expect(call[4]).toEqual([{ topicId: 'agent-session:session-1' }])
+  })
+})
+
+/**
+ * `processLog` applies the `CSLOGGER_RENDERER_*` filters and the instance level check
+ * before it reads the force marker, so `{ logToMain: true }` forces a line past the
+ * `logToMain` threshold but not past those. This pins that ordering: the abort
+ * attribution lines reach `app.log` on a packaged build, and the diagnostics overrides
+ * can still suppress them. Reordering `processLog` would change this — deliberately a
+ * separate decision, since the filters are shared by every renderer log call.
+ */
+describe('LoggerService diagnostic filters run before the force marker', () => {
+  const originalElectron = window.electron
+
+  beforeEach(() => {
+    document.head.innerHTML = ''
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'electron', { configurable: true, writable: true, value: originalElectron })
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  /** Loads a fresh LoggerService: DEV_LOGGING and the env overrides are read at import. */
+  async function loadLoggerWithEnv(env: Record<string, string>) {
+    vi.resetModules()
+    const invoke = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, 'electron', {
+      configurable: true,
+      writable: true,
+      value: { process: { env }, ipcRenderer: { on: vi.fn(), send: vi.fn(), invoke } }
+    })
+    const actual = await vi.importActual<typeof LoggerModule>('../LoggerService')
+    const logger = new actual.LoggerService()
+    logger.initWindowSource('mainWindow')
+    return { logger, invoke }
+  }
+
+  it('delivers a forced info line on a packaged build but drops it when CSLOGGER_RENDERER_LEVEL excludes it', async () => {
+    const packaged = await loadLoggerWithEnv({})
+    packaged.logger.info('Stream abort requested', { topicId: 'agent-session:session-1' }, { logToMain: true })
+
+    expect(packaged.invoke).toHaveBeenCalledWith(
+      IpcChannel.App_LogToMain,
+      expect.objectContaining({ process: 'renderer', window: 'mainWindow' }),
+      'info',
+      'Stream abort requested',
+      [{ topicId: 'agent-session:session-1' }]
+    )
+
+    const filtered = await loadLoggerWithEnv({ CS_DIAGNOSTICS: '1', CSLOGGER_RENDERER_LEVEL: 'warn' })
+    filtered.logger.info('Stream abort requested', { topicId: 'agent-session:session-1' }, { logToMain: true })
+
+    expect(filtered.invoke).not.toHaveBeenCalled()
   })
 })
