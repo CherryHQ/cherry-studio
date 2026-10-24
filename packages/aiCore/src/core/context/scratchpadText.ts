@@ -148,16 +148,11 @@ function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
 }
 
 function isInsideInlineCodeBefore(text: string, markerStart: number): boolean {
-  // Inline code spans survive line breaks but cannot cross a blank line, so
+  // Inline code spans survive line breaks but cannot cross leaf blocks, so
   // scan the containing block: tracking across line breaks keeps an opening
   // backtick visible to later fence markers, and stopping at the block edge
   // keeps a stray backtick in an earlier paragraph from masking them.
-  let blockStart = 0
-  const blankLine = /\n[ \t]*\n/g
-  let blank: RegExpExecArray | null
-  while ((blank = blankLine.exec(text)) !== null && blank.index + blank[0].length <= markerStart) {
-    blockStart = blank.index + blank[0].length
-  }
+  const blockStart = inlineBlockStart(text, markerStart)
   const lineSlice = text.slice(blockStart, markerStart)
   let i = 0
   while (i < lineSlice.length) {
@@ -195,23 +190,46 @@ function isInsideInlineCodeBefore(text: string, markerStart: number): boolean {
   return false
 }
 
+/** Markdown leaf blocks interrupt paragraphs even without a separating blank line. */
+function isInlineBlockBoundary(line: string): boolean {
+  const content = stripMarkdownContainerMarkers(line)
+  return (
+    content.trim() === '' ||
+    /^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content) ||
+    /^ {0,3}(?:=+|-+)[ \t]*$/.test(content) ||
+    /^ {0,3}(?:\*[ \t]*){3,}$/.test(content) ||
+    /^ {0,3}(?:_[ \t]*){3,}$/.test(content)
+  )
+}
+
+function inlineBlockStart(text: string, index: number): number {
+  let start = 0
+  for (let pos = 0; pos < index;) {
+    const end = lineEndAfter(text, pos)
+    if (end > index) break
+    if (isInlineBlockBoundary(text.slice(pos, lineContentEnd(text, pos)))) start = end
+    pos = end
+  }
+  return start
+}
+
 function inlineBlockEnd(text: string, from: number): number {
-  const blank = /\r?\n[ \t]*\r?\n/g
-  blank.lastIndex = from
-  return blank.exec(text)?.index ?? text.length
+  const currentStart = text.lastIndexOf('\n', from - 1) + 1
+  const currentEnd = lineEndAfter(text, from)
+  // A heading is its own leaf, including when its code span is unfinished.
+  if (isInlineBlockBoundary(text.slice(currentStart, lineContentEnd(text, currentStart)))) return currentEnd
+  for (let start = currentEnd; start < text.length; start = lineEndAfter(text, start)) {
+    if (isInlineBlockBoundary(text.slice(start, lineContentEnd(text, start)))) return start
+  }
+  return text.length
 }
 
 /**
  * True when `index` sits inside a complete inline-code span. Spans cannot
- * cross a blank line, so the scan starts at the containing block's edge.
+ * cross leaf-block boundaries, so start at the containing block's edge.
  */
 function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
-  let blockStart = 0
-  const blankLine = /\n[ \t]*\n/g
-  let blank: RegExpExecArray | null
-  while ((blank = blankLine.exec(text)) !== null && blank.index + blank[0].length <= index) {
-    blockStart = blank.index + blank[0].length
-  }
+  const blockStart = inlineBlockStart(text, index)
   let pos = blockStart
   while (pos < index) {
     const tick = text.indexOf('`', pos)
@@ -380,6 +398,27 @@ function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: st
   return text.length
 }
 
+/** Recover a list opened on an earlier line when its fence starts on a continuation. */
+function inheritedFencePrefix(text: string, openerStart: number, openerPrefix: string): string {
+  if (parseFenceContainerSegments(openerPrefix).some((segment) => segment.type === 'list')) return openerPrefix
+  let start = 0
+  let inherited = openerPrefix
+  while (start < openerStart) {
+    const lineEnd = lineContentEnd(text, start)
+    const line = expandFencePrefixTabs(text.slice(start, lineEnd))
+    const prefix = /^(?:(?: {0,3}> ?)|(?: {0,3}(?:[-*+]|\d{1,9}[.)]) +))+/.exec(line)?.[0]
+    if (
+      prefix &&
+      parseFenceContainerSegments(prefix).some((segment) => segment.type === 'list') &&
+      fenceCloseMatchesContainerContext(openerPrefix, prefix) &&
+      fenceContainerEnd(text, lineEndAfter(text, start), prefix) > openerStart
+    )
+      inherited = prefix
+    start = lineEndAfter(text, start)
+  }
+  return inherited
+}
+
 function findCodeFenceClose(
   text: string,
   searchFrom: number,
@@ -387,6 +426,7 @@ function findCodeFenceClose(
   fenceLen: number,
   openerPrefix = ''
 ): number {
+  openerPrefix = inheritedFencePrefix(text, text.lastIndexOf('\n', searchFrom - 1) + 1, openerPrefix)
   const containerEnd = fenceContainerEnd(text, lineEndAfter(text, searchFrom), openerPrefix)
   let pos = searchFrom
   while (pos < text.length) {
@@ -581,7 +621,7 @@ function stripMarkdownContainerMarkers(line: string): string {
 
 /** A line of only blockquote markers is its container's blank line: it closes an open paragraph. */
 function isContainerOnlyLine(line: string): boolean {
-  return line.includes('>') && /^ {0,3}(?:>[ ]?)+$/.test(line)
+  return line.includes('>') && stripMarkdownContainerMarkers(line).trim() === ''
 }
 
 function maskIndentedCodeBlocks(text: string): {

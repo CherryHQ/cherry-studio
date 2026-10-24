@@ -4559,6 +4559,44 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it.each([
+    '> Example:\n>  \n>     <thinking>literal example</thinking>\n\nDone.',
+    '> > Example:\n> >   \n> >     <thinking>literal example</thinking>\n\nDone.'
+  ])('preserves padded quote blanks during delta/snapshot normalization: %s', (answer) => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    // The open line carries the blockquote marker plus four columns: without
+    // the container prefix in the carry, the literal element scans as
+    // column-zero scratchpad and is deleted.
+    for (const piece of [
+      answer.slice(0, answer.indexOf('<thinking>')),
+      '<thinking>literal example</thinking>',
+      '\n\nDone.'
+    ]) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
   it('keeps a post-tool-round bare summary answer visible during post-compaction grace (inv_2d860893242eb158)', () => {
     const { adapter, parts } = createAdapter()
     const answer =

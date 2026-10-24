@@ -12,6 +12,41 @@ import {
 
 describe('scratchpadText', () => {
   it.each([
+    '- Example:\n  ```text\n  sample\n  ```\n<analysis>SECRET</analysis>',
+    '> - Example:\n>   ~~~text\n>   sample\n<analysis>SECRET</analysis>',
+    '1. Example:\n   ```text\n   sample\n<analysis>SECRET</analysis>',
+    'Unmatched ` here\n## Heading\n<analysis>SECRET</analysis>\nLater `span`',
+    'Unmatched ` here\n---\n<analysis>SECRET</analysis>\nLater `span`',
+    '# Unmatched ` heading\n<analysis>SECRET</analysis>\nLater `span`'
+  ])('does not let earlier Markdown leaves shield analysis: %s', (input) => {
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+  })
+  it.each([
+    '> Example:\n>  \n>     <thinking>literal</thinking>',
+    '> > Example:\n> >   \n> >     <thinking>literal</thinking>',
+    '> Example:\n> \t\n>     <thinking>literal</thinking>',
+    '- Example:\n  ```xml\n  <thinking>literal</thinking>\n  ```'
+  ])('keeps literal code inside continued containers: %s', (input) => {
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+  })
+
+  it.each([
+    ['inv_61b87d9e5c2a5062', '- Example:\n  ```text\n  sample\n<analysis>SECRET</analysis>\n<summary>Public</summary>'],
+    [
+      'inv_cf04a141422d97de',
+      'An unmatched ` marker.\n# Section\n<analysis>SECRET</analysis>\nA later `example`.\n<summary>Public</summary>'
+    ]
+  ])('bounds inherited Markdown leaf blocks (%s)', (_id, input) => {
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET')
+  })
+  it('preserves quoted indented code after a padded blank quote (inv_876c5f283225867c)', () => {
+    const input = '> Example:\n>  \n>     <thinking>literal</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it.each([
     '> > ```text\n> > sample\n> outside\n<analysis>SECRET</analysis>',
     '- ```text\n  sample\n\n<analysis>SECRET</analysis>',
     '- ```text\n  sample\n- sibling\n<analysis>SECRET</analysis>',
