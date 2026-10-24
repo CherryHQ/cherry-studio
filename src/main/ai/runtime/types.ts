@@ -80,6 +80,11 @@ export interface AgentRuntimeConnectInput {
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
   onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  /**
+   * Aborted when the host closes the session before this connection attempt returns, so a driver
+   * blocked on admission (e.g. a process-cap wait) can give up instead of holding the close open.
+   */
+  signal?: AbortSignal
 }
 
 export interface AgentRuntimeUserInput {
@@ -262,6 +267,12 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * query) without the host reaching into driver internals. Optional.
    */
   onSessionIdle?(sessionId: string): void
+  /**
+   * Notified when a session idles out with a resume token but no renderer warm
+   * lease (e.g. channel/headless traffic). Lets a driver drop runtime-specific
+   * warm state without the host calling into another driver's services.
+   */
+  onSessionIdleWithoutWarmLease?(sessionId: string): void
   /**
    * Reclaim on-disk session state that no surviving session row claims, keyed by
    * the resume tokens the driver itself hands out. The keep-set covers trashed
