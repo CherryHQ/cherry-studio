@@ -1168,6 +1168,29 @@ describe('splitMarkdownChunks', () => {
     expect(chunks[1].text).toContain('x = 1\n\ny = 2')
   })
 
+  it.each(['align', 'equation', 'gather', 'multline'])(
+    'closes a starred %s environment on its own closing line',
+    (environment) => {
+      // The captured environment name is interpolated into both delimiter patterns, where a raw
+      // `*` is a quantifier rather than part of the name: the close never matched, the run stayed
+      // open past `\end{...*}`, and every later paragraph was pulled into one oversized chunk.
+      const content = [
+        `\\begin{${environment}*}`,
+        'x = 1',
+        `\\end{${environment}*}`,
+        '',
+        'para one',
+        '',
+        'para two'
+      ].join('\n')
+
+      const chunks = chunksOf(content, 10)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(joined(chunks)).toBe(content)
+    }
+  )
+
   it('keeps a LaTeX environment whose repeat nests in one chunk', () => {
     // The parser counts a repeated `\begin{align}`, so the outer one ends at its second `\end{align}`.
     const content = [
@@ -1188,6 +1211,24 @@ describe('splitMarkdownChunks', () => {
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('\\end{align}\n\nz = 3\n\\end{align}')
+  })
+
+  it('carries a definition whose bare destination contains a non-breaking space', () => {
+    // micromark's bare destination ends only at an ASCII line ending or space, so U+00A0 belongs
+    // to the URL. Reading it as whitespace rejected the definition, which was then never carried
+    // and every chunk after the first rendered `[open][x]` as literal text.
+    const destination = '/url suffix'
+    const padding = Array.from({ length: 1_500 }, () => 'padding paragraph').join('\n\n')
+    const content = `[x]: ${destination}\n\n${padding}\n\nsee [open][x]\n`
+
+    const chunks = chunksOf(content, 10)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(referenceTarget(content, 'x')).toBe(destination)
+    expect(referenceTarget(joined(chunks), 'x')).toBe(destination)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [open][x]'))
+    expect(referencing).toHaveLength(1)
+    expect(resolvedReferenceUrls(referencing[0].text)).toEqual([destination])
   })
 
   it('carries a multi-paragraph footnote definition in full', () => {

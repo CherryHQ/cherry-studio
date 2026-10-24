@@ -360,10 +360,12 @@ function normalizeReferenceLabel(label: string): string {
 }
 
 /**
- * A bare link destination — whitespace-free, and not starting with `<`, which belongs to the angle
- * brackets. Its parentheses have to balance, which `balancedParens` checks where it is accepted.
+ * A bare link destination — not starting with `<`, which belongs to the angle brackets, and free of
+ * the characters micromark stops one at: ASCII controls, space and line endings. `\S` cannot stand
+ * in for that set, because it also excludes U+00A0 and the Unicode spaces a destination may hold.
+ * Its parentheses have to balance, which `balancedParens` checks where it is accepted.
  */
-const LINK_BARE_DESTINATION = /^[ \t]*(?!<)\S+/
+const LINK_BARE_DESTINATION = /^[ \t]*(?!<)[^\x00-\x20\x7F]+/
 
 /**
  * The length of an angle-bracketed destination opening at `open`, or 0 when none does.
@@ -1979,10 +1981,13 @@ function openMathRun(line: string): MathRun | null {
   const bracket = environment ? null : /^\s{0,3}\\\[(?!.*\\\])/.exec(line)
   const opener = environment ?? bracket
   if (!opener) return null
+  // The captured name is a literal delimiter, so its `*` has to stay one: interpolated raw it
+  // would be a quantifier, and the close of a starred environment would never match.
+  const name = environment?.[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const run: MathRun = environment
     ? {
-        open: new RegExp(`^\\\\begin\\{${environment[1]}\\}`),
-        close: new RegExp(`^\\\\end\\{${environment[1]}\\}`),
+        open: new RegExp(`^\\\\begin\\{${name}\\}`),
+        close: new RegExp(`^\\\\end\\{${name}\\}`),
         depth: 1
       }
     : { open: /^\\\[/, close: /^\\\]/, depth: 1 }
