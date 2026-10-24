@@ -318,10 +318,15 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setContentRefreshToken((value) => value + 1)
   }, [fileSession?.savedSizeBytes])
 
-  // Surface an external-change conflict (a stale autosave) as the reload dialog.
+  // Surface an unresolved external-change conflict as the reload dialog;
+  // autosave stays paused until it is resolved. saveError changes reopen it.
+  const conflictResolvedRef = useRef(false)
   useEffect(() => {
-    if (fileSession?.conflict) setStaleConflictOpen(true)
-  }, [fileSession?.conflict])
+    if (fileSession?.conflict) {
+      conflictResolvedRef.current = false
+      setStaleConflictOpen(true)
+    }
+  }, [fileSession?.conflict, fileSession?.saveError])
 
   // A file that cannot be edited in place (binary / oversize) can't enter edit
   // mode — toast why and fall back to preview.
@@ -573,6 +578,16 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     } catch (error) {
       logger.error('Failed to reload artifact file after a write conflict', error as Error)
       toast.error(t('agent.preview_pane.edit.refresh_failed'))
+    }
+  }, [fileSession, t])
+
+  const handleKeepDraftAfterConflict = useCallback(async () => {
+    if (!fileSession) return
+    try {
+      await fileSession.keepDraft()
+    } catch (error) {
+      logger.error('Failed to keep the artifact draft after a write conflict', error as Error)
+      toast.error(t('agent.preview_pane.edit.save_failed'))
     }
   }, [fileSession, t])
 
@@ -1131,13 +1146,23 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </div>
       <ConfirmDialog
         open={staleConflictOpen}
-        onOpenChange={setStaleConflictOpen}
+        onOpenChange={(open) => {
+          setStaleConflictOpen(open)
+          if (open || conflictResolvedRef.current) return
+          void handleKeepDraftAfterConflict()
+        }}
         title={t('agent.preview_pane.edit.conflict.title')}
         description={t('agent.preview_pane.edit.conflict.description')}
         confirmText={t('agent.preview_pane.edit.conflict.reload')}
         cancelText={t('agent.preview_pane.edit.conflict.keep_draft')}
         destructive
-        onConfirm={handleReloadAfterConflict}
+        onConfirm={() => {
+          // Close before the async reload so the dialog's auto-close cannot land
+          // after a failure publish reset the guard.
+          conflictResolvedRef.current = true
+          setStaleConflictOpen(false)
+          void handleReloadAfterConflict()
+        }}
       />
     </div>
   )

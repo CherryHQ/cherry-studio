@@ -237,11 +237,15 @@ const NotesPage: FC = () => {
     [activeFilePath, contentLoadError, setFileDraft, t]
   )
 
-  // Surface an external-change conflict as a dismissible reload dialog; the
-  // draft stays put and autosave is paused until the user reloads.
+  // Surface an unresolved external-change conflict as the reload dialog; it
+  // blocks every later file mutation until resolved. saveError changes reopen it.
+  const conflictResolvedRef = useRef(false)
   useEffect(() => {
-    if (fileSession.conflict) setShowConflict(true)
-  }, [fileSession.conflict])
+    if (fileSession.conflict) {
+      conflictResolvedRef.current = false
+      setShowConflict(true)
+    }
+  }, [fileSession.conflict, fileSession.saveError])
 
   // Autosave failures — warn, throttled so a typing burst doesn't stack
   // toasts. A committed-metadata-pending result is distinct: bytes landed and
@@ -1060,7 +1064,7 @@ const NotesPage: FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col justify-between overflow-hidden">
+        <div className="relative flex min-h-0 max-w-full min-w-0 flex-1 flex-col justify-between overflow-hidden">
           <HeaderNavbar
             notesTree={notesTree}
             activeFilePath={activeFilePath}
@@ -1072,7 +1076,7 @@ const NotesPage: FC = () => {
           {fileSession.saveError && (
             <div
               role="alert"
-              className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
+              className="bg-error-subtle text-error-subtle-foreground flex shrink-0 items-center gap-2 border-b border-error-border px-3 py-2 text-xs">
               <span className="min-w-0 flex-1">
                 {t(
                   fileSession.metadataRecoveryPending
@@ -1095,7 +1099,7 @@ const NotesPage: FC = () => {
           {shouldRetainMissingDraft && (
             <div
               role="alert"
-              className="shrink-0 border-warning-border border-b bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs">
+              className="border-warning-border bg-warning-subtle text-warning-subtle-foreground shrink-0 border-b px-3 py-2 text-xs">
               {t('notes.file_removed_draft')}
             </div>
           )}
@@ -1120,13 +1124,21 @@ const NotesPage: FC = () => {
       </div>
       <ConfirmDialog
         open={showConflict}
-        onOpenChange={setShowConflict}
+        onOpenChange={(open) => {
+          setShowConflict(open)
+          if (open || conflictResolvedRef.current) return
+          void fileSession.keepDraft().catch((error) => {
+            logger.error('Failed to keep the note draft after an external change', error as Error)
+            toast.error(t('notes.save_failed'))
+          })
+        }}
         title={t('notes.conflict.title')}
         description={t('notes.conflict.description')}
         confirmText={t('notes.conflict.reload')}
         cancelText={t('notes.conflict.keep_draft')}
         destructive
         onConfirm={() => {
+          conflictResolvedRef.current = true
           setShowConflict(false)
           void reloadFileDraft().catch((error) => {
             logger.error('Failed to reload note after external change', error as Error)

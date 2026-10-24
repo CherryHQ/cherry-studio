@@ -2194,6 +2194,10 @@ describe('ArtifactPane', () => {
       // First read verifies the stale write really diverged; second serves the reload.
       .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
       .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      // Unused unless a stray keepDraft fires after the reload — it would then
+      // re-save the abandoned draft, and these make that write observable.
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      .mockResolvedValueOnce({ mtime: 3, size: 9 })
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
@@ -2210,6 +2214,108 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('external\n'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // Flush the microtask that would run a stray keepDraft if the guard regressed;
+    // it would consume an extra baseline read even though its save is a no-op.
+    await act(async () => {})
+    const editCalls = mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.read')
+    expect(editCalls).toHaveLength(3)
+    // The abandoned draft must not be written back once the reload settles.
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toHaveLength(1)
+  })
+
+  it('keeps the draft on the new baseline when the conflict dialog is dismissed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      // First read verifies the stale write really diverged; second serves the keep-draft baseline read.
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      // The re-save of the kept draft lands on the external baseline.
+      .mockResolvedValueOnce({ mtime: 2, size: 9 })
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+
+    // Autosave hits the stale-version guard and opens the reload dialog.
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    expect(conflictDialog).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.keep_draft' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // The draft survives and is re-saved on top of the external baseline.
+    expect(screen.getByTestId('code-editor')).toHaveValue('draft\n')
+    await waitFor(() => {
+      const writes = mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')
+      expect(writes).toHaveLength(2)
+      const reSaved = new TextDecoder().decode((writes[1][1] as { data: Uint8Array }).data)
+      expect(reSaved).toContain('draft')
+    })
+  })
+
+  it('reopens the conflict dialog when keeping the draft fails its baseline read', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      // keepDraft's baseline read fails — the session must stay resolvable.
+      .mockRejectedValueOnce(new Error('baseline read failed'))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.keep_draft' }))
+
+    // The keep failed, so the dialog must come back instead of stranding the conflict.
+    const reopened = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    expect(reopened).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    expect(screen.getByTestId('code-editor')).toHaveValue('draft\n')
+  })
+
+  it('reopens the conflict dialog when a reload cannot read the fresh baseline', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      // The reload's baseline read fails — the user's reload choice must not
+      // degrade into keepDraft, and the conflict must stay resolvable.
+      .mockRejectedValueOnce(new Error('reload read failed'))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.reload' }))
+
+    const reopened = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    expect(reopened).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    // The reload choice must not fall back to keeping (and re-saving) the draft.
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toHaveLength(1)
+    // Three reads: initial, divergence check, failed reload. A stray keepDraft
+    // would issue a fourth.
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.read')).toHaveLength(3)
+    expect(screen.getByTestId('code-editor')).toHaveValue('draft\n')
   })
 
   it('clears the preview overlay when the watcher reports the file was removed', async () => {
