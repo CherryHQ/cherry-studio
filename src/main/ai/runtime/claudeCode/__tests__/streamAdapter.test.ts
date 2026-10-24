@@ -4557,6 +4557,48 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it('keeps filtering scratchpad after long paragraph context compression', () => {
+    const { adapter, parts } = createAdapter()
+    const visible = 'ordinary text '.repeat(40)
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of [visible, '<analysis', '>PRIVATE</analysis>public'])
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    const output = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(output).toBe(visible + 'public')
+  })
+
+  it('scales fragmented single-line inline code (inv_b6f3cc350f53186d)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = Array.from({ length: 500 }, (_, i) => 'text `code' + i + '` more ').join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    const start = performance.now()
+    for (let i = 0; i < answer.length; i += 64)
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: answer.slice(i, i + 64) }
+        })
+      )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    const elapsed = performance.now() - start
+    console.log({ inlineCharacters: answer.length, elapsed })
+    const output = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(output).toBe(answer)
+    expect(elapsed).toBeLessThan(1000)
+  })
+
   it.each([false, true])('keeps fragmented list fences identical, snapshot=%s (inv_41942a64b5683d5b)', (snapshot) => {
     const { adapter, parts } = createAdapter()
     const pieces = ['- ~~~xml\n  <thinking', '>literal', '</thinking>\n  ~~~\nDone.']

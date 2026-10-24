@@ -12,6 +12,22 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('counts inherited list indentation before code indentation (inv_c5db9091dfd965bf)', () => {
+    expect(
+      stripModelScratchpadBlocks('- Notes:\n\n    <analysis>SECRET</analysis>\n\n<summary>Public</summary>')
+    ).not.toContain('SECRET')
+    expect(stripModelScratchpadBlocks('- Notes:\n\n      <thinking>literal</thinking>')).toContain(
+      '<thinking>literal</thinking>'
+    )
+  })
+  it.each(['~~~text\nliteral\n~~~', '```text\nliteral\n```', '<!-- comment -->'])(
+    'bounds inline spans at intervening blocks: %s (inv_e528d8c6ccfcad34)',
+    (block) => {
+      const input = 'Unmatched ` marker.\n' + block + '\n<analysis>SECRET</analysis>\nLater `example`'
+      expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+    }
+  )
+
   it('keeps sibling list indented code (inv_ea30cb629bf6555d)', () => {
     const input = '- First\n-     <thinking>literal</thinking>'
     expect(stripModelScratchpadBlocks(input)).toBe(input)

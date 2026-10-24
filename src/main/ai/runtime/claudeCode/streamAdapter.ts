@@ -1217,6 +1217,13 @@ export class ClaudeCodeStreamAdapter {
     const lineStart = accumulatedText.lastIndexOf('\n') + 1
     const openLine = accumulatedText.slice(lineStart)
     if (openLine.trim() === '') return ''
+    // Completed plain paragraph context needs its block kind and escape
+    // parity, not every already-emitted code span. Unfinished spans/markup
+    // live in the remainder and are appended separately. Keep structured
+    // Markdown and HTML-bearing lines intact.
+    if (openLine.length > 256 && /^[A-Za-z]/.test(openLine) && !openLine.includes('<')) {
+      return 'paragraph ' + (openLine.match(/\\+$/)?.[0] ?? '')
+    }
     return openLine
   }
 

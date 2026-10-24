@@ -213,6 +213,8 @@ function isInlineBlockBoundary(line: string): boolean {
   const content = stripMarkdownContainerMarkers(line)
   return (
     content.trim() === '' ||
+    /^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001/.test(content.trim()) ||
+    /^ {0,3}<!--/.test(content) ||
     /^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content) ||
     /^ {0,3}(?:=+|-+)[ \t]*$/.test(content) ||
     /^ {0,3}(?:\*[ \t]*){3,}$/.test(content) ||
@@ -696,6 +698,7 @@ function maskIndentedCodeBlocks(text: string): {
   // and a tab (column four) opens an indented code block just like four
   // spaces, five/eight spaces, or repeated tabs (cherry-pr-review
   // inv_4ab3f6f347edda60, inv_c51149ed55871417).
+  let inheritedListColumns = 0
   const indentedCodeColumns = (line: string): number => {
     const content = stripMarkdownContainerMarkers(line)
     let columns = 0
@@ -704,7 +707,9 @@ function maskIndentedCodeBlocks(text: string): {
       else if (content[k] === '\t') columns += 4 - (columns % 4)
       else break
     }
-    return columns
+    // Explicit markers were stripped above; continuation lines still carry
+    // the inherited list's content indentation.
+    return isListItemStart(line) ? columns : Math.max(0, columns - inheritedListColumns)
   }
   const isIndentedCodeLine = (line: string): boolean => line.trim() !== '' && indentedCodeColumns(line) >= 4
 
@@ -731,6 +736,10 @@ function maskIndentedCodeBlocks(text: string): {
   while (i < lines.length) {
     const line = lines[i]
     const depth = explicitQuoteDepth(line)
+    const expanded = expandFencePrefixTabs(line)
+    const list = /^( {0,3})([-*+]|\d{1,9}[.)]) (.*)$/.exec(expanded)
+    if (list) inheritedListColumns = list[1].length + list[2].length + 1
+    else if (line.trim() !== '' && !line.startsWith(' '.repeat(inheritedListColumns))) inheritedListColumns = 0
     // A new explicit quote container cannot inherit an outer paragraph.
     // Unmarked lazy continuation lines keep their paragraph's container.
     if ((depth > 0 && depth !== quoteDepth) || isListItemStart(line)) paragraphOpen = false
