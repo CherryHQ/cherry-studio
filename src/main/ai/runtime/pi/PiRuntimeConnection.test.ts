@@ -2185,23 +2185,29 @@ describe('PiRuntimeConnection', () => {
     it('refreshes identity through the extension mounted on a reused Pi connection', async () => {
       mocks.createPiMcpExtension.mockReturnValue(() => {})
       await new PiRuntimeConnection(input).start()
-      let beforeStart!: (event: { systemPromptOptions: { sections: Record<string, string> } }) => Promise<void>
+      // pi invokes every `before_agent_start` handler, so collect them all and
+      // fire each the way the runtime does — a single-handler variable would
+      // silently depend on which extensions happen to register the event.
+      const beforeStarts: Array<
+        (event: { systemPromptOptions: { sections: Record<string, string> } }) => Promise<void>
+      > = []
       const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void | Promise<void>> })
         .extensionFactories
       for (const factory of factories) {
         await factory({
           registerProvider: vi.fn(),
-          on: (event: string, handler: typeof beforeStart) => {
-            if (event === 'before_agent_start') beforeStart = handler
+          on: (event: string, handler: (typeof beforeStarts)[number]) => {
+            if (event === 'before_agent_start') beforeStarts.push(handler)
           }
         })
       }
+      expect(beforeStarts.length).toBeGreaterThan(0)
       const event = { systemPromptOptions: { sections: {} as Record<string, string> } }
       mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
-      await beforeStart(event)
+      for (const handler of beforeStarts) await handler(event)
       expect(event.systemPromptOptions.sections.agent_identity).toContain('Persona A')
       mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona B</agent_identity>')
-      await beforeStart(event)
+      for (const handler of beforeStarts) await handler(event)
       expect(event.systemPromptOptions.sections.agent_identity).toContain('Persona B')
       expect(event.systemPromptOptions.sections.agent_identity).not.toContain('Persona A')
     })
