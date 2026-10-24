@@ -4190,6 +4190,37 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it('keeps the first visible line indent when a stripped block precedes indented code (inv_b4af2f970a27a005)', () => {
+    const { adapter, parts } = createAdapter()
+    const raw = '<thinking>internal</thinking>\n\n    const x = 1\n    return x'
+    // The strip removes the block and its blank-line separator; the four
+    // spaces on the first visible line are the code block's indentation, not
+    // separator whitespace — losing them demotes the block to a paragraph.
+    const answer = '    const x = 1\n    return x'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: raw } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
   it('preserves indented code when the indentation itself splits across deltas (inv_91c25cca41ade4f0)', () => {
     const { adapter, parts } = createAdapter()
     const answer = 'Example:\n\n    <thinking>literal</thinking>\n\nDone.'

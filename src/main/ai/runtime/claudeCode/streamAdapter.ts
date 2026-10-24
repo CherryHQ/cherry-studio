@@ -1743,7 +1743,11 @@ export class ClaudeCodeStreamAdapter {
 
   /** Trim separator whitespace only when scratchpad stripping actually changed the text. */
   private trimAfterScratchpadStrip(original: string, stripped: string): string {
-    return stripped.length < original.length ? stripped.trimStart() : stripped
+    // Drop the blank separator lines between a stripped block and the visible
+    // content, but never the first visible line's own indentation: that
+    // whitespace is what makes an indented code block a code block
+    // (cherry-pr-review inv_b4af2f970a27a005#f1).
+    return stripped.length < original.length ? stripped.replace(/^(?:[ 	]*\r?\n)+/, '') : stripped
   }
 
   private handleAssistantToolUse(
