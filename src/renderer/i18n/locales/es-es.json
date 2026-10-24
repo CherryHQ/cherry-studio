@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "Error al agregar la fuente de datos",
   "knowledge.data_source.add_dialog.title": "Agregar Fuente de Datos",
-  "knowledge.data_source.add_dialog.too_many_sources": "Puedes agregar como máximo {{count}} fuentes a la vez. Reduce tu selección e inténtalo de nuevo.",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Se omitieron {{count}} archivo(s) no admitido(s)",
   "knowledge.data_source.add_dialog.url.description": "Introduce una URL de página web:",
   "knowledge.data_source.add_dialog.url.help": "El texto de la página se obtendrá, se dividirá en fragmentos y se indexará automáticamente.",

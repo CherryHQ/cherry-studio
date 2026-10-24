@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "Veri kaynağı eklenemedi",
   "knowledge.data_source.add_dialog.title": "Veri Kaynağı Ekle",
-  "knowledge.data_source.add_dialog.too_many_sources": "Bir defada en fazla {{count}} kaynak eklenebilir. Seçimi azaltıp tekrar deneyin.",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Desteklenmeyen {{count}} dosya atlandı",
   "knowledge.data_source.add_dialog.url.description": "Bir web sayfası URL'si girin:",
   "knowledge.data_source.add_dialog.url.help": "Sayfa metni otomatik olarak alınacak, parçalara ayrılacak ve dizine eklenecektir",
