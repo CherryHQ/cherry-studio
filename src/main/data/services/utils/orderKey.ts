@@ -15,7 +15,7 @@ import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing'
 
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 
 const logger = loggerService.withContext('orderKey')
@@ -51,6 +51,14 @@ interface InsertWithOrderKeyOptions {
   position?: 'first' | 'last'
   /** Optional scope predicate narrowing the neighborhood (e.g. `eq(userModel.providerId, providerId)`). */
   scope?: SQL
+  /**
+   * Best-effort anchored placement (restore handoffs): computed atomically
+   * against the rows visible inside the caller's transaction. A stale or
+   * removed `before`/`after` anchor id degrades to a TAIL insert instead of
+   * throwing, so the row always lands somewhere valid. Takes precedence over
+   * `position` when both are given.
+   */
+  anchor?: OrderRequest
 }
 
 interface InsertManyWithOrderKeyOptions {
@@ -132,11 +140,49 @@ export function insertWithOrderKey<TTable extends TableWithOrderKey, TValues ext
   values: ValuesWithoutOrderKey<TValues>,
   options: InsertWithOrderKeyOptions
 ): Record<string, unknown> {
+  if (options.anchor !== undefined) {
+    // Anchored placement: the key is precomputed from the anchor (tolerant of
+    // stale anchors), so the batch boundary-lookup path does not apply.
+    const orderKey = computeInsertOrderKey(tx, table, options.anchor, options)
+    const [row] = tx
+      .insert(table)
+      .values([{ ...values, orderKey }])
+      .returning()
+      .all()
+    if (!row) {
+      throw new Error('insertWithOrderKey: insert returned no rows')
+    }
+    return row as Record<string, unknown>
+  }
   const [row] = insertManyWithOrderKey(tx, table, [values], options)
   if (!row) {
     throw new Error('insertWithOrderKey: insert returned no rows')
   }
   return row
+}
+
+/**
+ * Compute the insertion `orderKey` for a best-effort anchored placement.
+ * `position` anchors are absolute; `before`/`after` anchors reference an
+ * existing row in scope. A stale or removed anchor id degrades to a TAIL key
+ * (never throws NOT_FOUND), keeping restore handoffs append-safe; any other
+ * failure propagates.
+ */
+export function computeInsertOrderKey(
+  tx: TxLike,
+  table: TableWithOrderKey,
+  anchor: OrderRequest,
+  options: { pkColumn: AnyColumn; scope?: SQL }
+): string {
+  try {
+    return computeNewOrderKey(tx, table, anchor, { pkColumn: options.pkColumn, scope: options.scope })
+  } catch (error) {
+    if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
+      const largest = selectBoundaryKey(tx, table, 'last', options.scope)
+      return generateOrderKeyBetween(largest, null)
+    }
+    throw error
+  }
 }
 
 /**

@@ -1208,7 +1208,10 @@ describe('useFollowupQueue', () => {
         scopeKey: SCOPE,
         draft: { text: 'first edited', tokens: [] },
         payload: { text: 'first edited', userMessageParts: [] },
-        held: true
+        held: true,
+        // The restore lands at its slot atomically with the insert — no
+        // reorder can be claim-barred out of it (inv_9ecff9fca3bdab04).
+        anchor: { position: 'first' }
       }
     })
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
@@ -1306,6 +1309,71 @@ describe('useFollowupQueue', () => {
       expect(reorderTrigger).toHaveBeenCalledTimes(4)
       expect(postTrigger).toHaveBeenCalledTimes(2)
       expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('anchors the restore after the row preceding its slot when taken from mid-queue (inv_9ecff9fca3bdab04)', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+    const { claimTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('b', () => null)
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('second edited'), payload: payload('second edited') }))
+    await act(async () => {
+      await result.current.takeForEdit('c', captureOutgoing)
+    })
+    const body = (postTrigger.mock.calls as unknown as Array<[{ body: { anchor?: unknown } }]>)[0][0].body
+    // 'b' was taken from slot 1: the restore anchors after the row preceding
+    // that slot, so the insert itself carries the position.
+    expect(body.anchor).toEqual({ after: 'a' })
+  })
+
+  it('skips the reorder pass once refreshed items confirm the anchored placement, however long the claim lasts (inv_9ecff9fca3bdab04)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, reorderTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      // The reorder stays claim-barred — a peer's send outlives the whole
+      // retry window.
+      reorderTrigger.mockRejectedValue(
+        new DataApiError(ErrorCode.CONFLICT, 'reorder conflicts with an in-flight send', 409)
+      )
+
+      const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        void result.current.takeForEdit('a', () => null)
+      })
+      await act(async () => {})
+      let switched = false
+      await act(async () => {
+        void result.current
+          .takeForEdit('b', () => ({ draft: draft('first edited'), payload: payload('first edited') }))
+          .then(() => {
+            switched = true
+          })
+      })
+      await act(async () => {})
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+
+      // The anchored INSERT already placed the copy: once the refreshed items
+      // confirm it, no further reorder is attempted and nothing surfaces.
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+      wireQuery([row(restoreId, 'first edited'), row('b', 'second')])
+      rerender()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400 * 5)
+      })
+      expect(switched).toBe(true)
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+      expect(toast.error).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }
@@ -2183,7 +2251,10 @@ describe('useFollowupQueue', () => {
         scopeKey: SCOPE,
         draft: { text: 'first edited', tokens: [] },
         payload: { text: 'first edited', userMessageParts: [] },
-        held: true
+        held: true,
+        // The restore lands at its slot atomically with the insert — no
+        // reorder can be claim-barred out of it (inv_9ecff9fca3bdab04).
+        anchor: { position: 'first' }
       }
     })
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id

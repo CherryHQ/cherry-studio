@@ -7,6 +7,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/followupQueues'
 import {
   FOLLOWUP_QUEUE_HEARTBEAT_MS,
@@ -74,6 +75,9 @@ type RestoreQueueBody = {
   /** Editor-owned recovery copy: ineligible for delivery until the owning
    * edit session ends (cherry-pr-review). */
   held?: boolean
+  /** Best-effort placement applied atomically with the insert; a stale or
+   * removed anchor row degrades server-side to a tail insert. */
+  anchor?: OrderRequest
 }
 
 // Restoration enqueues (edit handoff, scope/unmount recovery, background
@@ -755,6 +759,16 @@ export function useFollowupQueue({
         let restoreBody: RestoreQueueBody
         try {
           restoreBody = await buildRestoreBody(restoreId, scope, outgoing.draft, outgoing.payload)
+          // Anchor the restore at the slot the outgoing item was taken from:
+          // the insert applies the placement atomically server-side and —
+          // unlike the reorder barrier — is never blocked by a peer's live
+          // send claim, so the queue slot survives arbitrarily long
+          // in-flight sends (cherry-pr-review inv_9ecff9fca3bdab04#f1). A
+          // concurrently removed anchor row degrades server-side to a tail
+          // insert, which the convergence pass below then repositions.
+          const anchorItems = itemsRef.current
+          const anchorSlot = Math.min(taken.slot, anchorItems.length)
+          restoreBody.anchor = anchorSlot === 0 ? { position: 'first' } : { after: anchorItems[anchorSlot - 1].id }
         } catch {
           // Attachments cannot be made durable right now: refuse the switch —
           // the outgoing edit is still in the editor, nothing is lost.
@@ -813,14 +827,19 @@ export function useFollowupQueue({
         // remove a copy it already landed) so a stale duplicate cannot
         // linger (cherry-pr-review).
         cancelTrackedEditRestoreRef.current()
-        // Move the restored row back to the slot it was taken from; the slot
-        // follows removals of earlier rows via noteItemRemoved. A peer's live
-        // claim (its in-flight send) bars the reorder for the claim's
-        // lifetime: swallowing that conflict strands the restored edit at the
-        // tail, and the next completion drains a later row first
-        // (cherry-pr-review inv_9ecff9fca3bdab04#f1). Recompute the anchor
-        // from the latest items and retry while the conflict persists; other
-        // failures leave the draft safe at the tail.
+        // Positional convergence after the anchored restore: the insert
+        // normally already placed the copy at the slot it was taken from (the
+        // slot follows removals of earlier rows via noteItemRemoved), which
+        // the refreshed items confirm and this pass skips. It remains the
+        // backstop for a stale-anchor tail insert: recompute the anchor from
+        // the latest items and retry while a peer's live claim bars the
+        // reorder; other failures leave the draft safe at the tail
+        // (cherry-pr-review inv_9ecff9fca3bdab04#f1).
+        const positionConfirmed = () => {
+          const current = itemsRef.current
+          if (current.length === 0) return false
+          return current[Math.min(taken.slot, current.length - 1)]?.id === restoreId
+        }
         let restoreSlot = 0
         for (let attempt = 0; ; attempt++) {
           if (attempt > 0) {
@@ -829,6 +848,7 @@ export function useFollowupQueue({
             // wherever it is; its position no longer has an owner.
             if (!mountedRef.current || scopeKeyRef.current !== scope) break
           }
+          if (positionConfirmed()) break
           const current = itemsRef.current
           restoreSlot = Math.min(taken.slot, current.length)
           const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
@@ -836,9 +856,9 @@ export function useFollowupQueue({
             await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
             break
           } catch (error) {
-            if (!isReorderConflict(error) || attempt + 1 >= RESTORE_SLOT_MAX_ATTEMPTS) {
+            if (!isReorderConflict(error) || attempt + 1 >= RESTORE_SLOT_MAX_ATTEMPTS || positionConfirmed()) {
               // The draft is safe at the end of the queue; only its position is off.
-              toast.error(t('message.error.operation_unavailable'))
+              if (!positionConfirmed()) toast.error(t('message.error.operation_unavailable'))
               break
             }
           }

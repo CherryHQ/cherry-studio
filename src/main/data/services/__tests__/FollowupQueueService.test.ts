@@ -109,6 +109,72 @@ describe('FollowupQueueService', () => {
     })
   })
 
+  describe('enqueue anchor placement (inv_9ecff9fca3bdab04)', () => {
+    it('inserts at the referenced slot while a live claim bars reorders', () => {
+      const first = enqueueIn(SCOPE_A, 'a')
+      const second = enqueueIn(SCOPE_A, 'b')
+      // A live send claim bars reorders for its whole lifetime...
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1').claimed).toBe(true)
+      expectErrorCode(
+        () => followupQueueService.reorderBatch([{ id: second.id, anchor: { position: 'first' } }]),
+        ErrorCode.CONFLICT
+      )
+      // ...but the anchored INSERT is not claim-barred: the restore lands at
+      // its slot atomically, however long the send lasts.
+      followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        anchor: { after: first.id }
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['a', 'r', 'b'])
+    })
+
+    it('degrades a stale anchor to a tail insert instead of failing the restore', () => {
+      enqueueIn(SCOPE_A, 'a')
+      enqueueIn(SCOPE_A, 'b')
+      followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        anchor: { after: '99999999-9999-7999-8999-999999999999' }
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['a', 'b', 'r'])
+    })
+
+    it("places a position: 'first' anchor at the head", () => {
+      enqueueIn(SCOPE_A, 'a')
+      followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        anchor: { position: 'first' }
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['r', 'a'])
+    })
+
+    it('ignores the anchor on a duplicate-id retry, keeping the landed position', () => {
+      enqueueIn(SCOPE_A, 'a')
+      const id = '44444444-4444-7444-8444-444444444444'
+      const first = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        id,
+        anchor: { position: 'first' }
+      })
+      const again = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        id,
+        anchor: { position: 'last' }
+      })
+      expect(again).toEqual(first)
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['r', 'a'])
+    })
+  })
+
   describe('claim', () => {
     it('should let exactly one claimant win (cross-window arbitration)', () => {
       const item = enqueueIn(SCOPE_A, 'a')
