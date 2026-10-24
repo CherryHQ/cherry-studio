@@ -84,7 +84,7 @@ export function FeishuApplicationPicker({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__none">{t('credentials.feishu.new')}</SelectItem>
+            <SelectItem value="__none">{t('credentials.feishu.choose')}</SelectItem>
             {applications.map((app) => (
               <SelectItem key={app.id} value={app.id}>
                 {app.label} · {app.appId}

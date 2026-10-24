@@ -123,7 +123,7 @@ type CredentialRecord = {
 
 Channel 的飞书配置改为 `type`、可空的 `applicationCredentialId` 和频道专有选项；空引用表示未配置草稿，不能连接。域与 App ID 从所选应用的摘要获取。知识库保留现有 `credentialReference` 列，指向用户授权记录，并保留 Connection ID、账号身份、作为身份投影的 `appId` 和 `appCredentialSource`。用户授权记录再指向应用。此形状不需要新增 SQL 列或凭据表，JSON 和引用转换由应用执行。若实施中发现确实需要修改 SQL 约束，应生成追加迁移，不能改写已发布迁移。
 
-注册用途与知识库授权策略保持显式区分。知识库自己的扫码注册保留当前受限 scope 预设和 `personal-agent` 策略。新选择已有应用走 `custom-app` 路径，仍校验必需权限和身份；重连保留 Connection 原有策略。复用不会授予 scope，也不代表机器人应用自动适合知识库。保留 Channel 的 `lark` 支持，但在知识库提供方支持 Lark 端点前，其选择列表只展示 `feishu`。不为了推断业务策略而向凭据增加注册来源字段。
+注册用途与知识库授权策略保持显式区分。默认扫码允许在飞书侧选择已有应用，不通过 `createOnly` 强制新建，也不重命名应用或替换其预设。在本地已选应用时，传入其 App ID，为该应用申请追加权限。知识库声明必需的用户权限，两种选择路径都使用 `custom-app` 授权策略：注册结果不能证明应用是新建的。必需权限和身份校验仍不可缺少；重连保留 Connection 原有策略，包括历史 `personal-agent` 限制。只有密钥一致时才复用匹配的本地应用，并保留其名称和可选加密配置。复用不会授予 scope，也不代表机器人应用自动适合知识库。保留 Channel 的 `lark` 支持，但在知识库提供方支持 Lark 端点前，其选择列表只展示 `feishu`。不为了推断业务策略而向凭据增加注册来源字段。
 
 #### 模块落点与服务生命周期
 
@@ -131,7 +131,7 @@ Channel 的飞书配置改为 `type`、可空的 `applicationCredentialId` 和�
 | --- | --- |
 | `src/main/services/credential/CredentialStoreService.ts` 及私有 `credentialSchemas.ts` | 文件记录、修改串行化、凭据间引用保护、安全摘要和变更事件。不导入 Channel 或知识库表；业务引用查询和迁移归属飞书连接层。 |
 | `src/main/core/paths/pathRegistry.ts` 与 `src/main/core/application/serviceRegistry.ts` | 注册路径和生命周期服务；通过统一测试系统接入 mock。 |
-| `src/main/services/FeishuRegistrationService.ts` 与现有 `feishuAppRegistration.ts` | 共享、按调用者隔离的注册会话与已有 HTTP 协议。保留 Channel／知识库不同注册预设；不负责用户令牌刷新或机器人运行。 |
+| `src/main/services/FeishuRegistrationService.ts` 与现有 `feishuAppRegistration.ts` | 共享、按调用者隔离的注册会话与已有 HTTP 协议。声明 Channel／知识库需要追加的权限；不负责用户令牌刷新或机器人运行。 |
 | `src/shared/ipc/schemas/credential.ts`、`src/shared/ipc/schemas/feishu.ts`、对应主进程 handler 及已有 IPC 组装入口 | 校验命令与安全输出；已保存 payload 的 schema 仅留在主进程。 |
 | `src/shared/data/types/channel.ts`、`src/main/ai/channels/channelCommands.ts`、`ChannelManager.ts`、`ChannelRuntime.ts`、`channelAdapterLoader.ts`、`adapters/feishu/FeishuAdapter.ts` | 持久化引用、解析仅主进程可见的适配器配置、隔离迟到加载结果，并在共享密钥变化后协调连接。同步适配创建／更新／扫码命令的消费者。 |
 | `src/main/features/knowledge/external/ExternalKnowledgeRuntime.ts`、`ExternalKnowledgeCredentialStore.ts`、`src/main/features/knowledge/KnowledgeService.ts` | 组合应用与授权记录；保留 token 串行通道、身份校验和重连 CAS；停用旧存储及其无范围限制的孤立凭据扫描。 |
@@ -211,7 +211,7 @@ Channel 的飞书配置改为 `type`、可空的 `applicationCredentialId` 和�
 | 新增 `src/main/services/credential/__tests__/CredentialStoreService.test.ts` | 无效 payload／ID、权限修正、原子替换失败、一次失败后队列仍可写入、token CAS、删除后不能复活。 |
 | 新增 `src/main/ipc/handlers/__tests__/credentialBindings.integration.test.ts` | 并发绑定／删除、授权到应用的引用、删除 Channel 保留知识库、密钥替换隔离两个消费者的旧操作，以及记录不可读时拒绝删除。 |
 | 新增 `src/main/services/credential/__tests__/migrateFeishuCredentials.test.ts` | 有数据的生产数据库 fixture 与真实文件；上述全部中断场景、重复／冲突应用、待授权记录、身份保留、重复转换。 |
-| 新增 `src/main/services/__tests__/FeishuRegistrationService.test.ts` 及已有 `feishuAppRegistration.test.ts` | 不同预设、会话所有者、取消／过期、重复完成、不返回秘密，并保留传输重试行为。 |
+| 新增 `src/main/services/__tests__/FeishuRegistrationService.test.ts` 及已有 `feishuAppRegistration.test.ts` | 应用选择、必需权限、会话所有者、取消／过期、重复完成、不返回秘密，并保留传输重试行为。 |
 | 已有 Channel `ChannelManager.test.ts`、`ChannelRuntime.test.ts`、`channelCommands.test.ts`、`adapters/__tests__/FeishuAdapter.test.ts` | 异步凭据加载不能连接过期适配器；显式注册替换适配器隐式注册；只含引用的配置能正确解析后交给 SDK。 |
 | 已有知识库 `ExternalKnowledgeRuntime.test.ts`、`authorizationRecovery.integration.test.ts`、`ExternalKnowledgeDisconnect.test.ts`、`feishuKnowledgeProvider.test.ts` | 替换存储后仍满足刷新／重连／取消／错误竞态和身份连续性；一个消费者的清理不能删除另一个的凭据。 |
 | 新增凭据 IPC 测试；已有 `src/main/ipc/handlers/__tests__/channel.test.ts`、DataApi Channel 测试、`src/main/services/__tests__/LegacyBackupManager.test.ts` | 手动输入与脱敏响应、调用者所有权、命令／工具兼容、备份排除及恢复时文件缺失行为。 |

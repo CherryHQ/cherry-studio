@@ -242,11 +242,14 @@ the shared main-only `CredentialStoreService`;
 `feishuKnowledgeProvider` and the Channel-shared `feishuAppRegistration` remain
 stateless transport boundaries.
 
-Feishu setup supports PersonalAgent registration, a saved application, and a self-built App ID and
-App Secret. All use user device authorization. Updating a saved application requests additional
-permissions using `clientID`, without `createOnly` or replacing the application preset/name.
-Only new PersonalAgent creation uses `createOnly: true`; selected existing applications use
-the custom-app permission policy. The registration result must match the selected application.
+Feishu setup supports QR application selection, a saved application, and a self-built App ID and
+App Secret. All use user device authorization. QR registration allows choosing an existing
+application on Feishu, without `createOnly` or replacing its preset/name. Selecting a saved
+application passes `clientID` to request additional permissions; the registration result must
+match that application. If the remotely selected application is already saved locally, its
+secret must match before reuse, preserving its label and optional encryption settings.
+Both QR selection paths use the `custom-app` permission policy because the registration result
+does not distinguish newly created applications from existing ones.
 The Knowledge form reuses the Channel application picker and shared registration panel.
 It shows a registration QR code immediately, offers saved applications without secret re-entry,
 and keeps manual App ID/Secret entry optional. The user authorization step shows its own QR
@@ -272,10 +275,11 @@ offline_access
 contact:user.employee_id:readonly
 ```
 
-PersonalAgent grants may additionally contain optional space discovery and the
-historical `auth:user.id:read` grant. That historical grant is accepted for
-existing cumulative consent but is never requested and cannot satisfy the
-required identity permission. Self-built apps may grant additional scopes.
+Existing Connections with the `personal-agent` policy retain its restrictions when reauthorizing.
+Their grants may additionally contain optional space discovery and the historical `auth:user.id:read`
+grant. That historical grant is accepted for existing cumulative consent but is
+never requested and cannot satisfy the required identity permission. Connections using the
+`custom-app` policy may grant additional scopes.
 The runtime reports `scope-missing` for missing required scopes and
 `automatic-scope-mismatch` for unexpected PersonalAgent grants.
 See [Feishu Read Adapter](./external-knowledge-feishu-read-adapter.md#trust-and-ipc-boundary)
