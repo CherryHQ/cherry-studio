@@ -315,15 +315,15 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    * `failed` leaves are left alone: they are not searchable, and any later reindex embeds them.
    */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
-    const rootItemIds = rootItems.map((item) => item.id)
-
-    if (rootItemIds.length > 0) {
-      assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
-      this.assertSubtreesSettled(knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true }))
-    }
-
     const { updatedBase, leafItemIds } = await this.knowledgeLockManager.runExclusive(baseId, async () => {
+      // Read statuses under the lock: an add that ran while this call waited for it may have
+      // started an item against the BM25-only configuration.
+      const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
+      const rootItemIds = rootItems.map((item) => item.id)
+      if (rootItemIds.length > 0) {
+        assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
+        this.assertSubtreesSettled(knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true }))
+      }
       await this.assertNoReindexPending(baseId)
       return application.get('DbService').withWriteTx((tx) => ({
         updatedBase: knowledgeBaseService.updateTx(tx, baseId, patch, { allowEmbeddingModelBackfill: true }),

@@ -27,7 +27,8 @@ const {
   enqueueTxMock,
   listMock,
   registerHandlerMock,
-  classifySourceMock
+  classifySourceMock,
+  getIndexStoreIfExistsMock
 } = vi.hoisted(() => ({
   getIndexStoreMock: vi.fn(),
   deleteStoreMock: vi.fn(),
@@ -35,7 +36,8 @@ const {
   enqueueTxMock: vi.fn(),
   listMock: vi.fn(),
   registerHandlerMock: vi.fn(),
-  classifySourceMock: vi.fn()
+  classifySourceMock: vi.fn(),
+  getIndexStoreIfExistsMock: vi.fn()
 }))
 
 // Runs the real source check unless a test holds it open.
@@ -59,7 +61,7 @@ vi.mock('@application', async () => {
     KnowledgeVectorStoreService: {
       getIndexStore: getIndexStoreMock,
       deleteStore: deleteStoreMock,
-      getIndexStoreIfExists: vi.fn()
+      getIndexStoreIfExists: getIndexStoreIfExistsMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -615,6 +617,34 @@ describe('KnowledgeService integration', () => {
 
       await expect(reindex).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
       expect(enqueuedTypes()).not.toContain('knowledge.reindex-subtree')
+    })
+
+    it('rejects when an add starts an item while enabling waits for the base lock', async () => {
+      await seedBm25Base()
+      let finishPurge: (() => void) | undefined
+      // A replace add holds the lock while it purges the old note's index entries.
+      getIndexStoreIfExistsMock.mockReturnValueOnce({
+        deleteMaterials: () =>
+          new Promise<void>((resolve) => {
+            finishPurge = resolve
+          })
+      })
+      const service = new KnowledgeService()
+
+      const add = service.addItems(
+        BM25_BASE_ID,
+        [{ type: 'note', data: { source: 'Note', content: 'Note\nnew' } }],
+        'replace'
+      )
+      await vi.waitFor(() => expect(finishPurge).toBeDefined())
+      const enabling = enable(service)
+      finishPurge?.()
+      await add
+
+      await expect(enabling).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+      const [base] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, BM25_BASE_ID))
+      expect(base.embeddingModelId).toBeNull()
+      expect((await statusOf(FILE_ID)).status).toBe('completed')
     })
 
     it('rejects a failed base before committing the model', async () => {

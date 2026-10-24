@@ -32,7 +32,7 @@ The backfill stops going through reindex and reuses the regular per-item indexin
 - **In-base sources only.** `knowledge.index-documents` reads the `raw/` file or its pinned processed artifact, and the captured URL or note snapshot. It fetches nothing and copies nothing. Every `completed` leaf has such a source: a URL or note completes only after its snapshot is captured, and a file only after its copy has landed.
   - `scheduleItem` runs without `forceFileReprocess`, so a file that already has a processed artifact is not reprocessed.
   - `rebuildMaterial` replaces each item's BM25-only material in one transaction, so nothing needs deleting first.
-- **Admission.** The base must be allowed to run runtime operations and every target subtree must be `completed` or `failed`; `KnowledgeBaseService.update` still rejects switching an already-configured model. The source-existence check is dropped, so a moved or deleted original no longer blocks the backfill.
+- **Admission.** The base must be allowed to run runtime operations and every target subtree must be `completed` or `failed`; `KnowledgeBaseService.update` still rejects switching an already-configured model. The source-existence check is dropped, so a moved or deleted original no longer blocks the backfill. These statuses are read under the base mutation lock, so an item that an add starts while enabling waits for the lock is seen; it would otherwise index without vectors, because the backfill only picks up `completed` leaves.
   - No `knowledge.reindex-subtree` job of the base may be pending or running. A refresh leaves its items `completed` until its job resets them, so their status does not show it. A backfill admitted beside it could index the old copy over the refreshed one, and the refresh would then skip the item as already `completed`. The check runs under the base mutation lock, just before the write transaction.
   - Reindex admission reads its subtree statuses again, and enqueues, under the same lock. A backfill that activates the items while a reindex is still checking their sources therefore makes that reindex reject.
 - **Recovery stays as it is.** `knowledge.index-documents` keeps `recovery: 'abandon'`. After a quit, unfinished leaves are still in an in-flight status, so the boot sweep fails them with `indexing_interrupted`. Leaves that finished stay `completed`.
@@ -61,6 +61,7 @@ This partially supersedes the [async source copy Spec](2026-10-21-knowledge-asyn
 - AC8 — A leaf that is `failed` when the model is enabled keeps its status and error and gets no indexing job, so a URL whose first fetch failed is not fetched. (verification: unit)
 - AC9 — While a reindex of the base is pending or running, enabling an embedding model is rejected and changes neither the model nor any item status; it succeeds once that reindex settles. (verification: unit)
 - AC10 — A reindex whose items a backfill activates while their sources are being checked is rejected and enqueues no job. (verification: unit)
+- AC11 — When an add starts an item while enabling waits for the base lock, enabling is rejected and changes neither the model nor any item status. (verification: unit)
 
 ## Risks
 
