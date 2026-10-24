@@ -152,6 +152,8 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU 未完成文档解析（状态：{{status}}）。请检查服务后重试。",
   "file_processing.errors.open_mineru_unreachable": "无法连接 Open MinerU。请确认服务正在运行且地址正确。",
   "file_processing.errors.pdf_page_limit_exceeded": "该 PDF 超过当前文档解析服务的 {{maxPages}} 页上限，请手动拆分 PDF 后重新添加。",
+  "local_model.ocr.runtime_mismatch": "运行时文件夹 {{directory}} 中的 {{file}} 与所需的 ONNX Runtime {{version}} 不匹配。 请完全退出 Cherry Studio，仅删除该运行时文件夹，然后重启，在“设置 → 依赖 → 本地模型”中为本地 OCR 选择“下载”。下载完成后，请重试或重新索引。",
+  "local_model.ocr.runtime_unavailable": "所需的 ONNX Runtime {{version}} 文件 {{file}} 在 {{directory}} 中缺失或无法验证。 请完全退出 Cherry Studio，仅删除该运行时文件夹，然后重启，在“设置 → 依赖 → 本地模型”中为本地 OCR 选择“下载”。下载完成后，请重试或重新索引。",
   "notification.action_required.agent": "智能体任务需要你的响应",
   "notification.action_required.assistant": "助手需要你的响应",
   "notification.completion.agent": "智能体任务已完成",

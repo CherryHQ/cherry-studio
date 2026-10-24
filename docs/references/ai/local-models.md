@@ -175,6 +175,16 @@ Bundle files and shared artifacts are scanned separately, and callers compose th
 bundle whose weights are complete but whose runtime is missing is an offer to download
 ~40MB, not a broken install — so it reports as not-installed rather than as an error.
 
+Before each serialized OCR dispatch, main verifies the installed ONNX Runtime binding
+and every current-platform support file against sizes and SHA-256 digests generated from
+the catalog-pinned tarball. An unchanged file-identity snapshot avoids repeated hashing;
+mismatched, unstable or unreadable files reject before the utility-process request. Installation status
+still checks presence. The localized error names the expected version and runtime folder,
+and directs the user to fully quit, remove only that folder, restart, download Local OCR
+under Settings → Dependencies → Local Models, then retry or reindex. This check performs
+no download and applies only to OCR. Regenerate or check the pinned table with
+`scripts/generate-onnxruntime-integrity.mjs`; its header gives the offline commands.
+
 ### Superseded layouts
 
 A bundle may declare a `legacyInstallSubdir` alongside its current one. `resolveInstalledDir`

@@ -67,11 +67,8 @@ export function artifactEntryPath(artifact: SharedArtifact): string {
   return path.join(artifactInstallDir(artifact, platform), platform.entryFile)
 }
 
-/**
- * Whether the artifact is usable now. `true` on a platform it does not ship for: there is
- * nothing to install there, and reporting "missing" would make bundles offer a download
- * that cannot exist. Those bundles are already `unsupported` via the platform matrix.
- */
+/** Whether all expected paths are present, without verifying bytes. Unsupported platforms
+ * return true because their bundles are already gated by the platform matrix. */
 export function isArtifactInstalled(artifact: SharedArtifact): boolean {
   const platform = artifactPlatformFiles(artifact)
   if (!platform) return true

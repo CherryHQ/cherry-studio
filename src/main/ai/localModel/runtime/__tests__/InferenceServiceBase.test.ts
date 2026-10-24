@@ -78,6 +78,10 @@ class TestInferenceService extends InferenceServiceBase<EchoContract> {
     return this.run(modelId, 'ping', () => undefined, { signal })
   }
 
+  prepare(prepareInput: () => Promise<void>, signal?: AbortSignal) {
+    return this.run('qwen3-embedding-0.6b', 'ping', prepareInput, { signal })
+  }
+
   block(signal?: AbortSignal) {
     return this.run('qwen3-embedding-0.6b', 'wait', () => undefined, { signal })
   }
@@ -450,6 +454,77 @@ describe('model-scoped removal', () => {
     await expect(active).resolves.toBe('released')
     expect(await queued).toHaveProperty('code', 'PROCESS_BLOCKED')
     expect(adapter.spawns[0].child.exited).toBe(false)
+    await service.terminate()
+  })
+})
+
+describe('InferenceServiceBase asynchronous input preparation', () => {
+  it('dispatches nothing until preparation completes, then returns the real result', async () => {
+    const { service, adapter } = await createService()
+    const pending = Promise.withResolvers<void>()
+    const started = Promise.withResolvers<void>()
+    const request = service.prepare(() => {
+      started.resolve()
+      return pending.promise
+    })
+    await started.promise
+    await flushMicrotasks()
+    expect(adapter.spawns).toHaveLength(0)
+    pending.resolve()
+    await expect(request).resolves.toBe('pong')
+    await service.terminate()
+  })
+
+  it('propagates preparation failure without dispatch and permits a later valid request', async () => {
+    const { service, adapter } = await createService()
+    const reason = new Error('input invalid')
+    await expect(
+      service.prepare(async () => {
+        throw reason
+      })
+    ).rejects.toBe(reason)
+    expect(adapter.spawns).toHaveLength(0)
+    await expect(service.ping()).resolves.toBe('pong')
+    await service.terminate()
+  })
+
+  it('keeps the original abort reason when cancelled during preparation', async () => {
+    const { service, adapter } = await createService()
+    const pending = Promise.withResolvers<void>()
+    const started = Promise.withResolvers<void>()
+    const controller = new AbortController()
+    const reason = new Error('cancel pending preparation')
+    const request = rejectionOf(
+      service.prepare(() => {
+        started.resolve()
+        return pending.promise
+      }, controller.signal)
+    )
+    await started.promise
+    controller.abort(reason)
+    pending.resolve()
+    expect(await request).toBe(reason)
+    expect(adapter.spawns).toHaveLength(0)
+    await expect(service.ping()).resolves.toBe('pong')
+    await service.terminate()
+  })
+
+  it('blocks dispatch after removal starts and completes during preparation', async () => {
+    const { service, adapter } = await createService()
+    const pending = Promise.withResolvers<void>()
+    const started = Promise.withResolvers<void>()
+    const request = rejectionOf(
+      service.prepare(() => {
+        started.resolve()
+        return pending.promise
+      })
+    )
+    await started.promise
+    await service.removeModelThen('qwen3-embedding-0.6b', async () => {})
+    pending.resolve()
+    expect(await request).toHaveProperty('code', 'PROCESS_BLOCKED')
+    expect(adapter.spawns).toHaveLength(0)
+    await expect(service.ping()).resolves.toBe('pong')
     await service.terminate()
   })
 })
