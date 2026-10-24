@@ -779,7 +779,7 @@ export function useFollowupQueue({
       // crash mid-switch leaves a duplicate in the queue rather than losing
       // the outgoing draft entirely.
       const taken = takenEditRef.current
-      let incomingSlot = itemsRef.current.findIndex((entry) => entry.id === id)
+      const incomingSlot = itemsRef.current.findIndex((entry) => entry.id === id)
       // The outgoing item's landed restore, if the switch got that far: a
       // failed switch after this point must hold the copy instead of leaving
       // it deliverable while the editor still owns its content.
