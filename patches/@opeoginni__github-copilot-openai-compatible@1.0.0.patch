@@ -1,5 +1,31 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 0ac06053f131dbc0ad96c542baa28ceedfd75579..6167cd29c5352321824a3e0622651a7ca879f6c9 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -6,6 +6,8 @@ interface GitHubCopilotChatSettings {
+ }
+ 
+ interface GitHubCopilotProviderSettings {
++    /** Explicit wire API; omission retains model-family compatibility. */
++    api?: 'chat-completions' | 'responses';
+     /**
+      * API key for authenticating requests.
+      */
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 0ac06053f131dbc0ad96c542baa28ceedfd75579..6167cd29c5352321824a3e0622651a7ca879f6c9 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -6,6 +6,8 @@ interface GitHubCopilotChatSettings {
+ }
+ 
+ interface GitHubCopilotProviderSettings {
++    /** Explicit wire API; omission retains model-family compatibility. */
++    api?: 'chat-completions' | 'responses';
+     /**
+      * API key for authenticating requests.
+      */
 diff --git a/dist/index.js b/dist/index.js
-index 942a0103fa4f21e30c1f8fa7dd29bfdb02800643..212e117d7a2d68579f1da1d4e9a7c1e3d76dbbf0 100644
+index 942a0103fa4f21e30c1f8fa7dd29bfdb02800643..14b3f038f2ef3d26c157fd9423075797f84168fa 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -14577,7 +14577,7 @@ function createGitHubCopilotOpenAICompatible(options = {}) {
@@ -7,12 +33,12 @@ index 942a0103fa4f21e30c1f8fa7dd29bfdb02800643..212e117d7a2d68579f1da1d4e9a7c1e3
    const getHeaders = () => (0, import_provider_utils16.withUserAgentSuffix)(headers, `opeoginni/github-copilot-openai-compatible/${VERSION}`);
    const createChatModel = (modelId) => {
 -    if (modelId.includes("codex")) {
-+    if (modelId.startsWith('gpt-5') || modelId.startsWith('gpt-6')) {
++    if (options.api === 'responses' || (options.api !== 'chat-completions' && (modelId.startsWith('gpt-5') || modelId.startsWith('gpt-6')))) {
        return new OpenAIResponsesLanguageModel(modelId, {
          provider: `${options.name ?? "githubcopilot"}.responses`,
          headers: getHeaders,
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 8d2134d189ae5d40eaa9a7feee3048faf1f60ae7..fc3e29d5c503be912a1259d29d3c9319d3e87f53 100644
+index 8d2134d189ae5d40eaa9a7feee3048faf1f60ae7..2328c7b0aadb8778141fefc222198342822bc180 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -14613,7 +14613,7 @@ function createGitHubCopilotOpenAICompatible(options = {}) {
@@ -20,7 +46,7 @@ index 8d2134d189ae5d40eaa9a7feee3048faf1f60ae7..fc3e29d5c503be912a1259d29d3c9319
    const getHeaders = () => withUserAgentSuffix(headers, `opeoginni/github-copilot-openai-compatible/${VERSION}`);
    const createChatModel = (modelId) => {
 -    if (modelId.includes("codex")) {
-+    if (modelId.startsWith('gpt-5') || modelId.startsWith('gpt-6')) {
++    if (options.api === 'responses' || (options.api !== 'chat-completions' && (modelId.startsWith('gpt-5') || modelId.startsWith('gpt-6')))) {
        return new OpenAIResponsesLanguageModel(modelId, {
          provider: `${options.name ?? "githubcopilot"}.responses`,
          headers: getHeaders,

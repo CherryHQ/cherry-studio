@@ -23,6 +23,11 @@ settings, hitting which URL. Three pieces of state determine that:
 identity. `endpointType` is the protocol family. The mapping is written
 once at provider-creation time; runtime resolution is read-only.
 
+Copilot additionally resolves the authenticated model catalog before SDK creation.
+Its `supported_endpoints` can override a saved model endpoint without changing the
+stored model. See [Copilot model capabilities](./adapter-family.md#copilot-model-capabilities)
+for routing, cache and fallback rules.
+
 See [Adapter Family](./adapter-family.md) for the full design.
 
 ## Resolver
@@ -48,7 +53,7 @@ carried through `SdkConfig`; reasoning encoders consume the resolved namespace
 and never inspect provider or model ids themselves.
 
 ```ts
-// Full resolver — 6 lines
+// Ordinary configured-provider branch
 export function resolveAiSdkProviderId(provider, endpointType) {
   const adapterFamily = endpointType
     ? provider.endpointConfigs?.[endpointType]?.adapterFamily
@@ -104,8 +109,9 @@ ordered `{ match, build }` table to build the provider-specific settings
 object (apiKey, baseURL, organization, headers, ...). Direct callers may omit
 the option and let the function resolve the endpoint itself.
 
-`resolveSdkConfig` (`src/main/ai/provider/sdkConfig.ts`) wraps it with the wire
-model id and the `providerOptions` namespace. It is the modality-agnostic
+`resolveSdkConfig` (`src/main/ai/provider/sdkConfig.ts`) returns the effective
+endpoint alongside the SDK configuration and credential receipt. It derives the
+wire model id and `providerOptions` namespace from that effective endpoint. It is the modality-agnostic
 transport core: `AiService`'s embedding, rerank and image verbs call it
 directly, and the chat pipeline (`buildAgentParams`) layers tools, prompt and
 context on top of it. Compression-model resolution also uses this core,
@@ -126,7 +132,7 @@ The builder table (`config.ts`, first match wins):
 
 | Match | Builder | Notes |
 |---|---|---|
-| `id === copilot` | `buildCopilotConfig` | async — fetches a Copilot token |
+| Copilot preset | `buildCopilotConfig` | Uses the token and capabilities resolved before dispatch |
 | `id === 'cherryai'` | `buildCherryAIConfig` | |
 | `isOllamaProvider` | `buildOllamaConfig` | |
 | `isAzureOpenAIProvider` | `buildAzureConfig` | returns `azure` / `azure-responses` / `azure-anthropic` (Claude on Azure) |
@@ -138,7 +144,7 @@ The builder table (`config.ts`, first match wins):
 | `id === 'dmxapi'` | `buildDmxapiConfig` | passes the Chat, Anthropic, and Gemini URLs independently |
 | _(no match)_ | `buildGenericProviderConfig` / `buildOpenAICompatibleConfig` | generic fallback |
 
-Several builders are `async` (Copilot token, CherryIN relay URLs), which is
+Credential and capability resolution is `async` (including Copilot preflight), which is
 why `providerToAiSdkConfig` returns a promise.
 
 ## Custom providers

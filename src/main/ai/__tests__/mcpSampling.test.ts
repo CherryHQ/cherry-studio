@@ -21,7 +21,12 @@ vi.mock('@application', async () => {
   )
   return mock
 })
-vi.mock('../provider/config', () => ({ resolveProviderAiSdkConfig: resolveConfig }))
+vi.mock('../provider/config', () => ({
+  resolveProviderAiSdkConfig: async (...args: [unknown, unknown, { resolvedEndpoint?: unknown }?]) => ({
+    resolvedEndpoint: args[2]?.resolvedEndpoint,
+    ...(await resolveConfig(...args))
+  })
+}))
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: getProvider } }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getModel } }))
 

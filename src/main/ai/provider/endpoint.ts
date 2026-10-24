@@ -7,6 +7,7 @@ import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
+import { matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -91,6 +92,9 @@ export function resolveProviderVariant(
 }
 
 export function resolveAiSdkProviderId(provider: Provider, endpointType: EndpointType | undefined): AppProviderId {
+  if (matchesPreset(provider, SystemProviderIds.copilot)) {
+    return endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? 'anthropic' : 'github-copilot-openai-compatible'
+  }
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   if (adapterFamily && adapterFamily in appProviderIds) {
     return resolveProviderVariant(appProviderIds[adapterFamily], endpointType)
@@ -142,6 +146,9 @@ export function resolveProviderOptionsKey(
     case SystemProviderIds.ollama:
       return 'ollama'
     case 'github-copilot-openai-compatible':
+      return context?.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
+        ? 'openai'
+        : (context?.actualProviderId ?? providerId)
     case 'openai-compatible':
       return context?.actualProviderId ?? providerId
     case 'cherryin':

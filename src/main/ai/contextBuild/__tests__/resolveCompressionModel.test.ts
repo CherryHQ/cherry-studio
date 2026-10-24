@@ -14,7 +14,8 @@ const { providerLookup, modelLookup, providerConfig } = vi.hoisted(() => ({
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: providerLookup } }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: modelLookup } }))
 vi.mock('@main/ai/provider/config', () => ({
-  resolveProviderAiSdkConfig: async (...args: unknown[]) => ({
+  resolveProviderAiSdkConfig: async (...args: [unknown, unknown, { resolvedEndpoint?: unknown }?]) => ({
+    resolvedEndpoint: args[2]?.resolvedEndpoint,
     config: await providerConfig(...args),
     credentialReceipt: { attribution: 'unknown' }
   })

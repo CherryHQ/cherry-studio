@@ -901,6 +901,39 @@ describe('listModels — anthropicFetcher (x-api-key + anthropic-version transpo
 })
 
 describe('listModels — copilotFetcher (preset-aware routing)', () => {
+  it('preserves declared endpoints and leaves missing declarations unknown', async () => {
+    const provider = makeProvider({ id: 'copilot', presetProviderId: 'copilot' })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'grok-4.5', supported_endpoints: ['/responses'] },
+          {
+            id: 'grok-4.6',
+            supported_endpoints: ['/v1/messages', '/chat/completions', '/responses', '/responses', '/unknown']
+          },
+          { id: 'chat-only', supported_endpoints: ['/chat/completions'] },
+          { id: 'unknown' },
+          { id: 'none', supported_endpoints: [] }
+        ]
+      }
+    })
+    const { models } = await listModels(provider)
+    expect(models.map(({ apiModelId, endpointTypes }) => ({ apiModelId, endpointTypes }))).toEqual([
+      { apiModelId: 'grok-4.5', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] },
+      {
+        apiModelId: 'grok-4.6',
+        endpointTypes: [
+          ENDPOINT_TYPE.OPENAI_RESPONSES,
+          ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+          ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+        ]
+      },
+      { apiModelId: 'chat-only', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] },
+      { apiModelId: 'unknown', endpointTypes: undefined },
+      { apiModelId: 'none', endpointTypes: [] }
+    ])
+  })
+
   it('routes copied Copilot providers (uuid id + presetProviderId) through the Copilot fetcher and its audio filter (REGRESSION)', async () => {
     const copiedCopilotProvider = makeProvider({
       id: 'c1a2b3c4-d5e6-7f80-9012-3456789abcde',

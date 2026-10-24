@@ -169,6 +169,7 @@ export function buildCapabilityProviderOptions(
     case SystemProviderIds.ollama:
       providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options)
       break
+    case 'github-copilot-openai-compatible':
     case 'cherryin':
     case 'cherryin-chat':
     case 'newapi':

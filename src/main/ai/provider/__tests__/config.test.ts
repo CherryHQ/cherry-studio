@@ -1,4 +1,7 @@
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import type { ImageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import { createGitHubCopilotOpenAICompatible } from '@opeoginni/github-copilot-openai-compatible'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,11 +40,14 @@ const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
   getByProviderIdMock: vi.fn()
 }))
-const { buildCherryCloudProviderConfigMock, generateSignatureMock, getCopilotTokenMock } = vi.hoisted(() => ({
-  buildCherryCloudProviderConfigMock: vi.fn(),
-  generateSignatureMock: vi.fn(),
-  getCopilotTokenMock: vi.fn()
-}))
+const { buildCherryCloudProviderConfigMock, generateSignatureMock, getCopilotTokenMock, copilotAuth } = vi.hoisted(
+  () => ({
+    buildCherryCloudProviderConfigMock: vi.fn(),
+    generateSignatureMock: vi.fn(),
+    getCopilotTokenMock: vi.fn(),
+    copilotAuth: { revision: 0 }
+  })
+)
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
@@ -61,7 +67,10 @@ vi.mock('@main/ai/provider/cherryCloud', () => ({
 
 vi.mock('@main/services/CopilotService', () => ({
   copilotService: {
-    getToken: getCopilotTokenMock
+    getToken: getCopilotTokenMock,
+    get authRevision() {
+      return copilotAuth.revision
+    }
   }
 }))
 
@@ -2054,5 +2063,315 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('newapi')
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
+  })
+})
+
+describe('Copilot capability routing and cache', () => {
+  const provider = makeProvider({
+    id: 'copilot',
+    authType: 'oauth',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://api.githubcopilot.com',
+        adapterFamily: 'github-copilot-openai-compatible'
+      }
+    },
+    settings: { extraHeaders: { 'X-Custom': 'copilot-routing-test' } }
+  })
+  const model = makeModel({
+    id: 'copilot::grok-4.5',
+    apiModelId: 'grok-4.5',
+    providerId: 'copilot',
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+  })
+  const catalog = (endpoints: string[] | null | undefined) =>
+    Response.json({
+      data: [{ id: 'grok-4.5', supported_endpoints: endpoints }]
+    })
+
+  const streamedReply = (path: string) => {
+    const events =
+      path === '/responses'
+        ? [
+            {
+              type: 'response.output_text.delta',
+              item_id: 'msg-1',
+              output_index: 0,
+              content_index: 0,
+              delta: 'ok',
+              logprobs: []
+            },
+            {
+              type: 'response.completed',
+              response: {
+                id: 'resp-1',
+                created_at: 1,
+                model: 'grok-4.5',
+                status: 'completed',
+                output: [],
+                usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 }
+              }
+            }
+          ]
+        : path === '/v1/messages'
+          ? [
+              {
+                type: 'message_start',
+                message: {
+                  id: 'msg-1',
+                  type: 'message',
+                  role: 'assistant',
+                  model: 'grok-4.5',
+                  content: [],
+                  usage: { input_tokens: 5, output_tokens: 0 }
+                }
+              },
+              { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+              { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+              { type: 'content_block_stop', index: 0 },
+              {
+                type: 'message_delta',
+                delta: { stop_reason: 'end_turn', stop_sequence: null },
+                usage: { output_tokens: 3 }
+              },
+              { type: 'message_stop' }
+            ]
+          : [
+              {
+                id: 'chat-1',
+                created: 1,
+                model: 'grok-4.5',
+                choices: [{ index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: null }]
+              },
+              {
+                id: 'chat-1',
+                created: 1,
+                model: 'grok-4.5',
+                choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+                usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 }
+              }
+            ]
+    return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+      headers: { 'content-type': 'text/event-stream' }
+    })
+  }
+
+  beforeEach(() => {
+    MockMainCacheServiceUtils.resetMocks()
+    copilotAuth.revision = 0
+    vi.mocked(net.fetch).mockReset()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('keeps custom-host credentials out of token exchange for generation and listing', async () => {
+    const customProvider = makeProvider({
+      ...provider,
+      settings: { extraHeaders: { 'X-API-Key': 'private-host-key' } }
+    })
+    vi.mocked(net.fetch).mockImplementation(async () => catalog(['/responses']))
+    const config = await providerToAiSdkConfig(customProvider, model)
+    const { listModels } = await import('../listModels')
+    await listModels(customProvider)
+    for (const [, headers] of getCopilotTokenMock.mock.calls) {
+      expect(new Headers(headers).has('x-api-key')).toBe(false)
+      expect(new Headers(headers).get('editor-version')).toBeTruthy()
+    }
+    expect(new Headers((config.providerSettings as { headers: Record<string, string> }).headers).get('x-api-key')).toBe(
+      'private-host-key'
+    )
+    for (const [, init] of vi.mocked(net.fetch).mock.calls) {
+      expect(new Headers(init?.headers).get('x-api-key')).toBe('private-host-key')
+    }
+  })
+
+  it('preserves temperature and the dotted Copilot wire ID on Messages', async () => {
+    vi.mocked(net.fetch).mockImplementation(async (url) =>
+      String(url).endsWith('/models')
+        ? Response.json({ data: [{ id: 'claude-sonnet-4.6', supported_endpoints: ['/v1/messages'] }] })
+        : new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })
+    )
+    const alias = makeModel({ ...model, apiModelId: 'claude-sonnet-4.6' })
+    const config = await providerToAiSdkConfig(provider, alias)
+    const sdk = createAnthropic(config.providerSettings as Parameters<typeof createAnthropic>[0])
+    const result = await sdk.languageModel('claude-sonnet-4.6').doStream({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      temperature: 0.2,
+      providerOptions: { anthropic: { thinking: { type: 'disabled' } } }
+    })
+    await result.stream.cancel()
+    expect(JSON.parse(vi.mocked(net.fetch).mock.calls.at(-1)![1]?.body as string)).toMatchObject({
+      model: 'claude-sonnet-4.6',
+      temperature: 0.2
+    })
+  })
+
+  it.each([
+    [['/chat/completions', '/responses', '/v1/messages'], '/responses', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai'],
+    [['/v1/messages', '/chat/completions'], '/v1/messages', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    [['/chat/completions'], '/chat/completions', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'copilot']
+  ] as const)(
+    'uses metadata %j for saved models, SDK options and HTTP requests',
+    async (paths, path, endpointType, namespace) => {
+      vi.mocked(net.fetch).mockImplementation(async (url) =>
+        String(url).endsWith('/models') ? catalog([...paths]) : streamedReply(path)
+      )
+      const { resolveSdkConfig } = await import('../sdkConfig')
+      const { sdkConfig, resolvedEndpoint } = await resolveSdkConfig(provider, model, {
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        baseUrl: 'https://api.githubcopilot.com'
+      })
+      expect(resolvedEndpoint.endpointType).toBe(endpointType)
+      expect(sdkConfig.providerOptionsKey).toBe(namespace)
+      const sdk =
+        sdkConfig.providerId === 'anthropic'
+          ? createAnthropic(sdkConfig.providerSettings as Parameters<typeof createAnthropic>[0])
+          : createGitHubCopilotOpenAICompatible(
+              sdkConfig.providerSettings as Parameters<typeof createGitHubCopilotOpenAICompatible>[0]
+            )
+      const response = await sdk.languageModel(sdkConfig.modelId).doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+        tools: [{ type: 'function', name: 'lookup', inputSchema: { type: 'object', properties: {} } }],
+        providerOptions: {
+          [namespace]:
+            namespace === 'anthropic'
+              ? { thinking: { type: 'enabled', budgetTokens: 1024 } }
+              : { reasoningEffort: 'high', forceReasoning: true }
+        }
+      })
+      const chunks: LanguageModelV3StreamPart[] = []
+      for await (const chunk of response.stream) chunks.push(chunk)
+      expect(chunks.filter((chunk) => chunk.type === 'error')).toEqual([])
+      expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'ok' }))
+      expect(chunks).toContainEqual(
+        expect.objectContaining({
+          type: 'finish',
+          usage: expect.objectContaining({
+            inputTokens: expect.objectContaining({ total: 5 }),
+            outputTokens: expect.objectContaining({ total: 3 })
+          })
+        })
+      )
+      const [url, init] = vi.mocked(net.fetch).mock.calls.at(-1)!
+      expect(String(url)).toBe('https://api.githubcopilot.com' + path)
+      const headers = new Headers(init?.headers)
+      expect(headers.get('authorization')).toBe('Bearer copilot-token')
+      expect(headers.get('x-custom')).toBe('copilot-routing-test')
+      expect(headers.has('x-api-key')).toBe(false)
+      const body = JSON.parse(init?.body as string)
+      expect(body.model).toBe('grok-4.5')
+      expect(body.tools).toHaveLength(1)
+      if (namespace === 'openai') {
+        expect(body.input).toBeDefined()
+        expect(body.messages).toBeUndefined()
+        expect(body.reasoning).toMatchObject({ effort: 'high' })
+      } else {
+        expect(body.messages).toBeDefined()
+        expect(body.input).toBeUndefined()
+        if (namespace === 'anthropic') expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 1024 })
+      }
+    }
+  )
+
+  it.each([{ paths: [] }, { paths: ['/unknown'] }])(
+    'rejects explicitly unsupported endpoints $paths before generation',
+    async ({ paths }) => {
+      vi.mocked(net.fetch).mockResolvedValue(catalog(paths))
+      await expect(resolveProviderAiSdkConfig(provider, model)).rejects.toMatchObject({
+        name: 'AI_UnsupportedFunctionalityError'
+      })
+      expect(vi.mocked(net.fetch).mock.calls.map(([url]) => String(url))).toEqual([
+        'https://api.githubcopilot.com/models'
+      ])
+    }
+  )
+
+  it.each([undefined, null])('retains legacy fallback for absent metadata (%s)', async (paths) => {
+    vi.mocked(net.fetch).mockImplementation(async () => catalog(paths))
+    expect((await resolveProviderAiSdkConfig(provider, model)).resolvedEndpoint.endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+    const gpt = makeModel({ ...model, apiModelId: 'gpt-6-astra' })
+    expect((await resolveProviderAiSdkConfig(provider, gpt)).resolvedEndpoint.endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    )
+  })
+
+  it.each([401, 403])('propagates HTTP %s instead of falling back', async (status) => {
+    vi.mocked(net.fetch).mockImplementation(async () => Response.json({ error: { message: 'denied' } }, { status }))
+    await expect(resolveProviderAiSdkConfig(provider, model)).rejects.toMatchObject({ statusCode: status })
+  })
+
+  it('falls back on network failure without caching the failure', async () => {
+    vi.mocked(net.fetch)
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockResolvedValueOnce(catalog(['/responses']))
+    expect((await resolveProviderAiSdkConfig(provider, model)).resolvedEndpoint.endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+    expect((await resolveProviderAiSdkConfig(provider, model)).resolvedEndpoint.endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    )
+  })
+
+  it('shares metadata, refreshes explicitly, expires it and isolates accounts', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.mocked(net.fetch).mockImplementation(async () => catalog(['/responses']))
+    const { getCopilotSession, getCopilotModels } = await import('../copilot')
+    await Promise.all([resolveProviderAiSdkConfig(provider, model), resolveProviderAiSdkConfig(provider, model)])
+    expect(net.fetch).toHaveBeenCalledTimes(1)
+    await resolveProviderAiSdkConfig(provider, model)
+    expect(net.fetch).toHaveBeenCalledTimes(1)
+    await getCopilotModels(provider, await getCopilotSession(provider), { refresh: true })
+    expect(net.fetch).toHaveBeenCalledTimes(2)
+    vi.setSystemTime(Date.now() + 5 * 60_000 + 1)
+    await resolveProviderAiSdkConfig(provider, model)
+    expect(net.fetch).toHaveBeenCalledTimes(3)
+    copilotAuth.revision++
+    await resolveProviderAiSdkConfig(provider, model)
+    expect(net.fetch).toHaveBeenCalledTimes(4)
+    getCopilotTokenMock.mockResolvedValue({ token: 'other-account-token' })
+    await resolveProviderAiSdkConfig(provider, model)
+    expect(net.fetch).toHaveBeenCalledTimes(5)
+    expect(MockMainCacheServiceUtils.getCacheStats().keys.join()).not.toContain('token')
+  })
+
+  it('cancels one caller without cancelling another sharing metadata', async () => {
+    let finish!: (response: Response) => void
+    vi.mocked(net.fetch).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    const { getCopilotModels, getCopilotSession } = await import('../copilot')
+    const session = await getCopilotSession(provider)
+    const controller = new AbortController()
+    const cancelled = getCopilotModels(provider, session, { signal: controller.signal })
+    const surviving = getCopilotModels(provider, session)
+    const rejected = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+    controller.abort()
+    await rejected
+    finish(catalog(['/responses']))
+    await expect(surviving).resolves.toMatchObject({ data: [{ id: 'grok-4.5' }] })
+    expect(net.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects stale account responses without repopulating the cache', async () => {
+    let finish!: (response: Response) => void
+    vi.mocked(net.fetch).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    const { getCopilotModels, getCopilotSession } = await import('../copilot')
+    const pending = getCopilotModels(provider, await getCopilotSession(provider))
+    copilotAuth.revision++
+    finish(catalog(['/responses']))
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(MockMainCacheServiceUtils.getCacheStats().totalEntries).toBe(0)
   })
 })

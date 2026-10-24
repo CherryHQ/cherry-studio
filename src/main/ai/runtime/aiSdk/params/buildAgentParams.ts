@@ -131,12 +131,12 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
 
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
+  const { sdkConfig, credentialReceipt, resolvedEndpoint } = await resolveSdkConfig(
     provider,
     model,
-    resolvedEndpoint,
-    request.apiKeyOverride
+    resolveEffectiveEndpoint(provider, model),
+    request.apiKeyOverride,
+    signal
   )
   applyHttpTrace(sdkConfig.providerSettings, {
     topicId: request.conversation.topicId,

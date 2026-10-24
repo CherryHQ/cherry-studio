@@ -49,35 +49,38 @@ describe('fetchResolvedProviderModels', () => {
     }
   })
 
-  it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
-    listModelsMock.mockResolvedValueOnce({
-      models: [
+  it.each([[ENDPOINT_TYPE.ANTHROPIC_MESSAGES], []])(
+    'keeps explicit provider endpoint types (%j) over registry metadata',
+    async (...endpointTypes) => {
+      listModelsMock.mockResolvedValueOnce({
+        models: [
+          {
+            id: 'new-api::agent/deepseek-v3.2',
+            providerId: 'new-api',
+            apiModelId: 'agent/deepseek-v3.2',
+            name: 'agent/deepseek-v3.2',
+            endpointTypes
+          }
+        ]
+      })
+      dataApiGetMock.mockResolvedValueOnce([
         {
           id: 'new-api::agent/deepseek-v3.2',
           providerId: 'new-api',
           apiModelId: 'agent/deepseek-v3.2',
-          name: 'agent/deepseek-v3.2',
-          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+          name: 'DeepSeek V3.2',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
         }
-      ]
-    })
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'new-api::agent/deepseek-v3.2',
-        providerId: 'new-api',
-        apiModelId: 'agent/deepseek-v3.2',
+      ])
+
+      const { models } = await fetchResolvedProviderModels('new-api')
+
+      expect(models[0]).toMatchObject({
         name: 'DeepSeek V3.2',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-      }
-    ])
-
-    const { models } = await fetchResolvedProviderModels('new-api')
-
-    expect(models[0]).toMatchObject({
-      name: 'DeepSeek V3.2',
-      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-    })
-  })
+        endpointTypes
+      })
+    }
+  )
 
   it('uses registry reasoning controls while preserving discovered thinking support', async () => {
     listModelsMock.mockResolvedValueOnce({

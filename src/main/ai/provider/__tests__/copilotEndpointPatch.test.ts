@@ -23,30 +23,37 @@ describe.each([
     ['gpt-5.3-codex', '/responses'],
     ['gpt-4o', '/chat/completions'],
     ['claude-sonnet-4', '/chat/completions'],
-    ['gemini-2.5-pro', '/chat/completions']
-  ])('sends %s to %s with the matching request format', async (modelId, endpoint) => {
-    let requestUrl: string | undefined
-    let requestBody: Record<string, unknown> = {}
-    const model = createCopilot({
-      apiKey: 'copilot-test-token',
-      fetch: async (input, init) => {
-        requestUrl = String(input)
-        requestBody = JSON.parse(init?.body as string)
-        return new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })
+    ['gemini-2.5-pro', '/chat/completions'],
+    ['grok-4.5', '/responses', 'responses'],
+    ['grok-4.6', '/responses', 'responses'],
+    ['gpt-6-astra', '/chat/completions', 'chat-completions']
+  ] as const)(
+    'sends %s to %s with the matching request format',
+    async (modelId, endpoint, api?: 'responses' | 'chat-completions') => {
+      let requestUrl: string | undefined
+      let requestBody: Record<string, unknown> = {}
+      const model = createCopilot({
+        apiKey: 'copilot-test-token',
+        api,
+        fetch: async (input, init) => {
+          requestUrl = String(input)
+          requestBody = JSON.parse(init?.body as string)
+          return new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })
+        }
+      }).languageModel(modelId)
+
+      const result = await model.doStream({ prompt })
+      await result.stream.cancel()
+
+      expect(requestUrl).toBe(`https://api.githubcopilot.com${endpoint}`)
+      expect(requestBody).toMatchObject({ model: modelId, stream: true })
+      if (endpoint === '/responses') {
+        expect(requestBody.input).toEqual([{ role: 'user', content: [{ type: 'input_text', text: 'Hello' }] }])
+        expect(requestBody).not.toHaveProperty('messages')
+      } else {
+        expect(requestBody.messages).toEqual([{ role: 'user', content: 'Hello' }])
+        expect(requestBody).not.toHaveProperty('input')
       }
-    }).languageModel(modelId)
-
-    const result = await model.doStream({ prompt })
-    await result.stream.cancel()
-
-    expect(requestUrl).toBe(`https://api.githubcopilot.com${endpoint}`)
-    expect(requestBody).toMatchObject({ model: modelId, stream: true })
-    if (endpoint === '/responses') {
-      expect(requestBody.input).toEqual([{ role: 'user', content: [{ type: 'input_text', text: 'Hello' }] }])
-      expect(requestBody).not.toHaveProperty('messages')
-    } else {
-      expect(requestBody.messages).toEqual([{ role: 'user', content: 'Hello' }])
-      expect(requestBody).not.toHaveProperty('input')
     }
-  })
+  )
 })
