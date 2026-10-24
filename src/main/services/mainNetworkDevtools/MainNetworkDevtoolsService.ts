@@ -9,8 +9,9 @@ import type { WebSocketServer } from 'ws'
 import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
-import { isDev } from '@main/core/platform'
 import { isSensitiveKey, REDACTED, redactUrlParams } from '@shared/utils/redaction'
+
+import { isMainNetworkDevtoolsEnabled } from './isMainNetworkDevtoolsEnabled'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 
@@ -37,6 +38,8 @@ export interface MainNetworkDevtoolsBody {
   truncated?: boolean
   size?: number
   note?: string
+  /** False when `text` is a display summary (e.g. FormData) rather than a replayable payload. */
+  replayable?: boolean
 }
 
 export interface MainNetworkDevtoolsEvent {
@@ -134,8 +137,9 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 }
 
 /**
- * Development-only monitor for network requests initiated by this main-process
- * JavaScript runtime (`fetch`, Electron `net.fetch`, and Node `http`/`https`).
+ * Monitor for network requests initiated by this main-process JavaScript runtime
+ * (`fetch`, Electron `net.fetch`, and Node `http`/`https`). Active in development
+ * builds and in packaged builds when Developer Mode is enabled at startup.
  *
  * Known limitations: traffic emitted by native binaries or child processes is
  * not visible to these in-process monkey patches. In particular, Claude agent SDK
@@ -146,7 +150,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 @Injectable('MainNetworkDevtoolsService')
 @ServicePhase(Phase.Background)
 @Priority(0)
-@Conditional(when(() => isDev, 'development mode'))
+@Conditional(when(() => isMainNetworkDevtoolsEnabled(), 'development or developer mode'))
 export class MainNetworkDevtoolsService extends BaseService {
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
@@ -344,7 +348,7 @@ export class MainNetworkDevtoolsService extends BaseService {
         throw error
       }
 
-      this.trackClientRequest(request, id, startedAt, description.requestContentType)
+      this.trackClientRequest(request, id, startedAt, description.requestContentType, description.requestHeaders)
       return request
     }
   }
@@ -353,7 +357,8 @@ export class MainNetworkDevtoolsService extends BaseService {
     request: ClientRequest,
     id: string,
     startedAt: number,
-    requestContentType: string | undefined
+    requestContentType: string | undefined,
+    requestHeaders?: Record<string, string>
   ): void {
     let completed = false
     const complete = (patch: Partial<MainNetworkDevtoolsEvent>) => {
@@ -366,7 +371,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       })
     }
 
-    this.captureClientRequestBody(request, id, requestContentType)
+    this.captureClientRequestBody(request, id, requestContentType, requestHeaders)
 
     request.once('response', (response: IncomingMessage) => {
       const responseHeaders = redactHeaders(response.headers)
@@ -414,7 +419,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       return
     }
 
-    void readWebBody(clonedRequest.body, contentType, 'No request body.')
+    void readWebBody(clonedRequest.body, contentType, 'No request body.', description.requestHeaders)
       .then((requestBody) => this.updateEvent(id, { requestBody }))
       .catch((error) => this.updateEvent(id, { requestBody: { contentType, note: getErrorMessage(error) } }))
   }
@@ -441,8 +446,13 @@ export class MainNetworkDevtoolsService extends BaseService {
       .catch((error) => this.updateEvent(id, { responseBodyError: getErrorMessage(error) }))
   }
 
-  private captureClientRequestBody(request: ClientRequest, id: string, contentType: string | undefined): void {
-    const requestBodyAccumulator = createBodyAccumulator(contentType)
+  private captureClientRequestBody(
+    request: ClientRequest,
+    id: string,
+    contentType: string | undefined,
+    requestHeaders?: Record<string, string>
+  ): void {
+    const requestBodyAccumulator = createBodyAccumulator(contentType, requestHeaders)
     const target = request as unknown as MutableClientRequestMethods
     const originalWrite = target.write
     const originalEnd = target.end
@@ -579,15 +589,28 @@ function describeFetchRequest(
   }
 
   const requestHeaders = redactHeaders(headers)
-  const requestContentType = getHeaderValue(requestHeaders, 'content-type')
+  const requestContentType = getEffectiveFetchRequestContentType(requestHeaders, init?.body)
 
   return {
     method: String(init?.method ?? request?.method ?? 'GET').toUpperCase(),
     url: redactUrl(getFetchUrl(input)),
     requestHeaders,
-    requestBody: captureRequestBody(init?.body, requestContentType),
+    requestBody: captureRequestBody(init?.body, requestContentType, requestHeaders),
     requestContentType
   }
+}
+
+/** Content-Type Fetch would send when the caller did not set the header explicitly. */
+export function getEffectiveFetchRequestContentType(
+  requestHeaders: Record<string, string> | undefined,
+  body: unknown
+): string | undefined {
+  const fromHeader = getHeaderValue(requestHeaders ?? {}, 'content-type')
+  if (fromHeader) return fromHeader
+  if (typeof body === 'string') return 'text/plain;charset=UTF-8'
+  if (body instanceof URLSearchParams) return 'application/x-www-form-urlencoded'
+  if (typeof Blob !== 'undefined' && body instanceof Blob && body.type) return body.type
+  return undefined
 }
 
 function getFetchUrl(input: Parameters<typeof globalThis.fetch>[0]): string {
@@ -639,14 +662,35 @@ function getHeaderValue(headers: Record<string, string> | undefined, name: strin
   return undefined
 }
 
-export function captureRequestBody(body: unknown, contentType?: string): MainNetworkDevtoolsBody | undefined {
+export function captureRequestBody(
+  body: unknown,
+  contentType?: string,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined {
   if (body === undefined || body === null) return undefined
 
-  if (typeof body === 'string') return createCapturedTextBody(body, contentType)
-  if (body instanceof URLSearchParams)
-    return createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded')
+  if (typeof body === 'string') {
+    return applyContentEncodingReplayConstraint(createCapturedTextBody(body, contentType), requestHeaders)
+  }
+  if (body instanceof URLSearchParams) {
+    return applyContentEncodingReplayConstraint(
+      createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded'),
+      requestHeaders
+    )
+  }
   if (typeof FormData !== 'undefined' && body instanceof FormData) {
-    return createCapturedTextBody(JSON.stringify(formDataToRecord(body)), contentType ?? 'multipart/form-data')
+    const captured = createCapturedTextBody(
+      JSON.stringify(formDataToRecord(body)),
+      contentType ?? 'multipart/form-data'
+    )
+    return applyContentEncodingReplayConstraint(
+      {
+        ...captured,
+        replayable: false,
+        note: 'Multipart FormData cannot be exported as cURL.'
+      },
+      requestHeaders
+    )
   }
   if (typeof Blob !== 'undefined' && body instanceof Blob) {
     return {
@@ -655,21 +699,30 @@ export function captureRequestBody(body: unknown, contentType?: string): MainNet
       note: 'Blob request body is not captured.'
     }
   }
-  if (body instanceof ArrayBuffer) return createCapturedBinaryBody(new Uint8Array(body), contentType)
+  if (body instanceof ArrayBuffer) {
+    return applyContentEncodingReplayConstraint(
+      createCapturedBinaryBody(new Uint8Array(body), contentType),
+      requestHeaders
+    )
+  }
   if (ArrayBuffer.isView(body)) {
-    return createCapturedBinaryBody(new Uint8Array(body.buffer, body.byteOffset, body.byteLength), contentType)
+    return applyContentEncodingReplayConstraint(
+      createCapturedBinaryBody(new Uint8Array(body.buffer, body.byteOffset, body.byteLength), contentType),
+      requestHeaders
+    )
   }
   if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
     return { contentType, note: 'Streaming request body is not captured.' }
   }
 
-  return createCapturedTextBody(String(body), contentType)
+  return applyContentEncodingReplayConstraint(createCapturedTextBody(String(body), contentType), requestHeaders)
 }
 
 async function readWebBody(
   body: ReadableStream<Uint8Array> | null,
   contentType: string | undefined,
-  emptyNote: string
+  emptyNote: string,
+  requestHeaders?: Record<string, string>
 ): Promise<MainNetworkDevtoolsBody> {
   if (!body) return { contentType, note: emptyNote }
 
@@ -701,10 +754,10 @@ async function readWebBody(
     reader.releaseLock()
   }
 
-  return createCapturedTextBody(text, contentType, truncated)
+  return applyContentEncodingReplayConstraint(createCapturedTextBody(text, contentType, truncated), requestHeaders)
 }
 
-function createBodyAccumulator(contentType?: string) {
+function createBodyAccumulator(contentType?: string, requestHeaders?: Record<string, string>) {
   let text = ''
   let size = 0
   let truncated = false
@@ -753,7 +806,10 @@ function createBodyAccumulator(contentType?: string) {
     toBody(): MainNetworkDevtoolsBody | undefined {
       if (!text && size === 0 && !note) return undefined
       if (note && !text) return { contentType, size, note }
-      return createCapturedTextBody(text, contentType, truncated, size)
+      return applyContentEncodingReplayConstraint(
+        createCapturedTextBody(text, contentType, truncated, size),
+        requestHeaders
+      )
     }
   }
 }
@@ -773,16 +829,23 @@ function createCapturedTextBody(
 ): MainNetworkDevtoolsBody {
   const truncated = alreadyTruncated || text.length > MAX_BODY_CHARS
   const visibleText = text.slice(0, MAX_BODY_CHARS)
+  const precisionRisk = hasJsonIntegerPrecisionRisk(visibleText, contentType)
+  const redactedText = redactBodyText(visibleText, contentType, precisionRisk)
   return {
-    text: redactBodyText(visibleText, contentType),
+    text: redactedText,
     contentType,
     size,
-    truncated: truncated || undefined
+    truncated: truncated || undefined,
+    replayable: precisionRisk ? false : true,
+    note: precisionRisk ? 'JSON integer precision cannot be preserved for cURL replay.' : undefined
   }
 }
 
-function redactBodyText(text: string, contentType?: string): string {
+function redactBodyText(text: string, contentType?: string, preserveIntegerLiterals = false): string {
   if (isJsonContentType(contentType) || looksJson(text)) {
+    if (preserveIntegerLiterals) {
+      return redactJsonSensitiveValuesInText(text)
+    }
     try {
       return JSON.stringify(redactJsonValue(JSON.parse(text)))
     } catch {
@@ -799,6 +862,166 @@ function redactBodyText(text: string, contentType?: string): string {
   }
 
   return text
+}
+
+function hasJsonIntegerPrecisionRisk(text: string, contentType?: string): boolean {
+  if (!isJsonContentType(contentType) && !looksJson(text)) return false
+
+  for (const match of text.matchAll(/(?<=^|[:,[])\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?=\s*(?:[,}\]]|$))/g)) {
+    const token = match[1]
+    if (!token || !jsonNumberTokenHasPrecisionRisk(token)) continue
+    return true
+  }
+
+  return false
+}
+
+/** Exact decimal identity of a JSON number token: sign, significant digits and power-of-ten exponent. */
+function normalizeJsonNumberToken(token: string): string | undefined {
+  const match = token.trim().match(/^(-?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/)
+  if (!match) return undefined
+  const [, sign, intPart = '', fracPart = '', expPart] = match
+  let digits = `${intPart}${fracPart}`.replace(/^0+/, '')
+  let exponent = Number(expPart ?? 0) - fracPart.length
+  if (!digits) return '0'
+  while (digits.endsWith('0')) {
+    digits = digits.slice(0, -1)
+    exponent++
+  }
+  return `${sign}${digits}e${exponent}`
+}
+
+/**
+ * True when parsing the token into a double and re-serializing it would change the number (lost integer
+ * digits, dropped fractions such as `9007199254740992.5`). The full token is compared, not just its integer part.
+ */
+function jsonNumberTokenHasPrecisionRisk(token: string): boolean {
+  let value: number
+  try {
+    value = JSON.parse(`[${token}]`)[0] as number
+  } catch {
+    return false
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) return false
+  const original = normalizeJsonNumberToken(token)
+  const reserialized = normalizeJsonNumberToken(JSON.stringify(value))
+  return original === undefined || original !== reserialized
+}
+
+function skipJsonValue(text: string, start: number): number {
+  let index = start
+  while (index < text.length && /\s/.test(text.charAt(index))) index++
+  if (index >= text.length) return index
+
+  const char = text.charAt(index)
+  if (char === '"') {
+    index++
+    while (index < text.length) {
+      if (text[index] === '\\') {
+        index += 2
+        continue
+      }
+      if (text[index] === '"') return index + 1
+      index++
+    }
+    return index
+  }
+
+  if (char === '{' || char === '[') {
+    const close = char === '{' ? '}' : ']'
+    let depth = 0
+    for (; index < text.length; index++) {
+      const current = text.charAt(index)
+      if (current === '"') {
+        index++
+        while (index < text.length) {
+          if (text[index] === '\\') {
+            index += 2
+            continue
+          }
+          if (text[index] === '"') break
+          index++
+        }
+        continue
+      }
+      if (current === char) depth++
+      if (current === close) {
+        depth--
+        if (depth === 0) return index + 1
+      }
+    }
+    return index
+  }
+
+  if (text.startsWith('true', index)) return index + 4
+  if (text.startsWith('false', index)) return index + 5
+  if (text.startsWith('null', index)) return index + 4
+
+  while (index < text.length && /[-+0-9.eE]/.test(text.charAt(index))) index++
+  return index
+}
+
+function redactJsonSensitiveValuesInText(text: string): string {
+  const keyPattern = /"((?:[^"\\]|\\.)*)"\s*:/g
+  const replacements: { start: number; end: number; replacement: string }[] = []
+
+  for (const match of text.matchAll(keyPattern)) {
+    const rawKey = match[1]
+    if (!rawKey) continue
+
+    let key = rawKey
+    try {
+      key = JSON.parse(`"${rawKey}"`) as string
+    } catch {
+      // keep raw key when malformed
+    }
+    if (!isSensitiveName(key, OAUTH_QUERY_EXTRAS)) continue
+
+    const valueStart = match.index + match[0].length
+    const valueEnd = skipJsonValue(text, valueStart)
+    replacements.push({ start: valueStart, end: valueEnd, replacement: JSON.stringify(REDACTED) })
+  }
+
+  if (replacements.length === 0) return text
+
+  // Keep only outermost ranges: a sensitive parent already covers its descendants, and applying a nested
+  // replacement first would shift the parent's end offset and leak part of its value.
+  const outermost: typeof replacements = []
+  for (const range of replacements.sort((a, b) => a.start - b.start)) {
+    const last = outermost.at(-1)
+    if (last && range.start < last.end) continue
+    outermost.push(range)
+  }
+
+  let output = text
+  for (const { start, end, replacement } of outermost.reverse()) {
+    output = output.slice(0, start) + replacement + output.slice(end)
+  }
+  return output
+}
+
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody | undefined,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody | undefined,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined {
+  if (!body) return body
+
+  const encoding = getHeaderValue(requestHeaders, 'content-encoding')
+  if (!encoding || encoding.toLowerCase() === 'identity') return body
+
+  return {
+    ...body,
+    replayable: false,
+    note: body.note ?? 'Content-encoded request bodies cannot be replayed from capture.'
+  }
 }
 
 function redactJsonValue(value: unknown): unknown {

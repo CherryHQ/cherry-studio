@@ -4309,7 +4309,7 @@
   "settings.developer.cdp.title": "Local automation (CDP)",
   "settings.developer.client_id": "Client ID",
   "settings.developer.enable_developer_mode": "Enable Developer Mode",
-  "settings.developer.help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
+  "settings.developer.help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation and inspect main-process API requests in DevTools under the Main Network panel. Changes take effect after restarting the application.",
   "settings.display.custom.css.label": "Custom CSS",
   "settings.display.custom.css.migration_notice": "This stylesheet was migrated from v1 and is currently disabled. Adapt it for v2, then remove the first line to enable it.",
   "settings.display.custom.css.placeholder": "/* Put custom CSS here */",

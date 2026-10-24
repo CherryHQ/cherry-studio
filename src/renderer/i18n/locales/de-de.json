@@ -4309,7 +4309,7 @@
   "settings.developer.cdp.title": "Lokale Automatisierung (CDP)",
   "settings.developer.client_id": "Client-ID",
   "settings.developer.enable_developer_mode": "Entwicklermodus aktivieren",
-  "settings.developer.help": "Nach Aktivierung des Entwicklermodus kann die Aufrufkette zur Ansicht des Datenflusses verwendet werden.",
+  "settings.developer.help": "Nach Aktivierung des Entwicklermodus können Sie mit der Trace-Funktion den Datenfluss bei Modellaufrufen verfolgen und Hauptprozess-API-Anfragen in DevTools im Panel „Main Network“ einsehen. Änderungen werden nach einem Neustart der Anwendung wirksam.",
   "settings.display.custom.css.label": "Benutzerdefiniertes CSS",
   "settings.display.custom.css.migration_notice": "Dieses Stylesheet wurde aus v1 migriert und ist derzeit deaktiviert. Passen Sie es für v2 an und entfernen Sie anschließend die erste Zeile, um es zu aktivieren.",
   "settings.display.custom.css.placeholder": "/* Hier benutzerdefiniertes CSS einfügen */",
