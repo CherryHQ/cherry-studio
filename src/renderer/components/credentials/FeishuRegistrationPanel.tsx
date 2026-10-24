@@ -59,14 +59,14 @@ export function FeishuRegistrationPanel({
           <p role="alert" className="text-sm text-destructive">
             {t('agent.channels.qrSetup.error')}
           </p>
-          <Button variant="outline" onClick={() => setAttempt(attempt + 1)}>
+          <Button type="button" variant="outline" onClick={() => setAttempt(attempt + 1)}>
             {t('common.retry')}
           </Button>
         </>
       ) : uri ? (
         <>
-          <QRCodeSVG value={uri} size={192} level="M" title={t('agent.channels.feishu.qrTitle')} />
-          <Button variant="link" onClick={() => void window.api.shell.openExternal(uri)}>
+          <QRCodeSVG role="img" value={uri} size={192} level="M" title={t('agent.channels.feishu.qrTitle')} />
+          <Button type="button" variant="link" onClick={() => void window.api.shell.openExternal(uri)}>
             {t('chat.artifacts.button.openExternal')}
           </Button>
         </>

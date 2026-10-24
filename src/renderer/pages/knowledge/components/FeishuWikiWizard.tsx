@@ -212,8 +212,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
       }
       authorizationSessionId.current = started.authorizationSessionId
       setAuthorization(started)
-      await window.api.shell.openExternal(started.verificationUri)
-      if (!isCurrent()) return
       const connected = await ipcApi.request('knowledge.feishu.authorization.complete', {
         authorizationSessionId: started.authorizationSessionId
       })

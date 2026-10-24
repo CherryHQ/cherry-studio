@@ -1,7 +1,8 @@
 import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, render as rtlRender, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Activity } from 'react'
+import { Activity, type ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
@@ -14,6 +15,28 @@ import { knowledgeRequestSchemas } from '@shared/ipc/schemas/knowledge'
 import FeishuWikiWizard from '../FeishuWikiWizard'
 
 const mockRequest = vi.fn()
+const mockSharedRequest = vi.fn()
+const savedApplication = {
+  id: 'saved-app',
+  kind: 'application',
+  connector: 'feishu',
+  domain: 'feishu',
+  status: 'available',
+  label: 'Channel application',
+  appId: 'cli_test'
+}
+function render(ui: ReactNode) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <SWRConfig value={{ provider: () => new Map() }}>{children}</SWRConfig>
+  })
+}
+async function selectSavedApplication(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string | RegExp = /Channel application/
+) {
+  await user.click(await screen.findByRole('combobox', { name: 'Application' }))
+  await user.click(await screen.findByRole('option', { name }))
+}
 const mockInvalidate = vi.fn(async () => undefined)
 const mockOpenExternal = vi.fn(async () => undefined)
 
@@ -23,6 +46,7 @@ vi.mock('@cherrystudio/ui', async () => ({
   ...(await import('@cherrystudio/ui/components/primitives/combobox')),
   ...(await import('@cherrystudio/ui/components/primitives/dialog')),
   ...(await import('@cherrystudio/ui/components/primitives/input')),
+  ...(await import('@cherrystudio/ui/components/primitives/select')),
   ...(await import('@cherrystudio/ui/components/primitives/field')),
   ...(await import('@cherrystudio/ui/components/primitives/label')),
   ...(await import('@cherrystudio/ui/components/primitives/segmented-control')),
@@ -30,7 +54,14 @@ vi.mock('@cherrystudio/ui', async () => ({
   ...(await import('@cherrystudio/ui/components/composites/icon-tooltips'))
 }))
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => mockRequest(...args) } }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, ...args: unknown[]) =>
+      route.startsWith('credential.') || route.startsWith('feishu.registration.')
+        ? mockSharedRequest(route, ...args)
+        : mockRequest(route, ...args)
+  }
+}))
 
 const connection: ExternalKnowledgeConnectionListItem = {
   id: '0199c87a-1200-7000-8000-000000000001',
@@ -152,10 +183,22 @@ async function reachReview(user: ReturnType<typeof userEvent.setup>) {
 describe('FeishuWikiWizard', () => {
   beforeAll(async () => {
     Element.prototype.scrollIntoView = vi.fn()
+    HTMLElement.prototype.hasPointerCapture ??= () => false
+    HTMLElement.prototype.setPointerCapture ??= () => {}
+    HTMLElement.prototype.releasePointerCapture ??= () => {}
     await i18n.changeLanguage('en-US')
   })
   beforeEach(() => {
     mockRequest.mockReset()
+    mockSharedRequest.mockReset()
+    mockSharedRequest.mockImplementation(async (route: string) => {
+      if (route === 'credential.list')
+        return [savedApplication, { ...savedApplication, id: 'other-app', label: 'Other application' }]
+      if (route === 'credential.feishu.create_application') return savedApplication
+      if (route === 'feishu.registration.begin') return registration
+      if (route === 'feishu.registration.complete') return new Promise(() => undefined)
+      return undefined
+    })
     mockInvalidate.mockClear()
     mockUseQuery.mockReset()
     mockUseInvalidateCache.mockReturnValue(mockInvalidate)
@@ -176,7 +219,7 @@ describe('FeishuWikiWizard', () => {
     Object.assign(window.api, { shell: { openExternal: mockOpenExternal } })
   })
 
-  it('starts with editable credentials and no permission choices when no usable account exists', async () => {
+  it('starts with a QR code and preserves an optional manual application draft across account refreshes', async () => {
     const user = userEvent.setup()
     MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', { data: [] })
     const { rerender } = render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
@@ -184,11 +227,13 @@ describe('FeishuWikiWizard', () => {
     expect(screen.queryByRole('button', { name: /^Feishu app / })).not.toBeInTheDocument()
     expect(screen.queryByText('No connected Feishu accounts yet.')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
-    const connect = screen.getByRole('button', { name: 'Connect to Feishu' })
-    expect(connect).toBeDisabled()
+    expect(await screen.findByRole('img', { name: i18n.t('agent.channels.feishu.qrTitle') })).toBeVisible()
+    expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Enter App ID and Secret' }))
     await user.type(screen.getByLabelText('App ID'), 'cli_test')
     await user.type(screen.getByLabelText('App Secret'), 'secret')
-    expect(connect).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
 
@@ -215,8 +260,7 @@ describe('FeishuWikiWizard', () => {
       return undefined
     })
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
-    await user.type(screen.getByLabelText('App ID'), 'cli_new')
-    await user.type(screen.getByLabelText('App Secret'), 'new-secret')
+    await selectSavedApplication(user)
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
 
     expect(
@@ -290,8 +334,7 @@ describe('FeishuWikiWizard', () => {
       )
       const { rerender } = render(wizard('visible'))
       if (entry === 'connect') {
-        await user.type(screen.getByLabelText('App ID'), 'cli_test')
-        await user.type(screen.getByLabelText('App Secret'), 'secret')
+        await selectSavedApplication(user)
       }
       const action = entry === 'connect' ? 'Connect to Feishu' : 'Reconnect Alice'
       await user.click(screen.getByRole('button', { name: action }))
@@ -316,7 +359,7 @@ describe('FeishuWikiWizard', () => {
         screen.getByText(i18n.t('knowledge.external.wizard.verification_code', { code: replacement.userCode }))
       ).toBeVisible()
       expect(screen.queryByRole('radio', { name: 'Choose Wikis' })).not.toBeInTheDocument()
-      expect(mockOpenExternal).toHaveBeenCalledTimes(pending === 'begin' ? 1 : 2)
+      expect(mockOpenExternal).not.toHaveBeenCalled()
       expect(onOpenChange).not.toHaveBeenCalled()
       await act(async () => finishReplacement())
       expect(await screen.findByRole('radio', { name: 'Choose Wikis' })).toBeChecked()
@@ -327,32 +370,36 @@ describe('FeishuWikiWizard', () => {
     const user = userEvent.setup()
     MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', { data: [] })
     let finishRegistration!: () => void
-    mockRequest.mockImplementation(async (route: string) => {
-      if (route === 'knowledge.feishu.registration.begin')
+    mockSharedRequest.mockImplementation(async (route: string) => {
+      if (route === 'credential.list') return [savedApplication]
+      if (route === 'feishu.registration.begin')
         return new Promise((resolve) => {
           finishRegistration = () => resolve(registration)
         })
+      if (route === 'feishu.registration.complete') return new Promise(() => undefined)
+      return undefined
+    })
+    mockRequest.mockImplementation(async (route: string) => {
       if (route === 'knowledge.feishu.authorization.begin') return authorizationStart
       if (route === 'knowledge.feishu.authorization.complete') return new Promise(() => undefined)
       return undefined
     })
-    const onOpenChange = vi.fn()
     const wizard = (mode: 'visible' | 'hidden') => (
       <Activity mode={mode}>
-        <FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />
+        <FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />
       </Activity>
     )
     const { rerender } = render(wizard('visible'))
-    await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.create_app') }))
+    await waitFor(() => expect(finishRegistration).toBeTypeOf('function'))
+    const requestId = mockSharedRequest.mock.calls.find(([route]) => route === 'feishu.registration.begin')![1]
+      .requestId
     rerender(wizard('hidden'))
     await act(async () => finishRegistration())
-    expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.registration.cancel', {
-      registrationSessionId: registration.registrationSessionId
-    })
+    expect(mockSharedRequest).toHaveBeenCalledWith('feishu.registration.cancel', { registrationSessionId: requestId })
+    expect(mockSharedRequest).not.toHaveBeenCalledWith('feishu.registration.complete', expect.anything())
     expect(mockOpenExternal).not.toHaveBeenCalled()
     rerender(wizard('visible'))
-    await user.type(screen.getByLabelText('App ID'), 'cli_test')
-    await user.type(screen.getByLabelText('App Secret'), 'secret')
+    await selectSavedApplication(user)
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
     expect(
       await screen.findByText(
@@ -377,6 +424,7 @@ describe('FeishuWikiWizard', () => {
       return undefined
     })
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Enter App ID and Secret' }))
     await user.type(screen.getByLabelText('App ID'), 'cli_draft')
     await user.type(screen.getByLabelText('App Secret'), 'draft-secret')
     await user.click(screen.getByRole('button', { name: 'Reconnect Alice' }))
@@ -389,15 +437,15 @@ describe('FeishuWikiWizard', () => {
     await screen.findByRole('alert')
     expect(screen.getByLabelText('App ID')).toHaveValue('cli_draft')
     expect(screen.getByLabelText('App Secret')).toHaveValue('draft-secret')
-    expect(screen.getByRole('button', { name: 'Connect to Feishu' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('button', { name: 'Connect to Feishu' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
     await screen.findByText(
       i18n.t('knowledge.external.wizard.verification_code', { code: authorizationStart.userCode })
     )
     expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.begin', {
-      kind: 'custom-app',
-      appId: 'cli_draft',
-      appSecret: 'draft-secret',
+      kind: 'saved-application',
+      applicationCredentialId: savedApplication.id,
       includeSpaceDiscovery: true
     })
   })
@@ -422,8 +470,7 @@ describe('FeishuWikiWizard', () => {
         return undefined
       })
       const { rerender } = render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
-      await user.type(screen.getByLabelText('App ID'), 'cli_new')
-      await user.type(screen.getByLabelText('App Secret'), 'new-secret')
+      await selectSavedApplication(user)
       await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
       if (scopeMode === 'url')
         await user.click(await screen.findByRole('button', { name: 'Continue with a link only' }))
@@ -452,7 +499,7 @@ describe('FeishuWikiWizard', () => {
     }
   )
 
-  it('hides stale initial-authorization failures while keeping the credentials form available', () => {
+  it('hides stale initial-authorization failures while keeping registration available', async () => {
     MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', {
       data: [
         {
@@ -469,9 +516,8 @@ describe('FeishuWikiWizard', () => {
     })
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
 
-    expect(screen.getByLabelText('App ID')).toBeEnabled()
-    expect(screen.getByLabelText('App Secret')).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Connect to Feishu' })).toBeDisabled()
+    expect(await screen.findByRole('img', { name: i18n.t('agent.channels.feishu.qrTitle') })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Enter App ID and Secret' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: /Reconnect/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Feishu app / })).not.toBeInTheDocument()
   })
@@ -524,66 +570,61 @@ describe('FeishuWikiWizard', () => {
     })
   })
 
-  it('creates an app from the discoverable help icon and advances after authorization without credential re-entry', async () => {
-    const user = userEvent.setup()
-    let finishRegistration!: (value: typeof authorizationStart) => void
+  it('authorizes a registered application from the visible QR code without credential re-entry', async () => {
+    let finishRegistration!: () => void
     MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', { data: [] })
-    mockRequest.mockImplementation(async (route: string) => {
-      if (route === 'knowledge.feishu.registration.begin') return registration
-      if (route === 'knowledge.feishu.authorization.begin')
+    mockSharedRequest.mockImplementation(async (route: string) => {
+      if (route === 'credential.list') return []
+      if (route === 'feishu.registration.begin') return registration
+      if (route === 'feishu.registration.complete')
         return new Promise((resolve) => {
-          finishRegistration = resolve
+          finishRegistration = () => resolve(savedApplication)
         })
+      return undefined
+    })
+    mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'knowledge.feishu.authorization.begin') return authorizationStart
       if (route === 'knowledge.feishu.authorization.complete') return connection
       if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
       return undefined
     })
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
-
-    const create = screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.create_app') })
-    expect(create).toHaveTextContent(/^$/)
-    await user.hover(create)
-    expect(await screen.findByRole('tooltip', { name: i18n.t('knowledge.external.wizard.create_app') })).toBeVisible()
-    await user.click(create)
-    expect(await screen.findByRole('status')).toHaveTextContent('Waiting for Feishu app registration')
-    expect(mockOpenExternal).toHaveBeenCalledWith(registration.verificationUri)
-    expect(screen.getByLabelText('App ID')).toHaveValue('')
-    await act(async () => finishRegistration(authorizationStart))
-
+    expect(await screen.findByRole('img', { name: i18n.t('agent.channels.feishu.qrTitle') })).toBeVisible()
+    expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
+    await act(async () => finishRegistration())
     expect(await screen.findByRole('combobox', { name: 'Available Feishu Wikis' })).toBeVisible()
+    const requestId = mockSharedRequest.mock.calls.find(([route]) => route === 'feishu.registration.begin')![1]
+      .requestId
     expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.begin', {
       kind: 'personal-agent',
-      registrationSessionId: registration.registrationSessionId
+      registrationSessionId: requestId
     })
-    expect(mockOpenExternal).toHaveBeenCalledWith(authorizationStart.verificationUri)
-    expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
+    expect(mockOpenExternal).not.toHaveBeenCalled()
   })
 
-  it('explains app registration failure, permits a retry, and cancels when closing the waiting wizard', async () => {
+  it('explains registration failure, retries without leaking secrets, and cancels on close', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', { data: [] })
     let attempts = 0
-    mockRequest.mockImplementation(async (route: string) => {
-      if (route === 'knowledge.feishu.registration.begin' && attempts++ === 0)
-        throw new IpcError(knowledgeErrorCodes.FEISHU_REGISTRATION_FAILED, 'raw secret detail')
-      if (route === 'knowledge.feishu.registration.begin') return registration
-      if (route === 'knowledge.feishu.authorization.begin') return new Promise(() => undefined)
+    mockSharedRequest.mockImplementation(async (route: string) => {
+      if (route === 'credential.list') return []
+      if (route === 'feishu.registration.begin' && attempts++ === 0) throw new Error('raw secret detail')
+      if (route === 'feishu.registration.begin') return registration
+      if (route === 'feishu.registration.complete') return new Promise(() => undefined)
       return undefined
     })
-    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
-    await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.create_app') }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not create a Feishu app. Try again or enter an existing app’s credentials.'
-    )
+    const { rerender } = render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('agent.channels.qrSetup.error'))
     expect(screen.getByRole('alert')).not.toHaveTextContent('raw secret detail')
-    expect(screen.getByLabelText('App Secret')).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.create_app') }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Waiting for Feishu app registration')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('img', { name: i18n.t('agent.channels.feishu.qrTitle') })).toBeVisible()
+    const requests = mockSharedRequest.mock.calls.filter(([route]) => route === 'feishu.registration.begin')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-
-    expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.registration.cancel', {
-      registrationSessionId: registration.registrationSessionId
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    rerender(<FeishuWikiWizard open={false} baseId="base-1" onOpenChange={onOpenChange} />)
+    expect(mockSharedRequest).toHaveBeenCalledWith('feishu.registration.cancel', {
+      registrationSessionId: requests[1][1].requestId
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -946,8 +987,7 @@ describe('FeishuWikiWizard', () => {
       const onOpenChange = vi.fn()
       const { unmount } = render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
 
-      await user.type(screen.getByLabelText('App ID'), 'cli_test')
-      await user.type(screen.getByLabelText('App Secret'), 'secret')
+      await selectSavedApplication(user)
       await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
       expect(await screen.findByRole('alert')).toHaveTextContent(message)
       expect(screen.getByRole('alert')).not.toHaveTextContent('raw secret detail')
@@ -955,9 +995,8 @@ describe('FeishuWikiWizard', () => {
       expect(
         screen.queryByRole('button', { name: i18n.t('knowledge.external.wizard.open_authorization_page') })
       ).not.toBeInTheDocument()
-      expect(screen.getByLabelText('App ID')).toHaveValue('cli_test')
-      expect(screen.getByLabelText('App Secret')).toHaveValue('secret')
-      expect(screen.getByLabelText('App Secret')).toBeEnabled()
+      expect(screen.getByRole('combobox', { name: 'Application' })).toHaveTextContent('Channel application')
+      expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
       expect(
         await screen.findByText(i18n.t('knowledge.external.wizard.verification_code', { code: 'ABCD-EFGH' }))
@@ -973,7 +1012,7 @@ describe('FeishuWikiWizard', () => {
         })
       )
       expect(onOpenChange).toHaveBeenCalledWith(false)
-      expect(mockOpenExternal).toHaveBeenCalledWith('https://accounts.feishu.cn/verify')
+      expect(mockOpenExternal).not.toHaveBeenCalled()
     }
   )
 
@@ -1506,7 +1545,7 @@ describe('FeishuWikiWizard', () => {
       connectionId: connection.id,
       includeSpaceDiscovery: true
     })
-    expect(mockOpenExternal).toHaveBeenCalledWith('https://accounts.feishu.cn/verify')
+    expect(mockOpenExternal).not.toHaveBeenCalled()
   })
 
   it('retries a failed space list and recovers the selection', async () => {
@@ -1540,8 +1579,7 @@ describe('FeishuWikiWizard', () => {
     })
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
 
-    await user.type(screen.getByLabelText('App ID'), 'cli_test')
-    await user.type(screen.getByLabelText('App Secret'), 'secret')
+    await selectSavedApplication(user)
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
 
     expect(await screen.findByRole('combobox', { name: 'Available Feishu Wikis' })).toBeVisible()
@@ -1549,9 +1587,8 @@ describe('FeishuWikiWizard', () => {
     expect(screen.getByRole('radio', { name: 'Paste a link' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
     expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.begin', {
-      kind: 'custom-app',
-      appId: 'cli_test',
-      appSecret: 'secret',
+      kind: 'saved-application',
+      applicationCredentialId: savedApplication.id,
       includeSpaceDiscovery: true
     })
   })
@@ -1571,14 +1608,13 @@ describe('FeishuWikiWizard', () => {
       return undefined
     })
     const { rerender } = render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
-    await user.type(screen.getByLabelText('App ID'), 'cli_test')
-    await user.type(screen.getByLabelText('App Secret'), 'secret')
+    await selectSavedApplication(user)
     expect(screen.queryByRole('button', { name: 'Continue with a link only' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('missing required permissions')
-    expect(screen.getByLabelText('App ID')).toHaveValue('cli_test')
-    expect(screen.getByLabelText('App Secret')).toHaveValue('secret')
+    expect(screen.getByRole('combobox', { name: 'Application' })).toHaveTextContent('Channel application')
+    expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
     expect(mockRequest.mock.calls.filter(([route]) => route === 'knowledge.feishu.authorization.begin')).toHaveLength(1)
     await user.click(screen.getByRole('button', { name: 'Continue with a link only' }))
 
@@ -1586,9 +1622,8 @@ describe('FeishuWikiWizard', () => {
     expect(screen.getByRole('radio', { name: 'Paste a link' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'Choose Wikis' })).toBeEnabled()
     expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.begin', {
-      kind: 'custom-app',
-      appId: 'cli_test',
-      appSecret: 'secret',
+      kind: 'saved-application',
+      applicationCredentialId: savedApplication.id,
       includeSpaceDiscovery: false
     })
     expect(mockRequest).not.toHaveBeenCalledWith('knowledge.feishu.spaces.list', expect.anything())
@@ -1603,7 +1638,7 @@ describe('FeishuWikiWizard', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
   })
 
-  it('keeps a failed link-only attempt on the credentials form and retains its explicit mode until credentials change', async () => {
+  it('keeps a failed link-only attempt on the credentials form and retains its explicit mode until the application changes', async () => {
     const user = userEvent.setup()
     MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', { data: [] })
     mockRequest.mockImplementation(async (route: string) => {
@@ -1614,40 +1649,27 @@ describe('FeishuWikiWizard', () => {
       return undefined
     })
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
-    await user.type(screen.getByLabelText('App ID'), 'cli_test')
-    await user.type(screen.getByLabelText('App Secret'), 'secret')
+    await selectSavedApplication(user)
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
     await user.click(await screen.findByRole('button', { name: 'Continue with a link only' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('missing required permissions')
-    expect(screen.getByLabelText('App Secret')).toHaveValue('secret')
+    expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Paste a link' })).not.toBeInTheDocument()
     expect(mockRequest).not.toHaveBeenCalledWith('knowledge.feishu.authorization.complete', expect.anything())
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
     expect(mockRequest).toHaveBeenLastCalledWith('knowledge.feishu.authorization.begin', {
-      kind: 'custom-app',
-      appId: 'cli_test',
-      appSecret: 'secret',
+      kind: 'saved-application',
+      applicationCredentialId: savedApplication.id,
       includeSpaceDiscovery: false
     })
 
-    await user.type(screen.getByLabelText('App Secret'), '-new')
+    await selectSavedApplication(user, /Other application/)
     expect(screen.queryByRole('button', { name: 'Continue with a link only' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
     expect(mockRequest).toHaveBeenLastCalledWith('knowledge.feishu.authorization.begin', {
-      kind: 'custom-app',
-      appId: 'cli_test',
-      appSecret: 'secret-new',
-      includeSpaceDiscovery: true
-    })
-    await user.click(await screen.findByRole('button', { name: 'Continue with a link only' }))
-    await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.create_app') }))
-    await screen.findByRole('alert')
-    await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
-    expect(mockRequest).toHaveBeenLastCalledWith('knowledge.feishu.authorization.begin', {
-      kind: 'custom-app',
-      appId: 'cli_test',
-      appSecret: 'secret-new',
+      kind: 'saved-application',
+      applicationCredentialId: 'other-app',
       includeSpaceDiscovery: true
     })
   })

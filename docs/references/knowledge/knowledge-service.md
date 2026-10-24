@@ -176,8 +176,8 @@ one document owner per knowledge item. Sources belong to one base and one
 connection; deleting a base cascades through the complete ownership graph,
 while deleting an independently owned item is rejected. Synchronization uses
 durable JobManager rows rather than a separate sync-run entity. The create command
-defaults to manual-only; the Feishu wizard selects daily synchronization at 09:00
-local time and applies the schedule after creation. Sources may own one daily
+defaults to manual-only, as does the Feishu wizard. Selecting daily synchronization
+starts at 09:00 local time and applies the schedule after creation. Sources may own one daily
 JobManager schedule; arbitrary intervals and custom Cron remain out of scope. Public
 `KnowledgeAddItemInput` also remains limited to user-owned source types; only
 the trusted external synchronization path may create an external item after
@@ -247,6 +247,10 @@ App Secret. All use user device authorization. Updating a saved application requ
 permissions using `clientID`, without `createOnly` or replacing the application preset/name.
 Only new PersonalAgent creation uses `createOnly: true`; selected existing applications use
 the custom-app permission policy. The registration result must match the selected application.
+The Knowledge form reuses the Channel application picker and shared registration panel.
+It shows a registration QR code immediately, offers saved applications without secret re-entry,
+and keeps manual App ID/Secret entry optional. The user authorization step shows its own QR
+code and an explicit browser link; it never opens the browser automatically.
 Connection DataApi and IPC results exclude the main-only credential reference,
 App Secret, tokens, and raw provider payloads.
 

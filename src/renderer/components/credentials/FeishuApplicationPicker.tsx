@@ -72,17 +72,19 @@ export function FeishuApplicationPicker({
 
   return (
     <div className="flex flex-col gap-3">
-      <Label htmlFor={id}>{t('agent.channels.feishu.appId')}</Label>
+      <Label htmlFor={id}>{t('credentials.feishu.application')}</Label>
       <div className="flex items-center gap-2">
         <Select
           value={value ?? '__none'}
-          onValueChange={(next) => onChange(next === '__none' ? null : next)}
+          onValueChange={(next) => {
+            if (next) onChange(next === '__none' ? null : next)
+          }}
           disabled={isLoading || saving}>
           <SelectTrigger id={id} className="flex-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__none">{t('common.none')}</SelectItem>
+            <SelectItem value="__none">{t('credentials.feishu.new')}</SelectItem>
             {applications.map((app) => (
               <SelectItem key={app.id} value={app.id}>
                 {app.label} · {app.appId}
@@ -96,6 +98,7 @@ export function FeishuApplicationPicker({
           </SelectContent>
         </Select>
         <Button
+          type="button"
           variant="outline"
           onClick={() => {
             setAdding(!adding)
@@ -103,13 +106,13 @@ export function FeishuApplicationPicker({
             setFailed(false)
           }}
           disabled={saving}>
-          {t('common.add')}
+          {t(adding ? 'common.back' : 'credentials.feishu.manual')}
         </Button>
       </div>
       {error && (
         <div role="alert" className="text-sm text-destructive">
           {t('common.error')}
-          <Button variant="link" onClick={() => void mutate()}>
+          <Button type="button" variant="link" onClick={() => void mutate()}>
             {t('common.retry')}
           </Button>
         </div>
@@ -138,7 +141,10 @@ export function FeishuApplicationPicker({
               {purpose === 'channel' && <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>}
             </SelectContent>
           </Select>
-          {(['appId', 'appSecret', 'encryptKey', 'verificationToken'] as const).map((key) => (
+          {(purpose === 'knowledge'
+            ? (['appId', 'appSecret'] as const)
+            : (['appId', 'appSecret', 'encryptKey', 'verificationToken'] as const)
+          ).map((key) => (
             <div key={key} className="flex flex-col gap-1">
               <Label htmlFor={`${id}-${key}`}>
                 {t(
@@ -165,7 +171,10 @@ export function FeishuApplicationPicker({
               {t('common.save_failed')}
             </p>
           )}
-          <Button onClick={() => void save()} disabled={saving || !fields.appId.trim() || !fields.appSecret.trim()}>
+          <Button
+            type="button"
+            onClick={() => void save()}
+            disabled={saving || !fields.appId.trim() || !fields.appSecret.trim()}>
             {t('common.save')}
           </Button>
         </div>

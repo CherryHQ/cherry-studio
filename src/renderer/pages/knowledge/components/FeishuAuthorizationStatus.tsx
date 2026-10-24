@@ -1,4 +1,5 @@
 import { ExternalLink, LoaderCircle } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, DialogFooter, InfoTooltip } from '@cherrystudio/ui'
@@ -18,6 +19,9 @@ const FeishuAuthorizationStatus = ({ userCode, verificationUri, onCancel }: Feis
         <LoaderCircle className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden />
         {t('knowledge.external.wizard.authorizing')}
       </p>
+      <div className="flex justify-center py-3">
+        <QRCodeSVG role="img" value={verificationUri} size={192} level="M" title={t('agent.channels.feishu.qrTitle')} />
+      </div>
       <DialogFooter className="shrink-0 flex-row flex-wrap items-center justify-between gap-3 border-t pt-4 sm:justify-between">
         <div className="text-muted-foreground flex max-w-full min-w-0 items-center gap-1 text-xs">
           <p className="wrap-anywhere select-text">
