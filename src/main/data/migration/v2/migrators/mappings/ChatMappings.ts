@@ -461,7 +461,9 @@ export interface NewMessage {
  *
  * ## Dropped Fields:
  * - type ('chat' | 'session'): No longer needed in new schema
- * - prompt: Topic-level prompt removed from schema; assistant prompt is authoritative
+ * - prompt: Topic-level prompt has no v2 topic field; ChatMigrator hands the
+ *   merged value to PromptMigrator (via sharedData), which preserves it as a
+ *   V2 prompt row instead of dropping it
  * - pinned: Pin state lives on the polymorphic `pin` table now; the migrator
  *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
