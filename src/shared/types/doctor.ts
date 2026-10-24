@@ -407,8 +407,9 @@ export type DoctorSubjectFor<Id extends DoctorCheckId> =
     ? Pick<Required<DoctorSubject>, K> | null
     : undefined
 
-/** Settings routes a finding may deep-link to. Keep in sync with the renderer settings menu. */
+/** In-app routes a finding may deep-link to. Keep settings targets in sync with the settings menu. */
 export type DoctorNavigateTarget =
+  | '/app/code'
   | '/settings/about'
   | '/settings/data'
   | '/settings/dependencies'
