@@ -171,7 +171,14 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         message: (child, input, key, run) =>
           enter(scope, async () => {
             const conv = conversation(child)
-            const accepted = messageChild(adapter, conv, input, key, run)
+            const { owner } = conv
+            // H3: once the call that owns the child's first run aborted, its stop may have passed the child already.
+            const ownerAborted =
+              owner !== undefined &&
+              owner.thread === scope.owner?.thread &&
+              owner.run === scope.owner.run &&
+              scope.signal?.aborted === true
+            const accepted = messageChild(adapter, conv, input, key, run, ownerAborted)
             if (accepted.status !== 'queued') return accepted
             // H3: a steer answers once a boundary of its run took it, or once it was withdrawn: its run ended first or
             // the tool call that sent it aborted.

@@ -231,20 +231,22 @@ export function noteMessage(conv: Conversation, message: MessageEndEvent['messag
 
 /**
  * H3 message: an idle child starts a run with it; a running one takes it as a steer into the run in progress. With
- * `run`, only run `run` may take it: when that is not the active run, it is withdrawn at once.
+ * `run`, only run `run` may take it: when that is not the active run, it is withdrawn at once. Without `run`, an input
+ * that would start a run is withdrawn at once when `ownerAborted` says the call owning the child's first run aborted.
  */
 export function messageChild(
   adapter: Adapter,
   conv: Conversation,
   input: TurnInput,
   key: string,
-  run?: number
+  run?: number,
+  ownerAborted = false
 ): MessageResult {
   const existing = conv.submissions.get(key)
   if (existing) return existing.admission as MessageResult
   const active = conv.active
-  if (run !== undefined && active?.run !== run) {
-    const admission: MessageResult = { run, status: 'withdrawn' }
+  if (run !== undefined ? active?.run !== run : !active && ownerAborted) {
+    const admission: MessageResult = { run: run ?? conv.runs + 1, status: 'withdrawn' }
     conv.submissions.set(key, { input, admission, state: 'withdrawn' })
     return admission
   }
