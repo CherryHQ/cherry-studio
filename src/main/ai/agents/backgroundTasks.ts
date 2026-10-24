@@ -846,7 +846,7 @@ for (const ignored of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
 // fd 3 is the app's liveness pipe and fd 4 a second one kept here. Both are inherited by the
 // shell and, through fork/exec, by every descendant — setsid() does not close descriptors — so
 // they reach EOF only once the work is gone, including a member that left this group entirely.
-const task = spawn(process.argv[1], { shell: true, stdio: ['inherit', 'inherit', 'inherit', 3, 'pipe'], env })
+const task = spawn(process.argv[1], { shell: true, stdio: ['inherit', 'pipe', 'pipe', 3, 'pipe'], env })
 // Keeping a copy of the app's pipe would end it at this process's exit rather than the work's.
 try { fs.closeSync(3) } catch (error) {}
 const liveness = task.stdio[4]
@@ -861,6 +861,21 @@ if (liveness) {
 } else {
   livenessClosed = true
 }
+// Stdio is the channel close_fds() cannot drop: a Popen worker that closed fd 3/4 and called
+// setsid() still inherits stdout/stderr, so these pipes reach EOF only once it is gone. Output is
+// forwarded to this process's own stdio, which the app pointed at the task log.
+const openOutput = new Set()
+const watchOutput = (stream, sink) => {
+  if (!stream) return
+  openOutput.add(stream)
+  const closed = () => { openOutput.delete(stream) }
+  stream.on('end', closed)
+  stream.on('close', closed)
+  stream.on('error', closed)
+  stream.pipe(sink, { end: false })
+}
+watchOutput(task.stdout, process.stdout)
+watchOutput(task.stderr, process.stderr)
 // The environment marker survives both setsid() and a worker that closes inherited descriptors, so
 // it is the ownership evidence a detached, descriptor-closing generation still carries.
 const marker = process.env.CHERRY_BG_TASK_ID || ''
@@ -892,9 +907,10 @@ task.on('exit', (code, signal) => {
     } catch (error) {
       return
     }
-    // A worker that called setsid() is invisible to the group probe, and one that also closed the
-    // inherited descriptors is invisible to the pipe: only the environment marker still names it.
-    if (live === 0 && livenessClosed && markerSurvivors() === 0) {
+    // A worker that called setsid() is invisible to the group probe; one that also closed fd 3/4
+    // is still visible through the stdio pipes it cannot drop, and one that replaced its stdio too
+    // is only named by the environment marker. Every channel must agree before the anchor lets go.
+    if (live === 0 && livenessClosed && openOutput.size === 0 && markerSurvivors() === 0) {
       clearInterval(poll)
       process.exit(status)
     }

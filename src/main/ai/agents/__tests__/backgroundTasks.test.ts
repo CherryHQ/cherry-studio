@@ -708,6 +708,56 @@ describe('backgroundTasks', () => {
     )
 
     it.skipIf(process.platform === 'win32' || !python3Available)(
+      'keeps a task open while a daemon that scrubbed its environment holds only its stdio',
+      async () => {
+        // The furthest a worker can detach without becoming indistinguishable from an unrelated
+        // process: start_new_session leaves the group, close_fds drops the liveness pipes, and an
+        // empty environment leaves the marker nothing to name. stdout is the one descriptor
+        // close_fds cannot drop, so a live writer there is the supervisor's remaining proof.
+        const pidFile = path.join(storageDir, 'scrubbed-worker.pid')
+        const onExit = vi.fn()
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command:
+            `python3 -c "import subprocess,sys; p=subprocess.Popen(['/bin/sleep','30'], start_new_session=True, env={}); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"` +
+            ` & sleep 0.6`,
+          cwd: storageDir,
+          onExit
+        })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(workerPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          // The shell is gone and no channel but the inherited stdio names the worker.
+          await new Promise((resolve) => setTimeout(resolve, 1_000))
+          expect(isPidAlive(workerPid)).toBe(true)
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+          expect(onExit).not.toHaveBeenCalled()
+
+          process.kill(workerPid, 'SIGKILL')
+          await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+          expect(onExit.mock.calls[0][0].record.status).toBe('completed')
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32' || !python3Available)(
       'certifies a force kill after a restart through the inherited marker',
       async () => {
         // After a restart no pipe survives. The marker does: it names the setsid worker, so the kill
