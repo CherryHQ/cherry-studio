@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -40,14 +40,23 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // listen for theme updates from main process
   useIpcOn('system.native_theme_updated', (actualTheme) => setActualTheme(actualTheme))
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     const nextTheme = {
       [ThemeMode.light]: ThemeMode.dark,
       [ThemeMode.dark]: ThemeMode.system,
       [ThemeMode.system]: ThemeMode.light
     }[settedTheme]
     void setSettedTheme(nextTheme || ThemeMode.system)
-  }
+  }, [settedTheme, setSettedTheme])
+
+  // The provider also subscribes to app.language (for the document lang effect
+  // above), so a language-only update re-renders it. Keep the context value
+  // referentially stable across those renders: dozens of consumers read only
+  // the theme fields and must not re-render when the theme has not changed.
+  const contextValue = useMemo(
+    () => ({ theme: actualTheme, settedTheme, toggleTheme, setTheme: setSettedTheme }),
+    [actualTheme, settedTheme, toggleTheme, setSettedTheme]
+  )
 
   useEffect(() => {
     // Set initial theme and OS attributes on body
@@ -99,9 +108,5 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     }
   }, [settedTheme])
 
-  return (
-    <ThemeContext value={{ theme: actualTheme, settedTheme: settedTheme, toggleTheme, setTheme: setSettedTheme }}>
-      {children}
-    </ThemeContext>
-  )
+  return <ThemeContext value={contextValue}>{children}</ThemeContext>
 }
