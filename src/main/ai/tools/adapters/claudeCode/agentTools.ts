@@ -14,6 +14,7 @@ import {
 } from '@shared/ai/claudecode/toolRules'
 import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
+import { toSdkMcpServerSegment, translateLegacyMcpToolRules } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 function sanitizeDescription(value: string): string {
@@ -154,7 +155,37 @@ export interface ClaudeAgentToolPolicySnapshot {
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>): Promise<void>
+  update(
+    agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>,
+    options?: {
+      serverNameById?: ReadonlyMap<string, string>
+      /**
+       * Denial names the ACTIVE connection still serves: a rename migrates the saved rules
+       * while the replacement connection is deferred, so the live gate must keep blocking the
+       * old identities until that replacement lands. Successive deferred-rebuild updates
+       * ACCUMULATE — the driver can only pass its latest baseline, so replacing the retained
+       * set would drop a name preserved by an earlier reconciliation while the old connection
+       * still exposes it. An update with neither this option nor `keepRetainedDenied` is the
+       * replacement connection's refresh and releases the retained names.
+       */
+      preserveDenied?: readonly string[]
+      /**
+       * A live-catalog refresh runs on the SAME active connection (its replacement is still
+       * deferred), so it must neither merge new names nor release the retained ones — the
+       * old identities stay blocking until the actual replacement lands.
+       */
+      keepRetainedDenied?: boolean
+      /**
+       * Mounted-server id → the record key the ACTIVE connection was built under. A denial
+       * resolved against the CURRENT keys is re-emitted in this baseline key form and merged
+       * into the retained set, so a disable that lands after a rename also blocks the
+       * pre-rename identity (its preservation baseline is empty). Same-connection semantics:
+       * pair it with `preserveDenied` — the replacement connection's refresh omits it and
+       * releases the translated names like any other retained identity.
+       */
+      baselineServerNameById?: ReadonlyMap<string, string>
+    }
+  ): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
@@ -166,14 +197,36 @@ export async function createClaudeAgentToolPolicySnapshot(
     // (e.g. mutating cherry-tools like kb_manage). Checked against the full runtime name.
     autoAllowRuntimeNameExceptions?: readonly string[]
     conditionContext?: ClaudeToolContext
+    /** Mounted-server id → runtime record key, so id-keyed denials survive the #21322 rename. */
+    serverNameById?: ReadonlyMap<string, string>
   } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
   let policy: ClaudeToolPolicy = {}
   let disallowed = new Set<string>()
+  // Denial identities the active connection still serves across a deferred rebuild. Kept in
+  // snapshot state and accumulated on every preserved update: the driver only ever passes its
+  // LATEST baseline, so a rename followed by another policy change would otherwise drop the
+  // first reconciliation's preservation while the old connection still serves that tool.
+  let retainedDenied = new Set<string>()
   let rebuildSequence = 0
+  // Updates serialize: an overlapping same-connection refresh must not advance past a rename
+  // reconcile's rebuild and discard its preservation merge — the refresh's newer sequence made
+  // the reconcile return early, dropping the retained denial while the old connection still
+  // exposed it. The chain keeps every rebuild's retention semantics (preserve/keep/release) in
+  // submission order; the sequence guard below stays as defense.
+  let rebuildChain: Promise<void> = Promise.resolve()
+  // The id → server-key mapping is mutable state: a server renamed mid-session must be
+  // translated under its CURRENT key, or a later-added id-keyed denial blocks the
+  // pre-rename name while the executable tool answers to the new one.
+  let serverNameById = options.serverNameById
 
-  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
+  const rebuild = async (
+    nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>,
+    preserveDenied?: readonly string[],
+    keepRetainedDenied?: boolean,
+    baselineServerNameById?: ReadonlyMap<string, string>
+  ) => {
     // `update()` is fire-and-forget and unserialized, so two rebuilds can overlap. Guard with a
     // sequence so an older slow rebuild that resolves AFTER a newer one can't clobber the newer
     // policy's `disallowed`/`descriptors` (which would re-enable a just-disabled tool).
@@ -197,8 +250,40 @@ export async function createClaudeAgentToolPolicySnapshot(
     policy = buildClaudeToolPolicy(nextAgent)
     // Same derivation as the build-time SDK `disallowedTools`, recomputed on every live update so a
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
-    // user opt-out + dependency cascade).
-    disallowed = new Set(resolveDisallowedTools(nextAgent, options.conditionContext))
+    // user opt-out + dependency cascade). Legacy id-keyed rules are rewritten first so a denial
+    // saved under the pre-#21322 namespace still blocks its name-keyed tool.
+    // A preserved update merges into the retained set (see `retainedDenied`); a same-connection
+    // catalog refresh keeps it untouched AND carries the previously-effective denials forward —
+    // the refresh can land before the driver's reconciliation submits its preservation baseline,
+    // and the active connection still serves every identity the previous set blocked until its
+    // replacement rebuilds; an update with neither option is the replacement connection's
+    // connect refresh, whose surface no longer includes the old identities — release them.
+    if (preserveDenied) {
+      retainedDenied = new Set([...retainedDenied, ...preserveDenied])
+    } else if (keepRetainedDenied) {
+      retainedDenied = new Set([...retainedDenied, ...disallowed])
+    } else {
+      retainedDenied = new Set()
+    }
+    const freshDenied = resolveDisallowedTools(
+      { disabledTools: translateLegacyMcpToolRules(nextAgent.disabledTools, serverNameById) },
+      options.conditionContext
+    )
+    // The active connection still answers to its connect-time keys: re-express each fresh
+    // current-key denial under the baseline keys so a disable that lands after a rename also
+    // blocks the pre-rename identity until the replacement connection releases it.
+    if (baselineServerNameById) {
+      for (const denial of freshDenied) {
+        for (const [id, baselineKey] of baselineServerNameById) {
+          const currentKey = serverNameById?.get(id)
+          if (currentKey === undefined || currentKey === baselineKey) continue
+          const currentPrefix = `mcp__${toSdkMcpServerSegment(currentKey)}__`
+          if (!denial.startsWith(currentPrefix)) continue
+          retainedDenied.add(`mcp__${toSdkMcpServerSegment(baselineKey)}__${denial.slice(currentPrefix.length)}`)
+        }
+      }
+    }
+    disallowed = new Set([...retainedDenied, ...freshDenied])
   }
 
   await rebuild(agent)
@@ -232,8 +317,18 @@ export async function createClaudeAgentToolPolicySnapshot(
       policy = { ...policy, permissionMode }
     },
 
-    update(agent) {
-      return rebuild(agent)
+    update(agent, nextOptions) {
+      if (nextOptions?.serverNameById) serverNameById = nextOptions.serverNameById
+      const run = rebuildChain.then(() =>
+        rebuild(
+          agent,
+          nextOptions?.preserveDenied,
+          nextOptions?.keepRetainedDenied,
+          nextOptions?.baselineServerNameById
+        )
+      )
+      rebuildChain = run.catch(() => undefined)
+      return run
     }
   }
 }

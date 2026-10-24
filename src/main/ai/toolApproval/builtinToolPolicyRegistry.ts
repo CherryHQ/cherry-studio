@@ -11,6 +11,9 @@
  * approval is a security policy and belongs in the runtime-neutral approval layer.
  */
 
+// Main-owned declaration (every consumer is main-process); re-exported to keep this registry
+// the policy-side canonical import path.
+import { CHERRY_MCP_SERVER } from '@main/ai/agentMcpIdentities'
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import { computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
@@ -41,22 +44,10 @@ import {
 
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
+export { CHERRY_MCP_SERVER }
+
 export type BuiltinToolApproval = 'auto' | 'required' | 'delegation'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
-
-/** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
-export const CHERRY_MCP_SERVER = {
-  CHERRY_TOOLS: 'cherry-tools',
-  BROWSER: 'browser',
-  COMPUTER: 'computer',
-  AUTOMATION: 'automation',
-  AGENT_MEMORY: 'agent-memory',
-  SKILLS: 'skills',
-  MCP_MANAGER: 'mcp-manager',
-  ASSISTANT: 'assistant',
-  ASSISTANT_FILES: 'assistant-files',
-  DOCTOR: 'doctor'
-} as const
 
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string

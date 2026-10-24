@@ -20,6 +20,7 @@ import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { allocateMountedServerKeys, sanitizeAgentServerKey } from '@shared/ai/tools/mcpToolName'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -56,6 +57,71 @@ export interface AgentNotificationContext {
   allowAnyOwnedChannel: boolean
 }
 
+/**
+ * Resolve the agent's mounted servers once: parse each `agent.mcps` entry (id or name), skip the
+ * browser builtin, and allocate the runtime record key. The SDK derives tool names
+ * (`mcp__<key>__<tool>`, 64-char cap) and routes tool calls from the record key, so a 36-char UUID
+ * key leaves ~21 chars for the tool name and truncates the rest into unreadable hashes
+ * (issue #21321) — register under the configured short name; fall back to the id when the name is
+ * unknown or taken (`mcp_server.name` is not unique). Keys are sanitized (see
+ * {@link sanitizeServerKey}), and the sanitized forms are reserved up front, so a name candidate
+ * can never take another mounted server's key and every flattened tool identity stays unique.
+ * Single source shared by the record builder and legacy denial-rule translation, so a saved rule
+ * always translates to the exact key the server registers under.
+ */
+export function resolveMountedAgentMcpServers(
+  agent: Pick<AgentEntity, 'mcps'>,
+  mcpServerSnapshots?: McpServerSnapshotMap
+): Array<{ mcpId: string; legacyServer: McpServerEntity; key: string }> {
+  // Built-in entries are added first; a user server must never take their keys.
+  // Mounted ids are reserved in their sanitized form before any name allocation so an id
+  // fallback can never collide with another mounted server's configured name (and vice versa):
+  // each server keeps its own key even when names and ids cross-import each other.
+  const reservedKeys: string[] = [
+    ...Object.values(CHERRY_MCP_SERVER),
+    ...(agent.mcps ?? []).map((mcpId) => sanitizeAgentServerKey(mcpId))
+  ]
+
+  const resolvedServers: Array<{ mcpId: string; legacyServer: McpServerEntity; name?: string }> = []
+  for (const mcpId of agent.mcps ?? []) {
+    try {
+      const serverSnapshot = mcpServerSnapshots?.get(mcpId)
+      const legacyServer = mcpServerSnapshots ? serverSnapshot : mcpServerService.findByIdOrName(mcpId)
+      if (
+        legacyServer &&
+        isInMemoryBuiltinMcpServer(legacyServer) &&
+        legacyServer.name === BuiltinMcpServerNames.browser
+      )
+        continue
+      if (mcpServerSnapshots && !serverSnapshot) {
+        throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
+      }
+      if (!legacyServer) throw new Error(`MCP server not found: ${mcpId}`)
+      resolvedServers.push({ mcpId, legacyServer, name: legacyServer.name })
+    } catch (error) {
+      logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
+    }
+  }
+  const keys = allocateMountedServerKeys(resolvedServers, reservedKeys)
+  return resolvedServers.map(({ mcpId, legacyServer }) => ({ mcpId, legacyServer, key: keys.get(mcpId) ?? mcpId }))
+}
+
+/**
+ * Mounted-server id → runtime record key, so legacy id-keyed denial rules
+ * (`mcp__<id>__tool`) translate onto the name-keyed tools this agent mounts.
+ */
+export function resolveAgentMcpServerKeys(
+  agent: Pick<AgentEntity, 'mcps'>,
+  mcpServerSnapshots?: McpServerSnapshotMap
+): Map<string, string> {
+  const keys = new Map<string, string>()
+  for (const { mcpId, legacyServer, key } of resolveMountedAgentMcpServers(agent, mcpServerSnapshots)) {
+    keys.set(mcpId, key)
+    if (legacyServer.id && legacyServer.id !== mcpId) keys.set(legacyServer.id, key)
+  }
+  return keys
+}
+
 /** Build the complete MCP server set exposed by an agent session, independent of runtime transport. */
 export function buildAgentMcpServers(
   session: AgentSessionEntity,
@@ -73,32 +139,18 @@ export function buildAgentMcpServers(
     model: agent.model ?? undefined,
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
   }
-  const servers: Record<string, AgentMcpServer> = {}
+  // Null prototype: a server configured as `__proto__` must become an own enumerable key, not
+  // mutate the record's prototype — every runtime enumerates via Object.entries/values.
+  const servers: Record<string, AgentMcpServer> = Object.create(null)
   const channelLinked =
     linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
   const hostTools = resolveHostTools(agent, { channelLinked })
 
-  for (const mcpId of agent.mcps ?? []) {
-    try {
-      const serverSnapshot = mcpServerSnapshots?.get(mcpId)
-      const legacyServer = mcpServerSnapshots ? serverSnapshot : mcpServerService.findByIdOrName(mcpId)
-      if (
-        legacyServer &&
-        isInMemoryBuiltinMcpServer(legacyServer) &&
-        legacyServer.name === BuiltinMcpServerNames.browser
-      )
-        continue
-      if (mcpServerSnapshots && !serverSnapshot) {
-        throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
-      }
-      if (!legacyServer) throw new Error(`MCP server not found: ${mcpId}`)
-      servers[mcpId] = {
-        id: legacyServer.id,
-        name: mcpId,
-        connect: serveAgentMcpServer(() => createMcpBridgeServer(mcpId, legacyServer, { interactionContext }))
-      }
-    } catch (error) {
-      logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
+  for (const { mcpId, legacyServer, key } of resolveMountedAgentMcpServers(agent, mcpServerSnapshots)) {
+    servers[key] = {
+      id: legacyServer.id,
+      name: key,
+      connect: serveAgentMcpServer(() => createMcpBridgeServer(mcpId, legacyServer, { interactionContext }))
     }
   }
 

@@ -339,6 +339,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
+  /** Mounted-server id → record key frozen at connect: the identity this allocation still serves. */
+  private connectMcpServerAllocation?: ReadonlyMap<string, string>
   private _usageCapture?: AgentSessionUsageCapture
   private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
   private readonly streamInvocationIdsByLane = new Map<string, string>()
@@ -430,11 +432,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.bindApprovalEmitter()
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
+    // The frozen allocation still serves its connect-time keys: reconcile translates post-rename
+    // denials back onto them while this connection remains active (released only by its replacement).
+    this.connectMcpServerAllocation = request.settings.mcpServerAllocation
+      ? new Map(Object.entries(request.settings.mcpServerAllocation))
+      : undefined
     registerMcpSessionCatalogSync(
       this.input.sessionId,
       this.input.agentId,
       request.connectionConfig?.live.toolPolicy.mcps ?? [],
-      this.mcpToolMetadata
+      this.mcpToolMetadata,
+      this.connectMcpServerAllocation
     )
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
@@ -540,6 +548,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const applicableToolPolicy = deferPermissionMode
       ? { ...fresh.live.toolPolicy, permissionMode: baseline.live.toolPolicy.permissionMode }
       : fresh.live.toolPolicy
+    // A signature change means the active connection still serves the OLD allocation (a rename
+    // migrates the saved denials onto the new identities) while its replacement is deferred.
+    // The live gate must keep blocking the identities this connection actually exposes until
+    // that replacement lands; the post-rebuild connect update carries no preservation.
+    const needsRebuild = baseline.rebuildSignature !== fresh.rebuildSignature
     let patched = false
     // Apply the tool-policy facts that are safe for this turn BEFORE the rebuild verdict. Newly
     // disabled tools still tighten immediately; permission-mode changes wait for the next boundary.
@@ -553,19 +566,27 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         // Refresh only after the SDK confirms an applicable permission change. If the current turn
         // keeps its old mode, preserve that mode in the snapshot while still applying other policy
         // changes (for example, disabling a tool).
-        await this.toolPolicySnapshot?.update(
-          deferPermissionMode
-            ? {
-                ...agent,
-                configuration: {
-                  ...agent.configuration,
-                  permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
-                    | AgentPermissionMode
-                    | undefined
-                }
+        const snapshotAgent = deferPermissionMode
+          ? {
+              ...agent,
+              configuration: {
+                ...agent.configuration,
+                permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
+                  | AgentPermissionMode
+                  | undefined
               }
-            : agent
-        )
+            }
+          : agent
+        if (needsRebuild) {
+          await this.toolPolicySnapshot?.update(snapshotAgent, {
+            preserveDenied: baseline.live.toolPolicy.disabledTools,
+            // Same-connection semantics: the frozen allocation still serves its connect-time
+            // keys, so a denial that postdates the rename must also block those identities.
+            baselineServerNameById: this.connectMcpServerAllocation
+          })
+        } else {
+          await this.toolPolicySnapshot?.update(snapshotAgent)
+        }
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'
@@ -577,7 +598,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       patched = true
     }
 
-    if (baseline.rebuildSignature !== fresh.rebuildSignature) {
+    if (needsRebuild) {
       logger.info('Connection configuration requires rebuild', {
         sessionId: this.input.sessionId,
         changedFacts: getChangedRebuildFacts(baseline, fresh),

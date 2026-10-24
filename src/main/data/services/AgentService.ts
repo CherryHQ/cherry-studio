@@ -8,6 +8,7 @@ import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -20,10 +21,12 @@ import { promptService } from '@data/services/PromptService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { CHERRY_MCP_SERVER } from '@main/ai/agentMcpIdentities'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
+import { migrateAgentDisabledToolsForAllocationChange } from '@shared/ai/tools/mcpToolName'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -38,6 +41,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('AgentService')
@@ -210,6 +214,11 @@ function rowToAgent(
  * Fetch mcps for a set of agent IDs from the junction table.
  * Returns a Map<agentId, string[]>.
  * Accepts both a database instance and a transaction (DbOrTx).
+ *
+ * The returned order IS the runtime allocation order (duplicate configured names hand the name
+ * to the first entry), so it must be total: rows replaced in one statement can share a
+ * `createdAt` millisecond, and SQLite's return order for ties is unspecified — `mcpServerId`
+ * breaks them the same way on every reader (see `fetchKnowledgeBasesForAgents`).
  */
 function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[]> {
   if (agentIds.length === 0) return new Map()
@@ -217,7 +226,7 @@ function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[
     .select({ agentId: agentMcpServerTable.agentId, mcpServerId: agentMcpServerTable.mcpServerId })
     .from(agentMcpServerTable)
     .where(inArray(agentMcpServerTable.agentId, agentIds))
-    .orderBy(asc(agentMcpServerTable.agentId), asc(agentMcpServerTable.createdAt))
+    .orderBy(asc(agentMcpServerTable.agentId), asc(agentMcpServerTable.createdAt), asc(agentMcpServerTable.mcpServerId))
     .all()
   const map = new Map<string, string[]>()
   for (const row of rows) {
@@ -791,16 +800,67 @@ export class AgentService {
           if (newKnowledgeBaseIds !== undefined) {
             this.assertKnowledgeBasesExistTx(tx, newKnowledgeBaseIds)
           }
-          this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
+            // A mount change reallocates record keys like a rename does: a newly mounted id is
+            // reserved up front, so a sibling whose configured name equals that id is displaced
+            // onto its own id — orphaning saved `mcp__<key>__<tool>` denials (the exact-match
+            // policy would let the disabled tool execute, while the displaced key resolves onto
+            // the newcomer). Migrate the stored rules onto the post-change allocation; a PATCH
+            // that submits `disabledTools` owns the list and skips migration.
+            const mountSnapshot = (mcpIds: readonly string[]) =>
+              mcpIds.flatMap((mcpId) => {
+                const [mountedRow] = tx
+                  .select({ name: mcpServerTable.name, type: mcpServerTable.type })
+                  .from(mcpServerTable)
+                  .where(eq(mcpServerTable.id, mcpId))
+                  .limit(1)
+                  .all()
+                // The runtime never mounts the in-memory browser; it must not claim an
+                // allocation key in the migration either.
+                if (mountedRow && mountedRow.type === 'inMemory' && mountedRow.name === BuiltinMcpServerNames.browser)
+                  return []
+                return mountedRow ? { mcpId, name: mountedRow.name } : { mcpId }
+              })
+            const oldMountedServers = tx
+              .select({ mcpServerId: agentMcpServerTable.mcpServerId })
+              .from(agentMcpServerTable)
+              .where(eq(agentMcpServerTable.agentId, id))
+              .orderBy(asc(agentMcpServerTable.createdAt), asc(agentMcpServerTable.mcpServerId))
+              .all()
+              .map(({ mcpServerId }) => mcpServerId)
+            if (updates.disabledTools === undefined && oldMountedServers.length > 0) {
+              const migrated = migrateAgentDisabledToolsForAllocationChange(current.disabledTools ?? [], {
+                oldMountedServers: mountSnapshot(oldMountedServers),
+                // The submitted array is the persisted order: the insert below writes each row
+                // with an explicit ascending `createdAt`, so both the migration here and the
+                // runtime readers resolve duplicate-name claims from the exact order below.
+                newMountedServers: mountSnapshot(newMcps),
+                reservedKeys: [...Object.values(CHERRY_MCP_SERVER)]
+              })
+              if (migrated) updateData.disabledTools = migrated
+            }
             tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.agentId, id)).run()
             if (newMcps.length > 0) {
+              // Persisted mount order = submitted order: `$defaultFn` timestamps are evaluated
+              // per row, so rows replaced in one statement can tie inside the same millisecond
+              // and a timestamp-only readback becomes order-ambiguous — the migration above
+              // would predict one duplicate-name owner while the runtime allocates the other,
+              // moving a denial onto the wrong server. Positional timestamps make the order
+              // total and readable by every reader through (createdAt, mcpServerId).
+              const mountBaseTimestamp = Date.now()
               tx.insert(agentMcpServerTable)
-                .values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+                .values(
+                  newMcps.map((mcpId, index) => ({
+                    agentId: id,
+                    mcpServerId: mcpId,
+                    createdAt: mountBaseTimestamp + index
+                  }))
+                )
                 .run()
             }
           }
+          this.updateAgentTx(tx, id, updateData)
           // Replace knowledge base associations if provided
           if (newKnowledgeBaseIds !== undefined) {
             tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id)).run()
@@ -1161,6 +1221,16 @@ export class AgentService {
     tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.mcpServerId, mcpServerId)).run()
 
     return affectedIds
+  }
+
+  /**
+   * Transactional write of one agent's `disabledTools` for use within an outer tx (e.g.
+   * McpServerService.update() migrating saved denial rules on a rename). Denial rules are
+   * agent-owned policy data: other services must mutate them through this method rather than
+   * writing the agent table directly, so the write stays inside the caller's transaction.
+   */
+  updateDisabledToolsTx(tx: DbOrTx, agentId: string, disabledTools: string[]): void {
+    tx.update(agentsTable).set({ disabledTools }).where(eq(agentsTable.id, agentId)).run()
   }
 
   /** Remove one knowledge base binding from every agent and return the affected agent IDs. */

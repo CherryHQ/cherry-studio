@@ -90,6 +90,168 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
   })
 
+  it('translates a legacy id-keyed denial onto the name-keyed runtime tool', async () => {
+    // Saved while tools were keyed by server id; the runtime now keys tools by configured name.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'github']])
+    })
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    // An unrelated tool of the same server is not caught by the legacy rule.
+    expect(snapshot.isDisabled('mcp__github__other')).toBe(false)
+  })
+
+  it('translates a legacy id-keyed denial onto a hyphenated configured key the SDK keeps verbatim', async () => {
+    // The pinned SDK underscores only characters outside [A-Za-z0-9_-], so a hyphenated key
+    // registers `mcp__my-tools__run` verbatim. Emitting the underscored form (`my_tools`) names
+    // a tool the SDK never invokes and silently re-enables the disabled tool under Full Access.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'my-tools']])
+    })
+    expect(snapshot.isDisabled('mcp__my-tools__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__my_tools__run')).toBe(false)
+  })
+
+  it('keeps blocking a legacy denial after a live update renames the server to a space-bearing key', async () => {
+    // Startup translation (settingsBuilder) and the live gate share translateLegacyMcpToolRules.
+    // A rename during an active turn moves the key to `Docs MCP`, whose SDK identity is
+    // `mcp__Docs_MCP__run`; the live rebuild must emit that form, not only the raw/camelized ones.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'docs']])
+    })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    await snapshot.update(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'Docs MCP']])
+    })
+
+    expect(snapshot.isDisabled('mcp__Docs_MCP__run')).toBe(true)
+  })
+
+  it('refreshes the server-key mapping on update so a renamed server keeps catching later denials', async () => {
+    // Prewarm under `old`, the server is renamed to `new`, and the denial is added during an
+    // active turn: the rebuild must translate against the CURRENT key mapping, or the live
+    // guard blocks the pre-rename name while the executable tool answers to the new one.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([]), {
+      serverNameById: new Map([[serverId, 'old']])
+    })
+
+    await snapshot.update(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'new']])
+    })
+
+    expect(snapshot.isDisabled('mcp__new__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__old__run')).toBe(false)
+  })
+
+  it('keeps preserved denials blocking until an update drops the preservation', async () => {
+    // A rename migrates the saved rule onto the new identity while the replacement connection
+    // is deferred: the ACTIVE connection still serves the old name, so the live gate must keep
+    // blocking it. A post-rebuild update carries no preservation and releases the stale name.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['mcp__docs__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    await snapshot.update(makeAgent(['mcp__github__run']), { preserveDenied: ['mcp__docs__run'] })
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    await snapshot.update(makeAgent(['mcp__github__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(false)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+  })
+
+  it('keeps retained denials through a same-connection catalog refresh', async () => {
+    // A live MCP catalog cache update fires refreshMcpSessionCatalogState on the session while
+    // the ACTIVE connection still serves the old identity (its replacement is deferred): that
+    // refresh must keep the retained set untouched — merging nothing, releasing nothing. Only
+    // the replacement connection's refresh (an update with neither option) releases it.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['mcp__docs__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    await snapshot.update(makeAgent(['mcp__github__run']), { preserveDenied: ['mcp__docs__run'] })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    await snapshot.update(makeAgent(['mcp__github__run']), { keepRetainedDenied: true })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+  })
+
+  it('carries the effective denials through a refresh that lands before the reconciliation', async () => {
+    // `docs/run` is disabled mid-turn, then the server is renamed before the driver's
+    // reconciliation submits its preserveDenied baseline: the catalog refresh lands first and
+    // the ACTIVE connection still exposes `docs/run` until its replacement rebuilds. The
+    // refresh must carry the previously-effective denial forward itself — submission order
+    // must not open an unblocked window on the live connection.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['mcp__docs__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    // The rename migrates the saved rule; the catalog refresh arrives with the migrated agent.
+    await snapshot.update(makeAgent(['mcp__github__run']), { keepRetainedDenied: true })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+
+    // The replacement connection's refresh releases the old identity.
+    await snapshot.update(makeAgent(['mcp__github__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(false)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+  })
+
+  it('accumulates preserved denials across successive deferred-rebuild updates', async () => {
+    // A rename reconcile preserves `mcp__docs__run` once, but the driver's baseline then moves
+    // to the migrated rules — a second policy update before the rebuild can only pass that
+    // newer baseline. The snapshot must accumulate the preservation internally, or the old
+    // connection (still exposing `docs/run`) drops the denial and the tool executes under
+    // bypassPermissions. The replacement connection's update carries no preservation and
+    // releases everything.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['mcp__docs__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    // Rename reconciliation: the driver passes the pre-rename baseline.
+    await snapshot.update(makeAgent(['mcp__github__run']), { preserveDenied: ['mcp__docs__run'] })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    // A second tool is disabled before the deferred rebuild lands: the driver can only pass
+    // the migrated baseline, which no longer names `docs/run`.
+    await snapshot.update(makeAgent(['mcp__github__run', 'mcp__github__other']), {
+      preserveDenied: ['mcp__github__run', 'mcp__github__other']
+    })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__other')).toBe(true)
+
+    // Connect of the replacement connection refreshes without preservation — release.
+    await snapshot.update(makeAgent(['mcp__github__run', 'mcp__github__other']), { serverNameById: new Map() })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(false)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__other')).toBe(true)
+  })
+
+  it('applies a post-rename denial to the active connection as well as the desired allocation', async () => {
+    // Full Access turn under `docs`; the server is renamed to `github` and the tool is disabled
+    // AFTER the rename but BEFORE the deferred rebuild. The driver's preservation baseline moved
+    // to the migrated rules and is empty, so the snapshot must translate the new-form denial back
+    // onto the connect-time keys (`baselineServerNameById`) that the ACTIVE connection still serves.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([]), {
+      serverNameById: new Map([['mcp-1', 'docs']])
+    })
+
+    await snapshot.update(makeAgent(['mcp__github__run']), {
+      serverNameById: new Map([['mcp-1', 'github']]),
+      baselineServerNameById: new Map([['mcp-1', 'docs']]),
+      preserveDenied: []
+    })
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    // The replacement connection's connect refresh carries no baseline — release.
+    await snapshot.update(makeAgent(['mcp__github__run']), { serverNameById: new Map([['mcp-1', 'github']]) })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(false)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
@@ -156,7 +318,7 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
   })
 
-  it('keeps the newest policy when an older rebuild completes late', async () => {
+  it('applies overlapping updates in submission order so the newest policy wins', async () => {
     // Construction runs one rebuild against the default (immediately-resolved) mock.
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
     const baselineCalls = mocks.listMcpTools.mock.calls.length
@@ -167,20 +329,46 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
       .mockImplementationOnce(() => firstCatalog.promise)
       .mockImplementationOnce(() => secondCatalog.promise)
 
-    // Older update disables Bash; newer update re-enables it. The newer one resolves FIRST.
+    // Older update disables Bash; newer update re-enables it. Updates serialize: the newer
+    // rebuild starts only after the older one completes, so the final policy is the newest
+    // update and a slow older rebuild can never clobber it.
     const olderUpdate = snapshot.update(makeAgent(['Bash'], ['mcp-1']))
     const newerUpdate = snapshot.update(makeAgent([], ['mcp-1']))
 
+    firstCatalog.resolve([])
     await vi.waitFor(() => expect(mocks.listMcpTools).toHaveBeenCalledTimes(baselineCalls + 2))
     secondCatalog.resolve([])
-    await newerUpdate
+    await Promise.all([olderUpdate, newerUpdate])
     expect(snapshot.isDisabled('Bash')).toBe(false)
+  })
 
-    // The older (disabling) rebuild now completes late — the sequence guard must drop it so it can't
-    // clobber the newer policy and re-disable Bash.
-    firstCatalog.resolve([])
-    await olderUpdate
-    expect(snapshot.isDisabled('Bash')).toBe(false)
+  it('lands a preserved-denial update that overlaps a same-connection catalog refresh', async () => {
+    // A rename reconcile retains the old identity (the active connection still serves it while
+    // its replacement is deferred). A live catalog refresh fires while that rebuild is still
+    // awaiting its catalog: serialization must let the reconcile land its retention BEFORE the
+    // refresh runs, or the refresh drops the retained denial and the still-mounted pre-rename
+    // tool becomes executable under Full Access.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
+
+    const renameCatalog = createDeferred<[]>()
+    const refreshCatalog = createDeferred<[]>()
+    mocks.listMcpTools
+      .mockImplementationOnce(() => renameCatalog.promise)
+      .mockImplementationOnce(() => refreshCatalog.promise)
+
+    const renameReconcile = snapshot.update(makeAgent(['mcp__github__run'], ['mcp-1']), {
+      preserveDenied: ['mcp__docs__run']
+    })
+    const catalogRefresh = snapshot.update(makeAgent(['mcp__github__run'], ['mcp-1']), {
+      keepRetainedDenied: true
+    })
+
+    renameCatalog.resolve([])
+    refreshCatalog.resolve([])
+    await Promise.all([renameReconcile, catalogRefresh])
+
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
   })
 })
 

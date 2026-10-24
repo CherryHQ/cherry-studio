@@ -845,8 +845,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       { mcpServerSnapshots: new Map([['mcp-1', materializedServer as never]]) },
       agent as never
     )
-    // Bridges are built per connection, so connect once to materialize it.
-    const { instance } = settings.mcpServers!['mcp-1'] as McpSdkServerConfigWithInstance
+    // Bridges are built per connection, so connect once to materialize it. The record key is
+    // the configured (snapshot) name per issue #21321, folded into the protected SDK form
+    // (`Old server` → `Old_server`), while the bridge stays bound to the id.
+    const { instance } = settings.mcpServers!.Old_server as McpSdkServerConfigWithInstance
     await (await connectMcpTestClient(instance)).close()
 
     expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, {
@@ -886,7 +888,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
       expect(settings.mcpServers?.automation).toBeDefined()
       expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
-      expect(settings.mcpServers?.['remote-browser']).toBeDefined()
+      // The remote bridge is registered under its configured server name (issue #21321) — its
+      // snapshot row is named `@cherry/browser`, not the raw agent.mcps entry. The allocation
+      // key folds that name into the SDK namespace first, so the protected key is
+      // `_cherry_browser` (`@`/`/` underscore).
+      expect(settings.mcpServers?.['_cherry_browser']).toBeDefined()
+      // The in-memory browser bridge no longer mounts as a claudeCode MCP server upstream, so
+      // its tools are not in allowedTools anymore — automation remains the mounted built-in.
       expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__automation__js', 'mcp__automation__reset']))
       expect(settings.allowedTools).not.toContain('mcp__browser__*')
     } finally {
@@ -1729,6 +1737,57 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.allowedTools).toEqual(
       expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__memory'])
     )
+  })
+
+  it('translates a legacy id-keyed denial onto the hyphenated key the pinned SDK keeps verbatim', async () => {
+    // Pinned SDK 0.3.284 derives `mcp__<key>__<tool>` by underscoring only characters outside
+    // [A-Za-z0-9_-]: a configured `my-tools` registers `mcp__my-tools__run` verbatim. Startup
+    // must emit that form — `mcp__my_tools__run` names nothing the SDK serves, so the denial
+    // silently lapses under Full Access.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [serverId],
+      allowedTools: [],
+      disabledTools: [`mcp__${serverId}__run`],
+      configuration: {}
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    mocks.findByIdOrName.mockReturnValue({ id: serverId, name: 'my-tools', type: 'stdio' })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.disallowedTools).toContain('mcp__my-tools__run')
+    expect(settings.disallowedTools).not.toContain('mcp__my_tools__run')
+  })
+
+  it('emits the SDK-normalized identity for a legacy denial on a space-bearing server name', async () => {
+    // The SDK invokes `mcp__Docs_MCP__run` for the key `Docs MCP`; the raw-key and camelized
+    // forms alone leave the previously disabled tool callable.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [serverId],
+      allowedTools: [],
+      disabledTools: [`mcp__${serverId}__run`],
+      configuration: {}
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    mocks.findByIdOrName.mockReturnValue({ id: serverId, name: 'Docs MCP', type: 'stdio' })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.disallowedTools).toContain('mcp__Docs_MCP__run')
   })
 
   it('does not auto-approve disabled MCP tools', async () => {
@@ -3762,11 +3821,55 @@ describe('buildClaudeCodeSessionSettings', () => {
       cachedTools = [{ id: 'tool-x', name: 'tool_x', description: 'X' }]
       resolveRefresh()
       await vi.waitFor(() => {
-        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
+        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }), {
+          keepRetainedDenied: true
+        })
         expect(settings.mcpToolMetadata).toMatchObject({
           'mcp__srv-a__tool_x': expect.objectContaining({ name: 'tool_x', serverId: 'srv-a' })
         })
       })
+    })
+
+    it('keeps retained denials when the timed-out warm reconciliation refreshes the same connection', async () => {
+      // The reconciliation runs on the connection this build produced while its replacement is
+      // still deferred: a rename reconcile may have retained the OLD identity in the snapshot
+      // (the live connection still serves it), and this same-connection warm refresh must not
+      // release it — only the replacement connection's connect refresh does. Passing no option
+      // clears the retained denial and the still-mounted pre-rename tool executes.
+      let resolveRefresh!: () => void
+      mocks.warmToolsCache.mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveRefresh = resolve
+        })
+      )
+      const snapshot = {
+        resolve: vi.fn(),
+        isDisabled: vi.fn(() => false),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      }
+      mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+      const session = sessionWithMcps(['srv-a'])
+
+      vi.useFakeTimers()
+      const build = buildClaudeCodeSessionSettings(session as never, {} as never)
+      try {
+        await vi.advanceTimersByTimeAsync(100)
+      } finally {
+        vi.useRealTimers()
+      }
+      await build
+
+      resolveRefresh()
+      await vi.waitFor(() => {
+        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }), {
+          keepRetainedDenied: true
+        })
+      })
+      // The reconciliation never passes a bare update: the retained set must never be released
+      // from the warm path.
+      const options = snapshot.update.mock.calls.map((call) => call[1])
+      expect(options.every((option) => option?.keepRetainedDenied === true)).toBe(true)
     })
 
     it('keeps the live policy snapshot and metadata aligned with later MCP tool-list changes', async () => {
@@ -3789,7 +3892,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       listener?.({ serverId: 'srv-a' })
 
       await vi.waitFor(() => {
-        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
+        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }), {
+          keepRetainedDenied: true
+        })
         expect(settings.mcpToolMetadata).toHaveProperty('mcp__srv-a__new_tool')
       })
       expect(settings.mcpToolMetadata).not.toHaveProperty('mcp__srv-a__old_tool')
