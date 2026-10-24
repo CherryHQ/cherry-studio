@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "Jurnale aplicație",
   "settings.data.backup.skip_file_data_help": "Omite salvarea fișierelor de date precum imagini și baze de cunoștințe în timpul backup-ului și salvează doar înregistrările de chat și setările. Reduce ocuparea spațiului și accelerează viteza de backup.",
   "settings.data.backup.skip_file_data_title": "Backup simplificat",
+  "settings.data.backup.syncStart.help": "Prima copie de rezervă pornește la această oră a zilei; următoarele respectă intervalul de backup. Lăsați gol pentru a folosi doar intervalul.",
+  "settings.data.backup.syncStart.label": "Ora primei copii de rezervă",
   "settings.data.clear_cache.approximately": "Aprox. {{size}}",
   "settings.data.clear_cache.button": "Golește memoria cache",
   "settings.data.clear_cache.calculating": "Se calculează…",

@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "log แอป",
   "settings.data.backup.skip_file_data_help": "ข้ามการสำรองข้อมูลไฟล์ เช่น รูปภาพและฐานความรู้ในระหว่างการสำรองข้อมูล และสำรองเฉพาะบันทึกแชทและการตั้งค่า ลดพื้นที่และเพิ่มความเร็ว",
   "settings.data.backup.skip_file_data_title": "สำรองแบบประหยัด",
+  "settings.data.backup.syncStart.help": "การสำรองข้อมูลครั้งแรกเริ่มในเวลานี้ของวัน ส่วนครั้งถัดไปจะทำตามช่วงเวลาสำรองข้อมูล หากต้องการใช้เพียงช่วงเวลา ให้เว้นว่างไว้",
+  "settings.data.backup.syncStart.label": "เวลาสำรองข้อมูลครั้งแรก",
   "settings.data.clear_cache.approximately": "ประมาณ {{size}}",
   "settings.data.clear_cache.button": "ล้างแคช",
   "settings.data.clear_cache.calculating": "กำลังคำนวณ…",

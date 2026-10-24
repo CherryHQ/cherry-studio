@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "應用程式記錄",
   "settings.data.backup.skip_file_data_help": "備份時跳過圖片、知識庫等資料檔案，只備份聊天記錄與設定。可減少空間佔用並加快備份速度",
   "settings.data.backup.skip_file_data_title": "精簡備份",
+  "settings.data.backup.syncStart.help": "首次備份在該時刻開始，之後按備份週期執行。留空則僅按週期執行。",
+  "settings.data.backup.syncStart.label": "首次備份時間",
   "settings.data.clear_cache.approximately": "約 {{size}}",
   "settings.data.clear_cache.button": "清除快取",
   "settings.data.clear_cache.calculating": "計算中…",

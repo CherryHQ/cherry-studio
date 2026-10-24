@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "Logs da aplicação",
   "settings.data.backup.skip_file_data_help": "Ignora ficheiros de dados, como imagens e bases de conhecimento, e inclui apenas as conversas e as definições na cópia de segurança. Reduz o espaço ocupado e acelera o processo.",
   "settings.data.backup.skip_file_data_title": "Backup simplificado",
+  "settings.data.backup.syncStart.help": "O primeiro backup começa a esta hora do dia; os seguintes seguem o intervalo de backup. Deixe vazio para usar apenas o intervalo.",
+  "settings.data.backup.syncStart.label": "Hora do primeiro backup",
   "settings.data.clear_cache.approximately": "Aprox. {{size}}",
   "settings.data.clear_cache.button": "Limpar cache",
   "settings.data.clear_cache.calculating": "A calcular…",

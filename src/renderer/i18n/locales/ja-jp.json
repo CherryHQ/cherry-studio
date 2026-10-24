@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "アプリログ",
   "settings.data.backup.skip_file_data_help": "バックアップ時に、画像やナレッジベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
   "settings.data.backup.skip_file_data_title": "軽量バックアップ",
+  "settings.data.backup.syncStart.help": "初回バックアップはこの時刻に開始し、以降はバックアップ間隔ごとに実行されます。間隔のみを使う場合は空欄にしてください。",
+  "settings.data.backup.syncStart.label": "初回バックアップ時刻",
   "settings.data.clear_cache.approximately": "約 {{size}}",
   "settings.data.clear_cache.button": "キャッシュをクリア",
   "settings.data.clear_cache.calculating": "計算中…",

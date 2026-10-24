@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "Journaux de l'application",
   "settings.data.backup.skip_file_data_help": "Passer outre les fichiers de données tels que les images et les bases de connaissances lors de la sauvegarde, et ne sauvegarder que les conversations et les paramètres. Cela réduit l'occupation d'espace et accélère la vitesse de sauvegarde.",
   "settings.data.backup.skip_file_data_title": "Sauvegarde réduite",
+  "settings.data.backup.syncStart.help": "La première sauvegarde démarre à cette heure de la journée ; les suivantes suivent l’intervalle de sauvegarde. Laissez vide pour n’utiliser que l’intervalle.",
+  "settings.data.backup.syncStart.label": "Heure de la première sauvegarde",
   "settings.data.clear_cache.approximately": "Environ {{size}}",
   "settings.data.clear_cache.button": "Effacer le cache",
   "settings.data.clear_cache.calculating": "Calcul en cours…",

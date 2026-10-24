@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "Log dell'app",
   "settings.data.backup.skip_file_data_help": "Escludi dal backup i file di dati, come immagini e basi di conoscenza, e salva solo la cronologia delle chat e le impostazioni. Riduce lo spazio occupato e velocizza il backup.",
   "settings.data.backup.skip_file_data_title": "Backup ridotto",
+  "settings.data.backup.syncStart.help": "Il primo backup inizia a quest'ora del giorno; i successivi seguono l'intervallo di backup. Lascia vuoto per usare solo l'intervallo.",
+  "settings.data.backup.syncStart.label": "Ora del primo backup",
   "settings.data.clear_cache.approximately": "Circa {{size}}",
   "settings.data.clear_cache.button": "Svuota cache",
   "settings.data.clear_cache.calculating": "Calcolo in corso…",

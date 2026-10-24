@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "Φάκελοι εφαρμογής",
   "settings.data.backup.skip_file_data_help": "Κατά τη δημιουργία αντιγράφων ασφαλείας, παραλείψτε τις εικόνες, τις βάσεις γνώσεων και άλλα αρχεία δεδομένων. Δημιουργήστε αντίγραφα μόνο για το ιστορικό συνομιλιών και τις ρυθμίσεις. Αυτό θα μειώσει τη χρήση χώρου και θα επιταχύνει την ταχύτητα δημιουργίας αντιγράφων.",
   "settings.data.backup.skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας",
+  "settings.data.backup.syncStart.help": "Το πρώτο αντίγραφο ξεκινά αυτή την ώρα της ημέρας· τα επόμενα ακολουθούν στο διάστημα δημιουργίας αντιγράφων. Αφήστε το κενό για να ισχύει μόνο το διάστημα.",
+  "settings.data.backup.syncStart.label": "Ώρα πρώτου αντιγράφου",
   "settings.data.clear_cache.approximately": "Περίπου {{size}}",
   "settings.data.clear_cache.button": "Καθαρισμός Μνήμης",
   "settings.data.clear_cache.calculating": "Υπολογισμός…",

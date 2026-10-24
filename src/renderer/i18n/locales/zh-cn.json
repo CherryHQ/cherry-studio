@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "应用日志",
   "settings.data.backup.skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
   "settings.data.backup.skip_file_data_title": "精简备份",
+  "settings.data.backup.syncStart.help": "首次备份在该时刻开始，之后按备份周期执行。留空则仅按周期执行。",
+  "settings.data.backup.syncStart.label": "首次备份时间",
   "settings.data.clear_cache.approximately": "约 {{size}}",
   "settings.data.clear_cache.button": "清除缓存",
   "settings.data.clear_cache.calculating": "计算中…",

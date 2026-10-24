@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "App Logs",
   "settings.data.backup.skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
   "settings.data.backup.skip_file_data_title": "Slim Backup",
+  "settings.data.backup.syncStart.help": "First backup starts at this time of day; later ones follow at the backup interval. Leave empty to use the interval only.",
+  "settings.data.backup.syncStart.label": "First Backup Time",
   "settings.data.clear_cache.approximately": "Approx. {{size}}",
   "settings.data.clear_cache.button": "Clear Cache",
   "settings.data.clear_cache.calculating": "Calculating…",

@@ -28,12 +28,36 @@ const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
 const ACTIVE_WRITERS_POLL_MS = 30_000
+const ANCHOR_SEARCH_DAYS = 7
+// Longest a pending anchored one-shot may sleep before re-reading the wall clock: an eastward
+// offset change moves the slot's instant earlier than the one the timer was armed for.
+const ANCHORED_RECHECK_MS = 15 * 60_000
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
-  webdav: ['data.backup.webdav.auto_sync', 'data.backup.webdav.host', 'data.backup.webdav.sync_interval'],
-  s3: ['data.backup.s3.auto_sync', 'data.backup.s3.endpoint', 'data.backup.s3.sync_interval'],
-  local: ['data.backup.local.auto_sync', 'data.backup.local.dir', 'data.backup.local.sync_interval'],
-  nutstore: ['data.backup.nutstore.auto_sync', 'data.backup.nutstore.token', 'data.backup.nutstore.sync_interval']
+  webdav: [
+    'data.backup.webdav.auto_sync',
+    'data.backup.webdav.host',
+    'data.backup.webdav.sync_interval',
+    'data.backup.webdav.sync_start'
+  ],
+  s3: [
+    'data.backup.s3.auto_sync',
+    'data.backup.s3.endpoint',
+    'data.backup.s3.sync_interval',
+    'data.backup.s3.sync_start'
+  ],
+  local: [
+    'data.backup.local.auto_sync',
+    'data.backup.local.dir',
+    'data.backup.local.sync_interval',
+    'data.backup.local.sync_start'
+  ],
+  nutstore: [
+    'data.backup.nutstore.auto_sync',
+    'data.backup.nutstore.token',
+    'data.backup.nutstore.sync_interval',
+    'data.backup.nutstore.sync_start'
+  ]
 }
 
 type ScheduleMode = 'immediate' | 'startup' | 'fromLastSyncTime' | 'fromNow'
@@ -48,6 +72,42 @@ interface ScheduleState {
 interface ScheduleSettings {
   enabled: boolean
   intervalMs: number
+  intervalMinutes: number
+  /** Minutes after local midnight anchoring the backup grid; null leaves the plain interval in charge. */
+  startMinute: number | null
+}
+
+/**
+ * Next fire time on the anchor grid: the wall-clock minutes `startMinute + N *
+ * intervalMinutes`, repeating from local midnight every day.
+ *
+ * Slots are built as local wall-clock times rather than by adding `intervalMs` to
+ * an epoch, so a slot keeps its clock time across a DST transition. The grid does
+ * not depend on the last run, so a missed slot (a long shutdown, an exhausted
+ * retry budget) leaves every later backup on the grid instead of shifting it.
+ */
+const nextAnchoredRun = (from: number, startMinute: number, intervalMinutes: number): number => {
+  const now = new Date(from)
+  const firstSlotMinute = startMinute % intervalMinutes
+  // Every slot left today is already past once `from` is past the last one; the following
+  // days cover the wrap past midnight and any day whose only slot a DST gap erased.
+  for (let dayOffset = 0; dayOffset < ANCHOR_SEARCH_DAYS; dayOffset++) {
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset)
+    for (let minute = firstSlotMinute; minute < 1440; minute += intervalMinutes) {
+      const slot = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minute)
+      // A DST gap makes the wall-clock slot nonexistent and Date normalizes it forward
+      // into an off-grid instant, so only candidates that kept their date and time count.
+      const wallClockMatches =
+        slot.getFullYear() === day.getFullYear() &&
+        slot.getMonth() === day.getMonth() &&
+        slot.getDate() === day.getDate() &&
+        slot.getHours() === Math.floor(minute / 60) &&
+        slot.getMinutes() === minute % 60
+      if (!wallClockMatches) continue
+      if (slot.getTime() > from) return slot.getTime()
+    }
+  }
+  return from + intervalMinutes * 60_000
 }
 
 const createScheduleState = (): ScheduleState => ({
@@ -56,6 +116,19 @@ const createScheduleState = (): ScheduleState => ({
   retryCount: 0,
   running: false
 })
+
+interface AnchoredTarget {
+  scheduledAt: number
+  /** When the one-shot was last armed; destination slots crossed since then are overdue. */
+  armedAt: number
+  /** Zone the wall clock was named in; compared by name so a change is seen even across a DST match. */
+  timeZone: string
+  year: number
+  month: number
+  day: number
+  hours: number
+  minutes: number
+}
 
 @Injectable('AutoBackupService')
 @ServicePhase(Phase.WhenReady)
@@ -81,6 +154,8 @@ export class AutoBackupService extends BaseService {
     local: createScheduleState(),
     nutstore: createScheduleState()
   }
+  /** The wall-clock slot each pending anchored one-shot was armed for, in its arming zone. */
+  private readonly anchoredTargets = new Map<AutoBackupType, AnchoredTarget>()
 
   protected override onInit(): void {
     const lastAttemptTimes = application.get('CacheService').getPersist(LAST_ATTEMPT_TIMES_KEY)
@@ -178,26 +253,117 @@ export class AutoBackupService extends BaseService {
     let delay = delayOverride ?? INITIAL_DELAY_MS
     if (delayOverride === undefined && mode === 'fromNow') {
       delay = settings.intervalMs
+      // Keep the follow-up on the grid too: a backup that overran its slot must not
+      // drag every later one off the anchor.
+      if (settings.startMinute != null) {
+        delay = nextAnchoredRun(Date.now(), settings.startMinute, settings.intervalMinutes) - Date.now()
+      }
     } else if (delayOverride === undefined && (mode === 'startup' || mode === 'fromLastSyncTime')) {
       const lastSyncTime = this.schedules[type].lastSyncTime
       delay = lastSyncTime
         ? Math.max(INITIAL_DELAY_MS, lastSyncTime + settings.intervalMs - Date.now())
         : settings.intervalMs
+      // A saved anchor is what the user picked; the interval alone would put the
+      // first backup at "one interval after whatever came before it".
+      if (settings.startMinute != null) {
+        delay = nextAnchoredRun(Date.now(), settings.startMinute, settings.intervalMinutes) - Date.now()
+      }
       if (mode === 'startup') {
-        delay = Math.max(STARTUP_GRACE_PERIOD_MS, delay)
+        const earliest = Date.now() + STARTUP_GRACE_PERIOD_MS
+        if (settings.startMinute != null && earliest > Date.now() + delay) {
+          // The grace period would push this run past its slot; take the first slot the grace
+          // period still leaves reachable so the run stays on the anchor grid.
+          delay = nextAnchoredRun(earliest, settings.startMinute, settings.intervalMinutes) - Date.now()
+        } else {
+          delay = Math.max(STARTUP_GRACE_PERIOD_MS, delay)
+        }
       }
     }
 
+    const at = Date.now() + delay
+    if (settings.startMinute != null && delayOverride === undefined) {
+      this.armAnchoredSchedule(type, generation, at)
+      logger.debug('Automatic backup scheduled', { type, delayMs: Math.min(delay, ANCHORED_RECHECK_MS) })
+      return
+    }
+    this.anchoredTargets.delete(type)
     application
       .get('SchedulerService')
-      .registerSchedule(this.scheduleId(type), { kind: 'once', at: Date.now() + delay }, () =>
+      .registerSchedule(this.scheduleId(type), { kind: 'once', at }, () => this.handleScheduledBackup(type, generation))
+    logger.debug('Automatic backup scheduled', { type, delayMs: delay })
+  }
+
+  /**
+   * Arm the one-shot for `at`, remembering the wall clock it names. A long wait is cut into
+   * rechecks so a timezone change is reconciled before the stored instant arrives.
+   */
+  private armAnchoredSchedule(type: AutoBackupType, generation: number, at: number): void {
+    this.rememberAnchoredTarget(type, at)
+    const wakeAt = Math.min(at, Date.now() + ANCHORED_RECHECK_MS)
+    application
+      .get('SchedulerService')
+      .registerSchedule(this.scheduleId(type), { kind: 'once', at: wakeAt }, () =>
         this.handleScheduledBackup(type, generation)
       )
-    logger.debug('Automatic backup scheduled', { type, delayMs: delay })
+  }
+
+  private rememberAnchoredTarget(type: AutoBackupType, at: number): void {
+    const target = new Date(at)
+    this.anchoredTargets.set(type, {
+      scheduledAt: at,
+      armedAt: Date.now(),
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      year: target.getFullYear(),
+      month: target.getMonth(),
+      day: target.getDate(),
+      hours: target.getHours(),
+      minutes: target.getMinutes()
+    })
+  }
+
+  /**
+   * An anchored one-shot names a local wall clock, not an instant, so a timezone change must
+   * re-arm it. The periodic recheck is what catches an eastward change before the slot.
+   */
+  private reconcileAnchoredTarget(type: AutoBackupType, generation: number): boolean {
+    const target = this.anchoredTargets.get(type)
+    if (!target) return true
+    this.anchoredTargets.delete(type)
+    const wall = new Date(target.year, target.month, target.day, target.hours, target.minutes)
+    const wallClockMatches =
+      wall.getFullYear() === target.year &&
+      wall.getMonth() === target.month &&
+      wall.getDate() === target.day &&
+      wall.getHours() === target.hours &&
+      wall.getMinutes() === target.minutes
+    const recomputed = wall.getTime()
+    const settings = this.getScheduleSettings(type)
+    const startMinute = settings.startMinute
+    const anchored = settings.enabled && settings.intervalMs > 0 && startMinute !== null
+    const now = Date.now()
+
+    // Same zone as when armed: the wall clock still names the same instant, so run when due only.
+    if (Intl.DateTimeFormat().resolvedOptions().timeZone === target.timeZone) {
+      if (recomputed <= now) return true
+      if (anchored) this.armAnchoredSchedule(type, generation, recomputed)
+      return false
+    }
+
+    // The zone changed: the stored date belongs to the previous zone, so an instant already
+    // passed or a grid slot crossed since the last re-arm runs late; otherwise take the next slot.
+    if (!anchored || startMinute === null) return true
+    if (wallClockMatches && recomputed <= now) return true
+    if (nextAnchoredRun(target.armedAt, startMinute, settings.intervalMinutes) <= now) return true
+    const nextAt = nextAnchoredRun(now, startMinute, settings.intervalMinutes)
+    if (nextAt <= now) return true
+    this.armAnchoredSchedule(type, generation, nextAt)
+    return false
   }
 
   private async handleScheduledBackup(type: AutoBackupType, generation: number): Promise<void> {
     if (!this.isEnabled(type, generation)) return
+    // The instant this timer was armed for may no longer be its local slot; a re-arm must not run.
+    if (!this.reconcileAnchoredTarget(type, generation)) return
 
     if (this.activeRun) {
       this.pendingRuns.set(type, generation)
@@ -380,7 +546,9 @@ export class AutoBackupService extends BaseService {
         enabled:
           preferenceService.get('data.backup.webdav.auto_sync') &&
           Boolean(preferenceService.get('data.backup.webdav.host')),
-        intervalMs: preferenceService.get('data.backup.webdav.sync_interval') * 60_000
+        intervalMinutes: preferenceService.get('data.backup.webdav.sync_interval'),
+        intervalMs: preferenceService.get('data.backup.webdav.sync_interval') * 60_000,
+        startMinute: preferenceService.get('data.backup.webdav.sync_start')
       }
     }
     if (type === 's3') {
@@ -388,7 +556,9 @@ export class AutoBackupService extends BaseService {
         enabled:
           preferenceService.get('data.backup.s3.auto_sync') &&
           Boolean(preferenceService.get('data.backup.s3.endpoint')),
-        intervalMs: preferenceService.get('data.backup.s3.sync_interval') * 60_000
+        intervalMinutes: preferenceService.get('data.backup.s3.sync_interval'),
+        intervalMs: preferenceService.get('data.backup.s3.sync_interval') * 60_000,
+        startMinute: preferenceService.get('data.backup.s3.sync_start')
       }
     }
     if (type === 'local') {
@@ -396,14 +566,18 @@ export class AutoBackupService extends BaseService {
         enabled:
           preferenceService.get('data.backup.local.auto_sync') &&
           Boolean(preferenceService.get('data.backup.local.dir')),
-        intervalMs: preferenceService.get('data.backup.local.sync_interval') * 60_000
+        intervalMinutes: preferenceService.get('data.backup.local.sync_interval'),
+        intervalMs: preferenceService.get('data.backup.local.sync_interval') * 60_000,
+        startMinute: preferenceService.get('data.backup.local.sync_start')
       }
     }
     return {
       enabled:
         preferenceService.get('data.backup.nutstore.auto_sync') &&
         Boolean(preferenceService.get('data.backup.nutstore.token')),
-      intervalMs: preferenceService.get('data.backup.nutstore.sync_interval') * 60_000
+      intervalMinutes: preferenceService.get('data.backup.nutstore.sync_interval'),
+      intervalMs: preferenceService.get('data.backup.nutstore.sync_interval') * 60_000,
+      startMinute: preferenceService.get('data.backup.nutstore.sync_start')
     }
   }
 
@@ -450,6 +624,7 @@ export class AutoBackupService extends BaseService {
   }
 
   private unregisterSchedule(type: AutoBackupType): void {
+    this.anchoredTargets.delete(type)
     application.get('SchedulerService').unregister(this.scheduleId(type))
   }
 

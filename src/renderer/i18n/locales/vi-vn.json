@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "Nhật ký ứng dụng",
   "settings.data.backup.skip_file_data_help": "Bỏ qua việc sao lưu các tệp dữ liệu như hình ảnh và cơ sở tri thức, chỉ sao lưu lịch sử trò chuyện và cài đặt. Giảm chiếm dụng dung lượng và tăng tốc độ sao lưu.",
   "settings.data.backup.skip_file_data_title": "Sao lưu mỏng",
+  "settings.data.backup.syncStart.help": "Lần sao lưu đầu tiên bắt đầu vào thời điểm này trong ngày; các lần sau theo chu kỳ sao lưu. Để trống nếu chỉ muốn dùng chu kỳ.",
+  "settings.data.backup.syncStart.label": "Thời điểm sao lưu đầu tiên",
   "settings.data.clear_cache.approximately": "Khoảng {{size}}",
   "settings.data.clear_cache.button": "Xóa bộ nhớ đệm",
   "settings.data.clear_cache.calculating": "Đang tính…",

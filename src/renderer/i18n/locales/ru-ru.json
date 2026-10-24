@@ -3812,6 +3812,8 @@
   "settings.data.app_logs.label": "Логи приложения",
   "settings.data.backup.skip_file_data_help": "Пропустить при резервном копировании такие данные, как изображения, базы знаний и другие файлы данных, и сделать резервную копию только переписки и настроек. Это уменьшает использование места на диске и ускоряет процесс резервного копирования.",
   "settings.data.backup.skip_file_data_title": "Упрощенная резервная копия",
+  "settings.data.backup.syncStart.help": "Первое резервное копирование запускается в это время суток, последующие — с заданным интервалом. Оставьте поле пустым, чтобы использовать только интервал.",
+  "settings.data.backup.syncStart.label": "Время первого резервного копирования",
   "settings.data.clear_cache.approximately": "Примерно {{size}}",
   "settings.data.clear_cache.button": "Очистка кэша",
   "settings.data.clear_cache.calculating": "Вычисление…",
