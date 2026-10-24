@@ -107,8 +107,24 @@ describe('followupQueueHandlers', () => {
   describe('/followup-queues/:id', () => {
     it('should delegate DELETE to remove', async () => {
       await followupQueueHandlers['/followup-queues/:id'].DELETE({ params: { id: ITEM_ID } })
-      expect(removeMock).toHaveBeenCalledWith(ITEM_ID)
+      expect(removeMock).toHaveBeenCalledWith(ITEM_ID, undefined)
     })
+  })
+
+  it('validates and forwards an edit-transfer DELETE body', async () => {
+    await followupQueueHandlers['/followup-queues/:id'].DELETE({
+      params: { id: ITEM_ID },
+      body: { transferHeldId: ITEM_ID }
+    })
+    expect(removeMock).toHaveBeenCalledWith(ITEM_ID, ITEM_ID)
+    removeMock.mockClear()
+    await expect(
+      followupQueueHandlers['/followup-queues/:id'].DELETE({
+        params: { id: ITEM_ID },
+        body: { transferHeldId: 'invalid' }
+      })
+    ).rejects.toHaveProperty('name', 'ZodError')
+    expect(removeMock).not.toHaveBeenCalled()
   })
 
   describe('/followup-queues/:id/claim', () => {

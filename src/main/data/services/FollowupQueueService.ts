@@ -179,6 +179,7 @@ export class FollowupQueueService {
    * recovered content forever.
    */
   private static readonly HELD_RECOVERY_CLAIM_TOKEN = 'held:edit-restore'
+  private static readonly TRANSFER_PENDING_CLAIM_TOKEN = 'held:edit-restore:transfer'
 
   /** Bounded FIFO per scope: recent completions stay fenced, ancient ones age out. */
   private static readonly MAX_CONSUMED_COMPLETIONS_PER_SCOPE = 16
@@ -257,7 +258,8 @@ export class FollowupQueueService {
           } else if (
             !dto.held &&
             duplicate.status === 'pending' &&
-            duplicate.claimToken === FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN
+            (duplicate.claimToken === FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN ||
+              duplicate.claimToken === FollowupQueueService.TRANSFER_PENDING_CLAIM_TOKEN)
           ) {
             // A non-held retry for a still-held copy means editor ownership
             // transferred (the failure paths only re-stamp held): release the
@@ -269,7 +271,7 @@ export class FollowupQueueService {
                 and(
                   eq(followupQueueTable.id, duplicate.id),
                   eq(followupQueueTable.status, 'pending'),
-                  eq(followupQueueTable.claimToken, FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN)
+                  eq(followupQueueTable.claimToken, duplicate.claimToken)
                 )
               )
               .run()
@@ -351,7 +353,7 @@ export class FollowupQueueService {
    * collected once older than the retry lifetime. Idempotent: removing an
    * already-closed row is a no-op, so a retried DELETE settles cleanly.
    */
-  remove(id: string): void {
+  remove(id: string, transferHeldId?: string): void {
     const dbService = application.get('DbService')
     const row = dbService.withWriteTx((tx) => {
       const [closed] = tx
@@ -370,6 +372,25 @@ export class FollowupQueueService {
           .all()
         if (existing) return null
         throw DataApiErrorFactory.notFound('FollowupQueue', id)
+      }
+
+      // Ownership transfer and incoming dequeue are one transaction: a peer
+      // cannot skip the outgoing held copy after this switch commits, even
+      // if the DELETE response or following unhold POST is lost
+      // (cherry-pr-review inv_d42203843d6d319f). Plain live edit copies
+      // still remain skippable. A failed/refused switch never enters here.
+      if (transferHeldId) {
+        tx.update(followupQueueTable)
+          .set({ claimToken: FollowupQueueService.TRANSFER_PENDING_CLAIM_TOKEN, updatedAt: Date.now() })
+          .where(
+            and(
+              eq(followupQueueTable.id, transferHeldId),
+              eq(followupQueueTable.scopeKey, closed.scopeKey),
+              eq(followupQueueTable.status, 'pending'),
+              eq(followupQueueTable.claimToken, FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN)
+            )
+          )
+          .run()
       }
 
       // Release the durable file refs in the same transaction as the close.
@@ -592,6 +613,7 @@ export class FollowupQueueService {
             eq(followupQueueTable.scopeKey, scopeKey),
             ne(followupQueueTable.status, 'closed'),
             or(
+              eq(followupQueueTable.claimToken, FollowupQueueService.TRANSFER_PENDING_CLAIM_TOKEN),
               isNull(followupQueueTable.claimToken),
               not(like(followupQueueTable.claimToken, `${FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN}%`)),
               lt(followupQueueTable.updatedAt, cutoff)
@@ -602,6 +624,8 @@ export class FollowupQueueService {
         .limit(1)
         .all()
       if (!head) return { claimed: false as const }
+      if (head.claimToken === FollowupQueueService.TRANSFER_PENDING_CLAIM_TOKEN && head.updatedAt >= cutoff)
+        return { claimed: false as const }
       // A retry carrying the token of a claim that committed but whose response was lost re-acquires it.
       const ownRetry = head.status === 'sending' && head.claimToken === claimToken
       // One delivery per completion, arbitrated here at the shared owner: the

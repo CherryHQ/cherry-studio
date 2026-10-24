@@ -916,7 +916,10 @@ export function useFollowupQueue({
       let deleted = false
       for (let attempt = 0; attempt < 2 && !deleted; attempt++) {
         try {
-          await takeDeleteTrigger({ params: { id } })
+          await takeDeleteTrigger({
+            params: { id },
+            ...(restoredCopy && !claim.alreadySent ? { body: { transferHeldId: restoredCopy.id } } : {})
+          })
           deleted = true
         } catch (error) {
           if (isAlreadyResolved(error)) {
@@ -1080,9 +1083,13 @@ export function useFollowupQueue({
       if (await recoverAbandonedTake()) return undefined
       // Editor ownership actually transferred only now: release the outgoing
       // copy's recovery hold so it is claimable as ordinary pending content.
-      // A lost release self-heals when the hold ages out.
+      // DELETE atomically parked this copy, so no peer can bypass it while
+      // release is retried. Retain retry ownership across scope/unmount.
       if (restoredCopy) {
-        void enqueueTrigger({ body: { ...restoredCopy.body, held: false } }).catch(() => {})
+        const body = { ...restoredCopy.body, held: false }
+        void enqueueTrigger({ body }).catch((error) => {
+          if (!isAlreadyResolved(error)) scheduleReenqueueRetryRef.current(body)
+        })
       }
       // Capture the predecessor chain against the queue the restore pass
       // left behind: live rows minus the incoming take, with the outgoing
@@ -1363,6 +1370,7 @@ export function useFollowupQueue({
           // queue-slot anchor across background retries
           // (cherry-pr-review inv_9ecff9fca3bdab04#f1).
           if (body.anchor) rebuilt.anchor = body.anchor
+          if (body.held !== undefined) rebuilt.held = body.held
           // A tracked session still owns the item in the editor: the landed
           // copy must stay ineligible for delivery until ownership transfers,
           // or a completion drains the edited content mid-session and a later

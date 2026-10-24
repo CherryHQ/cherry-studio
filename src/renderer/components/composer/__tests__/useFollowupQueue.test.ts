@@ -1181,6 +1181,36 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('retains outgoing hold-release retries after unmount (inv_d42203843d6d319f)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      let failures = 2
+      postTrigger.mockImplementation(async ({ body }) => {
+        if (body.held === false && failures-- > 0) throw new Error('release offline')
+      })
+      const { result, unmount } = renderHook(() => useFollowupQueue(baseProps()))
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      await act(async () => {
+        await result.current.takeForEdit('b', () => ({ draft: draft('edited'), payload: payload('edited') }))
+      })
+      const restoreId = postTrigger.mock.calls[0][0].body.id
+      expect(takeDeleteTrigger).toHaveBeenLastCalledWith({ params: { id: 'b' }, body: { transferHeldId: restoreId } })
+      unmount()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000)
+      })
+      expect(postTrigger.mock.calls.filter(([arg]) => arg.body.held === false)).toHaveLength(3)
+      expect(postTrigger).toHaveBeenLastCalledWith({ body: expect.objectContaining({ id: restoreId, held: false }) })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('returns the outgoing edit to its slot with the rebuilt draft when switching targets', async () => {
     wireQuery([row('a', 'first'), row('b', 'second')])
     const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
@@ -1225,7 +1255,10 @@ describe('useFollowupQueue', () => {
     expect(releaseBody).toEqual(expect.objectContaining({ id: restoreId, held: false }))
     // 'a' was taken from slot 0, so its rebuilt copy goes back to the head.
     expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { position: 'first' } }] } })
-    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({
+      params: { id: 'b' },
+      body: { transferHeldId: expect.any(String) }
+    })
   })
 
   it('anchors the restored edit after a surviving predecessor when a peer removed an earlier row (inv_66de69107768f834)', async () => {
@@ -1262,7 +1295,10 @@ describe('useFollowupQueue', () => {
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
     // The convergence pass agrees with the reconciled anchor.
     expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { after: 'b' } }] } })
-    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'e' } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({
+      params: { id: 'e' },
+      body: { transferHeldId: expect.any(String) }
+    })
   })
 
   it('reconciles the incoming position against the live queue when a peer removes an earlier row mid-restore (inv_fbf5e5f4c8954adf)', async () => {
@@ -1588,7 +1624,10 @@ describe('useFollowupQueue', () => {
       expect(switched).toBe(true)
       expect(reorderTrigger).toHaveBeenCalledTimes(2)
       expect(postTrigger).toHaveBeenCalledTimes(2)
-      expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+      expect(takeDeleteTrigger).toHaveBeenCalledWith({
+        params: { id: 'b' },
+        body: { transferHeldId: expect.any(String) }
+      })
     } finally {
       vi.useRealTimers()
     }
@@ -1631,7 +1670,10 @@ describe('useFollowupQueue', () => {
       expect(switched).toBe(true)
       expect(reorderTrigger).toHaveBeenCalledTimes(4)
       expect(postTrigger).toHaveBeenCalledTimes(2)
-      expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+      expect(takeDeleteTrigger).toHaveBeenCalledWith({
+        params: { id: 'b' },
+        body: { transferHeldId: expect.any(String) }
+      })
     } finally {
       vi.useRealTimers()
     }
@@ -1719,7 +1761,10 @@ describe('useFollowupQueue', () => {
     })
     // A non-transient failure keeps the draft safe at the tail: no retry.
     expect(reorderTrigger).toHaveBeenCalledTimes(1)
-    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({
+      params: { id: 'b' },
+      body: { transferHeldId: expect.any(String) }
+    })
   })
 
   it('refuses the switch when captureOutgoing cannot build a message', async () => {
@@ -2595,7 +2640,10 @@ describe('useFollowupQueue', () => {
       .body
     expect(releaseBody).toEqual(expect.objectContaining({ id: restoreId, held: false }))
     expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { position: 'first' } }] } })
-    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({
+      params: { id: 'b' },
+      body: { transferHeldId: expect.any(String) }
+    })
   })
 
   it('restores the outgoing edit but returns nothing when the incoming take was already sent', async () => {

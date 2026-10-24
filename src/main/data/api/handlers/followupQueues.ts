@@ -15,6 +15,7 @@ import {
   FollowupQueueScopeQuerySchema,
   FollowupQueueSettlementBodySchema,
   SetFollowupQueueStateSchema,
+  RemoveFollowupQueueSchema,
   type FollowupQueueSchemas
 } from '@shared/data/api/schemas/followupQueues'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -33,8 +34,9 @@ export const followupQueueHandlers: HandlersFor<FollowupQueueSchemas> = {
   },
 
   '/followup-queues/:id': {
-    DELETE: async ({ params }) => {
-      followupQueueService.remove(params.id)
+    DELETE: async ({ params, body }) => {
+      const parsed = RemoveFollowupQueueSchema.parse(body ?? {})
+      followupQueueService.remove(params.id, parsed.transferHeldId)
       return undefined
     }
   },

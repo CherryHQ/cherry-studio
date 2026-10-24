@@ -403,7 +403,7 @@ export type ApiQuery<TPath extends ApiPaths, TMethod extends string> = TPath ext
  */
 export type ApiBody<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
   ? TMethod extends keyof ApiSchemas[TPath]
-    ? ApiSchemas[TPath][TMethod] extends { body: infer B }
+    ? ApiSchemas[TPath][TMethod] extends { body?: infer B }
       ? B
       : never
     : never
