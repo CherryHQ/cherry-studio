@@ -3,6 +3,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import type { PromptVariableInputs } from '@main/utils/prompt'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -10,6 +11,7 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { Tool } from '@shared/ai/tool'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -58,6 +60,38 @@ export interface AgentRuntimeTraceContext {
   rootSpanId: string
 }
 
+/**
+ * The permission policy a live turn runs under: the mode frozen when the turn was admitted plus
+ * every restriction (disabled tools) applied to it during the turn. Reconciliation defers mode
+ * changes for an active turn; a replacement connection (model fallback) must be pinned to this
+ * policy so the replayed turn keeps the approvals it was admitted under.
+ */
+export interface AgentRuntimePermissionPolicy {
+  permissionMode: AgentPermissionMode
+  /** Driver-normalized disabled-tool names, as the live connection enforces them. */
+  disabledTools: readonly string[]
+}
+
+/**
+ * The prompt-layer half of what a turn was admitted with. A model fallback reopens the same host
+ * turn, so its rebuild must materialize the System Prompt that turn was captured with rather than
+ * an edit saved while the failed provider request was backing off (see agent-prompt-layers.md).
+ */
+export interface AgentRuntimePromptPolicy {
+  /**
+   * `agent.instructions` as it stood when the turn was admitted. Required so a carried policy is
+   * always explicit: `null` is the admission of "none configured" and must never fall through to
+   * the agent row the way an absent `promptPolicy` does.
+   */
+  instructions: string | null
+  /**
+   * Variable values the turn resolved its instructions with. The pinned instructions are a
+   * template, so without this a replay re-reads `app.user.name` live and can change the turn's
+   * instruction content (agent-prompt-layers.md).
+   */
+  promptVariables?: PromptVariableInputs
+}
+
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
@@ -66,6 +100,18 @@ export interface AgentRuntimeConnectInput {
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
   serviceTier?: ServiceTierSelection
+  /**
+   * Permission policy frozen for the turn this connection replays (model fallback). Absent ⇒ the
+   * connection reads the agent's latest policy at startup.
+   */
+  permissionPolicy?: AgentRuntimePermissionPolicy
+  /**
+   * The System Prompt this connection must materialize (model fallback). A replay stays inside the
+   * turn it was admitted for, so it keeps that turn's captured prompt instead of an edit saved
+   * while the failed provider request was backing off (agent-prompt-layers.md). Absent ⇒ the
+   * connection reads `agent.instructions` at startup.
+   */
+  promptPolicy?: AgentRuntimePromptPolicy
   /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
   knowledgeBaseIds?: readonly string[]
   /** Whether this connection's turn requests Fast processing. */
@@ -223,6 +269,12 @@ export interface AgentRuntimeConnection {
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    /**
+     * Disabled tools already applied to the live turn while a fallback replacement was starting.
+     * The connection unions them onto whatever it derives (tighten-only): the agent row it reads
+     * may already reflect a later re-enable, so the row alone cannot restore this turn's set.
+     */
+    carriedDisabledTools?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
@@ -237,6 +289,18 @@ export interface AgentRuntimeConnection {
    * static builtin list.
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
+  /**
+   * The live permission policy this connection enforces right now (frozen mode + mid-turn
+   * restrictions). A model-fallback replacement reads this to replay the active turn under the
+   * policy it was admitted under; omitted ⇒ the driver cannot report it and the replay is declined.
+   */
+  getPermissionPolicy?(): AgentRuntimePermissionPolicy
+  /**
+   * The prompt this turn was admitted with, so a fallback rebuild preserves it. A live response
+   * finishes with its captured prompt and saved instructions apply on the next fresh turn; omitted
+   * ⇒ the driver cannot report it and the rebuild reads the agent row (fine outside a live turn).
+   */
+  getPromptPolicy?(): AgentRuntimePromptPolicy
   stopTask?(taskId: string): Promise<boolean>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */

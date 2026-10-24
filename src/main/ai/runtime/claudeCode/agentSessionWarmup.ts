@@ -28,7 +28,8 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { capturePromptVariableInputs, type PromptVariableInputs } from '@main/utils/prompt'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -64,6 +65,10 @@ const logger = loggerService.withContext('agentSessionWarmup')
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
+  /** The System Prompt this request materialized, so installs can report it to the connection. */
+  capturedInstructions?: string | null
+  /** Variable values these instructions resolved to, so a replay keeps the turn's own values. */
+  capturedPromptVariables?: PromptVariableInputs
   settings: ClaudeCodeSettings
   sdkModelId: string
   usageCapture: AgentSessionUsageCapture
@@ -145,6 +150,8 @@ interface ConnectionMaterializationFacts {
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
+  /** Variable values the materialized prompt resolved to; the baseline must fingerprint these, not the row's. */
+  promptVariables?: PromptVariableInputs
 }
 
 /**
@@ -418,9 +425,13 @@ async function deriveConnectionConfigFromSnapshot(
       materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
-    // connection snapshots instead of invalidating this signature every turn.
-    promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
-    promptModelName: agent.modelName || null,
+    // connection snapshots instead of invalidating this signature every turn. These read what the
+    // prompt actually materialized with, so a row saved mid-backoff (model fallback replacing the
+    // primary) cannot mask the divergence a fresh turn must still rebuild on.
+    promptUserName: materialized
+      ? (materialized.promptVariables?.username ?? 'Unknown Username')
+      : application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
+    promptModelName: materialized ? (materialized.promptVariables?.modelName ?? null) : agent.modelName || null,
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
@@ -485,6 +496,30 @@ function captureMcpServerSnapshots(mcpIds: string[] | null | undefined): McpServ
   return snapshots
 }
 
+/** Live-turn facts a model-fallback rebuild must preserve instead of re-reading the agent row. */
+export interface FallbackReplayPins {
+  /**
+   * The permission mode the turn was admitted under. Carried into the SDK settings, the shared
+   * approval snapshot, and the baseline so a mode saved mid-backoff cannot re-admit the replay
+   * under it — the same change mid-turn reconciliation itself defers. `null` pins "no stored mode".
+   */
+  permissionMode?: AgentPermissionMode | null
+  /** `agent.instructions` as the turn captured it; a saved prompt applies next fresh turn. */
+  instructions?: string | null
+  /**
+   * Tools this turn has disabled, unioned onto the row's own list. A reconcile that landed while
+   * this build ran was applied to the shared snapshot the builder then re-published over; re-unioning
+   * restores that tightening so the replay cannot execute a tool the user disabled during the wait.
+   */
+  disabledTools?: readonly string[]
+  /**
+   * Prompt-variable values the turn resolved at admission (`{{username}}` / `{{model_name}}`).
+   * The raw instructions pin keeps their template, not their values, so a user name saved while the
+   * provider backed off would otherwise change this same turn's instructions on rebuild.
+   */
+  promptVariables?: PromptVariableInputs | null
+}
+
 export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
   effectiveResume?: string,
@@ -497,18 +532,40 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /**
+   * Facts the replayed turn was admitted under, kept so a rebuild cannot pick up an edit that
+   * landed mid-backoff. Both are what the live connection already serves; omitting a field leaves
+   * that fact to the freshly read agent row.
+   */
+  pinned?: FallbackReplayPins
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
-  const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return undefined
+  const agentRow = agentService.getAgent(session.agentId)
+  if (!agentRow?.model) return undefined
+  // Resolve the variable inputs before any await: `{{username}}` is a live preference read, so a
+  // save landing during route/settings/skill materialization would otherwise be baked into the
+  // installed prompt while the replay pins kept the admission-time value.
+  const promptVariables = pinned?.promptVariables ?? capturePromptVariableInputs(agentRow.modelName ?? null)
+  const agent: AgentEntity = !pinned
+    ? agentRow
+    : {
+        ...agentRow,
+        ...(pinned.permissionMode !== undefined
+          ? { configuration: { ...agentRow.configuration, permission_mode: pinned.permissionMode ?? undefined } }
+          : {}),
+        ...(pinned.instructions !== undefined ? { instructions: pinned.instructions ?? undefined } : {}),
+        ...(pinned.disabledTools !== undefined
+          ? { disabledTools: [...new Set([...(agentRow.disabledTools ?? []), ...pinned.disabledTools])] }
+          : {})
+      }
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
-  const uniqueModelId = connectionModelId ?? agent.model
+  const uniqueModelId = connectionModelId ?? agentRow.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
@@ -563,7 +620,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
-        effectiveLanguage
+        effectiveLanguage,
+        promptVariables
       },
       agent
     ),
@@ -590,7 +648,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       }),
-      effectiveLanguage
+      effectiveLanguage,
+      promptVariables
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -606,6 +665,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   return {
     connectionConfig,
+    capturedInstructions: agent.instructions ?? null,
+    capturedPromptVariables: promptVariables,
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,

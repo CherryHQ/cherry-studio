@@ -55,6 +55,7 @@ import {
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import type { PromptVariableInputs } from '@main/utils/prompt'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import {
   KB_READ_TOOL_NAME,
@@ -108,6 +109,11 @@ export function disposeToolPolicySnapshot(sessionId: string): void {
 }
 
 /** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
+export function disposeSessionHolders(sessionId: string): void {
+  sessionState().disposeSessionHolders(sessionId)
+}
+
+/** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
 export function registerMcpSessionCatalogSync(
   sessionId: string,
   agentId: string,
@@ -129,6 +135,8 @@ export interface ClaudeCodeSessionOptions {
   maxOutputTokens?: number
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
+  /** Variable values the turn was admitted with; a rebuild inside that turn must reuse them. */
+  promptVariables?: PromptVariableInputs | null
   /** Model-declared output reservation, subtracted from the window to get the usable input budget. */
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
@@ -239,7 +247,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    options?.promptVariables
   )
 
   // 6. MCP servers (session + built-in)
@@ -654,7 +663,9 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  /** Variable values the turn was admitted with; a rebuild inside that turn must reuse them. */
+  promptVariables?: PromptVariableInputs | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -676,7 +687,8 @@ export async function buildSystemPrompt(
     agent,
     citationsGuidance,
     customBaseContext,
-    effectiveLanguage
+    effectiveLanguage,
+    promptVariables
   })
 
   // Rebuilding and resuming must apply changed Cherry instructions without waiting for compaction.

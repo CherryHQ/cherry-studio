@@ -1560,6 +1560,46 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['promptModelName'])
   })
 
+  // The baseline has to fingerprint the values the prompt actually materialized with, not the row's
+  // current ones: a model fallback saves the new model while the turn is still replaying the primary.
+  it('fingerprints the materialized prompt variables, not the row saved mid-turn', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Primary Model',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Alice' : undefined))
+
+    // The user saves the fallback as primary while settings materialization is still awaiting.
+    mocks.buildSessionSettings.mockImplementationOnce(async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        modelName: 'Fallback Model',
+        disabledTools: [],
+        mcps: [],
+        configuration: {}
+      })
+      return { env: {} }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    // The replay pins the admitted values, so the baseline must describe this turn's prompt — a
+    // mismatch here would let a fresh turn keep serving the primary's values until an unrelated
+    // rebuild, and would hide the divergence the next turn needs to rebuild on.
+    expect(request?.capturedPromptVariables).toEqual({ username: 'Alice', modelName: 'Primary Model' })
+    const afterSave = await deriveSignature()
+    expect(
+      Object.keys(afterSave.rebuildFactFingerprints).filter(
+        (name) => afterSave.rebuildFactFingerprints[name] !== request?.connectionConfig.rebuildFactFingerprints?.[name]
+      )
+    ).toEqual(['promptModelName'])
+  })
+
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-a.example.com:8080' })
     const first = await deriveSignature()

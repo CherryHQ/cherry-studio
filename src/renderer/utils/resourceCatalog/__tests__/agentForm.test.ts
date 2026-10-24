@@ -29,6 +29,23 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
 }
 
 describe('buildInitialAgentFormState', () => {
+  it('loads and saves an agent-specific fallback model', () => {
+    const baseline = buildInitialAgentFormState(
+      createAgent({
+        configuration: { fallback_model_ids: ['other-provider::haiku'] }
+      })
+    )
+    expect(baseline.fallbackModel).toBe('other-provider::haiku')
+    expect(diffAgentUpdate(baseline, { ...baseline, fallbackModel: '' })?.dto.configuration).toEqual({
+      fallback_model_ids: []
+    })
+    expect(
+      diffAgentUpdate(buildInitialAgentFormState(createAgent()), {
+        ...buildInitialAgentFormState(createAgent()),
+        fallbackModel: 'other-provider::haiku'
+      })?.dto.configuration
+    ).toEqual({ fallback_model_ids: ['other-provider::haiku'] })
+  })
   it('copies AgentBase fields to form state', () => {
     const agent = createAgent({
       name: 'Demo',
