@@ -1,5 +1,6 @@
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
-import { createMcpHandler, McpServer, Server } from '@modelcontextprotocol/server'
+import { Client, InMemoryTransport, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import { createMcpHandler, type ListToolsResult, McpServer, Server } from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ClientMcpConnection } from '../ClientMcpConnection'
@@ -17,6 +18,96 @@ const events = {
 const options = () => ({ signal: new AbortController().signal, timeoutMs: 5_000 })
 
 describe('MCP catalog over modern handler.fetch', () => {
+  it.each(['legacy', 'modern'] as const)(
+    'retains the complete paginated %s catalog with boolean subschemas',
+    async (era) => {
+      const tools = [
+        { name: 'plain', inputSchema: { type: 'object' } },
+        {
+          name: 'flexible',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              allowed: true,
+              forbidden: false,
+              payload: {},
+              nested: { type: 'object', properties: { child: false } },
+              sequence: { type: 'array', items: [true, false] },
+              alternatives: { anyOf: [true, false] }
+            },
+            additionalProperties: false
+          }
+        },
+        {
+          name: 'output',
+          inputSchema: { type: 'object' },
+          outputSchema: { type: 'object', properties: { state: true } }
+        },
+        { name: 'last', inputSchema: { type: 'object' } }
+      ]
+      const server = new Server({ name: 'boolean-catalog', version: '1' }, { capabilities: { tools: {} } })
+      server.setRequestHandler(
+        'tools/list',
+        async ({ params }) =>
+          (params?.cursor
+            ? { tools: tools.slice(1) }
+            : {
+                tools: [tools[0]],
+                nextCursor: 'second'
+              }) as unknown as ListToolsResult
+      )
+      const client = new Client(
+        { name: 'test', version: '1' },
+        {
+          capabilities: { elicitation: { form: {}, url: {} }, sampling: {}, roots: {} },
+          versionNegotiation: { mode: era === 'legacy' ? 'legacy' : { pin: '2026-07-28' } }
+        }
+      )
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+      const handle =
+        era === 'modern' ? serveStdio(() => server, { transport: serverTransport, legacy: 'reject' }) : undefined
+      if (!handle) await server.connect(serverTransport)
+      await client.connect(clientTransport)
+      try {
+        expect((await client.listTools()).tools).toEqual(tools)
+      } finally {
+        await client.close()
+        if (handle) await handle.close()
+        else await server.close()
+      }
+    }
+  )
+
+  it.each(['legacy', 'modern'] as const)(
+    'rejects a malformed %s tool list even when healthy peers are present',
+    async (era) => {
+      const server = new Server({ name: 'malformed-catalog', version: '1' }, { capabilities: { tools: {} } })
+      server.setRequestHandler(
+        'tools/list',
+        async () =>
+          ({
+            tools: [{ name: 'healthy', inputSchema: { type: 'object' } }, { inputSchema: { type: 'object' } }]
+          }) as unknown as ListToolsResult
+      )
+      const client = new Client(
+        { name: 'test', version: '1' },
+        { versionNegotiation: { mode: era === 'legacy' ? 'legacy' : { pin: '2026-07-28' } } }
+      )
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+      const handle =
+        era === 'modern' ? serveStdio(() => server, { transport: serverTransport, legacy: 'reject' }) : undefined
+      if (!handle) await server.connect(serverTransport)
+      await client.connect(clientTransport)
+      try {
+        await expect(client.listTools()).rejects.toThrow(/Invalid result for tools\/list/)
+      } finally {
+        await client.close()
+        if (handle) await handle.close()
+        else await server.close()
+      }
+    }
+  )
+
   it.each(['listTools', 'listPrompts', 'listResources'] as const)(
     'cancels an in-flight %s refresh without closing the connection',
     async (method) => {
