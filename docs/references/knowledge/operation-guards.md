@@ -100,8 +100,8 @@ addItems(baseId, inputs)
   -> under same-base mutation lock:
        reserve raw/ names, counting rows still being deleted (no bytes are copied here)
        create each item
-       set root status to preparing for containers
-       set root status to processing for leaves
+       set root status to preparing for containers and for files that still owe their copy
+       set root status to processing for other leaves
        rollback created rows if create/status update fails
   -> schedule each accepted item
        owes bytes (file, url restored with a snapshot)

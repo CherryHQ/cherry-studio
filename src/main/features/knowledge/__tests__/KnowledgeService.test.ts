@@ -978,6 +978,33 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('restores a file that is still being copied in from its original, not the missing base copy', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb' })
+    const restoredBase = createBase({ id: 'restored-kb' })
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase).mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    const original = path.resolve('/docs/report.pdf')
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([
+      createFileItem('src-file', 'source-kb', original, 'preparing')
+    ])
+    const restoredFile = createFileItem('restored-file', 'restored-kb', original, 'processing')
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(restoredFile)
+    knowledgeItemGetByIdMock.mockReturnValue(restoredFile)
+
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+
+    // The source base never received the bytes, so the original is what gets probed and copied.
+    expect(probeKnowledgeSourcePathMock).toHaveBeenCalledWith(original)
+    expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+    expect(copyFileIntoKnowledgeBaseAtMock.mock.calls).toEqual([['restored-kb', original, 'report.pdf']])
+  })
+
   it('restores a processed file by copying its source and artifact, then indexes without reprocessing', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb', fileProcessorId: 'doc2x' })
@@ -1028,7 +1055,8 @@ describe('KnowledgeService', () => {
           relativePath: 'report.pdf' as PosixRelativeFilePath,
           indexedRelativePath: 'report.md' as PosixRelativeFilePath
         }
-      })
+      }),
+      { awaitingCopy: false }
     )
     // The file processor is skipped and indexing runs straight from the artifact (re-embedding still happens).
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
@@ -1080,7 +1108,8 @@ describe('KnowledgeService', () => {
           url: 'https://example.com',
           relativePath: 'example-page.md' as PosixRelativeFilePath
         }
-      })
+      }),
+      { awaitingCopy: false }
     )
   })
 
@@ -1108,7 +1137,8 @@ describe('KnowledgeService', () => {
     // No snapshot to carry: the restored url has no relativePath so first index re-captures it.
     expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
       'restored-kb',
-      expect.objectContaining({ type: 'url', data: { source: 'https://example.com', url: 'https://example.com' } })
+      expect.objectContaining({ type: 'url', data: { source: 'https://example.com', url: 'https://example.com' } }),
+      { awaitingCopy: false }
     )
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
   })
@@ -1372,7 +1402,8 @@ describe('KnowledgeService', () => {
           url: 'https://example.com/new',
           relativePath: 'example-page_1.md' as PosixRelativeFilePath
         }
-      })
+      }),
+      { awaitingCopy: false }
     )
   })
 
@@ -1449,7 +1480,8 @@ describe('KnowledgeService', () => {
       expect.objectContaining({
         type: 'file',
         data: { source: '/Users/me/Meeting notes.md', relativePath: 'Meeting notes_1.md' as PosixRelativeFilePath }
-      })
+      }),
+      { awaitingCopy: true }
     )
   })
 
@@ -1577,6 +1609,15 @@ describe('KnowledgeService', () => {
 
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
     expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(2)
+    // The rows wait in `preparing` until their bytes land.
+    expect(knowledgeItemCreateActiveMock).toHaveBeenNthCalledWith(
+      1,
+      'kb-1',
+      expect.objectContaining({ type: 'file' }),
+      {
+        awaitingCopy: true
+      }
+    )
     // One job per file, so a bad source fails only its own item.
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.copy-sources',
@@ -2121,6 +2162,14 @@ describe('KnowledgeService', () => {
       expectFailedBaseGuard(error, 'reindexItems')
     }
     expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('previews a file that is still being copied in from its original', () => {
+    const service = new KnowledgeService()
+    const original = path.resolve('/external/report.pdf')
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem('file-1', 'kb-1', original, 'preparing'))
+
+    expect(service.getFilePath('file-1')).toBe(original)
   })
 
   it('resolves a file preview to the knowledge-managed source copy', () => {

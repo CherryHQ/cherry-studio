@@ -14,9 +14,10 @@ import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionS
 import type { KnowledgeCopySourcesPayload } from '../jobTypes'
 
 // Real filesystem, real atomic copy, real lock: only the item row and the data root are stubbed.
-const { dataRoot, getByIdMock } = vi.hoisted(() => ({
+const { dataRoot, getByIdMock, updateStatusMock } = vi.hoisted(() => ({
   dataRoot: { current: '' },
-  getByIdMock: vi.fn()
+  getByIdMock: vi.fn(),
+  updateStatusMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -31,7 +32,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
-  knowledgeItemService: { getById: getByIdMock, updateStatus: vi.fn() }
+  knowledgeItemService: { getById: getByIdMock, updateStatus: updateStatusMock }
 }))
 
 const { createCopySourcesJobHandler } = await import('../copySourcesJobHandler')
@@ -39,7 +40,7 @@ const { createCopySourcesJobHandler } = await import('../copySourcesJobHandler')
 const ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const RELATIVE_PATH = 'report.pdf' as PosixRelativeFilePath
 
-function fileItem(status: 'processing' | 'deleting' = 'processing'): KnowledgeItemOf<'file'> {
+function fileItem(status: 'preparing' | 'deleting' = 'preparing'): KnowledgeItemOf<'file'> {
   return {
     id: ITEM_ID,
     baseId: 'kb-1',
@@ -82,6 +83,7 @@ describe('copy-sources job handler on a real filesystem', () => {
     fs.mkdirSync(path.dirname(sourcePath), { recursive: true })
     fs.writeFileSync(sourcePath, 'source bytes')
     getByIdMock.mockReset().mockReturnValue(fileItem())
+    updateStatusMock.mockReset()
     scheduler = { scheduleItem: vi.fn(), scheduleIndexing: vi.fn(), scheduleFileProcessingCheck: vi.fn() }
   })
 
@@ -102,6 +104,7 @@ describe('copy-sources job handler on a real filesystem', () => {
 
     expect(listRawFiles()).toEqual(['report.pdf'])
     expect(fs.readFileSync(path.join(dataRoot.current, 'kb-1', 'raw', 'report.pdf'), 'utf8')).toBe('source bytes')
+    expect(updateStatusMock).toHaveBeenCalledWith(ITEM_ID, 'processing')
     expect(scheduler.scheduleItem).toHaveBeenCalledWith('kb-1', ITEM_ID)
   })
 
@@ -112,6 +115,7 @@ describe('copy-sources job handler on a real filesystem', () => {
     await expect(handler.execute(ctxFor(payload()))).rejects.toThrow()
 
     expect(listRawFiles()).toEqual([])
+    expect(updateStatusMock).not.toHaveBeenCalled()
     expect(scheduler.scheduleItem).not.toHaveBeenCalled()
   })
 

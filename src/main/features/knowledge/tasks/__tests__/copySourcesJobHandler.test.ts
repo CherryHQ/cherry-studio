@@ -76,6 +76,46 @@ describe('copy-sources job handler', () => {
     expect(handler.defaultQueue?.(payload)).toBe('base.kb-1')
   })
 
+  it('moves a preparing file to processing in the same locked section as its commit', async () => {
+    const prepared = createPreparedCopy()
+    prepareFileCopyIntoKnowledgeBaseAtMock.mockResolvedValueOnce(prepared)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'preparing'))
+    let inLock = false
+    knowledgeLockManager.runExclusive.mockImplementation(async (_key: string, task: () => Promise<unknown>) => {
+      inLock = true
+      try {
+        return await task()
+      } finally {
+        inLock = false
+      }
+    })
+    knowledgeItemUpdateStatusMock.mockImplementationOnce(() => {
+      expect(inLock).toBe(true)
+      return createFileItem(FILE_ITEM_ID, 'processing')
+    })
+    const handler = createCopySourcesJobHandler(knowledgeLockManager as never, ingestionService)
+
+    await handler.execute(createCtx(payload, 'copy-job'))
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'processing')
+    expect(prepared.commit.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeItemUpdateStatusMock.mock.invocationCallOrder[0]
+    )
+    expect(knowledgeItemUpdateStatusMock.mock.invocationCallOrder[0]).toBeLessThan(
+      scheduleItemMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('keeps the status of an item that was not waiting in preparing', async () => {
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'processing'))
+    const handler = createCopySourcesJobHandler(knowledgeLockManager as never, ingestionService)
+
+    await handler.execute(createCtx(payload, 'copy-job'))
+
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID)
+  })
+
   it('leaves the base lock free while the bytes stream', async () => {
     const lock = new KeyedMutex()
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())

@@ -1,4 +1,5 @@
 import './jobTypes'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobHandler } from '@main/core/job/types'
@@ -51,11 +52,16 @@ export function createCopySourcesJobHandler(
         const committed = await knowledgeLockManager.runExclusive(baseId, async () => {
           // A delete that landed while the bytes were streaming must win over the commit.
           ctx.signal.throwIfAborted()
-          if ('skip' in resolveLiveKnowledgeItem(itemId)) {
+          const live = resolveLiveKnowledgeItem(itemId)
+          if ('skip' in live) {
             return false
           }
           for (const write of prepared) {
             await write.commit()
+          }
+          // The bytes are in raw/ now, so the item leaves `preparing` in the same section.
+          if (live.item.status === 'preparing') {
+            knowledgeItemService.updateStatus(itemId, 'processing')
           }
           return true
         })
