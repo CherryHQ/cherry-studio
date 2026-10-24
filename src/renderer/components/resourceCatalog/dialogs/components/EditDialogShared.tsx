@@ -23,6 +23,11 @@ import {
   PopoverContent,
   PopoverTrigger,
   Scrollbar,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -264,6 +269,9 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   formLabel = true,
   labelClassName,
   disabled = false,
+  accessById,
+  onAccessChange,
+  onKnowledgeBaseIdsChange,
   onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
@@ -271,6 +279,9 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   formLabel?: boolean
   labelClassName?: string
   disabled?: boolean
+  accessById?: Readonly<Record<string, 'read' | 'read-write'>>
+  onAccessChange?: (id: string, access: 'read' | 'read-write') => void
+  onKnowledgeBaseIdsChange?: (ids: string[]) => void
   onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
@@ -298,8 +309,10 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
     return { catalog: items, linkedItems: linked }
   }, [bases, t, value])
 
-  const setKnowledgeBaseIds = (nextValue: string[]) =>
-    form.setValue(fieldName, nextValue as never, { shouldDirty: true })
+  const setKnowledgeBaseIds = (nextValue: string[]) => {
+    if (onKnowledgeBaseIdsChange) onKnowledgeBaseIdsChange(nextValue)
+    else form.setValue(fieldName, nextValue as never, { shouldDirty: true })
+  }
   const remove = (id: string) => setKnowledgeBaseIds(value.filter((itemId) => itemId !== id))
   const add = (id: string) => setKnowledgeBaseIds([...value, id])
 
@@ -361,6 +374,23 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                       {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
                     </div>
                   </div>
+                  {onAccessChange && (
+                    <Select
+                      value={accessById?.[kb.id] ?? 'read'}
+                      disabled={disabled}
+                      onValueChange={(access) => onAccessChange(kb.id, access as 'read' | 'read-write')}>
+                      <SelectTrigger
+                        size="sm"
+                        className="w-[142px]"
+                        aria-label={`${kb.name} ${t('agent.knowledge.access.label')}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent portalContainer={portalContainer ?? undefined}>
+                        <SelectItem value="read">{t('agent.knowledge.access.read')}</SelectItem>
+                        <SelectItem value="read-write">{t('agent.knowledge.access.read_write')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"

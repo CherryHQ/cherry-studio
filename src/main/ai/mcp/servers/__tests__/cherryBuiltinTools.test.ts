@@ -510,6 +510,57 @@ describe('cherry-tools builtin tools', () => {
     })
   })
 
+  it('enforces the live read-only binding on the MCP path', async () => {
+    const access: Record<string, 'read' | 'read-write'> = { b1: 'read' }
+    const tools = await connectCherryTools(() => ({
+      allKnowledgeBases: false,
+      baseIds: ['b1'],
+      accessByBaseId: access
+    }))
+    for (const action of ['add', 'delete', 'refresh'] as const) {
+      const args =
+        action === 'add'
+          ? { baseId: 'b1', action, type: 'note', content: 'hello' }
+          : { baseId: 'b1', action, conceptIds: ['docs/a.md'] }
+      expect(textOf((await tools.callTool({ name: 'kb_manage', arguments: args })) as Result)).toContain('read-only')
+    }
+    expect(kbAddItems).not.toHaveBeenCalled()
+    expect(kbDeleteConcepts).not.toHaveBeenCalled()
+    expect(kbRefreshConcepts).not.toHaveBeenCalled()
+    access.b1 = 'read-write'
+    kbDeleteConcepts.mockResolvedValue({ applied: ['docs/a.md'], notFound: ['docs/gone.md'] })
+    const granted = (await tools.callTool({
+      name: 'kb_manage',
+      arguments: { baseId: 'b1', action: 'delete', conceptIds: ['docs/a.md', 'docs/gone.md'] }
+    })) as Result
+    expect(JSON.parse(textOf(granted))).toEqual({
+      action: 'delete',
+      deleted: ['docs/a.md'],
+      notFound: ['docs/gone.md']
+    })
+  })
+
+  it('enforces explicit read-only bindings even with universal knowledge access', async () => {
+    const tools = await connectCherryTools(() => ({
+      allKnowledgeBases: true,
+      baseIds: ['b1'],
+      accessByBaseId: { b1: 'read' as const }
+    }))
+    for (const action of ['add', 'delete', 'refresh']) {
+      const args =
+        action === 'add'
+          ? { baseId: 'b1', action, type: 'note', content: 'note', name: 'note' }
+          : { baseId: 'b1', action, conceptIds: ['docs/a.md'] }
+      expect(textOf((await tools.callTool({ name: 'kb_manage', arguments: args })) as Result)).toContain('read-only')
+    }
+    expect(kbAddItems).not.toHaveBeenCalled()
+    expect(kbDeleteConcepts).not.toHaveBeenCalled()
+    expect(kbRefreshConcepts).not.toHaveBeenCalled()
+    listBasesForDiscovery.mockResolvedValue({ items: [], total: 0 })
+    await tools.callTool({ name: 'kb_list', arguments: {} })
+    expect(listBasesForDiscovery).toHaveBeenCalledWith({ limit: 20, scope: { kind: 'unrestricted' } })
+  })
+
   it('rejects kb_manage outside the bound scope without mutating the base', async () => {
     const result = await callCherryTool('kb_manage', { baseId: 'b2', action: 'delete', conceptIds: ['docs/a.md'] }, [
       'b1'

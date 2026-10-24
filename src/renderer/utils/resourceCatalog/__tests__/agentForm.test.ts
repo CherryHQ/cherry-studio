@@ -101,6 +101,22 @@ describe('buildInitialAgentFormState', () => {
 })
 
 describe('applyAgentFormPatch', () => {
+  it('drops a removed write grant so a re-added binding defaults to read', () => {
+    const baseline = buildInitialAgentFormState(
+      createAgent({
+        knowledgeBaseIds: ['kb-1'],
+        knowledgeBaseAccess: { 'kb-1': 'read-write' }
+      })
+    )
+    const removed = applyAgentFormPatch(baseline, { knowledgeBaseIds: [] })
+    expect(diffAgentUpdate(baseline, removed)?.dto).toEqual({ knowledgeBaseIds: [], knowledgeBaseAccess: {} })
+    const readded = applyAgentFormPatch(removed, { knowledgeBaseIds: ['kb-1'] })
+    expect(diffAgentUpdate(removed, readded)?.dto).toEqual({
+      knowledgeBaseIds: ['kb-1'],
+      knowledgeBaseAccess: { 'kb-1': 'read' }
+    })
+  })
+
   it('normalizes the patched permission mode', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })
@@ -168,7 +184,40 @@ describe('diffAgentUpdate', () => {
 
     const result = diffAgentUpdate(baseline, next)
 
-    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'] })
+    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'], knowledgeBaseAccess: { 'kb-2': 'read' } })
+  })
+
+  it('emits a permission-only change without replacing the binding set', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1'], knowledgeBaseAccess: { 'kb-1': 'read' } })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseAccess: { 'kb-1': 'read-write' as const } }
+
+    expect(diffAgentUpdate(baseline, next)?.dto).toEqual({ knowledgeBaseAccess: { 'kb-1': 'read-write' } })
+  })
+
+  it('does not restore another editor’s revoked grant when editing an unrelated binding', () => {
+    const baseline = buildInitialAgentFormState(
+      createAgent({
+        knowledgeBaseIds: ['kb-1', 'kb-2'],
+        knowledgeBaseAccess: { 'kb-1': 'read', 'kb-2': 'read-write' }
+      })
+    )
+    const revoked = { ...baseline, knowledgeBaseAccess: { ...baseline.knowledgeBaseAccess, 'kb-2': 'read' as const } }
+    const granting = {
+      ...baseline,
+      knowledgeBaseAccess: { ...baseline.knowledgeBaseAccess, 'kb-1': 'read-write' as const }
+    }
+    const revoke = diffAgentUpdate(baseline, revoked)?.dto.knowledgeBaseAccess
+    const grant = diffAgentUpdate(baseline, granting)?.dto.knowledgeBaseAccess
+
+    expect({ ...baseline.knowledgeBaseAccess, ...revoke, ...grant }).toEqual({
+      'kb-1': 'read-write',
+      'kb-2': 'read'
+    })
+    expect(diffAgentUpdate(baseline, { ...granting, knowledgeBaseIds: ['kb-1', 'kb-2', 'kb-3'] })?.dto).toEqual({
+      knowledgeBaseIds: ['kb-1', 'kb-2', 'kb-3'],
+      knowledgeBaseAccess: { 'kb-1': 'read-write', 'kb-3': 'read' }
+    })
   })
 
   it('does not emit knowledgeBaseIds when the bound knowledge base set is only reordered', () => {
