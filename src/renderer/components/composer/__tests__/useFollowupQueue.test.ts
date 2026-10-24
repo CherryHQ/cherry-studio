@@ -1378,6 +1378,52 @@ describe('useFollowupQueue', () => {
     expect(heldEnqueues[1].anchor).toEqual({ after: 'b' })
   })
 
+  it('keeps incoming predecessors when DELETE refreshes membership before resolving (inv_7cb28f349bd94df4)', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+    const { claimTrigger, postTrigger, takeDeleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+    const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    wireQuery([row('b', 'second'), row('c', 'third')])
+    rerender()
+    let resolveDelete: (() => void) | undefined
+    takeDeleteTrigger.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+    let switched: Promise<unknown> | undefined
+    await act(async () => {
+      switched = result.current.takeForEdit('b', () => ({
+        draft: draft('first edited'),
+        payload: payload('first edited')
+      }))
+    })
+    await act(async () => {})
+    const restoreIdA = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+    // The service committed B's DELETE and emitted membership before returning.
+    wireQuery([row(restoreIdA, 'first edited'), row('c', 'third')])
+    rerender()
+    await act(async () => {
+      resolveDelete?.()
+      await switched
+    })
+    await act(async () => {
+      await result.current.takeForEdit('c', () => ({
+        draft: draft('second edited'),
+        payload: payload('second edited')
+      }))
+    })
+    const held = (postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean; anchor?: unknown } }]>)
+      .map(([{ body }]) => body)
+      .filter((body) => body.held)
+    expect(held).toHaveLength(2)
+    expect(held[1].anchor).toEqual({ after: restoreIdA })
+  })
+
   it('does not count the mirrored restore copy twice when reconciling the incoming edit slot (inv_39ce2d2808a2a72e)', async () => {
     // [a,b,c,d,e], edit c, then b, then e. c's restored row reaches the
     // query mirror before its enqueue resolves: the positional shortcut
