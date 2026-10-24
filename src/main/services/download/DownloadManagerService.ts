@@ -2,6 +2,7 @@ import { promises as fs, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
 import { dialog, session, shell } from 'electron'
+import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -77,8 +78,13 @@ export class DownloadManagerService extends BaseService {
   private store!: DownloadStore
   private readonly queue: string[] = []
   private readonly running = new Map<string, AbortController>()
-  /** Final and temporary paths claimed by tasks, including failed rows that can retry. */
-  private readonly reserved = new Set<string>()
+  /**
+   * Final and temporary paths claimed by tasks, keyed by the normalized path.
+   * The value is the owning task id: a cancelled row keeps its recorded paths
+   * after releasing them, so cleanup must never act on a path a newer task has
+   * since claimed.
+   */
+  private readonly reserved = new Map<string, string>()
   /** One probe/reset per task; concurrent Retry clicks join the running one. */
   private readonly retries = new Map<string, Promise<void>>()
   private readonly speeds = new SpeedMeter()
@@ -105,10 +111,10 @@ export class DownloadManagerService extends BaseService {
     // the same final and temporary paths and two writers would share one file.
     // Failed rows are included because Retry reuses their original paths.
     for (const task of this.store.listResumable()) {
-      if (task.filePath) this.claim(task.filePath)
+      if (task.filePath) this.claim(task.filePath, task.id)
     }
     for (const task of this.store.listFailed()) {
-      if (task.filePath) this.claim(task.filePath)
+      if (task.filePath) this.claim(task.filePath, task.id)
     }
     if (!application.get('PreferenceService').get(PREF.autoResume)) return
     for (const task of this.store.listResumable()) {
@@ -203,7 +209,10 @@ export class DownloadManagerService extends BaseService {
     }
 
     await fs.mkdir(dir, { recursive: true })
-    const filePath = await this.reservePath(dir, fileName, policy)
+    // Allocate the id before the path so the reservation already names its
+    // owner; a later cleanup can then tell this task's paths from a newer one's.
+    const taskId = uuidv7()
+    const filePath = await this.reservePath(dir, fileName, policy, taskId)
     const tempPath = `${filePath}.crdownload`
     const partition = input.partition ?? ''
     const fetchImpl = this.fetchFor(partition)
@@ -215,6 +224,7 @@ export class DownloadManagerService extends BaseService {
           ? planSegments(probe.totalBytes, connections)
           : [{ index: 0, start: 0, end: 0 }]
       const { task } = this.store.create({
+        id: taskId,
         url: input.url,
         finalUrl: probe.finalUrl,
         fileName,
@@ -236,6 +246,7 @@ export class DownloadManagerService extends BaseService {
     } catch (error) {
       const message = errorMessage(error)
       const { task } = this.store.create({
+        id: taskId,
         url: input.url,
         fileName,
         filePath,
@@ -258,7 +269,12 @@ export class DownloadManagerService extends BaseService {
    * `resolveDownloadPath` only sees files that exist, so two downloads starting in
    * the same tick would otherwise pick the same name.
    */
-  private async reservePath(dir: string, fileName: string, policy: DownloadConflictPolicy): Promise<string> {
+  private async reservePath(
+    dir: string,
+    fileName: string,
+    policy: DownloadConflictPolicy,
+    owner: string = uuidv7()
+  ): Promise<string> {
     if (policy === 'overwrite') {
       for (let attempt = 0; attempt < 10_000; attempt++) {
         // Only the requested name may overwrite; the alternatives allocated
@@ -269,7 +285,7 @@ export class DownloadManagerService extends BaseService {
           attempt === 0 ? 'overwrite' : 'uniquify'
         )
         if (this.isReserved(candidate)) continue
-        this.claim(candidate)
+        this.claim(candidate, owner)
         return candidate
       }
       throw new Error('could not reserve a free file name')
@@ -280,7 +296,7 @@ export class DownloadManagerService extends BaseService {
       // Claim synchronously: another start may have completed its own
       // filesystem checks while this one was awaiting them.
       if (this.isReserved(candidate)) continue
-      this.claim(candidate)
+      this.claim(candidate, owner)
       return candidate
     }
     throw new Error('could not reserve a free file name')
@@ -296,23 +312,29 @@ export class DownloadManagerService extends BaseService {
     return candidate.normalize('NFC').toLowerCase()
   }
 
-  private claim(filePath: string): void {
-    this.reserved.add(this.reservationKey(filePath))
-    this.reserved.add(this.reservationKey(`${filePath}.crdownload`))
+  private claim(filePath: string, owner: string): void {
+    this.reserved.set(this.reservationKey(filePath), owner)
+    this.reserved.set(this.reservationKey(`${filePath}.crdownload`), owner)
   }
 
-  private release(filePath: string | null | undefined): void {
+  /** Only the recorded owner may release a path; stale rows must not free a newer task's file. */
+  private release(filePath: string | null | undefined, owner: string): void {
     if (!filePath) return
-    this.reserved.delete(this.reservationKey(filePath))
-    this.reserved.delete(this.reservationKey(`${filePath}.crdownload`))
+    for (const key of [this.reservationKey(filePath), this.reservationKey(`${filePath}.crdownload`)]) {
+      if (this.reserved.get(key) === owner) this.reserved.delete(key)
+    }
+  }
+
+  /** True when `owner` still holds `candidate` as either its final or temporary path. */
+  private owns(candidate: string, owner: string): boolean {
+    const key = this.reservationKey(candidate)
+    return this.reserved.get(key) === owner || this.reserved.get(`${key}.crdownload`) === owner
   }
 
   /** True when `candidate` is any task's final or temporary path. */
   private isReserved(candidate: string): boolean {
-    return (
-      this.reserved.has(this.reservationKey(candidate)) ||
-      this.reserved.has(this.reservationKey(`${candidate}.crdownload`))
-    )
+    const key = this.reservationKey(candidate)
+    return this.reserved.has(key) || this.reserved.has(`${key}.crdownload`)
   }
 
   /**
@@ -361,9 +383,13 @@ export class DownloadManagerService extends BaseService {
       return
     }
     const entry = this.store.get(taskId)
-    this.release(entry?.task.filePath)
+    // The recorded path may already belong to a newer task: a cancelled row
+    // released it, that task reused the name, and this cleanup must not delete
+    // the newcomer's temporary file or hand its reservation away.
+    const ownsTemp = !!entry?.task.tempPath && this.owns(entry.task.tempPath, taskId)
+    this.release(entry?.task.filePath, taskId)
     this.store.setState(taskId, 'cancelled')
-    if (entry?.task.tempPath) void fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
+    if (ownsTemp && entry) void fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
   }
 
   /** Re-probes and restarts a failed task from zero. */
@@ -413,8 +439,11 @@ export class DownloadManagerService extends BaseService {
   async remove(taskId: string): Promise<void> {
     this.running.get(taskId)?.abort()
     const entry = this.store.get(taskId)
-    this.release(entry?.task.filePath)
-    if (entry?.task.tempPath) await fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
+    // A cancelled row keeps its old paths on disk. If a newer task has since
+    // reused the name, this row no longer owns them and must leave them alone.
+    const ownsTemp = !!entry?.task.tempPath && this.owns(entry.task.tempPath, taskId)
+    this.release(entry?.task.filePath, taskId)
+    if (ownsTemp && entry) await fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
     this.store.delete(taskId)
   }
 
@@ -477,7 +506,7 @@ export class DownloadManagerService extends BaseService {
       })
       const result = await runner.run(controller.signal)
       if (result === 'completed') {
-        this.release(task.filePath)
+        this.release(task.filePath, taskId)
         logger.info('Download completed', { taskId, bytes: task.totalBytes })
       }
     } catch (error) {
@@ -492,8 +521,11 @@ export class DownloadManagerService extends BaseService {
       this.active -= 1
       const entry = this.store.get(taskId)
       if (entry?.task.state === 'cancelled') {
-        this.release(entry.task.filePath)
-        if (entry.task.tempPath) await fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
+        // The worker kept ownership while it settled; release only what this
+        // task still owns so a reused name is not torn down underneath it.
+        const ownsTemp = !!entry.task.tempPath && this.owns(entry.task.tempPath, taskId)
+        this.release(entry.task.filePath, taskId)
+        if (ownsTemp) await fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
       }
       this.pump()
     }

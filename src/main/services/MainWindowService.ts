@@ -404,8 +404,9 @@ export class MainWindowService extends BaseService {
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       // The download manager cannot read the method from a DownloadItem, and
       // this listener must stay the only one on the session: record here rather
-      // than letting another module replace the policy.
-      browserRequestMethods.record(details.url, details.method)
+      // than letting another module replace the policy. The request id keeps a
+      // long-running POST attributed until its completion or error arrives.
+      browserRequestMethods.record(details.url, details.method, details.id)
       try {
         const result = isAllowed(details)
         if (typeof result === 'boolean') {
@@ -420,12 +421,22 @@ export class MainWindowService extends BaseService {
         callback({ cancel: true })
       }
     })
+    // Stop tracking outstanding requests once Chromium reports their outcome;
+    // otherwise a finished POST would keep blocking manager takeovers forever.
+    restrictedSession.webRequest.onCompleted({ urls: ['<all_urls>'] }, (details) => {
+      browserRequestMethods.finish(details.id)
+    })
+    restrictedSession.webRequest.onErrorOccurred({ urls: ['<all_urls>'] }, (details) => {
+      browserRequestMethods.finish(details.id)
+    })
 
     this.registerDisposable(() => {
       restrictedSession.setPermissionCheckHandler(null)
       restrictedSession.setPermissionRequestHandler(null)
       restrictedSession.removeListener('will-download', handleWillDownload)
       restrictedSession.webRequest.onBeforeRequest(null)
+      restrictedSession.webRequest.onCompleted(null)
+      restrictedSession.webRequest.onErrorOccurred(null)
       clearPolicy?.()
     })
   }
