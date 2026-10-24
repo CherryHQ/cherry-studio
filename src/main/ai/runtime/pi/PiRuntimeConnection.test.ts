@@ -710,7 +710,7 @@ describe('PiRuntimeConnection', () => {
 
     vi.mocked(customFetch).mockResolvedValueOnce(new Response('ok'))
     await mocks.providerStreamSimple.mock.calls[0][2].fetch('https://provider.invalid')
-    expect(customFetch).toHaveBeenCalledWith('https://provider.invalid', undefined)
+    expect(customFetch).toHaveBeenCalledWith('https://provider.invalid')
     expect(mocks.providerStreamSimple.mock.calls[0][2]).toMatchObject({
       fetch: customFetch,
       env: {
