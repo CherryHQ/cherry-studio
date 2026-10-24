@@ -252,6 +252,24 @@ const listTabsToolDefinition = {
   inputSchema: ListTabsSchema
 }
 
+export const ListDownloadsSchema = z.object({
+  taskId: z.string().min(1).optional().describe('Return only this download by id'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(20)
+    .describe('Maximum number of recent downloads to return (default 20)')
+})
+
+const listDownloadsToolDefinition = {
+  name: 'list_downloads',
+  description:
+    'List downloads started from the built-in browser or by this agent, newest first, with live progress, speed and estimated time remaining. Use it after starting a download to check status, or periodically while a large file transfers. Speed is bytes per second and reads 0 while queued, paused or finished; etaSeconds is null until the file size and a rate are both known. Use taskId to inspect one download.',
+  inputSchema: ListDownloadsSchema
+}
+
 export const SwitchTabSchema = z.object({
   tabId: z.string().describe('Tab ID to switch to'),
   privateMode: z.boolean().optional().describe('Target private window (default: false)')
@@ -274,12 +292,20 @@ const closeTabToolDefinition = {
   inputSchema: CloseTabSchema
 }
 
-export const toolDefinitions = [
+/** The registration shape both the MCP server and the AI SDK adapter consume. */
+type BrowserToolDefinition = {
+  name: string
+  description: string
+  inputSchema: z.ZodTypeAny
+}
+
+export const toolDefinitions: BrowserToolDefinition[] = [
   openToolDefinition,
   executeToolDefinition,
   screenshotToolDefinition,
   snapshotToolDefinition,
   listTabsToolDefinition,
+  listDownloadsToolDefinition,
   switchTabToolDefinition,
   closeTabToolDefinition,
   resetToolDefinition,

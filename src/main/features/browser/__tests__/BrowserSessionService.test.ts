@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { BaseService, Signal } from '@main/core/lifecycle'
+import { browserRequestMethods } from '@main/services/download/requestMethods'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserSessionService } from '../BrowserSessionService'
 import * as browserProfiles from '../import/browserProfiles'
@@ -315,5 +317,53 @@ describe('Browser data cleanup', () => {
     await vi.waitFor(() =>
       expect(cache.getPersist('browser.favicons')['https://example.com']).toMatch(/^data:image\/png;base64,/)
     )
+  })
+})
+
+describe('Browser download takeover', () => {
+  function takeover() {
+    const partition = getWebviewPartition(WebviewSecurityProfile.AgentBrowser)
+    const target = session.fromPartition(partition)
+    return {
+      partition,
+      target,
+      // The partition policy records methods; the service only reads them.
+      record: (url: string, method: string) => browserRequestMethods.record(url, method)
+    }
+  }
+
+  it('leaves a POST attachment with Electron and takes over a GET', () => {
+    const { partition, target, record } = takeover()
+    const start = vi.fn(async () => ({}))
+    vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'DownloadManagerService') return { start } as never
+      return application.getContainer().get(name)
+    })
+
+    record('https://example.com/export.csv', 'POST')
+    const postEvent = { preventDefault: vi.fn() }
+    target.emit('will-download', postEvent, {
+      getURL: () => 'https://example.com/export.csv',
+      getFilename: () => 'export.csv',
+      getMimeType: () => 'text/csv'
+    })
+    expect(postEvent.preventDefault).not.toHaveBeenCalled()
+    expect(start).not.toHaveBeenCalled()
+
+    record('https://example.com/report.pdf', 'GET')
+    const getEvent = { preventDefault: vi.fn() }
+    target.emit('will-download', getEvent, {
+      getURL: () => 'https://example.com/report.pdf',
+      getFilename: () => 'report.pdf',
+      getMimeType: () => 'application/pdf'
+    })
+    expect(getEvent.preventDefault).toHaveBeenCalledTimes(1)
+    expect(start).toHaveBeenCalledWith({
+      url: 'https://example.com/report.pdf',
+      fileName: 'report.pdf',
+      mime: 'application/pdf',
+      partition,
+      source: 'browser'
+    })
   })
 })

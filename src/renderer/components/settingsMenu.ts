@@ -10,6 +10,7 @@ import {
   FileBox,
   FileCode,
   Globe,
+  Download,
   HardDrive,
   Info,
   MonitorSmartphone,
@@ -100,6 +101,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/browser',
     titleKey: 'settings.browser.title',
     icon: createElement(Globe),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/downloads',
+    titleKey: 'settings.downloads.title',
+    icon: createElement(Download),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {

@@ -15,6 +15,7 @@ import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/win
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
+import { browserRequestMethods } from '@main/services/download/requestMethods'
 import { openRequestPath } from '@main/services/file'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
@@ -401,6 +402,11 @@ export class MainWindowService extends BaseService {
     restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
     if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+      // The download manager cannot read the method from a DownloadItem, and
+      // this listener must stay the only one on the session: record here rather
+      // than letting another module replace the policy. The request id keeps a
+      // long-running POST attributed until its completion or error arrives.
+      browserRequestMethods.record(details.url, details.method, details.id)
       try {
         const result = isAllowed(details)
         if (typeof result === 'boolean') {
@@ -415,12 +421,22 @@ export class MainWindowService extends BaseService {
         callback({ cancel: true })
       }
     })
+    // Stop tracking outstanding requests once Chromium reports their outcome;
+    // otherwise a finished POST would keep blocking manager takeovers forever.
+    restrictedSession.webRequest.onCompleted({ urls: ['<all_urls>'] }, (details) => {
+      browserRequestMethods.finish(details.id)
+    })
+    restrictedSession.webRequest.onErrorOccurred({ urls: ['<all_urls>'] }, (details) => {
+      browserRequestMethods.finish(details.id)
+    })
 
     this.registerDisposable(() => {
       restrictedSession.setPermissionCheckHandler(null)
       restrictedSession.setPermissionRequestHandler(null)
       restrictedSession.removeListener('will-download', handleWillDownload)
       restrictedSession.webRequest.onBeforeRequest(null)
+      restrictedSession.webRequest.onCompleted(null)
+      restrictedSession.webRequest.onErrorOccurred(null)
       clearPolicy?.()
     })
   }

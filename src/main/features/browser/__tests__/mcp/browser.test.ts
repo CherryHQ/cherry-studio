@@ -145,7 +145,13 @@ vi.mock('electron', async () => {
     session: {
       fromPartition: (partition: string) => {
         if (!sessions.has(partition))
-          sessions.set(partition, Object.assign(new EventEmitter(), { getPartition: () => partition }))
+          sessions.set(
+            partition,
+            Object.assign(new EventEmitter(), {
+              getPartition: () => partition,
+              webRequest: { onBeforeRequest: vi.fn() }
+            })
+          )
         return sessions.get(partition)
       }
     },

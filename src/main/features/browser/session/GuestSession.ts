@@ -7,6 +7,7 @@ import type { DownloadItem } from 'electron'
 import { loggerService } from '@logger'
 import { snapshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
+import { isBrowserDownload } from '@main/services/download/takeover'
 import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 import {
@@ -393,6 +394,8 @@ export class GuestSession implements Disposable {
 
   private readonly onDownload = (_event: Electron.Event, item: DownloadItem, guest: Electron.WebContents) => {
     if (guest !== this.guest) return
+    // The download manager cancelled this item on purpose and owns its progress.
+    if (isBrowserDownload(item)) return
     const record = (state: string) => {
       this.downloadUpdates.set(item, { filename: item.getFilename(), state })
       if (this.downloadUpdates.size > 200) this.downloadUpdates.delete(this.downloadUpdates.keys().next().value!)
