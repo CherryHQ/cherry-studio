@@ -19,6 +19,13 @@ import {
 } from '@ai-sdk/provider-utils'
 import * as z from 'zod'
 
+import {
+  countListedModels,
+  DOTHOOSH_API_URL,
+  DOTHOOSH_MIRROR_URL,
+  parseDotHooshListings,
+  readAnthropicListing
+} from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -985,6 +992,83 @@ const openAICompatibleFetcher: ModelFetcher = {
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
 }
 
+// With a key (or a custom host) the lists come from the user's host; without one, from the keyless public
+// mirror, as the Iran-hosted API is unreachable abroad. The mirror gets no headers; the key is Bearer only.
+const DotHooshListingSchema = z.looseObject({ data: z.array(z.unknown()) })
+
+const dothooshRowCount = (raw: unknown): number => {
+  const rows = (raw as { data?: unknown } | undefined)?.data
+  return Array.isArray(rows) ? rows.length : 0
+}
+
+/** An empty route is valid for a keyed request (model allow-list) but an outage for the public mirror. */
+function assertUsableDotHooshListings(routes: Record<string, unknown>, keyed: boolean): void {
+  const counts = Object.entries(routes).map(([route, raw]) => ({
+    route,
+    rows: dothooshRowCount(raw),
+    usable: countListedModels(raw)
+  }))
+  for (const { route, rows, usable } of counts) {
+    if (rows > 0 && usable === 0) throw new Error(`DotHoosh ${route} listing has ${rows} rows but none usable`)
+    if (!keyed && usable === 0) throw new Error(`DotHoosh public ${route} listing is empty`)
+  }
+  if (counts.every(({ usable }) => usable === 0)) throw new Error('DotHoosh listing has no models on any route')
+}
+
+const dothooshFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, 'dothoosh'),
+  fetch: async (provider, signal, options) => {
+    const apiKey = providerService.getRotatedApiKey(provider.id)
+    const base = (endpoint: EndpointType) => withoutTrailingSlash(getBaseUrl(provider, endpoint))
+    const chatBase = base(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    const useMirror = !apiKey && (!chatBase || chatBase === DOTHOOSH_API_URL)
+    const openaiUrl = useMirror ? `${DOTHOOSH_MIRROR_URL}/v1/models` : `${formatApiHost(chatBase)}/models`
+    const anthropicUrl = useMirror
+      ? `${DOTHOOSH_MIRROR_URL}/anthropic/v1/models`
+      : `${base(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)}/v1/models`
+    const appHeaders = useMirror ? {} : mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider))
+    const [openai, anthropic] = await Promise.all([
+      getFromApi({
+        url: openaiUrl,
+        headers: apiKey ? mergeHeaders(appHeaders, { Authorization: `Bearer ${apiKey}` }) : appHeaders,
+        responseSchema: DotHooshListingSchema,
+        abortSignal: signal
+      }),
+      readAnthropicListing((afterId) =>
+        getFromApi({
+          url: afterId ? `${anthropicUrl}?after_id=${encodeURIComponent(afterId)}` : anthropicUrl,
+          headers: apiKey ? mergeHeaders(appHeaders, { 'X-Api-Key': apiKey }) : appHeaders,
+          responseSchema: DotHooshListingSchema,
+          abortSignal: signal
+        })
+      ).catch((error): undefined => {
+        // A failed Anthropic listing leaves its models out; it never lists half of them.
+        handleOptionalModelListFailure<unknown>(error, options, {
+          providerId: provider.id,
+          endpoint: 'dothoosh-anthropic-models'
+        })
+        return undefined
+      })
+    ])
+    assertUsableDotHooshListings(anthropic ? { openai, anthropic } : { openai }, Boolean(apiKey) || !useMirror)
+    return listing(
+      parseDotHooshListings({ openai, anthropic }).map((model) =>
+        toModel(model.id, provider, {
+          name: model.name,
+          ownedBy: 'dothoosh',
+          endpointTypes: model.endpointTypes,
+          capabilities: model.capabilities.add,
+          inputModalities: model.inputModalities,
+          outputModalities: model.outputModalities,
+          ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+          ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
+          ...(model.pricing ? { pricing: model.pricing } : {})
+        })
+      )
+    )
+  }
+}
+
 const omlxFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.omlx),
   fetch: async (provider, signal) => {
@@ -1162,6 +1246,7 @@ const fetchers: ModelFetcher[] = [
   togetherFetcher,
   newApiFetcher,
   tokenDanceFetcher,
+  dothooshFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
