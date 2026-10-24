@@ -2083,7 +2083,8 @@ describe('AgentSessionRuntimeService', () => {
       reasoningEffort: 'default',
       serviceTier: 'standard',
       knowledgeBaseIds: [],
-      fastMode: false
+      fastMode: false,
+      headless: false
     })
     expect(connection.close).not.toHaveBeenCalled()
   })
@@ -2487,7 +2488,8 @@ describe('AgentSessionRuntimeService', () => {
         reasoningEffort: 'default',
         serviceTier: 'standard',
         knowledgeBaseIds: [],
-        fastMode: false
+        fastMode: false,
+        headless: false
       })
       expect(firstConnection.close).toHaveBeenCalledOnce()
       expect(connect).toHaveBeenCalledTimes(1)
@@ -2541,7 +2543,8 @@ describe('AgentSessionRuntimeService', () => {
           reasoningEffort: 'default',
           serviceTier: 'standard',
           knowledgeBaseIds: [],
-          fastMode: false
+          fastMode: false,
+          headless: false
         })
       )
 
@@ -5037,6 +5040,7 @@ describe('AgentSessionRuntimeService', () => {
         serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false,
+        headless: false,
         resumeToken: undefined,
         onSteerInjected: expect.any(Function),
         trace: {
@@ -5151,6 +5155,7 @@ describe('AgentSessionRuntimeService', () => {
         serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false,
+        headless: false,
         resumeToken: 'resume-db',
         onSteerInjected: expect.any(Function),
         trace: {
