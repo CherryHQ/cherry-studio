@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.5
+
+### Patch Changes
+
+- [#22575](https://github.com/CherryHQ/cherry-studio/pull/22575) [`ecef6a7`](https://github.com/CherryHQ/cherry-studio/commit/ecef6a7e32cc78a7976f99e1fbac6adee60b467e) Thanks [@ousugo](https://github.com/ousugo)! - Add Kimi K3.1 Pro and its highspeed variant with reasoning controls, fixed sampling constraints, and Moonshot pricing.
+
 ## 0.2.4
 
 ### Patch Changes
