@@ -2243,6 +2243,7 @@
   "message.api.check.model.title": "Bitte zu testendes Modell auswählen",
   "message.api.connection.failed": "Verbindung fehlgeschlagen",
   "message.api.connection.success": "Verbindung erfolgreich",
+  "message.attachment_notice.image_ocr": "{{names}} wurde als extrahierter Text (OCR) gesendet, da dieses Modell keine Bildeingabe unterstützt. Um Bilder direkt zu senden, wähle ein Modell mit Vision-Unterstützung oder aktiviere Vision für dieses Modell in den Anbietereinstellungen.",
   "message.attachments.pasted_image": "Bild aus Zwischenablage",
   "message.attachments.pasted_text": "Datei aus Zwischenablage",
   "message.backup.cleanup_failed": "Die Sicherung wurde abgeschlossen, aber alte Sicherungen konnten nicht bereinigt werden.",

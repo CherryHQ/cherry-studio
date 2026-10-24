@@ -2243,6 +2243,7 @@
   "message.api.check.model.title": "Выберите модель для проверки",
   "message.api.connection.failed": "Соединение не удалось",
   "message.api.connection.success": "Соединение успешно",
+  "message.attachment_notice.image_ocr": "{{names}} отправлено как извлечённый текст (OCR), так как эта модель не принимает изображения. Чтобы отправлять изображения напрямую, выберите модель с поддержкой зрения или включите «Зрение» для этой модели в настройках провайдера.",
   "message.attachments.pasted_image": "Вырезанное изображение",
   "message.attachments.pasted_text": "Вырезанный текст",
   "message.backup.cleanup_failed": "Резервное копирование завершено, но удалить старые резервные копии не удалось.",

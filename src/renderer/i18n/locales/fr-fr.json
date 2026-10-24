@@ -2243,6 +2243,7 @@
   "message.api.check.model.title": "Veuillez sélectionner le modèle à tester",
   "message.api.connection.failed": "La connexion a échoué",
   "message.api.connection.success": "La connexion a réussi",
+  "message.attachment_notice.image_ocr": "{{names}} a été envoyé sous forme de texte extrait (OCR), car ce modèle n'accepte pas les images en entrée. Pour envoyer des images directement, choisissez un modèle compatible vision ou activez la vision pour ce modèle dans les paramètres du fournisseur.",
   "message.attachments.pasted_image": "Image Presse-papiers",
   "message.attachments.pasted_text": "Fichier Presse-papiers",
   "message.backup.cleanup_failed": "La sauvegarde est terminée, mais les anciennes sauvegardes n'ont pas pu être nettoyées.",

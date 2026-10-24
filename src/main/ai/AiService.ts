@@ -48,6 +48,7 @@ import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { AttachmentNoticePartData } from '@shared/data/types/uiParts'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import {
   isEmbeddingModel,
@@ -649,8 +650,14 @@ export class AiService extends BaseService {
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
     // one shared pool, priced against what the rest of the request already spends.
+    // Images of the current turn that reach the model as OCR text: surfaced as a chat notice (#21446).
+    const currentTurnMessageId = request.messages?.at(-1)?.id
+    const ocrImageNames = new Set<string>()
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
       attachments: fileAttachments,
+      onImageOcrFallback: ({ messageId, displayName }) => {
+        if (messageId === currentTurnMessageId) ocrImageNames.add(displayName)
+      },
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
       // A caller that owns its context (the gateway) manages its own window;
@@ -772,7 +779,15 @@ export class AiService extends BaseService {
     })
     agentRef.current = agent
 
-    return agent.stream(preparedMessages, signal)
+    const stream = agent.stream(preparedMessages, signal)
+    if (ocrImageNames.size > 0) {
+      agent.write({
+        type: 'data-attachment-notice',
+        id: 'attachment-notice',
+        data: { kind: 'image-ocr', fileNames: [...ocrImageNames] } satisfies AttachmentNoticePartData
+      })
+    }
+    return stream
   }
 
   private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {

@@ -2243,6 +2243,7 @@
   "message.api.check.model.title": "請選擇要偵測的模型",
   "message.api.connection.failed": "連線失敗",
   "message.api.connection.success": "連線成功",
+  "message.attachment_notice.image_ocr": "{{names}} 已作為 OCR 擷取的文字傳送，因為目前模型不支援圖片輸入。如需直接傳送圖片，請選擇支援視覺的模型，或在服務商設定中為該模型開啟「視覺」能力。",
   "message.attachments.pasted_image": "剪貼簿圖片",
   "message.attachments.pasted_text": "貼上的文字",
   "message.backup.cleanup_failed": "備份已完成，但無法清理舊備份。",
