@@ -149,6 +149,35 @@ describe('buildAgentParams provider resolution', () => {
     }
   })
 
+  it.each([
+    [undefined, 'openai-compatible'],
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-chat']
+  ] as const)('includes the image policy for endpoint %s', async (endpointType, providerId) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId, providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider: makeProvider({
+        id: 'somehub',
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai' } }
+      }),
+      model: makeModel({
+        capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        endpointTypes: endpointType ? [endpointType] : undefined
+      })
+    })
+    expect(result.nativeFileSupport).toEqual({
+      image: true,
+      pdf: false,
+      audio: false,
+      video: false,
+      imageFormatPolicy: 'reject-bmp'
+    })
+  })
+
   it('fills the conversation header a provider declares from the request conversation', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'openai-compatible', providerSettings: {}, conversationHeader: 'x-opencode-session' },

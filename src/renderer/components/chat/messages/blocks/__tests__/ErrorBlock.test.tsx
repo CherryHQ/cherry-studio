@@ -108,6 +108,31 @@ describe('ErrorBlock', () => {
     expect(diagnostic).toHaveTextContent(copy.recovery)
   })
 
+  it('renders actionable BMP recovery from the real English catalog', () => {
+    const key = 'error.unsupported_bmp_image'
+    mocks.i18nKeys.add(key)
+    mocks.translations.set(key, enUS[key])
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'UnsupportedImageFormatError',
+          message: 'fallback',
+          stack: null,
+          i18nKey: 'unsupported_bmp_image'
+        }}
+        message={message}
+      />
+    )
+
+    const copy = screen.getByText(enUS[key])
+    expect(copy).toHaveTextContent('Save each BMP image as PNG, JPEG, WebP, or GIF')
+    expect(copy).toHaveTextContent(
+      'edit the message containing it to remove or replace the BMP attachment and send again'
+    )
+    expect(copy).toHaveTextContent('start a new chat with the converted images')
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')

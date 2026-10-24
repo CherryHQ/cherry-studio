@@ -1495,6 +1495,7 @@
   "error.truncated": "Données tronquées, taille d'origine",
   "error.truncatedBadge": "Tronqué",
   "error.unknown": "Erreur inconnue",
+  "error.unsupported_bmp_image": "Les images jointes au format BMP ne sont pas prises en charge dans cette conversation. Enregistrez chaque image BMP au format PNG, JPEG, WebP ou GIF, puis modifiez le message qui la contient pour supprimer ou remplacer la pièce jointe BMP et envoyez-le à nouveau. Vous pouvez aussi démarrer une nouvelle conversation avec les images converties.",
   "error.usage": "Quantité",
   "error.user_message_not_found": "Impossible de trouver le message d'utilisateur original",
   "error.value": "valeur",

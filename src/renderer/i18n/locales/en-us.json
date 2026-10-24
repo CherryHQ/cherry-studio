@@ -1495,6 +1495,7 @@
   "error.truncated": "Data truncated, original size",
   "error.truncatedBadge": "Truncated",
   "error.unknown": "Unknown error",
+  "error.unsupported_bmp_image": "BMP image attachments aren't supported in this chat. Save each BMP image as PNG, JPEG, WebP, or GIF, then edit the message containing it to remove or replace the BMP attachment and send again. You can also start a new chat with the converted images.",
   "error.usage": "Usage",
   "error.user_message_not_found": "Cannot find original user message to resend",
   "error.value": "Value",

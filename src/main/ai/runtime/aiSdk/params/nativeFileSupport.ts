@@ -29,7 +29,11 @@ export interface NativeFileSupport {
   readonly pdf: boolean
   readonly audio: boolean
   readonly video: boolean
+  readonly imageFormatPolicy: 'reject-bmp' | 'passthrough'
 }
+
+/** Native modalities required by a request, excluding format policy. */
+export type NativeFileRequirements = Pick<NativeFileSupport, 'image' | 'pdf' | 'audio' | 'video'>
 
 /** Resolved request routing needed to identify the actual AI SDK converter. */
 export interface NativeFileRouting {
@@ -159,6 +163,7 @@ export function resolveNativeFileSupport(
     image: isVisionModel(model),
     pdf: supportsNativePdf(provider, model, routing.aiSdkProviderId),
     audio: mediaSupport.audio && isAudioModel(model),
-    video: mediaSupport.video && isVideoModel(model)
+    video: mediaSupport.video && isVideoModel(model),
+    imageFormatPolicy: 'reject-bmp'
   }
 }

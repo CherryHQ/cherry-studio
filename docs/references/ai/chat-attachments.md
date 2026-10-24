@@ -29,7 +29,8 @@ Decided per file part in `prepareChatMessages`
 
 | Attachment | Native when | What the model receives |
 |---|---|---|
-| image | model is vision | native image part (inline) |
+| image, except declared BMP | model is vision | native image part (inline) |
+| declared BMP image | model is vision, `imageFormatPolicy` is `reject-bmp` | user-facing recovery error; no provider request |
 | image | non-vision, OCR finds text | OCR text, inline (capped) |
 | image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
 | pdf | provider+model native PDF | native PDF part (inline) |
@@ -62,6 +63,16 @@ Decided per file part in `prepareChatMessages`
   file or failing the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
+
+Ordinary chat uses `imageFormatPolicy: 'reject-bmp'`. An explicit BMP extension,
+MIME (including a data URL header), filename, or URL pathname stops the target
+model call before provider dispatch or retry/fallback. This includes active file
+parts in the effective message history; orphaned parts and retained-only references
+do not trigger the check. Convert every BMP to PNG, JPEG, WebP, or GIF, then edit
+the original message to remove or replace its BMP attachments and resend, or
+start a new chat with the converted images. Non-vision OCR behavior is unchanged.
+Claude Code explicitly uses `passthrough` and retains its existing image-block
+and local-path rules.
 
 Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
 external file parts (no `fileEntryId`) are still eagerly materialized, but

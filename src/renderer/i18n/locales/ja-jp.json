@@ -1495,6 +1495,7 @@
   "error.truncated": "データが切り捨てられました、元のサイズ",
   "error.truncatedBadge": "切り捨て",
   "error.unknown": "不明なエラー",
+  "error.unsupported_bmp_image": "このチャットでは BMP 画像の添付に対応していません。各 BMP 画像を PNG、JPEG、WebP、GIF のいずれかで保存し、その画像を含むメッセージを編集して BMP 添付ファイルを削除または置き換えてから、もう一度送信してください。変換した画像を使って新しいチャットを始めることもできます。",
   "error.usage": "用量",
   "error.user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
   "error.value": "値",

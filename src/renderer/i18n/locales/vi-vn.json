@@ -1495,6 +1495,7 @@
   "error.truncated": "Dữ liệu bị cắt ngắn, kích thước ban đầu",
   "error.truncatedBadge": "Bị cắt ngắn",
   "error.unknown": "Lỗi không xác định",
+  "error.unsupported_bmp_image": "Cuộc trò chuyện này không hỗ trợ ảnh đính kèm BMP. Hãy lưu từng ảnh BMP dưới dạng PNG, JPEG, WebP hoặc GIF, sau đó chỉnh sửa tin nhắn chứa ảnh đó để xóa hoặc thay thế tệp đính kèm BMP rồi gửi lại. Bạn cũng có thể bắt đầu cuộc trò chuyện mới với các ảnh đã chuyển đổi.",
   "error.usage": "Utilización",
   "error.user_message_not_found": "Không tìm thấy tin nhắn gốc để gửi lại",
   "error.value": "Giá trị",

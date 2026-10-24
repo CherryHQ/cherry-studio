@@ -1495,6 +1495,7 @@
   "error.truncated": "Dati troncati, dimensione originale",
   "error.truncatedBadge": "Troncati",
   "error.unknown": "Errore sconosciuto",
+  "error.unsupported_bmp_image": "Le immagini allegate in formato BMP non sono supportate in questa chat. Salva ogni immagine BMP come PNG, JPEG, WebP o GIF, poi modifica il messaggio che la contiene per rimuovere o sostituire l’allegato BMP e invialo di nuovo. Puoi anche avviare una nuova chat con le immagini convertite.",
   "error.usage": "Utilizzo",
   "error.user_message_not_found": "Impossibile trovare il messaggio originale dell'utente da inviare di nuovo",
   "error.value": "Valore",

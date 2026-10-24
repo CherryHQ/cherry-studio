@@ -29,7 +29,7 @@ import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
-import type { NativeFileSupport } from '../params/nativeFileSupport'
+import type { NativeFileRequirements } from '../params/nativeFileSupport'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -46,7 +46,7 @@ export interface BuildFallbackModelsArgs {
   /** Whether the active request resolved tools (gates non-function-calling fallbacks). */
   primaryHasTools: boolean
   /** Native attachment shapes preserved for the primary and replayed to fallbacks. */
-  requiredNativeFileSupport: NativeFileSupport
+  requiredNativeFileSupport: NativeFileRequirements
   extraFeatures: readonly RequestFeature[]
   retryPolicy: RetryPolicy
   createUsagePlugin: (input: {
@@ -161,7 +161,7 @@ async function resolveFallback(
     extraFeatures: args.extraFeatures,
     getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
   })
-  const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
+  const unsupportedNativeType = (['image', 'pdf', 'audio', 'video'] as const).find(
     (type) => required[type] && !nativeFileSupport[type]
   )
   if (unsupportedNativeType) {

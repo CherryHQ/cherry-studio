@@ -1495,6 +1495,7 @@
   "error.truncated": "Datos truncados, tamaño original",
   "error.truncatedBadge": "Truncado",
   "error.unknown": "Error desconocido",
+  "error.unsupported_bmp_image": "Esta conversación no admite imágenes adjuntas BMP. Guarde cada imagen BMP como PNG, JPEG, WebP o GIF y, después, edite el mensaje que la contiene para eliminar o reemplazar el archivo adjunto BMP y vuelva a enviarlo. También puede iniciar una nueva conversación con las imágenes convertidas.",
   "error.usage": "Cantidad de uso",
   "error.user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
   "error.value": "Valor",

@@ -1495,6 +1495,7 @@
   "error.truncated": "数据已截断，原始大小",
   "error.truncatedBadge": "已截断",
   "error.unknown": "未知错误",
+  "error.unsupported_bmp_image": "此聊天不支持 BMP 图片附件。请将每张 BMP 图片另存为 PNG、JPEG、WebP 或 GIF，然后编辑包含该图片的原消息，移除或替换 BMP 附件后重新发送。你也可以使用转换后的图片开启新聊天。",
   "error.usage": "用量",
   "error.user_message_not_found": "无法找到原始用户消息",
   "error.value": "值",
