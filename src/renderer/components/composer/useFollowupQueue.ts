@@ -75,9 +75,8 @@ type RestoreQueueBody = {
   /** Editor-owned recovery copy: ineligible for delivery until the owning
    * edit session ends (cherry-pr-review). */
   held?: boolean
-  /** Queue slot the copy must return to: the insert applies the placement
-   * atomically server-side; a concurrently removed anchor row degrades
-   * server-side to a tail insert. */
+  /** Best-effort placement applied atomically with the insert; a stale or
+   * removed anchor row degrades server-side to a tail insert. */
   anchor?: OrderRequest
 }
 
@@ -133,8 +132,9 @@ function isAlreadyResolved(error: unknown): boolean {
   return error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
 }
 
-// The reorder barrier rejects while any send claim in the scope is live: a
-// transient state worth the bounded retry below, unlike hard failures.
+// A live in-scope send claim bars reorders for the claim's lifetime; that
+// conflict is transient — the barrier lifts when the send settles or its
+// lease goes stale.
 function isReorderConflict(error: unknown): boolean {
   return error instanceof DataApiError && error.code === ErrorCode.CONFLICT
 }
@@ -204,7 +204,10 @@ const isCompletionConsumed = (scopeKey: string, completionAt: number, tentative:
 // auto-delivery (cherry-pr-review). Sessions that ended (or crashed) stop
 // refreshing, so orphaned copies self-heal server-side.
 const HELD_RESTORE_REFRESH_MS = Math.floor(STALE_SENDING_CLAIM_MS / 2)
-
+// Positional recovery after an edit-switch restore rides out a peer's live
+// claim: the reorder barrier lifts when the send settles or its lease goes
+// stale, so a short bounded retry converges instead of stranding the restored
+// draft at the tail (cherry-pr-review inv_9ecff9fca3bdab04#f1).
 const RESTORE_SLOT_RETRY_MS = 400
 const RESTORE_SLOT_MAX_ATTEMPTS = 4
 
@@ -712,15 +715,8 @@ export function useFollowupQueue({
           await enqueueTrigger({ body: { ...copy.body, held: true } })
           if (tracked.cancelled) {
             // The edit session ended while the stamp was in flight: the landed
-            // copy must not outlive the session it belonged to, and a transient
-            // DELETE failure must not strand it past the held window either
-            // (cherry-pr-review inv_a9a4ae6a7ed17c68).
-            try {
-              await removeTrigger({ params: { id: copy.body.id } })
-              if (mountedRef.current) void refetch()
-            } catch (error) {
-              if (!isAlreadyResolved(error)) scheduleResolveRetryRef.current(copy.body.id, true, '')
-            }
+            // copy must not outlive the session it belonged to.
+            void removeTrigger({ params: { id: copy.body.id } }).catch(() => {})
             return
           }
           // A landed stamp still needs renewal: the edit session can outlive
@@ -813,6 +809,19 @@ export function useFollowupQueue({
         let restoreBody: RestoreQueueBody
         try {
           restoreBody = await buildRestoreBody(restoreId, scope, outgoing.draft, outgoing.payload)
+          // Anchor the restore at the slot the outgoing item was taken from:
+          // the insert applies the placement atomically server-side and —
+          // unlike the reorder barrier — is never blocked by a peer's live
+          // send claim, so the queue slot survives arbitrarily long
+          // in-flight sends (cherry-pr-review inv_9ecff9fca3bdab04#f1). A
+          // concurrently removed anchor row degrades server-side to a tail
+          // insert, which the convergence pass below then repositions.
+          const anchorItems = itemsRef.current
+          // Reconciled against authoritative membership: the bare numeric
+          // slot anchors after the wrong row once a peer removes an earlier
+          // row in another window (cherry-pr-review inv_66de69107768f834#f1).
+          const anchorSlot = resolveRestoreSlot(anchorItems, taken)
+          restoreBody.anchor = anchorSlot === 0 ? { position: 'first' } : { after: anchorItems[anchorSlot - 1].id }
         } catch {
           // Attachments cannot be made durable right now: refuse the switch —
           // the outgoing edit is still in the editor, nothing is lost.
@@ -820,22 +829,6 @@ export function useFollowupQueue({
           toast.error(t('message.error.operation_unavailable'))
           return undefined
         }
-        // Anchor the restore at the slot the outgoing item was taken from:
-        // the insert applies the placement atomically server-side and —
-        // unlike the reorder barrier — is never blocked by a peer's live
-        // send claim, so the queue slot survives arbitrarily long in-flight
-        // sends (cherry-pr-review inv_9ecff9fca3bdab04#f1). Anchors are
-        // computed against the queue without the incoming row, which the
-        // take below deletes; a concurrently removed anchor row degrades
-        // server-side to a tail insert, which the convergence pass after
-        // the take then repositions.
-        const restoreAnchorItems = itemsRef.current.filter((entry) => entry.id !== id)
-        // Reconciled against authoritative membership: the bare numeric
-        // slot anchors after the wrong row once a peer removes an earlier
-        // row in another window (cherry-pr-review inv_66de69107768f834#f1).
-        const restoreAnchorSlot = resolveRestoreSlot(restoreAnchorItems, taken)
-        restoreBody.anchor =
-          restoreAnchorSlot === 0 ? { position: 'first' } : { after: restoreAnchorItems[restoreAnchorSlot - 1].id }
         for (let attempt = 0; attempt < 3 && !restored; attempt++) {
           try {
             // Born held: the copy stays ineligible for delivery until editor
@@ -887,6 +880,52 @@ export function useFollowupQueue({
         // remove a copy it already landed) so a stale duplicate cannot
         // linger (cherry-pr-review).
         cancelTrackedEditRestoreRef.current()
+        // Positional convergence after the anchored restore: the insert
+        // normally already placed the copy at the slot it was taken from (the
+        // slot follows removals of earlier rows via noteItemRemoved), which
+        // the refreshed items confirm and this pass skips. It remains the
+        // backstop for a stale-anchor tail insert: recompute the anchor from
+        // the latest items and retry while a peer's live claim bars the
+        // reorder; other failures leave the draft safe at the tail
+        // (cherry-pr-review inv_9ecff9fca3bdab04#f1).
+        const positionConfirmed = () => {
+          const current = itemsRef.current
+          if (current.length === 0) return false
+          const confirmedSlot = resolveRestoreSlot(current, taken)
+          if (current[confirmedSlot]?.id !== restoreId) return false
+          // Accept the mirrored placement as the reconciled slot too:
+          // confirming without recording it leaves restoreSlot at -1, the
+          // incoming-slot adjustment below then counts the mirrored copy a
+          // second time, and the incoming edit captures the restored row as
+          // a predecessor - restoring behind the row it originally preceded
+          // and reversing delivery order (cherry-pr-review
+          // inv_39ce2d2808a2a72e#f1).
+          restoreSlot = confirmedSlot
+          return true
+        }
+        for (let attempt = 0; ; attempt++) {
+          if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, RESTORE_SLOT_RETRY_MS))
+            // Unmounted or scope switched mid-retry: the row stays queued
+            // wherever it is; its position no longer has an owner.
+            if (!mountedRef.current || scopeKeyRef.current !== scope) break
+          }
+          if (positionConfirmed()) break
+          const current = itemsRef.current
+          restoreSlot = resolveRestoreSlot(current, taken)
+          const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
+          try {
+            await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
+            break
+          } catch (error) {
+            if (!isReorderConflict(error) || attempt + 1 >= RESTORE_SLOT_MAX_ATTEMPTS || positionConfirmed()) {
+              // The draft is safe at the end of the queue; only its position is off.
+              if (!positionConfirmed()) toast.error(t('message.error.operation_unavailable'))
+              break
+            }
+          }
+        }
+        if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
       // The take below closes the row's file refs: hydrate each managed
       // attachment into an editor-owned Blob first, so the restored draft never
@@ -935,53 +974,6 @@ export function useFollowupQueue({
           }
         }
       }
-      const placeRestoredEdit = async () => {
-        if (!restoredCopy) return
-        // Positional convergence after the anchored restore: the insert
-        // normally already placed the copy at the slot it was taken from,
-        // which the refreshed items confirm and this pass skips. It remains
-        // the backstop for a stale-anchor tail insert: recompute the anchor
-        // from the latest items and retry while a peer's live claim bars the
-        // reorder; other failures leave the draft safe at the tail
-        // (cherry-pr-review inv_9ecff9fca3bdab04#f1). The incoming row is
-        // already deleted at this point, so filter it out of an items
-        // snapshot that predates the delete.
-        const restoreId = restoredCopy.id
-        // restoredCopy exists only on the taken path, so the record is set.
-        const takenRecord = taken ?? { slot: 0 }
-        const currentWithoutIncoming = () => itemsRef.current.filter((entry) => entry.id !== id)
-        const positionConfirmed = () => {
-          const current = currentWithoutIncoming()
-          if (current.length === 0) return false
-          return current[resolveRestoreSlot(current, takenRecord)]?.id === restoreId
-        }
-        restoreSlot = resolveRestoreSlot(currentWithoutIncoming(), takenRecord)
-        for (let attempt = 0; ; attempt++) {
-          if (attempt > 0) {
-            await new Promise((resolve) => setTimeout(resolve, RESTORE_SLOT_RETRY_MS))
-            // Unmounted or scope switched mid-retry: the row stays queued
-            // wherever it is; its position no longer has an owner.
-            if (!mountedRef.current || scopeKeyRef.current !== scope) break
-          }
-          if (positionConfirmed()) break
-          const current = currentWithoutIncoming()
-          restoreSlot = resolveRestoreSlot(current, takenRecord)
-          const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
-          try {
-            await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
-            break
-          } catch (error) {
-            if (!isReorderConflict(error) || attempt + 1 >= RESTORE_SLOT_MAX_ATTEMPTS || positionConfirmed()) {
-              // The draft is safe at the end of the queue; only its position is off.
-              if (!positionConfirmed()) toast.error(t('message.error.operation_unavailable'))
-              break
-            }
-          }
-        }
-        // The restored copy sits at restoreSlot in the post-delete list: an
-        // incoming row at or past that index shifts one down.
-        if (restoreSlot <= incomingSlot) incomingSlot += 1
-      }
       if (claim.alreadySent) {
         // The content was already sent before a crash: the delete above is the
         // correct dequeue, but restoring its draft would invite a resend. The
@@ -989,17 +981,17 @@ export function useFollowupQueue({
         // what the composer shows — the session stays live, so hold the
         // restored copy out of delivery until the session ends
         // (cherry-pr-review).
-        await placeRestoredEdit()
         if (taken && restoredCopy) {
           holdRestoredCopy(restoredCopy)
         }
         return undefined
       }
-      // Recover a taken item into its original scope when this consumer can
-      // no longer receive it: the row is already deleted, so re-enqueue a
-      // fresh copy (the original row closed when it was taken, so a same-id
-      // enqueue would settle against the receipt without storing anything).
-      const recoverItemInScope = async () => {
+      if (scopeKeyRef.current !== scope || !mountedRef.current) {
+        // Scope moved or the consumer unmounted while DELETE was pending: the
+        // row is gone, but its draft belongs to the old scope — put it back at
+        // the end of that scope's queue instead of restoring it into a composer
+        // that can no longer receive it. (Unmount keeps the stale scopeKey, so
+        // the scope comparison alone cannot see it.)
         let restored = false
         let conversationGone = false
         const restoreId = crypto.randomUUID()
@@ -1035,46 +1027,6 @@ export function useFollowupQueue({
             restoreBody ?? { id: restoreId, scopeKey: scope, draft: item.draft, payload: restoredItem.payload }
           )
         }
-      }
-      if (scopeKeyRef.current !== scope || !mountedRef.current) {
-        // Scope moved or the consumer unmounted while DELETE was pending: the
-        // row is gone, but its draft belongs to the old scope — put it back at
-        // the end of that scope's queue instead of restoring it into a composer
-        // that can no longer receive it. (Unmount keeps the stale scopeKey, so
-        // the scope comparison alone cannot see it.)
-        await recoverItemInScope()
-        // The composer is gone and caches the still-visible outgoing draft on
-        // unmount: the landed recovery copy would age out of its hold and
-        // deliver a duplicate of that retained draft. Ownership moved to the
-        // composer cache — remove the copy (cherry-pr-review
-        // inv_ab5b303505a45104). Best-effort: a failed removal leaves the copy
-        // held, never deliverable.
-        if (restoredCopy) {
-          let removed = false
-          for (let attempt = 0; attempt < 3 && !removed; attempt++) {
-            try {
-              await removeTrigger({ params: { id: restoredCopy.id } })
-              removed = true
-            } catch (error) {
-              // Already gone counts as closed; transient failures retry inline.
-              if (isAlreadyResolved(error)) removed = true
-            }
-          }
-          // Same cleanup-ownership obligation as the deferred-reorder branch
-          // below: a transient DELETE failure must not strand the held copy
-          // (cherry-pr-review inv_f89db3564dc86774).
-          if (!removed) scheduleResolveRetryRef.current(restoredCopy.id, true, '')
-        }
-        takenEditRef.current = null
-        return undefined
-      }
-      await placeRestoredEdit()
-      if (scopeKeyRef.current !== scope || !mountedRef.current) {
-        // The consumer unmounted or changed scope while the deferred restore
-        // reorder was pending: the taken row is already deleted, so recover it
-        // in its original scope instead of returning it to an obsolete
-        // composer (cherry-pr-review).
-        await recoverItemInScope()
         // The composer is gone and caches the still-visible outgoing draft on
         // unmount: the landed recovery copy would age out of its hold and
         // deliver a duplicate of that retained draft. Ownership moved to the
@@ -1113,8 +1065,14 @@ export function useFollowupQueue({
       // copy spliced back at its reconciled slot. Restore anchors walk this
       // chain so authoritative peer removals cannot shift the edit's
       // position (cherry-pr-review inv_66de69107768f834#f1).
-      const membership = itemsRef.current.map((entry) => entry.id).filter((rowId) => rowId !== restoredItem.id)
-      if (restoredCopy && restoreSlot >= 0)
+      const mirrorIds = itemsRef.current.map((entry) => entry.id)
+      const membership = mirrorIds.filter((rowId) => rowId !== restoredItem.id)
+      // Splice the outgoing copy back only when the mirror does not already
+      // hold it: a fast refresh can deliver the restored row before this
+      // pass runs, and splicing anyway duplicates the row, letting it
+      // capture predecessor slots twice while the rows between drop out
+      // (cherry-pr-review inv_39ce2d2808a2a72e#f1, inv_62a64a1c0cf26410#f1).
+      if (restoredCopy && restoreSlot >= 0 && !mirrorIds.includes(restoredCopy.id))
         membership.splice(Math.min(restoreSlot, membership.length), 0, restoredCopy.id)
       const takenSlot = Math.max(incomingSlot, 0)
       takenEditRef.current = {
