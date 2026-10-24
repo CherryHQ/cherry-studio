@@ -66,6 +66,7 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
       queuedUserInput: conv.inbox.some((key) => typeof conv.submissions.get(key)?.input === 'string'),
       // G6: a host prompt or compact accepted but not started as a run, or a compaction in progress.
       hostCallInFlight:
+        conv.hostPrompts > 0 ||
         conv.hostCompacts > 0 ||
         conv.native?.session.isCompacting === true ||
         (run?.pending === true && run.startedBy === undefined),

@@ -8,7 +8,9 @@ import {
   type StartResult,
   type TurnInput
 } from '@cherrystudio/agent-behavior'
+import type { InputId } from '@cherrystudio/agent-runtime'
 
+import type { AgentRuntimeSession } from '../session'
 import {
   addUsage,
   historyOf,
@@ -37,7 +39,7 @@ export function startTurn(adapter: Adapter, conv: Conversation, input: TurnInput
   if (existing) return existing.admission as StartResult
   // H2 coding-agent: admissions live in this process; a key on the branch was started before it.
   if (keysOf(historyOf(conv.manager.getBranch(), conv.thread)).has(key)) return 'started'
-  if (conv.active || !piIdle(conv)) return 'busy'
+  if (conv.active || conv.hostPrompts > 0 || !piIdle(conv)) return 'busy'
   return submit(adapter, conv, key, input)
 }
 
@@ -60,6 +62,23 @@ export function drain(adapter: Adapter, conv: Conversation): void {
 export function startRun(adapter: Adapter, conv: Conversation, key: string): void {
   const native = conv.native
   if (!native) throw new Error(`Conversation ${conv.thread} has no session`)
+  const run = beginRun(adapter, conv, key)
+  const { input, inputId } = conv.submissions.get(key)!
+  const started =
+    typeof input === 'string'
+      ? native.prompt(input, {
+          preflightResult: (disposition) => {
+            if (disposition === 'handled' && conv.active === run) finishRun(adapter, conv, undefined)
+          }
+        })
+      : native.session.sendCustomMessage(markerMessage(input, key), { triggerTurn: true, inputId })
+  started.catch((error: unknown) => {
+    adapter.report(error)
+    failRun(adapter, conv, run, error)
+  })
+}
+
+function beginRun(adapter: Adapter, conv: Conversation, key: string): RunState {
   const submission = conv.submissions.get(key)!
   let end!: () => void
   const done = new Promise<void>((resolve) => {
@@ -85,21 +104,54 @@ export function startRun(adapter: Adapter, conv: Conversation, key: string): voi
   submission.state = 'running'
   submission.run = run.run
   void adapter.track(done)
-  const started =
-    typeof input === 'string'
-      ? native.prompt(input, {
-          // A command Pi handled locally starts no run.
-          preflightResult: (disposition) => {
-            if (disposition === 'handled' && conv.active === run) finishRun(adapter, conv, undefined)
-          }
-        })
-      : native.session.sendCustomMessage(markerMessage(input, key), { triggerTurn: true })
-  started.catch((error: unknown) => {
-    adapter.report(error)
-    if (conv.active !== run) return
-    const message = error instanceof Error ? error.message : String(error)
-    finishRun(adapter, conv, { live: 'error', answer: { outcome: 'failed', text: '', error: message } })
-  })
+  return run
+}
+
+function failRun(adapter: Adapter, conv: Conversation, run: RunState, error: unknown): void {
+  if (conv.active !== run) return
+  const message = error instanceof Error ? error.message : String(error)
+  finishRun(adapter, conv, { live: 'error', answer: { outcome: 'failed', text: '', error: message } })
+}
+
+/** Native preflight remains authoritative: commands and input hooks run before the busy policy. */
+export async function promptUser(
+  adapter: Adapter,
+  conv: Conversation,
+  key: string,
+  text: string,
+  options: Parameters<AgentRuntimeSession['prompt']>[1],
+  signal?: AbortSignal
+): Promise<void> {
+  if (!conv.native) throw new Error(`Conversation ${conv.thread} has no session`)
+  const begin = () => {
+    conv.submissions.set(key, { input: text, admission: 'started', state: 'queued' })
+    return beginRun(adapter, conv, key)
+  }
+  let run = conv.active ? undefined : begin()
+  const abort = () => {
+    if (run && conv.active === run) run.stopRequested = true
+  }
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) abort()
+  conv.hostPrompts += 1
+  try {
+    await conv.native.prompt(text, {
+      ...options,
+      preflightResult: (disposition) => {
+        if (disposition === 'started' && (!run || conv.active !== run)) run = begin()
+        if (signal?.aborted) abort()
+        if (disposition === 'handled' && run && conv.active === run) finishRun(adapter, conv, undefined)
+        options?.preflightResult?.(disposition)
+      }
+    })
+  } catch (error) {
+    if (run) failRun(adapter, conv, run, error)
+    throw error
+  } finally {
+    signal?.removeEventListener('abort', abort)
+    conv.hostPrompts -= 1
+    wake(conv)
+  }
 }
 
 /** How the active run ended, from Pi's settle and the run's last reply. */
@@ -158,18 +210,17 @@ export async function stopRun(adapter: Adapter, conv: Conversation): Promise<voi
   await run.done
 }
 
-/** H2: the entry the latest run in this process began with, its input; `undefined` until Pi has written it. */
+/** H2: the latest turn input placed in this run, including native user steering; none before placement. */
 export function latestStart(conv: Conversation): string | undefined {
   const run = conv.latest
   if (!run) return undefined
   const branch = conv.manager.getBranch()
-  const input = conv.submissions.get(run.key)!.input
   return branch
     .slice(branch.findIndex((entry) => entry.id === run.after) + 1)
-    .find((entry) =>
-      typeof input === 'string'
-        ? entry.type === 'message' && entry.message.role === 'user'
-        : entry.type === 'custom_message' && keyOf(entry.details) === run.key
+    .findLast(
+      (entry) =>
+        (entry.type === 'message' && entry.message.role === 'user') ||
+        (entry.type === 'custom_message' && keyOf(entry.details) === run.key)
     )?.id
 }
 
@@ -238,7 +289,8 @@ export function messageChild(
   conv: Conversation,
   input: TurnInput,
   key: string,
-  run?: number
+  run?: number,
+  inputId?: InputId
 ): MessageResult {
   const existing = conv.submissions.get(key)
   if (existing) return existing.admission as MessageResult
@@ -252,13 +304,13 @@ export function messageChild(
   if (!conv.native) throw new Error(`Child ${conv.thread} is still launching`)
   if (!active) {
     const admission: MessageResult = { run: conv.runs + 1, status: 'started' }
-    conv.submissions.set(key, { input, admission, state: 'queued' })
+    conv.submissions.set(key, { input, admission, state: 'queued', inputId })
     answerOpenCalls(conv)
     startRun(adapter, conv, key)
     return admission
   }
   const admission: MessageResult = { run: active.run, status: 'queued' }
-  conv.submissions.set(key, { input, admission, state: 'queued' })
+  conv.submissions.set(key, { input, admission, state: 'queued', inputId })
   conv.held.push(key)
   return admission
 }
@@ -287,7 +339,8 @@ export function offerSteer(conv: Conversation, reply: TurnEndEvent['message']): 
   if (key === undefined) return
   conv.steered.add(key)
   void conv.native!.session.sendCustomMessage(markerMessage(conv.submissions.get(key)!.input as TurnInput, key), {
-    triggerTurn: true
+    triggerTurn: true,
+    inputId: conv.submissions.get(key)!.inputId
   })
 }
 

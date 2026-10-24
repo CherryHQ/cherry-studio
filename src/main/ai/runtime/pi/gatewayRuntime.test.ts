@@ -60,7 +60,7 @@ describe('Pi runtime contract', () => {
     const second = confirmed(await owner.open(first.thread))
     const left = await observe(first)
     const right = await observe(second)
-    const receipt = await first.submit(draft('go'))
+    const receipt = await first.input.submit(draft('go'))
     expect(receipt).toMatchObject({ status: 'acknowledged', facts: ['dispatch-started'] })
     await expect.poll(() => texts(right)).toContain('hello ')
     const leftCount = left.length
@@ -75,9 +75,9 @@ describe('Pi runtime contract', () => {
       )
     expect(new Set(ids(right)).size).toBe(1)
     expect(ids(left)[0]).toBe(ids(right)[0])
-    expect(await first.submit(draft('closed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    expect(await first.input.submit(draft('closed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     expect(await owner.shutdown()).toEqual({ status: 'confirmed', value: { effect: 'closed' } })
-    expect(await second.submit(draft('after shutdown'))).toMatchObject({
+    expect(await second.input.submit(draft('after shutdown'))).toMatchObject({
       status: 'rejected',
       error: { code: 'closed' }
     })
@@ -98,12 +98,18 @@ describe('Pi runtime contract', () => {
         ]
       })
     )
-    expect(await access.submit(draft('start'))).toMatchObject({ status: 'acknowledged' })
+    expect(await access.input.submit(draft('start'))).toMatchObject({ status: 'acknowledged' })
     await hold.reached
-    expect(await access.submit(draft('ordinary'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
-    expect(await access.submit(draft('/local'))).toMatchObject({ status: 'acknowledged', facts: ['locally-handled'] })
-    expect(await access.submit(draft('handled'))).toMatchObject({ status: 'acknowledged', facts: ['locally-handled'] })
-    expect(await access.submit(draft('later', 'follow-up'))).toMatchObject({
+    expect(await access.input.submit(draft('ordinary'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+    expect(await access.input.submit(draft('/local'))).toMatchObject({
+      status: 'acknowledged',
+      facts: ['locally-handled']
+    })
+    expect(await access.input.submit(draft('handled'))).toMatchObject({
+      status: 'acknowledged',
+      facts: ['locally-handled']
+    })
+    expect(await access.input.submit(draft('later', 'follow-up'))).toMatchObject({
       status: 'acknowledged',
       facts: ['queued']
     })
@@ -117,7 +123,7 @@ describe('Pi runtime contract', () => {
     const manager = SessionManager.create(settings.cwd, tempDir('sessions'))
     const firstRuntime = await runtime()
     const first = confirmed(await firstRuntime.create({ ...settings, sessionManager: manager }))
-    await first.submit(draft('remember ORCHID'))
+    await first.input.submit(draft('remember ORCHID'))
     await expect
       .poll(() => manager.getBranch().some((entry) => entry.type === 'message' && entry.message.role === 'assistant'))
       .toBe(true)
@@ -138,7 +144,7 @@ describe('Pi runtime contract', () => {
     expect(handle.thread).toEqual(first.thread)
     const events = await observe(handle)
     expect(texts(events)).toContain('stored reply')
-    await handle.submit(draft('continue'))
+    await handle.input.submit(draft('continue'))
     await expect.poll(() => continued.calls.length).toBe(1)
     expect(JSON.stringify(continued.calls[0].prompt)).toContain('ORCHID')
     expect(JSON.stringify(continued.calls[0].prompt)).toContain('stored reply')
@@ -194,7 +200,7 @@ describe('Pi runtime contract', () => {
     const first = confirmed(await a)
     const second = confirmed(await b)
     const events = await observe(second)
-    const submission = first.submit(draft('pending'))
+    const submission = first.input.submit(draft('pending'))
     await preflight.reached
     let closed = false
     const closing = owner.shutdown().then((result) => {
@@ -203,7 +209,7 @@ describe('Pi runtime contract', () => {
     })
     await new Promise((resolve) => setImmediate(resolve))
     expect(closed).toBe(false)
-    expect(await second.submit(draft('sealed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    expect(await second.input.submit(draft('sealed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     preflight.open()
     expect(await submission).toMatchObject({ status: 'acknowledged' })
     expect(await closing).toEqual({ status: 'confirmed', value: { effect: 'closed' } })
@@ -229,23 +235,22 @@ describe('Pi runtime contract', () => {
       await owner.create({ ...(await config(gatewayModel(model).upstream)), subagents: child.port })
     )
     const parentEvents = await observe(root)
-    await root.submit(draft('start'))
+    await root.input.submit(draft('start'))
     await expect.poll(() => texts(parentEvents)).toContain('parent done')
-    const relationship = parentEvents.find((event) => event.type === 'delegation.upsert')
-    if (relationship?.type !== 'delegation.upsert') throw new Error('Missing child relationship')
-    const childAccess = confirmed(await owner.open(relationship.delegation.child))
+    const relationship = parentEvents.find((event) => event.type === 'subagent.upsert')
+    if (relationship?.type !== 'subagent.upsert') throw new Error('Missing child relationship')
+    const childAccess = confirmed(await owner.open(relationship.subagent.child!))
     const childEvents = await observe(childAccess)
-    expect(childAccess.inputPolicies).toEqual([])
+    expect(childAccess.input.policies).toEqual(['steer'])
     expect(texts(childEvents)).toContain('child first')
     await expect
       .poll(() => parentEvents.at(-1))
       .toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
-    await root.submit(draft('again'))
+    await root.input.submit(draft('again'))
     await expect.poll(() => texts(childEvents)).toContain('child second')
     expect(childEvents).toContainEqual({ type: 'gap', reason: 'mapping-reset' })
-    const relations = parentEvents.filter((event) => event.type === 'delegation.upsert')
-    expect(relations).toHaveLength(2)
-    expect(relations[1].delegation.child).toEqual(relationship.delegation.child)
-    expect(relations[1].delegation.ref).not.toEqual(relationship.delegation.ref)
+    const relations = parentEvents.filter((event) => event.type === 'subagent.upsert')
+    expect(relations[1].subagent.child!).toEqual(relationship.subagent.child!)
+    expect(relations[1].subagent.id).toEqual(relationship.subagent.id)
   })
 })

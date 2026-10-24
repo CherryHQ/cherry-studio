@@ -4,6 +4,10 @@
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
 
+Each Pi handle exposes `input.submit` and `input.policies`. Root contexts support `reject`,
+`steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
+controller: a live run receives a queued message; a finished child needs `SubagentPort.load` to
+start another background run. An unsupported policy is rejected before native dispatch.
 
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
 Pi owns the execution loop, tools, context accounting and compaction. The package has no AI SDK
@@ -34,9 +38,12 @@ The gateway owns upstream credentials and billing. Pi owns protocol replay, tool
 
 This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
 gateway integration; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+`tests/runtime.test.ts` exercises public child discovery, input and observation through native
+execution, including continuation, release, once-only native reporting, and shutdown during child loading.
 
 ```bash
 pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/nativeSession.test.ts
+pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/runtime.test.ts
 pnpm --filter @cherrystudio/agent-runtime-pi typecheck
 ```
 
@@ -59,6 +66,34 @@ existence and verify the native session ID instead of silently replacing it.
 `onEvent` observes copied native entries (`session-append`), compaction start/end, and completed
 turns. These events are for observation; storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
+
+## Input correlation
+
+The pinned [Pi 1.3.0 patch](../../patches/@earendil-works__pi-coding-agent@1.3.0.patch)
+adds an optional caller `inputId` to native prompts, steering, follow-ups, and custom messages.
+Pi carries it with the actual message through input transforms and queues. After its session
+manager appends that message, `input_placed` reports the token and native entry ID; the builder's
+`onEvent` forwards this as `input-placed`, after the corresponding `session-append` observation.
+Placement does not promise a file flush, model consumption, or successful completion.
+
+The common handle forwards `InputDraft.inputId` for roots and owner-managed children. Its
+projection publishes the `placed` fact and associates visible input messages with that ID.
+Hidden child custom messages remain hidden. Local handling emits `locally-handled`; an explicit
+native command failure also records `failed`, and a later admission receipt preserves it.
+
+The token is neither a deduplication key nor persisted in the native transcript. A host needing
+restart correlation must save the observed input/entry association. The native patch snapshots
+unanswered placed inputs at request preparation. A final normal reply settles that batch; tool
+and explicit boundary continuations retain it, and errors settle only after native retries and
+recovery stop. Queued or subsequently placed inputs are excluded from the preceding response.
+
+`input_settled` reports the batch, actual assistant entry/message, and abort flag. The builder
+forwards `input-settled` with typed `stopReason`, native entry ID, input IDs, and optional error.
+The common projection links each input's `response` to the observed item. Several inputs may
+share it; assistant messages do not receive a guessed single `inputId`. Normal final replies map
+to `completed`, errors to `failed`, and interruption to `aborted`. Truncation and settlement
+without a final answer map to `unanswered` with diagnostic codes. Native response completion
+does not prove semantic task success or literal consumption of every input by a context hook.
 
 ## Compaction
 
@@ -203,13 +238,17 @@ the compacting session's id, so a host can tell a subagent's compaction from its
   current tool batch, and one that comes as it settles starts its next run in the same session.
   For a finished subagent it opens its native session (`SubagentPort.load(id)` returns its
   `SessionManager`; the id and origin are checked), configures the same subagent again
-  (`continuedBy`, and `modelKey` from its origin), answers the tool calls an interrupted run left
+  (`continuedBy` for a model-tool continuation, and `modelKey` from its origin), answers the tool calls an interrupted run left
   open with an "interrupted" result and runs the message in the background, after a recovery hint
   when the last run was interrupted or aborted. Without `load`, finished subagents cannot be
   continued. The id must be one this conversation started. A message to a subagent being stopped
   waits for the stop, then continues it or is refused as for a finished one. `details` is
   `SubagentMessageDetails`: `{ sessionId, continued: false }` when queued,
   `{ sessionId, continued: true, run }` when it started a run.
+  The session owner's `messageSubagent(id, message, { inputId? })` and the common handle's `input.submit`
+  share this admission path with the model tool, including continuation locks and user-stop refusal.
+  Host input has no fabricated tool-call identity. A new background run keeps the extension's
+  native once-only parent report; merely observing the child never sends a report.
 - **Stopping** – `stop_subagent` stops a running subagent and returns its partial output; no
   notification follows, and it can be continued, unless the user also stopped that run (before or
   after the model). Its `details` (`SubagentStopDetails`) is
@@ -223,6 +262,13 @@ the compacting session's id, so a host can tell a subagent's compaction from its
   subagent; a running foreground subagent belongs to its parent's turn, so its interrupt is the
   user's `abort()` of that turn. Disposing the parent stops and disposes every subagent session; a
   run that had ended on its own by then keeps its result, which the reopened parent delivers.
+
+The common runtime exposes `Subagent` relationships in `snapshot.subagents` and
+`subagent.upsert`. The relationship ID uses the native child session ID within its parent,
+so child continuation updates the same relationship. It carries no assignment completion status.
+Retained child handles observe the replacement live session after continuation. Releasing a
+parent access does not close its child; runtime shutdown joins pending child admissions before
+disposing the parent owner and its children.
 
 With `SubagentPort.findModels`, `subagent` takes a `model` the user named: the package resolves it
 among the exact candidates the host finds (none or several fail and tell the model what to ask)
@@ -381,12 +427,15 @@ or stop comes from the handlers `install` registers and the steps they decide. T
   meter would not count them.
   The adapter registers the package's tools itself, in a child minus the `'parent-only'` ones; host-owned tools follow
   the host's own child configuration.
-- `withCall(thread, use)` binds the outbound ports to one host call; they expire when `use` settles. `submitUser` (a
-  person's text), `compact`, `settled` and `close` are the host's other entries. `close()` first waits for the opens in
+- `withCall(thread, use, { inputId?, signal? }?)` binds the outbound ports to one host call; they expire when `use`
+  settles. The optional input ID follows that thread's custom message, including one sent by a job created in the
+  call; the signal withdraws its waiting steer. `submitUser` (a person's text), `prompt`, `compact`, `settled` and
+  `close` are the host's other entries. `prompt` preserves native command/input preflight and native steer/follow-up
+  queues inside the current execution; `submitUser` uses the adapter's inbox for separate runs. `close()` first waits for the opens in
   progress (a session being built, `onOpen`) and then tears them down with the rest. Once it began, no job starts, an
   open leaves the input queued during it unstarted, and a session built after that is disposed unopened, its open
   rejecting with the closed error.
-- Only the adapter starts runs in a session it opens. Use `submitUser` and `compact`, never `session.prompt` or
+- Only the adapter starts runs in a session it opens. Use `submitUser`, `prompt` and `compact`, never `session.prompt` or
   `session.compact`, and install no extension there that starts a run (`pi.sendMessage(…, { triggerTurn: true })`,
   `pi.sendUserMessage`), also not while a run settles: the run state below (the request meter's count, the gate's call
   window, the live facts) belongs to runs the adapter starts. A run that begins while the adapter has none is reported
@@ -398,7 +447,7 @@ or stop comes from the handlers `install` registers and the steps they decide. T
 | Port | On coding-agent |
 | --- | --- |
 | H1 `Ledger` | `read` projects the whole branch with `decodeEntry` (compactions kept, other Pi entries left out): records are `custom` entries, markers `custom_message` entries whose `details` hold the data; a user entry carries its text, and every tool call and result its `callKey`. `keysSeen` holds the keys of the branch's records and markers and of the thread's live jobs; a child's `lastItem` is its last projected entry. `transact` reads, calls `decide` and writes with no await in between; a quiet input is a custom message sent without a turn trigger, refused unless the conversation is idle; a spawn creates the child's storage once every operation is checked and before any write, writes both records in the commit and builds the child session right after; a commit that rejects leaves no session file behind; a fork copies its source's branch up to the fork point, and a fork of the transacting conversation (a fork subagent) answers each call of the fork point with `FORK_PLACEHOLDER_RESULT`, while an explicit fork of another conversation leaves them to the interrupted result (H3); a commit's jobs start once its children are open, each from the next microtask, also when a child failed to build (a job that messages it then fails). `modelContext` is Pi's context after compaction, without the markers the context filter omits. |
-| H2 `Turns` | Admission is the adapter's: one run per run-starting input, from the input to Pi's `agent_settled`. A known key returns its first answer; a key only the branch still holds answers `'started'`. A `start` while a run is active is `'busy'`; once `agent_settled` has ended the run, a `start` begins a new run and never continues the settled one. Queued input waits in the adapter, not in Pi's follow-up queue, and starts when a run completes; after a failed or aborted run it stays queued until the next submission or compaction. `stop` withdraws queued input and aborts the session and the foreground children the run owns; a stop made while Pi still prepares the run is repeated at `agent_start`, because Pi drops it. A stop with `turn` acts only while the latest run in this process began with that entry (the person's message, or the custom message of the input's key) and otherwise resolves at once, so a repeated stop never reaches a later run, not even one whose input Pi has not written yet. |
+| H2 `Turns` | Admission is the adapter's: one run per run-starting input, from the input to Pi's `agent_settled`. A known key returns its first answer; a key only the branch still holds answers `'started'`. A `start` while a run is active is `'busy'`; once `agent_settled` has ended the run, a `start` begins a new run and never continues the settled one. Queued input waits in the adapter, not in Pi's follow-up queue, and starts when a run completes; after a failed or aborted run it stays queued until the next submission or compaction. `stop` withdraws queued input and aborts the session and the foreground children the run owns; a stop made while Pi still prepares the run is repeated at `agent_start`, because Pi drops it. A stop with `turn` acts only when it names the latest turn input in this process's latest run (the starting custom message or latest native user input, including steering) and otherwise resolves at once, so a repeated stop never reaches a later run, not even one whose input Pi has not written yet. |
 | H3 `Helpers` | Continuation keeps the same native session and id and increments its run number. Foreground cancellation ownership ends with the child's first run, so stopping that parent turn cannot stop a later background continuation. A message to an idle child first answers each call of the child's last reply that has no result with `INTERRUPTED_CALL_RESULT` (an error result; not when that reply failed or was aborted), then starts a run with it. One to a running child is a steer: the adapter keeps it and hands it to Pi at the run's next turn end, right before Pi polls its steering queue, one steer per turn, and `message` answers `'queued'` once Pi placed it. A steer is withdrawn, never carried into the next run and never starting one: at once when `run` is not the child's active run, when the run ends before Pi placed it (a failed or aborted turn takes none), or when the tool call whose ports sent it aborts first; `message` then answers `'withdrawn'` and `awaitAnswer` with the end of run `run`. `stop(child, run)` acts only while `run` is the child's active run; a child of an earlier process has none (D5). |
 | H4 `Jobs` | An in-process promise per job, deduplicated by key: a live job keeps its key, an ended one frees it. A job ensured in `onOpen` starts once `onOpen` has run. |
 | H5 `Waits` | Both follow the adapter's runs, which end at `agent_settled`. `untilIdle` resolves once no run is active and no host call is in flight (`hostCallInFlight`: a person's prompt not yet started as a run, a host `compact()` not yet returned, or a compaction in progress); inputs a failed run left do not hold it. `untilDone(thread, key)` resolves once the run that took the input submitted under `key` has ended, after the inputs queued before it, and at once for a withdrawn input or a key nothing was submitted under in this process (a `'busy'` start records nothing). |

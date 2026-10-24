@@ -408,10 +408,10 @@ describe('stopping subagents', () => {
       const events: ObservationPayload[] = []
       confirmed(await root.observe((event) => void events.push(event)))
       const child = async (): Promise<Thread> => {
-        await waitFor(() => events.some((event) => event.type === 'delegation.upsert'))
-        const relation = events.find((event) => event.type === 'delegation.upsert')
-        if (relation?.type !== 'delegation.upsert') throw new Error('no child')
-        return relation.delegation.child
+        await waitFor(() => events.some((event) => event.type === 'subagent.upsert'))
+        const relation = events.find((event) => event.type === 'subagent.upsert')
+        if (relation?.type !== 'subagent.upsert') throw new Error('no child')
+        return relation.subagent.child!
       }
       return { runtime, root, work, child, parent }
     }
@@ -433,7 +433,7 @@ describe('stopping subagents', () => {
         return reply('OK.')
       })
       const { runtime, root, work, child, parent } = await rootThread(model, store.port)
-      await root.submit(draft('Check A in the background'))
+      await root.input.submit(draft('Check A in the background'))
       await work.reached
       const thread = confirmed(await runtime.open(await child()))
       const turns = () => parent.events.filter((event) => event.type === 'turn-complete').length
@@ -447,7 +447,7 @@ describe('stopping subagents', () => {
       expect(turns()).toBe(1)
       expect(notified(calls)).toEqual([])
 
-      await root.submit(draft('Go on with A'))
+      await root.input.submit(draft('Go on with A'))
       const answerOf = (call: RoutedCall) => toolResults(call).find((part) => part.toolCallId === 'call_msg')
       await waitFor(() => calls.some((call) => answerOf(call) !== undefined))
       const answer = answerOf(calls.find((call) => answerOf(call) !== undefined)!)
@@ -466,7 +466,7 @@ describe('stopping subagents', () => {
         return reply('Carried on without A.')
       })
       const { runtime, root, work, child, parent } = await rootThread(model, store.port)
-      await root.submit(draft('Check A'))
+      await root.input.submit(draft('Check A'))
       await work.reached
       const thread = confirmed(await runtime.open(await child()))
 

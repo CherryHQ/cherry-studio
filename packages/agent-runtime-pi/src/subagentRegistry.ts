@@ -290,8 +290,8 @@ export class SubagentRegistry {
   }
 
   /** Queues `text` for a running subagent; false when its run has just ended. */
-  queueMessage(sessionId: string, text: string): boolean {
-    return this.live.get(sessionId)?.inbox.push(text) ?? false
+  queueMessage(sessionId: string, text: string, inputId?: string): boolean {
+    return this.live.get(sessionId)?.inbox.push(text, inputId) ?? false
   }
 
   /** Holds a background slot until the launch starts or fails; throws at the cap. */

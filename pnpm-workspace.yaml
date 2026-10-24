@@ -124,6 +124,8 @@ patchedDependencies:
   "@aiden0z/pptx-renderer@1.2.2": patches/@aiden0z__pptx-renderer@1.2.2.patch
   # Normalize RTF byte representations before code-page decoding; preserve font resets and binary ranges.
   rtf.js@3.0.9: patches/rtf.js@3.0.9.patch
+  # Carry native input correlation until an upstream release provides the same placement events.
+  "@earendil-works/pi-coding-agent@1.3.0": patches/@earendil-works__pi-coding-agent@1.3.0.patch
 
 allowBuilds:
   "@google/genai": false

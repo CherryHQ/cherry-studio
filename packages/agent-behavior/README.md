@@ -31,7 +31,7 @@ without I/O, and none of them is exported ([The rule core](#the-rule-core)). `or
 and `install` is its only runtime export ([Installing the package](#installing-the-package)). Until PR-2 moves
 agent-runtime-pi onto this package, goal and subagent semantics stay in the
 [agent-runtime-pi README](../agent-runtime-pi/README.md). Three pure projections and three constants are exported for
-adapters and the host: `delegationStatus(record)` gives `Delegation.status` for a run record,
+adapters and the host: `delegationStatus(record)` gives a run record's active or completed status,
 `turnOrigin(history, item)` names who started the turn an entry belongs to (a person, a goal round or a notification),
 `subagentViews(facts, approvals)` lists the background children as the host shows them, `DEFAULT_MAX_BACKGROUND` is
 the default of the host's `Settings.maxBackground()`, and `FORK_PLACEHOLDER_RESULT` and `INTERRUPTED_CALL_RESULT` are
@@ -354,8 +354,6 @@ Beyond [What the adapters provide](#what-the-adapters-provide), each adapter mus
 
 - Call `install` at open and after every restart, and forward every child thread's `interrupt()` to
   `entries.stopSubagent`.
-- Set `Delegation.status` to `delegationStatus(record)` from the latest record of each child run, one run being one
-  `DelegationId`.
 - Ask `onCompacting` before every compaction, under the key the `CompactionRequest.key` TSDoc names for the harness, and
   pass the verdict through; meter a compaction during a run as one of its requests. Never call `Summarizer` itself.
 - Pass each tool call's turn abort signal to `GateHandlers.before` as `call.signal`, and withdraw a steer that misses
