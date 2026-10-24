@@ -67,10 +67,12 @@ function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
  * this, a truncated reply is indistinguishable from a real completion.
  */
 function streamInterruptedError(): Error & { status: number } {
-  const error = new Error('Upstream stream ended before completion (idle timeout or abort)') as Error & {
+  const error = new Error('Upstream idle timeout exceeded') as Error & {
     status: number
+    cause?: string
   }
   error.status = 504
+  error.cause = 'UPSTREAM_IDLE_TIMEOUT'
   return error
 }
 
