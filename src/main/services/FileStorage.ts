@@ -86,6 +86,22 @@ class FileStorage {
     return application.getPath('feature.files.data')
   }
 
+  /**
+   * Resolves an id that arrived from the renderer to a path inside the storage
+   * directory. `path.join` would happily normalize `..`, so an unvalidated id
+   * could read or delete any file the app can reach.
+   */
+  private resolveStoredPath(id: string): string {
+    const root = path.resolve(this.storageDir)
+    const resolved = path.resolve(root, id)
+    // The root itself is not a stored file; allowing it would let `deleteDir('')`
+    // remove every saved file.
+    if (resolved === root || !resolved.startsWith(root + path.sep)) {
+      throw new Error(`Invalid stored file id: ${id}`)
+    }
+    return resolved
+  }
+
   private get tempDir(): string {
     return application.getPath('app.temp')
   }
@@ -267,17 +283,17 @@ class FileStorage {
 
   // @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
   public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
-    if (!fs.existsSync(path.join(this.storageDir, id))) {
+    if (!fs.existsSync(this.resolveStoredPath(id))) {
       return
     }
-    await fs.promises.unlink(path.join(this.storageDir, id))
+    await fs.promises.unlink(this.resolveStoredPath(id))
   }
 
   public deleteDir = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
-    if (!fs.existsSync(path.join(this.storageDir, id))) {
+    if (!fs.existsSync(this.resolveStoredPath(id))) {
       return
     }
-    await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
+    await fs.promises.rm(this.resolveStoredPath(id), { recursive: true })
   }
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
@@ -489,7 +505,7 @@ class FileStorage {
     id: string,
     detectEncoding: boolean = false
   ): Promise<string> => {
-    const filePath = path.join(this.storageDir, id)
+    const filePath = this.resolveStoredPath(id)
     return this.readFileCore(filePath, detectEncoding)
   }
 
@@ -573,7 +589,7 @@ class FileStorage {
     _: Electron.IpcMainInvokeEvent,
     id: string
   ): Promise<{ mime: string; base64: string; data: string }> => {
-    const filePath = path.join(this.storageDir, id)
+    const filePath = this.resolveStoredPath(id)
     const data = await fs.promises.readFile(filePath)
     const base64 = data.toString('base64')
     const rawExt = path.extname(filePath).slice(1)
@@ -631,7 +647,7 @@ class FileStorage {
   }
 
   public base64File = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: string; mime: string }> => {
-    const filePath = path.join(this.storageDir, id)
+    const filePath = this.resolveStoredPath(id)
     const buffer = await fs.promises.readFile(filePath)
     const base64 = buffer.toString('base64')
     const mime = `application/${path.extname(filePath).slice(1)}`
@@ -639,7 +655,7 @@ class FileStorage {
   }
 
   public pdfPageCount = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<number> => {
-    const filePath = path.join(this.storageDir, id)
+    const filePath = this.resolveStoredPath(id)
     const buffer = await fs.promises.readFile(filePath)
 
     const { PDFDocument } = await import('pdf-lib')
@@ -648,7 +664,7 @@ class FileStorage {
   }
 
   public binaryImage = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: Buffer; mime: string }> => {
-    const filePath = path.join(this.storageDir, id)
+    const filePath = this.resolveStoredPath(id)
     const data = await fs.promises.readFile(filePath)
     const mime = `image/${path.extname(filePath).slice(1)}`
     return { data, mime }
@@ -928,7 +944,7 @@ class FileStorage {
   // @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
   public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
     try {
-      const sourcePath = path.join(this.storageDir, id)
+      const sourcePath = this.resolveStoredPath(id)
 
       // 确保目标目录存在
       const destDir = path.dirname(destPath)
@@ -947,7 +963,7 @@ class FileStorage {
 
   public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
     try {
-      const filePath = path.join(this.storageDir, id)
+      const filePath = this.resolveStoredPath(id)
       logger.debug(`Writing file: ${filePath}`)
 
       // 确保目录存在
