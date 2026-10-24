@@ -1198,13 +1198,14 @@ describe('useFollowupQueue', () => {
       await act(async () => {
         await result.current.takeForEdit('b', () => ({ draft: draft('edited'), payload: payload('edited') }))
       })
-      const restoreId = postTrigger.mock.calls[0][0].body.id
+      const postCalls = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+      const restoreId = postCalls[0][0].body.id
       expect(takeDeleteTrigger).toHaveBeenLastCalledWith({ params: { id: 'b' }, body: { transferHeldId: restoreId } })
       unmount()
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10000)
       })
-      expect(postTrigger.mock.calls.filter(([arg]) => arg.body.held === false)).toHaveLength(3)
+      expect(postCalls.filter(([arg]) => arg.body.held === false)).toHaveLength(3)
       expect(postTrigger).toHaveBeenLastCalledWith({ body: expect.objectContaining({ id: restoreId, held: false }) })
     } finally {
       vi.useRealTimers()
