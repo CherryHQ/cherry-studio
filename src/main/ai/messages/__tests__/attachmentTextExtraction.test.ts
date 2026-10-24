@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -89,6 +90,14 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     })
     expect(await extractDocumentText('e1')).toBe('word body\n\na callout\n\na footnote')
     expect(wordExtractMock).toHaveBeenCalledWith(expect.any(Buffer))
+  })
+
+  it('reads an xlsx with its rows and columns, not one cell per line', async () => {
+    const workbook = new ExcelJS.Workbook()
+    workbook.addWorksheet('Orders').addRow(['pen', 2])
+    getByIdMock.mockResolvedValueOnce({ ext: 'xlsx' })
+    readMock.mockResolvedValueOnce({ content: new Uint8Array(await workbook.xlsx.writeBuffer()) })
+    expect(await extractDocumentText('e1')).toBe('Sheet: Orders\npen\t2')
   })
 
   it('extracts office formats via officeparser (buffer)', async () => {
