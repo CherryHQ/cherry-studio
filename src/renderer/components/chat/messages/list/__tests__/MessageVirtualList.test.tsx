@@ -438,6 +438,68 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
   })
 
+  it('handles End at the native scroll limit without waiting for a scroll event', () => {
+    renderMessageList(() => <span>message</span>)
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+    Object.defineProperty(scroller, 'clientHeight', { value: 400, configurable: true })
+    Object.defineProperty(scroller, 'scrollHeight', { value: 2600, configurable: true })
+    scroller.scrollTop = 2200
+    const event = new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true })
+    fireEvent(scroller, event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(runtimeMockState.scrollToBottom).toHaveBeenCalledTimes(1)
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
+  })
+
+  it('leaves End with an overflowing nested scroller until its boundary', () => {
+    renderMessageList(() => (
+      <div data-testid="end-owner" style={{ overflowY: 'auto' }}>
+        content
+      </div>
+    ))
+    const nested = screen.getByTestId('end-owner')
+    Object.defineProperty(nested, 'clientHeight', { value: 100, configurable: true })
+    Object.defineProperty(nested, 'scrollHeight', { value: 300, configurable: true })
+    expect(fireEvent.keyDown(nested, { key: 'End' })).toBe(true)
+    expect(runtimeMockState.scrollToBottom).not.toHaveBeenCalled()
+    nested.scrollTop = 200
+    expect(fireEvent.keyDown(nested, { key: 'End' })).toBe(false)
+    expect(runtimeMockState.scrollToBottom).toHaveBeenCalledTimes(1)
+  })
+
+  it('chains End through every nested scroll owner before taking outer-list ownership', () => {
+    renderMessageList(() => (
+      <div data-testid="reasoning-scroll" style={{ overflowY: 'auto' }}>
+        <div data-testid="code-scroll" style={{ overflowY: 'auto' }}>
+          code
+        </div>
+      </div>
+    ))
+    const reasoning = screen.getByTestId('reasoning-scroll')
+    const code = screen.getByTestId('code-scroll')
+    for (const element of [reasoning, code]) {
+      Object.defineProperty(element, 'clientHeight', { value: 100, configurable: true })
+      Object.defineProperty(element, 'scrollHeight', { value: 300, configurable: true })
+    }
+    code.scrollTop = 200
+    expect(fireEvent.keyDown(code, { key: 'End' })).toBe(true)
+    expect(runtimeMockState.scrollToBottom).not.toHaveBeenCalled()
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
+    reasoning.scrollTop = 200
+    reasoning.style.overscrollBehaviorY = 'contain'
+    expect(fireEvent.keyDown(code, { key: 'End' })).toBe(true)
+    expect(runtimeMockState.scrollToBottom).not.toHaveBeenCalled()
+    reasoning.style.overscrollBehaviorY = 'auto'
+    expect(fireEvent.keyDown(code, { key: 'End' })).toBe(false)
+    expect(runtimeMockState.scrollToBottom).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves End with an editable message', () => {
+    renderMessageList(() => <textarea aria-label="End editor" />)
+    expect(fireEvent.keyDown(screen.getByRole('textbox', { name: 'End editor' }), { key: 'End' })).toBe(true)
+    expect(runtimeMockState.scrollToBottom).not.toHaveBeenCalled()
+  })
+
   it('leaves vertical navigation keys with editable message content', () => {
     renderMessageList(() => <textarea aria-label="Editable message content" />)
 
