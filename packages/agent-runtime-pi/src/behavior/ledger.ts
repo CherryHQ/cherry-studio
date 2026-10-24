@@ -34,8 +34,17 @@ type Applied = {
   /** Jobs the commit made live, for the caller to start. */
   readonly jobs: JobRecord[]
 }
-/** One operation, checked: `create` makes the storage a spawn needs, `write` applies the operation. */
-type Prepared = { readonly create?: () => SessionManager; readonly write: (applied: Applied) => void }
+/**
+ * One operation, checked: `create` makes the storage a spawn needs, `persist` makes its disk writes, which can throw,
+ * and `register` applies what cannot be taken back (the adapter's maps, a quiet input's send).
+ */
+type Prepared = {
+  readonly create?: () => SessionManager
+  readonly persist?: () => void
+  readonly register?: (applied: Applied) => void
+}
+/** The entry a refused commit appends where it put a branch back; the facts leave it out. */
+const ROLLBACK_KIND = 'cherry.rollback'
 
 /** H1 read: the whole branch as history, the run state Pi does not keep, direct children, and keys. */
 export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts {
@@ -78,8 +87,11 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
 }
 
 /**
- * H1 transact: reads, decides and writes in one synchronous section. Every operation is checked before any child's
- * storage is created, and that storage before any write; a commit that throws on the way leaves no session file.
+ * H1 transact: reads, decides and writes in one synchronous section, in three phases: every operation is checked, then
+ * the children's storage is created, then every disk write runs (`persist`), and only once all of them succeeded what
+ * cannot be taken back (`register`). A commit that throws on the way leaves no record on any branch, no child, no job
+ * and no session file: a failed write puts back each branch the writes moved and appends a `cherry.rollback` entry
+ * there, so a reload, which takes a file's last entry as the leaf, lands on that branch too.
  */
 export function commit<R extends JsonValue>(
   adapter: Adapter,
@@ -92,14 +104,35 @@ export function commit<R extends JsonValue>(
   const created: SessionManager[] = []
   try {
     for (const { create } of prepared) if (create) created.push(create())
+    persistAll(adapter, prepared)
   } catch (error) {
     // forkFrom writes the fork's file as it creates it.
     for (const manager of created) if (manager.isPersisted()) rmSync(manager.getSessionFile()!, { force: true })
     throw error
   }
   const applied: Applied = { spawned: [], children: [], jobs: [] }
-  for (const { write } of prepared) write(applied)
+  for (const { register } of prepared) register?.(applied)
   return { step, applied }
+}
+
+/** Runs every operation's disk writes; when one throws, puts back each conversation's branch they moved. */
+function persistAll(adapter: Adapter, prepared: readonly Prepared[]): void {
+  const leaves = new Map([...adapter.conversations.values()].map(({ manager }) => [manager, manager.getLeafId()]))
+  try {
+    for (const { persist } of prepared) persist?.()
+  } catch (error) {
+    for (const [manager, leaf] of leaves) {
+      if (manager.getLeafId() === leaf) continue
+      if (leaf === null) manager.resetLeaf()
+      else manager.branch(leaf)
+      try {
+        manager.appendCustomEntry(ROLLBACK_KIND, { error: error instanceof Error ? error.message : String(error) })
+      } catch (failure) {
+        adapter.report(failure)
+      }
+    }
+    throw error
+  }
 }
 
 function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | undefined): Prepared {
@@ -108,7 +141,7 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
       const target = adapter.conversation(op.thread)
       const { kind, data } = encodeEntry(op.record, op.key)
       return {
-        write: () => {
+        persist: () => {
           target.manager.appendCustomEntry(kind, data)
         }
       }
@@ -126,7 +159,7 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
       // Sent idle without a turn trigger, Pi appends it before `sendCustomMessage` first awaits; a failure there (the
       // disk, a subscriber) only rejects that promise, which no caller awaits.
       return {
-        write: () => {
+        register: () => {
           target.native!.session.sendCustomMessage(message, { triggerTurn: false }).catch(adapter.report)
         }
       }
@@ -144,7 +177,7 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
       return {
         // forkFrom/create touch the disk and can throw, which must reject the whole commit.
         create: () => (manager = childManager(parent.manager, child, fork)),
-        write: (applied) => {
+        persist: () => {
           // Parent calls keep running there; calls copied from another child need the interrupted result (H3).
           const copied = manager.getBranch()
           const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
@@ -153,6 +186,8 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
           manager.appendCustomEntry(origin.kind, origin.data)
           const record = encodeEntry({ type: 'subagent-run', value: { ...spec.record, sessionId: child } }, key)
           parent.manager.appendCustomEntry(record.kind, record.data)
+        },
+        register: (applied) => {
           const lineage = { kind: 'subagent' as const, parent: thread, origin: spec.origin }
           const conv = newConversation(
             child,
@@ -171,7 +206,7 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
       if (!adapter.installation.jobs.has(op.job.kind))
         throw new Error(`No job handler is registered for ${op.job.kind}`)
       return {
-        write: (applied) => {
+        register: (applied) => {
           // H4: deduplicated by key, never by kind; a live job keeps its key, an ended one frees it.
           if (adapter.jobs.get(op.key)?.state === 'live') return
           const job: JobRecord = { key: op.key, spec: op.job, thread, state: 'live' }
