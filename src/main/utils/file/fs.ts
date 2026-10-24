@@ -32,6 +32,7 @@ import {
   constants,
   copyFile as fsCopyFile,
   type FileHandle,
+  link as fsLink,
   lstat as fsLstat,
   mkdir as fsMkdirPromise,
   open as fsOpen,
@@ -792,6 +793,28 @@ export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath, signal
  */
 export async function copyNew(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promise<void> {
   await fsCopyFile(src, dest, constants.COPYFILE_EXCL)
+}
+
+/**
+ * Move without replacing an existing destination. Uses hard links when supported
+ * and an exclusive copy otherwise; neither path is an atomic rename, and an
+ * interrupted copy can leave a partial destination.
+ */
+export async function moveNew(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promise<void> {
+  try {
+    await fsLink(src, dest)
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (!['EPERM', 'ENOSYS', 'ENOTSUP', 'EOPNOTSUPP'].includes(code ?? '')) throw err
+    await copyNew(src, dest)
+  }
+
+  try {
+    await unlink(src)
+  } catch (err) {
+    logger.warn('moveNew: source removal failed after destination creation', { src, dest, err })
+    throw err
+  }
 }
 
 /**

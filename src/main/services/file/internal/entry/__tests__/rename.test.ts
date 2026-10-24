@@ -125,6 +125,59 @@ describe('internal/entry/rename', () => {
     expect(await readFile(collision, 'utf-8')).toBe('B')
   })
 
+  it('does not overwrite a destination created after the existence check', async () => {
+    const firstPath = path.join(tmp, 'race-first.txt')
+    const secondPath = path.join(tmp, 'race-second.txt')
+    const targetPath = path.join(tmp, 'race-target.txt')
+    await writeFile(firstPath, 'first payload')
+    await writeFile(secondPath, 'second payload')
+    const first = await ensureExternal(deps, { externalPath: firstPath as AbsoluteFilePath, cleanupPolicy: 'manual' })
+    const second = await ensureExternal(deps, { externalPath: secondPath as AbsoluteFilePath, cleanupPolicy: 'manual' })
+
+    const fsModule = await import('@main/utils/file')
+    let releaseProbes!: () => void
+    const probesReleased = new Promise<void>((resolve) => {
+      releaseProbes = resolve
+    })
+    let probeCount = 0
+    vi.spyOn(fsModule, 'exists').mockImplementation(async () => {
+      probeCount += 1
+      if (probeCount === 2) releaseProbes()
+      await probesReleased
+      return false
+    })
+
+    const firstDbWrite = new Promise<void>((resolve) => {
+      const update = deps.fileEntryService.setExternalPathAndName.bind(deps.fileEntryService)
+      vi.spyOn(deps.fileEntryService, 'setExternalPathAndName').mockImplementation((id, externalPath, name) => {
+        const result = update(id, externalPath, name)
+        if (id === first.id) resolve()
+        return result
+      })
+    })
+    const move = fsModule.moveNew.bind(fsModule)
+    vi.spyOn(fsModule, 'moveNew').mockImplementation(async (src, dest) => {
+      if (src === secondPath) await firstDbWrite
+      return move(src, dest)
+    })
+
+    const results = await Promise.allSettled([
+      rename(deps, first.id, 'race-target'),
+      rename(deps, second.id, 'race-target')
+    ])
+
+    expect(results.map(({ status }) => status).sort()).toEqual(['fulfilled', 'rejected'])
+    await expect(readFile(firstPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(secondPath, 'utf-8')).toBe('second payload')
+    expect(await readFile(targetPath, 'utf-8')).toBe('first payload')
+    const storedFirst = fileEntryService.getById(first.id)
+    const storedSecond = fileEntryService.getById(second.id)
+    if (storedFirst.origin !== 'external' || storedSecond.origin !== 'external')
+      throw new Error('expected external entries')
+    expect(storedFirst.externalPath).toBe(targetPath)
+    expect(storedSecond.externalPath).toBe(secondPath)
+  })
+
   it('treats NFC and NFD spellings as distinct byte-faithful targets (renames, not a no-op)', async () => {
     // externalPath is stored byte-faithful (no NFC), so an NFC-stored entry
     // renamed to the NFD spelling of the same display name is a REAL rename to
@@ -142,19 +195,16 @@ describe('internal/entry/rename', () => {
     if (entry.origin !== 'external') throw new Error('expected external entry')
     expect(entry.externalPath).toBe(filePath) // byte-faithful NFC, no fold
 
-    // Spy on the file module's `move` wrapper, not `node:fs/promises.rename`:
+    // Spy on the file module's move wrapper, not `node:fs/promises.rename`:
     // the latter is a Node native ESM namespace member and Vitest cannot
-    // redefine it (`Cannot redefine property: rename`). The `rename` function
-    // under test always reaches `fsMove` before it ever calls fs.rename, so
-    // asserting on `move` is the appropriate granularity for "did the rename
-    // path actually execute".
+    // redefine it (`Cannot redefine property: rename`).
     const fsModule = await import('@main/utils/file')
-    const moveSpy = vi.spyOn(fsModule, 'move')
+    const moveSpy = vi.spyOn(fsModule, 'moveNew')
 
     // Rename to the NFD spelling — same logical name, byte-distinct target.
     const result = await rename(deps, entry.id, nfdName)
 
-    // The rename is NOT short-circuited: `move` runs and the DB row takes the
+    // The rename is NOT short-circuited: `moveNew` runs and the DB row takes the
     // byte-faithful NFD path (no NFC fold).
     expect(moveSpy).toHaveBeenCalled()
     expect(result.id).toBe(entry.id)
