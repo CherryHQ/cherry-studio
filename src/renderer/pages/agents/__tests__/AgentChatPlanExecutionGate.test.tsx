@@ -6,6 +6,7 @@ import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import { AGENT_SESSION_STOPPED_CACHE_KEY } from '@shared/ai/agentSessionStopped'
 
 import AgentChat from '../AgentChat'
@@ -314,7 +315,7 @@ function renderAgentChat() {
       modelLoading: false
     }
   }
-  return render(<AgentChat conversationBootstrap={bootstrap} />)
+  return render(<AgentChat conversationBootstrap={bootstrap} />, { wrapper: FileEditSessionProvider })
 }
 
 function respondApprovalPayload(): Record<string, unknown> | undefined {
