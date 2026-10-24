@@ -19057,6 +19057,166 @@
       }
     },
     {
+      "apiModelId": "kimi-k3.1-pro",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "kimi-k3-1-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "CNY",
+          "perMillionTokens": 1.3
+        },
+        "cacheWrite": {
+          "currency": "CNY",
+          "perMillionTokens": 13
+        },
+        "input": {
+          "currency": "CNY",
+          "perMillionTokens": 13
+        },
+        "output": {
+          "currency": "CNY",
+          "perMillionTokens": 68
+        }
+      },
+      "providerId": "moonshot",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "max"
+              },
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "kimi-k3.1-pro-highspeed",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "kimi-k3-1-pro-highspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "CNY",
+          "perMillionTokens": 1.3
+        },
+        "cacheWrite": {
+          "currency": "CNY",
+          "perMillionTokens": 26
+        },
+        "input": {
+          "currency": "CNY",
+          "perMillionTokens": 26
+        },
+        "output": {
+          "currency": "CNY",
+          "perMillionTokens": 136
+        }
+      },
+      "providerId": "moonshot",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "max"
+              },
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "modelId": "kimi-k3-fast",
       "parameterSupport": {
         "temperature": {
@@ -19256,6 +19416,130 @@
                   "value": {
                     "source": "literal",
                     "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "kimi-k3.1-pro",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "kimi-k3-1-pro",
+      "providerId": "moonshot-global",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "max"
+              },
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "kimi-k3.1-pro-highspeed",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "kimi-k3-1-pro-highspeed",
+      "providerId": "moonshot-global",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "max"
+              },
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
                   }
                 }
               ]
@@ -41413,5 +41697,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "40f7a97c43483a3a"
+  "version": "8fb3a93c61123de2"
 }

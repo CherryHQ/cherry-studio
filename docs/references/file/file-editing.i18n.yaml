@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write docs/references/file/file-editing.md
+file-editing.md: 9fae3972b6e61d7ef20d8ad73470cf312bec0056
+file-editing.zh.md: a4c4fea931ed49857873add66518bb65eaf69e0c

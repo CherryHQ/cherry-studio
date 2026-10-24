@@ -15,7 +15,7 @@ function AgentFileDiffHunkView({
 }: {
   filePath: string
   hunk: AgentFileDiffHunk
-  options: FileDiffOptions<undefined>
+  options: FileDiffOptions<undefined, undefined>
 }) {
   const fileDiff = useMemo(
     () =>
@@ -30,18 +30,19 @@ function AgentFileDiffHunkView({
 }
 
 export default function AgentFileDiffRenderer({ filePath, hunks }: { filePath?: string; hunks: AgentFileDiffHunk[] }) {
-  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
+  const { activeCodeTheme, isCodeThemeDark } = useCodeStyle()
   const { diffStyle, toggleDiffStyle } = useDiffStyle()
-  const themeType: 'dark' | 'light' = isShikiThemeDark ? 'dark' : 'light'
+  const themeType: 'dark' | 'light' = isCodeThemeDark ? 'dark' : 'light'
   const diffOptions = useMemo(
     () => ({
       disableFileHeader: true,
+      preferredHighlighter: 'highlights' as const,
       diffStyle,
       overflow: 'wrap' as const,
-      theme: activeShikiTheme,
+      theme: activeCodeTheme,
       themeType
     }),
-    [activeShikiTheme, themeType, diffStyle]
+    [activeCodeTheme, themeType, diffStyle]
   )
 
   return (

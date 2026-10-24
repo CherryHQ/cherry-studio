@@ -184,7 +184,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       .split('')
       .map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
       .join('.*')
-    const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
+    const fuzzyRegex = new RegExp(fuzzyPattern, 'i')
 
     // Split pinned items (not filtered) from regular items.
     const pinnedItems = baseList.filter((item) => item.alwaysVisible)

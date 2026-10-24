@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addNote } from '@renderer/services/NotesService'
@@ -224,6 +224,10 @@ vi.mock('@renderer/hooks/useNote', () => ({
 vi.mock('@renderer/hooks/useFileEditSession', () => ({
   useFileEditSession: () => ({
     status: mocks.sessionStatus,
+    sessionId: mocks.activeFilePath,
+    documentEpoch: 1,
+    readOnly: false,
+    prepareMutation: vi.fn(async () => ({ finish: vi.fn(async () => {}) })),
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
     draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
     isDirty: mocks.sessionIsDirty,
@@ -474,6 +478,7 @@ describe('NotesPage print payloads', () => {
     const { rerender } = await renderReadyNotesPage()
 
     mocks.sessionDraft = ''
+    mocks.richEditorContent = ''
     rerender(<NotesPage />)
     await waitFor(() => expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', ''))
 
@@ -605,8 +610,9 @@ describe('NotesPage print payloads', () => {
 
     mocks.sessionIsSaving = false
     rerender(<NotesPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
+    })
     expect(mocks.discardSession).toHaveBeenCalledOnce()
     expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
   })
@@ -618,8 +624,9 @@ describe('NotesPage print payloads', () => {
 
     await renderReadyNotesPage()
     fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
-    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
+    })
     expect(mocks.discardSession).toHaveBeenCalledOnce()
     expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
     expect(mocks.discardSession.mock.invocationCallOrder[0]).toBeLessThan(
