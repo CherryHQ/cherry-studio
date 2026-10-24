@@ -7,6 +7,7 @@ export type {
   SnapshotOptions,
   TabRetention
 } from './browserUse'
+export { applyBrowserCertificatePolicy } from './certBypass'
 export { BrowserSessionError } from './session/BrowserSessionError'
 export { GuestSession } from './session/GuestSession'
 export type {

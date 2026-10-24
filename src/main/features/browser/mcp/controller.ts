@@ -1,13 +1,15 @@
 import { randomUUID } from 'crypto'
 import { once } from 'node:events'
 
-import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
+import { app, BrowserView, type BrowserWindow, nativeTheme, session } from 'electron'
 
 import { application } from '@application'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+
+import { applyBrowserCertificatePolicy } from '../certBypass'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
@@ -49,6 +51,11 @@ export class CdpBrowserController extends BrowserPageController {
   constructor(private readonly service: BrowserSessionService) {
     super()
     nativeTheme.on('updated', this.handleThemeUpdated)
+    // The standalone window is the sole consumer of these two partitions; applying the
+    // policy here and on the AgentBrowser session (MainWindowService) covers every
+    // built-in browser surface. Idempotent via the module-level WeakSet.
+    applyBrowserCertificatePolicy(session.fromPartition(this.getPartition(false)))
+    applyBrowserCertificatePolicy(session.fromPartition(this.getPartition(true)))
   }
 
   /**

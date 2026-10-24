@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogTrigger, Switch } from '@cherrystudio/ui'
+import { Button, Dialog, DialogTrigger, Switch, Textarea } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { BrowserImportDialog } from '@renderer/components/BrowserImportDialog'
 import {
@@ -37,9 +37,26 @@ export function BrowserSettings() {
   const { t } = useTranslation()
   const [openLinks, setOpenLinks] = usePreference('app.browser.open_links_in_browser')
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
+  const [bypassHosts, setBypassHosts] = usePreference('app.browser.cert_bypass.hosts')
+  const [hostDraft, setHostDraft] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
   const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | null>(null)
+
+  const hostDraftValue = hostDraft ?? (bypassHosts ?? []).join('\n')
+  const saveBypassHosts = async () => {
+    if (hostDraft === null) return
+    setHostDraft(null)
+    setSaving(true)
+    setError(false)
+    try {
+      await setBypassHosts(hostDraft.split(/[\n,;]+/).map((line) => line.trim()).filter(Boolean))
+    } catch {
+      setError(true)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <SettingsContentColumn>
@@ -97,6 +114,28 @@ export function BrowserSettings() {
             }}
           />
         </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-browser-cert-bypass" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0">
+            <SettingRowTitle id="browser-cert-bypass-title">{t('settings.browser.certBypass.title')}</SettingRowTitle>
+            <SettingDescription id="browser-cert-bypass-help">
+              {t('settings.browser.certBypass.help')}
+            </SettingDescription>
+          </div>
+        </SettingRow>
+        <Textarea.Input
+          aria-labelledby="browser-cert-bypass-title"
+          rows={3}
+          value={hostDraftValue}
+          placeholder={t('settings.browser.certBypass.placeholder')}
+          spellCheck={false}
+          autoCapitalize="none"
+          autoComplete="off"
+          disabled={saving}
+          className="mt-1 px-3 py-2 font-mono text-xs"
+          onChange={(event) => setHostDraft(event.target.value)}
+          onBlur={saveBypassHosts}
+        />
         {error && (
           <p role="alert" className="mt-2 text-error text-sm">
             {t('settings.browser.error')}

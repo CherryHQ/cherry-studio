@@ -41,6 +41,13 @@
       "description": "Allow agents to control their visible browser pane (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.browser.cert_bypass.hosts",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Hosts whose self-signed (untrusted CA) certificates the built-in browser may accept, one host per line in Settings; only browser guest sessions are affected (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.browser.open_links_in_browser",
       "type": "boolean",
       "defaultValue": true,
