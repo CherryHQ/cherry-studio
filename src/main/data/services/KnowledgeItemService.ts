@@ -100,6 +100,17 @@ export type DeletingKnowledgeItemRootGroup = {
   rootItemIds: string[]
 }
 
+export type KnowledgeItemMetadata = Pick<
+  KnowledgeItem,
+  'id' | 'baseId' | 'groupId' | 'type' | 'status' | 'error' | 'createdAt' | 'updatedAt'
+> & { source: string }
+
+export type KnowledgeItemMetadataListResponse = {
+  items: KnowledgeItemMetadata[]
+  total: number
+  nextCursor?: string
+}
+
 function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
   const data = typeof row.data === 'string' ? (JSON.parse(row.data) as KnowledgeItemData) : row.data
 
@@ -139,6 +150,51 @@ function decodeKnowledgeItemListCursor(raw: string | undefined): KnowledgeItemLi
   }
 }
 
+function buildKnowledgeItemListConditions(baseId: string, query: ListKnowledgeItemsQuery) {
+  const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+  if (query.type !== undefined) filterConditions.push(eq(knowledgeItemTable.type, query.type))
+  if (query.groupId !== undefined) {
+    filterConditions.push(
+      query.groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, query.groupId)
+    )
+  }
+
+  // Keep directory rows in one leading band, then preserve the existing newest-first order
+  // within directories and non-directories. The cursor carries all three sort components so
+  // pagination cannot surface a later-page directory after an earlier-page file.
+  const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
+  const conditions = [...filterConditions]
+  const cursor = query.sortBy ? null : decodeKnowledgeItemListCursor(query.cursor)
+  if (cursor) {
+    conditions.push(
+      or(
+        gt(directoryRank, cursor.directoryRank),
+        and(eq(directoryRank, cursor.directoryRank), lt(knowledgeItemTable.createdAt, cursor.createdAt)),
+        and(
+          eq(directoryRank, cursor.directoryRank),
+          eq(knowledgeItemTable.createdAt, cursor.createdAt),
+          gt(knowledgeItemTable.id, cursor.id)
+        )
+      )!
+    )
+  }
+
+  return { conditions, directoryRank, filterConditions }
+}
+
+function nextKnowledgeItemListCursor(
+  rows: readonly Pick<KnowledgeItemRow, 'id' | 'type' | 'createdAt'>[],
+  limit: number
+): string | undefined {
+  if (rows.length <= limit) return undefined
+  const last = rows[limit - 1]
+  return encodeKnowledgeItemListCursor({
+    directoryRank: last.type === 'directory' ? 0 : 1,
+    createdAt: last.createdAt,
+    id: last.id
+  })
+}
+
 export class KnowledgeItemService {
   private get db() {
     const dbService = application.get('DbService')
@@ -147,25 +203,10 @@ export class KnowledgeItemService {
 
   list(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemListResponse {
     knowledgeBaseService.getById(baseId)
-    const { limit, type, groupId, sortBy } = query
+    const { limit, sortBy } = query
     const sortOrder = query.sortOrder ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')
 
-    const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
-
-    if (type !== undefined) {
-      filterConditions.push(eq(knowledgeItemTable.type, type))
-    }
-    if (groupId !== undefined) {
-      filterConditions.push(
-        groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId)
-      )
-    }
-
-    // Keep directory rows in one leading band, then preserve the existing newest-first order
-    // within directories and non-directories. The cursor carries all three sort components so
-    // pagination cannot surface a later-page directory after an earlier-page file.
-    const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
-    const conditions = [...filterConditions]
+    const { conditions, directoryRank, filterConditions } = buildKnowledgeItemListConditions(baseId, query)
     const sortColumn =
       sortBy === 'name'
         ? sql<string>`knowledge_item_name(${knowledgeItemTable.type}, ${knowledgeItemTable.data})`
@@ -177,21 +218,6 @@ export class KnowledgeItemService {
     const ordering = keysetOrdering(sortColumn, knowledgeItemTable.id, { major: sortOrder, tie: 'asc' })
     const sortedCursor = sortBy ? decodeSortedKnowledgeItemCursor(query.cursor, sortBy, sortOrder) : null
     if (sortedCursor) conditions.push(ordering.where(sortedCursor))
-    const cursor = sortBy ? null : decodeKnowledgeItemListCursor(query.cursor)
-    if (cursor) {
-      conditions.push(
-        or(
-          gt(directoryRank, cursor.directoryRank),
-          and(eq(directoryRank, cursor.directoryRank), lt(knowledgeItemTable.createdAt, cursor.createdAt)),
-          and(
-            eq(directoryRank, cursor.directoryRank),
-            eq(knowledgeItemTable.createdAt, cursor.createdAt),
-            gt(knowledgeItemTable.id, cursor.id)
-          )
-        )!
-      )
-    }
-
     const rows = this.db
       .select({ item: knowledgeItemTable, sortValue: sortColumn })
       .from(knowledgeItemTable)
@@ -223,12 +249,52 @@ export class KnowledgeItemService {
                 key: pageRows[pageRows.length - 1].sortValue,
                 id: pageRows[pageRows.length - 1].item.id
               })
-            : encodeKnowledgeItemListCursor({
-                directoryRank: pageRows[pageRows.length - 1].item.type === 'directory' ? 0 : 1,
-                createdAt: pageRows[pageRows.length - 1].item.createdAt,
-                id: pageRows[pageRows.length - 1].item.id
-              })
+            : nextKnowledgeItemListCursor(
+                rows.map((row) => row.item),
+                limit
+              )
           : undefined
+    }
+  }
+
+  /** List only API-safe metadata, without materializing large document bodies from `data`. */
+  listMetadata(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemMetadataListResponse {
+    knowledgeBaseService.getById(baseId)
+    const { limit } = query
+    const { conditions, directoryRank, filterConditions } = buildKnowledgeItemListConditions(baseId, query)
+
+    const rows = this.db
+      .select({
+        id: knowledgeItemTable.id,
+        baseId: knowledgeItemTable.baseId,
+        groupId: knowledgeItemTable.groupId,
+        type: knowledgeItemTable.type,
+        status: knowledgeItemTable.status,
+        error: knowledgeItemTable.error,
+        createdAt: knowledgeItemTable.createdAt,
+        updatedAt: knowledgeItemTable.updatedAt,
+        source: sql<string>`json_extract(${knowledgeItemTable.data}, '$.source')`
+      })
+      .from(knowledgeItemTable)
+      .where(and(...conditions))
+      .orderBy(asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
+      .limit(limit + 1)
+      .all()
+    const [{ count }] = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(knowledgeItemTable)
+      .where(and(...filterConditions))
+      .all()
+    const pageRows = rows.slice(0, limit)
+
+    return {
+      items: pageRows.map((row) => ({
+        ...row,
+        createdAt: timestampToISO(row.createdAt),
+        updatedAt: timestampToISO(row.updatedAt)
+      })),
+      total: count,
+      nextCursor: nextKnowledgeItemListCursor(rows, limit)
     }
   }
 
@@ -265,7 +331,7 @@ export class KnowledgeItemService {
     const invalidItem = selectedItems.find((item) => item.baseId !== baseId)
 
     if (invalidItem) {
-      throw new Error(`Knowledge item '${invalidItem.id}' does not belong to base '${baseId}'`)
+      throw DataApiErrorFactory.notFound('KnowledgeItem', invalidItem.id)
     }
 
     const descendantSelectedIds = new Set<string>()

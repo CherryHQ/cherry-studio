@@ -16,7 +16,7 @@ import {
 
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { classifyKnowledgeItemRestoreSource } from '../items'
-import { getKnowledgeBaseFilePath } from '../pathStorage'
+import { getKnowledgeBaseDir, getKnowledgeBaseFilePath } from '../pathStorage'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
 import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from './orphanBaseArtifacts'
 
@@ -69,6 +69,8 @@ export class KnowledgeBaseAdminService {
     await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'proceed' })
 
     await this.knowledgeLockManager.runExclusive(baseId, async () => {
+      knowledgeBaseService.getById(baseId)
+      getKnowledgeBaseDir(baseId)
       try {
         const vectorStoreService = application.get('KnowledgeVectorStoreService')
         await vectorStoreService.deleteStore(baseId)
