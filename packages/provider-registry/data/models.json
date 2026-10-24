@@ -14772,6 +14772,120 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "kimi-k3.1",
+      "id": "kimi-k3-1-pro",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Kimi K3.1 Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "max",
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "defaultEffort": "max",
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "kimi-k3.1",
+      "id": "kimi-k3-1-pro-highspeed",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Kimi K3.1 Pro Highspeed",
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "max",
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "defaultEffort": "max",
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "family": "kimi-k3",
@@ -18124,6 +18238,34 @@
       "capabilities": ["image-recognition", "image-generation"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-flare",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1536x960",
+                  "3840x2160",
+                  "2160x3840"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 2.5 Flare",
@@ -18148,6 +18290,34 @@
       "capabilities": ["image-recognition", "image-generation"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-sunburst",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1536x960",
+                  "3840x2160",
+                  "2160x3840"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 2.5 Sunburst",
@@ -23017,5 +23187,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "6b81bfc9f3902e8c"
+  "version": "496aef37f9a35b5d"
 }

@@ -734,7 +734,7 @@ function AgentRightPaneStateProvider({
       ? getArtifactPaneSelectionPath(previewFileSelection)
       : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
-  const fileSession = useFileEditSession(editHandle)
+  const fileSession = useFileEditSession(editHandle, `agent-artifact:${sessionId}`)
   const discardFileDraft = fileSession.discard
   const systemWorkspacePath = useMemo(() => {
     if (workspaceType !== AGENT_WORKSPACE_TYPE.SYSTEM || !workspacePath) return undefined
@@ -788,10 +788,15 @@ function AgentRightPaneStateProvider({
     [sessionId, workspaceKey]
   )
 
-  const handleDiscardAndContinue = useCallback(() => {
+  const handleDiscardAndContinue = useCallback(async () => {
     const transition = pendingFileTransitionRef.current
+    try {
+      await discardFileDraft()
+    } catch {
+      return
+    }
+    if (pendingFileTransitionRef.current !== transition) return
     pendingFileTransitionRef.current = null
-    discardFileDraft()
     transition?.()
     setShowDirtyLeaveConfirmation(false)
   }, [discardFileDraft])

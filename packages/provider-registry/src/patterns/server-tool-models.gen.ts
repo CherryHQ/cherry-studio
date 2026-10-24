@@ -736,6 +736,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'kimi-k2-instruct',
         'kimi-k2-thinking-maas',
         'kimi-k3',
+        'kimi-k3-1-pro',
+        'kimi-k3-1-pro-highspeed',
         'kimi-k3-fast',
         'kimi-latest'
       ]
@@ -750,6 +752,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'kimi-k2-instruct',
         'kimi-k2-thinking-maas',
         'kimi-k3',
+        'kimi-k3-1-pro',
+        'kimi-k3-1-pro-highspeed',
         'kimi-k3-fast',
         'kimi-latest'
       ]
@@ -808,6 +812,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'kimi-k2-instruct',
         'kimi-k2-thinking-maas',
         'kimi-k3',
+        'kimi-k3-1-pro',
+        'kimi-k3-1-pro-highspeed',
         'kimi-k3-fast',
         'kimi-latest',
         'minimax-m2-1',
@@ -1073,6 +1079,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'kimi-k2-instruct',
         'kimi-k2-thinking-maas',
         'kimi-k3',
+        'kimi-k3-1-pro',
+        'kimi-k3-1-pro-highspeed',
         'kimi-k3-fast',
         'kimi-latest',
         'minimax-m2-1',

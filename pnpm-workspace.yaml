@@ -4,6 +4,10 @@ packages:
 engineStrict: true
 
 packageExtensions:
+  # Published declaration files import Shiki types, but upstream lists it only as a devDependency.
+  "streamdown@2.5.0":
+    dependencies:
+      shiki: "^4.0.0"
   # The published development export imports these but lists them only as devDependencies.
   "micromark-extension-definition-list@2.0.1":
     dependencies:
@@ -103,7 +107,6 @@ patchedDependencies:
   ai@6.0.185: patches/ai@6.0.185.patch
   ppu-paddle-ocr@6.0.0: patches/ppu-paddle-ocr@6.0.0.patch
   "@ai-sdk/react@3.0.187": patches/@ai-sdk__react@3.0.187.patch
-  "@streamdown/code@1.1.1": patches/@streamdown__code@1.1.1.patch
   # Version-pinned: hunk targets a content-hashed dist chunk; bumps hard-fail install until key+hunk are re-derived.
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
@@ -190,3 +193,5 @@ minimumReleaseAgeExclude:
   - "@cherrystudio/computer-use-win32-x64@0.1.9"
   - "mediabunny@1.58.0"
   - electron@44.9.3
+  - "@pierre/diffs@1.6.1"
+  - "@pierre/theming@1.0.2"
