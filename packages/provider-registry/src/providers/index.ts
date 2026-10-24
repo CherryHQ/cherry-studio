@@ -28,6 +28,7 @@ import p_huggingface from './huggingface'
 import p_jina from './jina'
 import p_lanyun from './lanyun'
 import p_litellm from './litellm'
+import p_llmman from './llmman'
 import p_lmstudio from './lmstudio'
 import p_longcat from './longcat'
 import p_mimo from './mimo'
@@ -90,6 +91,7 @@ export const PROVIDERS: Provider[] = [
   p_radeon_cloud,
   p_tokendance,
   p_new_api,
+  p_llmman,
   p_lmstudio,
   p_litellm,
   p_anthropic,
