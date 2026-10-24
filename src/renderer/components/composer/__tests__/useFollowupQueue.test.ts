@@ -2603,6 +2603,33 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('captures incoming predecessors in one membership coordinate system after stale writes (inv_e112f222ee5f42b2)', async () => {
+    wireQuery([row('a', 'A'), row('b', 'B'), row('c', 'C')])
+    const { claimTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+    postTrigger.mockImplementation(async ({ body }) => ({ ...row(body.id, body.draft.text), ...body }))
+    const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+    await act(async () => {
+      await result.current.takeForEdit('b', () => null)
+    })
+    // First delete refreshed, subsequent successful writes cannot revalidate.
+    wireQuery([row('a', 'A'), row('c', 'C')])
+    rerender()
+    await act(async () => {
+      await result.current.takeForEdit('a', () => ({ draft: draft('B edited'), payload: payload('B edited') }))
+    })
+    const bCopy = postTrigger.mock.calls[0][0].body.id
+    // Refresh now catches up: only restored B and C are queued.
+    wireQuery([row(bCopy, 'B edited'), row('c', 'C')])
+    rerender()
+    await act(async () => {
+      await result.current.takeForEdit('c', () => ({ draft: draft('A edited'), payload: payload('A edited') }))
+    })
+    const aRestore = postTrigger.mock.calls.find(([args]) => args.body.draft.text === 'A edited')![0].body
+    expect(aRestore.restorePredecessors).toEqual([])
+    expect(aRestore.anchor).toEqual({ position: 'first' })
+  })
+
   it('moves the restore slot up when an earlier row leaves the queue', async () => {
     wireQuery([row('x', 'head'), row('a', 'first'), row('b', 'second')])
     const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()

@@ -784,10 +784,6 @@ export function useFollowupQueue({
       // failed switch after this point must hold the copy instead of leaving
       // it deliverable while the editor still owns its content.
       let restoredCopy: { id: string; body: RestoreQueueBody } | null = null
-      // The outgoing copy's reconciled restore slot (-1 while no outgoing
-      // edit was restored): the take below rebuilds queue membership around
-      // it when capturing the incoming item's predecessor chain.
-      let restoreSlot = -1
       let atomicPlacementConfirmed = false
       if (taken) {
         let outgoing: Pick<FollowupQueueItem, 'draft' | 'payload'> | null = null
@@ -1037,10 +1033,7 @@ export function useFollowupQueue({
         const currentWithoutIncoming = () => itemsRef.current.filter((entry) => entry.id !== id)
         // The insertion transaction already resolved the live predecessor chain.
         // A stale query mirror must not undo that placement.
-        if (atomicPlacementConfirmed) {
-          restoreSlot = resolveRestoreSlot(currentWithoutIncoming(), takenRecord)
-          return
-        }
+        if (atomicPlacementConfirmed) return
         // Positional convergence after the anchored restore: the insert
         // normally already placed the copy at the slot it was taken from (the
         // slot follows removals of earlier rows via noteItemRemoved), which
@@ -1054,14 +1047,6 @@ export function useFollowupQueue({
           if (current.length === 0) return false
           const confirmedSlot = resolveRestoreSlot(current, takenRecord)
           if (current[confirmedSlot]?.id !== restoreId) return false
-          // Accept the mirrored placement as the reconciled slot too:
-          // confirming without recording it leaves restoreSlot at -1, the
-          // incoming-slot adjustment below then counts the mirrored copy a
-          // second time, and the incoming edit captures the restored row as
-          // a predecessor - restoring behind the row it originally preceded
-          // and reversing delivery order (cherry-pr-review
-          // inv_39ce2d2808a2a72e#f1).
-          restoreSlot = confirmedSlot
           return true
         }
         for (let attempt = 0; ; attempt++) {
@@ -1073,7 +1058,7 @@ export function useFollowupQueue({
           }
           if (positionConfirmed()) break
           const current = currentWithoutIncoming()
-          restoreSlot = resolveRestoreSlot(current, takenRecord)
+          const restoreSlot = resolveRestoreSlot(current, takenRecord)
           const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
           try {
             await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
@@ -1106,28 +1091,20 @@ export function useFollowupQueue({
       // copy spliced back at its reconciled slot. Restore anchors walk this
       // chain so authoritative peer removals cannot shift the edit's
       // position (cherry-pr-review inv_66de69107768f834#f1).
+      // Reconstruct one ordered membership including the incoming row, then
+      // remove it. A restore slot computed without the incoming row cannot
+      // be compared to that row's unfiltered mirror index (inv_e112f222ee5f42b2).
       const mirrorIds = itemsRef.current.map((entry) => entry.id)
-      const membership = mirrorIds.filter((rowId) => rowId !== restoredItem.id)
-      const mirrorHasCopy = restoredCopy !== null && mirrorIds.includes(restoredCopy.id)
-      // Splice the outgoing copy back only when the mirror does not already
-      // hold it: a fast refresh can deliver the restored row before this
-      // pass runs, and splicing anyway duplicates the row, letting it
-      // capture predecessor slots twice while the rows between drop out
-      // (cherry-pr-review inv_39ce2d2808a2a72e#f1, inv_62a64a1c0cf26410#f1).
-      if (restoredCopy && restoreSlot >= 0 && !mirrorHasCopy)
-        membership.splice(Math.min(restoreSlot, membership.length), 0, restoredCopy.id)
-      // Position the incoming row against the CURRENT queue, not the slot
-      // captured before the restore: a peer removing an earlier row
-      // mid-switch shifts the live index, and the stale slot would hand the
-      // incoming edit the restored copy and later rows as predecessors,
-      // reversing delivery order (cherry-pr-review inv_fbf5e5f4c8954adf#f1).
-      // When the mirror already holds the copy the live index includes it;
-      // otherwise the spliced copy bumps the slot exactly once
-      // (inv_39ce2d2808a2a72e#f1).
-      const liveIncomingSlot = mirrorIds.indexOf(restoredItem.id)
+      const reconstructed = [...mirrorIds]
+      if (restoredCopy && taken && !reconstructed.includes(restoredCopy.id)) {
+        const outgoingSlot = resolveRestoreSlot(itemsRef.current, taken)
+        reconstructed.splice(Math.min(outgoingSlot, reconstructed.length), 0, restoredCopy.id)
+      }
+      const liveIncomingSlot = reconstructed.indexOf(restoredItem.id)
+      const membership = reconstructed.filter((rowId) => rowId !== restoredItem.id)
       let takenSlot: number
       if (liveIncomingSlot >= 0) {
-        takenSlot = liveIncomingSlot + (!mirrorHasCopy && restoreSlot >= 0 && restoreSlot <= liveIncomingSlot ? 1 : 0)
+        takenSlot = liveIncomingSlot
       } else {
         // DELETE's refresh already landed: walk surviving predecessors, not
         // the stale pre-restore numeric slot, which can put B before A.
