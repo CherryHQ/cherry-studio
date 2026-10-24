@@ -4,6 +4,7 @@ import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shar
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
+import { redactSecretText } from '@shared/utils/redaction'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -46,6 +47,11 @@ export function serializeError(error: unknown): SerializedError {
       stack: isRetryError ? null : (error.stack ?? null),
       cause: e.cause != null ? String(e.cause) : null
     }
+
+    if (typeof e.code === 'string' && e.code.length > 0 && e.code.length <= 100) {
+      serialized.providerErrorCode = redactSecretText(e.code)
+    }
+    if (typeof e.status === 'number' && Number.isFinite(e.status)) serialized.status = e.status
 
     if ('url' in e) serialized.url = String(e.url ?? '')
     if ('requestBodyValues' in e) serialized.requestBodyValues = toSerializable(e.requestBodyValues)

@@ -271,4 +271,45 @@ describe('LoggerService file output', () => {
       consoleError.mockRestore()
     }
   })
+  it('[22243 invariant] preserves plain renderer stream diagnostics in file output', async () => {
+    const { readLine } = await loadLogger()
+    const handler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.filter(([channel]) => channel === IpcChannel.App_LogToMain)
+      .at(-1)![1]
+    const streamError = {
+      name: 'Error',
+      message: 'socket closed',
+      stack: 'provider stack',
+      code: 'ECONNRESET',
+      statusCode: 503,
+      status: 502,
+      originalName: 'ProviderStreamError'
+    }
+    await handler(
+      {} as Electron.IpcMainInvokeEvent,
+      { process: 'renderer', window: 'mainWindow', module: 'useChatWithHistory' },
+      'error',
+      'AI stream error',
+      [{ topicId: 't1', streamError }]
+    )
+    const line = await readLine()
+    expect(line.streamError).toStrictEqual(streamError)
+    expect(line).toMatchObject({ topicId: 't1', module: 'useChatWithHistory' })
+  })
+  it('[22243 invariant] still appends top-level plain errorMessage to fileMessage', async () => {
+    const { readLine } = await loadLogger()
+    const handler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.filter(([channel]) => channel === IpcChannel.App_LogToMain)
+      .at(-1)![1]
+    await handler(
+      {} as Electron.IpcMainInvokeEvent,
+      { process: 'renderer', window: 'mainWindow', module: 'test' },
+      'error',
+      'prefix',
+      [{ name: 'Error', errorMessage: 'boom', stack: 'stack', code: undefined }]
+    )
+    expect((await readLine()).message).toBe('prefix boom')
+  })
 })

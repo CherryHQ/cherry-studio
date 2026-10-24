@@ -1,4 +1,5 @@
 import { APICallError, NoSuchToolError, RetryError } from 'ai'
+import type * as I18nextModule from 'i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import { isSerializedAiSdkErrorUnion } from '@renderer/types/error'
@@ -12,6 +13,8 @@ import {
   formatErrorMessageWithPrefix,
   getErrorDetails,
   getErrorMessage,
+  getStreamFailureText,
+  isUnreadableStreamFailure,
   isAbortError,
   isTimeoutError,
   providerErrorText,
@@ -20,7 +23,7 @@ import {
 } from '../error'
 import { classifyError } from '../errorClassifier'
 
-vi.mock('i18next', () => ({ t: (key: string) => key }))
+vi.mock('i18next', async (original) => ({ ...(await original<typeof I18nextModule>()), t: (key: string) => key }))
 
 describe('error', () => {
   it.each(['responseBody', 'data'] as const)('preserves quota diagnosis after sanitizing %s', (field) => {
@@ -581,5 +584,99 @@ describe('error', () => {
       expect(result).toHaveLength(501)
       expect(result.endsWith('\u2026')).toBe(true)
     })
+  })
+  it.each([
+    undefined,
+    null,
+    {},
+    { message: null },
+    { message: '  ' },
+    ...[
+      'null',
+      'undefined',
+      '{}',
+      '[]',
+      '[object Object]',
+      'Unknown stream error',
+      'Stream error',
+      'Unknown error'
+    ].map((message) => ({ message })),
+    { message: null, responseBody: '<html>opaque</html>' },
+    { message: null, i18nKey: 'unknown' },
+    { message: null, i18nKey: 'diagnosis.unknown' }
+  ])('recognizes only evidence-free terminal stream failures as unreadable: %j', (error) => {
+    expect(isUnreadableStreamFailure(error)).toBe(true)
+    expect(getStreamFailureText(error)).toBe('')
+  })
+  it.each([
+    [{ message: 'socket closed' }, 'socket closed'],
+    [{ message: 'net::ERR_INTERNET_DISCONNECTED' }, 'net::ERR_INTERNET_DISCONNECTED'],
+    [{ message: null, code: 'ECONNRESET' }, 'ECONNRESET'],
+    [{ message: 'Stream error', responseBody: '{"error":{"message":"upstream closed"}}' }, 'upstream closed'],
+    [{ message: null, data: { detail: { message: 'upstream closed' } } }, 'upstream closed'],
+    [{ message: null, lastError: { message: 'terminal closed' } }, 'terminal closed'],
+    [{ message: 'outer detail', responseBody: '{"message":"Unknown error"}' }, 'outer detail'],
+    [{ message: 'Unknown stream error: upstream closed' }, 'Unknown stream error: upstream closed']
+  ])('does not hide usable diagnostics when HTTP status is absent: %j', (error, text) => {
+    expect(isUnreadableStreamFailure(error)).toBe(false)
+    expect(getStreamFailureText(error)).toBe(text)
+  })
+  it.each([
+    { statusCode: 429 },
+    { status: 503 },
+    { status: '503' },
+    { statusCode: 'invalid', status: 503 },
+    { providerErrorCategory: 'quota' },
+    { i18nKey: 'request_timeout' },
+    { i18nKey: 'stream_paused' },
+    { message: 'missing_finish_reason' },
+    { detailI18nKey: 'ocr_detail_failed' },
+    { lastError: { statusCode: '503' } }
+  ])('keeps structured status categories and concrete application keys readable: %j', (error) => {
+    expect(isUnreadableStreamFailure(error)).toBe(false)
+  })
+  it.each([
+    { statusCode: 0 },
+    { statusCode: Infinity },
+    { statusCode: '503oops' },
+    { statusCode: 600 },
+    { status: 99 },
+    { code: 429 },
+    { code: 'x'.repeat(101) },
+    { code: '{}' },
+    { i18nKey: 'does_not_exist' },
+    { name: 'ProviderError', stack: 'stack', providerId: 'p', isRetryable: true }
+  ])('does not treat invalid tags as usable diagnostics: %j', (error) => {
+    expect(isUnreadableStreamFailure(error)).toBe(true)
+  })
+  it('falls through placeholder payloads to concrete text without exposing raw bodies', () => {
+    const error: Record<string, unknown> = { message: 'Stream error' }
+    error.lastError = error
+    expect(isUnreadableStreamFailure(error)).toBe(true)
+    let deep: Record<string, unknown> = { message: 'hidden' }
+    for (let i = 0; i < 6; i++) deep = { lastError: deep }
+    expect(isUnreadableStreamFailure(deep)).toBe(true)
+    const retry = {
+      name: 'AI_RetryError',
+      message: 'outer detail',
+      stack: null,
+      cause: null,
+      reason: 'maxRetriesExceeded',
+      lastError: { message: 'terminal detail' },
+      errors: [{ message: 'old detail' }]
+    }
+    expect(getStreamFailureText(retry)).toBe('terminal detail')
+    expect(getStreamFailureText({ ...retry, responseBody: '{"message":"outer body detail"}' })).toBe(
+      'outer body detail'
+    )
+    expect(getStreamFailureText({ message: 'socket closed', responseBody: '{"message":"Stream error"}' })).toBe(
+      'socket closed'
+    )
+    expect(getStreamFailureText({ message: null, responseBody: '<html>private-sentinel</html>' })).toBe('')
+    expect(getStreamFailureText({ message: null, code: 'api_key=secret-sentinel' })).not.toContain('secret-sentinel')
+    expect(getStreamFailureText({ message: null, data: { prompt: 'private-sentinel' } })).toBe('')
+    expect(getStreamFailureText({ message: null, cause: null, originalError: { message: 'repair detail' } })).toBe(
+      'repair detail'
+    )
   })
 })

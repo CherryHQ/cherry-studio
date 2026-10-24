@@ -1488,6 +1488,8 @@
   "error.statusCode": "Code d'état",
   "error.statusText": "Texte d'état",
   "error.stream_paused": "Interrompu",
+  "error.stream_unreadable.description": "Aucun détail lisible sur l’erreur n’a été reçu. Réessayez ; si le problème se reproduit, consultez les journaux.",
+  "error.stream_unreadable.title": "Échec de la réponse",
   "error.text": "texte",
   "error.toolInput": "entrée de l'outil",
   "error.toolName": "Nom de l'outil",

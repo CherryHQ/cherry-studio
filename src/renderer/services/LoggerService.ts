@@ -2,6 +2,38 @@
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
+import { redactSecretText } from '@shared/utils/redaction'
+
+function toLoggableValue(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
+  if (typeof value !== 'object' || value === null) return typeof value === 'function' ? undefined : value
+  if (depth >= 5) return '[Truncated]'
+  if (seen.has(value)) return '[Circular]'
+  seen.add(value)
+  if (value instanceof Error) {
+    const error = value as Error & Record<string, unknown>
+    const message = redactSecretText(String(error.message ?? ''))
+    const out: Record<string, unknown> = {
+      name: redactSecretText(String(error.name ?? 'Error')).slice(0, 100),
+      message: message.length > 500 ? `${message.slice(0, 500)}…` : message
+    }
+    if (typeof error.stack === 'string') out.stack = redactSecretText(error.stack).slice(0, 4000)
+    for (const key of ['code', 'originalName']) {
+      const tag = error[key]
+      if (typeof tag === 'string' && tag.length > 0 && tag.length <= 100) out[key] = redactSecretText(tag)
+    }
+    for (const key of ['statusCode', 'status']) {
+      const tag = error[key]
+      if (typeof tag === 'number' && Number.isFinite(tag)) out[key] = tag
+    }
+    return out
+  }
+  if (Array.isArray(value)) return value.map((item) => toLoggableValue(item, depth + 1, seen))
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => typeof item !== 'function')
+      .map(([key, item]) => [key, toLoggableValue(item, depth + 1, seen)])
+  )
+}
 
 // check if the current process is a worker
 const IS_WORKER = typeof window === 'undefined'
@@ -197,7 +229,7 @@ export class LoggerService {
       }
 
       if (Object.keys(this.context).length > 0) {
-        source.context = this.context
+        source.context = toLoggableValue(this.context) as LogSourceWithContext['context']
       }
 
       // remove the last item if it is an object with logToMain: true
@@ -216,12 +248,17 @@ export class LoggerService {
                 stack: item.stack,
                 code: 'code' in item && typeof item.code === 'string' ? item.code : undefined
               }
-            : item
+            : toLoggableValue(item)
         )
         void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, serializedData)
         if (level === LEVEL.ERROR && data[0] instanceof Error) {
           try {
-            this.errorReporter?.(data[0], { ...serializedData[0], ...source, level, data: serializedData.slice(1) })
+            this.errorReporter?.(data[0], {
+              ...(serializedData[0] as Record<string, unknown>),
+              ...source,
+              level,
+              data: serializedData.slice(1)
+            })
           } catch (error) {
             this.warn('Failed to report logged error', error instanceof Error ? error : { error })
           }

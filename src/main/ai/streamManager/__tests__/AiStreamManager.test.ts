@@ -3389,6 +3389,31 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('error')
     })
 
+    it.each([
+      { tags: { code: 'ECONNRESET' }, expected: { providerErrorCode: 'ECONNRESET' } },
+      { tags: { status: 503 }, expected: { status: 503 } }
+    ])(
+      '[22243 RED] retains generic diagnostics when an error chunk precedes a rejection: %j',
+      async ({ tags, expected }) => {
+        vi.useRealTimers()
+        const error = Object.assign(new Error('socket closed'), tags)
+        let pulls = 0
+        mockStreamText.mockResolvedValueOnce(
+          new ReadableStream({
+            pull(controller) {
+              if (++pulls === 1) controller.enqueue({ type: 'error', errorText: 'Stream error' })
+              else controller.error(error)
+            }
+          })
+        )
+        const listener = new FakeListener('l:a')
+        startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+        await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+        expect(listener.errorResults[0].error).toMatchObject({ message: 'socket closed', ...expected })
+        expect(listener.errorResults[0].status).toBe('error')
+        expect(mgr.inspect('a')!.status).toBe('error')
+      }
+    )
     it('keeps the thrown error when a lossy error chunk precedes it', async () => {
       // The chunk carries only `error.message`; rebuilding from it would drop the
       // status code and safe provider detail that classification and the error block need.

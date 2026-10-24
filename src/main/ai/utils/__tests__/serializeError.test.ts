@@ -316,4 +316,36 @@ describe('serializeError', () => {
       expect(result.availableTools).toEqual(['alpha', 'beta'])
     })
   })
+  it('[22243 RED] preserves a generic stream providerErrorCode and numeric status', () => {
+    const error = Object.assign(new Error('socket closed'), { code: 'ECONNRESET', status: 503 })
+    expect(serializeError(error)).toMatchObject({
+      name: 'Error',
+      message: 'socket closed',
+      stack: error.stack,
+      providerErrorCode: 'ECONNRESET',
+      status: 503
+    })
+    expect(
+      serializeError(Object.assign(new Error('failed'), { code: 'api_key=secret-sentinel' })).providerErrorCode
+    ).toBe('api_key="<redacted>"')
+  })
+  it('does not expose a generic abort code as an API gateway code', () => {
+    const result = serializeError(Object.assign(new Error('x'), { code: 'ABORT_ERR' }))
+
+    expect(result.providerErrorCode).toBe('ABORT_ERR')
+    expect(result).not.toHaveProperty('code')
+  })
+  it.each([
+    {},
+    { code: 42, status: '503' },
+    { code: {}, status: NaN },
+    { code: () => true, status: Infinity },
+    { code: 'x'.repeat(101), status: -Infinity },
+    { code: '' }
+  ])('[22243 invariant] does not promote invalid diagnostic tags: %j', (tags) => {
+    const result = serializeError(Object.assign(new Error('failed'), tags))
+    expect(result).not.toHaveProperty('providerErrorCode')
+    expect(result).not.toHaveProperty('code')
+    expect(result).not.toHaveProperty('status')
+  })
 })
