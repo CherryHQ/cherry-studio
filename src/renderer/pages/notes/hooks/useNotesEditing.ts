@@ -46,6 +46,7 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
       if (note.type !== 'file') return
 
       setRenamingNodeIds((prev) => new Set(prev).add(note.id))
+      let renamed = false
       try {
         const content = await window.api.file.readExternal(note.externalPath)
         if (!content || content.trim().length === 0) {
@@ -57,6 +58,7 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
         if (summaryText) {
           onRenameNode(note.id, summaryText)
           toast.success(t('notes.auto_rename.success'))
+          renamed = true
         } else {
           toast.error(t('notes.auto_rename.failed'))
         }
@@ -70,15 +72,18 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
           return next
         })
 
-        setNewlyRenamedNodeIds((prev) => new Set(prev).add(note.id))
+        // Only play the "just renamed" highlight when the name actually changed.
+        if (renamed) {
+          setNewlyRenamedNodeIds((prev) => new Set(prev).add(note.id))
 
-        setTimeout(() => {
-          setNewlyRenamedNodeIds((prev) => {
-            const next = new Set(prev)
-            next.delete(note.id)
-            return next
-          })
-        }, 700)
+          setTimeout(() => {
+            setNewlyRenamedNodeIds((prev) => {
+              const next = new Set(prev)
+              next.delete(note.id)
+              return next
+            })
+          }, 700)
+        }
       }
     },
     [onRenameNode, t]
