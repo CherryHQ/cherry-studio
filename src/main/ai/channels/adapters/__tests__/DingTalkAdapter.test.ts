@@ -110,6 +110,25 @@ afterEach(async () => {
 })
 
 describe('DingTalk channel contract', () => {
+  // Catches control commands (especially /stop with arguments) falling through to queued model messages.
+  it.each([
+    ['/stop', 'stop', undefined],
+    ['/stop now', 'stop', 'now'],
+    ['/new', 'new', undefined],
+    ['/compact', 'compact', undefined],
+    ['/help', 'help', undefined]
+  ])('routes %j through command events', async (text, command, args) => {
+    const { instance, client } = await adapter()
+    const messages: unknown[] = []
+    const commands: unknown[] = []
+    instance.on('message', (event) => messages.push(event))
+    instance.on('command', (event) => commands.push(event))
+    client.callback(frame('command', { text: { content: text } }))
+    await tick()
+    expect(commands).toEqual([expect.objectContaining({ command, args, chatId: 'dm:alice', messageId: 'command' })])
+    expect(messages).toEqual([])
+  })
+
   it.each(['Summarize the meeting', '/new'])('forwards audio transcription %j as user text once', async (text) => {
     const { instance, client } = await adapter()
     const messages: unknown[] = []

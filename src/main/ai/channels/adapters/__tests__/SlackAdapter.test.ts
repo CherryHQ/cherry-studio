@@ -439,17 +439,15 @@ describe('SlackAdapter', () => {
 
   // ─── Slash Commands (from text) ───────────────────────────
 
-  it('emits command event for /new text message', async () => {
+  it.each(['new', 'stop'])('routes /%s text to channel control instead of the model', async (command) => {
     const adapter = await connectAdapter()
     const commandSpy = vi.fn()
     adapter.on('command', commandSpy)
 
-    simulateMessageEvent({ channel: 'C0ALLOWED', user: USER1_ID, text: '/new' })
+    simulateMessageEvent({ channel: 'C0ALLOWED', user: USER1_ID, text: `/${command}` })
 
     await vi.waitFor(() => expect(commandSpy).toHaveBeenCalledTimes(1))
-    expect(commandSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: 'C0ALLOWED', userId: USER1_ID, command: 'new' })
-    )
+    expect(commandSpy).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'C0ALLOWED', userId: USER1_ID, command }))
   })
 
   it('handles /whoami text command by sending a message', async () => {
@@ -472,13 +470,13 @@ describe('SlackAdapter', () => {
 
   // ─── Slash Commands (from Socket Mode slash_commands) ─────
 
-  it('emits command event for slash_commands envelope', async () => {
+  it.each(['new', 'stop'])('routes native /%s commands through the Slack control whitelist', async (command) => {
     const adapter = await connectAdapter()
     const commandSpy = vi.fn()
     adapter.on('command', commandSpy)
 
     simulateSlashCommand({
-      command: '/new',
+      command: `/${command}`,
       channel_id: 'C0ALLOWED',
       user_id: USER1_ID,
       user_name: 'testuser'
@@ -489,7 +487,7 @@ describe('SlackAdapter', () => {
       chatId: 'C0ALLOWED',
       userId: USER1_ID,
       userName: 'testuser',
-      command: 'new'
+      command
     })
   })
 
