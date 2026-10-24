@@ -1484,6 +1484,97 @@ describe('agent right pane flow rounds', () => {
 
     expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
   })
+
+  const emptyLiveness = { activeMessageIds: new Set<string>(), liveBackgroundTaskIds: new Set<string>() }
+
+  // A background workflow can complete after its spawning turn closes: the edge lands only in the
+  // runtime cache, so the fold must reconcile it or the flow stays pending forever.
+  it('settles a flow whose completion only reached the live cache', () => {
+    const parts = liveSendParts({ event: 'started', status: 'in_progress', taskType: 'subagent' })
+    const messages = [message('m1', parts)]
+    const lateTaskEvents = {
+      af5051807ed7aaa30: {
+        event: 'notification',
+        taskId: 'af5051807ed7aaa30',
+        toolUseId: 'call_launch',
+        status: 'completed'
+      }
+    } as const
+
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: parts },
+      'call_launch',
+      undefined,
+      lateTaskEvents,
+      emptyLiveness
+    )
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual(['First round findings'])
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
+  })
+
+  // After a cold reopen the cache is gone, so an unvouched nonterminal edge must settle the flow.
+  it('settles a cold history whose nonterminal edge nothing vouches for', () => {
+    const parts = liveSendParts({ event: 'started', status: 'in_progress', taskType: 'subagent' })
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: parts },
+      'call_launch',
+      undefined,
+      {},
+      emptyLiveness
+    )
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
+  })
+
+  // The live between-tools guard stays: a vouched edge keeps the flow live.
+  it('keeps the flow live while its active origin vouches for the task', () => {
+    const parts = liveSendParts({ event: 'started', status: 'in_progress', taskType: 'subagent' })
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: parts },
+      'call_launch',
+      undefined,
+      {},
+      {
+        activeMessageIds: new Set(['m1']),
+        liveBackgroundTaskIds: new Set()
+      }
+    )
+
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toEqual([])
+  })
+
+  // A cached stale progress edge over a persisted completion must not revive the flow.
+  it('keeps a persisted completion settled against a stale cache edge', () => {
+    const parts = liveSendParts({ event: 'notification', status: 'completed' })
+    const messages = [message('m1', parts)]
+    const lateTaskEvents = {
+      af5051807ed7aaa30: {
+        event: 'progress',
+        taskId: 'af5051807ed7aaa30',
+        toolUseId: 'call_launch',
+        status: 'in_progress'
+      }
+    } as const
+
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: parts },
+      'call_launch',
+      undefined,
+      lateTaskEvents,
+      emptyLiveness
+    )
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
+  })
 })
 
 describe('isResumeReceiptCall', () => {

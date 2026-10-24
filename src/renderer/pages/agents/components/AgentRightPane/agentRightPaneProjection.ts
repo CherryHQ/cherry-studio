@@ -1,6 +1,7 @@
 import { getToolName, isToolUIPart } from 'ai'
 
 import {
+  type AgentTaskLiveness,
   type AgentToolOutput,
   AgentToolsType,
   buildAgentLaunchIndex,
@@ -485,7 +486,9 @@ export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
   selectedToolCallId?: string,
-  resolvedSelectedOutput?: unknown
+  resolvedSelectedOutput?: unknown,
+  lateTaskEvents?: AgentSessionTaskEvents,
+  liveness?: AgentTaskLiveness
 ): AgentToolFlowProjection {
   const toolNodes: AgentToolFlowNode[] = []
   const childrenByParent = new Map<string, string[]>()
@@ -585,15 +588,20 @@ export function buildAgentToolFlowProjection(
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
-    // A text-only or between-tools interval has no live tool part; the flow's own task edges are
-    // the only persisted evidence that the run itself settled.
+    // A text-only or between-tools interval has no live tool part; the flow's own task edges —
+    // persisted parts plus the runtime cache, which can carry a completion the turn never saw —
+    // are the only evidence that the run itself settled or is still live.
     const flowTaskIds = new Set(taskIds)
     if (rootTaskId) flowTaskIds.add(rootTaskId)
     const latestTaskStatusByTaskId = new Map<string, NonNullable<AgentTaskEventPartData['status']>>()
-    for (const { parts } of messageEntries) {
+    const taskOriginMessageIdByTaskId = new Map<string, string>()
+    for (const { message, parts } of messageEntries) {
       for (const part of parts) {
         if (part.type !== 'data-agent-task-event' || !part.data.status) continue
         if (!flowTaskIds.has(part.data.taskId)) continue
+        if (!taskOriginMessageIdByTaskId.has(part.data.taskId)) {
+          taskOriginMessageIdByTaskId.set(part.data.taskId, message.id)
+        }
         // A stale progress edge can arrive after the completion; keep the terminal outcome.
         latestTaskStatusByTaskId.set(
           part.data.taskId,
@@ -601,8 +609,29 @@ export function buildAgentToolFlowProjection(
         )
       }
     }
-    const flowSettled =
-      !isFlowActive && [...latestTaskStatusByTaskId.values()].every((status) => TERMINAL_TASK_STATUSES.has(status))
+    const isTaskVouched = (taskId: string): boolean => {
+      if (!liveness) return false
+      const originMessageId = taskOriginMessageIdByTaskId.get(taskId)
+      return (
+        (originMessageId !== undefined && liveness.activeMessageIds.has(originMessageId)) ||
+        liveness.liveBackgroundTaskIds.has(taskId)
+      )
+    }
+    for (const edge of Object.values(lateTaskEvents ?? {})) {
+      if (!edge.status || !flowTaskIds.has(edge.taskId)) continue
+      // A cache edge is the runtime's current belief: it may revive a settled task only while the
+      // task is vouched live, mirroring the status projection's fold.
+      latestTaskStatusByTaskId.set(
+        edge.taskId,
+        resolveTaskStatusAfter(latestTaskStatusByTaskId.get(edge.taskId), edge, isTaskVouched(edge.taskId))
+      )
+    }
+    // Without runtime liveness a nonterminal edge is trusted; with it, only a vouched edge keeps
+    // the flow live — a completion that only reached the cache (or a crashed run) must settle.
+    const flowTasksSettled = [...latestTaskStatusByTaskId.entries()].every(
+      ([taskId, status]) => TERMINAL_TASK_STATUSES.has(status) || (liveness !== undefined && !isTaskVouched(taskId))
+    )
+    const flowSettled = !isFlowActive && flowTasksSettled
 
     // Content is split into rounds two ways: runtime-tagged parts (`cherry.resumedViaCallId`,
     // authoritative and restart-safe — the host row usually predates the receipt row, so position

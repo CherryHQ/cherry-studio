@@ -725,6 +725,11 @@ function AgentRightPaneStateProvider({
     browserUrlState.sessionId === sessionId
       ? (browserUrlState.profile ?? WebviewSecurityProfile.AgentBrowser)
       : WebviewSecurityProfile.AgentBrowser
+  // The pane renders the same resume receipts as the chat list, so it needs the same index: without
+  // it a receipt cannot resolve to its launch root and stays non-navigable. Resume edges can live
+  // only in the runtime's live task cache, so they feed the index here exactly as they do there.
+  const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
+  const liveness = useAgentTaskLivenessValue(messages, sessionId)
   const runtime = useMemo<AgentRightPaneRuntime>(
     () => ({
       messages,
@@ -735,7 +740,9 @@ function AgentRightPaneStateProvider({
       browserUrl,
       browserProfile,
       openBrowserUrl,
-      acceptDetectedBrowserUrl
+      acceptDetectedBrowserUrl,
+      lateTaskEvents,
+      liveness
     }),
     [
       acceptDetectedBrowserUrl,
@@ -746,18 +753,15 @@ function AgentRightPaneStateProvider({
       partsByMessageId,
       loadOlder,
       hasOlder,
-      loadOlderError
+      loadOlderError,
+      lateTaskEvents,
+      liveness
     ]
   )
-  // The pane renders the same resume receipts as the chat list, so it needs the same index: without
-  // it a receipt cannot resolve to its launch root and stays non-navigable. Resume edges can live
-  // only in the runtime's live task cache, so they feed the index here exactly as they do there.
-  const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
   const launchIndex = useMemo(
     () => buildAgentLaunchIndex(partsByMessageId, lateTaskEvents),
     [lateTaskEvents, partsByMessageId]
   )
-  const liveness = useAgentTaskLivenessValue(messages, sessionId)
   const editPath =
     editMode === 'edit' && previewFileSelection && !previewFileSelection.readOnly
       ? getArtifactPaneSelectionPath(previewFileSelection)
@@ -1283,8 +1287,23 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
     () =>
       !active && retainedFlowRef.current
         ? retainedFlowRef.current
-        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId, selectedToolOutput),
-    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId]
+        : buildAgentToolFlowProjection(
+            runtime.messages,
+            runtime.partsByMessageId,
+            tab?.toolCallId,
+            selectedToolOutput,
+            runtime.lateTaskEvents,
+            runtime.liveness
+          ),
+    [
+      active,
+      runtime.messages,
+      runtime.partsByMessageId,
+      runtime.lateTaskEvents,
+      runtime.liveness,
+      selectedToolOutput,
+      tab?.toolCallId
+    ]
   )
   useLayoutEffect(() => {
     if (active) retainedFlowRef.current = flow

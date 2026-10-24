@@ -2571,7 +2571,9 @@ describe('AgentRightPane', () => {
         messages,
         { m1: [flowPart] },
         'flow-1',
-        'Loaded flow result'
+        'Loaded flow result',
+        expect.anything(),
+        expect.anything()
       )
     )
   })
