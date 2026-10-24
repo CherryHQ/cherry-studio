@@ -667,6 +667,13 @@ function enclosingScratchpadTag(text: string, pos: number): string | null {
       const idx = stack.lastIndexOf(tag)
       if (idx !== -1) stack.splice(idx, 1)
     } else {
+      // Self-closing tags enclose nothing: pushing `<thinking/>` leaves the
+      // stack awaiting a `</thinking>` that never comes, so a fence inside
+      // the enclosing block masks the real `</analysis>` through EOF and the
+      // private analysis survives stripping (cherry-pr-review
+      // inv_ad4c45e6af29f23f#f1). Parse openers consistently with the rest
+      // of the formatter.
+      if (parseOpeningTagAt(text, match.index)?.isSelfClosing) continue
       stack.push(tag)
     }
   }

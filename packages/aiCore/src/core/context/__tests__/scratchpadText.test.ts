@@ -28,6 +28,17 @@ describe('scratchpadText', () => {
     expect(textStartsWithNonScratchpadOpeningTag('<thinking>hidden</thinking>')).toBe(false)
   })
 
+  it('does not treat self-closing scratchpad tags as open blocks (inv_ad4c45e6af29f23f)', () => {
+    // A self-closing `<thinking/>` encloses nothing: treating it as an open
+    // block makes fence masking search for a `</thinking>` that never comes
+    // and hide the real `</analysis>` through EOF, so the whole private
+    // analysis survives stripping and summarizeHistory() forwards it as
+    // replacement context (cherry-pr-review inv_ad4c45e6af29f23f#f1).
+    const input = '<analysis>private\n<thinking/>\n```text\ninternal content\n</analysis>\n<summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+    expect(stripModelScratchpadBlocks(input.replace('<thinking/>', '<assessment />'))).toBe('Keep')
+  })
+
   it('strips known scratchpad blocks and unwraps a whole-output summary wrapper', () => {
     expect(
       stripModelScratchpadBlocks('<thinking>hidden</thinking><analysis>also hidden</analysis><summary>kept</summary>')
