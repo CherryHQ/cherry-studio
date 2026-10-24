@@ -81,6 +81,15 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
 
+// Exercise the server factories eagerly: the real serveStdio only builds a
+// server once a wire handshake arrives, which a unit test cannot drive.
+vi.mock('@modelcontextprotocol/server/stdio', () => ({
+  serveStdio: (
+    factory: () => { connect: (transport: unknown) => Promise<unknown> },
+    options?: { transport?: unknown }
+  ) => factory().connect(options?.transport)
+}))
+
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
   createAssistantServer: vi.fn()
 }))
@@ -282,6 +291,49 @@ describe('buildMcpServers', () => {
     expect(result?.['cherry-tools']).toBeDefined()
     expect(result?.cherry).toBeUndefined()
     expect(result?.exa).toBeUndefined()
+  })
+
+  it('defaults the assistant server to the session effective model, not just the agent default (#20819 port)', async () => {
+    const { createAssistantServer } = await import('@main/ai/mcp/servers/assistant')
+    const createMock = vi.mocked(createAssistantServer)
+    createMock.mockReturnValue({
+      connect: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined)
+    } as never)
+    const withOverride = { ...session, model: 'provider::session-model' } as unknown as AgentSessionEntity
+    const agentWithModel = { ...agent, model: 'provider::agent-model' } as unknown as AgentEntity
+
+    // A session-level override steers the assistant default even though the
+    // agent's own model is unchanged.
+    createMock.mockClear()
+    const result = buildMcpServers(
+      withOverride,
+      agentWithModel,
+      WITH_HOST_TOOLS,
+      undefined,
+      undefined,
+      '/data/Agents/agent-1'
+    )
+    const cfg = result!['assistant'] as McpSdkServerConfigWithInstance
+    await cfg.instance.connect({} as never).catch(() => undefined)
+    expect(createMock).toHaveBeenCalledWith('provider::session-model', undefined)
+
+    // An explicit effectiveModelId (connection override) beats the session override.
+    createMock.mockClear()
+    const result2 = buildMcpServers(
+      withOverride,
+      agentWithModel,
+      WITH_HOST_TOOLS,
+      undefined,
+      undefined,
+      '/data/Agents/agent-1',
+      [],
+      undefined,
+      'provider::connection-model'
+    )
+    const cfg2 = result2!['assistant'] as McpSdkServerConfigWithInstance
+    await cfg2.instance.connect({} as never).catch(() => undefined)
+    expect(createMock).toHaveBeenCalledWith('provider::connection-model', undefined)
   })
 
   // Each call opens a new connection, so the per-connection tool decisions re-read the Agent.

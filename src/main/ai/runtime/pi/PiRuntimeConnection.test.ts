@@ -2085,7 +2085,9 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
-        ['kb-1']
+        ['kb-1'],
+        undefined,
+        'p::m'
       )
       await expect(conn.reconcile({ modelId: 'p::m', knowledgeBaseIds: ['kb-1'] })).resolves.toBe('current')
       await expect(conn.reconcile({ modelId: 'p::m', knowledgeBaseIds: ['kb-2'] })).resolves.toBe('rebuild')
@@ -2185,7 +2187,9 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
-        undefined
+        undefined,
+        undefined,
+        'p::m'
       )
     })
 
@@ -2250,7 +2254,9 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         { id: 'chan-1', type: 'telegram' },
         AGENT_DATA_PATH,
-        undefined
+        undefined,
+        undefined,
+        'p::m'
       )
     })
 
