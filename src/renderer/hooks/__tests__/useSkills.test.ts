@@ -73,6 +73,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     contentHash: 'hash-1',
     isGlobalEnabled: true,
     isEnabled: false,
+    mirrorEnabled: true,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
     ...overrides

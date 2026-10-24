@@ -13,13 +13,14 @@ Relocation gets a dedicated launch: the request is persisted to BootConfig, the 
 | File | Role |
 |---|---|
 | `execution.ts` | `runUserDataRelocation()` — launch-time entry owning the whole flow: state read, sessionData isolation, copy/recover/rollback, commit, progress, window driving, relaunch |
+| `skillExports.ts` | Retargets owned external skill links after copy promotion and restores them on rollback or interrupted-copy recovery, without lifecycle services |
 | `request.ts` | run-time request face: `inspectUserDataRelocationTarget()`, `requestUserDataRelocation()` |
 | `validation.ts` | shared path validation: request assertions, protected-tree rules, path primitives |
 | `window.ts` | dedicated pre-lifecycle BrowserWindow controller |
 | `types.ts` | domain aliases over the shared BootConfig schema |
 | `index.ts` | barrel — the only import surface for code outside this directory |
 
-Internal dependency direction (acyclic): `execution → validation, window, types`; `request → validation, types`; `validation → types`. Externally both faces depend downward on `core/preboot/userDataLocation` and `data/bootConfig`.
+Internal dependency direction (acyclic): `execution → skillExports, validation, window, types`; `skillExports → validation`; `request → validation, types`; `validation → types`. Externally both faces depend downward on `core/preboot/userDataLocation` and `data/bootConfig`.
 
 ## Two faces and the BootConfig contract
 
@@ -45,3 +46,5 @@ Internal dependency direction (acyclic): `execution → validation, window, type
 Relocation never merges into or clears an arbitrary directory. Copy mode accepts only a missing or empty target. A non-empty target may be selected only in switch mode; files already present there are left unchanged.
 
 Each copy request has a unique task ID. Temporary work trees and promoted targets carry an ownership marker for that task, and recovery removes a tree recursively only when the marker matches. Unknown files, targets without the matching marker, and non-empty aside directories are preserved and make the operation fail safely. Source descendants, source ancestors, filesystem roots, and protected operating-system or application paths are rejected before any target mutation.
+
+After copy promotion, external skill links under `~/.agents/skills` that point to the corresponding skill in the source profile's Claude discovery directory are retargeted to the copied profile before BootConfig commits. User-owned directories and unrelated links are preserved. Commit failure restores the links before removing the copied profile; interrupted-copy recovery also restores links before removing an owned target. The retained source profile therefore cannot keep serving a stale owned export after relocation.

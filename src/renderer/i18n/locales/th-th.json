@@ -5612,6 +5612,8 @@
   "settings.skills.invalidFormat": "รองรับเฉพาะไฟล์ ZIP และไดเรกทอรี",
   "settings.skills.launchDraft": "ใช้ Skill {{name}} ช่วยฉันทำงานนี้",
   "settings.skills.launchFailed": "ลองใช้ {{name}} ไม่สำเร็จ",
+  "settings.skills.mirrorToggle": "ซิงก์สกิล {{name}} ไปยัง ~/.agents/skills",
+  "settings.skills.mirrorToggleFailed": "ซิงก์สกิล {{name}} ไม่สำเร็จ",
   "settings.skills.notFound": "ไม่พบ Skill",
   "settings.skills.readOnly": "อ่านอย่างเดียว",
   "settings.skills.remote.applyFailed": "อัปเดต Skill ไม่สำเร็จ",
