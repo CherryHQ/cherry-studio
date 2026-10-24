@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
@@ -24,7 +24,7 @@ const CONTENT = Buffer.alloc(64 * 1024, 7)
 /** The recovery paths under test are private; the service is the only entry point. */
 function internals(service: DownloadManagerService) {
   return service as unknown as {
-    reservePath(dir: string, fileName: string, policy: DownloadConflictPolicy): Promise<string>
+    reservePath(dir: string, fileName: string, policy: DownloadConflictPolicy, owner?: string): Promise<string>
     fetchFor(partition: string): FetchLike
     enqueue(taskId: string): void
     pump(): void
@@ -236,6 +236,26 @@ describe('DownloadManagerService recovery', () => {
     await vi.waitFor(() => expect(view.running.has(task.id)).toBe(false))
 
     expect(store.get(task.id)?.task.state).toBe('cancelled')
+  })
+
+  it('does not let a removed cancelled row release or delete a newer task files', async () => {
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const view = internals(service)
+
+    const cancelled = createTask('payload.bin')
+    expect(await view.reservePath(dir, 'payload.bin', 'uniquify', cancelled.task.id)).toBe(cancelled.filePath)
+    service.cancel(cancelled.task.id)
+
+    // The cancelled row releases its paths; a newer download may reuse the name.
+    const reused = await view.reservePath(dir, 'payload.bin', 'uniquify', 'new-task')
+    expect(reused).toBe(cancelled.filePath)
+    writeFileSync(`${reused}.crdownload`, 'payload')
+
+    await service.remove(cancelled.task.id)
+
+    expect(existsSync(`${reused}.crdownload`)).toBe(true)
+    expect(await view.reservePath(dir, 'payload.bin', 'uniquify', 'third-task')).toBe(join(dir, 'payload (1).bin'))
   })
 
   /** Serves HEAD and byte ranges from CONTENT; `gate` holds every HEAD response. */

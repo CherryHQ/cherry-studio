@@ -8,6 +8,11 @@ interface Entry {
   at: number
 }
 
+interface PendingRequest {
+  url: string
+  method: string
+}
+
 /**
  * Remembers the HTTP method of recent requests in one session.
  *
@@ -18,10 +23,14 @@ interface Entry {
  *
  * The table is bounded: a busy page can issue thousands of requests between a
  * click and the dialog, and an unbounded map would keep every URL for the life of
- * the process.
+ * the process. In-flight requests live in a separate map that is never aged out
+ * or evicted by the history limit: a long POST can outlive both, and its
+ * attachment must still be recognised as non-replayable when it finally arrives.
  */
 export class RequestMethods {
   private readonly entries = new Map<string, Entry>()
+  /** Requests that have not completed, keyed by Electron's request id. */
+  private readonly pending = new Map<number, PendingRequest>()
 
   constructor(
     private readonly limit = DEFAULT_LIMIT,
@@ -29,10 +38,11 @@ export class RequestMethods {
     private readonly now: () => number = Date.now
   ) {}
 
-  record(url: string, method: string | undefined): void {
+  record(url: string, method: string | undefined, requestId?: number): void {
     if (!method) return
     const upper = method.toUpperCase()
     const now = this.now()
+    if (requestId !== undefined) this.pending.set(requestId, { url, method: upper })
     const existing = this.entries.get(url)
     if (existing && now - existing.at <= this.ttlMs) {
       existing.at = now
@@ -41,6 +51,11 @@ export class RequestMethods {
     }
     if (this.entries.size >= this.limit) this.prune()
     this.entries.set(url, { methods: [upper], at: now })
+  }
+
+  /** A request that completed or failed can no longer deliver an attachment. */
+  finish(requestId: number): void {
+    this.pending.delete(requestId)
   }
 
   /**
@@ -52,8 +67,15 @@ export class RequestMethods {
    * probe adds HEAD to every URL it manages. A history made only of those two
    * therefore still belongs to the manager; any other method leaves the URL
    * ambiguous, so a POST attachment stays with Electron.
+   *
+   * An outstanding request with a body outranks the history: the POST record may
+   * have expired or been evicted while the response was still on its way, and
+   * replaying that attachment as GET would drop the body.
    */
   methodFor(url: string): string | undefined {
+    for (const pending of this.pending.values()) {
+      if (pending.url === url && !isReplayableDownload(pending.method)) return undefined
+    }
     const entry = this.entries.get(url)
     if (!entry) return undefined
     if (this.now() - entry.at > this.ttlMs) {
@@ -85,8 +107,9 @@ export class RequestMethods {
 
 /**
  * Shared by the browser partition policy (writer) and the download takeover
- * (reader). The policy owns the only `onBeforeRequest` listener on those
- * sessions, so the takeover must not install a second one.
+ * (reader). The policy owns the only `onBeforeRequest`, `onCompleted` and
+ * `onErrorOccurred` listeners on those sessions, so the takeover must not
+ * install its own.
  */
 export const browserRequestMethods = new RequestMethods()
 
