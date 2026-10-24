@@ -128,6 +128,13 @@ function isAlreadyResolved(error: unknown): boolean {
   return error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
 }
 
+// A live in-scope send claim bars reorders for the claim's lifetime; that
+// conflict is transient — the barrier lifts when the send settles or its
+// lease goes stale.
+function isReorderConflict(error: unknown): boolean {
+  return error instanceof DataApiError && error.code === ErrorCode.CONFLICT
+}
+
 // Crash recovery rides the row itself: the owner records its successful send
 // server-side (`sentAt`) before resolving, so a row reclaimed after a crash
 // between send and dequeue is dequeued without replaying. The marker dies
@@ -193,6 +200,12 @@ const isCompletionConsumed = (scopeKey: string, completionAt: number, tentative:
 // auto-delivery (cherry-pr-review). Sessions that ended (or crashed) stop
 // refreshing, so orphaned copies self-heal server-side.
 const HELD_RESTORE_REFRESH_MS = Math.floor(STALE_SENDING_CLAIM_MS / 2)
+// Positional recovery after an edit-switch restore rides out a peer's live
+// claim: the reorder barrier lifts when the send settles or its lease goes
+// stale, so a short bounded retry converges instead of stranding the restored
+// draft at the tail (cherry-pr-review inv_9ecff9fca3bdab04#f1).
+const RESTORE_SLOT_RETRY_MS = 400
+const RESTORE_SLOT_MAX_ATTEMPTS = 4
 
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
@@ -801,15 +814,34 @@ export function useFollowupQueue({
         // linger (cherry-pr-review).
         cancelTrackedEditRestoreRef.current()
         // Move the restored row back to the slot it was taken from; the slot
-        // follows removals of earlier rows via noteItemRemoved.
-        const current = itemsRef.current
-        const restoreSlot = Math.min(taken.slot, current.length)
-        const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
-        try {
-          await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
-        } catch {
-          // The draft is safe at the end of the queue; only its position is off.
-          toast.error(t('message.error.operation_unavailable'))
+        // follows removals of earlier rows via noteItemRemoved. A peer's live
+        // claim (its in-flight send) bars the reorder for the claim's
+        // lifetime: swallowing that conflict strands the restored edit at the
+        // tail, and the next completion drains a later row first
+        // (cherry-pr-review inv_9ecff9fca3bdab04#f1). Recompute the anchor
+        // from the latest items and retry while the conflict persists; other
+        // failures leave the draft safe at the tail.
+        let restoreSlot = 0
+        for (let attempt = 0; ; attempt++) {
+          if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, RESTORE_SLOT_RETRY_MS))
+            // Unmounted or scope switched mid-retry: the row stays queued
+            // wherever it is; its position no longer has an owner.
+            if (!mountedRef.current || scopeKeyRef.current !== scope) break
+          }
+          const current = itemsRef.current
+          restoreSlot = Math.min(taken.slot, current.length)
+          const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
+          try {
+            await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
+            break
+          } catch (error) {
+            if (!isReorderConflict(error) || attempt + 1 >= RESTORE_SLOT_MAX_ATTEMPTS) {
+              // The draft is safe at the end of the queue; only its position is off.
+              toast.error(t('message.error.operation_unavailable'))
+              break
+            }
+          }
         }
         if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
