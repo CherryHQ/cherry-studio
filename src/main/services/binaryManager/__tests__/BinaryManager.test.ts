@@ -2142,7 +2142,7 @@ describe('BinaryManager', () => {
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
         'use',
         '-g',
-        'node@22',
+        'node@24.16',
         'npm:@vendor/native-cli[allow_builds=["\\u0040vendor/native-cli","better-sqlite3"]]@latest'
       ])
     })
@@ -2561,6 +2561,7 @@ describe('BinaryManager', () => {
 
       expect(miseArgs()).toContainEqual(['use', '-g', 'core:node@18.20.0', 'npm:mytool@latest'])
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
+      expect(miseArgs().filter((args) => args[0] === 'install' && args.includes('--force'))).toEqual([])
     })
 
     it('does not adopt an unapplied custom runtime for a package install, using the default runtime', async () => {
@@ -2581,7 +2582,7 @@ describe('BinaryManager', () => {
 
       await service.installByName({ name: 'mytool' })
 
-      expect(miseArgs()).toContainEqual(['use', '-g', 'node@22', 'npm:mytool@latest'])
+      expect(miseArgs()).toContainEqual(['use', '-g', 'node@24.16', 'npm:mytool@latest'])
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
     })
 
@@ -2590,7 +2591,7 @@ describe('BinaryManager', () => {
       let installed = false
       ;(service as any).isolatedEnv = { env: { PATH: '/mock/mise/shims:/usr/bin' }, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'latest') return { stdout: '24.16.0\n', stderr: '' }
         if (args[0] === 'ls' && args.length === 2) {
           return {
             stdout: JSON.stringify(
@@ -2607,10 +2608,10 @@ describe('BinaryManager', () => {
         }
         if (args.includes('npm:@deepseek-ai/dsh@latest')) installed = true
         if (args[0] === 'which' && args[1] === 'node') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
+          return { stdout: '/mock/mise/installs/node/24.16.0/bin/node\n', stderr: '' }
         }
         if (args[0] === 'which' && args[1] === 'npm') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
+          return { stdout: '/mock/mise/installs/node/24.16.0/bin/npm\n', stderr: '' }
         }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/dsh\n', stderr: '' }
         return { stdout: '', stderr: '' }
@@ -2620,18 +2621,18 @@ describe('BinaryManager', () => {
 
       const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
       expect(useCalls.map((call: any[]) => call[1])).toEqual([
-        ['use', '-g', '--pin', 'node@22.23.2'],
+        ['use', '-g', '--pin', 'node@24.16.0'],
         ['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest']
       ])
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
         'latest',
         '--minimum-release-age',
         '0s',
-        'node@22'
+        'node@24.16'
       ])
       expect(useCalls[0]?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
       expect(useCalls[1]?.[2].env).toMatchObject({
-        PATH: '/mock/mise/installs/node/22.23.2/bin:/mock/mise/shims:/usr/bin',
+        PATH: '/mock/mise/installs/node/24.16.0/bin:/mock/mise/shims:/usr/bin',
         MISE_PRERELEASES: '1',
         MISE_NPM_SHELL_OUT: '1',
         MISE_NPM_PACKAGE_MANAGER: 'npm'
@@ -2639,7 +2640,7 @@ describe('BinaryManager', () => {
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).not.toContainEqual([
         'install',
         '--force',
-        'node@22.23.2'
+        'node@24.16.0'
       ])
     })
 
@@ -2658,7 +2659,7 @@ describe('BinaryManager', () => {
         }
       }))
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'latest') return { stdout: '24.16.0\n', stderr: '' }
         if (args[0] === 'ls') {
           return {
             stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }] }),
@@ -2667,10 +2668,10 @@ describe('BinaryManager', () => {
         }
         if (args.includes('npm:@deepseek-ai/dsh@latest')) reinstalled = true
         if (args[0] === 'which' && args[1] === 'node') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
+          return { stdout: '/mock/mise/installs/node/24.16.0/bin/node\n', stderr: '' }
         }
         if (args[0] === 'which' && args[1] === 'npm') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
+          return { stdout: '/mock/mise/installs/node/24.16.0/bin/npm\n', stderr: '' }
         }
         if (args[0] === 'which') return { stdout: '/mock/dsh/lib/bin.js\n', stderr: '' }
         return { stdout: '', stderr: '' }
@@ -2725,7 +2726,7 @@ describe('BinaryManager', () => {
       await service.addCustomTool({ name: 'mytool', tool: 'npm:mytool' })
 
       expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
-      expect(miseArgs()).toContainEqual(['use', '-g', 'node@22', 'npm:mytool@latest'])
+      expect(miseArgs()).toContainEqual(['use', '-g', 'node@24.16', 'npm:mytool@latest'])
       expect(operations()).toEqual({})
     })
 
@@ -2775,7 +2776,7 @@ describe('BinaryManager', () => {
       await service.addCustomTool({ name: 'mytool', tool: 'npm:mytool' })
 
       expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
-      expect(miseArgs()).not.toContainEqual(['use', '-g', 'node@22', 'npm:mytool@latest'])
+      expect(miseArgs().some((args: string[]) => args[0] === 'use')).toBe(false)
       expect(operations()).toEqual({})
     })
 
@@ -2820,7 +2821,7 @@ describe('BinaryManager', () => {
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
         'use',
         '-g',
-        'node@22',
+        'node@24.16',
         'npm:mytool@2.0.0'
       ])
       expect(operations()).toEqual({})
@@ -3068,6 +3069,296 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('native addon repair after a Node transition', () => {
+    const recipe = 'npm:@minimax-ai/code'
+    const repairSpec = 'npm:@minimax-ai/code[allow_builds=["\\u0040minimax-ai/code","better-sqlite3"]]@0.6.12'
+    const mcodeEntry = { version: '0.6.12', active: true }
+    const makeTransition = (
+      options: {
+        before?: string
+        after?: string
+        entries?: Record<string, Array<{ version: string; active: boolean }> | undefined>
+        unapplied?: boolean
+        failRepair?: boolean
+        failUse?: boolean
+        failEnumeration?: boolean
+        failReshim?: boolean
+      } = {}
+    ) => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      const entries = options.entries ?? { node: [{ version: '24.16.0', active: true }], [recipe]: [mcodeEntry] }
+      let moved = false
+      const primaryError = new Error('primary install failure')
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/uv')
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+        if (bin === '/mock/cherry.bin/uv') return { stdout: '/mock/feature.binary.data.uv_python/python\n', stderr: '' }
+        if (bin === '/mock/feature.binary.data.uv_python/python') return { stdout: 'Python 3.12.13\n', stderr: '' }
+        if (args.join(' ') === 'ls --installed --json node') {
+          const version = moved ? (options.after ?? '24.16.0') : (options.before ?? '22.23.4')
+          if (version === 'unreadable') throw new Error('runtime query failed')
+          if (version === 'invalid') return { stdout: '{', stderr: '' }
+          return {
+            stdout: JSON.stringify(
+              version === 'none'
+                ? []
+                : version === 'inactive'
+                  ? [{ version: '24.16.0', installed: true, active: false }]
+                  : moved
+                    ? [
+                        { version: '22.23.4', installed: true, active: false },
+                        { version, requested_version: '24.16', installed: true, active: true }
+                      ]
+                    : [{ version, installed: true, active: true }]
+            ),
+            stderr: ''
+          }
+        }
+        if (args.join(' ') === 'ls --installed --json') {
+          if (options.failEnumeration) throw new Error('enumeration failed')
+          return { stdout: JSON.stringify(entries), stderr: '' }
+        }
+        if (args[0] === 'ls') {
+          const listing: Record<string, unknown> = {
+            ...entries,
+            'npm:mytool': [{ version: '1.0.0', active: true }],
+            'pipx:mytool': [{ version: '1.0.0', active: true }],
+            'npm:@deepseek-ai/dsh': [{ version: '1.0.0', active: true }],
+            fd: [{ version: '10.0.0', active: true }],
+            node: [{ version: moved ? '24.16.0' : '22.23.2', active: true }]
+          }
+          return {
+            stdout: JSON.stringify(args.length === 2 ? listing : (listing[args[2].replace(/^core:/, '')] ?? [])),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'use') {
+          moved = true
+          if (options.failUse) throw primaryError
+        }
+        if (args[0] === 'install' && options.failRepair) throw new Error('native build failed')
+        if (args[0] === 'reshim' && options.failReshim) throw new Error('reshim failed')
+        if (args[0] === 'latest') return { stdout: '24.16.0\n', stderr: '' }
+        if (args[0] === 'which' && (args[1] === 'node' || args[1] === 'npm')) {
+          return { stdout: `/mock/mise/installs/node/24.16.0/bin/${args[1]}\n`, stderr: '' }
+        }
+        if (args[0] === 'which') {
+          return { stdout: options.unapplied ? '' : `/mock/mise/shims/${args[1]}\n`, stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      return { service, primaryError }
+    }
+    const forceCalls = () => mockExecFileAsync.mock.calls.filter((call) => call[1][0] === 'install')
+    const install = (service: InstanceType<typeof BinaryManager>, name = 'mytool', tool = 'npm:mytool') =>
+      (service as any).installWithMise(
+        (service as any).resolveFixedDefinition(name) ?? { name, tool },
+        name === 'mcode' ? '0.6.12' : undefined,
+        []
+      )
+
+    it.each<[string, unknown, { status: string; version?: string }]>([
+      ['filtered array', [{ version: '24.16.0', installed: true, active: true }], { status: 'ok', version: '24.16.0' }],
+      [
+        'keyed inventory',
+        { node: [{ version: '24.16.0', active: true }], 'npm:other': [{ version: '1.0.0', active: true }] },
+        { status: 'ok', version: '24.16.0' }
+      ],
+      [
+        'metadata',
+        [
+          {
+            version: '24.16.0',
+            active: true,
+            requested_version: '24.16',
+            source: { type: 'config' },
+            install_path: '/mise/node/24.16.0'
+          }
+        ],
+        { status: 'ok', version: '24.16.0' }
+      ],
+      ['empty array', [], { status: 'none' }],
+      ['empty map', {}, { status: 'none' }],
+      ['empty Node', { node: [] }, { status: 'none' }],
+      ['other tool only', { 'npm:other': [{ version: '1.0.0', active: true }] }, { status: 'none' }],
+      ['inactive', [{ version: '24.16.0', installed: true, active: false }], { status: 'none' }],
+      ['no active flag', [{ version: '24.16.0' }], { status: 'none' }],
+      ['empty entry', [{}], { status: 'none' }],
+      ...[
+        null,
+        true,
+        42,
+        'node',
+        { node: {} },
+        { node: [], other: null },
+        [null],
+        [[]],
+        ['node'],
+        [42],
+        [false],
+        [{ version: 24 }],
+        [{ install_path: null }],
+        [{ active: 'true' }],
+        [{ installed: 1 }],
+        [{ active: true }],
+        [{ active: true, version: '' }],
+        [{ active: true, version: '24.16' }],
+        [{ active: true, version: 'latest' }],
+        [{ active: true, version: '24.16.0' }, { installed: 'true' }],
+        [
+          { active: true, version: '24.16.0' },
+          { active: true, version: 'latest' }
+        ],
+        { node: [], other: [null] }
+      ].map((listing): [string, unknown, { status: string }] => [
+        JSON.stringify(listing),
+        listing,
+        { status: 'unreadable' }
+      ])
+    ])('classifies the active Node response: %s', async (_label, listing, expected) => {
+      const { service } = makeTransition()
+      mockExecFileAsync.mockResolvedValue({ stdout: JSON.stringify(listing), stderr: '' })
+      await expect((service as any).readActiveNode()).resolves.toEqual(expected)
+    })
+
+    it('prevents restoring native artifacts from another ABI only in the installer env', async () => {
+      const service = new BinaryManager()
+      const { env } = await (service as any).buildIsolatedEnv()
+      expect(env).toMatchObject({ AUBE_SIDE_EFFECTS_CACHE: 'false', npm_config_side_effects_cache: 'false' })
+      const execution = getBinaryExecutionEnv()
+      expect(execution['AUBE_SIDE_EFFECTS_CACHE']).toBeUndefined()
+      expect(execution['npm_config_side_effects_cache']).toBeUndefined()
+    })
+
+    it.each(['mytool', 'mcode', 'node', 'core:node', 'dsh'])(
+      'repairs the applied native version when %s moves Node',
+      async (initiator) => {
+        const { service } = makeTransition()
+        const tool = initiator === 'mcode' ? recipe : initiator.includes('node') ? initiator : `npm:${initiator}`
+        await install(service, initiator === 'core:node' ? 'node' : initiator, tool)
+        expect(forceCalls().map((call) => call[1])).toEqual([['install', '--force', repairSpec]])
+        expect(forceCalls()[0][2].timeout).toBe(900_000)
+        const calls = mockExecFileAsync.mock.calls.map((call) => call[1])
+        expect(calls.findIndex((args) => args.join(' ') === 'ls --installed --json node')).toBeLessThan(
+          calls.findIndex((args) => args[0] === 'use')
+        )
+        const repairIndex = calls.findIndex((args) => args[0] === 'install')
+        expect(calls.slice(repairIndex + 1).filter((args) => args[0] === 'reshim')).toEqual([['reshim']])
+        expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['none', 'unreadable', 'invalid'])(
+      'repairs conservatively with %s before and an active runtime after',
+      async (before) => {
+        const { service } = makeTransition({ before })
+        await install(service)
+        expect(forceCalls().map((call) => call[1])).toEqual([['install', '--force', repairSpec]])
+      }
+    )
+
+    it.each(['none', 'inactive', 'unreadable', 'invalid'])(
+      'keeps the install successful without repairing with %s after',
+      async (after) => {
+        const { service } = makeTransition({ after })
+        await expect(install(service)).resolves.toBe('1.0.0')
+        expect(forceCalls()).toEqual([])
+      }
+    )
+
+    it.each([
+      { before: '24.16.0', after: '24.16.0' },
+      { entries: {} },
+      { entries: { [recipe]: [{ ...mcodeEntry, active: false }] } },
+      { entries: { 'npm:mytool': [{ version: '1.0.0', active: true }] } },
+      { unapplied: true }
+    ])('avoids unnecessary or unapplied repairs: %j', async (options) => {
+      const { service } = makeTransition(options)
+      await install(service)
+      expect(forceCalls()).toEqual([])
+    })
+
+    it('does not repair when a different Node request resolves to the same active version', async () => {
+      const { service } = makeTransition({ before: '24.16.0', after: '24.16.0' })
+      await (service as any).installWithMise({ name: 'node', tool: 'core:node' }, '24.16', [])
+      expect(mockExecFileAsync.mock.calls.map((call) => call[1])).toContainEqual(['use', '-g', 'core:node@24.16'])
+      expect(forceCalls()).toEqual([])
+    })
+
+    it('preserves the applied custom Node 22 override without fabricating a transition', async () => {
+      const { service } = makeTransition({ before: '22.23.2', after: '22.23.2' })
+      await (service as any).installWithMise({ name: 'mytool', tool: 'npm:mytool' }, undefined, [
+        { name: 'node', tool: 'core:node' }
+      ])
+      expect(mockExecFileAsync.mock.calls.map((call) => call[1])).toContainEqual([
+        'use',
+        '-g',
+        'core:node@22.23.2',
+        'npm:mytool@latest'
+      ])
+      expect(forceCalls()).toEqual([])
+    })
+
+    it('detects a patch transition rather than comparing only major versions', async () => {
+      const { service } = makeTransition({ before: '24.16.0', after: '24.16.1' })
+      await install(service)
+      expect(forceCalls().map((call) => call[1])).toEqual([['install', '--force', repairSpec]])
+    })
+
+    it('does not mistake an inactive-only Node for an unchanged active runtime', async () => {
+      const { service } = makeTransition()
+      const exec = mockExecFileAsync.getMockImplementation()!
+      let queries = 0
+      mockExecFileAsync.mockImplementation(async (...args: any[]) => {
+        if (args[1].join(' ') === 'ls --installed --json node' && queries++ === 0) {
+          return { stdout: JSON.stringify([{ version: '24.16.0', installed: true, active: false }]), stderr: '' }
+        }
+        return exec(...args)
+      })
+      await install(service)
+      expect(forceCalls().map((call) => call[1])).toEqual([['install', '--force', repairSpec]])
+    })
+
+    it('keeps custom npm siblings out of the build-enabled repair set', async () => {
+      const { service } = makeTransition({ entries: { 'npm:custom': [{ version: '2.0.0', active: true }] } })
+      await (service as any).installWithMise({ name: 'mytool', tool: 'npm:mytool' }, undefined, [
+        { name: 'custom', tool: 'npm:custom' }
+      ])
+      expect(forceCalls()).toEqual([])
+    })
+
+    it.each(['fd', 'pipx:mytool'])('does not let %s trigger native maintenance', async (tool) => {
+      const { service } = makeTransition()
+      await install(service, tool === 'fd' ? 'fd' : 'mytool', tool)
+      expect(forceCalls()).toEqual([])
+      expect(mockExecFileAsync.mock.calls.map((call) => call[1])).not.toContainEqual([
+        'ls',
+        '--installed',
+        '--json',
+        'node'
+      ])
+    })
+
+    it.each([{ failRepair: true }, { failEnumeration: true }])(
+      'does not publish a failed install when maintenance fails: %j',
+      async (options) => {
+        const { service } = makeTransition(options)
+        manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+        await expect(service.installByName({ name: 'mytool', targetVersion: '1.0.0' })).resolves.toBeUndefined()
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+        if (options.failRepair)
+          expect(forceCalls().map((call) => call[1])).toEqual([['install', '--force', repairSpec]])
+      }
+    )
+
+    it('repairs after failed backend work and preserves its error even if maintenance fails', async () => {
+      const { service, primaryError } = makeTransition({ failUse: true, failRepair: true, failReshim: true })
+      await expect(install(service)).rejects.toBe(primaryError)
+      expect(forceCalls().map((call) => call[1])).toEqual([['install', '--force', repairSpec]])
+    })
+  })
+
   describe('installWithMise', () => {
     const UV_BIN = '/mock/cherry.bin/uv'
     const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
@@ -3271,7 +3562,7 @@ describe('BinaryManager', () => {
     })
 
     it.each([
-      { name: 'resolved latest', definitions: [], runtimeSpec: 'node@22.23.2', resolvesLatest: true },
+      { name: 'resolved latest', definitions: [], runtimeSpec: 'node@24.16.0', resolvesLatest: true },
       {
         name: 'applied custom pin',
         definitions: [{ name: 'node', tool: 'core:node', requestedVersion: '22.23.2' }],
@@ -3285,7 +3576,7 @@ describe('BinaryManager', () => {
       let runtimeReinstalled = false
 
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'latest') return { stdout: '24.16.0\n', stderr: '' }
         if (args[0] === 'install' && args[1] === '--force') {
           runtimeReinstalled = true
           return { stdout: '', stderr: '' }
@@ -3294,10 +3585,10 @@ describe('BinaryManager', () => {
           throw new Error('broken exact runtime')
         }
         if (args[0] === 'which' && args[1] === 'node') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
+          return { stdout: `/mock/mise/installs/node/${testCase.runtimeSpec.split('@')[1]}/bin/node\n`, stderr: '' }
         }
         if (args[0] === 'which' && args[1] === 'npm') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
+          return { stdout: `/mock/mise/installs/node/${testCase.runtimeSpec.split('@')[1]}/bin/npm\n`, stderr: '' }
         }
         if (args[0] === 'ls') {
           return {
@@ -3324,7 +3615,7 @@ describe('BinaryManager', () => {
         call[1].includes('npm:@deepseek-ai/dsh@latest')
       )
       expect(installCall?.[2].env).toMatchObject({
-        PATH: '/mock/mise/installs/node/22.23.2/bin:/mock/mise/shims:/usr/bin',
+        PATH: `/mock/mise/installs/node/${testCase.runtimeSpec.split('@')[1]}/bin:/mock/mise/shims:/usr/bin`,
         MISE_NPM_PACKAGE_MANAGER: 'npm'
       })
     })
@@ -3353,7 +3644,7 @@ describe('BinaryManager', () => {
       expect(mockFs.copyFileSync).not.toHaveBeenCalled()
       // Installs may download a runtime (node/python) — they get the long
       // budget, unlike query commands which keep the 120s default.
-      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['use', '-g', 'node@22', 'npm:mynpmtool@1.0.0'], {
+      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['use', '-g', 'node@24.16', 'npm:mynpmtool@1.0.0'], {
         cwd: '/tmp',
         env: {},
         timeout: 900_000

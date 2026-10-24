@@ -84,7 +84,8 @@ const MISE_PASSTHROUGH_ENV = [
 
 // Backend → default runtime spec. The runtime name must be a registered
 // RuntimeInterpreter, so a new backend can't silently bypass isRuntimeDependency.
-const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: 'node@22', pipx: 'python@3.12' }
+// OpenClaw needs >=24.16; bare node@24 can reuse an installed 24.10.0.
+const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: 'node@24.16', pipx: 'python@3.12' }
 
 // Query commands (which/ls/registry/latest) finish in seconds. Installs are a
 // different budget entirely: `use` may download a full runtime (node, python)
@@ -232,6 +233,7 @@ type FixedToolDefinition = {
   pipDependencies?: readonly string[]
 }
 type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies'>
+type ActiveNodeState = { status: 'ok'; version: string } | { status: 'none' | 'unreadable' }
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -922,6 +924,9 @@ export class BinaryManager extends BaseService {
     // mise only defaults this when uv is already on PATH. Force bundled uv/uvx
     // for pipx tools so installs do not depend on a separate pipx executable.
     env['MISE_PIPX_UVX'] = '1'
+    // aube keys its side-effects cache without the Node ABI, so restored artifacts can belong to another runtime.
+    env['AUBE_SIDE_EFFECTS_CACHE'] = 'false'
+    env['npm_config_side_effects_cache'] = 'false'
 
     if (githubMirror) {
       const prefix = githubMirror
@@ -1394,37 +1399,135 @@ export class BinaryManager extends BaseService {
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
-    const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
-    // Cherry provisions Python itself, so the pipx runtime stays out of `mise
-    // use` — naming it there is what makes mise fetch its own Python.
-    const pythonPath =
-      backend === 'pipx' && runtime
-        ? await provideManagedPython(runtime.slice(runtime.lastIndexOf('@') + 1), (await this.getIsolatedEnv()).env)
-        : undefined
-    const useArgs = [
-      'use',
-      '-g',
-      ...releaseAgeArgs,
-      ...(!shellOutNpm && runtime && !pythonPath ? [runtime] : []),
-      toolSpec
-    ]
+    const observesNode = backend === 'npm' || normalizeToolIdentity(definition.tool).split('@')[0] === 'node'
+    const before = observesNode ? await this.readActiveNode() : undefined
+    try {
+      const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
+      // Cherry provisions Python itself, so the pipx runtime stays out of `mise
+      // use` — naming it there is what makes mise fetch its own Python.
+      const pythonPath =
+        backend === 'pipx' && runtime
+          ? await provideManagedPython(runtime.slice(runtime.lastIndexOf('@') + 1), (await this.getIsolatedEnv()).env)
+          : undefined
+      const useArgs = [
+        'use',
+        '-g',
+        ...releaseAgeArgs,
+        ...(!shellOutNpm && runtime && !pythonPath ? [runtime] : []),
+        toolSpec
+      ]
 
-    if (pythonPath) {
-      await this.installPipxTool(useArgs, pythonPath, includePrerelease)
-      await this.releaseMisePythonSelection()
-      if (definition.pipDependencies?.length) {
-        await this.enforcePipDependencies(definition, definition.pipDependencies)
+      if (pythonPath) {
+        await this.installPipxTool(useArgs, pythonPath, includePrerelease)
+        await this.releaseMisePythonSelection()
+        if (definition.pipDependencies?.length) {
+          await this.enforcePipDependencies(definition, definition.pipDependencies)
+        }
+      } else {
+        await this.runMise(useArgs, {
+          timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+          includePrerelease,
+          shellOutNpm,
+          prependPath: runtimeBin
+        })
       }
-    } else {
-      await this.runMise(useArgs, {
-        timeoutMs: MISE_INSTALL_TIMEOUT_MS,
-        includePrerelease,
-        shellOutNpm,
-        prependPath: runtimeBin
+      await this.runMise(['reshim'])
+    } finally {
+      if (before) await this.repairAfterNodeTransition(before, definitions)
+    }
+    return this.getInstalledVersion(definition.tool, requested)
+  }
+
+  private async readActiveNode(): Promise<ActiveNodeState> {
+    try {
+      const { stdout } = await this.runMise(['ls', '--installed', '--json', 'node'])
+      const listing: unknown = JSON.parse(stdout)
+      if (!listing || typeof listing !== 'object') {
+        throw new Error('mise returned invalid active Node state')
+      }
+      const groups = Array.isArray(listing) ? { node: listing } : listing
+      for (const entries of Object.values(groups)) {
+        if (!Array.isArray(entries)) throw new Error('mise returned invalid active Node entries')
+        for (const entry of entries) {
+          if (
+            !entry ||
+            typeof entry !== 'object' ||
+            Array.isArray(entry) ||
+            ('version' in entry && typeof entry.version !== 'string') ||
+            ('install_path' in entry && typeof entry.install_path !== 'string') ||
+            ('active' in entry && typeof entry.active !== 'boolean') ||
+            ('installed' in entry && typeof entry.installed !== 'boolean')
+          ) {
+            throw new Error('mise returned an invalid active Node entry')
+          }
+        }
+      }
+      const entries = (groups as Record<string, MiseInstallEntry[]>).node ?? []
+      const activeEntries = entries.filter((entry) => entry.active === true)
+      if (activeEntries.some((entry) => !entry.version || !semverValid(entry.version))) {
+        throw new Error('mise returned no concrete active Node version')
+      }
+      const version = activeEntries[0]?.version
+      if (!version) return { status: 'none' }
+      return { status: 'ok', version }
+    } catch (error) {
+      logger.warn('Could not read active Node runtime for native repair', { error: sanitizedCommandError(error) })
+      return { status: 'unreadable' }
+    }
+  }
+
+  private async repairAfterNodeTransition(before: ActiveNodeState, definitions: CustomToolDefinition[]): Promise<void> {
+    const after = await this.readActiveNode()
+    if (after.status !== 'ok') {
+      logger.warn('Native repair could not determine a usable Node runtime', { runtime: after.status })
+      return
+    }
+    if (before.status === 'ok' && before.version === after.version) return
+
+    let attempted = false
+    try {
+      const { stdout } = await this.runMise(['ls', '--installed', '--json'])
+      const installed = JSON.parse(stdout) as Record<string, MiseInstallEntry[]>
+      const resolved = new Map<string, InstallableToolDefinition>()
+      for (const name of new Set([...FIXED_CATALOG.keys(), ...definitions.map((entry) => entry.name)])) {
+        const definition: InstallableToolDefinition | undefined =
+          this.resolveFixedDefinition(name) ?? definitions.find((entry) => entry.name === name)
+        if (definition?.tool.startsWith('npm:') && definition.npmAllowBuilds?.length) {
+          resolved.set(normalizeToolIdentity(definition.tool), definition)
+        }
+      }
+      for (const [recipe, entries] of Object.entries(installed)) {
+        const definition = resolved.get(normalizeToolIdentity(recipe))
+        if (!definition) continue
+        let version: string | undefined
+        try {
+          version = entries.find((entry) => entry.active === true)?.version
+          if (!version || !(await this.isRecipeRunnable(definition.name, definition.tool))) continue
+          attempted = true
+          const spec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${version}`
+          await this.runMise(['install', '--force', spec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+        } catch (error) {
+          logger.warn('Native recipe repair failed', {
+            recipe,
+            version,
+            runtime: after.version,
+            error: sanitizedCommandError(error)
+          })
+        }
+      }
+    } catch (error) {
+      logger.warn('Could not enumerate native recipes for repair', {
+        runtime: after.version,
+        error: sanitizedCommandError(error)
       })
     }
-    await this.runMise(['reshim'])
-    return this.getInstalledVersion(definition.tool, requested)
+    if (attempted) {
+      try {
+        await this.runMise(['reshim'])
+      } catch (error) {
+        logger.warn('Native repair reshim failed', { runtime: after.version, error: sanitizedCommandError(error) })
+      }
+    }
   }
 
   private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
