@@ -50,6 +50,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { isOllamaProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -500,6 +501,18 @@ class ModelService {
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
+    if (dto.discoveredReasoningControls !== undefined) {
+      const provider = providerService
+        .getReasoningContextsByProviderIdsTx(application.get('DbService').getDb(), [dto.providerId])
+        .get(dto.providerId)
+      if (!provider || !isOllamaProvider({ ...provider, presetProviderId: provider.presetProviderId ?? undefined })) {
+        throw DataApiErrorFactory.validation({ discoveredReasoningControls: ['Discovery requires an Ollama provider'] })
+      }
+      return {
+        ...dtoToNewUserModel({ ...dto, presetModelId: undefined }),
+        reasoning: { controlsSource: 'discovered', controls: dto.discoveredReasoningControls }
+      }
+    }
     if (registryData?.providerModel) {
       return dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
     }
@@ -754,25 +767,29 @@ class ModelService {
       }
 
       const model = customRowToRuntimeModel(row)
+      const hasDiscoveredControls =
+        row.reasoning?.controlsSource === 'discovered' && row.reasoning.controls !== undefined
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
         const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
           providerRegistryService.resolveModel(providerContext, modelId)
-        if (providerModel) {
+        if (providerModel && !hasDiscoveredControls) {
           return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
         }
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
-        const registryModel = presetModel
-          ? mergePresetModel(
-              presetModel,
-              registryOverride,
-              model.providerId,
-              reasoningProfile.wire,
-              reasoningProfile.support,
-              serviceTierControl
-            )
-          : undefined
+        const registryModel =
+          providerModel ??
+          (presetModel
+            ? mergePresetModel(
+                presetModel,
+                registryOverride,
+                model.providerId,
+                reasoningProfile.wire,
+                reasoningProfile.support,
+                serviceTierControl
+              )
+            : undefined)
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
@@ -811,7 +828,10 @@ class ModelService {
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
-        if (registryModel) {
+        if (hasDiscoveredControls) {
+          const profile = providerRegistryService.resolveReasoningProfile(providerContext, model)
+          reasoning = projectRuntimeReasoning(profile.support ?? model.reasoning!, profile.wire)
+        } else if (registryModel) {
           reasoning = registryModel.reasoning
         } else if (model.reasoning?.controls?.length) {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)

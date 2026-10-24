@@ -24,7 +24,13 @@ import { providerRegistryService } from '@main/data/services/ProviderRegistrySer
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
-import type { EndpointType, ListedModels, Model } from '@shared/data/types/model'
+import type {
+  DiscoveredReasoningControls,
+  EndpointType,
+  ListedModels,
+  Model,
+  ProviderListedModel
+} from '@shared/data/types/model'
 import {
   createUniqueModelId,
   ENDPOINT_TYPE,
@@ -107,7 +113,7 @@ type ModelFetcher = {
 }
 
 /** A listing in which the provider held nothing back — what most fetchers return. */
-function listing(models: Partial<Model>[]): ListedModels {
+function listing(models: ProviderListedModel[]): ListedModels {
   return { models }
 }
 
@@ -194,7 +200,7 @@ function defaultGroup(modelId: string, providerId: string): string {
 
 /** Build a partial v2 Model from API response. `apiModelId` carries `#`/`?`
  * verbatim (it is the provider's own handle), so `id` strips them. */
-function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
+function toModel(apiModelId: string, provider: Provider, extra?: ProviderListedModel): ProviderListedModel {
   const safeModelId = apiModelId.replace(/[?#]/g, '')
   return {
     id: createUniqueModelId(provider.id, safeModelId),
@@ -240,18 +246,29 @@ function readOllamaContextLength(modelInfo: Record<string, unknown> | undefined)
   return typeof contextLength === 'number' && contextLength > 0 ? contextLength : undefined
 }
 
-/**
- * `/api/tags` carries no context length, so without this the model has no `contextWindow` and
- * Ollama falls back to sizing by available VRAM — 4k below 24 GiB, where an agent's tool preamble
- * alone overruns the window and Ollama truncates the conversation away (#18643). Its own guidance
- * puts agent and coding workloads at 64k+, which only the model's real window can satisfy.
- */
-async function fetchOllamaContextWindow(
+export function readOllamaReasoningControls(values: unknown): DiscoveredReasoningControls | undefined {
+  if (!Array.isArray(values)) return undefined
+  if (values.length > 0 && values.every((value) => value === false)) return []
+  const levels = values.filter((value) => value === 'low' || value === 'medium' || value === 'high')
+  if (levels.length === 0 && values.includes(true) && values.includes(false)) return [{ kind: 'toggle' }]
+  const efforts: ('none' | 'auto' | 'low' | 'medium' | 'high')[] = []
+  for (const value of values) {
+    const effort = value === false ? 'none' : value === true ? 'auto' : value
+    if (effort === 'none' && value !== false) continue
+    if (effort === 'auto' && value !== true) continue
+    if (effort === 'none' || effort === 'auto' || effort === 'low' || effort === 'medium' || effort === 'high') {
+      if (!efforts.includes(effort)) efforts.push(effort)
+    }
+  }
+  return efforts.length ? [{ kind: 'effort', values: efforts }] : []
+}
+
+async function fetchOllamaModelMetadata(
   baseUrl: string,
   provider: Provider,
   model: string,
   signal?: AbortSignal
-): Promise<number | undefined> {
+): Promise<{ contextWindow?: number; discoveredReasoningControls?: DiscoveredReasoningControls }> {
   try {
     const { value } = await postJsonToApi({
       url: `${baseUrl}/api/show`,
@@ -265,11 +282,14 @@ async function fetchOllamaContextWindow(
       abortSignal: signal,
       fetch: modelListFetch
     })
-    return readOllamaContextLength(value.model_info)
+    return {
+      contextWindow: readOllamaContextLength(value.model_info),
+      discoveredReasoningControls: readOllamaReasoningControls(value.thinking?.values)
+    }
   } catch (error) {
     // A model that cannot be inspected still belongs in the list; it falls back to the default window.
-    logger.warn('failed to read Ollama context length', { model, error })
-    return undefined
+    logger.warn('failed to read Ollama model metadata', { model, error })
+    return {}
   }
 }
 
@@ -286,9 +306,7 @@ const ollamaFetcher: ModelFetcher = {
       abortSignal: signal
     })
     const models = dedup(response.models, (m) => m.name)
-    const contextWindows = await Promise.all(
-      models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
-    )
+    const metadata = await Promise.all(models.map((m) => fetchOllamaModelMetadata(baseUrl, provider, m.name, signal)))
     return listing(
       models.map((m, index) => {
         const capabilities: Model['capabilities'] = []
@@ -298,7 +316,7 @@ const ollamaFetcher: ModelFetcher = {
         return toModel(m.name, provider, {
           ownedBy: 'ollama',
           capabilities,
-          ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
+          ...metadata[index]
         })
       })
     )

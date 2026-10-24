@@ -54,6 +54,17 @@ type ReasoningControl =
   | { kind: 'toggle'; default?: boolean }
 ```
 
+Native Ollama discovery is another source of intrinsic controls. When a newly added model supplies an explicit
+`/api/show` `thinking.values` array, its representable controls replace catalog and model-ID heuristics.
+Only boolean values and the exact strings `low`, `medium`, and `high` are representable by the pinned adapter;
+unknown members are dropped individually. Booleans authorize Off (`false`) and Auto (`true`), while string
+levels alone authorize neither. False-only arrays and arrays with no representable values produce empty controls.
+The advertised default is ignored: Default continues to omit `think`.
+
+Main persists discovery provenance with the intrinsic controls and projects them through the active endpoint
+profile on every model read. Exact endpoint support overrides and disabled profiles still apply. Missing or
+unusable `thinking.values` contributes no discovered override; existing enrichment remains.
+
 The model may also carry intrinsic metadata such as its default behavior and thinking-token bounds. It must not
 carry a provider format, target field name, or serialization protocol.
 

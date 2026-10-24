@@ -132,6 +132,18 @@ the current registry and applies every non-null column. Create/PATCH compare
 incoming values with the current registry baseline, so renderer echoes do not
 freeze catalog values; restoring a value to the baseline clears the column.
 
+New native Ollama models added with discovered reasoning controls own complete custom configuration
+(`presetModelId: null`), even when their ID matches the catalog. Their merged name, capabilities, endpoint
+types and context window are stored as custom-row facts rather than sparse preset deltas; other registry
+metadata continues to enrich reads. Catalog context-window precedence during listing remains unchanged.
+
+Discovery applies when adding a model. Pulling again does not refresh already-added models. An explicit
+`thinking.values` array replaces intrinsic catalog/heuristic controls, including an empty representable result;
+missing or unusable metadata leaves existing enrichment in place. The existing reasoning JSON column carries
+Main-generated `controlsSource: 'discovered'` provenance, which is omitted from runtime models. The field
+`discoveredReasoningControls` is accepted only during native Ollama creation (including reconcile additions),
+never PATCH. The active endpoint profile constrains the stored intrinsic controls on every read.
+
 **Adding a model field later:**
 
 - *Registry-owned (not user-editable):* add it to the registry schema, runtime

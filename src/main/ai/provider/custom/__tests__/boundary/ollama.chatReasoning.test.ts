@@ -18,6 +18,15 @@ describe('Ollama chat reasoning boundary', () => {
     expect(request.body).not.toHaveProperty('think')
   })
 
+  it.each(['low', 'medium', 'high', true])('sends advertised think %s unchanged', async (think) => {
+    const request = await captureWithFetch((fetch) =>
+      createOllamaWithImageModel({ baseURL: 'https://ollama.example/api', fetch })
+        .languageModel('qwen3.8:27b')
+        .doGenerate({ prompt: PROMPT, providerOptions: { ollama: { think } } })
+    )
+    expect(request.body).toHaveProperty('think', think)
+  })
+
   it('sends think false when thinking is explicitly disabled', async () => {
     const request = await captureWithFetch((fetch) =>
       createOllamaWithImageModel({ baseURL: 'https://ollama.example/api', fetch })

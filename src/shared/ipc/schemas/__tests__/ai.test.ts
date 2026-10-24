@@ -224,3 +224,15 @@ describe('ai.agent.skill_session.create IPC schema', () => {
     expect(createSkillSessionResult.safeParse({ sessionId: 'session-1', skillId: 'skill-1' }).success).toBe(false)
   })
 })
+
+describe('ai.provider.model.list discovery', () => {
+  it.each([{ controls: [{ kind: 'effort', values: ['low', 'high'] }] }, { controls: [] }])(
+    'preserves controls $controls',
+    ({ controls }) => {
+      const parsed = aiRequestSchemas['ai.provider.model.list'].output.parse({
+        models: [{ apiModelId: 'local:1b', discoveredReasoningControls: controls }]
+      })
+      expect(parsed.models[0].discoveredReasoningControls).toEqual(controls)
+    }
+  )
+})

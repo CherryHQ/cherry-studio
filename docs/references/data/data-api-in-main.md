@@ -397,7 +397,7 @@ Provider model resolution has two explicit entry points:
 
 The `tx-boundary/no-ambient-db-in-tx` lint rule is an error. In `ModelService` and
 `ProviderRegistryService`, it also follows same-class helpers/getters and protects
-`resolveModel` as a database-free entry point. It does not infer arbitrary
+`resolveModel` and `resolveReasoningProfile` as database-free entry points. It does not infer arbitrary
 cross-module call graphs; database-free behavior is additionally covered by
 regressions that make the global accessor throw.
 

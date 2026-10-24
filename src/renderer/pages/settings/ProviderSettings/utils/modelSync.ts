@@ -9,12 +9,15 @@ import {
   type EndpointType as RuntimeEndpointType,
   type ListedModels,
   type Model,
+  type ProviderListedModel,
   parseUniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ProviderModelSync')
+
+type FetchedModel = Model & Pick<ProviderListedModel, 'discoveredReasoningControls'>
 
 export type ModelSyncErrorCode = 'NO_ENABLED_API_KEY'
 
@@ -53,18 +56,24 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
 
 export function toCreateModelDto(
   providerId: string,
-  model: Model,
+  model: FetchedModel,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
-  const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
+  const capabilities =
+    model.discoveredReasoningControls !== undefined || (!model.presetModelId && model.capabilities?.length)
+      ? model.capabilities
+      : undefined
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
+    ...(model.discoveredReasoningControls !== undefined
+      ? { discoveredReasoningControls: model.discoveredReasoningControls }
+      : {}),
     ...(capabilities ? { capabilities: [...capabilities] } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
@@ -80,7 +89,7 @@ export function toCreateModelDto(
  * — this layer overlays preset capabilities/limits/pricing that aren't
  * available from the upstream provider SDK.
  */
-async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Model>[]): Promise<Model[]> {
+async function enrichFetchedModels(providerId: string, fetchedModels: ProviderListedModel[]): Promise<FetchedModel[]> {
   const filteredModels = fetchedModels.filter((model) => !isEmpty(model.name))
   if (filteredModels.length === 0) {
     return []
@@ -120,7 +129,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   ] as const
 
   return filteredModels.map((fetched) => {
-    const base = fetched as Model
+    const base = fetched as FetchedModel
     const apiId = fetched.apiModelId ?? ''
     // `resolveModels` keys every result by the exact raw id it was sent, so an exact lookup always hits —
     // no fuzzy fallback needed (a slash/dot-stripping fallback used to overlay siblings onto one canonical
@@ -158,7 +167,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
+export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<FetchedModel>> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
     const { models: fetched, skippedModels } = await ipcApi.request('ai.provider.model.list', {

@@ -2,6 +2,8 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import { resolve } from 'node:path'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { and, eq, or } from 'drizzle-orm'
@@ -74,7 +76,10 @@ vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   return {
     ...actual,
     providerRegistryService: {
-      resolveModel: resolveModelMock
+      resolveModel: resolveModelMock,
+      resolveReasoningProfile: actual.providerRegistryService.resolveReasoningProfile.bind(
+        actual.providerRegistryService
+      )
     }
   }
 })
@@ -2771,5 +2776,191 @@ describe('ModelService.reconcileForProvider', () => {
       skippedIds: [modelId]
     })
     warnSpy.mockRestore()
+  })
+})
+
+describe('ModelService discovered Ollama reasoning', () => {
+  const dbh = setupTestDatabase()
+  let pathSpy: ReturnType<typeof vi.spyOn>
+  beforeEach(async () => {
+    const getPath = vi.mocked(application.getPath).getMockImplementation()
+    pathSpy = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) =>
+        key === 'feature.provider_registry.data' && filename
+          ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
+          : key === 'app.root'
+            ? resolve(process.cwd(), filename ?? '')
+            : (getPath?.(key, filename) ?? `/mock/${key}`)
+      )
+    const actual = await vi.importActual<typeof ProviderRegistryServiceModule>('@data/services/ProviderRegistryService')
+    actual.providerRegistryService.clearCache()
+  })
+  afterEach(async () => {
+    pathSpy.mockRestore()
+    const actual = await vi.importActual<typeof ProviderRegistryServiceModule>('@data/services/ProviderRegistryService')
+    actual.providerRegistryService.clearCache()
+  })
+
+  it.each([
+    {
+      modelId: 'qwen3.8:27b',
+      controls: [{ kind: 'effort' as const, values: ['low', 'medium', 'high'] as const }],
+      efforts: ['low', 'medium', 'high']
+    },
+    {
+      modelId: 'qwen3.8:27b-q4_K_M',
+      controls: [{ kind: 'effort' as const, values: ['low', 'high'] as const }],
+      efforts: ['low', 'high']
+    },
+    { modelId: 'tiny-toggle:1b', controls: [{ kind: 'toggle' as const }], efforts: ['none', 'auto'] },
+    { modelId: 'qwen3.8:27b', controls: [], efforts: [] }
+  ])('stores and reads intrinsic $controls for $modelId', async ({ modelId, controls, efforts }) => {
+    const actual = await vi.importActual<typeof ProviderRegistryServiceModule>('@data/services/ProviderRegistryService')
+    dbh.db
+      .insert(userProviderTable)
+      .values({ ...providerRow('ollama', 'Ollama'), defaultChatEndpoint: 'ollama-chat' })
+      .run()
+    const registryData = actual.providerRegistryService.lookupModel('ollama', modelId)
+    if (modelId === 'qwen3.8:27b') expect(registryData.presetModel?.id).toBe('qwen3-8-27b')
+    else expect(registryData.presetModel).toBeNull()
+    resolveModelMock.mockImplementation((provider, id) => actual.providerRegistryService.resolveModel(provider, id))
+    const discoveredReasoningControls = controls.map((control) =>
+      control.kind === 'effort' ? { kind: 'effort' as const, values: [...control.values] } : control
+    )
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'ollama',
+          modelId,
+          presetModelId: registryData.presetModel?.id,
+          name: 'Installed model',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          contextWindow: 1000000,
+          discoveredReasoningControls
+        },
+        registryData
+      }
+    ])
+    const row = dbh.db.select().from(userModelTable).get()!
+    expect(row.presetModelId).toBeNull()
+    expect(row.reasoning).toEqual({ controlsSource: 'discovered', controls: discoveredReasoningControls })
+    for (const model of [
+      created,
+      modelService.getByKey('ollama', modelId),
+      ...modelService.list({ providerId: 'ollama' })
+    ]) {
+      expect(model.reasoning?.selectableEfforts).toEqual(efforts)
+      expect(model.reasoning?.controls).toEqual(discoveredReasoningControls)
+      expect(model.reasoning).not.toHaveProperty('controlsSource')
+      expect(model.name).toBe('Installed model')
+      expect(model.contextWindow).toBe(1000000)
+    }
+  })
+
+  it('rejects discovery for non-Ollama providers without writing rows', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI')).run()
+    expect(() =>
+      modelService.create([{ dto: { providerId: 'openai', modelId: 'model', discoveredReasoningControls: [] } }])
+    ).toThrow(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
+    expect(() =>
+      modelService.reconcileForProvider('openai', {
+        toAdd: [{ dto: { providerId: 'openai', modelId: 'model', discoveredReasoningControls: [] } }],
+        toRemove: []
+      })
+    ).toThrow(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
+    expect(dbh.db.select().from(userModelTable).all()).toEqual([])
+  })
+
+  it('persists discovery through reconcile for a cloned Ollama provider', async () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        ...providerRow('local-clone', 'Local'),
+        presetProviderId: 'ollama',
+        defaultChatEndpoint: 'ollama-chat'
+      })
+      .run()
+    const discoveredReasoningControls = [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }]
+    const [model] = modelService.reconcileForProvider('local-clone', {
+      toAdd: [
+        {
+          dto: {
+            providerId: 'local-clone',
+            modelId: 'qwen3.8:27b',
+            discoveredReasoningControls
+          }
+        }
+      ],
+      toRemove: []
+    })
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'high'])
+    expect(dbh.db.select().from(userModelTable).get()?.reasoning).toEqual({
+      controlsSource: 'discovered',
+      controls: discoveredReasoningControls
+    })
+    expect(
+      modelService.reconcileForProvider('local-clone', { toAdd: [], toRemove: [] })[0].reasoning?.selectableEfforts
+    ).toEqual(['low', 'high'])
+  })
+
+  it('projects discovery even when a standalone provider model exists and the active profile is disabled', async () => {
+    const { providerRegistryService } = await import('@data/services/ProviderRegistryService')
+    dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama')).run()
+    resolveModelMock.mockReturnValue({
+      providerModel: {
+        id: 'ollama::qwen3.8:27b',
+        reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+      },
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    })
+    const profileSpy = vi
+      .spyOn(providerRegistryService, 'resolveReasoningProfile')
+      .mockReturnValue({ format: 'none', wire: { disabled: true } })
+    try {
+      const [model] = modelService.create([
+        {
+          dto: {
+            providerId: 'ollama',
+            modelId: 'qwen3.8:27b',
+            discoveredReasoningControls: [{ kind: 'effort', values: ['low', 'high'] }]
+          }
+        }
+      ])
+      expect(model.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'high'] }])
+      expect(model.reasoning?.selectableEfforts).toEqual([])
+    } finally {
+      profileSpy.mockRestore()
+    }
+  })
+
+  it('applies exact endpoint support to discovery using the runtime candidate', async () => {
+    const { providerRegistryService } = await import('@data/services/ProviderRegistryService')
+    dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama')).run()
+    const profileSpy = vi
+      .spyOn(providerRegistryService, 'resolveReasoningProfile')
+      .mockImplementation((_provider, model) => ({
+        ...OLLAMA_REASONING_PROFILE,
+        support: { controls: model.apiModelId === 'qwen3.8:27b' ? [{ kind: 'effort', values: ['high'] }] : [] }
+      }))
+    try {
+      const [model] = modelService.create([
+        {
+          dto: {
+            providerId: 'ollama',
+            modelId: 'qwen3.8:27b',
+            discoveredReasoningControls: [{ kind: 'effort', values: ['low', 'high'] }]
+          }
+        }
+      ])
+      expect(model.reasoning?.selectableEfforts).toEqual(['high'])
+      expect(dbh.db.select().from(userModelTable).get()?.reasoning?.controls).toEqual([
+        { kind: 'effort', values: ['low', 'high'] }
+      ])
+    } finally {
+      profileSpy.mockRestore()
+    }
   })
 })
