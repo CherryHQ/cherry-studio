@@ -34,6 +34,7 @@
   "api_gateway.errors.internal_bind_permission_denied": "İşletim sistemi dahili API Ağ Geçidinin {{address}}, istenen TCP bağlantı noktası {{port}} üzerinde dinlemesine izin vermedi (EACCES). İsteği yeniden deneyin. Yine başarısız olursa sistem yöneticinizden geri döngü dinleyicilerine yönelik kısıtlamaları kontrol etmesini isteyin.",
   "api_gateway.errors.public_bind_permission_denied": "İşletim sistemi API Ağ Geçidinin {{address}}, TCP bağlantı noktası {{port}} üzerinde dinlemesine izin vermedi (EACCES). Ayarlar → API Ağ Geçidi altında farklı bir Bağlantı Noktası seçin, kaydetmek için alandan çıkın ve Başlat’a tıklayın. İstemcilerdeki uç noktayı güncelleyin.",
   "appMenu.about": "Hakkında",
+  "appMenu.center": "Ortala",
   "appMenu.close": "Pencereyi Kapat",
   "appMenu.copy": "Kopyala",
   "appMenu.cut": "Kes",

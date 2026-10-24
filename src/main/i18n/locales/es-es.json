@@ -34,6 +34,7 @@
   "api_gateway.errors.internal_bind_permission_denied": "El sistema operativo denegó al Servidor API interno escuchar en {{address}}, puerto TCP solicitado {{port}} (EACCES). Reintente la solicitud. Si vuelve a fallar, pida al administrador del sistema que revise las restricciones de escucha en la interfaz de bucle local.",
   "api_gateway.errors.public_bind_permission_denied": "El sistema operativo denegó al Servidor API escuchar en {{address}}, puerto TCP {{port}} (EACCES). En Configuración → Servidor API, elija otro Puerto, salga del campo para guardar y pulse Iniciar. Actualice el destino en los clientes.",
   "appMenu.about": "Acerca de",
+  "appMenu.center": "Centrar",
   "appMenu.close": "Cerrar ventana",
   "appMenu.copy": "Copiar",
   "appMenu.cut": "Cortar",

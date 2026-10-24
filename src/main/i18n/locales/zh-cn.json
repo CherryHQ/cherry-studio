@@ -34,6 +34,7 @@
   "api_gateway.errors.internal_bind_permission_denied": "操作系统拒绝内部 API 网关在 {{address}}，请求的 TCP 端口 {{port}} 上监听（EACCES）。请重试请求。如果仍然失败，请联系系统管理员检查对回环监听的限制。",
   "api_gateway.errors.public_bind_permission_denied": "操作系统拒绝 API 网关在 {{address}}，TCP 端口 {{port}} 上监听（EACCES）。请在“设置 → API 网关”中选择其他“端口”，离开输入框以保存，然后点击“启动”。请将客户端的连接地址更新为新地址。",
   "appMenu.about": "关于",
+  "appMenu.center": "居中",
   "appMenu.close": "关闭窗口",
   "appMenu.copy": "复制",
   "appMenu.cut": "剪切",

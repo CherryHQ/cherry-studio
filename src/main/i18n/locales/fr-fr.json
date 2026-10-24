@@ -34,6 +34,7 @@
   "api_gateway.errors.internal_bind_permission_denied": "Le système refuse au Serveur API interne d’écouter sur {{address}}, port TCP demandé {{port}} (EACCES). Réessayez la requête. Si elle échoue encore, demandez à votre administrateur système de vérifier les restrictions d’écoute sur la boucle locale.",
   "api_gateway.errors.public_bind_permission_denied": "Le système refuse au Serveur API d’écouter sur {{address}}, port TCP {{port}} (EACCES). Dans Paramètres → Serveur API, choisissez un autre Port, quittez le champ pour enregistrer, puis cliquez sur Démarrer. Mettez à jour l’adresse dans les clients.",
   "appMenu.about": "À propos",
+  "appMenu.center": "Centrer",
   "appMenu.close": "Fermer la fenêtre",
   "appMenu.copy": "Copier",
   "appMenu.cut": "Couper",

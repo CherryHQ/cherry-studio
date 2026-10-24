@@ -34,6 +34,7 @@
   "api_gateway.errors.internal_bind_permission_denied": "The operating system refused permission for the internal API Gateway to listen at {{address}}, requested TCP port {{port}} (EACCES). Retry the request. If it still fails, ask your system administrator to check restrictions on loopback listeners.",
   "api_gateway.errors.public_bind_permission_denied": "The operating system refused permission for API Gateway to listen at {{address}}, TCP port {{port}} (EACCES). In Settings → API Gateway, choose a different Port, leave the field to save, then click Start. Update clients to the new endpoint.",
   "appMenu.about": "About",
+  "appMenu.center": "Center",
   "appMenu.close": "Close Window",
   "appMenu.copy": "Copy",
   "appMenu.cut": "Cut",

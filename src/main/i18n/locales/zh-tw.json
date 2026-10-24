@@ -34,6 +34,7 @@
   "api_gateway.errors.internal_bind_permission_denied": "作業系統拒絕內部 API 閘道在 {{address}}，要求的 TCP 連接埠 {{port}} 上監聽（EACCES）。請重試請求。如果仍然失敗，請聯絡系統管理員檢查對回環監聽的限制。",
   "api_gateway.errors.public_bind_permission_denied": "作業系統拒絕 API 閘道在 {{address}}，TCP 連接埠 {{port}} 上監聽（EACCES）。請在「設定 → API 閘道」中選擇其他「連接埠」，離開輸入欄位以儲存，再點擊「啟動」。請將用戶端的連線位址更新為新位址。",
   "appMenu.about": "關於",
+  "appMenu.center": "置中",
   "appMenu.close": "關閉視窗",
   "appMenu.copy": "複製",
   "appMenu.cut": "剪下",

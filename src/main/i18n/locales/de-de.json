@@ -34,6 +34,7 @@
   "api_gateway.errors.internal_bind_permission_denied": "Das Betriebssystem verweigert dem internen API-Server das Lauschen auf {{address}}, angeforderter TCP-Port {{port}} (EACCES). Wiederholen Sie die Anfrage. Falls sie erneut fehlschlägt, bitten Sie die Systemadministration, Einschränkungen für Loopback-Listener zu prüfen.",
   "api_gateway.errors.public_bind_permission_denied": "Das Betriebssystem verweigert API-Server das Lauschen auf {{address}}, TCP-Port {{port}} (EACCES). Wählen Sie unter Einstellungen → API-Server einen anderen Port, verlassen Sie das Feld zum Speichern und klicken Sie auf Starten. Aktualisieren Sie den Endpunkt der Clients.",
   "appMenu.about": "Über",
+  "appMenu.center": "Zentrieren",
   "appMenu.close": "Fenster schließen",
   "appMenu.copy": "Kopieren",
   "appMenu.cut": "Schneiden",
