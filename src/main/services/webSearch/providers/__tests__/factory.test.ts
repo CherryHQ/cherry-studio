@@ -84,6 +84,7 @@ describe('createWebSearchProvider', () => {
       'jina',
       'parallel',
       'querit',
+      'searchapi',
       'searxng',
       'serply',
       'tavily',
