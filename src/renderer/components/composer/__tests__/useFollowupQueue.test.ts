@@ -839,6 +839,78 @@ describe('useFollowupQueue', () => {
     })
   })
 
+  it('releases the take claim without deleting when the hook unmounts mid-claim', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, takeDeleteTrigger, failTrigger, postTrigger } = wireMutations()
+    let resolveClaim!: (value: { claimed: true; alreadySent: boolean }) => void
+    claimTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveClaim = resolve
+      })
+    )
+
+    const { result, unmount } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      void result.current
+        .takeForEdit('h', () => null)
+        .then((value) => {
+          taken = value
+        })
+    })
+    // Navigate away while the claim is in flight.
+    await act(async () => {
+      unmount()
+    })
+    await act(async () => {
+      resolveClaim({ claimed: true, alreadySent: false })
+    })
+    await act(async () => {})
+
+    expect(taken).toBeUndefined()
+    expect(takeDeleteTrigger).not.toHaveBeenCalled()
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+    expect(postTrigger).not.toHaveBeenCalled()
+  })
+
+  it('re-enqueues the taken item when the hook unmounts while its delete is pending', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, takeDeleteTrigger, failTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
+    let resolveDelete!: () => void
+    takeDeleteTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDelete = () => resolve(undefined)
+      })
+    )
+
+    const { result, unmount } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      void result.current
+        .takeForEdit('h', () => null)
+        .then((value) => {
+          taken = value
+        })
+    })
+    // Navigate away while DELETE is pending: the committed delete must not lose
+    // the draft — it goes back to the end of its own scope's queue.
+    await act(async () => {
+      unmount()
+    })
+    await act(async () => {
+      resolveDelete()
+    })
+
+    expect(taken).toBeUndefined()
+    expect(failTrigger).not.toHaveBeenCalled()
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: { id: expect.any(String), scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
+    })
+  })
+
   it('restores a scope-moved take from the hydrated attachment bytes, not the stale entry id', async () => {
     // The taken row's managed attachment becomes cleanup-eligible in the
     // window between the committed DELETE and the restore; a recovery that
@@ -1363,6 +1435,64 @@ describe('useFollowupQueue', () => {
       })
       await act(async () => {})
       expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('registers no restore retry when the edit session ends while the claim release is in flight (inv_dc0d409a37700e67)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, failTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      // All three restoration requests fail; the claim release stays pending
+      // until the composer has already unmounted.
+      postTrigger.mockRejectedValue(new Error('queue full'))
+      let resolveRelease!: () => void
+      failTrigger.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          resolveRelease = () => resolve(undefined)
+        })
+      )
+
+      const { result, unmount } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let settle!: () => void
+      const switched = new Promise<void>((resolve) => {
+        settle = resolve
+      })
+      await act(async () => {
+        void result.current.takeForEdit('b', captureOutgoing).then(() => settle())
+        await Promise.resolve()
+      })
+      // The three restore attempts have failed; the release is still in flight.
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+
+      // Navigate away before the release settles: cleanup runs before any
+      // recovery record exists, so the old code's uncancelled retry would
+      // insert the copy into the retired session (cherry-pr-review
+      // inv_dc0d409a37700e67#f1).
+      act(() => {
+        unmount()
+      })
+      await act(async () => {
+        resolveRelease()
+        await switched
+      })
+
+      // No retry was registered: the copy is never re-inserted, and any copy
+      // a failed attempt already committed is closed instead.
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60 * 1000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(3)
     } finally {
       vi.useRealTimers()
     }

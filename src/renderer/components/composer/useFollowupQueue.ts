@@ -635,8 +635,15 @@ export function useFollowupQueue({
           await enqueueTrigger({ body: { ...copy.body, held: true } })
           if (tracked.cancelled) {
             // The edit session ended while the stamp was in flight: the landed
-            // copy must not outlive the session it belonged to.
-            void removeTrigger({ params: { id: copy.body.id } }).catch(() => {})
+            // copy must not outlive the session it belonged to, and a transient
+            // DELETE failure must not strand it past the held window either
+            // (cherry-pr-review inv_a9a4ae6a7ed17c68).
+            try {
+              await removeTrigger({ params: { id: copy.body.id } })
+              if (mountedRef.current) void refetch()
+            } catch (error) {
+              if (!isAlreadyResolved(error)) scheduleResolveRetryRef.current(copy.body.id, true, '')
+            }
             return
           }
           // A landed stamp still needs renewal: the edit session can outlive
@@ -700,6 +707,10 @@ export function useFollowupQueue({
       // the outgoing draft entirely.
       const taken = takenEditRef.current
       let incomingSlot = itemsRef.current.findIndex((entry) => entry.id === id)
+      // The restore reorder must wait until the incoming row is deleted:
+      // reorderBatch refuses to run while any row in the scope is live-sending,
+      // and the take below holds the incoming row's claim until then.
+      let pendingRestoreMove: { id: string; anchor: { position: 'first' } | { after: string } } | null = null
       // The outgoing item's landed restore, if the switch got that far: a
       // failed switch after this point must hold the copy instead of leaving
       // it deliverable while the editor still owns its content.
@@ -747,6 +758,26 @@ export function useFollowupQueue({
         if (!restored) {
           await releaseClaim()
           toast.error(t('message.error.operation_unavailable'))
+          if (!mountedRef.current || scopeKeyRef.current !== scope) {
+            // The edit session ended (or the scope switched) while the claim
+            // release was in flight: its composer cache owns the draft, so
+            // registering the restore retry now would attach it to a session
+            // nobody ends — the uncancelled retry would insert the copy,
+            // renewal stops at unmount, and the copy ages back into
+            // claimability, duplicating the retained draft (cherry-pr-review
+            // inv_dc0d409a37700e67#f1). Skip the retry and close any copy a
+            // failed attempt may already have committed, retaining cleanup
+            // ownership until it is closed or confirmed absent, same
+            // obligation as inv_f89db3564dc86774.
+            void (async () => {
+              try {
+                await removeTrigger({ params: { id: restoreBody.id } })
+              } catch (error) {
+                if (!isAlreadyResolved(error)) scheduleResolveRetryRef.current(restoreBody.id, true, '')
+              }
+            })()
+            return undefined
+          }
           // Editor-owned retry: the outgoing item stays in the editor, so this
           // restore belongs to the live session — ending the session cancels
           // it (and removes a landed copy) instead of letting the item
@@ -764,16 +795,14 @@ export function useFollowupQueue({
         // linger (cherry-pr-review).
         cancelTrackedEditRestoreRef.current()
         // Move the restored row back to the slot it was taken from; the slot
-        // follows removals of earlier rows via noteItemRemoved.
-        const current = itemsRef.current
-        const restoreSlot = Math.min(taken.slot, current.length)
-        const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
-        try {
-          await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
-        } catch {
-          // The draft is safe at the end of the queue; only its position is off.
-          toast.error(t('message.error.operation_unavailable'))
-        }
+        // follows removals of earlier rows via noteItemRemoved. Anchors are
+        // computed against the queue without the incoming row, which the take
+        // deletes before the move executes. The move targets the fresh
+        // restoration identity (the original row is a closed receipt).
+        const remaining = itemsRef.current.filter((entry) => entry.id !== id)
+        const restoreSlot = Math.min(taken.slot, remaining.length)
+        const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: remaining[restoreSlot - 1].id }
+        pendingRestoreMove = { id: restoreId, anchor }
         if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
       // The take below closes the row's file refs: hydrate each managed
@@ -823,6 +852,15 @@ export function useFollowupQueue({
           }
         }
       }
+      const placeRestoredEdit = async () => {
+        if (!pendingRestoreMove) return
+        try {
+          await reorderTrigger({ body: { moves: [pendingRestoreMove] } })
+        } catch {
+          // The draft is safe at the end of the queue; only its position is off.
+          toast.error(t('message.error.operation_unavailable'))
+        }
+      }
       if (claim.alreadySent) {
         // The content was already sent before a crash: the delete above is the
         // correct dequeue, but restoring its draft would invite a resend. The
@@ -830,17 +868,17 @@ export function useFollowupQueue({
         // what the composer shows — the session stays live, so hold the
         // restored copy out of delivery until the session ends
         // (cherry-pr-review).
+        await placeRestoredEdit()
         if (taken && restoredCopy) {
           holdRestoredCopy(restoredCopy)
         }
         return undefined
       }
-      if (scopeKeyRef.current !== scope || !mountedRef.current) {
-        // Scope moved or the consumer unmounted while DELETE was pending: the
-        // row is gone, but its draft belongs to the old scope — put it back at
-        // the end of that scope's queue instead of restoring it into a composer
-        // that can no longer receive it. (Unmount keeps the stale scopeKey, so
-        // the scope comparison alone cannot see it.)
+      // Recover a taken item into its original scope when this consumer can
+      // no longer receive it: the row is already deleted, so re-enqueue a
+      // fresh copy (the original row closed when it was taken, so a same-id
+      // enqueue would settle against the receipt without storing anything).
+      const recoverItemInScope = async () => {
         let restored = false
         let conversationGone = false
         const restoreId = crypto.randomUUID()
@@ -876,6 +914,46 @@ export function useFollowupQueue({
             restoreBody ?? { id: restoreId, scopeKey: scope, draft: item.draft, payload: restoredItem.payload }
           )
         }
+      }
+      if (scopeKeyRef.current !== scope || !mountedRef.current) {
+        // Scope moved or the consumer unmounted while DELETE was pending: the
+        // row is gone, but its draft belongs to the old scope — put it back at
+        // the end of that scope's queue instead of restoring it into a composer
+        // that can no longer receive it. (Unmount keeps the stale scopeKey, so
+        // the scope comparison alone cannot see it.)
+        await recoverItemInScope()
+        // The composer is gone and caches the still-visible outgoing draft on
+        // unmount: the landed recovery copy would age out of its hold and
+        // deliver a duplicate of that retained draft. Ownership moved to the
+        // composer cache — remove the copy (cherry-pr-review
+        // inv_ab5b303505a45104). Best-effort: a failed removal leaves the copy
+        // held, never deliverable.
+        if (restoredCopy) {
+          let removed = false
+          for (let attempt = 0; attempt < 3 && !removed; attempt++) {
+            try {
+              await removeTrigger({ params: { id: restoredCopy.id } })
+              removed = true
+            } catch (error) {
+              // Already gone counts as closed; transient failures retry inline.
+              if (isAlreadyResolved(error)) removed = true
+            }
+          }
+          // Same cleanup-ownership obligation as the deferred-reorder branch
+          // below: a transient DELETE failure must not strand the held copy
+          // (cherry-pr-review inv_f89db3564dc86774).
+          if (!removed) scheduleResolveRetryRef.current(restoredCopy.id, true, '')
+        }
+        takenEditRef.current = null
+        return undefined
+      }
+      await placeRestoredEdit()
+      if (scopeKeyRef.current !== scope || !mountedRef.current) {
+        // The consumer unmounted or changed scope while the deferred restore
+        // reorder was pending: the taken row is already deleted, so recover it
+        // in its original scope instead of returning it to an obsolete
+        // composer (cherry-pr-review).
+        await recoverItemInScope()
         // The composer is gone and caches the still-visible outgoing draft on
         // unmount: the landed recovery copy would age out of its hold and
         // deliver a duplicate of that retained draft. Ownership moved to the
