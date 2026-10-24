@@ -303,6 +303,15 @@ export class FollowupQueueService {
           'FollowupQueue'
         )
       }
+      // Resolve the original predecessor chain in the same write transaction
+      // as insertion. A peer removing an anchor cannot strand the recovery
+      // copy at the tail behind content it originally preceded.
+      let anchor = dto.anchor
+      if (dto.restorePredecessors !== undefined) {
+        const liveIds = new Set(existing.map((row) => row.id))
+        const predecessor = [...dto.restorePredecessors].reverse().find((id) => liveIds.has(id))
+        anchor = predecessor ? { after: predecessor } : { position: 'first' }
+      }
       const inserted = insertWithOrderKey(
         tx,
         followupQueueTable,
@@ -323,7 +332,7 @@ export class FollowupQueueService {
           // removed-anchor tail fallback (cherry-pr-review
           // inv_3f3a68791f4b48f1#f1).
           scope: and(eq(followupQueueTable.scopeKey, dto.scopeKey), ne(followupQueueTable.status, 'closed')),
-          anchor: dto.anchor
+          anchor
         }
       )
       const insertedRow = inserted as FollowupQueueRow

@@ -78,6 +78,7 @@ type RestoreQueueBody = {
   /** Best-effort placement applied atomically with the insert; a stale or
    * removed anchor row degrades server-side to a tail insert. */
   anchor?: OrderRequest
+  restorePredecessors?: string[]
 }
 
 // Restoration enqueues (edit handoff, scope/unmount recovery, background
@@ -787,6 +788,7 @@ export function useFollowupQueue({
       // edit was restored): the take below rebuilds queue membership around
       // it when capturing the incoming item's predecessor chain.
       let restoreSlot = -1
+      let atomicPlacementConfirmed = false
       if (taken) {
         let outgoing: Pick<FollowupQueueItem, 'draft' | 'payload'> | null = null
         try {
@@ -821,6 +823,7 @@ export function useFollowupQueue({
           // row in another window (cherry-pr-review inv_66de69107768f834#f1).
           const anchorSlot = resolveRestoreSlot(anchorItems, taken)
           restoreBody.anchor = anchorSlot === 0 ? { position: 'first' } : { after: anchorItems[anchorSlot - 1].id }
+          restoreBody.restorePredecessors = taken.predecessors ?? anchorItems.slice(0, anchorSlot).map((row) => row.id)
         } catch {
           // Attachments cannot be made durable right now: refuse the switch —
           // the outgoing edit is still in the editor, nothing is lost.
@@ -832,7 +835,8 @@ export function useFollowupQueue({
           try {
             // Born held: the copy stays ineligible for delivery until editor
             // ownership actually transfers; the failure paths only re-stamp it.
-            await enqueueTrigger({ body: { ...restoreBody, held: true } })
+            const inserted = await enqueueTrigger({ body: { ...restoreBody, held: true } })
+            atomicPlacementConfirmed = inserted?.id === restoreId
             restored = true
           } catch (error) {
             // The conversation was permanently deleted: nothing to restore
@@ -1031,6 +1035,12 @@ export function useFollowupQueue({
         const restoreId = restoredCopy.id
         const takenRecord = taken
         const currentWithoutIncoming = () => itemsRef.current.filter((entry) => entry.id !== id)
+        // The insertion transaction already resolved the live predecessor chain.
+        // A stale query mirror must not undo that placement.
+        if (atomicPlacementConfirmed) {
+          restoreSlot = resolveRestoreSlot(currentWithoutIncoming(), takenRecord)
+          return
+        }
         // Positional convergence after the anchored restore: the insert
         // normally already placed the copy at the slot it was taken from (the
         // slot follows removals of earlier rows via noteItemRemoved), which
@@ -1370,6 +1380,7 @@ export function useFollowupQueue({
           // queue-slot anchor across background retries
           // (cherry-pr-review inv_9ecff9fca3bdab04#f1).
           if (body.anchor) rebuilt.anchor = body.anchor
+          if (body.restorePredecessors !== undefined) rebuilt.restorePredecessors = body.restorePredecessors
           if (body.held !== undefined) rebuilt.held = body.held
           // A tracked session still owns the item in the editor: the landed
           // copy must stay ineligible for delivery until ownership transfers,

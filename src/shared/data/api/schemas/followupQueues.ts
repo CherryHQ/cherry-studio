@@ -13,6 +13,7 @@
 import * as z from 'zod'
 
 import {
+  FOLLOWUP_QUEUE_LIMIT,
   FollowupQueueDraftSchema,
   FollowupQueueIdSchema,
   FollowupQueuePayloadSchema,
@@ -58,7 +59,10 @@ export const CreateFollowupQueueSchema = z.strictObject({
    * its queue slot even while a peer's send holds the reorder barrier
    * (cherry-pr-review inv_9ecff9fca3bdab04#f1). Ignored on the duplicate-id
    * retry path — the landed row keeps its original position. */
-  anchor: OrderRequestSchema.optional()
+  anchor: OrderRequestSchema.optional(),
+  /** Edit restoration predecessor chain, resolved against live membership in
+   * the insertion transaction. An empty surviving chain places at the head. */
+  restorePredecessors: z.array(z.string()).max(FOLLOWUP_QUEUE_LIMIT).optional()
 })
 export type CreateFollowupQueueDto = z.infer<typeof CreateFollowupQueueSchema>
 

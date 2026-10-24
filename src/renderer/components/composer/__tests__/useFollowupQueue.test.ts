@@ -1242,7 +1242,8 @@ describe('useFollowupQueue', () => {
         held: true,
         // The restore lands at its slot atomically with the insert — no
         // reorder can be claim-barred out of it (inv_9ecff9fca3bdab04).
-        anchor: { position: 'first' }
+        anchor: { position: 'first' },
+        restorePredecessors: []
       }
     })
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
@@ -1698,6 +1699,7 @@ describe('useFollowupQueue', () => {
     // 'b' was taken from slot 1: the restore anchors after the row preceding
     // that slot, so the insert itself carries the position.
     expect(body.anchor).toEqual({ after: 'a' })
+    expect((body as { restorePredecessors?: string[] }).restorePredecessors).toEqual(['a'])
   })
 
   it('skips the reorder pass once refreshed items confirm the anchored placement, however long the claim lasts (inv_9ecff9fca3bdab04)', async () => {
@@ -2628,7 +2630,8 @@ describe('useFollowupQueue', () => {
         held: true,
         // The restore lands at its slot atomically with the insert — no
         // reorder can be claim-barred out of it (inv_9ecff9fca3bdab04).
-        anchor: { position: 'first' }
+        anchor: { position: 'first' },
+        restorePredecessors: []
       }
     })
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
