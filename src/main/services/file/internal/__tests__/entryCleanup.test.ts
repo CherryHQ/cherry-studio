@@ -16,6 +16,8 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import { messageService } from '@data/services/MessageService'
+import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
@@ -119,6 +121,75 @@ describe('entryCleanup', () => {
       updatedAt: now
     })
   }
+
+  it('preserves kept temporary-chat files until their last message references are deleted', async () => {
+    const attachmentId = nthId(901)
+    const toolOutputId = nthId(902)
+    const unreferencedId = nthId(903)
+    for (const id of [attachmentId, toolOutputId, unreferencedId]) {
+      await seedInternal(id, 'delete_when_unreferenced')
+    }
+    const temporary = new TemporaryChatService()
+    const topic = temporary.createTopic({ name: 'kept attachments' })
+    temporary.appendMessage(topic.id, {
+      role: 'user',
+      data: {
+        parts: [
+          {
+            type: 'file',
+            mediaType: 'text/plain',
+            url: `file:///tmp/${attachmentId}.txt`,
+            filename: 'attachment.txt',
+            providerMetadata: { cherry: { fileEntryId: attachmentId } }
+          }
+        ]
+      }
+    })
+    temporary.appendMessage(topic.id, {
+      role: 'assistant',
+      data: {
+        parts: [
+          {
+            type: 'tool-run_cmd',
+            toolCallId: 'call-1',
+            state: 'output-available',
+            input: {},
+            output: {
+              $persistedToolOutput: {
+                shape: 'text',
+                fileEntryId: toolOutputId,
+                vfsFilename: 'vfs_0123456789abcdef.txt',
+                head: 'head',
+                tail: 'tail',
+                totalChars: 200_000,
+                totalLines: 5_000
+              }
+            }
+          }
+        ]
+      }
+    })
+    temporary.persist(topic.id)
+
+    const kept = await runEntryCleanup(makeDeps())
+
+    expect(kept).toMatchObject({ outcome: 'completed', deleted: 1, failed: 0, unlinkFailures: 0 })
+    for (const id of [attachmentId, toolOutputId]) {
+      expect(fileEntryService.findById(id)).not.toBeNull()
+      expect((await stat(path.join(filesDir, `${id}.txt`))).isFile()).toBe(true)
+    }
+    expect(fileEntryService.findById(unreferencedId)).toBeNull()
+    await expect(stat(path.join(filesDir, `${unreferencedId}.txt`))).rejects.toMatchObject({ code: 'ENOENT' })
+
+    messageService.clearTopicMessages(topic.id)
+    const released = await runEntryCleanup(makeDeps())
+
+    expect(released).toMatchObject({ outcome: 'completed', deleted: 2, failed: 0, unlinkFailures: 0 })
+    for (const id of [attachmentId, toolOutputId]) {
+      expect(fileEntryService.findById(id)).toBeNull()
+      await expect(stat(path.join(filesDir, `${id}.txt`))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  })
 
   async function seedChatRef(fileEntryId: FileEntryId): Promise<{ topicId: string }> {
     const now = Date.now()
