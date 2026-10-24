@@ -4677,6 +4677,7 @@
   "settings.mcp.builtinServersDescriptions.browser": "Webseiten per Snapshot durchsuchen, Elemente anklicken und ausfüllen, Tabs wechseln und Dialoge bedienen. Läuft standardmäßig im Hintergrund.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "DiDi-MCP-Server mit Fahrdiensten wie Kartensuche, Preisschätzung, Auftragsverwaltung und Fahrerortung. Nur auf dem chinesischen Festland verfügbar. Die Umgebungsvariable DIDI_API_KEY muss konfiguriert sein.",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "MCP-Server-Implementierung von Dify, die einen einfachen API-Zugriff auf Dify bietet. Dify Key muss konfiguriert werden",
+  "settings.mcp.builtinServersDescriptions.empiriolabs": "Verbinden Sie EmpirioLabs AI, um über 200 KI-Modelle für Chat sowie Bild-, Video-, Sprach-, Musik- und 3D-Generierung zu nutzen, dazu Websuche mit Quellenangaben, Batch- und asynchrone Jobs, GPU Cloud und gehostete Agenten. Erfordert die Autorisierung Ihres Kontos bei EmpirioLabs AI.",
   "settings.mcp.builtinServersDescriptions.fetch": "MCP-Server zum Abrufen von Webseiteninhalten",
   "settings.mcp.builtinServersDescriptions.filesystem": "MCP-Server für Dateisystemoperationen (Node.js), der den Zugriff auf bestimmte Verzeichnisse ermöglicht",
   "settings.mcp.builtinServersDescriptions.flomo": "Verbinden Sie flomo, um Notizen und Ideen schnell per KI zu erfassen. Eine Autorisierung des flomo-Kontos ist erforderlich.",

@@ -4677,6 +4677,7 @@
   "settings.mcp.builtinServersDescriptions.browser": "Просматривайте снимки страниц, нажимайте элементы и вводите текст, переключайте вкладки и управляйте диалогами. По умолчанию работает в фоновом режиме.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Сервер DiDi MCP, предоставляющий услуги такси, включая поиск на карте, оценку стоимости, управление заказами и отслеживание водителей. Доступен только в материковом Китае. Требует настройки переменной окружения DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Реализация сервера MCP Dify, предоставляющая простой API для взаимодействия с Dify. Требуется настройка ключа Dify",
+  "settings.mcp.builtinServersDescriptions.empiriolabs": "Подключитесь к EmpirioLabs AI, чтобы использовать более 200 моделей ИИ для чата и генерации изображений, видео, речи, музыки и 3D, а также веб-поиск со ссылками на источники, пакетные и асинхронные задачи, GPU Cloud и размещённых агентов. Требуется авторизация в аккаунте EmpirioLabs AI.",
   "settings.mcp.builtinServersDescriptions.fetch": "MCP-сервер для получения содержимого веб-страниц по URL",
   "settings.mcp.builtinServersDescriptions.filesystem": "Node.js-сервер протокола контекста модели (MCP) для реализации операций файловой системы. Требуется настройка каталогов, к которым разрешён доступ",
   "settings.mcp.builtinServersDescriptions.flomo": "Подключитесь к flomo, чтобы быстро записывать заметки и идеи с помощью ИИ. Требуется авторизация в аккаунте flomo.",

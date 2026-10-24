@@ -56,6 +56,17 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   },
   {
+    name: BuiltinMcpServerNames.empiriolabs,
+    reference: 'https://docs.empiriolabs.ai/mcp',
+    type: 'streamableHttp',
+    baseUrl: 'https://mcp.empiriolabs.ai/mcp',
+    headers: { APP: 'Cherry Studio' },
+    isActive: false,
+    provider: 'EmpirioLabs AI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
     name: BuiltinMcpServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'stdio',
