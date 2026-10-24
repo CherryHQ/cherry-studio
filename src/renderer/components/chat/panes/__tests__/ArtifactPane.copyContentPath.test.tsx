@@ -136,7 +136,7 @@ describe('ArtifactPane Copy Content uses the selected file', () => {
     await i18n.changeLanguage(originalLanguage)
   })
 
-  // A 4-byte sibling must not turn on Copy Content for a file past the 2 MiB cap.
+  // A 4-byte sibling must not turn on Copy Content for a file past the 8 MiB cap.
   it.each([
     {
       name: 'basename begins with a backslash',
