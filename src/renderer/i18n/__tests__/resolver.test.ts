@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n, { initI18n } from '@renderer/i18n/resolver'
 import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS } from '@shared/types/doctor'
 import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
@@ -56,6 +57,12 @@ describe('renderer i18n lazy init', () => {
 
     expect(i18n.hasResourceBundle('th-TH', 'translation')).toBe(true)
     expect(i18n.t('common.copy')).toBe('คัดลอก')
+  })
+
+  it.each(['en-US', 'zh-CN', 'ja-JP', 'th-TH'])('displays the API Route provider name in %s', async (language) => {
+    await i18n.changeLanguage(language)
+
+    expect(i18n.t(getProviderLabelKey('api-route'))).toBe('API Route')
   })
 
   it('uses singular and plural diagnostic file summaries in English', async () => {
