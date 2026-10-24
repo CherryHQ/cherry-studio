@@ -747,6 +747,39 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('ordinary-static-tools')?.status).toBe('error')
     })
 
+    it.each(['sibling-streaming', 'settled-retry'])(
+      'marks every normalized empty steer exemption: %s (inv_28b8e12ffa928647)',
+      async (scenario) => {
+        const topicId = `handoff-${scenario}`
+        const listener = new FakeListener('l:normalized-handoff')
+        vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
+        mgr.send({
+          topicId,
+          models: [
+            { modelId: 'provider-a::model-a', request: req(topicId) },
+            ...(scenario === 'sibling-streaming'
+              ? [{ modelId: 'provider-b::model-b' as const, request: req(topicId) }]
+              : [])
+          ],
+          listeners: [listener]
+        })
+        mgr.enqueuePendingSteer(topicId, 'u-steer')
+        if (scenario === 'sibling-streaming') mgr.onChunk(topicId, 'provider-b::model-b', chunk('sibling answer'))
+        const execution = (mgr as any).activeStreams.get(topicId).executions.get('provider-a::model-a')
+        execution.finalMessage = {
+          id: 'empty-handoff',
+          role: 'assistant',
+          parts: [
+            { type: 'step-start' },
+            ...(scenario === 'settled-retry' ? [{ type: 'data-retry', data: { status: 'done' } }] : [])
+          ]
+        }
+        await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+        expect(listener.doneResults[0].finalMessage?.parts).toContainEqual({ type: 'data-steer-handoff', data: {} })
+        if (scenario === 'sibling-streaming') expect(mgr.inspect(topicId)?.status).toBe('streaming')
+      }
+    )
+
     it('persists the marker-only successful steer handoff distinction (inv_c6986dc74f41e8fb)', async () => {
       vi.useRealTimers()
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)

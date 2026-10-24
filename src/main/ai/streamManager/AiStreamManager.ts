@@ -1468,7 +1468,10 @@ export class AiStreamManager extends BaseService {
     // empty text may leave only step-start after persistence. Historical
     // genuinely empty successes still need Home's no-response fallback
     // (cherry-pr-review inv_c6986dc74f41e8fb).
-    if (chatChaining && exec.finalMessage && !hasRenderableContent(exec.finalMessage.parts)) {
+    // Each execution gets the same exemption as runExecution, even while a
+    // sibling streams. Classify persistence-normalized parts so transient
+    // retry metadata cannot hide an empty successful handoff.
+    if (this.hasPendingSteer(topicId) && exec.finalMessage && isEmptySuccessTurn(exec.finalMessage)) {
       exec.finalMessage = {
         ...exec.finalMessage,
         parts: [
