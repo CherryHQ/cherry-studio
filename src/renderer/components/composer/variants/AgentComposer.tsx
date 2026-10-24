@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Tooltip } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
@@ -70,7 +69,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import {
@@ -1310,55 +1308,13 @@ const AgentComposerInner = ({
         })
         return
       }
-      // Replay only if no newer reasoning edit or model switch superseded this one while the session update was
-      // in flight; otherwise this stale effort would overwrite the newer selection.
-      const pendingEditStillCurrent =
-        pendingReasoningEdit !== null &&
-        reasoningMutationVersionRef.current === version &&
-        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
-        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
-      if (pendingReasoningEdit && pendingEditStillCurrent) {
-        // The refs above only observe this composer's own mutations: an edit
-        // saved through another surface (agent settings, another window)
-        // while the session update was in flight leaves them untouched, so
-        // replaying the captured edit would overwrite the newer save
-        // (cherry-pr-review inv_b84ca94ae8d72b50#f1). Re-read the agent and
-        // replay only when the captured effort is still the latest persisted
-        // value, or when nothing has landed since the canonical value the
-        // edit started from. An unverifiable read never replays.
-        const freshAgent = (await dataApiService.get(`/agents/${agent.id}`).catch(() => undefined)) as
-          | { configuration?: Record<string, unknown> }
-          | undefined
-        const freshEffort = freshAgent
-          ? (parseAgentConfiguration(freshAgent.configuration, { entityId: agent.id, entityType: 'agent' })
-              ?.reasoning_effort ?? 'default')
-          : undefined
-        const editStillLatest =
-          freshEffort !== undefined &&
-          (freshEffort === pendingReasoningEdit.effort || freshEffort === canonicalReasoningEffort)
-        // The freshness read is itself an await boundary: a newer reasoning
-        // edit through this composer while the GET was outstanding bumps the
-        // mutation version and replaces the pending edit, yet the delayed
-        // response still carries the captured effort and passes the check
-        // above — replaying it would persist the stale effort over the newer
-        // selection (cherry-pr-review inv_749a7063976e49cf#f1). Revalidate
-        // the mutation version and captured edit immediately before replay.
-        const stillCurrentAfterRead =
-          reasoningMutationVersionRef.current === version &&
-          pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
-          pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
-        if (editStillLatest && stillCurrentAfterRead) {
-          await updateAgent(
-            {
-              id: agent.id,
-              configuration: { reasoning_effort: pendingReasoningEdit.effort },
-              // The session just moved to nextModel: the replayed effort must validate against it, not the unchanged agent default (cherry-pr-review inv_98911732422a84bf).
-              reasoningValidationModelId: nextModel.id
-            },
-            { showSuccessToast: false }
-          )
-        }
-      }
+      // Never replay the captured pending edit after the session update: the
+      // agents API has no revision evidence or conditional write, and value
+      // equality on a freshness read cannot distinguish "nothing landed yet"
+      // from an intervening same-value save through another surface - either
+      // way a replay can overwrite a newer Agent-wide setting and affect
+      // sibling sessions (cherry-pr-review inv_58f93a93e82c4393#f1). The
+      // selection-time updateAgent lands the edit on its own.
       if (
         pendingReasoningEdit &&
         pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
