@@ -53,6 +53,24 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it('uses the stream diagnosis for a serialized dmxapi relay EOF failure', () => {
+    const error = makeError({
+      message:
+        'upstream stream ended without a terminal frame (no message_delta, no message_stop); the response is truncated and incomplete; received 114 frames; reason=eof'
+    })
+
+    expect(classifyError(error, 'dmxapi')).toEqual({
+      category: 'stream',
+      i18nKey: 'error.diagnosis.stream',
+      navTarget: null
+    })
+    expect(classifyError(makeError({ ...error, statusCode: 500 }), 'dmxapi')).toEqual({
+      category: 'server',
+      i18nKey: 'error.diagnosis.server',
+      navTarget: null
+    })
+  })
+
   it('uses the parse diagnosis for a serialized unresolved tool call', () => {
     expect(
       classifyError(

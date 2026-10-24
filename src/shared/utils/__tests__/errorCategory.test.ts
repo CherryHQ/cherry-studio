@@ -20,6 +20,100 @@ describe('classifyErrorCategory HTTP 400', () => {
 // stream / proxy) instead of falling through to 'unknown', which hides the
 // settings recovery action and triggers a needless AI diagnosis call.
 describe('classifyErrorCategory transport failures', () => {
+  describe('relay EOF wording', () => {
+    const reportedMessage =
+      'upstream stream ended without a terminal frame (no message_delta, no message_stop); the response is truncated and incomplete; received 114 frames; reason=eof'
+
+    it('classifies the reported truncated response without an HTTP status as stream', () => {
+      expect(classifyErrorCategory({ text: reportedMessage })).toBe('stream')
+    })
+
+    it.each([
+      'stream ended without a terminal frame',
+      `Provider: ${reportedMessage.toUpperCase()}`,
+      'upstream stream ended without a terminal frame (no message_delta, no message_stop); the response is truncated and incomplete; received 27 frames'
+    ])('recognizes relay wording independently of casing, frame count, and EOF suffix: %s', (text) => {
+      expect(classifyErrorCategory({ text })).toBe('stream')
+    })
+
+    it.each([
+      [500, 'server'],
+      [503, 'server'],
+      [429, 'rate_limit'],
+      [401, 'auth'],
+      [402, 'quota'],
+      [404, 'model'],
+      [413, 'payload'],
+      [403, 'permission'],
+      [400, 'stream']
+    ] as const)('preserves HTTP %i precedence for relay wording as %s', (status, category) => {
+      expect(classifyErrorCategory({ text: reportedMessage, status })).toBe(category)
+    })
+
+    it('preserves structured safety classification ahead of relay wording', () => {
+      expect(classifyErrorCategory({ text: reportedMessage, finishReason: 'SAFETY' })).toBe('content')
+    })
+
+    it('prioritizes the specific relay failure over a generic fetch failure', () => {
+      expect(classifyErrorCategory({ text: 'fetch failed; stream ended without a terminal frame' })).toBe('stream')
+    })
+
+    it.each([
+      'econnreset',
+      'connection reset',
+      'err_connection_reset',
+      'err_connection_closed',
+      'stream interrupted',
+      'stream closed',
+      'stream aborted',
+      'stream ended unexpectedly',
+      'premature close'
+    ])('preserves existing stream transport wording: %s', (text) => {
+      expect(classifyErrorCategory({ text })).toBe('stream')
+    })
+
+    it.each([
+      'Response stream ended without a finish reason.',
+      'RESPONSE STREAM ENDED WITHOUT A FINISH REASON.',
+      'Provider: Response stream ended without a finish reason.'
+    ])('keeps incomplete finish-reason responses in parse: %s', (text) => {
+      expect(classifyErrorCategory({ text })).toBe('parse')
+    })
+
+    it.each([
+      ['Service unavailable', 'server'],
+      ['Overloaded', 'server'],
+      ['net::ERR_CONNECTION_ABORTED', 'network'],
+      ['SELF_SIGNED_CERT_IN_CHAIN', 'proxy'],
+      ['model_not_found', 'model'],
+      ['prompt is too long', 'context_length']
+    ] as const)('preserves the neighbouring diagnosis for %s', (text, category) => {
+      expect(classifyErrorCategory({ text })).toBe(category)
+    })
+
+    it('preserves rate limiting for HTTP 429', () => {
+      expect(classifyErrorCategory({ text: 'too many requests', status: 429 })).toBe('rate_limit')
+    })
+
+    it.each([
+      'eof',
+      'reason=eof',
+      'unexpected EOF',
+      'stream ended',
+      'stream ended without',
+      'stream ended without terminal frame',
+      'missing terminal frame',
+      'no message_delta',
+      'no message_stop',
+      'response is truncated and incomplete',
+      'Streaming is not supported for this model',
+      'Claude Code process exited with code 1'
+    ])('does not infer a stream failure from ambiguous wording: %s', (text) => {
+      expect(classifyErrorCategory({ text })).toBe('unknown')
+      expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+    })
+  })
+
   it('maps DNS resolution failure to network', () => {
     expect(classifyErrorCategory({ text: 'net::ERR_NAME_NOT_RESOLVED' })).toBe('network')
     expect(classifyErrorCategory({ text: 'net::ERR_NAME_RESOLUTION_FAILED' })).toBe('network')
