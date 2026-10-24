@@ -93,6 +93,7 @@
   "common.dingtalk_file_type": "Dosya adı DingTalk tarafından desteklenen bir uzantı içermelidir.",
   "common.dingtalk_processing": "İşleniyor…",
   "common.dingtalk_unsupported_message": "Bu mesaj türü desteklenmiyor. Metin, sesli mesaj, resim, video veya dosya gönderin.",
+  "common.feishu_credential_migration_failed": "Kaydedilen Feishu uygulaması taşınamadı. Bir uygulama seçin veya kimlik bilgilerini yeniden girin.",
   "common.inspect": "İncele",
   "common.paste": "Yapıştır",
   "common.wecom_attachment_failed": "Ekler okunamadı. Tekrar gönderin (dosya başına 20 MB, toplam 40 MB).",

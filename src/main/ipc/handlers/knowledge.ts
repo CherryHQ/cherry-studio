@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { toExternalKnowledgeConnectionView } from '@data/services/ExternalKnowledgeConnectionService'
 import { ExternalKnowledgeAdmissionError, ExternalKnowledgeRuntimeError } from '@main/features/knowledge'
@@ -115,15 +117,6 @@ async function externalKnowledgeAdmissionCommand<T>(operation: () => Promise<T>)
   }
 }
 
-/**
- * Thin adapters for the knowledge request routes: each one translates a parsed route
- * call into a `KnowledgeService` method (business logic + resource lifecycle stay in
- * that service). These routes act on shared business data, not the caller's window, so
- * they ignore `IpcContext` — there is no `senderId` addressing here (contrast window.ts).
- *
- * Void-output routes use a block body so the arrow resolves `undefined`, matching the
- * route's `z.void()` output (see selection.ts hide_toolbar).
- */
 export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> = {
   'knowledge.external_source.create': async (input) =>
     externalKnowledgeAdmissionCommand(() => application.get('KnowledgeService').createExternalKnowledgeSource(input)),
@@ -136,23 +129,41 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   'knowledge.external_source.disconnect': async (input) => {
     await application.get('KnowledgeService').disconnectExternalKnowledgeSource(input)
   },
-  'knowledge.feishu.registration.begin': async () =>
-    externalKnowledgeCommand(() => application.get('KnowledgeService').beginFeishuAppRegistration(), {
-      code: knowledgeErrorCodes.FEISHU_REGISTRATION_FAILED,
-      message: 'Feishu application registration failed'
-    }),
-  'knowledge.feishu.registration.cancel': async ({ registrationSessionId }) => {
+  'knowledge.feishu.registration.begin': async (input, { senderId }) =>
+    externalKnowledgeCommand(
+      () =>
+        application
+          .get('KnowledgeService')
+          .beginFeishuAppRegistration(senderId, randomUUID(), input?.applicationCredentialId),
+      {
+        code: knowledgeErrorCodes.FEISHU_REGISTRATION_FAILED,
+        message: 'Feishu application registration failed'
+      }
+    ),
+  'knowledge.feishu.registration.cancel': async ({ registrationSessionId }, { senderId }) => {
     await externalKnowledgeCommand(
-      () => application.get('KnowledgeService').cancelFeishuAppRegistration(registrationSessionId),
+      async () => {
+        application.get('FeishuRegistrationService').cancel(senderId, registrationSessionId)
+      },
       {
         code: knowledgeErrorCodes.FEISHU_REGISTRATION_FAILED,
         message: 'Feishu application registration failed'
       }
     )
   },
-  'knowledge.feishu.authorization.begin': async (input) =>
+  'knowledge.feishu.authorization.begin': async (input, { senderId }) =>
     externalKnowledgeCommand(async () => {
-      const result = await application.get('KnowledgeService').beginFeishuUserAuthorization(input)
+      const service = application.get('KnowledgeService')
+      const result =
+        input.kind === 'personal-agent'
+          ? await application.get('FeishuRegistrationService').authorizeKnowledge(
+              senderId,
+              input.registrationSessionId,
+              (credentials, signal) =>
+                service.beginFeishuUserAuthorization({ ...credentials, includeSpaceDiscovery: true }, signal),
+              (result) => service.cancelFeishuUserAuthorization(result.authorizationSessionId)
+            )
+          : await service.beginFeishuUserAuthorization(input)
       return { ...result, connection: toExternalKnowledgeConnectionView(result.connection) }
     }),
   'knowledge.feishu.authorization.complete': async ({ authorizationSessionId }) =>
@@ -166,11 +177,18 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
       application.get('KnowledgeService').cancelFeishuUserAuthorization(authorizationSessionId)
     )
   },
-  'knowledge.feishu.connection.reconnect': async ({ connectionId, credentials, includeSpaceDiscovery }) =>
+  'knowledge.feishu.connection.reconnect': async ({ connectionId, credentials, includeSpaceDiscovery }, { senderId }) =>
     externalKnowledgeCommand(async () => {
-      const result = await application
-        .get('KnowledgeService')
-        .reconnectFeishuConnection(connectionId, credentials, includeSpaceDiscovery)
+      const service = application.get('KnowledgeService')
+      const result =
+        credentials?.kind === 'personal-agent'
+          ? await application.get('FeishuRegistrationService').authorizeKnowledge(
+              senderId,
+              credentials.registrationSessionId,
+              (input, signal) => service.reconnectFeishuConnection(connectionId, input, includeSpaceDiscovery, signal),
+              (result) => service.cancelFeishuUserAuthorization(result.authorizationSessionId)
+            )
+          : await service.reconnectFeishuConnection(connectionId, credentials, includeSpaceDiscovery)
       return { ...result, connection: toExternalKnowledgeConnectionView(result.connection) }
     }),
   'knowledge.feishu.connection.validate': async ({ connectionId }) =>

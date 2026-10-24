@@ -86,7 +86,6 @@ function createHooks(
     loadAdapter,
     onMessage: vi.fn(),
     onCommand: vi.fn(),
-    onCredentials: vi.fn(),
     onDynamicChatId: vi.fn(),
     onLog: vi.fn(),
     onStatus: vi.fn(),
@@ -126,6 +125,7 @@ describe('ChannelRuntime', () => {
     const hooks = createHooks(
       () => desired,
       async (channel, agentId) => {
+        if (channel.type === 'feishu') throw new Error('Unexpected test channel')
         const adapter = new ControlledAdapter(
           {
             channelId: channel.id,
@@ -165,6 +165,7 @@ describe('ChannelRuntime', () => {
     const hooks = createHooks(
       () => ({ kind: 'connected', channel: makeChannel(), agentId: 'agent-1' }),
       async (channel, agentId) => {
+        if (channel.type === 'feishu') throw new Error('Unexpected test channel')
         attempt++
         return new ControlledAdapter(
           {
@@ -198,6 +199,7 @@ describe('ChannelRuntime', () => {
     const hooks = createHooks(
       () => desired,
       async (channel, agentId) => {
+        if (channel.type === 'feishu') throw new Error('Unexpected test channel')
         const adapter = new ControlledAdapter(
           {
             channelId: channel.id,
@@ -233,8 +235,9 @@ describe('ChannelRuntime', () => {
   it('captures a QR emitted synchronously by connect because the waiter is installed first', async () => {
     const hooks = createHooks(
       () => ({ kind: 'connected', channel: makeChannel(), agentId: 'agent-1' }),
-      async (channel, agentId) =>
-        new ControlledAdapter(
+      async (channel, agentId) => {
+        if (channel.type === 'feishu') throw new Error('Unexpected test channel')
+        return new ControlledAdapter(
           {
             channelId: channel.id,
             channelType: channel.type,
@@ -246,6 +249,7 @@ describe('ChannelRuntime', () => {
           undefined,
           'https://example.com/qr'
         )
+      }
     )
     const runtime = new ChannelRuntime('ch-1', hooks)
     const qrUrl = runtime.waitForQrUrl('agent-1', 1_000)
