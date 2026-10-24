@@ -30,7 +30,7 @@ import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLogger
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
-const { resolveModelMock } = vi.hoisted(() => ({
+const { resolveModelMock, resolveReasoningProfileMock } = vi.hoisted(() => ({
   // Default to no registry match; individual cases supply the preset contract
   // needed to verify stored overrides and resolved model behavior.
   resolveModelMock: vi.fn<
@@ -39,7 +39,19 @@ const { resolveModelMock } = vi.hoisted(() => ({
     presetModel: null,
     registryOverride: null,
     reasoningProfile: { format: 'openai-chat', wire: { disabled: true } }
-  }))
+  })),
+  // The manual reasoning controls resolve their profile through the SAME
+  // request-time entry point (`resolveReasoningProfile` at the effective
+  // endpoint). Default: the profile equals the resolved provider default —
+  // exactly what a provider without per-endpoint contracts yields — so
+  // individual cases stub the effective-endpoint contracts they exercise.
+  resolveReasoningProfileMock: vi.fn<
+    (
+      providerContext: ProviderRegistryServiceModule.ReasoningProviderContext,
+      model: { id: string; apiModelId?: string; endpointTypes?: string[] },
+      endpointType?: string
+    ) => any
+  >((context, model) => ({ ...resolveModelMock(context, model.id)?.reasoningProfile }))
 }))
 
 const OPENAI_CHAT_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
@@ -60,6 +72,24 @@ const OLLAMA_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningP
   }
 }
 
+// An anthropic-format endpoint carries the full manual effort ladder; the wire shape
+// mirrors the effort/off modes the projection filters against.
+const ANTHROPIC_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'anthropic' as const,
+  wire: OPENAI_CHAT_REASONING_PROFILE.wire
+}
+
+// Gemini's wire forwards the effort verbatim into `thinkingConfig.thinkingLevel`,
+// which only accepts low/medium/high — the manual fallback must not offer more.
+const GEMINI_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'gemini' as const,
+  wire: {
+    off: { operations: [{ target: 'thinkingConfig.includeThoughts', value: { source: 'literal', value: false } }] },
+    auto: { operations: [{ target: 'thinkingConfig.includeThoughts', value: { source: 'literal', value: true } }] },
+    effort: { operations: [{ target: 'thinkingConfig.thinkingLevel', value: { source: 'effort' } }] }
+  }
+}
+
 beforeEach(() => {
   resolveModelMock.mockReset()
   resolveModelMock.mockReturnValue({
@@ -67,6 +97,13 @@ beforeEach(() => {
     registryOverride: null,
     reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
   })
+  resolveReasoningProfileMock.mockReset()
+  resolveReasoningProfileMock.mockImplementation((context, model) => ({
+    ...(resolveModelMock(context, model.id)?.reasoningProfile ?? {
+      format: 'openai-chat',
+      wire: { disabled: true }
+    })
+  }))
 })
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
@@ -74,7 +111,8 @@ vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   return {
     ...actual,
     providerRegistryService: {
-      resolveModel: resolveModelMock
+      resolveModel: resolveModelMock,
+      resolveReasoningProfile: resolveReasoningProfileMock
     }
   }
 })
@@ -904,6 +942,454 @@ describe('ModelService.create', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-new')))
 
     expect(rows).toHaveLength(0)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Manual reasoning capability → composer effort controls (#19761)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService — manual reasoning capability projects effort controls', () => {
+  const dbh = setupTestDatabase()
+
+  /** The full manual effort vocabulary the fix must expose for declared-but-unknown ids. */
+  const MANUAL_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+  beforeEach(() => {
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+  })
+
+  it('gives a user-added reasoning-capable model the full manual effort vocabulary', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'tencent/hy4-preview',
+          name: 'Hy4 Preview',
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    expect(created.capabilities).toContain(MODEL_CAPABILITY.REASONING)
+    expect(created.reasoning?.selectableEfforts).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+  })
+
+  it('never overrides a registry-projected reasoning profile', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'claude-sonnet-5',
+          name: 'Claude Sonnet 5',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        },
+        registryData: {
+          presetModel: {
+            id: 'claude-sonnet-5',
+            name: 'Claude Sonnet 5',
+            capabilities: [MODEL_CAPABILITY.REASONING],
+            reasoning: {
+              controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+              supportedEfforts: ['low', 'medium', 'high']
+            }
+          },
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+        }
+      }
+    ])
+
+    const efforts = created.reasoning?.selectableEfforts ?? []
+    expect(efforts.length).toBeGreaterThan(0)
+    expect(efforts).not.toEqual([...MANUAL_REASONING_EFFORTS])
+  })
+
+  it('exposes no manual controls when the resolved wire profile disables reasoning', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('nvidia', 'NVIDIA'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'nvidia',
+          modelId: 'cosmos-reason2-8b',
+          name: 'Cosmos Reason 2 8B',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        },
+        registryData: {
+          presetModel: { id: 'cosmos-reason2-8b', name: 'Cosmos Reason 2 8B', capabilities: [MODEL_CAPABILITY.REASONING] },
+          registryOverride: null,
+          // NVIDIA's default wire explicitly disables reasoning parameters.
+          reasoningProfile: { format: 'openai-chat', wire: { disabled: true } }
+        }
+      }
+    ])
+
+    expect(created.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
+  it('disarms the stored descriptor when the capability is later removed', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'acme-custom-v1',
+          name: 'Acme Custom',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // The synthetic descriptor was persisted at create time; removing the
+    // capability in Edit Model must keep it from driving the composer.
+    await dbh.db
+      .update(userModelTable)
+      .set({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'acme-custom-v1')))
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
+    expect(model.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
+  it('regenerates the stored descriptor for the active endpoint when the provider switches format', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+
+    // Created under an anthropic-format endpoint, the synthetic fallback stores the
+    // creation-time vocabulary, `max` included.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+    modelService.create([
+      {
+        dto: {
+          providerId: 'acme',
+          modelId: 'acme-thinker:latest',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // The provider's endpoint later switches to ollama-chat, whose wire echoes the
+    // selected effort verbatim into `think` — the stored `max` tier would go out
+    // as `{ think: 'max' }`, which the SDK rejects. The descriptor must be
+    // regenerated for the active endpoint, not re-projected.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    })
+    const [model] = modelService.list({ providerId: 'acme' })
+    const efforts = model.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('xhigh')
+    expect(efforts).not.toContain('minimal')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+  })
+
+  it('derives manual controls from a model-level endpoint override, not the provider default', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+
+    // Provider resolves to an anthropic-format endpoint by default.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+    // The overridden endpoint's contract resolves to the Ollama format.
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'ollama-chat' ? OLLAMA_REASONING_PROFILE : ANTHROPIC_REASONING_PROFILE
+    )
+    modelService.create([
+      {
+        dto: {
+          providerId: 'acme',
+          modelId: 'acme-thinker:latest',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // The MODEL overrides its endpoint to ollama-chat: requests honor that
+    // override, so the vocabulary must be resolved for it — not for the
+    // provider default the resolved profile was built from.
+    await dbh.db
+      .update(userModelTable)
+      .set({ endpointTypes: ['ollama-chat'] })
+      .where(and(eq(userModelTable.providerId, 'acme'), eq(userModelTable.modelId, 'acme-thinker:latest')))
+
+    const [model] = modelService.list({ providerId: 'acme' })
+    const efforts = model.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('xhigh')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+    // The controls were resolved at the overridden endpoint, the same one
+    // resolveEffectiveEndpoint hands the request layer.
+    const readCall = resolveReasoningProfileMock.mock.calls.find(([, model]) => model.endpointTypes?.[0] === 'ollama-chat')
+    expect(readCall?.[2]).toBe('ollama-chat')
+  })
+
+  it('exposes no gemini-incompatible tiers on a Gemini endpoint', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('gemini-host', 'Gemini Host'))
+
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: GEMINI_REASONING_PROFILE
+    })
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'gemini-host',
+          modelId: 'acme-uncataloged-thinker',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // Gemini forwards the effort verbatim into thinkingConfig.thinkingLevel,
+    // which accepts only low/medium/high — xhigh/max would fail the request.
+    const efforts = created.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('xhigh')
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('minimal')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+  })
+
+  it('uses the dto endpoint override for the controls stored at create time', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+    // The overridden endpoint's contract resolves to the Ollama format.
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'ollama-chat' ? OLLAMA_REASONING_PROFILE : ANTHROPIC_REASONING_PROFILE
+    )
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'acme',
+          modelId: 'acme-thinker:latest',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          endpointTypes: ['ollama-chat'],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // The stored descriptor must match the endpoint the dto declares, not the
+    // provider default — otherwise the first read serves anthropic tiers over
+    // an ollama wire until the enrichment regenerates them.
+    const efforts = created.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('xhigh')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(created.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+    expect(resolveReasoningProfileMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'acme' }),
+      expect.objectContaining({ apiModelId: 'acme-thinker:latest' }),
+      'ollama-chat'
+    )
+  })
+
+  it('derives manual controls from the endpoint override on the preset-fallback read path', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('acme', 'preset-alias', {
+        name: 'Preset Alias',
+        presetModelId: 'acme-preset',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        endpointTypes: ['ollama-chat']
+      })
+    )
+    // Registry resolution succeeds but knows neither model nor preset: the row
+    // is served through createPresetFallback, whose manual controls must also
+    // follow the row's endpoint override.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'ollama-chat' ? OLLAMA_REASONING_PROFILE : ANTHROPIC_REASONING_PROFILE
+    )
+
+    const [model] = modelService.list({ providerId: 'acme' })
+    const efforts = model.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('max')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+  })
+
+  it('keeps a provider-disabled reasoning contract across a model endpoint override', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('groq-like', 'Groq Like'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('groq-like', 'llama-3.3-70b-versatile', {
+        name: 'Llama 3.3 70B',
+        presetModelId: 'groq-preset',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        endpointTypes: ['openai-chat-completions']
+      })
+    )
+    // The destination endpoint's contract disables reasoning — the request
+    // layer discards every selection for it — so the override resolves to a
+    // disabled profile and must not resurrect effort knobs with a generic
+    // openai wire.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: { format: 'none', wire: { disabled: true } }
+    })
+    resolveReasoningProfileMock.mockReturnValue({ format: 'none', wire: { disabled: true } })
+
+    const [model] = modelService.list({ providerId: 'groq-like' })
+    expect(model.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
+  it('resolves manual controls at the gateway route endpoint for uncataloged models', async () => {
+    // A routed gateway: uncataloged gemini-* ids ride the provider's Gemini
+    // endpoint at request time (resolveGatewayChatRoute), so the controls must
+    // be generated from that endpoint's contract — not the OpenAI default the
+    // provider-level profile resolves to.
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('aihubmix', 'AiHubMix'),
+      presetProviderId: 'aihubmix',
+      endpointConfigs: { 'google-generate-content': { baseUrl: 'https://aihubmix.com/gemini' } }
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('aihubmix', 'gemini-acme-thinker', {
+        name: 'Acme Thinker',
+        capabilities: [MODEL_CAPABILITY.REASONING]
+      })
+    )
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'google-generate-content' ? GEMINI_REASONING_PROFILE : OPENAI_CHAT_REASONING_PROFILE
+    )
+
+    const [model] = modelService.list({ providerId: 'aihubmix' })
+    expect(resolveReasoningProfileMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'aihubmix' }),
+      expect.objectContaining({ apiModelId: 'gemini-acme-thinker' }),
+      'google-generate-content'
+    )
+    // Gemini forwards the effort verbatim into thinkingConfig.thinkingLevel,
+    // so the vocabulary is the toggle plus low/medium/high — selecting a tier
+    // the route rejects becomes impossible by construction.
+    const efforts = model.reasoning?.selectableEfforts ?? []
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('xhigh')
+    expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+  })
+
+  it('includes an ollama-generate endpoint override in the effective resolution', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('acme', 'acme-thinker:latest', {
+        name: 'Acme Thinker',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        endpointTypes: ['ollama-generate']
+      })
+    )
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'ollama-generate' ? OLLAMA_REASONING_PROFILE : ANTHROPIC_REASONING_PROFILE
+    )
+
+    const [model] = modelService.list({ providerId: 'acme' })
+    // The override endpoint reached the resolution — Ollama's generate wire
+    // echoes the effort verbatim into `think`, which only accepts booleans and
+    // low/medium/high, so the generic ladder would produce rejected requests.
+    expect(resolveReasoningProfileMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'ollama-generate'
+    )
+    const efforts = model.reasoning?.selectableEfforts ?? []
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(efforts).not.toContain('max')
+    expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+  })
+
+  it("inherits the destination endpoint's disabled reasoning contract for an override", async () => {
+    // Poe-like provider: enabled Responses reasoning by default, but the
+    // Chat Completions destination explicitly disables reasoning. A model
+    // overriding onto it must expose no knobs — the request silently drops
+    // every selection there.
+    await dbh.db.insert(userProviderTable).values(providerRow('poe-like', 'Poe Like'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('poe-like', 'private-reasoner', {
+        name: 'Private Reasoner',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        endpointTypes: ['openai-chat-completions']
+      })
+    )
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'openai-chat-completions' ? { format: 'openai-chat', wire: { disabled: true } } : OPENAI_CHAT_REASONING_PROFILE
+    )
+
+    const [model] = modelService.list({ providerId: 'poe-like' })
+    expect(model.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
+  it('leaves models without the reasoning capability untouched', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          name: 'GPT-4o',
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    expect(created.reasoning).toBeUndefined()
   })
 })
 
