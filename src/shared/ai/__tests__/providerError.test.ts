@@ -241,3 +241,27 @@ describe('getSafeProviderErrorMessage', () => {
     expect(JSON.stringify(serialized)).not.toMatch(/url-secret|private user prompt|header-secret|data-secret/)
   })
 })
+
+describe('Issue #22198: serialized provider tool schema errors', () => {
+  it('classifies the real API error while clearing raw provider payloads', () => {
+    const reported =
+      "Unable to submit request because mcp__cherry-tools__cron functionDeclaration parameters.timeout_minutes schema didn't specify the schema type field."
+
+    const error = new APICallError({
+      message: reported,
+      url: 'https://api.example.com/chat',
+      requestBodyValues: {},
+      statusCode: 400,
+      responseBody: JSON.stringify({ message: reported }),
+      data: { message: reported }
+    })
+
+    expect(serializeNestedProviderError(error)).toMatchObject({
+      message: reported,
+      providerErrorCategory: 'bad_request',
+      statusCode: 400,
+      responseBody: null,
+      data: null
+    })
+  })
+})
