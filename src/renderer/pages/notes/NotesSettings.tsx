@@ -20,6 +20,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('NotesSettings')
 
@@ -70,6 +71,9 @@ const NotesSettings: FC = () => {
         return
       }
 
+      // An explicit pick is this PC's choice: stamp it so synced prefs from
+      // other machines can never redirect this PC's Notes tree (#20546).
+      await ipcApi.request('file.notes.set_device_path', { path: AbsoluteFilePathSchema.parse(tempPath) })
       updateNotesPath(tempPath)
       toast.success(t('notes.settings.data.path_updated'))
     } catch (error) {
@@ -82,6 +86,7 @@ const NotesSettings: FC = () => {
     try {
       const info = await ipcApi.request('app.get_info')
       setTempPath(info.notesPath)
+      await ipcApi.request('file.notes.set_device_path', { path: AbsoluteFilePathSchema.parse(info.notesPath) })
       updateNotesPath(info.notesPath)
       toast.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
