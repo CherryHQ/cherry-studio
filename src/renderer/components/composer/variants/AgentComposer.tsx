@@ -113,6 +113,7 @@ import {
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
+  readAgentDraftCacheEntryState,
   type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
@@ -429,9 +430,16 @@ const AgentComposerRoot = ({
   // clear it through content equality (cherry-pr-review
   // inv_6caaca041360920a).
   const editingMessageId = launchOptions?.editing?.messageId
+  // A launch composer does not own the session draft either: its settlement
+  // must clean up its OWN editor without reconciling an ordinary composer of
+  // the same session whose matching draft was saved independently
+  // (cherry-pr-review inv_1ea4a927cfde8561#f1), so it registers under a
+  // launch-scoped key its own settlement still resolves.
   const draftEditorRegistryKey = editingMessageId
     ? `${draftCacheKey}:agent:${agentId}:edit:${editingMessageId}`
-    : `${draftCacheKey}:agent:${agentId}`
+    : draftPersistenceEnabled
+      ? `${draftCacheKey}:agent:${agentId}`
+      : `${draftCacheKey}:agent:${agentId}:launch`
   const initialDraftRef = useRef<{
     instanceKey: string
     draft: RestoredAgentComposerDraftCache
@@ -1719,11 +1727,43 @@ const AgentComposerInner = ({
       clearSubmitted: (options) => clearCurrentDraft(options)
     }
     activeAgentDraftEditors.set(draftEditorRegistryKey, entry)
+    // Settlement may have landed between the mount-time draft load and this
+    // registration (a render that yielded): reconcile the CURRENT cache state
+    // immediately, or the reopened editor keeps the queued message
+    // submittable a second time (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+    // Only a persistence-owning conversation composer reconciles the session
+    // cache; a missing entry is ordinary TTL eviction, not a settlement
+    // (cherry-pr-review inv_994d0262e39459d3).
+    const loaded = initialDraft
+    if (
+      draftPersistenceEnabled &&
+      !launchOptions?.editing?.messageId &&
+      loaded &&
+      (loaded.text !== '' || loaded.tokens.length > 0 || loaded.files.length > 0) &&
+      readAgentDraftCacheEntryState(draftCacheKey, { workspaceKey, agentId }) === 'owned-empty' &&
+      entry.isShowing({
+        text: loaded.text,
+        tokens: loaded.tokens,
+        files: loaded.files,
+        knowledgeBaseIds: loaded.knowledgeBaseIds
+      })
+    ) {
+      clearCurrentDraft()
+    }
     return () => {
       if (activeAgentDraftEditors.get(draftEditorRegistryKey) === entry)
         activeAgentDraftEditors.delete(draftEditorRegistryKey)
     }
-  }, [clearCurrentDraft, draftEditorRegistryKey])
+  }, [
+    agentId,
+    clearCurrentDraft,
+    draftCacheKey,
+    draftEditorRegistryKey,
+    draftPersistenceEnabled,
+    initialDraft,
+    launchOptions,
+    workspaceKey
+  ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)

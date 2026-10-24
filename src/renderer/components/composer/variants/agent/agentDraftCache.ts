@@ -173,6 +173,33 @@ export function clearAgentDraftCacheIfMatches(
   return true
 }
 
+export type AgentDraftCacheEntryState = 'missing' | 'foreign' | 'owned-empty' | 'owned-document'
+
+/**
+ * Classify the raw cache entry for ownership reconciliation without masking:
+ * `missing` means TTL eviction (or nothing persisted), `foreign` means
+ * another agent/workspace owns the entry, and the owned states distinguish a
+ * settled (emptied) entry from a live document. Settlement rewrites the
+ * entry empty rather than deleting it, so `owned-empty` is the settled
+ * signal (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+ */
+export function readAgentDraftCacheEntryState(
+  cacheKey: AgentComposerDraftCacheKey,
+  scope: AgentDraftCacheScope
+): AgentDraftCacheEntryState {
+  const raw = cacheService.get(cacheKey)
+  if (!isRecord(raw)) return 'missing'
+  const rawAgentId = typeof raw.agentId === 'string' ? raw.agentId : ''
+  const rawWorkspaceKey = typeof raw.workspaceKey === 'string' ? raw.workspaceKey : ''
+  if (
+    (rawAgentId !== '' && rawAgentId !== scope.agentId) ||
+    (rawWorkspaceKey !== '' && rawWorkspaceKey !== scope.workspaceKey)
+  )
+    return 'foreign'
+  const cached = readAgentDraftCache(cacheKey, scope)
+  return cached.text !== '' || cached.tokens.length > 0 || cached.files.length > 0 ? 'owned-document' : 'owned-empty'
+}
+
 export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft: AgentComposerDraftCache) {
   const cacheableDraft = getCacheableAgentDraft({ text: draft.text, tokens: [...draft.tokens] })
   cacheService.set(

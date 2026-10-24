@@ -3415,6 +3415,41 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('queued while streaming')
   })
 
+  it('clears the reopened editor when settlement lands before its subscription installs (inv_69ddf60f8d01a98a)', async () => {
+    // The render-phase cache read captures draft A; settlement then empties
+    // the entry before this instance's reconciliation effect subscribes
+    // (a render that yielded). The install-time reconcile must still clear
+    // the editor, or the queued message stays submittable a second time
+    // (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+    let cached: unknown = { text: 'queued while streaming', tokens: [], files: [], knowledgeBaseIds: [] }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1' ? cached : ''
+    )
+    vi.mocked(cacheService.has).mockImplementation((key: string) => key === 'chat.composer_draft.topic-1')
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+    }))
+    // A sibling whose effect runs first settles the cache: the composer
+    // render already captured the draft, its subscription is not yet
+    // installed.
+    const Settler = () => {
+      useEffect(() => {
+        cached = { text: '', tokens: [], files: [], knowledgeBaseIds: [] }
+      }, [])
+      return null
+    }
+
+    render(
+      <>
+        <Settler />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+  })
+
   it('persists the latest chat draft when the topic changes before tools finish loading', async () => {
     const draftCacheKey = 'chat.composer_draft.topic-1'
     const drafts = new Map<string, unknown>([

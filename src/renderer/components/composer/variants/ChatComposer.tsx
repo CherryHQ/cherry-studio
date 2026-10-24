@@ -1630,7 +1630,7 @@ const ChatComposerInner = ({
   useEffect(() => {
     if (!hasChatDraftDocument(initialDraft)) return
     const mountRevision = draftEditRevisionRef.current
-    return subscribeChatDraftCache(draftCacheScopeKey, () => {
+    const reconcile = () => {
       // TTL expiry removes the cache entry outright; settlement rewrites it
       // with an empty document. A missing entry is ordinary cache eviction -
       // the visible draft was never submitted, so keep it in the editor
@@ -1653,7 +1653,13 @@ const ChatComposerInner = ({
       ) {
         clearCurrentDraft()
       }
-    })
+    }
+    // Settlement may have landed between the mount-time draft load and this
+    // subscription (a render that yielded): reconcile the CURRENT cache state
+    // immediately, or the reopened editor keeps the queued message
+    // submittable a second time (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+    reconcile()
+    return subscribeChatDraftCache(draftCacheScopeKey, reconcile)
   }, [actionsRef, clearCurrentDraft, draftCacheScopeKey, filesRef, initialDraft])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains

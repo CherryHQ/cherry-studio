@@ -3782,6 +3782,171 @@ describe('AgentComposer', () => {
     )
   })
 
+  it("does not clear an ordinary editor's matching draft when a launch composer's enqueue settles (inv_1ea4a927cfde8561)", async () => {
+    // Hold the queue POST open so the launch composer's enqueue settles only
+    // after the session has reopened in an ordinary composer holding an
+    // independently written matching draft. The launch composer does not own
+    // that draft: its settlement must not find (and clear) the ordinary
+    // editor through the shared registry key (cherry-pr-review
+    // inv_1ea4a927cfde8561#f1).
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const launchView = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{ initialDraft: { text: '', tokens: [] } }}
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'continue', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    launchView.unmount()
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+    expect(mocks.surfaceProps?.text).toBe('continue')
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await firstSend
+    })
+    await act(async () => {})
+
+    // The ordinary editor keeps its independently owned draft.
+    expect(mocks.surfaceProps?.text).toBe('continue')
+  })
+
+  it('still clears the submitting launch editor when its own enqueue settles (inv_1ea4a927cfde8561)', async () => {
+    // Launch-scoped registration must not strand the submitting launch
+    // editor itself: its settlement still resolves its own registry entry.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{ initialDraft: { text: '', tokens: [] } }}
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'continue', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mocks.surfaceProps?.text).toBe('continue')
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await firstSend
+    })
+    await act(async () => {})
+
+    expect(mocks.surfaceProps?.text).toBe('')
+  })
+
+  it('clears the reopened agent editor when settlement lands before its registration installs (inv_69ddf60f8d01a98a)', async () => {
+    // The render-phase cache read captures the queued draft; settlement then
+    // empties the entry before this instance's registration effect installs
+    // (a render that yielded). The install-time reconcile must still clear
+    // the editor, or the queued message stays submittable a second time
+    // (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+    let cached: unknown = {
+      text: 'queued while streaming',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [],
+      agentId: 'agent-1',
+      workspaceKey: 'workspace-1\0/workspace'
+    }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'agent.composer_draft.session_session-1' ? cached : undefined
+    )
+    // A sibling whose effect runs first settles the cache: the composer
+    // render already captured the draft, its registration is not yet
+    // installed.
+    const Settler = () => {
+      useEffect(() => {
+        cached = {
+          text: '',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          agentId: 'agent-1',
+          workspaceKey: 'workspace-1\0/workspace'
+        }
+      }, [])
+      return null
+    }
+
+    render(
+      <>
+        <Settler />
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      </>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+  })
+
   it("preserves another tab's matching session draft when a launch composer settles an enqueue (inv_0f6e49ac89e5815f)", async () => {
     // A launch composer does not own session-draft persistence: settling its
     // queued send must not reconcile the session cache, or tab B\'s saved
