@@ -6,9 +6,11 @@ import {
   areModelClassificationsEqual,
   buildModelCapabilities,
   buildModelInputModalities,
+  endpointTypeForPrimaryType,
   getInitialAddModelFormState,
   getInitialModelClassification,
   MODEL_ENDPOINT_OPTIONS,
+  resolveEndpointTypesForClassification,
   splitModelIds
 } from './helpers'
 
@@ -133,5 +135,35 @@ describe('getInitialAddModelFormState', () => {
         maxOutputTokens: null
       })
     )
+  })
+})
+
+describe('resolveEndpointTypesForClassification', () => {
+  // Catches #20730: purpose-mode left chat endpointTypes on embedding models, so
+  // model check probed /chat/completions and Cloudflare Workers AI returned 400.
+  it('owns openai-embeddings when primary type is embedding even if purpose kept chat', () => {
+    expect(endpointTypeForPrimaryType('embedding')).toBe(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)
+    expect(resolveEndpointTypesForClassification('embedding', [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])).toEqual([
+      ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+    ])
+  })
+
+  it('owns jina-rerank when primary type is rerank', () => {
+    expect(endpointTypeForPrimaryType('rerank')).toBe(ENDPOINT_TYPE.JINA_RERANK)
+    expect(resolveEndpointTypesForClassification('rerank', [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])).toEqual([
+      ENDPOINT_TYPE.JINA_RERANK
+    ])
+  })
+
+  it('keeps purpose/fallback endpoints for text and image primary types', () => {
+    expect(endpointTypeForPrimaryType('text')).toBeUndefined()
+    expect(endpointTypeForPrimaryType('image')).toBeUndefined()
+    expect(resolveEndpointTypesForClassification('text', [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])).toEqual([
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    ])
+    expect(resolveEndpointTypesForClassification('image', [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION])).toEqual([
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    ])
+    expect(resolveEndpointTypesForClassification('text', undefined)).toBeUndefined()
   })
 })
