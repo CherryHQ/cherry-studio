@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { McpServerService, mcpServerService } from '@data/services/McpServerService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 describe('McpServerService', () => {
   const dbh = setupTestDatabase()
@@ -116,6 +117,22 @@ describe('McpServerService', () => {
       ).toThrow(DataApiError)
 
       expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
+    })
+
+    it('accepts an inactive ZoneFoundry built-in install without an API key', () => {
+      const result = mcpServerService.create({
+        name: BuiltinMcpServerNames.zonefoundry,
+        type: 'streamableHttp',
+        baseUrl: 'https://relay.zonefoundry.dev/mcp',
+        env: { ZONEFOUNDRY_API_KEY: '' },
+        shouldConfig: true,
+        isActive: false,
+        installSource: 'builtin',
+        isTrusted: true
+      })
+
+      expect(result.name).toBe(BuiltinMcpServerNames.zonefoundry)
+      expect(result.isActive).toBe(false)
     })
   })
 

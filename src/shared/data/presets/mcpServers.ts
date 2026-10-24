@@ -12,8 +12,12 @@
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
+import { ZONEFOUNDRY_MCP_BASE_URL } from './zonefoundryMcp'
+
 /** A builtin server as declared in code; the `id` is assigned by the database on install. */
-export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & { name: BuiltinMcpServerName }
+export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & {
+  name: BuiltinMcpServerName
+}
 
 /** Frozen because both the renderer catalog and the seeder read these objects live. */
 const freezePresets = (presets: McpServerPreset[]): readonly Readonly<McpServerPreset>[] =>
@@ -52,6 +56,20 @@ export const PRESET_MCP_SERVERS = freezePresets([
     },
     shouldConfig: true,
     provider: 'QVeris',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    name: BuiltinMcpServerNames.zonefoundry,
+    type: 'streamableHttp',
+    baseUrl: ZONEFOUNDRY_MCP_BASE_URL,
+    headers: { APP: 'Cherry Studio' },
+    isActive: false,
+    env: {
+      ZONEFOUNDRY_API_KEY: ''
+    },
+    shouldConfig: true,
+    provider: 'ZoneFoundry',
     installSource: 'builtin',
     isTrusted: true
   },

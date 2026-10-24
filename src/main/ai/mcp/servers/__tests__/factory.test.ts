@@ -70,6 +70,27 @@ describe('resolveBuiltinExternalMcpServer', () => {
     expect(() => resolveBuiltinExternalMcpServer(qveris('   '))).toThrow(/QVERIS_API_KEY/)
   })
 
+  const zonefoundry = (apiKey?: string) =>
+    server({
+      name: BuiltinMcpServerNames.zonefoundry,
+      type: 'streamableHttp',
+      installSource: 'builtin',
+      headers: { APP: 'Cherry Studio' },
+      env: { ZONEFOUNDRY_API_KEY: apiKey ?? '' }
+    })
+
+  it('authenticates ZoneFoundry when an API key is configured', () => {
+    expect(resolveBuiltinExternalMcpServer(zonefoundry('zf-key')).headers).toEqual({
+      APP: 'Cherry Studio',
+      Authorization: 'Bearer zf-key'
+    })
+  })
+
+  it('leaves ZoneFoundry unauthenticated when no API key is set so OAuth can run', () => {
+    expect(resolveBuiltinExternalMcpServer(zonefoundry()).headers).toEqual({ APP: 'Cherry Studio' })
+    expect(resolveBuiltinExternalMcpServer(zonefoundry('   ')).headers).toEqual({ APP: 'Cherry Studio' })
+  })
+
   it('resolves builtin HTTP endpoints and preserves configured headers', () => {
     expect(
       resolveBuiltinExternalMcpServer(
