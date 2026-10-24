@@ -2423,6 +2423,7 @@
   "message.tools.error": "エラーが発生しました",
   "message.tools.groupHeader": "{{count}}ツール呼び出し",
   "message.tools.invoking": "呼び出し中",
+  "message.tools.killed": "強制終了",
   "message.tools.labels.bash": "バッシュ",
   "message.tools.labels.edit": "編集",
   "message.tools.labels.exitPlanMode": "ExitPlanMode",

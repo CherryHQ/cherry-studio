@@ -54,9 +54,14 @@ export async function startAgentSessionRun(input: {
     }
 
     if (input.requireIdle) {
+      const runtime = application.get('AgentSessionRuntimeService')
+      // Background work is deliberately off the busy path so a user turn may start through it, but
+      // a strictly-idle submitter has no such allowance: it exists to avoid landing on a session
+      // that is already working, so it asks for pending background work as well.
       if (
         manager.hasLiveStream(topicId) ||
-        application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)
+        runtime.isSessionBusy(input.sessionId) ||
+        runtime.hasPendingBackgroundWork(input.sessionId)
       ) {
         result = { mode: 'not-started', reason: 'busy' }
         return

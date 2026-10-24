@@ -580,7 +580,9 @@ export class AgentLifecycleService extends BaseService {
     const runtime = application.get('AgentSessionRuntimeService')
     const busySessionIds = sessionIds.filter(
       (sessionId) =>
-        manager.hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)) || runtime.isSessionBusyForArchive(sessionId)
+        manager.hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)) ||
+        runtime.isSessionBusyForArchive(sessionId) ||
+        runtime.hasPendingBackgroundWork(sessionId)
     )
     if (busySessionIds.length > 0) throw new AgentSessionArchiveBusyError(busySessionIds)
   }

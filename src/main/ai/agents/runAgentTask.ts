@@ -251,7 +251,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     .map((channel) => ({ id: channel.id, type: channel.type }))
     .sort((left, right) => left.id.localeCompare(right.id))
   const channelManager = application.get('ChannelManager')
-  const channelListeners: StreamListener[] = subscribedChannels.flatMap((channel) => {
+  const channelListeners: ChannelAdapterListener[] = subscribedChannels.flatMap((channel) => {
     const adapter = channelManager.getAdapter(channel.id)
     if (!adapter) return []
     // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
@@ -275,9 +275,36 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     if (!completionActive) return
     completionActive = false
     // `startRuntimeTurn` carries ordinary listeners into a queued successor. Remove this fire's
-    // task/channel listeners synchronously, before the later runtime terminal listener can launch it.
-    for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
+    // task sentinel synchronously, before the later runtime terminal listener can launch it. The
+    // channel listeners stay while native background work this fire spawned is still pending: the
+    // settlement wake's receive-only turn is the only route that work's result has to the
+    // subscribed chats, and a non-wake successor turn drops them instead of inheriting them.
     application.get('AiStreamManager').removeListener(topicId, `agent-task:${scheduleId ?? ctx.jobId}`)
+    if (!application.get('AgentSessionRuntimeService').hasPendingBackgroundWork(session.id)) {
+      for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
+    } else {
+      // The retained listeners outlive this handler, which owned failure notices; hand error
+      // reporting to the wake so a failed wake still reaches the subscribed chats. The arm waits
+      // out the terminal dispatch this settle runs inside: the sentinel is invoked ahead of the
+      // channel listeners there, and enabling synchronously would let this same event — this
+      // run's own failure — double-notify behind the `[Task failed]` summary the rejection sends.
+      void application
+        .get('AiStreamManager')
+        .whenTerminalDispatchSettled(topicId)
+        .catch(() => undefined)
+        .then(() => {
+          for (const listener of channelListeners) listener.enableErrorDelivery()
+        })
+      // Bind the recipients to this fire's outstanding obligation explicitly: only the fire knows
+      // its background work still owes the chats a delivery. The debt comes from the runtime's
+      // outbound ledger rather than the membership snapshot: the last task can leave the snapshot
+      // before this settle runs, and an empty debt reads as discharged -- leaving the summary of a
+      // task that still owes it with no route to the subscribed chats.
+      const owedTaskIds = application.get('AgentSessionRuntimeService').listPublishedBackgroundTaskIds(session.id)
+      if (owedTaskIds.size > 0) {
+        application.get('AiStreamManager').stashWakeChannelListeners(topicId, channelListeners, owedTaskIds)
+      }
+    }
     settle()
   }
   const sentinel: StreamListener = {

@@ -875,19 +875,50 @@ export class ChannelMessageHandler {
       rejectExecution = reject
     })
     let accumulatedText = ''
+    const channelListener = new ChannelAdapterListener(adapter, chatId, false, responseOptions)
+    const topicId = buildAgentSessionTopicId(session.id)
+    // Same retention rule as the scheduled fire: a settle with this request's background work still
+    // pending owes this chat the work's result, stashed with the live task ids as its claim debt.
+    // The debt is read from the runtime's outbound ledger rather than the membership snapshot: a
+    // snapshot that has already drained holds no ids even though this run's task still owes a summary,
+    // and an empty debt reads as discharged -- no recipients stashed, and the receive-only turn that
+    // answers the chat never carries it.
+    const retainForWake = () => {
+      if (!application.get('AgentSessionRuntimeService').hasPendingBackgroundWork(session.id)) return
+      const owedTaskIds = application.get('AgentSessionRuntimeService').listPublishedBackgroundTaskIds(session.id)
+      if (owedTaskIds.size === 0) return
+      application.get('AiStreamManager').stashWakeChannelListeners(topicId, [channelListener], owedTaskIds)
+    }
+    // `startRuntimeTurn` carries ordinary listeners into a queued successor, so a desktop follow-up
+    // must not inherit this request's sentinel — its terminal would retain the external chat against
+    // the follow-up's own background work. Retire it at its own terminal, once.
+    const sentinelId = `channel-completion:${chatId}`
+    let retired = false
+    const retire = (): boolean => {
+      if (retired) return false
+      retired = true
+      application.get('AiStreamManager').removeListener(topicId, sentinelId)
+      return true
+    }
     const sentinel: StreamListener = {
-      id: `channel-completion:${chatId}`,
+      id: sentinelId,
       onChunk(chunk) {
         // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
         if (chunk.type === 'text-delta') accumulatedText += chunk.delta
       },
       onDone() {
+        if (!retire()) return
+        retainForWake()
         resolveExecution(accumulatedText.trim())
       },
       onPaused() {
+        if (!retire()) return
+        retainForWake()
         resolveExecution(accumulatedText.trim())
       },
       onError(result) {
+        if (!retire()) return
+        retainForWake()
         rejectExecution(new Error(result.error.message ?? 'Execution failed'))
       },
       isAlive: () => !abortController.signal.aborted
@@ -897,7 +928,7 @@ export class ChannelMessageHandler {
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts,
-        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
+        listeners: [sentinel, channelListener],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
       })

@@ -2423,6 +2423,7 @@
   "message.tools.error": "Ocorreu um erro",
   "message.tools.groupHeader": "{{count}} chamadas de ferramenta",
   "message.tools.invoking": "Em execução",
+  "message.tools.killed": "Detenido forçosamente",
   "message.tools.labels.bash": "Bash",
   "message.tools.labels.edit": "Editar",
   "message.tools.labels.exitPlanMode": "ModoPlanoDeSaída",

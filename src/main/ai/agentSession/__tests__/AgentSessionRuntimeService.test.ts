@@ -45,6 +45,11 @@ const mocks = vi.hoisted(() => ({
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
+  finalizeHeldTopicStream: vi.fn(async () => undefined),
+  clearPendingChannelListeners: vi.fn(),
+  // Real-method default: no stash on the topic → the wake may carry (nothing owed anywhere).
+  stashedWakeRecipientsDischarged: vi.fn(() => true),
+  renewClaimedWakeRecipients: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -229,6 +234,46 @@ function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
     }
   })
   return entry
+}
+
+/** A connected runtime target; the occupancy that rides on it lives in the entry's runtime state. */
+function warmConnection(send = vi.fn()) {
+  return {
+    send,
+    close: vi.fn(),
+    reconcile: vi.fn().mockResolvedValue('current'),
+    refreshTraceContext: vi.fn()
+  }
+}
+
+/**
+ * One admitted subagent: the spawn-provenance edge every child gets (dshChildFlow.bindChild),
+ * plus its task-panel edge — which exists for direct children only, since `publishTaskEdge`
+ * folds grandchildren into their ancestor's flow. `parentSessionId` absent = root-spawned.
+ */
+function spawnDetachedChild(
+  service: InstanceType<typeof AgentSessionRuntimeService>,
+  childId: string,
+  parentSessionId?: string
+): void {
+  const entry = getEntry(service)
+  ;(service as any).handleRuntimeEvent(entry, {
+    type: 'background-child-provenance',
+    childSessionId: childId,
+    parentSessionId
+  })
+  if (parentSessionId === undefined) {
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'background-task-event',
+      data: { event: 'started', taskId: childId, status: 'in_progress', taskType: 'subagent' }
+    })
+  }
+  ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+}
+
+/** The raw entry, or undefined once the session has been closed out. */
+function getEntryOrUndefined(service: InstanceType<typeof AgentSessionRuntimeService>) {
+  return (service as unknown as { entries: Map<string, unknown> }).entries.get('session-1')
 }
 
 function markEntryTurnAdmitted(entry: any): void {
@@ -526,7 +571,11 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
-          terminateHeldTopicStream: mocks.terminateHeldTopicStream
+          terminateHeldTopicStream: mocks.terminateHeldTopicStream,
+          finalizeHeldTopicStream: mocks.finalizeHeldTopicStream,
+          clearPendingChannelListeners: mocks.clearPendingChannelListeners,
+          stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged,
+          renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients
         }
       }
       if (name === 'CacheService')
@@ -877,6 +926,312 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
       expect(entry.runtimeState.queue).toEqual([])
+      void service.closeSession('session-1')
+    })
+
+    it('starts a queued user turn immediately while background work is still running', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const sourceTurn = entry.currentTurn
+      entry.runtimeState.execution = {
+        ...entry.runtimeState.execution,
+        stream: 'open',
+        admission: 'admitted'
+      }
+      const send = vi.fn()
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: {
+          send,
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('current'),
+          refreshTraceContext: vi.fn()
+        },
+        occupancy: {}
+      } as any
+      mocks.cacheGetShared.mockImplementation((key: string) =>
+        String(key).includes('background_tasks')
+          ? [{ id: 'child-1', type: 'subagent', description: 'Long review' }]
+          : undefined
+      )
+
+      // Detached work starts and the spawning reply's own generation ends.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      // Not held open by the background work: persistence may settle the turn immediately.
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: sourceTurn,
+        stream: 'awaiting-persistence'
+      })
+
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      expect(entry.runtimeState.queue.length).toBe(1)
+      // Still awaiting persistence here — the queue launches once the terminal is confirmed.
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+        expect(entry.runtimeState.queue).toEqual([])
+      })
+      // Opening the follow-up's stream admits it onto the same connection the background work runs on.
+      const followUpTurn = entry.currentTurn
+      expect(followUpTurn.turnId).not.toBe(sourceTurn.turnId)
+      const followUpReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUpTurn.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(followUpReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      // The follow-up turn is admitted with a reminder of the still-running background work.
+      expect(entry.runtimeState.connection.occupancy).toMatchObject({ background: expect.anything() })
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({ systemReminder: true, backgroundTasksNote: expect.stringContaining('Long review') })
+      )
+      void service.closeSession('session-1')
+    })
+
+    // The spawning turn chains the topic stream (`willAgentSessionRuntimeContinue` is true while
+    // background occupancy is held) so the receive-only wake can carry the renderer listeners. When
+    // the work drains without ever producing that wake — stopped/killed, or a headless responder —
+    // nothing is left to settle the stream, so the drain edge itself must.
+    it('settles the held topic stream when detached work drains with no wake left to settle it', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      // Idle again — no execution, no launch, no queue is left to settle the stream.
+      expect(entry.runtimeState.execution.kind).toBe('idle')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(entry.runtimeState.connection.occupancy).toEqual({})
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
+    // The recipients a replaced turn stashed were owed THIS work's delivery. When the work drains
+    // without a wake the connection stays warm, so a later unrelated wake must not inherit the stale
+    // stash and post its own output to the previous run's external chats.
+    it('retires stashed wake recipients when detached work drains without a wake', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+      mocks.clearPendingChannelListeners.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(mocks.clearPendingChannelListeners).toHaveBeenCalledWith('agent-session:session-1')
+      void service.closeSession('session-1')
+    })
+
+    // While a turn is still settling the wake can still come, so the drain edge swallowed by the
+    // busy guard must leave the stash alone.
+    it('keeps stashed wake recipients while the drain edge lands inside a settling turn', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.clearPendingChannelListeners.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(mocks.clearPendingChannelListeners).not.toHaveBeenCalled()
+      void service.closeSession('session-1')
+    })
+
+    it('leaves the held topic stream to a still-settling turn instead of finalizing it early', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      expect(entry.runtimeState.execution.kind).toBe('turn')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      // The turn is still settling on the same connection; its own settle re-evaluates the hold with
+      // the occupancy already gone, so finalizing here would evict a stream it still writes through.
+      expect(mocks.finalizeHeldTopicStream).not.toHaveBeenCalled()
+      void service.closeSession('session-1')
+    })
+
+    it('releases the held topic stream once the settling turn that swallowed the drain edge terminates', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      // The drain edge landed inside the settling turn and was swallowed by the busy guard.
+      expect(mocks.finalizeHeldTopicStream).not.toHaveBeenCalled()
+
+      service.markTurnTerminal('session-1', 'success')
+      // A stopped/killed task leaves no wake, so this settle is the last event the hold can wait
+      // for; skipping the retry here would strand the held stream forever.
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
+    // A dead connection is the other "no wake is coming" edge: the subprocess that would have
+    // produced the receive-only wake is gone, and the detach itself clears the background occupancy
+    // the hold was opened for. Without releasing here, nothing can ever settle the topic stream —
+    // it would report `streaming` in every window and leak in `activeStreams` until the user's next
+    // turn happens to evict it.
+    it('releases the held topic stream when its connection is torn down before the wake can arrive', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const connection = warmConnection()
+      entry.connection = connection
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} } as any
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(entry.runtimeState.connection.occupancy).toMatchObject({ background: expect.anything() })
+
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+
+      // The hold had no successor left the moment the connection died.
+      expect(entry.runtimeState.connection.occupancy).toEqual({})
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
+    // The same edge reached from the other direction: `closeSession` drops the entry, and the entry
+    // was the hold's last driver. `willContinueTopic` goes false the moment the entry is gone, so a
+    // later check would never see this — the release has to be armed from the pre-close state.
+    it('releases the held topic stream when the session is closed out from under it', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const connection = warmConnection()
+      entry.connection = connection
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} } as any
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.willContinueTopic('agent-session:session-1')).toBe(true)
+
+      await service.closeSession('session-1')
+
+      // The closed session can neither wake nor drain, so the topic is settled rather than held.
+      expect(getEntryOrUndefined(service)).toBeUndefined()
+      expect(service.willContinueTopic('agent-session:session-1')).toBe(false)
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+    })
+
+    // A follow-up that lands after the spawning turn settled is not queued — it reuses the entry
+    // directly, skipping `startNextTurn`. It still owes the model the same "work is already running"
+    // reminder, or the model re-launches what the previous turn started.
+    it('reminds a fresh follow-up turn about the detached work the previous turn left running', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const send = vi.fn()
+      entry.connection = warmConnection(send)
+      mocks.cacheGetShared.mockImplementation((key: string) =>
+        String(key).includes('background_tasks')
+          ? [{ id: 'child-1', type: 'subagent', description: 'Long review' }]
+          : undefined
+      )
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(entry.runtimeState.execution.kind).toBe('idle')
+
+      const followUp = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUp.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      // The note reaches the model only through reminder wrapping, so the flag must ride with it.
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({ systemReminder: true, backgroundTasksNote: expect.stringContaining('Long review') })
+      )
+      void service.closeSession('session-1')
+    })
+
+    // The driver publishes empty membership *before* the terminal edge and only then waits for the
+    // SDK's idle boundary, so "the snapshot lists nothing" is not "the work finished". A follow-up
+    // landing in that window must still be warned, or the model re-launches what is still running.
+    it('reminds a follow-up even when the task snapshot is momentarily empty', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const send = vi.fn()
+      const connection = warmConnection(send)
+      entry.connection = connection
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} } as any
+      // A stateful cache, so the SDK's published snapshot is what the admission note reads.
+      let tasks: Array<{ id: string; type: string; description: string }> = []
+      mocks.cacheSetShared.mockImplementation((key: string, value: unknown) => {
+        if (String(key).includes('background_tasks')) tasks = value as typeof tasks
+      })
+      mocks.cacheGetShared.mockImplementation((key: string) =>
+        String(key).includes('background_tasks') ? tasks : undefined
+      )
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-tasks',
+        tasks: [{ id: 'c1', type: 'subagent', description: 'Long review' }]
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      // The SDK's next membership push is empty, but its idle boundary has not arrived.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
+      expect(entry.runtimeState.connection.occupancy).toMatchObject({ background: expect.anything() })
+      expect(tasks).toEqual([])
+
+      const followUp = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUp.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          systemReminder: true,
+          backgroundTasksNote: expect.stringContaining('still running')
+        })
+      )
+      void service.closeSession('session-1')
+    })
+
+    // Background work never makes the session busy, but it still writes message rows — while it runs,
+    // the backup/restore pre-flight must keep seeing the session as active work.
+    it('reports a session holding detached background work as active work for the backup pre-flight', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.listActiveWork()).toEqual([
+        expect.objectContaining({ id: 'session-1', summary: expect.stringContaining('background=true') })
+      ])
+
+      // Once the work drains the session is genuinely quiet again.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      expect(service.listActiveWork()).toEqual([])
       void service.closeSession('session-1')
     })
   })
@@ -2740,6 +3095,77 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
     })
 
+    it('does not overlay flow parts onto a row the flush refused as terminal error', async () => {
+      // Delivery settles a stopped-writing placeholder as a terminal error and the flush refuses to
+      // write it (AgentSessionMessageService.replaceMessageParts status guard). Publishing the
+      // refused parts to the live overlay anyway would resurrect success-shaped content under the
+      // failure status in the renderer projection.
+      mocks.replaceMessageParts.mockReturnValue({ id: 'assistant-1', status: 'error' })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Subagent finished anyway' }]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.resolve(),
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
+      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        parts,
+        60_000
+      )
+    })
+
+    it('does not overlay flow parts onto a terminal error row', () => {
+      // The row was already explained to the user as failed; a still-streaming or closing flow must
+      // not replace its parts in the renderer projection — not live (no TTL on live publishes), and
+      // not via the close handoff.
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        status: 'error',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Zombie writer output' }]
+
+      ;(service as any).publishBackgroundFlowParts(entry, { messageId: 'assistant-1', latest: { parts } })
+      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', parts)
+
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.resolve(),
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+      void service.closeSession('session-1')
+      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        parts,
+        60_000
+      )
+    })
+
     it('does not finish closing while detached flow parts can still write', async () => {
       let releaseFlow!: () => void
       const flowDone = new Promise<void>((resolve) => {
@@ -2900,6 +3326,400 @@ describe('AgentSessionRuntimeService', () => {
       interactive.markTurnTerminal('session-1', 'success')
       expect(interactive.getInteractionState('session-1').userResponse).toBe('unavailable')
       expect(interactive.getMcpInteractionHost('session-1')).toBeUndefined()
+    })
+
+    // The detached work's responder describes the work's own channel, not any later turn's: a
+    // desktop follow-up that reuses the entry must keep AskUserQuestion/approval available instead
+    // of inheriting the headless delivery's restrictions (`canUseTool` resolves by session id at
+    // fire time and cannot tell the turns apart).
+    it('resolves a desktop follow-up as interactive while headless detached work still holds the responder', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const headlessEntry = getEntry(service)
+      headlessEntry.connection = warmConnection()
+      ;(service as any).handleRuntimeEvent(headlessEntry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.getInteractionState('session-1').userResponse).toBe('unavailable')
+
+      const turn = service.beginTurn(baseTurnInput)
+      expect(service.getInteractionState('session-1')).toMatchObject({
+        currentTurn: 'interactive',
+        userResponse: 'message'
+      })
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      expect(service.getInteractionState('session-1').userResponse).toBe('stream')
+
+      // The restriction is preserved for the detached work itself: once the foreground turn
+      // settles, only the headless responder is left to answer.
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.getInteractionState('session-1').userResponse).toBe('unavailable')
+    })
+
+    // The session-tool boundary is the one place the headless responder must still win: a
+    // detached headless child forwards its calls under the root Session id, so a desktop
+    // follow-up going interactive must not hand the still-running child session-tool access.
+    it('keeps detached headless work denied session tools under an interactive follow-up turn', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const headlessEntry = getEntry(service)
+      headlessEntry.connection = warmConnection()
+      ;(service as any).handleRuntimeEvent(headlessEntry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      // Foreground interaction follows the desktop turn; the detached child's authorization does not.
+      expect(service.getInteractionState('session-1')).toMatchObject({
+        currentTurn: 'interactive',
+        userResponse: 'stream'
+      })
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+
+      // Once the headless work drains, the desktop turn's own authorization applies again.
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: false })
+      await vi.waitFor(() => expect(getEntry(service).runtimeState.connection.occupancy).toEqual({}))
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'interactive',
+        userResponse: 'stream'
+      })
+    })
+
+    // Two children, two origins, ONE aggregate occupancy edge: an interactive turn spawns A and
+    // settles, then a headless delivery reuses the connection and spawns B. DSH emits aggregate
+    // occupancy edges and the reducer keeps A's interactive responder, so the session-level state
+    // alone would authorize B and hand it the desktop follow-up's consent window.
+    it('authorizes each detached child by its own spawning turn, not the retained responder', async () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      spawnDetachedChild(service, 'child-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      spawnDetachedChild(service, 'child-b')
+      service.markTurnTerminal('session-1', 'success')
+
+      // Aggregate occupation retains A's interactive responder even though B is the newer child.
+      expect(getEntry(service).runtimeState.connection.occupancy).toEqual({
+        background: { responder: 'interactive' }
+      })
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+
+      // B was spawned headless: denied session tools, and no consent host in the follow-up's window.
+      expect(service.getSessionToolsAuthorization('session-1', 'child-b')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'child-b')).toBeUndefined()
+
+      // A keeps its own interactive authorization and the live desktop host.
+      expect(service.getSessionToolsAuthorization('session-1', 'child-a')).toMatchObject({ currentTurn: 'interactive' })
+      expect(service.getMcpInteractionHost('session-1', 'child-a')).toMatchObject({ windowId: 'window-1' })
+    })
+
+    // Grandchildren never reach the task-panel edges (`publishTaskEdge` folds them into their
+    // ancestor's flow) while the bridge forwards their real session ids, so the spawning turn's
+    // authority must propagate through the whole descendant tree: an interactive turn leaves
+    // detached A running, a headless delivery spawns B and B spawns C, and the desktop follow-up
+    // that starts afterwards must not hand C the aggregate responder's retained authority.
+    // Native Claude children (`agent_id`-keyed) do not stamp `cherry.bridgeOrigin` on their MCP
+    // requests, so a mixed-origin overlap must still resolve by the child's bound origin: an
+    // interactive turn leaves A running, a headless delivery launches B, and a desktop follow-up
+    // starts while both remain active. Background occupancy retains A's interactive responder.
+    it('denies session tools to a headless native child across a desktop follow-up', async () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      service.bindNativeChildOrigin('session-1', 'agent-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      service.bindNativeChildOrigin('session-1', 'agent-b')
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      // Both children are still listed on the live connection — the running-child state the
+      // unattributed-call restriction keys on.
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
+
+      // B carries no bridge provenance of its own; the request must still not be credited with the
+      // foreground interactive authority the retained responder reports.
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getSessionToolsAuthorization('session-1', 'agent-b')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'agent-b')).toBeUndefined()
+
+      // A keeps its own interactive authorization and the live desktop consent host.
+      expect(service.getSessionToolsAuthorization('session-1', 'agent-a')).toMatchObject({
+        currentTurn: 'interactive'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'agent-a')).toMatchObject({ windowId: 'window-1' })
+    })
+
+    // The consumed SDK supports nested agents, and `SubagentStart` carries no parent reference —
+    // only `agent_id`. So a grandchild B spawns from a headless child A cannot be attributed to A
+    // from the hook alone, and binding it against `currentTurn` credits it with the desktop
+    // follow-up that now owns the session. Its auto-approved mutating calls would then sail past
+    // the headless guard that correctly denies A.
+    it('keeps a grandchild of a headless child under unattended authority', async () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      getEntry(service).connection = warmConnection()
+      service.bindNativeChildOrigin('session-1', 'agent-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      // The desktop follow-up owns the turn while A is still running; A's spawn call now starts a
+      // grandchild (the hook passes the spawning child's id).
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      service.bindNativeChildOrigin('session-1', 'agent-grandchild', { headless: true })
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
+
+      expect(service.getToolGuardInteractionState('session-1', 'agent-grandchild')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      // The foreground turn keeps its own interactive authority — the restriction is scoped to the
+      // descendant, not applied to the session.
+      expect(service.getToolGuardInteractionState('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      void service.closeSession('session-1')
+    })
+
+    // The inverse of the test above: live membership says nothing about parentage. A desktop
+    // follow-up spawning its OWN child while an unrelated headless child is still running binds it
+    // against the spawning main thread, not against the concurrent headless child.
+    it('keeps a desktop follow-up’s own child interactive while an unrelated headless child is live', () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      getEntry(service).connection = warmConnection()
+      service.bindNativeChildOrigin('session-1', 'agent-headless')
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      // No `agent_id` on the spawn call: the main thread (the desktop follow-up) launched it.
+      service.bindNativeChildOrigin('session-1', 'agent-desktop-child')
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
+
+      expect(service.getToolGuardInteractionState('session-1', 'agent-desktop-child')).toMatchObject({
+        currentTurn: 'interactive',
+        userResponse: 'stream'
+      })
+      // The unrelated headless child keeps its own denial.
+      expect(service.getToolGuardInteractionState('session-1', 'agent-headless')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      void service.closeSession('session-1')
+    })
+
+    // Bindings are historical provenance: after a headless child finishes (SubagentStop releases
+    // its liveness, the SDK drains idle) its stale binding must not keep a desktop follow-up's
+    // unprovenanced root calls failing closed — only a still-live child does that.
+    it('releases the unattributed-call denial once the headless child’s work drains', () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      service.bindNativeChildOrigin('session-1', 'agent-b')
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      const entry = getEntry(service)
+
+      // While the child is listed, the unattributed call fails closed.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getMcpInteractionHost('session-1')).toBeUndefined()
+
+      // The child finished: the connection drains idle first — with no work of the connection's own
+      // left, nothing can still be carrying a continued child — and only then does SubagentStop
+      // become authoritative. The follow-up's own root calls must no longer inherit the denial.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      service.releaseNativeChildLiveness('session-1', 'agent-b')
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      expect(service.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
+
+      // Provenance survives the release — a resumed child keeps its headless origin.
+      expect(service.getSessionToolsAuthorization('session-1', 'agent-b')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      void service.closeSession('session-1')
+    })
+
+    // SubagentStop can land while UNRELATED background work is still active, so the release is
+    // deferred — and the drain that follows is the first moment nothing can still be carrying the
+    // child. Releasing there keeps a desktop follow-up's unprovenanced root calls working after all
+    // background work has drained.
+    it('releases a stopped child\u2019s liveness when the connection drains after its SubagentStop', () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      service.bindNativeChildOrigin('session-1', 'agent-b')
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      const entry = getEntry(service)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      // SubagentStop arrives while that work is still active, so the release defers.
+      service.releaseNativeChildLiveness('session-1', 'agent-b')
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+
+      // The drain is authoritative: with no background work left, nothing can still be carrying the
+      // stopped child, so the deferred release must land here.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      expect(service.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
+
+      // Provenance survives — a resumed child keeps its headless origin.
+      expect(service.getSessionToolsAuthorization('session-1', 'agent-b')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      void service.closeSession('session-1')
+    })
+
+    // A CLI crash after SubagentStart but before SubagentStop leaves the child bound while a later
+    // desktop turn reuses the entry and reconnects with no surviving child: an unprovenanced root
+    // MCP call must not hit the headless denial (and its consent-host suppression) there. Bindings
+    // are connection-owned — they still survive ordinary turns on the same live connection.
+    it('clears connection-owned native child bindings during the guarded teardown', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const entry = getEntry(service)
+      const connection = warmConnection()
+      entry.connection = connection
+      service.bindNativeChildOrigin('session-1', 'agent-crashed')
+      service.markTurnTerminal('session-1', 'success')
+
+      // The crash detaches the connection; the guarded teardown runs for it.
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+
+      // The desktop follow-up reuses the entry; its unprovenanced calls resolve by the live session.
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      expect(service.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
+    })
+
+    it('carries spawning-turn provenance through nested children that never reach the task panel', async () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      spawnDetachedChild(service, 'child-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      spawnDetachedChild(service, 'child-b')
+      spawnDetachedChild(service, 'child-c', 'child-b')
+      // A's own child arrives while the headless delivery runs — it keeps A's authority.
+      spawnDetachedChild(service, 'child-a1', 'child-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      // Aggregate occupation retains A's interactive responder even though the newer work is headless.
+      expect(getEntry(service).runtimeState.connection.occupancy).toEqual({
+        background: { responder: 'interactive' }
+      })
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+
+      // C inherits B's headless provenance through the tree: session tools stay forbidden and the
+      // follow-up's desktop window is not a consent host for it.
+      expect(service.getSessionToolsAuthorization('session-1', 'child-c')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'child-c')).toBeUndefined()
+
+      // Inverse direction: A's lineage keeps its interactive authority, consent host included.
+      expect(service.getSessionToolsAuthorization('session-1', 'child-a1')).toMatchObject({
+        currentTurn: 'interactive'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'child-a1')).toMatchObject({ windowId: 'window-1' })
+    })
+
+    it('resolves a headless follow-up as unavailable even while interactive detached work holds the responder', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const interactiveEntry = getEntry(service)
+      interactiveEntry.connection = warmConnection()
+      ;(service as any).handleRuntimeEvent(interactiveEntry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      const turn = service.beginTurn({ ...baseTurnInput, headless: true })
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      // openTurnStream's start() reconciles the warm connection asynchronously; let it settle so
+      // the occupancy under test survives the open.
+      await vi.waitFor(() => expect(getEntry(service).runtimeState.connection.kind === 'connected').toBe(true))
+      // A channel wake must not gain approval UI merely because detached desktop-spawned work
+      // still holds an interactive responder on the shared connection.
+      expect(service.getInteractionState('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
     })
 
     it('republishes the membership snapshot as session-scoped status', () => {

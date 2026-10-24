@@ -2423,6 +2423,7 @@
   "message.tools.error": "Error occurred",
   "message.tools.groupHeader": "{{count}} tool calls",
   "message.tools.invoking": "Getting started",
+  "message.tools.killed": "Killed",
   "message.tools.labels.bash": "Run task",
   "message.tools.labels.edit": "Edit",
   "message.tools.labels.exitPlanMode": "ExitPlanMode",

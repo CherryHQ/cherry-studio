@@ -155,7 +155,8 @@ describe('bashOutcomeHook', () => {
   beforeEach(() => {
     applicationMock.get.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeSessionStateService') return svc
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState: () => undefined }
+      if (name === 'AgentSessionRuntimeService')
+        return { getToolGuardInteractionState: () => undefined, releaseNativeChildLiveness: vi.fn() }
       throw new Error(`unexpected service: ${name}`)
     })
     vi.mocked(evaluateToolGuards).mockClear()
@@ -580,5 +581,8 @@ describe('bashOutcomeHook', () => {
     )
 
     expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit', 'agent-1')).toBeUndefined()
+
+    // The child's authorization binding deliberately survives the stop: the SDK may continue the
+    // same child via additionalContext, so only the connection reset may release its provenance.
   })
 })

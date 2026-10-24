@@ -44,6 +44,21 @@ interface McpSessionCatalogState {
   subscription?: { dispose(): void }
 }
 
+/** One in-flight spawn call: `parentAgentId` absent = main thread, `headless` = its authority. */
+export interface NativeSpawnAttempt {
+  toolUseId: string
+  parentAgentId?: string
+  headless: boolean
+}
+
+/** What a `SubagentStart` may inherit: the spawner's authority, or fail-closed when unattributable. */
+export interface NativeSpawnAttribution {
+  parentAgentId?: string
+  headless: boolean
+  /** Pending spawn calls disagree on authority, so ordering cannot attribute this child. */
+  ambiguous: boolean
+}
+
 @Injectable('ClaudeCodeSessionStateService')
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeSessionStateService extends BaseService {
@@ -53,6 +68,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
   private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
+  private readonly nativeSpawnAttempts = new Map<string, NativeSpawnAttempt[]>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -185,6 +201,49 @@ export class ClaudeCodeSessionStateService extends BaseService {
     return original
   }
 
+  /**
+   * `SubagentStart` names only the child, so the spawning execution is captured here from the
+   * `Task`/`Agent` call that is about to run — its `agent_id` when a child launched the spawn,
+   * absent when the main thread did. `headless` is resolved NOW: the caller's authority cannot be
+   * re-read later, when a foreground skill may have recorded its own attempt meanwhile.
+   */
+  recordNativeSpawnAttempt(sessionId: string, toolUseId: string, headless: boolean, parentAgentId?: string): void {
+    const attempts = this.nativeSpawnAttempts.get(sessionId) ?? []
+    attempts.push({ toolUseId, headless, ...(parentAgentId ? { parentAgentId } : {}) })
+    this.nativeSpawnAttempts.set(sessionId, attempts)
+  }
+
+  /**
+   * The attribution a starting child inherits. The SDK (0.3.284) gives no session-wide FIFO
+   * guarantee — a foreground skill and a surviving headless child can have spawn calls in flight at
+   * once — so a queue whose entries disagree on authority is unattributable: report it as
+   * ambiguous (fail closed) and leave the entries for the tool terminals to clear.
+   */
+  takeNativeSpawnAttempt(sessionId: string): NativeSpawnAttribution | undefined {
+    const attempts = this.nativeSpawnAttempts.get(sessionId)
+    if (!attempts?.length) return undefined
+    const [first] = attempts
+    if (attempts.some((attempt) => attempt.headless !== first.headless)) {
+      return { headless: true, ambiguous: true }
+    }
+    attempts.shift()
+    if (attempts.length === 0) this.nativeSpawnAttempts.delete(sessionId)
+    return {
+      headless: first.headless,
+      ambiguous: false,
+      ...(first.parentAgentId ? { parentAgentId: first.parentAgentId } : {})
+    }
+  }
+
+  /** A spawn call that finished without starting a child (denied, errored) must not claim the next one. */
+  clearNativeSpawnAttempt(sessionId: string, toolUseId: string): void {
+    const attempts = this.nativeSpawnAttempts.get(sessionId)
+    if (!attempts) return
+    const remaining = attempts.filter((attempt) => attempt.toolUseId !== toolUseId)
+    if (remaining.length === 0) this.nativeSpawnAttempts.delete(sessionId)
+    else this.nativeSpawnAttempts.set(sessionId, remaining)
+  }
+
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
@@ -192,6 +251,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
       if (key === sessionId || key.startsWith(`${sessionId} `)) this.bashOutcomes.delete(key)
     }
     this.bashRewriteOrigins.delete(sessionId)
+    this.nativeSpawnAttempts.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
   }
@@ -269,6 +329,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.toolPolicySnapshots.clear()
     this.bashOutcomes.clear()
     this.bashRewriteOrigins.clear()
+    this.nativeSpawnAttempts.clear()
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }

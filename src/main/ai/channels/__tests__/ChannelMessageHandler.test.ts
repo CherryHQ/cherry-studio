@@ -18,6 +18,7 @@ import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { BaseService } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { FileManager } from '@main/services/file'
+import { AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY } from '@shared/ai/agentSessionBackgroundTasks'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -64,10 +65,32 @@ vi.mock('../security/OutputSanitizer', () => ({
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
 // AiStreamManager; the abort path reads it, so override locally with a captured spy.
-const { mockStreamAbort } = vi.hoisted(() => ({ mockStreamAbort: vi.fn() }))
+const {
+  mockStreamAbort,
+  mockStashWakeChannelListeners,
+  mockRemoveListener,
+  mockHasPendingBackgroundWork,
+  mockListPublishedBackgroundTaskIds
+} = vi.hoisted(() => ({
+  mockStreamAbort: vi.fn(),
+  mockStashWakeChannelListeners: vi.fn(),
+  mockRemoveListener: vi.fn(),
+  mockHasPendingBackgroundWork: vi.fn(() => false),
+  mockListPublishedBackgroundTaskIds: vi.fn((): ReadonlySet<string> => new Set())
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: { abort: mockStreamAbort } } as never)
+  return mockApplicationFactory({
+    AiStreamManager: {
+      abort: mockStreamAbort,
+      stashWakeChannelListeners: mockStashWakeChannelListeners,
+      removeListener: mockRemoveListener
+    },
+    AgentSessionRuntimeService: {
+      hasPendingBackgroundWork: mockHasPendingBackgroundWork,
+      listPublishedBackgroundTaskIds: mockListPublishedBackgroundTaskIds
+    }
+  } as never)
 })
 
 vi.mock('@data/services/AgentService', () => ({
@@ -211,6 +234,8 @@ describe('ChannelMessageHandler', () => {
     } as any)
     mockPrepareAgentSessionWorkspaceDirectory.mockReset()
     mockPrepareAgentSessionWorkspaceDirectory.mockResolvedValue(undefined)
+    mockHasPendingBackgroundWork.mockReturnValue(false)
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set())
     persistedChannelSessions.bindings.clear()
     persistedChannelSessions.sessions.clear()
     vi.mocked(agentSessionService.getById).mockImplementation(
@@ -257,6 +282,146 @@ describe('ChannelMessageHandler', () => {
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.', undefined)
+  })
+
+  // An inbound request whose turn settles while the background work it spawned is still running
+  // owes its chat that work's result: the listener must be stashed for the settlement wake, bound
+  // to the work's own task ids, or a desktop follow-up strands the delivery.
+  it('stashes the inbound listener for the wake when the turn settles with background work pending', async () => {
+    const adapter = createMockAdapter()
+    let sessionId = ''
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    // The runtime's outbound ledger names the spawned work: it survives the membership snapshot
+    // draining, which is what makes it the debt's authority.
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set(['task-inbound-1']))
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners, sessionId: id }: any) => {
+      sessionId = id
+      for (const listener of listeners) {
+        listener.onChunk({ type: 'text-delta', delta: 'On it.' })
+        await listener.onDone({ status: 'success' })
+      }
+      return { mode: 'started' }
+    })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-9',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'start it in the background'
+    })
+
+    // The turn's own reply reached the chat normally, and the listener is bound to the wake — with
+    // the live task set recorded as its debt so only this work's own wake claims it.
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-9', 'On it.', undefined)
+    expect(mockHasPendingBackgroundWork).toHaveBeenCalledWith(sessionId)
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledWith(
+      `agent-session:${sessionId}`,
+      [expect.objectContaining({ id: 'channel:channel-1:chat-9:unthreaded' })],
+      new Set(['task-inbound-1'])
+    )
+  })
+
+  // The debt must be captured before membership disappears. The last background task can leave the
+  // membership snapshot before the turn's terminal runs — the driver publishes empty membership
+  // ahead of its terminal edge. Reading the snapshot at the sentinel then records an EMPTY debt,
+  // which `stashedWakeRecipientsDischarged` treats as discharged: no recipients are stashed, and the
+  // receive-only turn that answers the chat never carries the listener, so the requesting chat
+  // never receives the task's summary.
+  it('stashes the inbound listener against the ledger when membership already drained', async () => {
+    const adapter = createMockAdapter()
+    let sessionId = ''
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set(['task-inbound-1']))
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners, sessionId: id }: any) => {
+      sessionId = id
+      // The membership snapshot has already drained: no task is listed at the terminal edge.
+      application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(id), [])
+      for (const listener of listeners) {
+        listener.onChunk({ type: 'text-delta', delta: 'On it.' })
+        await listener.onDone({ status: 'success' })
+      }
+      return { mode: 'started' }
+    })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-9',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'start it in the background'
+    })
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-9', 'On it.', undefined)
+    expect(mockListPublishedBackgroundTaskIds).toHaveBeenCalledWith(sessionId)
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledWith(
+      `agent-session:${sessionId}`,
+      [expect.objectContaining({ id: 'channel:channel-1:chat-9:unthreaded' })],
+      new Set(['task-inbound-1'])
+    )
+  })
+
+  // Occupancy and membership are separate facts: the work can still be active while the membership
+  // snapshot has already drained to empty. Retaining then records an EMPTY debt, which
+  // `stashedWakeRecipientsDischarged` treats as already discharged — so the next wake, whatever work
+  // it belongs to, claims these recipients and posts its private desktop output to the external chat.
+  it('does not retain the chat against a debt of no task at all', async () => {
+    const adapter = createMockAdapter()
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners }: any) => {
+      // The membership snapshot never names a task: the work is still active but nothing is listed.
+      application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY('session-1'), [])
+      for (const listener of listeners) {
+        listener.onChunk({ type: 'text-delta', delta: 'On it.' })
+        await listener.onDone({ status: 'success' })
+      }
+      return { mode: 'started' }
+    })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-9',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'start it in the background'
+    })
+
+    // The chat was served normally; it just is not retained against an obligation no task owes.
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-9', 'On it.', undefined)
+    expect(mockStashWakeChannelListeners).not.toHaveBeenCalled()
+  })
+
+  // A desktop follow-up queued during the inbound turn inherits the turn's ordinary listeners via
+  // `startRuntimeTurn`. The completion sentinel belongs to THIS request: if it survived, the
+  // follow-up's terminal would run its retention callback again and bind the external chat to the
+  // follow-up's own background work, posting that work's summary into the chat.
+  it('retires the completion sentinel on its own terminal so a queued follow-up cannot re-stash the chat', async () => {
+    const adapter = createMockAdapter()
+    let sentinel: { id: string; onDone: (result: { status: string }) => void | Promise<void> } | undefined
+    let sessionId = ''
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set(['task-inbound-1']))
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners, sessionId: id }: any) => {
+      sessionId = id
+      sentinel = listeners.find((listener: { id: string }) => listener.id.startsWith('channel-completion:'))
+      for (const listener of listeners) await listener.onDone({ status: 'success' })
+      return { mode: 'started' }
+    })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-9',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'start it in the background'
+    })
+
+    expect(sentinel).toBeDefined()
+    // The sentinel left the stream at its own terminal, so a successor turn cannot carry it.
+    expect(mockRemoveListener).toHaveBeenCalledWith(`agent-session:${sessionId}`, sentinel!.id)
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledTimes(1)
+
+    // The desktop follow-up now starts its own background work. Even if a stale terminal reaches
+    // the inherited callback, the retired sentinel must not bind the external chat to that work.
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set(['task-desktop-1']))
+    await sentinel!.onDone({ status: 'success' })
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledTimes(1)
   })
 
   it('delivers a sanitized terminal reply when admission throws an unexpected error', async () => {

@@ -96,6 +96,13 @@ export interface StreamListener {
   readonly terminalPhase?: 'persistence' | 'cleanup'
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
+  /**
+   * The execution whose terminal is about to be fanned out, called synchronously for EVERY listener
+   * before any listener's async delivery. A listener that outlives its execution binds terminal
+   * identity here instead of inferring it from arrival order: an overlapping wake terminal can
+   * otherwise reach a later listener first.
+   */
+  prepareTerminal?(attemptId: number | undefined): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
@@ -190,6 +197,12 @@ export interface ActiveStream {
   expiresAt?: number
   /** Timer handle set by chat `lifecycle.cleanup` so `evictStream` can cancel. */
   cleanupTimer?: ReturnType<typeof setTimeout>
+  /**
+   * True while a settling execution deliberately kept this stream un-terminalized so an upcoming
+   * continuation can carry its listeners; cleared by `runTerminalLifecycle`. Lets a "no successor is
+   * coming after all" edge settle the stream instead of stranding it.
+   */
+  heldForContinuation?: boolean
 }
 
 // ── Config ──────────────────────────────────────────────────────────

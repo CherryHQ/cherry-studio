@@ -8,6 +8,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
+import type { ChannelAdapter } from '../../channels/ChannelAdapter'
 import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
@@ -67,6 +68,8 @@ class FakeListener implements StreamListener {
   isAlive(): boolean {
     return this.alive
   }
+
+  prepareTerminal = vi.fn<(attemptId: number | undefined) => void>()
 }
 
 // ── Mocks ───────────────────────────────────────────────────────────
@@ -173,6 +176,7 @@ const { AiStreamManager } = await import('../AiStreamManager')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
+const { ChannelAdapterListener } = await import('../listeners/ChannelAdapterListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -636,6 +640,758 @@ describe('AiStreamManager', () => {
       current.close()
       await vi.waitFor(() => expect(currentListener.doneResults).toHaveLength(1))
     })
+  })
+
+  // ── wake listener carry ─────────────────────────────────────────────
+
+  // A scheduled fire's (or channel chat's) channel listeners survive the inter-turn gap so the
+  // native background work's settlement wake can deliver its result — but an ordinary successor
+  // turn (a user follow-up, the next fire) must not inherit those recipients.
+  it('carries channel listeners into a wake turn but drops them from an ordinary successor turn', async () => {
+    const topicId = 'agent-session:s1'
+    const channelListener = new FakeListener('channel:ch1:chat-1:unthreaded')
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    // Ordinary successor: the channel recipients must not ride along.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    const successorListeners = mgr.inspect(topicId)?.listenerIds ?? []
+    expect(successorListeners).toContain('wc:win-1')
+    expect(successorListeners).not.toContain('channel:ch1:chat-1:unthreaded')
+  })
+
+  // A desktop follow-up starting while a scheduled fire's native subagent still runs replaces the
+  // held stream, so the fire's recipients are gone from it by wake time — the binding has to
+  // outlive the stream, or the subscribed chat never receives the background result.
+  it('keeps a background wake’s channel recipients across an intervening desktop follow-up', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // The fire's background work is still pending, so the fire stashes its recipients for the wake.
+    mgr.stashWakeChannelListeners(topicId, [channelListener])
+
+    // Desktop follow-up: an ordinary turn, so the fire's recipients are deliberately not inherited.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // The native subagent's result arrives on the wake that owes the subscribed chat a delivery.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Found it: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+    expect(sent).toEqual(['Found it: 42'])
+  })
+
+  // Terminal dispatch awaits each listener in turn, so a listener queued behind a slow recipient
+  // has not seen the foreground terminal when an overlapping wake terminal fans out. The manager
+  // therefore binds the dispatching attempt on EVERY listener synchronously, before any delivery.
+  it('binds the terminal attempt on every listener before awaiting the first delivery', async () => {
+    const topicId = 'agent-session:s1'
+    let releaseFirst!: () => void
+    const first = new FakeListener('channel:ch1:chat-1:unthreaded')
+    first.onDoneImpl = () =>
+      new Promise<void>((resolve) => {
+        releaseFirst = resolve
+      })
+    const second = new FakeListener('channel:ch1:chat-2:unthreaded')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [first, second]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    const done = mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    await vi.waitFor(() => expect(first.doneResults).toHaveLength(1))
+
+    // The first delivery is parked; the second listener is already stamped with the SAME attempt.
+    expect(first.prepareTerminal).toHaveBeenCalledTimes(1)
+    expect(second.prepareTerminal).toHaveBeenCalledTimes(1)
+    expect(second.prepareTerminal.mock.calls[0][0]).toBe(first.prepareTerminal.mock.calls[0][0])
+    expect(second.doneResults).toHaveLength(0)
+
+    releaseFirst()
+    await done
+    expect(second.doneResults).toHaveLength(1)
+  })
+
+  // The stash is bound to the tasks its fire saw pending, not to session-wide emptiness: A's wake
+  // must claim A's recipients while B's unrelated task is still listed, and B's later wake must
+  // find nothing left to post B's output to A's external chats.
+  it('claims a stash whose own owed tasks drained even while another fire’s task is still listed', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // Fire A settles with task-a still pending (B has not started yet, so the listed set is A's own).
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a']))
+
+    // Desktop follow-up B replaces the held stream and drops A's recipients.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // task-a drained; only B's task-b is still listed. The old session-wide emptiness rule refused
+    // this claim here and let B's wake inherit the recipients instead.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-b']))).toBe(true)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set(['task-b'])
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('A result'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['A result'])
+
+    // B's later wake finds no stash — B's output must not reach A's chat.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(4))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('B result'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['A result'])
+  })
+
+  // One fire can spawn a long-lived server and a finite subagent together, so both ids enter the
+  // stash's debt. Each completion is its own delivery opportunity: the subagent's settlement wake
+  // must claim the recipients while the server is still listed. Requiring the whole snapshot to
+  // drain loses that summary — the server's own later wake has nothing of it to replay.
+  it('claims the stash at the first owed completion while a co-spawned server remains listed', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // The fire settles owing both its background tasks a delivery: the finite subagent task-a and
+    // the server task-b.
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a', 'task-b']))
+
+    // Desktop follow-up replaces the held stream and drops the fire's recipients.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // The subagent settled; only the server is still listed. The all-or-nothing rule refused this
+    // claim and stranded the summary behind the server.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-b']))).toBe(true)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set(['task-b'])
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Subagent summary: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Subagent summary: 42'])
+  })
+
+  // A claim settles only the obligations that completed. The fire's stash owed BOTH the subagent
+  // and the server a delivery; consuming the whole stash at the subagent's wake strands the
+  // server's later summary — its wake finds no recipients, and the scheduled sentinel has already
+  // removed itself from the stream.
+  it('keeps the stash for a co-spawned task after the first wake consumes its own obligation', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a', 'task-b']))
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    // task-a settled; the server task-b is still listed. The first wake consumes only task-a's debt.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set(['task-b'])
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Subagent summary: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Subagent summary: 42'])
+
+    // task-b drains later. Its wake must still own the chat, or the server's result has no route.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set())).toBe(true)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(4))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Server output'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Subagent summary: 42', 'Server output'])
+  })
+
+  // The claimed wake can itself launch native background work for the same request. The fire's
+  // sentinel is already gone and the claimed listeners drop with the wake's stream, so unless the
+  // claim is renewed for that successor its final answer never reaches the requesting chat.
+  it('renews the claimed wake’s recipients for native work the wake itself launches', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a']))
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    // task-a settled: its wake claims the chat's recipients and delivers its own reply.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    // While that wake runs it launches native task-b for the same request.
+    mgr.renewClaimedWakeRecipients(topicId, new Set(['task-b']))
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Acknowledged; successor running'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Acknowledged; successor running'])
+
+    // task-b settles later; its wake must still own the chat or the final answer has no route.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set())).toBe(true)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(4))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Final answer: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Acknowledged; successor running', 'Final answer: 42'])
+  })
+
+  // Renewal belongs to the claimed wake alone. Once an ordinary turn replaces it, the claim window
+  // is closed: another turn's native work must not be posted to the requesting chat.
+  it('does not renew claimed recipients for work launched after the claim’s turn ended', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a']))
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    // An ordinary desktop turn replaces the wake before any successor work is published.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    mgr.renewClaimedWakeRecipients(topicId, new Set(['desktop-task']))
+
+    // The desktop task's later wake must not reach the chat.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(4))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('private desktop result'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual([])
+  })
+
+  // A cancelled obligation must be retired on its own, not silently treated as dischargeable. An
+  // external request stashes two tasks; the subagent is STOPPED (no receive-only wake, no admireble
+  // result) while the server keeps the topic from whole-drain cleanup, so 'task-a' is simply ABSENT
+  // from the live set. Absence must not read as "task-a completed and owes its delivery now": the
+  // desktop follow-up's own unrelated completion would otherwise claim the stash and post private
+  // desktop work to that external chat.
+  it('does not let an unrelated completion claim a stash whose owed task was cancelled', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // The external request settles owing deliveries for both tasks it spawned.
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a', 'task-server']))
+
+    // A desktop follow-up replaces the held stream and drops the recipients.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // task-a is CANCELLED, not completed — retire that obligation on its own terms.
+    mgr.retireStashedWakeTaskIds(topicId, new Set(['task-a']))
+
+    // The desktop follow-up's own background work completes. The server is still listed (it is what
+    // keeps whole-topic drain from cleaning up), and the only absent owed id is the CANCELLED one —
+    // so this unrelated completion must not claim the stash.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-server', 'desktop-task']))).toBe(false)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set(['task-server', 'desktop-task'])
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('private desktop background result'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual([])
+
+    // The server's own completion is still owed a route to that chat.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set())).toBe(true)
+  })
+
+  // A task cancelled BEFORE the fire retains has no stash to retire from yet. Dropping the record
+  // there left the cancelled id in the debt the fire later stashed, and its absence (the task is
+  // gone from the live set) discharged the chat to whichever unrelated wake came next.
+  it('records a cancellation that lands before the stash exists', () => {
+    const topicId = 'agent-session:cancel-before-stash'
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async () => undefined,
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    // The shell task is stopped while the foreground reply still runs; the fire retains at its
+    // terminal, and the runtime ledger still names the cancelled id.
+    mgr.retireStashedWakeTaskIds(topicId, new Set(['task-killed']))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-killed', 'task-shell']))
+
+    // The other shell task is still running, so nothing is owed: a desktop follow-up's private
+    // completion must not claim these recipients.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-shell', 'desktop-task']))).toBe(false)
+  })
+
+  // If every task a fire owes was cancelled, it owes no delivery at all. Stashing its recipients
+  // anyway leaves an empty debt, which the next wake reads as discharged.
+  it('does not stash recipients for a fire whose only work was cancelled', async () => {
+    const topicId = 'agent-session:all-cancelled'
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async () => undefined,
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.retireStashedWakeTaskIds(topicId, new Set(['task-killed']))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-killed']))
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+  })
+
+  // The stash is the wake's ONLY route to channel recipients. A listener still attached to the held
+  // stream was either already served or never recorded as owed — carrying a copy of it into the
+  // wake would hand the wake's output (possibly another fire's) to that chat.
+  it('does not carry a held stream’s channel listeners into a wake — only stashed ones ride', async () => {
+    const topicId = 'agent-session:s1'
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), new FakeListener('channel:ch1:chat-1:unthreaded')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain('channel:ch1:chat-1:unthreaded')
+  })
+
+  // Canceling the runtime kills its detached work, so the recipients its fire stashed can never
+  // be owed a delivery again — a later unrelated wake on the topic must not resurrect them and
+  // post its output to the old external chats.
+  it('does not restore a released topic’s channel recipients on a later wake', async () => {
+    const topicId = 'agent-session:s1'
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), new FakeListener('channel:ch1:chat-1:unthreaded')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    // Intervening desktop turn: the fire's recipients are stashed for its wake.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    // The runtime that owed the delivery is canceled — the runtime service releases the binding.
+    ;(mgr as unknown as { clearPendingChannelListeners?: (topicId: string) => void }).clearPendingChannelListeners?.(
+      topicId
+    )
+
+    // An unrelated background wake on the same topic must not reach the old chats.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain('channel:ch1:chat-1:unthreaded')
+  })
+
+  // A desktop submission that lands through the ordinary dispatch replacement (context/dispatch →
+  // send()) after foreground settlement evicts the held scheduled fire. The fire stashed its
+  // recipients because its background work is still pending — the replacement drops the listeners
+  // but must not touch that stash, or the wake finds nothing and the subscribed chats never
+  // receive the child's output.
+  it('keeps a fire’s stashed recipients across an ordinary send() replacement of the held stream', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // The fire's own turn settles into the chaining hold — its background child is still running,
+    // so the fire stashes its recipients for the child's settlement wake.
+    mockWillContinueTopic.mockReturnValueOnce(true)
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    mgr.stashWakeChannelListeners(topicId, [channelListener])
+
+    // The desktop follow-up replaces the held stream through send() — the boundary dispatch uses.
+    mgr.send({
+      topicId,
+      models: [{ modelId: 'provider-a::model-a', request: req(topicId) }],
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // The background work's wake is the only route its result has to the subscribed chat.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Child result: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+    expect(sent).toEqual(['Child result: 42'])
+  })
+
+  // A channel turn whose reply was already delivered owes its chat nothing further. A successor
+  // turn replacing the held stream must not tuck the served listener into the wake stash — an
+  // unrelated background wake would otherwise revive the chat and post its output there.
+  it('does not let a wake revive a served channel turn’s recipients left by an ordinary successor', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // The channel turn completes and its reply reaches the chat — no background work is pending,
+    // so nothing owes this chat a delivery anymore.
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('The scheduled answer'))
+    mockWillContinueTopic.mockReturnValueOnce(true)
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['The scheduled answer'])
+
+    // A queued follow-up replaces the held stream, then an unrelated wake starts.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
   })
 
   // ── send (inject path) ─────────────────────────────────────────────
@@ -2918,6 +3674,142 @@ describe('AiStreamManager', () => {
       // …and the terminal lifecycle's cleanup evicts the held stream so it's no longer attachable.
       await vi.runAllTimersAsync()
       expect(mgr.inspect(topicId)).toBeUndefined()
+    })
+
+    // The clean twin of the case above: the stream was held for detached background work whose
+    // receive-only wake never arrived (task stopped/killed, or a headless responder). Nothing else
+    // would settle it, so without `finalizeHeldTopicStream` the topic reports `streaming` forever and
+    // the stream leaks out of `activeStreams`.
+    it('finalizeHeldTopicStream settles and evicts a held agent-session stream whose wake never came', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s4'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+
+      // Held: the bubble finalised with isTopicDone=false and the status cache is still un-settled.
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(mgr.inspect(topicId)).toBeDefined()
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('done')
+
+      await mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
+
+      // Subscribers learn the topic is done, the cross-window status cache settles to 'done'…
+      expect(listener.doneResults).toHaveLength(2)
+      expect(listener.doneResults[1].isTopicDone).toBe(true)
+      expect(listener.doneResults[1].status).toBe('success')
+      expect(listener.errorResults).toHaveLength(0)
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).toBe('done')
+
+      // …and the terminal lifecycle's cleanup evicts the held stream so it's no longer attachable.
+      await vi.runAllTimersAsync()
+      expect(mgr.inspect(topicId)).toBeUndefined()
+    })
+
+    // The close must ride the canonical terminal dispatch: payload-free (the completion that opened
+    // the hold already delivered and persisted its bubble), persistence stays untouched, and cleanup
+    // subscribers keep receiving the topic-done their flush rides on — even when their id carries a
+    // `persistence:` prefix (`persistence:trace:`), which a string-prefix skip would drop.
+    it('finalizeHeldTopicStream closes the topic payload-free through the canonical dispatch', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s6'
+      const transport = new FakeListener(`l:${topicId}`)
+      const persistence = new FakeListener(`persistence:assistant:${topicId}`, 'persistence')
+      const trace = new FakeListener(`persistence:trace:${topicId}`, 'cleanup')
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [transport, persistence, trace]
+      })
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(persistence.doneResults).toHaveLength(1)
+      expect(trace.doneResults).toHaveLength(1)
+
+      await mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
+
+      // Transport learns the topic closed with no execution content replayed…
+      expect(transport.doneResults).toHaveLength(2)
+      expect(transport.doneResults[1].isTopicDone).toBe(true)
+      expect('finalMessage' in transport.doneResults[1]).toBe(false)
+      expect('timings' in transport.doneResults[1]).toBe(false)
+      // …persistence is not re-invoked (there is no new execution to write)…
+      expect(persistence.doneResults).toHaveLength(1)
+      // …and cleanup still sees the topic-done (TraceFlushListener saves spans on it).
+      expect(trace.doneResults).toHaveLength(2)
+      expect(trace.doneResults[1].isTopicDone).toBe(true)
+
+      await vi.runAllTimersAsync()
+      expect(mgr.inspect(topicId)).toBeUndefined()
+    })
+
+    it('finalizeHeldTopicStream does not re-notify a stream whose terminal lifecycle already ran', async () => {
+      mockWillContinueTopic.mockReturnValue(false)
+      const topicId = 'agent-session:s5'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(true)
+
+      // Still inside the eviction grace period, but already terminal — no duplicate topic-done.
+      await mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
+
+      expect(listener.doneResults).toHaveLength(1)
+    })
+
+    // The finalize dispatch awaits cleanup listeners (TraceFlushListener persists spans) with no
+    // live execution left. Unless it registers the terminal-dispatch barrier for that window, a
+    // same-topic follow-up admitted mid-dispatch evicts the held stream and the stale-generation
+    // guard skips `runTerminalLifecycle` — the `onConversationCompleted` event NotificationService
+    // consumes is lost, and eviction alone emits no replacement event.
+    it('finalizeHeldTopicStream holds the terminal-dispatch barrier until its lifecycle ran', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s7'
+      let releaseTrace!: () => void
+      const trace = new FakeListener(`persistence:trace:${topicId}`, 'cleanup')
+      trace.onDoneImpl = (result) => {
+        if (!result.isTopicDone) return
+        return new Promise<void>((resolve) => {
+          releaseTrace = resolve
+        })
+      }
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [new FakeListener(`l:${topicId}`), trace],
+        isPersistentConversation: true
+      })
+      const previousTurnId = (sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as { turnId: string }).turnId
+
+      // Hold the stream, then park the finalize dispatch inside the cleanup listener.
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      const finalizing = mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
+      await flushMicrotasksUntil(() => typeof releaseTrace === 'function')
+
+      const next = new FakeListener(`wc:next:${topicId}`)
+      let settled = false
+      const settledPromise = mgr.whenTerminalDispatchSettled(topicId).then(() => {
+        settled = true
+      })
+      const followUp = settledPromise.then(() =>
+        startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [next] })
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      expect(settled).toBe(false)
+      expect(conversationCompletedEvents).toEqual([])
+
+      releaseTrace()
+      await finalizing
+      await followUp
+
+      expect(conversationCompletedEvents).toEqual([
+        { topicId, turnId: previousTurnId, completedAt: expect.any(Number) }
+      ])
+      expect(mgr.inspect(topicId)).toMatchObject({ status: 'pending', listenerIds: [next.id] })
     })
   })
 

@@ -734,7 +734,9 @@ class DiscordAdapter extends ChannelAdapter {
     try {
       return await controller.complete(finalText)
     } finally {
-      this.streamingControllers.delete(chatId)
+      // Delete by identity: a successor turn can start its own controller for this chat while this
+      // finalize is still in flight, and an unconditional delete would pull it out from under it.
+      if (this.streamingControllers.get(chatId) === controller) this.streamingControllers.delete(chatId)
     }
   }
 
@@ -751,7 +753,7 @@ class DiscordAdapter extends ChannelAdapter {
       else await controller.error(error)
       return true
     } finally {
-      this.streamingControllers.delete(chatId)
+      if (this.streamingControllers.get(chatId) === controller) this.streamingControllers.delete(chatId)
     }
   }
 

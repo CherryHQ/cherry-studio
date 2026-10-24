@@ -1,6 +1,7 @@
 import {
   Activity,
   ArrowLeft,
+  Ban,
   Bot,
   CheckCircle,
   Circle,
@@ -1291,7 +1292,8 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
     in_progress: t('message.tools.status.running'),
     completed: t('common.completed'),
     error: t('message.tools.status.error'),
-    stopped: t('message.tools.cancelled')
+    stopped: t('message.tools.cancelled'),
+    killed: t('message.tools.killed')
   }
 
   return (
@@ -1536,6 +1538,11 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
       break
     case 'stopped':
       icon = <CircleStop size={14} className="text-muted-foreground" />
+      break
+    case 'killed':
+      // Distinct from `stopped`: a kill carries no successor delivery, so the row reads as
+      // force-ended rather than merely cancelled.
+      icon = <Ban size={14} className="text-warning" />
       break
     case 'pending':
     default:
