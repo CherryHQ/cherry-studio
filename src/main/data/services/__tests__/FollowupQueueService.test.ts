@@ -130,6 +130,25 @@ describe('FollowupQueueService', () => {
       expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['a', 'r', 'b'])
     })
 
+    it('degrades an anchor retained as a closed receipt to a tail insert (inv_3f3a68791f4b48f1)', () => {
+      // Removal keeps a terminal `closed` receipt row; anchor resolution must
+      // not see it, or the insert lands ahead of waiting drafts ([r,b])
+      // instead of taking the documented removed-anchor tail fallback ([b,r])
+      // - a peer removing the anchor after the renderer's membership read
+      // otherwise changes restored-message delivery order
+      // (cherry-pr-review inv_3f3a68791f4b48f1#f1).
+      const removed = enqueueIn(SCOPE_A, 'a')
+      enqueueIn(SCOPE_A, 'b')
+      followupQueueService.remove(removed.id)
+      followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        anchor: { after: removed.id }
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['b', 'r'])
+    })
+
     it('degrades a stale anchor to a tail insert instead of failing the restore', () => {
       enqueueIn(SCOPE_A, 'a')
       enqueueIn(SCOPE_A, 'b')
