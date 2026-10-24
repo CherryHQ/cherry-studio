@@ -22,11 +22,6 @@ protocols:
 files:
   - "**/*"
   - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
-  # pdfjs-dist is only used for its data directories (see `feature.pdfjs.*` in
-  # pathRegistry); the parser comes from pdf-parse, so the rest is dead weight.
-  - "!**/node_modules/pdfjs-dist/**"
-  - "**/node_modules/pdfjs-dist/cmaps/**"
-  - "**/node_modules/pdfjs-dist/standard_fonts/**"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
