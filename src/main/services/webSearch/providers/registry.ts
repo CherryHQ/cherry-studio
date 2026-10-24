@@ -15,6 +15,7 @@ import { SearxngProvider } from './api/SearxngProvider'
 import { SerpKiteProvider } from './api/SerpKiteProvider'
 import { SerplyProvider } from './api/SerplyProvider'
 import { TavilyProvider } from './api/TavilyProvider'
+import { YuanbaoProvider } from './api/YuanbaoProvider'
 import { ZhipuProvider } from './api/ZhipuProvider'
 import type { WebSearchProviderDriver } from './factory'
 import { ExaMcpProvider } from './mcp/ExaMcpProvider'
@@ -38,6 +39,7 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   crawl4ai: Crawl4AIProvider,
   parallel: ParallelProvider,
   serply: SerplyProvider,
+  yuanbao: YuanbaoProvider,
   deepseek: DeepSeekProvider,
   serpkite: SerpKiteProvider,
   duckduckgo: DuckduckgoProvider

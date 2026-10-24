@@ -16,6 +16,7 @@ export default defineConfig({
     'providers/crawl4ai': 'src/providers/crawl4ai.ts',
     'providers/parallel': 'src/providers/parallel.ts',
     'providers/serply': 'src/providers/serply.ts',
+    'providers/yuanbao': 'src/providers/yuanbao.ts',
     'providers/deepseek': 'src/providers/deepseek.ts',
     'providers/serpkite': 'src/providers/serpkite.ts',
     'tools/config': 'src/tools/config.ts',

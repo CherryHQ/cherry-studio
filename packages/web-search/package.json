@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/web-search",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Portable web search provider protocols with host-owned transports and policies",
   "license": "AGPL-3.0-only",
   "author": "Cherry Studio",
@@ -228,6 +228,21 @@
         "default": "./dist/providers/serply.cjs"
       },
       "default": "./dist/providers/serply.mjs"
+    },
+    "./providers/yuanbao": {
+      "react-native": {
+        "types": "./dist/providers/yuanbao.d.mts",
+        "default": "./dist/providers/yuanbao.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/yuanbao.d.mts",
+        "default": "./dist/providers/yuanbao.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/yuanbao.d.cts",
+        "default": "./dist/providers/yuanbao.cjs"
+      },
+      "default": "./dist/providers/yuanbao.mjs"
     },
     "./providers/deepseek": {
       "react-native": {
