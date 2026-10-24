@@ -319,6 +319,13 @@ export function useFollowupQueue({
   // (cherry-pr-review inv_389ec2ffbe28356e). Scoped, so a conversation
   // switch never inherits another scope's hold.
   const [pausedOverrides, setPausedOverrides] = useState<Readonly<Record<string, boolean>>>({})
+  // The acknowledgement must itself rerun the clearing effect below: a ref
+  // write does not re-render, so when Resume's query refresh lands before the
+  // ack the override would stay held forever, masking a later peer Pause and
+  // letting a completion send against persisted `paused=true`
+  // (cherry-pr-review inv_76edd56d71ac5e03). The ref stays the async-side
+  // source of truth; this state mirror exists purely for effect reactivity.
+  const [pausedAcked, setPausedAcked] = useState<Readonly<Record<string, number>>>({})
   const serverPaused = queueState?.scopeKey === scopeKey ? (queueState?.paused ?? false) : false
   const paused = pausedOverrides[scopeKey] ?? serverPaused
   useEffect(() => {
@@ -329,7 +336,7 @@ export function useFollowupQueue({
       // override's own write, not from a stale read (cherry-pr-review
       // inv_2defea073e0ba391).
       const scope = queueState.scopeKey
-      if ((pausedAckedRef.current.get(scope) ?? 0) !== (pausedGenerationRef.current.get(scope) ?? 0)) {
+      if ((pausedAcked[scope] ?? 0) !== (pausedGenerationRef.current.get(scope) ?? 0)) {
         return
       }
       setPausedOverrides((prev) => {
@@ -338,7 +345,7 @@ export function useFollowupQueue({
         return next
       })
     }
-  }, [pausedOverrides, queueState])
+  }, [pausedOverrides, queueState, pausedAcked])
   // Fail closed on the pause flag: while the pause-state read is unloaded,
   // scoped elsewhere, or errored, the drain stays parked instead of sending
   // into a possibly-paused conversation.
@@ -593,6 +600,24 @@ export function useFollowupQueue({
   // claimability server-side.
   const holdRestoredCopy = useCallback(
     (copy: { id: string; body: RestoreQueueBody }) => {
+      if (!mountedRef.current || copy.body.scopeKey !== scopeKeyRef.current) {
+        // The edit session already ended (unmount or scope switch ran cleanup
+        // while the failing take was in flight): its composer cache owns the
+        // draft, so the held copy is redundant. Registering now would attach
+        // it to a session nobody will end — refresh maintenance exits on
+        // unmount and the row would age back into claimability, duplicating
+        // the retained draft (cherry-pr-review inv_b47d9657e7639e5b). Close
+        // it instead, retaining cleanup ownership until the copy is closed or
+        // confirmed absent, same obligation as inv_f89db3564dc86774.
+        void (async () => {
+          try {
+            await removeTrigger({ params: { id: copy.id } })
+          } catch (error) {
+            if (!isAlreadyResolved(error)) scheduleResolveRetryRef.current(copy.id, true, '')
+          }
+        })()
+        return
+      }
       cancelTrackedEditRestoreRef.current()
       const tracked: TrackedEditRestore = { restoreId: copy.id, cancelled: false, restored: true }
       editRestoreRef.current = tracked
@@ -1002,6 +1027,7 @@ export function useFollowupQueue({
           // a later success never lowers the acknowledged generation.
           if (current.generation > (pausedAckedRef.current.get(current.scopeKey) ?? 0)) {
             pausedAckedRef.current.set(current.scopeKey, current.generation)
+            setPausedAcked((prev) => ({ ...prev, [current.scopeKey]: current.generation }))
           }
         } catch {
           toast.error(t('message.error.operation_unavailable'))

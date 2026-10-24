@@ -1547,6 +1547,77 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('closes a recovery copy whose registration lands after unmount cleanup (inv_b47d9657e7639e5b)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+      // A's take delete resolves; B's take delete stays in flight until the
+      // test releases it — both attempts fail AFTER unmount.
+      const deleteRejections: Array<(error: Error) => void> = []
+      takeDeleteTrigger.mockResolvedValueOnce(undefined).mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            deleteRejections.push(reject)
+          })
+      )
+
+      const { result, unmount } = renderHook(() => useFollowupQueue(baseProps({ scopeKey: SCOPE })))
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let switchPromise!: Promise<unknown>
+      act(() => {
+        switchPromise = result.current.takeForEdit('b', captureOutgoing)
+      })
+      // Flush until B's first take-delete attempt is in flight.
+      await act(async () => {})
+      await act(async () => {})
+      expect(takeDeleteTrigger.mock.calls.length).toBe(2)
+      expect(postTrigger).toHaveBeenCalled()
+      const heldCopyId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0]?.[0].body.id
+
+      // Navigate away while the DELETE response is pending: unmount cleanup
+      // runs before the registration below lands.
+      await act(async () => {
+        unmount()
+      })
+
+      // Both DELETE attempts fail now: the refused switch tries to register
+      // A's held recovery after cleanup already ran. The late registration
+      // must close the redundant copy (retaining cleanup retries) instead of
+      // attaching it to a session nobody will end — renewal maintenance exits
+      // on unmount, so the row would age back into claimability and duplicate
+      // the composer-cached draft (cherry-pr-review inv_b47d9657e7639e5b).
+      deleteTrigger.mockRejectedValueOnce(new Error('temporary outage'))
+      await act(async () => {
+        deleteRejections[0](new Error('delete failed'))
+      })
+      await act(async () => {
+        deleteRejections[1](new Error('delete failed'))
+      })
+      await act(async () => {
+        await switchPromise
+      })
+      await act(async () => {})
+      const closesForCopy = () =>
+        (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>).filter(
+          (c) => c[0].params?.id === heldCopyId
+        ).length
+      expect(closesForCopy()).toBeGreaterThanOrEqual(1)
+      // The first close failed transiently: the retry chain fires again.
+      const closesSoFar = closesForCopy()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(closesForCopy()).toBeGreaterThan(closesSoFar)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('closes the held recovery copy when the scope switches with a live edit session (inv_4e8303d70c4d5b9d)', async () => {
     vi.useFakeTimers()
     try {
@@ -3111,6 +3182,56 @@ describe('useFollowupQueue', () => {
     wireQuery([row('h', 'head')], true)
     rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     expect(result.current.paused).toBe(true)
+  })
+
+  it('clears an acknowledged Resume override whose cache echo beat the ack, so a later peer Pause is honored (inv_76edd56d71ac5e03)', async () => {
+    // Race from review: Resume's PUT is still in flight when the refreshed
+    // cache already echoes paused=false. The generation fence keeps the
+    // override at that point; the acknowledgement arriving afterwards must
+    // rerun the reconciliation, or the optimistic `false` stays held and
+    // masks a subsequent peer Pause (cherry-pr-review inv_76edd56d71ac5e03).
+    wireQuery([row('h', 'head')], true)
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let resolveResume!: () => void
+    setPausedTrigger.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveResume = () => resolve({ scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' })
+        })
+    )
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
+    )
+
+    act(() => {
+      result.current.setPaused(false)
+    })
+    expect(result.current.paused).toBe(false)
+
+    // The cache echo (paused=false) arrives BEFORE the Resume write settles:
+    // the fence retains the override.
+    wireQuery([row('h', 'head')], false)
+    rerender({ completion: { status: 'streaming', lastCompletedAt: null as number | null } })
+    expect(result.current.paused).toBe(false)
+
+    // The ack lands: acknowledgment triggers reconciliation and clears the
+    // override against the matching echo.
+    await act(async () => {
+      resolveResume()
+    })
+
+    // A peer window pauses afterwards: with the override cleared the server
+    // value owns the flag, so the completion must NOT drain.
+    wireQuery([row('h', 'head')], true)
+    await act(async () => {
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+    expect(result.current.paused).toBe(true)
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
+    expect(onDrain).not.toHaveBeenCalled()
   })
 
   it('retains a pending Pause per scope when another scope pauses before the write settles', async () => {
