@@ -585,6 +585,17 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       expect(decision?.ruleId).toBe('workspace-escape')
     })
 
+    it('asks when containment canonicalization is ambiguous after a filesystem error', async () => {
+      const outsideFile = path.join(root, 'outside-eio.txt')
+      const fileUtils = await import('@main/utils/file')
+      vi.spyOn(fileUtils, 'canonicalizePathForContainment').mockResolvedValue(undefined)
+      const decision = await evaluate(
+        makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: outsideFile } })
+      )
+      expect(decision?.ruleId).toBe('workspace-escape')
+      vi.restoreAllMocks()
+    })
+
     it('is lifted by bypassPermissions (matches the pierced ask it replaces)', async () => {
       await expect(
         evaluate(

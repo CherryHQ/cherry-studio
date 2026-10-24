@@ -1,8 +1,10 @@
-import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import * as nodeFsPromises from 'node:fs/promises'
+
+const { chmod, mkdtemp, realpath, rm, symlink, writeFile } = nodeFsPromises
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -29,6 +31,32 @@ describe('canonicalizePathForContainment', () => {
     await expect(
       canonicalizePathForContainment(path.join(root, 'escape', 'secret.txt'), { allowMissing: false })
     ).resolves.toBe(path.join(outside, 'secret.txt'))
+  })
+
+  it('returns undefined when target realpath fails with a non-ENOENT error', async () => {
+    await writeFile(path.join(outside, 'secret.txt'), 'secret')
+    await symlink(outside, path.join(root, 'escape'), dirLinkType)
+    const target = path.join(root, 'escape', 'secret.txt')
+    const resolvedTarget = path.resolve(target)
+
+    vi.resetModules()
+    vi.doMock('node:fs/promises', async (importOriginal) => {
+      const actual = await importOriginal<typeof nodeFsPromises>()
+      return {
+        ...actual,
+        realpath: async (p: Parameters<typeof actual.realpath>[0], options?: Parameters<typeof actual.realpath>[1]) => {
+          if (path.resolve(String(p)) === resolvedTarget) {
+            throw Object.assign(new Error('EIO'), { code: 'EIO' })
+          }
+          return actual.realpath(p, options)
+        }
+      }
+    })
+    const { canonicalizePathForContainment: canonicalizeWithMockedRealpath } = await import('../path')
+
+    await expect(canonicalizeWithMockedRealpath(target, { allowMissing: true })).resolves.toBeUndefined()
+    vi.doUnmock('node:fs/promises')
+    vi.resetModules()
   })
 
   it('resolves a missing target below a symlink to where it would be created', async () => {
@@ -59,6 +87,46 @@ describe('canonicalizePathForContainment', () => {
     await expect(
       canonicalizePathForContainment(path.join(root, 'dangling-dir', 'new.txt'), { allowMissing: true })
     ).resolves.toBeUndefined()
+  })
+})
+
+describe('normalizePathForComparison', () => {
+  it('folds unicode-equivalent path spellings on macOS', async () => {
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isMac: true,
+      isWin: false,
+      isLinux: false,
+      isDev: false,
+      isPortable: false,
+      isDarwinX64: false,
+      isWinArm64: false
+    }))
+    const { normalizePathForComparison: normalize } = await import('../path')
+    const base = path.join(tmpdir(), 'unicode-lock')
+    expect(normalize(path.join(base, 'café.txt'))).toBe(normalize(path.join(base, 'cafe\u0301.txt')))
+    vi.doUnmock('@main/core/platform')
+    vi.resetModules()
+  })
+
+  it('preserves distinct unicode directory names on Windows for containment', async () => {
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isMac: false,
+      isWin: true,
+      isLinux: false,
+      isDev: false,
+      isPortable: false,
+      isDarwinX64: false,
+      isWinArm64: false
+    }))
+    const { isPathInside, normalizePathForComparison: normalize } = await import('../path')
+    const workspace = path.join('C:', 'review', 'café')
+    const outsideChild = path.join('C:', 'review', 'cafe\u0301', 'secret.txt')
+    expect(normalize(path.join(workspace, 'file.txt'))).not.toBe(normalize(outsideChild))
+    expect(isPathInside(outsideChild, workspace)).toBe(false)
+    vi.doUnmock('@main/core/platform')
+    vi.resetModules()
   })
 })
 
@@ -115,6 +183,11 @@ describe('isSameOrInside', () => {
   it('accepts equality and descendants', () => {
     expect(isSameOrInside('/foo/bar', '/foo/bar')).toBe(true)
     expect(isSameOrInside('/foo/bar/baz.txt', '/foo/bar')).toBe(true)
+  })
+
+  it('recognizes descendants whose names begin with two dots', () => {
+    expect(isSameOrInside('/foo/..cache/file.txt', '/foo')).toBe(true)
+    expect(isSameOrInside('/foo/../bar/file.txt', '/foo')).toBe(false)
   })
 
   it('rejects ancestors and siblings', () => {
