@@ -272,6 +272,7 @@ export class JobManager extends BaseService {
   // ---------------- Lifecycle ----------------
 
   protected override onInit(): void {
+    this._isShuttingDown = false
     logger.info('JobManager initialized')
   }
 
@@ -1655,9 +1656,9 @@ export class JobManager extends BaseService {
    * @param queueName - Queue identifier (from `jobTable.queue`); no-op if the queue is unknown
    */
   async dispatch(queueName: string): Promise<void> {
-    // Autonomy gate (pause hold or post-release barrier): claiming is the
+    // Shutdown and autonomy gate: claiming is the
     // only path that starts an execution.
-    if (this.isAutonomySuspended) return
+    if (this._isShuttingDown || this.isAutonomySuspended) return
     const queue = this.queues.get(queueName)
     if (!queue) return
 
@@ -1675,7 +1676,7 @@ export class JobManager extends BaseService {
       // return before it wakes — an entry-only gate would let it claim AFTER
       // the drain verdict. No await sits between this check and the claim tx,
       // so nothing can interleave on the single thread.
-      if (this.isAutonomySuspended) return
+      if (this._isShuttingDown || this.isAutonomySuspended) return
       const dbService = application.get('DbService')
       claimed = dbService.withWriteTx((tx) => {
         const queueRunning = jobService.countRunningByQueueTx(tx, queueName)
