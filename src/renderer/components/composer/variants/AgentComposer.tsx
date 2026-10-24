@@ -1847,7 +1847,15 @@ const AgentComposerInner = ({
             // against the current cached document and draft owner so this
             // now-obsolete instance cannot overwrite the newer cached draft
             // with empty content (cherry-pr-review inv_e49e883e1e3d4bb6).
-            const stillOwnsCache = clearAgentDraftCacheIfMatches(draftCacheKey, { workspaceKey, agentId }, submitted)
+            // Launch composers do not own session-draft persistence: an
+            // independently saved matching session draft (another tab's
+            // ordinary editor on the same session) must survive this
+            // settlement, so only a persistence-owning composer reconciles
+            // the cache (cherry-pr-review inv_0f6e49ac89e5815f#f1). The local
+            // launch editor still clears below via the ownership checks.
+            const stillOwnsCache = draftPersistenceEnabled
+              ? clearAgentDraftCacheIfMatches(draftCacheKey, { workspaceKey, agentId }, submitted)
+              : false
             // The editor on screen may belong to a reopened instance rather
             // than the one this settlement closes over: reconcile the ACTIVE
             // editor owner, clearing only the unchanged submitted document

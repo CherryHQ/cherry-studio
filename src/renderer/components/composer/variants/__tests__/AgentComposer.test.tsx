@@ -3782,6 +3782,40 @@ describe('AgentComposer', () => {
     )
   })
 
+  it("preserves another tab's matching session draft when a launch composer settles an enqueue (inv_0f6e49ac89e5815f)", async () => {
+    // A launch composer does not own session-draft persistence: settling its
+    // queued send must not reconcile the session cache, or tab B\'s saved
+    // draft with the same content is wiped (cherry-pr-review
+    // inv_0f6e49ac89e5815f#f1).
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'agent.composer_draft.session_session-1'
+        ? { text: 'continue', tokens: [], files: [], agentId: 'agent-1', workspaceKey: 'workspace-1\0/workspace' }
+        : undefined
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{ initialDraft: { text: '', tokens: [] } }}
+      />
+    )
+
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'continue', tokens: [] })
+    })
+
+    expect(cacheService.set).not.toHaveBeenCalledWith(
+      'agent.composer_draft.session_session-1',
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
   it('adopts launch options that arrive after the restored session first renders', async () => {
     const issueReporterToken = {
       id: 'skill:issue-reporter',
