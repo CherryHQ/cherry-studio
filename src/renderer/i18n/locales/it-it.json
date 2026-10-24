@@ -1451,6 +1451,7 @@
   "error.image_unreadable_for_non_vision_model": "Il modello selezionato non è configurato per ricevere immagini e Cherry Studio non ha potuto estrarre testo leggibile dall'allegato. Abilita la modalità visiva per questo modello nelle impostazioni del fornitore, scegli un altro modello con capacità visive oppure rimuovi l'immagine e riprova.",
   "error.lastError": "Ultimo errore",
   "error.maxEmbeddingsPerCall": "Numero massimo di embedding per chiamata",
+  "error.media_unreadable_without_preprocessing": "Cherry Studio non ha potuto convertire questo allegato audio o video in testo. Scegli un modello di riconoscimento vocale nelle impostazioni Voce e un modello di visione video nelle impostazioni Modello, oppure rimuovi l'allegato e riprova.",
   "error.message": "Messaggio di errore",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> ha terminato la risposta senza indicarne il motivo. La risposta parziale è stata conservata; riprova la richiesta.",
   "error.missing_user_message": "Impossibile cambiare la risposta del modello: il messaggio originale dell'utente è stato eliminato. Invia un nuovo messaggio per ottenere una risposta con questo modello.",

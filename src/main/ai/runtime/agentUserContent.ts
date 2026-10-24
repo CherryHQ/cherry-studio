@@ -11,10 +11,19 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
  * to the text — the agent reads them with its own tools. Driver-neutral: shared
  * by the agent drivers to keep attachment handling consistent.
  */
-export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
-  const text = extractMessageText(message)
+export function buildAgentUserContent(message: AgentSessionMessageEntity, mediaNotes: readonly string[] = []): string {
+  const text = appendMediaNotes(extractMessageText(message), mediaNotes)
   const content = appendAgentAttachmentPaths(text, extractAttachments(message))
   return wrapAgentSessionDeliveryContent(message, content)
+}
+
+function appendMediaNotes(text: string, mediaNotes: readonly string[]): string {
+  const section = mediaNotes
+    .map((note) => note.trim())
+    .filter(Boolean)
+    .join('\n\n')
+  if (!section) return text
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 /** Append original filenames beside managed paths so agents can distinguish opaque storage names. */

@@ -2,6 +2,7 @@ import type * as NodeFs from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
@@ -13,6 +14,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { agentTable } from '@data/db/schemas/agent'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
+import type * as AgentMediaPreface from '@main/ai/runtime/agentMediaPreface'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
@@ -31,6 +33,7 @@ let actualReadFileSync: typeof NodeFs.readFileSync
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 const MANAGED_BASH_TOOL = { name: 'bash' }
+const MANAGED_READ_TOOL = { name: 'read', description: 'Read the contents of a file.', execute: vi.fn() }
 const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry_tools__cron',
   'mcp__cherry_tools__notify',
@@ -93,6 +96,7 @@ const mocks = vi.hoisted(() => ({
   createAgentSession: vi.fn(),
   getToolDefinition: vi.fn(),
   createBashToolDefinition: vi.fn(),
+  createReadToolDefinition: vi.fn(),
   prompt: vi.fn(),
   compact: vi.fn(),
   steer: vi.fn(),
@@ -110,6 +114,8 @@ const mocks = vi.hoisted(() => ({
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
   isStreaming: false,
+  collectMediaNotes: null as null | (() => Promise<string[]>),
+  analyzeMedia: vi.fn(),
   steeringMode: 'one-at-a-time' as 'all' | 'one-at-a-time',
   sessionId: 'sess-1' as string | undefined,
   sessionFile: '/cherry/agents/pi/sessions/2026-07-06T00-00-00-000Z_sess-1.jsonl' as string | undefined
@@ -131,7 +137,8 @@ vi.mock('@application', async () => {
   const { createMockApplication } = await import('@test-mocks/main/application')
   const application = createMockApplication({
     IpcApiService: { broadcast: mocks.broadcast },
-    McpCatalogService: { listTools: mocks.listMcpTools }
+    McpCatalogService: { listTools: mocks.listMcpTools },
+    MediaAnalysisService: { analyzeToCompactText: mocks.analyzeMedia }
   } as never)
   return {
     application: {
@@ -204,6 +211,16 @@ vi.mock('./piSdk', async (importOriginal) => ({
   loadPiAi: async () => ({ InMemoryCredentialStore: class {} }),
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
+vi.mock('@main/ai/runtime/agentMediaPreface', async (importOriginal) => {
+  const actual = await importOriginal<typeof AgentMediaPreface>()
+  return {
+    ...actual,
+    collectAgentMediaNotes: (
+      message: Parameters<typeof AgentMediaPreface.collectAgentMediaNotes>[0],
+      signal?: AbortSignal
+    ) => (mocks.collectMediaNotes ? mocks.collectMediaNotes() : actual.collectAgentMediaNotes(message, signal))
+  }
+})
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: mocks.getShellEnv,
@@ -275,7 +292,8 @@ const fakePi = {
     }
   },
   createAgentSession: mocks.createAgentSession,
-  createBashToolDefinition: mocks.createBashToolDefinition
+  createBashToolDefinition: mocks.createBashToolDefinition,
+  createReadToolDefinition: mocks.createReadToolDefinition
 }
 
 const input: AgentRuntimeConnectInput = {
@@ -292,6 +310,31 @@ function createDeferred<T>() {
     reject = rej
   })
   return { promise, resolve, reject }
+}
+
+function mediaInput(): AgentRuntimeUserInput {
+  return {
+    message: {
+      id: 'msg-audio',
+      data: {
+        parts: [{ type: 'file', mediaType: 'audio/wav', filename: 'clip.wav', url: 'file:///tmp/clip.wav' }]
+      }
+    } as AgentRuntimeUserInput['message']
+  }
+}
+
+function twoMediaInput(firstPath: string, secondPath: string): AgentRuntimeUserInput {
+  return {
+    message: {
+      id: 'msg-two-media',
+      data: {
+        parts: [
+          { type: 'file', mediaType: 'audio/wav', filename: 'first.wav', url: pathToFileURL(firstPath).href },
+          { type: 'file', mediaType: 'video/mp4', filename: 'second.mp4', url: pathToFileURL(secondPath).href }
+        ]
+      }
+    } as AgentRuntimeUserInput['message']
+  }
 }
 
 function userInput(text: string, systemReminder = false): AgentRuntimeUserInput {
@@ -357,6 +400,8 @@ beforeEach(() => {
   mocks.validateGitBashPath.mockImplementation((shellPath?: string | null) => shellPath ?? null)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
+  mocks.collectMediaNotes = null
+  mocks.analyzeMedia.mockReset()
   mocks.steeringMode = 'one-at-a-time'
   mocks.sessionId = SESSION_ID
   mocks.sessionFile = SESSION_FILE
@@ -487,6 +532,7 @@ beforeEach(() => {
     mocks.bashToolOptions = options
     return MANAGED_BASH_TOOL
   })
+  mocks.createReadToolDefinition.mockImplementation(() => MANAGED_READ_TOOL)
 })
 
 afterEach(() => {
@@ -1412,6 +1458,185 @@ describe('PiRuntimeConnection', () => {
     expect(events.at(-1)?.type).toBe('error')
   })
 
+  it('claims the submitted text steer and keeps an earlier unsent media steer reserved', async () => {
+    mocks.isStreaming = true
+    const deferred = createDeferred<string[]>()
+    mocks.collectMediaNotes = () => deferred.promise
+    const conn = await new PiRuntimeConnection(input).start()
+    const media = mediaInput()
+    const text = userInput('text after media')
+
+    expect(conn.redirect(media)).toBe(true)
+    expect(mocks.steer).not.toHaveBeenCalled()
+    expect(conn.redirect(text)).toBe(true)
+    expect(mocks.steer).toHaveBeenCalledTimes(1)
+
+    const cb = mocks.subscribeCb!
+    cb({ type: 'message_start', message: { role: 'user' } } as unknown as AgentSessionEvent)
+    mocks.isStreaming = false
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const boundary = events.find((event) => event.type === 'steer-boundary')
+    const undelivered = events.find((event) => event.type === 'steer-undelivered')
+    expect(boundary).toEqual(expect.objectContaining({ type: 'steer-boundary', inputs: [text] }))
+    expect(undelivered).toEqual(expect.objectContaining({ type: 'steer-undelivered', inputs: [media] }))
+    expect(events.findIndex((event) => event.type === 'steer-boundary')).toBeLessThan(
+      events.findIndex((event) => event.type === 'steer-undelivered')
+    )
+
+    deferred.resolve(['Attached file "clip.wav":\nkept'])
+    await deferred.promise
+    await Promise.resolve()
+    expect(mocks.steer).toHaveBeenCalledTimes(1)
+  })
+
+  it('in all mode claims every submitted steer and leaves the unsent media reservation', async () => {
+    mocks.isStreaming = true
+    mocks.steeringMode = 'all'
+    const deferred = createDeferred<string[]>()
+    mocks.collectMediaNotes = () => deferred.promise
+    const conn = await new PiRuntimeConnection(input).start()
+    const media = mediaInput()
+    const first = userInput('first text')
+    const second = userInput('second text')
+
+    expect(conn.redirect(media)).toBe(true)
+    expect(conn.redirect(first)).toBe(true)
+    expect(conn.redirect(second)).toBe(true)
+    expect(mocks.steer).toHaveBeenCalledTimes(2)
+
+    const cb = mocks.subscribeCb!
+    cb({ type: 'message_start', message: { role: 'user' } } as unknown as AgentSessionEvent)
+    mocks.isStreaming = false
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const boundary = events.find((event) => event.type === 'steer-boundary')
+    const undelivered = events.find((event) => event.type === 'steer-undelivered')
+    expect(boundary).toEqual(expect.objectContaining({ type: 'steer-boundary', inputs: [first, second] }))
+    expect(undelivered).toEqual(expect.objectContaining({ type: 'steer-undelivered', inputs: [media] }))
+
+    deferred.resolve(['Attached file "clip.wav":\nkept'])
+    await deferred.promise
+    await Promise.resolve()
+    expect(mocks.steer).toHaveBeenCalledTimes(2)
+  })
+
+  it('requeues an accepted media steer when the turn ends during analysis', async () => {
+    mocks.isStreaming = true
+    const deferred = createDeferred<string[]>()
+    mocks.collectMediaNotes = () => deferred.promise
+    const conn = await new PiRuntimeConnection(input).start()
+    const steer = mediaInput()
+
+    expect(conn.redirect(steer)).toBe(true)
+    expect(mocks.steer).not.toHaveBeenCalled()
+
+    mocks.isStreaming = false
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.find((event) => event.type === 'steer-undelivered')).toMatchObject({ inputs: [steer] })
+
+    deferred.resolve(['Attached file "clip.wav":\nkept'])
+    await deferred.promise
+    await Promise.resolve()
+    expect(mocks.steer).not.toHaveBeenCalled()
+  })
+
+  it('cancels abandoned media preparation before replaying an undelivered steer', async () => {
+    const firstPath = path.join(tmpdir(), 'cherry-pi-replay-first.wav')
+    const secondPath = path.join(tmpdir(), 'cherry-pi-replay-second.mp4')
+    const steer = twoMediaInput(firstPath, secondPath)
+    const first = createDeferred<string>()
+    const started: string[] = []
+    let staleSignal: AbortSignal | undefined
+    mocks.analyzeMedia.mockImplementation(async (file: { path?: string }, signal?: AbortSignal) => {
+      started.push(file.path ?? '')
+      if (started.length === 1) {
+        staleSignal = signal
+        return first.promise
+      }
+      return 'fresh transcript'
+    })
+    mocks.isStreaming = true
+    const conn = await new PiRuntimeConnection(input).start()
+
+    expect(conn.redirect(steer)).toBe(true)
+    expect(started).toEqual([firstPath])
+    mocks.isStreaming = false
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.find((event) => event.type === 'steer-undelivered')).toMatchObject({ inputs: [steer] })
+    expect(staleSignal?.aborted).toBe(true)
+
+    first.resolve('stale transcript')
+    await first.promise
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(started).toEqual([firstPath])
+
+    conn.send(steer)
+    await vi.waitFor(() => expect(started).toEqual([firstPath, firstPath, secondPath]))
+    expect(mocks.prompt).toHaveBeenCalledTimes(1)
+    await conn.close()
+  })
+
+  it('requeues media-analysis failure without terminating the active turn', async () => {
+    mocks.isStreaming = true
+    mocks.collectMediaNotes = () => Promise.reject(new Error('analysis failed'))
+    const conn = await new PiRuntimeConnection(input).start()
+    const iter = conn.events[Symbol.asyncIterator]()
+    const steer = mediaInput()
+
+    expect(conn.redirect(steer)).toBe(true)
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
+    await expect(iter.next()).resolves.toMatchObject({
+      value: { type: 'steer-undelivered', inputs: [steer] }
+    })
+    expect(mocks.steer).not.toHaveBeenCalled()
+
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+  })
+
+  it.each(['send', 'redirect'] as const)(
+    'close() during %s aborts the active media file and does not start the next attachment',
+    async (delivery) => {
+      const firstPath = path.join(tmpdir(), 'cherry-pi-media-first.wav')
+      const secondPath = path.join(tmpdir(), 'cherry-pi-media-second.mp4')
+      const media = twoMediaInput(firstPath, secondPath)
+      const first = createDeferred<string>()
+      const started: string[] = []
+      let activeSignal: AbortSignal | undefined
+      mocks.analyzeMedia.mockImplementation(async (file: { path?: string }, signal?: AbortSignal) => {
+        started.push(file.path ?? '')
+        if (started.length === 1) {
+          activeSignal = signal
+          return first.promise
+        }
+        return 'second attachment'
+      })
+      if (delivery === 'redirect') mocks.isStreaming = true
+      const conn = await new PiRuntimeConnection(input).start()
+      if (delivery === 'redirect') expect(conn.redirect(media)).toBe(true)
+      else conn.send(media)
+
+      expect(started).toEqual([firstPath])
+      expect(activeSignal?.aborted).toBe(false)
+
+      await conn.close()
+      expect(activeSignal?.aborted).toBe(true)
+
+      first.resolve('first transcript')
+      await first.promise
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(started).toEqual([firstPath])
+      expect(mocks.prompt).not.toHaveBeenCalled()
+      expect(mocks.steer).not.toHaveBeenCalled()
+    }
+  )
+
   it('surfaces steer rejection as an error and un-stashes the input', async () => {
     mocks.isStreaming = true
     mocks.steer.mockRejectedValueOnce(new Error('steer rejected'))
@@ -1730,8 +1955,37 @@ describe('PiRuntimeConnection', () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
-    expect(mocks.createOpts?.customTools).toEqual([MANAGED_BASH_TOOL])
+    expect(mocks.createOpts?.customTools).toEqual([MANAGED_BASH_TOOL, expect.objectContaining({ name: 'read' })])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
+  })
+
+  it('keeps video analysis on the built-in read name so a disabled read is excluded and blocked', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['read'] })
+    await new PiRuntimeConnection(input).start()
+
+    const tools = mocks.createOpts?.customTools as Array<{ name: string }>
+    expect(tools.map((tool) => tool.name)).toEqual(['bash', 'read'])
+    expect(mocks.createOpts?.excludeTools).toEqual(['read'])
+    expect(mocks.createReadToolDefinition).toHaveBeenCalledWith(WORKSPACE)
+
+    const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
+    let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
+    factories[1]({
+      on: (evt: string, h: unknown) => {
+        if (evt === 'tool_call') handler = h as typeof handler
+      }
+    })
+    await expect(
+      handler(
+        {
+          type: 'tool_call',
+          toolName: 'read',
+          toolCallId: 'tc-read',
+          input: { path: '/library/S1E01_Four_Seasons_LAURA_CLEAN.mp4' }
+        },
+        { signal: undefined }
+      )
+    ).resolves.toMatchObject({ block: true, reason: 'Tool "read" is disabled for this agent.' })
   })
 
   it('normalizes Claude-capitalized disabledTools to pi lowercase (bake-out + live gate)', async () => {

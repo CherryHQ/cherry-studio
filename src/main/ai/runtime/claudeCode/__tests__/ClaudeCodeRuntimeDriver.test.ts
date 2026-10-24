@@ -9,6 +9,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import { collectAgentMediaNotes } from '@main/ai/runtime/agentMediaPreface'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
@@ -157,6 +158,7 @@ const mocks = vi.hoisted(() => ({
   getModelByKey: vi.fn(),
   applicationGet: vi.fn(),
   getPhysicalPath: vi.fn(),
+  getById: vi.fn(),
   probeReadable: vi.fn(),
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
@@ -164,6 +166,7 @@ const mocks = vi.hoisted(() => ({
   createClaudeQuery: vi.fn(),
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
+  analyzeMedia: vi.fn(),
   materializeNativeFilePart: vi.fn(),
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
@@ -495,7 +498,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
-      if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
+      if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath, getById: mocks.getById }
+      if (name === 'MediaAnalysisService') return { analyzeToCompactText: mocks.analyzeMedia }
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
@@ -503,10 +507,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
     mocks.getPhysicalPath.mockImplementation((id: string) => `/managed/${id}`)
+    mocks.getById.mockImplementation(async (id: string) => ({
+      ext: id === 'entry-video' ? 'mp4' : id === 'entry-aif' ? 'aif' : id === 'entry-caf' ? 'caf' : 'pdf'
+    }))
     mocks.probeReadable.mockResolvedValue('readable')
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
+    mocks.analyzeMedia.mockResolvedValue('# Media analysis\n[0:00] spoken line')
     mocks.materializeNativeFilePart.mockResolvedValue(null)
     mocks.buildRequest.mockResolvedValue({
       connectionConfig: {
@@ -1555,6 +1563,332 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('tells an ordinary Claude agent to read audio and video with mcp__assistant-files__read_file', async () => {
+    // Bug: ordinary Claude received only a filesystem path, so it tried native binary Read.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { mcpServers: { 'assistant-files': { type: 'sdk' } } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'what is said here' },
+            {
+              type: 'file',
+              url: 'file:///tmp/clip.mp4',
+              mediaType: 'video/mp4',
+              filename: 'clip.mp4',
+              providerMetadata: { cherry: { fileEntryId: 'entry-video' } }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/voice.aif',
+              mediaType: 'audio/x-aiff',
+              filename: 'voice.aif',
+              providerMetadata: { cherry: { fileEntryId: 'entry-aif' } }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/spec.pdf',
+              mediaType: 'application/pdf',
+              filename: 'spec.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-secret' } }
+            }
+          ]
+        }
+      }
+    })
+
+    const videoHandle = createAssistantFileAttachmentHandle('entry-video')
+    const aifHandle = createAssistantFileAttachmentHandle('entry-aif')
+    const pdfHandle = createAssistantFileAttachmentHandle('entry-secret')
+    const content = (await nextInput).value.message.content as string
+
+    expect(content).toContain('Attached file "clip.mp4":\n# Media analysis\n[0:00] spoken line')
+    expect(content.indexOf('[0:00] spoken line')).toBeLessThan(content.indexOf('mcp__assistant-files__read_file'))
+    expect(content).toContain(
+      `Attached audio and video (call mcp__assistant-files__read_file with the opaque attachment handle; the tool returns timestamped analysis):\n- "clip.mp4" (handle: ${videoHandle})\n- "voice.aif" (handle: ${aifHandle})`
+    )
+    expect(content).not.toContain('/managed/entry-video')
+    expect(content).not.toContain('/managed/entry-aif')
+    expect(content).toContain('Attached files (read them with your tools using these absolute paths):')
+    expect(content).toContain('- "spec.pdf": /managed/entry-secret')
+    expect(content).toContain(`- "spec.pdf" (handle: ${pdfHandle})`)
+    expect(content).not.toContain(`- "clip.mp4" (handle: ${videoHandle})\n- "spec.pdf"`)
+    void connection.close()
+  })
+
+  it.each([
+    { filename: 'voice.caf', mediaType: 'audio/x-caf', fileEntryId: 'entry-caf', lookupFails: false },
+    { filename: 'voice.aif', mediaType: 'audio/x-aiff', fileEntryId: 'entry-caf', lookupFails: false },
+    { filename: 'voice.aif', mediaType: 'audio/x-aiff', fileEntryId: 'entry-aif', lookupFails: true }
+  ])('keeps the filesystem path for $filename when stored media is unreadable', async (testCase) => {
+    // audio/x-caf is routed as audio, but ReadFileTool dispatches only known audio extensions and classifies caf as OTHER.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    if (testCase.lookupFails) mocks.getById.mockRejectedValueOnce(new Error('missing'))
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { mcpServers: { 'assistant-files': { type: 'sdk' } } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'what is said here' },
+            {
+              type: 'file',
+              url: `file:///tmp/${testCase.filename}`,
+              mediaType: testCase.mediaType,
+              filename: testCase.filename,
+              providerMetadata: { cherry: { fileEntryId: testCase.fileEntryId } }
+            }
+          ]
+        }
+      }
+    })
+
+    const content = (await nextInput).value.message.content as string
+    expect(content).toContain(`/managed/${testCase.fileEntryId}`)
+    expect(content).not.toContain('Attached audio and video (call mcp__assistant-files__read_file')
+    void connection.close()
+  })
+
+  it('stops preparing later media attachments when the Claude connection closes', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    let rejectFirst!: (error: Error) => void
+    const first = new Promise<string>((_resolve, reject) => (rejectFirst = reject))
+    const started: string[] = []
+    let signal: AbortSignal | undefined
+    mocks.analyzeMedia.mockImplementation(async (file: { entryId: string }, currentSignal?: AbortSignal) => {
+      started.push(file.entryId)
+      if (file.entryId === 'first') {
+        signal = currentSignal
+        return first
+      }
+      return 'second transcript'
+    })
+
+    const send = connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            {
+              type: 'file',
+              url: 'file:///tmp/first.wav',
+              mediaType: 'audio/wav',
+              filename: 'first.wav',
+              providerMetadata: { cherry: { fileEntryId: 'first' } }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/second.mp4',
+              mediaType: 'video/mp4',
+              filename: 'second.mp4',
+              providerMetadata: { cherry: { fileEntryId: 'second' } }
+            }
+          ]
+        }
+      }
+    })
+    expect(started).toEqual(['first'])
+
+    await connection.close()
+    expect(signal?.aborted).toBe(true)
+    rejectFirst(new Error('media worker interrupted'))
+    await expect(send).rejects.toBe('agent-runtime-closed')
+    expect(started).toEqual(['first'])
+  })
+
+  it('discards media analysis that resolves after cancellation', async () => {
+    let resolveAnalysis!: (text: string) => void
+    mocks.analyzeMedia.mockImplementation(() => new Promise<string>((resolve) => (resolveAnalysis = resolve)))
+    const controller = new AbortController()
+    const notes = collectAgentMediaNotes(
+      {
+        ...userMessage(),
+        data: {
+          parts: [
+            {
+              type: 'file',
+              url: 'file:///tmp/clip.mp4',
+              mediaType: 'video/mp4',
+              filename: 'clip.mp4',
+              providerMetadata: { cherry: { fileEntryId: 'entry-video' } }
+            }
+          ]
+        }
+      },
+      controller.signal
+    )
+
+    controller.abort('agent-runtime-closed')
+    resolveAnalysis('late transcript')
+    await expect(notes).rejects.toBe('agent-runtime-closed')
+  })
+
+  it('keeps a composer-token media file on the read handle and a stale token on the path', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { mcpServers: { 'assistant-files': { type: 'sdk' } } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const matchedInput = sdkInput[Symbol.asyncIterator]().next()
+    const composerToken = (sourceId: string) => ({
+      type: 'text' as const,
+      text: 'what is said here',
+      providerMetadata: {
+        cherry: {
+          composer: {
+            version: 1 as const,
+            tokens: [{ id: `file:${sourceId}`, kind: 'file' as const, label: 'clip.mp4', index: 0, textOffset: 0 }]
+          }
+        }
+      }
+    })
+    const videoPart = (sourceId: string) => ({
+      type: 'file' as const,
+      url: 'file:///tmp/clip.mp4',
+      mediaType: 'video/mp4',
+      filename: 'clip.mp4',
+      providerMetadata: { cherry: { fileEntryId: 'entry-video', fileTokenSourceId: sourceId } }
+    })
+
+    await connection.send({
+      message: { ...userMessage(), data: { parts: [composerToken('clip-token'), videoPart('clip-token')] } }
+    })
+
+    const videoHandle = createAssistantFileAttachmentHandle('entry-video')
+    const matched = (await matchedInput).value.message.content as string
+    expect(matched).toContain(
+      `Attached audio and video (call mcp__assistant-files__read_file with the opaque attachment handle; the tool returns timestamped analysis):\n- "clip.mp4" (handle: ${videoHandle})`
+    )
+    expect(matched).not.toContain('/managed/entry-video')
+
+    const staleInput = sdkInput[Symbol.asyncIterator]().next()
+    await connection.send({
+      message: { ...userMessage(), data: { parts: [composerToken('other-token'), videoPart('clip-token')] } }
+    })
+    const stale = (await staleInput).value.message.content as string
+    expect(stale).toContain('/managed/entry-video')
+    expect(stale).not.toContain('mcp__assistant-files__read_file')
+    expect(stale).not.toContain(videoHandle)
+    void connection.close()
+  })
+
+  it('keeps audio and video on the path manifest when the host assistant server is mounted', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { mcpServers: { assistant: { type: 'sdk' }, 'assistant-files': { type: 'sdk' } } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'what is said here' },
+            {
+              type: 'file',
+              url: 'file:///tmp/clip.mp4',
+              mediaType: 'video/mp4',
+              filename: 'clip.mp4',
+              providerMetadata: { cherry: { fileEntryId: 'entry-video' } }
+            }
+          ]
+        }
+      }
+    })
+
+    const handle = createAssistantFileAttachmentHandle('entry-video')
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: `what is said here\n\nAttached file "clip.mp4":\n# Media analysis\n[0:00] spoken line\n\nAttached files (read them with your tools using these absolute paths):\n- "clip.mp4": /managed/entry-video\n\nAttachment manifest:\n- "clip.mp4" (handle: ${handle})`
+        }
+      },
+      done: false
+    })
     void connection.close()
   })
 
