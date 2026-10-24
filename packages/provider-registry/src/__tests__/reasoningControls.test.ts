@@ -125,6 +125,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     ['xopglm52', [{ kind: 'toggle' }]],
     ['xsparkx2', [{ kind: 'toggle' }]],
     ['xsparkx2flash', [{ kind: 'toggle' }]],
+    ['spark-x2.5', [{ kind: 'toggle' }]],
     ['gemma4:31b', [{ kind: 'toggle' }]],
     ['gemma-4-31b-it', [{ kind: 'toggle' }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
