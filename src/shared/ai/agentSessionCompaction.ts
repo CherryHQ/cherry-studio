@@ -9,10 +9,12 @@ export type AgentSessionCompactionTrigger = CompactionTrigger
  */
 export type AgentSessionCompactionAnchorData = CompactionAnchorData
 
+export type AgentSessionCompactionFailureReason = 'nothing_to_compact' | 'request_too_large'
+
 // Completed-run metrics use data-compaction-anchor; non-terminal failures stay visible in the cache.
 export type AgentSessionCompactionState =
   | { status: 'idle' }
-  | { status: 'failed'; error: string }
+  | { status: 'failed'; error: string; reason?: AgentSessionCompactionFailureReason }
   | {
       status: 'compacting'
       startedAt: string

@@ -2,7 +2,7 @@ import { ScanLine, Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Tooltip } from '@cherrystudio/ui'
+import { Alert, Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
@@ -1328,6 +1328,19 @@ const AgentComposerInner = ({
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
   const hasNewSessionAction = Boolean(onCreateEmptySession)
+  const compactionReason = compaction.status === 'failed' ? compaction.reason : undefined
+  const failureCopy =
+    compactionReason === 'nothing_to_compact'
+      ? ({
+          title: 'chat.compaction.nothing_to_compact.title',
+          description: 'chat.compaction.nothing_to_compact.description'
+        } as const)
+      : compactionReason === 'request_too_large'
+        ? ({
+            title: 'chat.compaction.request_too_large.title',
+            description: 'chat.compaction.request_too_large.description'
+          } as const)
+        : undefined
 
   const rootPanelNewSessionItems = useMemo<QuickPanelListItem[]>(() => {
     const items: QuickPanelListItem[] = screenshotEnabled
@@ -1895,8 +1908,15 @@ const AgentComposerInner = ({
                   type="warning"
                   showIcon
                   className="mb-2"
-                  message={t('chat.compaction.failed')}
-                  description={compaction.error}
+                  message={t(failureCopy?.title ?? 'chat.compaction.failed')}
+                  description={failureCopy ? t(failureCopy.description) : compaction.error}
+                  action={
+                    failureCopy && hasNewSessionAction ? (
+                      <Button size="sm" variant="outline" onClick={handleCreateEmptySession}>
+                        {t('agent.session.new')}
+                      </Button>
+                    ) : undefined
+                  }
                 />
               )}
               {queuedFollowups.length > 0 ? (
