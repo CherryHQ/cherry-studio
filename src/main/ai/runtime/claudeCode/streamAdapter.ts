@@ -146,6 +146,17 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** Anthropic message id of the stream currently open (`message_start`), '' when unknown. */
+  streamMessageId: string
+  /** Streamed reasoning text per open reasoning part, flushed into `reasoningTextsByMessageId` on close. */
+  reasoningBuffers: Map<string, string>
+  /** Completed reasoning texts per Anthropic message id, used to drop a parentless text copy of them. */
+  reasoningTextsByMessageId: Map<string, Set<string>>
+  /**
+   * Whole fallback thinking snapshots retained against the open part still streaming their prefix.
+   * Reconciled at completion, when the stream has had its last chance to deliver the suffix itself.
+   */
+  pendingReasoningSnapshots: Map<string, string>
 }
 
 /**
@@ -548,7 +559,11 @@ export class ClaudeCodeStreamAdapter {
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
-      textStreamedViaContentBlock: false
+      textStreamedViaContentBlock: false,
+      streamMessageId: '',
+      reasoningBuffers: new Map(),
+      reasoningTextsByMessageId: new Map(),
+      pendingReasoningSnapshots: new Map()
     }
   }
 
@@ -793,6 +808,8 @@ export class ClaudeCodeStreamAdapter {
         this.handleMessageDelta(event, ctx)
         break
       case 'message_start':
+        ctx.streamMessageId = event.message?.id ?? ''
+        break
       case 'message_stop':
         break
     }
@@ -975,6 +992,7 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = ctx.reasoningBlocksByIndex.get(blockIndex) ?? ctx.currentReasoningPartId
     if (reasoningPartId) {
       ctx.sink.enqueue({ type: 'reasoning-delta', id: reasoningPartId, delta: thinking })
+      ctx.reasoningBuffers.set(reasoningPartId, (ctx.reasoningBuffers.get(reasoningPartId) ?? '') + thinking)
     }
   }
 
@@ -999,6 +1017,8 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = ctx.reasoningBlocksByIndex.get(blockIndex)
     if (reasoningPartId) {
       ctx.sink.enqueue({ type: 'reasoning-end', id: reasoningPartId })
+      this.recordReasoningText(ctx, ctx.streamMessageId, ctx.reasoningBuffers.get(reasoningPartId))
+      ctx.reasoningBuffers.delete(reasoningPartId)
       ctx.reasoningBlocksByIndex.delete(blockIndex)
       if (ctx.currentReasoningPartId === reasoningPartId) ctx.currentReasoningPartId = undefined
     }
@@ -1054,11 +1074,129 @@ export class ClaudeCodeStreamAdapter {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
 
+    const messageId = message.message.id ?? ''
+    for (const block of content) {
+      if (block.type === 'thinking') {
+        // A fallback snapshot arrives whole after a failed stream, so this reasoning may never
+        // have streamed. Emit it once before the text copy below can be suppressed as a duplicate.
+        const partialReasoning = this.findPartiallyStreamedReasoning(ctx, block.thinking)
+        if (partialReasoning) {
+          // Partial streaming failure with an SDK nonstreaming fallback: the stream carries only a
+          // prefix of this snapshot. It may still deliver the rest itself (snapshot-before-stop),
+          // so retain the snapshot and flush any undelivered suffix at completion - skipping here
+          // would strand the suffix once the text copy below is suppressed.
+          ctx.pendingReasoningSnapshots.set(partialReasoning.partId, block.thinking)
+        } else if (!this.wasReasoningStreamed(ctx, messageId, block.thinking)) {
+          const reasoningPartId = generateId()
+          const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+          ctx.sink.enqueue({
+            type: 'reasoning-start',
+            id: reasoningPartId,
+            ...(providerMetadata ? { providerMetadata } : {})
+          })
+          if (block.thinking) {
+            ctx.sink.enqueue({ type: 'reasoning-delta', id: reasoningPartId, delta: block.thinking })
+          }
+          ctx.sink.enqueue({ type: 'reasoning-end', id: reasoningPartId })
+        }
+        this.recordReasoningText(ctx, messageId, block.thinking)
+      }
+    }
+
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
+
+    // #21390: some backends repeat the turn's reasoning verbatim as a parentless text block of the same
+    // message. The reasoning part already carries it, so a byte-identical copy (modulo surrounding
+    // whitespace) must not also become user-visible text. Subagent (parented) text is left alone.
+    if (text && !sdkParentToolUseId && this.isReasoningCopy(ctx, messageId, text)) {
+      logger.warn('Dropping parentless text that duplicates the reasoning of the same message', {
+        messageId,
+        length: text.length
+      })
+      return
+    }
 
     if (text) {
       this.handleAssistantText(text, sdkParentToolUseId, ctx)
     }
+  }
+
+  private recordReasoningText(ctx: StreamContext, messageId: string, reasoning: string | undefined): void {
+    const normalized = reasoning?.trim()
+    if (!normalized) return
+    let texts = ctx.reasoningTextsByMessageId.get(messageId)
+    if (!texts) {
+      texts = new Set()
+      ctx.reasoningTextsByMessageId.set(messageId, texts)
+    }
+    texts.add(normalized)
+  }
+
+  /**
+   * Was this reasoning already streamed for the message (or an idless stream)? Covers both reasoning
+   * closed into the text set and reasoning still streaming: SDK 0.3.284 can deliver the completed
+   * assistant snapshot before the matching content_block_stop, and the open stream already carries
+   * the block even though it only enters the closed text set on that stop.
+   */
+  private wasReasoningStreamed(ctx: StreamContext, messageId: string, reasoning: string | undefined): boolean {
+    const normalized = reasoning?.trim()
+    if (!normalized) return false
+    if (
+      ctx.reasoningTextsByMessageId.get(messageId)?.has(normalized) ||
+      (messageId && ctx.reasoningTextsByMessageId.get('')?.has(normalized))
+    ) {
+      return true
+    }
+    // An open buffer equal to the snapshot block, or a still-growing prefix of it, means the stream
+    // already carries this reasoning; emitting the snapshot would duplicate it under a new reasoning id.
+    for (const buffered of ctx.reasoningBuffers.values()) {
+      const open = buffered.trim()
+      if (open && normalized.startsWith(open)) return true
+    }
+    return false
+  }
+
+  /**
+   * The content of `complete` the open buffer has not delivered yet: the raw suffix when the
+   * buffer is an exact prefix, otherwise the suffix after the trimmed prefix when both sides
+   * match once trimmed - wasReasoningStreamed suppresses under that same normalization, so a
+   * raw-only check here would strand the undelivered content when boundary whitespace differs
+   * (cherry-pr-review). Returns null when the buffer is not a prefix under either comparison.
+   */
+  private undeliveredReasoningSuffix(buffered: string, complete: string): string | null {
+    if (buffered && complete.length > buffered.length && complete.startsWith(buffered)) {
+      return complete.slice(buffered.length)
+    }
+    const open = buffered.trim()
+    const normalized = complete.trim()
+    if (open && normalized.length > open.length && normalized.startsWith(open)) {
+      return normalized.slice(open.length)
+    }
+    return null
+  }
+
+  /**
+   * The open reasoning part whose streamed buffer is a proper prefix of this snapshot: the stream
+   * failed mid-reasoning and the SDK's complete fallback carries the rest.
+   */
+  private findPartiallyStreamedReasoning(ctx: StreamContext, reasoning: string | undefined): { partId: string } | null {
+    if (!reasoning) return null
+    for (const [partId, buffered] of ctx.reasoningBuffers) {
+      if (this.undeliveredReasoningSuffix(buffered, reasoning) !== null) {
+        return { partId }
+      }
+    }
+    return null
+  }
+
+  private isReasoningCopy(ctx: StreamContext, messageId: string, text: string): boolean {
+    const normalized = text.trim()
+    if (!normalized) return false
+    // Streamed reasoning is keyed by the `message_start` id; fall back to '' when the stream carried none.
+    return Boolean(
+      ctx.reasoningTextsByMessageId.get(messageId)?.has(normalized) ||
+      (messageId && ctx.reasoningTextsByMessageId.get('')?.has(normalized))
+    )
   }
 
   private handleAssistantToolUse(
@@ -1251,7 +1389,27 @@ export class ClaudeCodeStreamAdapter {
     ctx.toolResultsEmitted.add(result.tool_use_id)
   }
 
+  /**
+   * Retained fallback snapshots are reconciled at completion: the stream has had its last chance
+   * to deliver the suffix itself, so whatever never streamed is flushed onto the matching open
+   * part. Reasoning the stream did deliver (buffer grown to the snapshot, or part already closed)
+   * is left untouched.
+   */
+  private reconcilePendingReasoningSnapshots(ctx: StreamContext): void {
+    for (const [partId, snapshot] of ctx.pendingReasoningSnapshots) {
+      const buffered = ctx.reasoningBuffers.get(partId)
+      if (buffered === undefined) continue
+      const suffix = this.undeliveredReasoningSuffix(buffered, snapshot)
+      if (suffix !== null) {
+        ctx.sink.enqueue({ type: 'reasoning-delta', id: partId, delta: suffix })
+        ctx.reasoningBuffers.set(partId, buffered + suffix)
+      }
+    }
+    ctx.pendingReasoningSnapshots.clear()
+  }
+
   private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
+    this.reconcilePendingReasoningSnapshots(ctx)
     const finalUsage = convertClaudeCodeUsage(message.usage)
     ctx.usage = {
       ...finalUsage,

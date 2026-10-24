@@ -594,6 +594,244 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
   })
 
+  describe('duplicate reasoning on the parentless text channel (#21390)', () => {
+    const monologue = 'Let me inspect the file first, then run the tests.'
+
+    function assistant(content: unknown[], parentToolUseId: string | null = null, id = 'msg_1') {
+      return {
+        type: 'assistant',
+        parent_tool_use_id: parentToolUseId,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: { id, role: 'assistant', content }
+      } as any
+    }
+
+    function streamReasoning(adapter: InstanceType<typeof ClaudeCodeStreamAdapter>, text: string, id = 'msg_1') {
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: text } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    }
+
+    it('drops a parentless text block identical to the reasoning streamed for the same message', () => {
+      const { adapter, parts } = createAdapter()
+
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(assistant([{ type: 'text', text: `${monologue}\n` }]))
+
+      expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
+    })
+
+    it('drops a parentless text block identical to a thinking block of the same assistant message', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+      expect(parts.filter((part: any) => part.type === 'reasoning-delta').map((part: any) => part.delta)).toEqual([
+        monologue
+      ])
+    })
+
+    it('preserves snapshot reasoning after a failed stream falls back to a whole nonstreaming response', () => {
+      const { adapter, parts } = createAdapter()
+
+      // The streaming attempt dies after `message_start`; the SDK retries non-streaming and
+      // delivers the full assistant snapshot with the same message id and no deltas.
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+
+      // Exactly one copy of the reasoning survives, as reasoning content; the text copy is dropped.
+      expect(parts.filter((part: any) => part.type === 'reasoning-delta').map((part: any) => part.delta)).toEqual([
+        monologue
+      ])
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+    })
+
+    it('does not re-emit snapshot reasoning that already streamed and closed for the same message', () => {
+      const { adapter, parts } = createAdapter()
+
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: 'Here is the answer.' }
+        ])
+      )
+
+      expect(parts.filter((part: any) => part.type === 'reasoning-delta').map((part: any) => part.delta)).toEqual([
+        monologue
+      ])
+      const deltas = parts.filter((part) => part.type === 'text-delta').map((part: any) => part.delta)
+      expect(deltas.join('')).toBe('Here is the answer.')
+    })
+
+    it('does not re-emit snapshot reasoning while its stream is still open (SDK snapshot-before-stop)', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: monologue } })
+      )
+      // SDK 0.3.284: the completed assistant snapshot arrives before the matching content_block_stop.
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: 'Here is the answer.' }
+        ])
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      expect(parts.filter((part) => part.type === 'reasoning-start')).toHaveLength(1)
+      expect(parts.filter((part: any) => part.type === 'reasoning-delta').map((part: any) => part.delta)).toEqual([
+        monologue
+      ])
+      const deltas = parts.filter((part) => part.type === 'text-delta').map((part: any) => part.delta)
+      expect(deltas.join('')).toBe('Here is the answer.')
+    })
+
+    it('does not re-emit snapshot reasoning that completes a still-growing open stream', () => {
+      const { adapter, parts } = createAdapter()
+      const head = monologue.slice(0, 20)
+      const tail = monologue.slice(20)
+
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: head } })
+      )
+      // The snapshot carries the completed block while the rest of its deltas are still in flight.
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: 'Here is the answer.' }
+        ])
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: tail } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      expect(parts.filter((part) => part.type === 'reasoning-start')).toHaveLength(1)
+      const reasoning = parts
+        .filter((part: any) => part.type === 'reasoning-delta')
+        .map((part: any) => part.delta)
+        .join('')
+      expect(reasoning).toBe(monologue)
+    })
+
+    it('flushes the unstreamed suffix when a partial reasoning stream fails and the fallback completes', () => {
+      const { adapter, parts } = createAdapter()
+      const head = monologue.slice(0, 20)
+
+      // The stream dies after a reasoning prefix; the SDK's complete nonstreaming fallback
+      // delivers the full thinking snapshot under the same message id, with no further deltas.
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: head } })
+      )
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+      adapter.handleMessage(successResult())
+
+      // One reasoning part carries the full snapshot: the streamed prefix, then the suffix
+      // flushed at completion. The identical text copy stays suppressed.
+      expect(parts.filter((part) => part.type === 'reasoning-start')).toHaveLength(1)
+      const reasoning = parts
+        .filter((part: any) => part.type === 'reasoning-delta')
+        .map((part: any) => part.delta)
+        .join('')
+      expect(reasoning).toBe(monologue)
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+    })
+
+    it('preserves the fallback suffix when the streamed prefix differs in boundary whitespace', () => {
+      const { adapter, parts } = createAdapter()
+      // The failed stream carries the prefix with extra leading whitespace while the SDK's
+      // complete fallback snapshot is trimmed. Suppression normalizes both sides, so the
+      // reconciliation must match under the same normalization or the suffix is lost
+      // (cherry-pr-review reproduction: 30 characters dropped).
+      const head = '  ' + monologue.slice(0, 20)
+
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: head } })
+      )
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+      adapter.handleMessage(successResult())
+
+      // One reasoning part carries the streamed prefix plus the flushed suffix: every
+      // character of the fallback's content survives; the identical text copy stays suppressed.
+      expect(parts.filter((part) => part.type === 'reasoning-start')).toHaveLength(1)
+      const reasoning = parts
+        .filter((part: any) => part.type === 'reasoning-delta')
+        .map((part: any) => part.delta)
+        .join('')
+      expect(reasoning).toBe(head + monologue.slice(20))
+      expect(reasoning.trim()).toBe(monologue)
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+    })
+
+    it('keeps text that differs from the reasoning, belongs to another message, or has a parent tool', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: 'Here is the answer.' }
+        ])
+      )
+      adapter.handleMessage(assistant([{ type: 'text', text: monologue }], null, 'msg_2'))
+      adapter.handleMessage(
+        assistant(
+          [
+            { type: 'thinking', thinking: monologue, signature: '' },
+            { type: 'text', text: monologue }
+          ],
+          'agent-1'
+        )
+      )
+
+      const deltas = parts.filter((part) => part.type === 'text-delta').map((part: any) => part.delta)
+      expect(deltas.join('')).toBe(`Here is the answer.${monologue}${monologue}`)
+    })
+  })
+
   it('attaches parent tool metadata to streamed text and reasoning parts', () => {
     const { adapter, parts } = createAdapter()
 
