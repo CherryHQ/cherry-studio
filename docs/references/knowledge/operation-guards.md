@@ -65,6 +65,10 @@ Used only by `reindexItems`.
   permission failure) is also rejected without destroying existing vectors.
 - URL and note roots remain rebuildable from their URL/DB content and do not use
   the local-file existence check.
+- Checks statuses last, under the base mutation lock and right before the
+  enqueue. A backfill (`enableEmbeddingModel`) may activate the items while the
+  probes wait on the filesystem, and it looks for pending reindex jobs under the
+  same lock.
 
 This is the backend authority for user-triggered reindex. UI may hide the reindex action for non-terminal rows, but the service guard must still reject stale or direct calls.
 
@@ -195,9 +199,11 @@ reindexItems(baseId, itemIds)
   -> reject items outside baseId
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
-  -> reject unless every selected root subtree is completed or failed
-  -> enqueue knowledge.reindex-subtree
-       idempotency key = knowledge:${baseId}:${sorted root ids}:reindex
+  -> reject unless every selected root source is available
+  -> under the base mutation lock:
+       reject unless every selected root subtree is completed or failed
+       enqueue knowledge.reindex-subtree
+         idempotency key = knowledge:${baseId}:${sorted root ids}:reindex
 ```
 
 ### Why Reindex Requires Terminal Subtrees
@@ -268,7 +274,9 @@ or running. That check runs under the base mutation lock, just before the write
 transaction. A refresh keeps its items `completed` until its job resets them,
 so statuses alone cannot show it. A backfill admitted beside it could index the
 old copy over the refreshed one, and the refresh would then skip the item as
-already `completed`.
+already `completed`. Reindex admission re-reads its statuses and enqueues under
+the same lock, so whichever takes the lock second sees the other: the backfill
+sees the reindex job, or the reindex sees the backfill's `processing` leaves.
 
 Under the base mutation lock, one write transaction persists the
 model/dimensions through `KnowledgeBaseService.updateTx(..., { allowEmbeddingModelBackfill: true })`
@@ -339,7 +347,7 @@ When changing these operations, check the operation-specific failure behavior be
 | --- | --- | --- | --- | --- | --- |
 | `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
-| `reindexItems` | Reject | Yes | Entire subtree terminal; selected root sources available | None | Throw; no active state was written |
+| `reindexItems` | Reject | Yes | Selected root sources available; entire subtree terminal, re-checked under the base lock | None | Throw; no active state was written |
 | `enableEmbeddingModel` | Reject | All `completed` leaves | BM25-only base; every root subtree terminal (no source check); no active reindex job | Model/dimensions and every `completed` leaf's `processing` in one transaction | Mark that leaf `failed`; schedule the rest; config remains enabled |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 

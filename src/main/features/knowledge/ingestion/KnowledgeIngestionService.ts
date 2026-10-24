@@ -283,18 +283,23 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     knowledgeBaseService.getById(baseId)
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const jobManager = application.get('JobManager')
-    // One job per root: a delete or replace cancels every job touching its subtree, so roots sharing
-    // a job (a whole base, when embedding is first enabled) would all be interrupted with it.
-    for (const rootItemId of toKnowledgeItemIds(rootItemIds)) {
-      jobManager.enqueue(
-        'knowledge.reindex-subtree',
-        { baseId, rootItemIds: [rootItemId] },
-        {
-          idempotencyKey: knowledgeReindexSubtreeIdempotencyKey(knowledgeBaseId, [rootItemId]),
-          queue: knowledgeQueueName(knowledgeBaseId)
-        }
-      )
-    }
+    // Re-check statuses under the base lock: a backfill may have activated these items during the
+    // source check, and it looks for this reindex's jobs under the same lock.
+    await this.knowledgeLockManager.runExclusive(baseId, () => {
+      this.assertSubtreesSettled(knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true }))
+      // One job per root: a delete or replace cancels every job touching its subtree, so roots
+      // sharing a job would all be interrupted with it.
+      for (const rootItemId of toKnowledgeItemIds(rootItemIds)) {
+        jobManager.enqueue(
+          'knowledge.reindex-subtree',
+          { baseId, rootItemIds: [rootItemId] },
+          {
+            idempotencyKey: knowledgeReindexSubtreeIdempotencyKey(knowledgeBaseId, [rootItemId]),
+            queue: knowledgeQueueName(knowledgeBaseId)
+          }
+        )
+      }
+    })
   }
 
   /**
@@ -634,8 +639,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         'Could not verify the knowledge item source (it may be temporarily unavailable); please try again'
       )
     }
-
-    this.assertSubtreesSettled(subtreeItems)
   }
 
   /** Reject while any item of the given subtrees is still running or being deleted. */

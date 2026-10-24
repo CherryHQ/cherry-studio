@@ -245,8 +245,8 @@ If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls bac
 `reindex-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Orchestration rejects the request unless every selected subtree item is terminal: `completed` or `failed`.
-3. Workflow service enqueues one `knowledge.reindex-subtree` job per root, so a delete or `replace` that cancels one root's job leaves the others running.
+2. Under the base mutation lock, orchestration rejects the request unless every selected subtree item is terminal: `completed` or `failed`.
+3. Still under that lock, the workflow service enqueues one `knowledge.reindex-subtree` job per root, so a delete or `replace` that cancels one root's job leaves the others running.
 4. The reindex job skips if delete won the race and its root is now `deleting` or gone.
 5. Under the base mutation lock, the reindex job activates the root (`preparing` or `processing`); it re-acquires the root's bytes off the lock; then, under the lock again, it re-checks for a delete, deletes old vectors, removes expanded descendants for a container root, and schedules the root through the workflow service.
 

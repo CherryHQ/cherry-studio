@@ -18,16 +18,32 @@ import {
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
-const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
-  () => ({
-    getIndexStoreMock: vi.fn(),
-    deleteStoreMock: vi.fn(),
-    enqueueMock: vi.fn(),
-    enqueueTxMock: vi.fn(),
-    listMock: vi.fn(),
-    registerHandlerMock: vi.fn()
-  })
-)
+import type * as KnowledgeItemsModule from '../items'
+
+const {
+  getIndexStoreMock,
+  deleteStoreMock,
+  enqueueMock,
+  enqueueTxMock,
+  listMock,
+  registerHandlerMock,
+  classifySourceMock
+} = vi.hoisted(() => ({
+  getIndexStoreMock: vi.fn(),
+  deleteStoreMock: vi.fn(),
+  enqueueMock: vi.fn(),
+  enqueueTxMock: vi.fn(),
+  listMock: vi.fn(),
+  registerHandlerMock: vi.fn(),
+  classifySourceMock: vi.fn()
+}))
+
+// Runs the real source check unless a test holds it open.
+vi.mock('../items', async (importOriginal) => {
+  const actual = await importOriginal<typeof KnowledgeItemsModule>()
+  classifySourceMock.mockImplementation(actual.classifyKnowledgeItemReacquireSource)
+  return { ...actual, classifyKnowledgeItemReacquireSource: classifySourceMock }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -579,6 +595,26 @@ describe('KnowledgeService integration', () => {
       await dbh.db.update(jobTable).set({ status: 'completed' }).where(eq(jobTable.id, pending.id))
       await dbh.db.insert(jobTable).values(reindexJob(SOURCE_BASE_ID))
       await expect(enable(service)).resolves.toMatchObject({ embeddingModelId })
+    })
+
+    // Reindex awaits its source check before taking the lock, so the backfill can land in between.
+    it('rejects a reindex whose items a backfill activated while their sources were checked', async () => {
+      await seedBm25Base()
+      let finishSourceCheck!: () => void
+      classifySourceMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishSourceCheck = () => resolve('rebuildable')
+          })
+      )
+      const service = new KnowledgeService()
+
+      const reindex = service.reindexItems(BM25_BASE_ID, [NOTE_ID])
+      await enable(service)
+      finishSourceCheck()
+
+      await expect(reindex).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+      expect(enqueuedTypes()).not.toContain('knowledge.reindex-subtree')
     })
 
     it('rejects a failed base before committing the model', async () => {

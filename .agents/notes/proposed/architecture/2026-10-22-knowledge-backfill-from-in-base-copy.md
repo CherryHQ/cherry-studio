@@ -34,8 +34,9 @@ The backfill stops going through reindex and reuses the regular per-item indexin
   - `rebuildMaterial` replaces each item's BM25-only material in one transaction, so nothing needs deleting first.
 - **Admission.** The base must be allowed to run runtime operations and every target subtree must be `completed` or `failed`; `KnowledgeBaseService.update` still rejects switching an already-configured model. The source-existence check is dropped, so a moved or deleted original no longer blocks the backfill.
   - No `knowledge.reindex-subtree` job of the base may be pending or running. A refresh leaves its items `completed` until its job resets them, so their status does not show it. A backfill admitted beside it could index the old copy over the refreshed one, and the refresh would then skip the item as already `completed`. The check runs under the base mutation lock, just before the write transaction.
+  - Reindex admission reads its subtree statuses again, and enqueues, under the same lock. A backfill that activates the items while a reindex is still checking their sources therefore makes that reindex reject.
 - **Recovery stays as it is.** `knowledge.index-documents` keeps `recovery: 'abandon'`. After a quit, unfinished leaves are still in an in-flight status, so the boot sweep fails them with `indexing_interrupted`. Leaves that finished stay `completed`.
-- **User-triggered reindex is unchanged.** It still re-acquires from the original. Separating "rebuild from the in-base copy" from "refresh from source" for reindex is left to #22092.
+- **User-triggered reindex still re-acquires from the original.** Only its status check moves under the base lock, as above. Separating "rebuild from the in-base copy" from "refresh from source" for reindex is left to #22092.
 
 This partially supersedes the [async source copy Spec](2026-10-21-knowledge-async-source-copy.md): its AC9 clause about the backfill and its restart-gap limitation. Both notes stay active and cross-linked.
 
@@ -59,6 +60,7 @@ This partially supersedes the [async source copy Spec](2026-10-21-knowledge-asyn
 - AC7 — A user-triggered reindex still re-acquires from the original source, and still rejects an item whose original is missing. (verification: unit)
 - AC8 — A leaf that is `failed` when the model is enabled keeps its status and error and gets no indexing job, so a URL whose first fetch failed is not fetched. (verification: unit)
 - AC9 — While a reindex of the base is pending or running, enabling an embedding model is rejected and changes neither the model nor any item status; it succeeds once that reindex settles. (verification: unit)
+- AC10 — A reindex whose items a backfill activates while their sources are being checked is rejected and enqueues no job. (verification: unit)
 
 ## Risks
 
