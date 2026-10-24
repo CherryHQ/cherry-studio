@@ -16,6 +16,7 @@ import p_copilot from './copilot'
 import p_dashscope from './dashscope'
 import p_deepseek from './deepseek'
 import p_dmxapi from './dmxapi'
+import p_dothoosh from './dothoosh'
 import p_doubao from './doubao'
 import p_fireworks from './fireworks'
 import p_gateway from './gateway'
@@ -88,6 +89,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_dothoosh,
   p_tokendance,
   p_new_api,
   p_lmstudio,
