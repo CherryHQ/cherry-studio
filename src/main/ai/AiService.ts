@@ -730,9 +730,11 @@ export class AiService extends BaseService {
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+          request.modelAttempt?.onActivated?.(fallback.sourceModel ?? model)
         },
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
+          request.modelAttempt?.onActivated?.(model)
         },
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
         // Not transient: it rides message.parts so the renderer can show it; the
@@ -902,9 +904,11 @@ export class AiService extends BaseService {
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+          request.modelAttempt?.onActivated?.(fallback.sourceModel ?? model)
         },
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
+          request.modelAttempt?.onActivated?.(model)
         }
       })
     }
