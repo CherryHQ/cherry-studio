@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import { describe, expect, it } from 'vitest'
 
+import { previewFormats } from '@cherrystudio/file-preview/react'
+
 import {
   canProduceSelectionReference,
   createFilePreviewRegistry,
@@ -141,6 +143,14 @@ describe('file preview registry', () => {
 
   it('keeps the text plugin extension whitelist explicit', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
+  })
+
+  it('routes every format the file-preview package declares', () => {
+    for (const format of previewFormats) {
+      for (const extension of format.extensions) {
+        expect(resolveExtensionPlugin(`/tmp/source.${extension}`, filePreviewRegistry)?.id).toBe(format.id)
+      }
+    }
   })
 
   it('does not route an unknown extension through the registry', () => {
