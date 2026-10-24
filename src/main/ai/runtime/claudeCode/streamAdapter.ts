@@ -1216,7 +1216,15 @@ export class ClaudeCodeStreamAdapter {
     // (inv_8286fc83dcddad15: split '1' + '. ```xml\n').
     const lineStart = accumulatedText.lastIndexOf('\n') + 1
     const openLine = accumulatedText.slice(lineStart)
-    if (openLine.trim() === '') return ''
+    if (openLine.trim() === '') {
+      // A line boundary can still belong to a list container. Carry its
+      // bounded preceding line so the next quote can detect leaving it.
+      const previousEnd = Math.max(0, lineStart - 1)
+      const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
+      const previous = accumulatedText.slice(previousStart, previousEnd)
+      if (/^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]/.test(previous)) return previous.slice(0, 128) + '\n'
+      return ''
+    }
     // Completed plain paragraph context needs its block kind and escape
     // parity, not every already-emitted code span. Unfinished spans/markup
     // live in the remainder and are appended separately. Keep structured
@@ -1225,7 +1233,8 @@ export class ClaudeCodeStreamAdapter {
     if (openLine.length > 256) {
       const container = /^(?: {0,3}> ?)*(?: {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+)?/.exec(openLine)?.[0] ?? ''
       const content = openLine.slice(container.length)
-      if (/^[A-Za-z]/.test(content)) return container + 'paragraph ' + (openLine.match(/\\+$/)?.[0] ?? '')
+      if (!/^(?: {4}|\t|#{1,6}[ \t]|`{3,}|~{3,}|<)/.test(content))
+        return container + 'paragraph ' + (openLine.match(/\\+$/)?.[0] ?? '')
     }
     return openLine
   }

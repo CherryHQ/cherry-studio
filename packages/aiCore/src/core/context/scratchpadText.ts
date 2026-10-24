@@ -214,7 +214,7 @@ function isInlineBlockBoundary(line: string): boolean {
   return (
     content.trim() === '' ||
     /^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001/.test(content.trim()) ||
-    /^ {0,3}(?:<!--|<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|source|style|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t>]|$))/i.test(
+    /^ {0,3}(?:<!--|<![A-Z]|<\?|<!\[CDATA\[|<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|source|style|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t>]|$))/i.test(
       content
     ) ||
     /^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content) ||

@@ -4618,12 +4618,37 @@ describe('compaction artifact boundary', () => {
     expect(output()).toBe(first + second + third)
   })
 
-  it.each([false, true, 'structured'])(
+  it('retains inherited container context across newline delta split (inv_925b386483f0fc34)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = '- First\n  > First\n>     <thinking>literal</thinking>\n\nDone.\n'
+    const output = () =>
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of ['- First\n', answer.slice(8)])
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    expect(output()).toBe(answer)
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    expect(output()).toBe(answer)
+  })
+
+  it.each([false, true, 'structured', 'formatted'])(
     'scales fragmented single-line inline code, HTML=%s (inv_b6f3cc350f53186d, inv_c85daa81d15fdc24)',
     (html) => {
       const { adapter, parts } = createAdapter()
       const answer =
-        (html === 'structured' ? '- ' : '') +
+        (html === 'structured' ? '- ' : html === 'formatted' ? '`API` ' : '') +
         Array.from({ length: 500 }, (_, i) =>
           html ? 'Use `<span>` for item ' + i + '. ' : 'text `code' + i + '` more '
         ).join('')

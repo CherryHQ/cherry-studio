@@ -13,6 +13,15 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it.each(['<!DOCTYPE html>', '<?pi data?>', '<![CDATA[data]]>'])(
+    'bounds inline spans at HTML special blocks: %s (inv_61ef437e3bc90d4c)',
+    (block) => {
+      expect(
+        stripModelScratchpadBlocks('Unmatched ` marker.\n' + block + '\n<analysis>SECRET</analysis>\nLater `example`.')
+      ).not.toContain('SECRET')
+    }
+  )
+
   it('resets paragraph identity when inherited list quote ends (inv_abe5b2ba1a27f3e4)', () => {
     const input = '- First\n  > First\n>     <thinking>literal</thinking>'
     expect(stripModelScratchpadBlocks(input)).toBe(input)
