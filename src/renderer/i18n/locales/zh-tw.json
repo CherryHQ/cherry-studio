@@ -1488,6 +1488,8 @@
   "error.statusCode": "狀態碼",
   "error.statusText": "狀態文字",
   "error.stream_paused": "回應已暫停",
+  "error.stream_unreadable.description": "未收到可讀的錯誤詳情。請重試；若再次發生，請查看日誌。",
+  "error.stream_unreadable.title": "回應失敗",
   "error.text": "文字",
   "error.toolInput": "工具輸入",
   "error.toolName": "工具名稱",

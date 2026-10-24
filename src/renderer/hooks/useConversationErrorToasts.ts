@@ -3,10 +3,10 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
 import { useCommandRuntime } from '@renderer/hooks/command'
-import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import { toast, type ErrorToastContext } from '@renderer/services/toast'
+import { isUnreadableStreamFailure } from '@renderer/utils/error'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { ActiveExecution, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -110,7 +110,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
   )
 
   const report = useCallback(
-    async (error: unknown, modelId?: string, message?: CherryUIMessage) => {
+    async (error: unknown, modelId?: string, message?: CherryUIMessage, category?: ErrorToastContext['category']) => {
       if (!state.active) return
       const generation = state.generation
       const identity = modelId && isUniqueModelId(modelId) ? parseUniqueModelId(modelId) : undefined
@@ -137,6 +137,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       }
       toast.errorFromException(error, {
         key,
+        category,
         provider: provider
           ? { ...provider, name: getProviderDisplayName(provider) }
           : identity
@@ -163,7 +164,13 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       const completion = state.waiting.get(key) ?? queued?.completion
       if (queued) queued.completion = undefined
       if (completion) completion.finish(attempt.result)
-      else if (attempt.result.error !== undefined) void report(attempt.result.error, executionId, attempt.message)
+      else if (attempt.result.error !== undefined)
+        void report(
+          attempt.result.error,
+          executionId,
+          attempt.message,
+          isUnreadableStreamFailure(attempt.result.error) ? 'stream' : undefined
+        )
     },
     [report, state]
   )
@@ -220,9 +227,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       attempt.result = {
         success: !event.isAbort,
         error:
-          !event.isAbort && (event.isError || error)
-            ? (error ?? new Error(i18n.t('error.diagnosis.stream')))
-            : undefined
+          !event.isAbort && (event.isError || error) ? (error ?? { name: null, message: null, stack: null }) : undefined
       }
       attempt.message ??= { ...event.message, parts: [] }
       if (attempt.accepted) state.attempts.set(key, attempt)

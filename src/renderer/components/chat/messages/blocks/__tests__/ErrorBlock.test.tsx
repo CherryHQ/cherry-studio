@@ -4,6 +4,7 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -465,5 +466,96 @@ describe('ErrorBlock', () => {
     expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
     await user.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
+  })
+  it.each([
+    [
+      'en-US',
+      enUS,
+      'Response failed',
+      'No readable error details were received. Please retry; if it happens again, check the logs.'
+    ],
+    ['zh-CN', zhCN, '响应失败', '未收到可读的错误详情。请重试；若再次发生，请查看日志。']
+  ] as const)(
+    '[22243 RED] shows a distinct unreadable stream failure and retry guidance (%s)',
+    (language, catalog, title, description) => {
+      mocks.language = language
+      for (const [key, value] of Object.entries(catalog)) mocks.translations.set(key, value)
+      const diagnoseMessageError = vi.fn()
+      mocks.actions = { diagnoseMessageError }
+      const error = JSON.parse(JSON.stringify({ name: null, message: null, stack: null }))
+      render(<ErrorBlock partId="history-error" error={error} message={message} />)
+      expect(screen.getByText(title)).toBeInTheDocument()
+      expect(screen.getByText(description)).toBeInTheDocument()
+      expect(diagnoseMessageError).not.toHaveBeenCalled()
+      expect(screen.queryByRole('button')).toBeNull()
+    }
+  )
+  it.each([
+    '',
+    '  ',
+    'null',
+    'undefined',
+    '{}',
+    '[]',
+    '[object Object]',
+    'Unknown stream error',
+    'Stream error',
+    'Unknown error'
+  ])('[22243 RED] replaces placeholder message %j with unreadable guidance', (placeholder) => {
+    mocks.translations.set('error.stream_unreadable.title', 'Response failed')
+    mocks.translations.set('error.stream_unreadable.description', 'No readable details; retry.')
+    render(<ErrorBlock partId="p" error={{ name: 'Error', message: placeholder, stack: null }} message={message} />)
+    expect(screen.getByText('Response failed')).toBeInTheDocument()
+    expect(screen.getByText('No readable details; retry.')).toBeInTheDocument()
+  })
+  it.each([
+    { text: 'Stream error', expected: 'ECONNRESET' },
+    { text: 'socket closed', expected: 'socket closed' }
+  ])('shows recovered diagnostics without masking readable message $text', ({ text, expected }) => {
+    render(
+      <ErrorBlock
+        partId="p"
+        error={{ name: 'Error', message: text, stack: null, providerErrorCode: 'ECONNRESET' }}
+        message={message}
+      />
+    )
+    expect(screen.getByText(expected)).toBeInTheDocument()
+    expect(screen.queryByText('Stream error')).toBeNull()
+  })
+
+  it('[22243 RED] shows a safe code-only detail', () => {
+    render(
+      <ErrorBlock
+        partId="p"
+        error={{ name: 'Error', message: null, stack: null, code: 'ECONNRESET' }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('ECONNRESET')).toBeInTheDocument()
+    expect(screen.queryByText('error.stream_unreadable.title')).toBeNull()
+  })
+  it('[22243 RED] generic unknown key does not mask a useful status', () => {
+    mocks.i18nKeys.add('error.unknown')
+    mocks.translations.set('error.unknown', 'Unknown error')
+    mocks.translations.set('HTTP 429', 'Too many requests')
+    render(
+      <ErrorBlock
+        partId="p"
+        error={{ name: 'Error', message: null, stack: null, i18nKey: 'unknown', statusCode: 429 }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('Too many requests')).toBeInTheDocument()
+    expect(screen.queryByText('Unknown error')).toBeNull()
+  })
+
+  it('[22243 RED] renders the same fallback after persisted-part reload', () => {
+    for (const [key, value] of Object.entries(enUS)) mocks.translations.set(key, value)
+    const part = JSON.parse(JSON.stringify({ type: 'data-error', data: { name: null, message: null, stack: null } }))
+    render(<ErrorBlock partId="persisted-part" error={part.data} message={message} />)
+    expect(screen.getByText('Response failed')).toBeInTheDocument()
+    expect(
+      screen.getByText('No readable error details were received. Please retry; if it happens again, check the logs.')
+    ).toBeInTheDocument()
   })
 })
