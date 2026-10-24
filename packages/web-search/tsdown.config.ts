@@ -18,6 +18,7 @@ export default defineConfig({
     'providers/serply': 'src/providers/serply.ts',
     'providers/yuanbao': 'src/providers/yuanbao.ts',
     'providers/deepseek': 'src/providers/deepseek.ts',
+    'providers/desearch': 'src/providers/desearch.ts',
     'tools/config': 'src/tools/config.ts',
     'tools/url-filter': 'src/tools/urlFilter.ts',
     'tools/content': 'src/tools/content.ts'

@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.provider_description.bocha": "API de busca chinesa de IA com resultados da web em tempo real e estruturados.",
   "settings.tool.websearch.provider_description.crawl4ai": "Utilize o Crawl4AI Cloud com uma chave de API ou introduza o endereço de uma instância do Crawl4AI autoalojada com um token opcional.",
   "settings.tool.websearch.provider_description.deepseek": "APIs oficiais de pesquisa e obtenção da DeepSeek, com resultados web ordenados e conteúdo de páginas em Markdown.",
+  "settings.tool.websearch.provider_description.desearch": "API de pesquisa web Desearch para aplicações de IA, que devolve títulos, ligações e excertos.",
   "settings.tool.websearch.provider_description.duckduckgo": "Busca gratuita de palavras-chave por meio do endpoint HTML do DuckDuckGo. Não é necessária chave de API.",
   "settings.tool.websearch.provider_description.exa": "API de busca neural para aplicações de IA, ajustada para recuperação semântica da web.",
   "settings.tool.websearch.provider_description.exa_mcp": "Exponha a pesquisa Exa aos agentes por meio do Exa MCP Server.",
