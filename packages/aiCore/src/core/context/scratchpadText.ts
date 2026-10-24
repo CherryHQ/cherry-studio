@@ -242,7 +242,12 @@ function isInlineBlockBoundary(line: string): boolean {
 }
 
 function lineStartBefore(text: string, index: number): number {
-  return Math.max(text.lastIndexOf('\n', index - 1), text.lastIndexOf('\r', index - 1)) + 1
+  // Search both newline spellings together. Separate lastIndexOf calls scan
+  // the full prefix for an absent CR on ordinary LF documents, per fence.
+  for (let i = index - 1; i >= 0; i--) {
+    if (text[i] === '\n' || text[i] === '\r') return i + 1
+  }
+  return 0
 }
 
 function isListItemStart(line: string): boolean {
@@ -472,6 +477,7 @@ function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: st
 
 /** Recover a list opened on an earlier line when its fence starts on a continuation. */
 function inheritedFencePrefix(text: string, openerStart: number, openerPrefix: string): string {
+  if (openerPrefix === '') return openerPrefix
   if (parseFenceContainerSegments(openerPrefix).some((segment) => segment.type === 'list')) return openerPrefix
   let start = 0
   let inherited = openerPrefix
@@ -638,7 +644,19 @@ function maskInlineCodeSpans(text: string): {
     // An opener inside a scratchpad block may only pair within its block: a
     // candidate closer past the block's end would mask the real boundary
     // (cherry-pr-review).
-    const enclosing = scratchpadRanges.find((range) => pos > range.start && pos < range.end)
+    let low = 0
+    let high = scratchpadRanges.length - 1
+    let enclosing: { start: number; end: number } | undefined
+    while (low <= high) {
+      const mid = (low + high) >>> 1
+      const range = scratchpadRanges[mid]
+      if (pos <= range.start) high = mid - 1
+      else if (pos >= range.end) low = mid + 1
+      else {
+        enclosing = range
+        break
+      }
+    }
 
     if (closedAt === -1 || (enclosing !== undefined && closedAt >= enclosing.end)) {
       // No closer matches this run (or only past its scratchpad block's end):
@@ -851,14 +869,25 @@ function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolea
 function enclosingScratchpadTag(
   text: string,
   pos: number,
-  cachedInlineRanges?: Array<{ start: number; end: number }>
+  cachedInlineRanges?: Array<{ start: number; end: number }>,
+  scanState?: { pos: number; stack: string[] }
 ): string | null {
-  const stack: string[] = []
+  const stack: string[] = scanState?.stack ?? []
   // Inline-code tags are literals, not wrappers: an opener such as
   // `Use `<thinking>` blocks:` must not enlist the following fenced example
   // as enclosed scratchpad content (cherry-pr-review inv_fedee4736993b558).
   const inlineCodeRanges = cachedInlineRanges ?? maskInlineCodeSpans(text).ranges
   let rangeIndex = 0
+  if (scanState) {
+    let low = 0
+    let high = inlineCodeRanges.length
+    while (low < high) {
+      const mid = (low + high) >>> 1
+      if (inlineCodeRanges[mid].end <= scanState.pos) low = mid + 1
+      else high = mid
+    }
+    rangeIndex = low
+  }
   const inInlineCode = (index: number): boolean => {
     while (rangeIndex < inlineCodeRanges.length && inlineCodeRanges[rangeIndex].end <= index) {
       rangeIndex++
@@ -871,7 +900,7 @@ function enclosingScratchpadTag(
   // title="...") are attribute text, not wrappers, and counting them leaves
   // the real boundary hidden through EOF so the private analysis survives
   // stripping (cherry-pr-review inv_40ce8f82f82c9aee#f1).
-  let i = 0
+  let i = scanState?.pos ?? 0
   while (i < pos) {
     const lt = text.indexOf('<', i)
     if (lt === -1 || lt >= pos) break
@@ -905,6 +934,7 @@ function enclosingScratchpadTag(
     if (parsed.isSelfClosing) continue
     stack.push(tag)
   }
+  if (scanState) scanState.pos = pos
   return stack.length ? stack[stack.length - 1] : null
 }
 
@@ -916,6 +946,7 @@ function maskCodeFences(text: string): {
   const placeholderBase = pickPlaceholderBase(text, 'CODE_FENCE')
   const fences: string[] = []
   const inlineRanges = maskInlineCodeSpans(text).ranges
+  const scratchpadScan = { pos: 0, stack: [] as string[] }
   let out = ''
   let pos = 0
 
@@ -957,7 +988,7 @@ function maskCodeFences(text: string): {
     // inv_e5404aa552bba2ea). A fence outside any scratchpad block still masks
     // to its own close or EOF.
     let blockCloseIdx = -1
-    const enclosing = enclosingScratchpadTag(text, fenceStart, inlineRanges)
+    const enclosing = enclosingScratchpadTag(text, fenceStart, inlineRanges, scratchpadScan)
     if (enclosing) {
       const findBlockClose = (from: number): number => {
         const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
@@ -992,7 +1023,7 @@ function maskCodeFences(text: string): {
 
     // Keep the closing line's newline in the masked document: the following
     // indented code must remain on its own line (inv_732c4e7e9bebf1a7).
-    const separator = /(?:\r\n|\r|\n)$/.exec(text.slice(0, closeEnd))?.[0] ?? ''
+    const separator = /(?:\r\n|\r|\n)$/.exec(text.slice(Math.max(0, closeEnd - 2), closeEnd))?.[0] ?? ''
     const fenceEnd = closeEnd - separator.length
     fences.push(text.slice(fenceStart, fenceEnd))
     out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
@@ -1242,6 +1273,11 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
       scanPos = lt + 1
       continue
     }
+    if (text.startsWith('<!--', lt)) {
+      const close = text.indexOf('-->', lt + 4)
+      scanPos = close < 0 ? text.length : close + 3
+      continue
+    }
     let tagEnd = -1
     let isClosing = false
     let isSelfClosing = false
@@ -1384,7 +1420,7 @@ export function stripModelScratchpadBlocks(raw: string): string {
 
 /** Closing-only pseudo tool-call markup sometimes appended after visible prose in parentless text blocks. */
 const TRAILING_TOOL_PROTOCOL_CLOSE_RE =
-  /\s*<\/(?:(?:\uFF5C\uFF5C|\|\|)DSML(?:\uFF5C\uFF5C|\|\|)\s*)?(?:parameter|invoke|tool_calls|tool_result)\b[^>]*>\s*$/iu
+  /\s*<\/(?:(?:\uFF5C\uFF5C|\|\|)DSML(?:\uFF5C\uFF5C|\|\|)\s*)?(?:parameter|invoke|tool_calls|tool_result)(?=[\s/>])[^>]*>\s*$/iu
 
 /** Strips a trailing run of tool-protocol closing tags; does not touch tags in fences or inline code. */
 export function stripTrailingToolProtocolClosingFragments(raw: string): string {

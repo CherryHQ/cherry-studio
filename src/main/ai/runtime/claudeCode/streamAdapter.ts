@@ -1230,6 +1230,14 @@ export class ClaudeCodeStreamAdapter {
       if (previous.trim() !== '') return previous.slice(0, 128) + '\n'
       return ''
     }
+    // A partial setext underline needs the preceding paragraph too; the
+    // underline can arrive one marker at a time across delta boundaries.
+    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(openLine) && lineStart > 0) {
+      const previousEnd = lineStart - 1
+      const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
+      const previous = accumulatedText.slice(previousStart, previousEnd)
+      if (previous.trim() !== '') return previous.slice(0, 128) + '\n' + openLine
+    }
     // Completed plain paragraph context needs its block kind and escape
     // parity, not every already-emitted code span. Unfinished spans/markup
     // live in the remainder and are appended separately. Keep structured

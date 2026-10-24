@@ -13,6 +13,19 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('ignores comment-contained scratchpad closing tags (inv_a7e5f0f1985e0e7c)', () => {
+    expect(
+      stripModelScratchpadBlocks('<analysis>Use <!-- </analysis> --> SECRET</analysis><summary>Keep</summary>')
+    ).toBe('Keep')
+  })
+  it.each(['tool_result-example', 'invoke-custom', 'parameter-note'])(
+    'preserves unrelated closing element %s (inv_cf970285925ef5bb)',
+    (tag) => {
+      const text = 'The custom tag closes with </' + tag + '>'
+      expect(stripTrailingToolProtocolClosingFragments(text)).toBe(text)
+    }
+  )
+
   it.each(['-   First', '1.  First', '-\tFirst'])(
     'uses actual list padding for continuation: %s (inv_72d005c389d50445)',
     (first) => {
