@@ -5,6 +5,7 @@ import { SpeechInputKind, SpeechOutputKind } from '@shared/ai/voice'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 
+import { ensureExpressiveRulesLoaded } from './expressiveRulesBootstrap'
 import { speechLanguageFromLocale } from './expressiveText'
 import { IncrementalReadableText } from './incrementalReadableText'
 import { normalizeReadableText } from './readableText'
@@ -176,6 +177,8 @@ export class AutoReadService {
   #drain(record: StreamingRead): void {
     if (record.draining || record.fallback) return
     record.draining = (async () => {
+      // Incremental parsing rewrites labels too; hydrate before the first chunk.
+      await ensureExpressiveRulesLoaded()
       if (!record.checked) {
         record.fallback = !(await this.#supportsStreaming())
         record.checked = true
@@ -264,6 +267,8 @@ export class AutoReadService {
 
     const text = getTextFromParts(input.message.parts ?? [])
     try {
+      await ensureExpressiveRulesLoaded()
+      if (input.isAbort) return { status: 'skipped', key, reason: 'aborted' }
       if (!normalizeReadableText(text, { language: speechLanguageFromLocale(i18n.language) })) {
         return { status: 'skipped', key, reason: 'empty' }
       }

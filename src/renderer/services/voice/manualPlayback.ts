@@ -4,6 +4,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 
+import { ensureExpressiveRulesLoaded } from './expressiveRulesBootstrap'
 import { speechLanguageFromLocale } from './expressiveText'
 import { normalizeReadableText, type ReadableTextMode } from './readableText'
 import { speechPlaybackService, type SpeechPlaybackSourceLabel } from './SpeechPlaybackService'
@@ -82,6 +83,9 @@ export async function readTextAloud({
   }
 
   try {
+    // A custom-only emoji must not empty the preflight before hydration lands.
+    await ensureExpressiveRulesLoaded()
+    if (signal?.aborted || isCurrent?.() === false) return
     if (!normalizeReadableText(text, { mode, language: speechLanguageFromLocale(i18n.language) })) return
 
     const result = await speechPlaybackService.start(startInput)

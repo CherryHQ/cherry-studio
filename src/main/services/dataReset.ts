@@ -36,6 +36,7 @@ export const USER_DATA_WIPE = [
   'Local Storage.restore',
   'cache.json',
   'version.log',
+  'voice-expressive.json',
   'restore-journal.json',
   'restore-staging',
   'restore-session',

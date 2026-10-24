@@ -66,6 +66,24 @@ describe('VoiceExpressiveService', () => {
     await expect(service.set({ kind: 'emoji', match: '😄', zh: '开心', en: 'x'.repeat(41) })).rejects.toThrow()
   })
 
+  it('rejects punctuation and prose tokens that are not faces', async () => {
+    const service = await startService()
+
+    for (const match of ['.', 'C++', '1.2.3', '1.2', '(a+b)']) {
+      await expect(service.set({ kind: 'kaomoji', match, zh: '点', en: 'dot' })).rejects.toThrow(
+        'kaomoji must look like a face'
+      )
+    }
+  })
+
+  it('accepts face-shaped kaomoji and a flag emoji', async () => {
+    const service = await startService()
+
+    await expect(service.set({ kind: 'kaomoji', match: '(╥﹏╥)', zh: '大哭', en: 'crying' })).resolves.toBeTruthy()
+    await expect(service.set({ kind: 'kaomoji', match: '¯\\_(ツ)_/¯', zh: '摊手', en: 'shrug' })).resolves.toBeTruthy()
+    await expect(service.set({ kind: 'emoji', match: '🇺🇸', zh: '美国', en: 'United States' })).resolves.toBeTruthy()
+  })
+
   it('removes a rule and reports a miss', async () => {
     const service = await startService()
     const { rule } = await service.set({ kind: 'emoji', match: '😄', zh: '开心', en: 'happy' })
