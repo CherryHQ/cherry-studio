@@ -322,7 +322,8 @@ function toCompressRole(role: string): CompressRole {
  */
 export function createCompressionAdapter(
   model: LanguageModel,
-  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS
+  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS,
+  abortSignal?: AbortSignal
 ): (messages: ContextMessage[]) => Promise<string> {
   return async (messages: ContextMessage[]): Promise<string> => {
     const formatted = messages.map((m): { role: CompressRole; content: string } => {
@@ -350,7 +351,8 @@ export function createCompressionAdapter(
     const { text } = await generateText({
       model,
       messages: formatted,
-      maxOutputTokens
+      maxOutputTokens,
+      abortSignal
     })
 
     // Return the model's output verbatim — an empty string included. Both
@@ -365,6 +367,8 @@ export function createCompressionAdapter(
 
 /** Options for {@link summarizeModelMessages}. */
 export interface SummarizeMessagesOptions extends SummarizeHistoryOptions {
+  /** Cancels the compression model request with the owning chat turn. */
+  abortSignal?: AbortSignal
   /**
    * Output budget for the summarize call. Derive it from the compression
    * model's window via {@link resolveCompressionOutputTokens} — a fixed value
@@ -392,7 +396,7 @@ export async function summarizeModelMessages(
   model: LanguageModel,
   opts: SummarizeMessagesOptions = {}
 ): Promise<string> {
-  const { maxOutputTokens, ...summarizeOpts } = opts
+  const { maxOutputTokens, abortSignal, ...summarizeOpts } = opts
   const ir = fromModelMessages(messages).filter((m) => m.role !== 'system')
-  return summarizeHistory(ir, createCompressionAdapter(model, maxOutputTokens), summarizeOpts)
+  return summarizeHistory(ir, createCompressionAdapter(model, maxOutputTokens, abortSignal), summarizeOpts)
 }

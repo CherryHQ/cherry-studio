@@ -1994,6 +1994,7 @@ export class AiStreamManager extends BaseService {
           const at = anchors.findIndex((a) => a.id === anchorId)
           if (at >= 0) anchors[at] = { id: anchorId, data }
           else anchors.push({ id: anchorId, data })
+          if (exec.finalMessage) exec.finalMessage = withCompactionAnchors(exec.finalMessage, exec)
         }
       })
     } catch (err) {
