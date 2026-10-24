@@ -1118,14 +1118,26 @@ export class ClaudeCodeStreamAdapter {
     // column-zero text and lose literal code content (cherry-pr-review
     // inv_b4f675e18911386f).
     const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText + ctx.scratchpadStreamRemainder)
-    const prefix = (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
+    // A delta continues the line the previous chunk left open: carry that
+    // line's emitted content so the scanner classifies the combined first
+    // line with its real Markdown block context. Without it, a chunk like
+    // ` Example\n    <thinking>…` following an emitted `#` scans the heading
+    // line as a paragraph, the indented literal code after it is deleted
+    // (indented code cannot interrupt a paragraph), and the later snapshot -
+    // normalized with full-block context - appends the mismatched suffix
+    // (cherry-pr-review inv_f7b234887ed722ff). The carry holds any trailing
+    // backslash literally, subsuming the escape carry.
+    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText, ctx.scratchpadStreamRemainder)
+    const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
     const combined = prefix + ctx.scratchpadStreamRemainder + text
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
 
     if (shouldDeferScratchpadStripping(combined)) {
       ctx.scratchpadStreamRemainder = combined.slice(prefix.length)
-      ctx.scratchpadStreamEscapeCarry = prefix !== ''
+      // The flush path cannot see the emitted text before the remainder, so
+      // it needs the escape parity of the character run right before it.
+      ctx.scratchpadStreamEscapeCarry = hasOddTrailingBackslashRun(ctx.accumulatedText)
       return ''
     }
 
@@ -1133,7 +1145,18 @@ export class ClaudeCodeStreamAdapter {
     if (stripped.length < combined.length && this.compactionArtifactWatchActive()) {
       ctx.compactionScratchpadStripped = true
     }
-    const scanned = stripped.slice(prefix.length)
+    // The carried context is already-emitted text; a scratchpad block it
+    // opened can close in this chunk and consume part of it, so measure the
+    // surviving shared head instead of assuming the carry round-trips whole
+    // (cherry-pr-review inv_f7b234887ed722ff).
+    let scanned = stripped
+    if (prefix !== '') {
+      const strippedPrefix = stripKnownModelScratchpadBlocksPreservingCodeFences(prefix)
+      let shared = 0
+      const limit = Math.min(strippedPrefix.length, stripped.length)
+      while (shared < limit && strippedPrefix[shared] === stripped[shared]) shared++
+      scanned = stripped.slice(shared)
+    }
     const { emit, buffer } = this.splitIncompleteTagSuffix(scanned)
     ctx.scratchpadStreamRemainder = buffer
     // Escape context belongs to the emit/buffer boundary, not the stripped tail: a
@@ -1181,6 +1204,22 @@ export class ClaudeCodeStreamAdapter {
    * is scanned with the full line indentation instead of as column-zero
    * scratchpad text (cherry-pr-review inv_91c25cca41ade4f0).
    */
+  /**
+   * The emitted content of the line the next delta continues, minus any part
+   * still buffered in the remainder (which is re-appended on its own).
+   * Whitespace-only open lines carry no block type of their own - the indent
+   * carry handles those - so only content lines are returned.
+   */
+  private emittedOpenLinePrefix(accumulatedText: string, remainder: string): string {
+    const priorText = accumulatedText + remainder
+    const lineStart = priorText.lastIndexOf('\n') + 1
+    let openLine = priorText.slice(lineStart)
+    if (remainder.length >= openLine.length) return ''
+    openLine = openLine.slice(0, openLine.length - remainder.length)
+    if (openLine.trim() === '') return ''
+    return openLine
+  }
+
   private emittedIndentOnlyLinePrefix(text: string): string {
     const lineStart = text.lastIndexOf('\n') + 1
     const openLine = text.slice(lineStart)
@@ -2696,13 +2735,25 @@ export class ClaudeCodeStreamAdapter {
 
   private flushScratchpadStreamRemainder(ctx: StreamContext): void {
     if (!ctx.scratchpadStreamRemainder) return
-    const prefix = ctx.scratchpadStreamEscapeCarry ? '\\' : ''
+    // Scan the remainder with the same open-line context the streaming filter
+    // carries, or flushed literal code can lose its block classification at
+    // the boundary (cherry-pr-review inv_f7b234887ed722ff).
+    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText, ctx.scratchpadStreamRemainder)
+    const prefix = openLinePrefix !== '' ? openLinePrefix : ctx.scratchpadStreamEscapeCarry ? '\\' : ''
     const pending = prefix + ctx.scratchpadStreamRemainder
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
-    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending).slice(prefix.length)
-    if (stripped) {
-      this.appendVisibleTextDelta(stripped, ctx)
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending)
+    let visible = stripped
+    if (prefix !== '') {
+      const strippedPrefix = stripKnownModelScratchpadBlocksPreservingCodeFences(prefix)
+      let shared = 0
+      const limit = Math.min(strippedPrefix.length, stripped.length)
+      while (shared < limit && strippedPrefix[shared] === stripped[shared]) shared++
+      visible = stripped.slice(shared)
+    }
+    if (visible) {
+      this.appendVisibleTextDelta(visible, ctx)
     }
   }
 
