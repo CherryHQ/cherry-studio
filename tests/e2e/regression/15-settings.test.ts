@@ -1,28 +1,32 @@
 import { execFileSync } from 'node:child_process'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+
+import type { Request } from '@playwright/test'
 import AdmZip from 'adm-zip'
-import { languageNativeNameMap } from '@shared/utils/languages'
-import { caseDefinition } from '../../../scripts/e2e/regression/cases'
-import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
-import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
-import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
-import { expect, test } from './fixture'
-import { selectSidebarApp, dismissOnboarding } from './navigation'
-import { notificationSettings } from './notificationSettings'
-import { closeSettings, openSettingsSection } from './settings'
+
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
+import { languageNativeNameMap } from '@shared/utils/languages'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
+
+import { caseDefinition } from '../../../scripts/e2e/regression/cases'
+import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { isAlive } from '../../../scripts/e2e/regression/process'
+import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
+import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
+import { sendChatMarker } from './chat'
+import { feishuChannelSettings } from './feishuChannelSettings'
+import { expect, test } from './fixture'
 import { fontsAndZoom } from './fontsAndZoom'
 import { longUserMessageExpansion } from './longUserMessageExpansion'
-import { networkProxySettings } from './networkProxySettings'
-import type { Request } from '@playwright/test'
-import { sendChatMarker } from './chat'
 import { selectVisibleModel } from './models'
-import { isAlive } from '../../../scripts/e2e/regression/process'
+import { selectSidebarApp, dismissOnboarding } from './navigation'
+import { networkProxySettings } from './networkProxySettings'
+import { notificationSettings } from './notificationSettings'
+import { closeSettings, openSettingsSection } from './settings'
 import { inspectStartup } from './startupInspection'
 
 test(...caseDefinition('MP-06'), async ({ app }, testInfo) => {
@@ -1234,6 +1238,10 @@ test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
 
 test(...caseDefinition('MP-112'), async ({ app, mainWindow }, testInfo) => {
   await networkProxySettings(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-151'), async ({ app, mainWindow }, testInfo) => {
+  await feishuChannelSettings(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-113'), async ({ app, mainWindow }, testInfo) => {

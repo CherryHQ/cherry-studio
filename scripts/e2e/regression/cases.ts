@@ -300,6 +300,13 @@ export const REGRESSION_CASES = [
   },
   { id: 'MP-113', title: '隐私设置与错误上报开关', task: '15-settings', phase: '15-settings', capabilities: [] },
   {
+    id: 'MP-151',
+    title: '频道：飞书机器人与「仅响应群聊 @ 消息」开关',
+    task: '15-settings',
+    phase: '15-settings',
+    capabilities: []
+  },
+  {
     id: 'MP-115',
     title: '本地备份与备份文件管理',
     task: '18-data',
