@@ -3,8 +3,12 @@ import { createContext, type ReactElement, type ReactNode, use, useMemo } from '
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
-import { type AgentLaunchIndex, type AgentTaskLiveness, resolveResumeReceiptState } from '../shared/agentToolTypes'
-import { getPartLaunchToolCallId } from '../toolParentMetadata'
+import {
+  type AgentLaunchIndex,
+  type AgentTaskLiveness,
+  getPartLaunchToolCallId,
+  resolveResumeReceiptState
+} from '../shared/agentToolTypes'
 import type { ToolResponseLike } from '../toolResponse'
 import { buildResumeToolHeader } from './agentResumeHeader'
 

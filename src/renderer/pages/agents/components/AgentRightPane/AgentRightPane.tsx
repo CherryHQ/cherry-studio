@@ -49,7 +49,7 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { AgentLaunchIndexProvider } from '@renderer/components/chat/messages/tools/agent'
+import { AgentLaunchIndexProvider, useAgentTaskLivenessValue } from '@renderer/components/chat/messages/tools/agent'
 import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageInputFilePreview, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import {
@@ -120,21 +120,29 @@ import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import { AgentBrowserView } from './AgentBrowserView'
 import {
-  type AgentArtifactFile,
   type AgentPreviewUrlCandidate,
   type AgentPreviewUrlFrontier,
-  type AgentRightPaneStatus,
-  type AgentRunLiveness,
-  type AgentRunTask,
-  type AgentStatusTask,
   type AgentToolFlowOpenInput,
-  buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
   findAgentPreviewUrlCandidates,
   getAgentPreviewUrlFrontier,
   isAgentPreviewUrlSourceAfterFrontier
 } from './agentRightPaneProjection'
+import {
+  AgentRightPaneRuntimeContext,
+  type AgentRightPaneRuntime,
+  useAgentRightPaneRuntime
+} from './agentRightPaneRuntime'
+import {
+  type AgentArtifactFile,
+  type AgentRightPaneStatus,
+  type AgentRunLiveness,
+  type AgentRunTask,
+  type AgentStatusTask,
+  buildAgentRightPaneStatus
+} from './agentStatusProjection'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
+import { useAgentToolFlowActions } from './useAgentToolFlowActions'
 
 const logger = loggerService.withContext('AgentRightPane')
 
@@ -219,18 +227,6 @@ interface AgentRightPaneMeta {
   model?: Model
 }
 
-interface AgentRightPaneRuntime {
-  messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
-  browserUrl: string | null
-  browserProfile:
-    | typeof WebviewSecurityProfile.AgentBrowser
-    | typeof WebviewSecurityProfile.AgentDevPreview
-    | typeof WebviewSecurityProfile.AgentHtmlArtifact
-  openBrowserUrl: (url: string) => void
-  acceptDetectedBrowserUrl: (url: string | null, source: AgentPreviewUrlCandidate | null) => void
-}
-
 interface ExplicitBrowserBaseline {
   liveCandidateKeys: Set<string>
   candidateKeys: Set<string>
@@ -302,12 +298,15 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   revealRequest?: ResourceListRevealRequest
   streamingLayers?: MessageStreamingLayers
   isMessageHistoryLoading?: boolean
+  /** Pages older history in, and reports whether any is left, for flows rooted outside the window. */
+  loadOlder?: () => void
+  hasOlder?: boolean
+  loadOlderError?: Error
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
 const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
-const AgentRightPaneRuntimeContext = createContext<AgentRightPaneRuntime | null>(null)
 const AgentRightPaneFileStateContext = createContext<AgentRightPaneFileState | null>(null)
 const AgentRightPaneActionsContext = createContext<AgentRightPaneActions | null>(null)
 const AgentFileNavigationContext = createContext<AgentFileNavigationRequest | null>(null)
@@ -315,12 +314,6 @@ const AgentFileNavigationContext = createContext<AgentFileNavigationRequest | nu
 function useAgentRightPaneMeta(): AgentRightPaneMeta {
   const value = use(AgentRightPaneMetaContext)
   if (!value) throw new Error('useAgentRightPaneMeta must be used within <AgentRightPane.Scope>')
-  return value
-}
-
-function useAgentRightPaneRuntime(): AgentRightPaneRuntime {
-  const value = use(AgentRightPaneRuntimeContext)
-  if (!value) throw new Error('useAgentRightPaneRuntime must be used within <AgentRightPane.Scope>')
   return value
 }
 
@@ -438,14 +431,18 @@ function AgentRightPaneActionsProvider({
     acceptedWorkspacePath,
     workspacePath
   })
-  const openAgentToolFlow = useCallback(
-    (input: AgentToolFlowOpenInput, nested = false) => {
-      if (!canOpenAgentToolFlow) return
-      replaceFlowTab(input, nested)
-      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
-    },
-    [canOpenAgentToolFlow, panelActions, replaceFlowTab]
+  // Stable identity: the flow actions memo must not churn on every provider render, or every tool
+  // row re-renders with it.
+  const requestOpenFlowTab = useCallback(
+    (toolCallId: string) => panelActions.requestOpen(getFlowTabValue(toolCallId), { userInitiated: true }),
+    [panelActions]
   )
+  const { openAgentToolFlow } = useAgentToolFlowActions({
+    sessionId,
+    canOpenAgentToolFlow,
+    replaceFlowTab,
+    requestOpenFlowTab
+  })
   const openArtifactFileTarget = useCallback(
     (path: string, fromPreview: boolean) => {
       if (!canOpenArtifactFile) return
@@ -581,7 +578,10 @@ function AgentRightPaneStateProvider({
   userOpenIntentSeq,
   revealRequest,
   streamingLayers,
-  isMessageHistoryLoading = false
+  isMessageHistoryLoading = false,
+  loadOlder,
+  hasOlder,
+  loadOlderError
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -725,14 +725,39 @@ function AgentRightPaneStateProvider({
     browserUrlState.sessionId === sessionId
       ? (browserUrlState.profile ?? WebviewSecurityProfile.AgentBrowser)
       : WebviewSecurityProfile.AgentBrowser
-  const runtime = useMemo<AgentRightPaneRuntime>(
-    () => ({ messages, partsByMessageId, browserUrl, browserProfile, openBrowserUrl, acceptDetectedBrowserUrl }),
-    [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
-  )
   // The pane renders the same resume receipts as the chat list, so it needs the same index: without
   // it a receipt cannot resolve to its launch root and stays non-navigable. Resume edges can live
   // only in the runtime's live task cache, so they feed the index here exactly as they do there.
   const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
+  const liveness = useAgentTaskLivenessValue(messages, sessionId)
+  const runtime = useMemo<AgentRightPaneRuntime>(
+    () => ({
+      messages,
+      partsByMessageId,
+      loadOlder,
+      hasOlder,
+      loadOlderError,
+      browserUrl,
+      browserProfile,
+      openBrowserUrl,
+      acceptDetectedBrowserUrl,
+      lateTaskEvents,
+      liveness
+    }),
+    [
+      acceptDetectedBrowserUrl,
+      browserUrl,
+      browserProfile,
+      openBrowserUrl,
+      messages,
+      partsByMessageId,
+      loadOlder,
+      hasOlder,
+      loadOlderError,
+      lateTaskEvents,
+      liveness
+    ]
+  )
   const launchIndex = useMemo(
     () => buildAgentLaunchIndex(partsByMessageId, lateTaskEvents),
     [lateTaskEvents, partsByMessageId]
@@ -984,7 +1009,7 @@ function AgentRightPaneStateProvider({
       <AgentRightPaneMetaContext value={meta}>
         <AgentRightPaneFileStateContext value={fileState}>
           <AgentRightPaneRuntimeContext value={runtime}>
-            <AgentLaunchIndexProvider value={launchIndex}>
+            <AgentLaunchIndexProvider value={launchIndex} liveness={liveness}>
               <RightPanelProvider
                 capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
                 scope={scope}
@@ -1255,6 +1280,8 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const status = useAgentRightPaneStatus(active)
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
+  // The resolved output feeds resume-round splitting (its launch receipt names the agent) and a
+  // flow with no streamed child parts renders its answer body — but never the receipt trailer.
   const deferredToolResult = useMemo(
     () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
     [runtime.partsByMessageId, tab?.toolCallId]
@@ -1265,8 +1292,23 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
     () =>
       !active && retainedFlowRef.current
         ? retainedFlowRef.current
-        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId, selectedToolOutput),
-    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId]
+        : buildAgentToolFlowProjection(
+            runtime.messages,
+            runtime.partsByMessageId,
+            tab?.toolCallId,
+            selectedToolOutput,
+            runtime.lateTaskEvents,
+            runtime.liveness
+          ),
+    [
+      active,
+      runtime.messages,
+      runtime.partsByMessageId,
+      runtime.lateTaskEvents,
+      runtime.liveness,
+      selectedToolOutput,
+      tab?.toolCallId
+    ]
   )
   useLayoutEffect(() => {
     if (active) retainedFlowRef.current = flow

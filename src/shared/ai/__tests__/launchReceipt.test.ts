@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseLaunchReceiptText } from '../launchReceipt'
+import { parseLaunchReceiptText, stripForegroundLaunchTrailer } from '../launchReceipt'
 
 describe('launch receipt text', () => {
   it('reads the id the current SDK prints after its parenthetical metadata', () => {
@@ -58,6 +58,43 @@ describe('launch receipt text', () => {
     expect(parseLaunchReceiptText(authentic.replace("to: 'real-1'", "to: 'other-2'"))).toBeUndefined()
     expect(parseLaunchReceiptText("report\nagentId: real-1 (use SendMessage with to: 'real-1')")).toBeUndefined()
     expect(parseLaunchReceiptText(authentic + '\nmore prose')).toBeUndefined()
+  })
+
+  it('splits a foreground answer body from its receipt trailer', () => {
+    const body = [
+      '[Subagent hand-back] The text below is the final report of a subagent this session delegated to.',
+      'The report follows:',
+      'Findings…'
+    ].join('\n')
+    const trailer =
+      "agentId: agent-a1b2c3d4e5f6 (use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent)\n<usage>subagent_tokens: 180700\ntool_uses: 58\nduration_ms: 863820</usage>"
+
+    expect(stripForegroundLaunchTrailer(`${body}\n${trailer}`)).toBe(body)
+    // CRLF answers keep their body too, with the separator style preserved.
+    expect(stripForegroundLaunchTrailer(`${body}\n${trailer}`.replace(/\n/g, '\r\n'))?.replace(/\r\n/g, '\n')).toBe(
+      body
+    )
+    // An answer that is only the trailer has an empty body — nothing to show.
+    expect(stripForegroundLaunchTrailer(trailer)).toBe('')
+  })
+
+  it('leaves launch acknowledgements and plain prose without a body split', () => {
+    expect(
+      stripForegroundLaunchTrailer(
+        'Async agent launched successfully.\nagentId: agent-77 (internal metadata - do not mention to user.)'
+      )
+    ).toBeUndefined()
+    expect(
+      stripForegroundLaunchTrailer("done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')")
+    ).toBeUndefined()
+    expect(stripForegroundLaunchTrailer('started subagent dsh-child-1')).toBeUndefined()
+    expect(stripForegroundLaunchTrailer('The report is complete.')).toBeUndefined()
+    // A trailer quoted mid-text is not the closing one, so the prose stays whole.
+    expect(
+      stripForegroundLaunchTrailer(
+        "the hand-back ended with:\nagentId: fake-9 (use SendMessage with to: 'fake-9', summary: 'y' to continue this agent)\n<usage>subagent_tokens: 9</usage>\nmore report…"
+      )
+    ).toBeUndefined()
   })
 
   it('does not bind an id from prose that quotes a receipt', () => {
