@@ -56,6 +56,7 @@ caller
      -> KnowledgeService
         -> KnowledgeIngestionService
         -> JobManager
+           -> knowledge.copy-sources
            -> knowledge.prepare-root / knowledge.index-documents
            -> knowledge.check-file-processing-result
            -> knowledge.delete-subtree / knowledge.reindex-subtree
@@ -120,7 +121,9 @@ caller
  -> preload IPC add-items(leaf item payloads)
     -> create leaf items
     -> mark roots processing
-    -> enqueue knowledge.index-documents
+    -> file: enqueue knowledge.copy-sources
+         -> copy-sources copies the bytes off the lock, commits them, schedules the item
+    -> url / note: enqueue knowledge.index-documents
 ```
 
 For container items (`directory`):
@@ -131,7 +134,8 @@ caller
     -> create root items
     -> mark roots preparing
     -> enqueue knowledge.prepare-root
-    -> prepare-root expands owner
+    -> prepare-root pins the owner's raw/ prefix
+    -> prepare-root expands and copies the owner off the lock
     -> prepare-root creates child items
     -> workflow service schedules each child
 ```
@@ -174,6 +178,7 @@ The chunk IPC entrypoint is a runtime inspection helper:
 
 Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` registers:
 
+- `knowledge.copy-sources`
 - `knowledge.prepare-root`
 - `knowledge.index-documents`
 - `knowledge.check-file-processing-result`
@@ -239,9 +244,9 @@ If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls bac
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
 2. Orchestration rejects the request unless every selected subtree item is terminal: `completed` or `failed`.
-3. Workflow service enqueues `knowledge.reindex-subtree`.
-4. The reindex job skips if delete won the race and any subtree item is now `deleting`.
-5. Under the base mutation lock, the reindex job deletes old vectors, removes expanded descendants for selected container roots, resets selected roots to `preparing` or `processing`, and schedules each selected root through the workflow service.
+3. Workflow service enqueues one `knowledge.reindex-subtree` job per root, so a delete or `replace` that cancels one root's job leaves the others running.
+4. The reindex job skips if delete won the race and its root is now `deleting` or gone.
+5. Under the base mutation lock, the reindex job activates the root (`preparing` or `processing`); it re-acquires the root's bytes off the lock; then, under the lock again, it re-checks for a delete, deletes old vectors, removes expanded descendants for a container root, and schedules the root through the workflow service.
 
 Reindex is not a cancellation primitive. Delete is the operation that can preempt active work.
 

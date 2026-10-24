@@ -156,7 +156,7 @@ export class KnowledgeBaseAdminService {
     const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
     try {
-      await this.ingestionService.addItems(restoredBase.id, inputs)
+      await this.ingestionService.addItems(restoredBase.id, inputs, undefined, { copyInline: true })
     } catch (error) {
       try {
         await this.deleteBase(restoredBase.id)

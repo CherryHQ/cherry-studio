@@ -98,11 +98,14 @@ addItems(baseId, inputs)
   -> no-op on empty inputs
   -> resolve detect / replace conflicts when requested
   -> under same-base mutation lock:
+       reserve raw/ names, counting rows still being deleted (no bytes are copied here)
        create each item
        set root status to preparing for containers
        set root status to processing for leaves
        rollback created rows if create/status update fails
   -> schedule each accepted item
+       owes bytes (file, url restored with a snapshot)
+                 -> knowledge.copy-sources, which schedules the item once its bytes are committed
        container -> knowledge.prepare-root
        leaf      -> knowledge.index-documents
        invalid   -> mark item failed, no job
@@ -212,30 +215,34 @@ The simpler rule is:
 
 ### Why Reindex Does Not Pre-Mark Items Active
 
-The reindex entrypoint only accepts the durable job. It does not set roots to `preparing` or `processing` before enqueueing.
+The reindex entrypoint only accepts the durable jobs, one per selected root. It does not set roots to `preparing` or `processing` before enqueueing.
 
 The reindex job owns the destructive and stateful work:
 
 - clear vectors for resolved leaf items;
 - delete previous container descendants when selected roots are containers;
 - keep selected leaf root source-file metadata because those root items still own their source files;
-- skip if the target subtree became `deleting` after the entrypoint guard;
+- skip any selected root that became `deleting` after the entrypoint guard;
 - reset subtree item state;
 - call `scheduleItem` for each selected root.
 
-Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows.
+Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows. The cost is on restart: the jobs use `recovery: 'abandon'`, so a root whose job is still queued when the app quits is cancelled untouched. It keeps its old index, so a refresh simply does not happen, but an embedding backfill leaves that item `completed` without vectors. `main` has the same gap until its single backfill job reaches its lock section (#22365); per-root jobs widen it to the whole time a backfill's jobs are queued.
+
+One job per root matters because delete and `replace` cancel every job whose roots touch the subtree they remove. Roots sharing one job, such as the whole base when an embedding model is first enabled, would all be interrupted by a delete of any one of them, and the ones already activated would end up `failed`.
 
 ### Delete Wins Reindex Races
 
 `reindexItems` rejects `deleting` before enqueue, and `reindex-subtree` treats `deleting` as a higher-priority state if delete wins the race after enqueue:
 
-- at job entry, it checks the target subtree and completes as skipped if any item is `deleting`;
-- under the same-base mutation lock, it checks again before clearing vectors or resetting statuses;
+- at job entry, it completes as skipped when the selected root is `deleting` or gone;
+- under the same-base mutation lock, it checks again before activating the root;
+- after re-acquiring the root's bytes off the lock, it checks a third time under the lock before clearing vectors or resetting statuses, because a delete can land while the bytes are written;
+- each check looks at the selected root itself, not its whole subtree. A delete of one of a container root's children does not stop the container: after activation, skipping it would leave it active with no follow-up job, and its reset removes every previous child anyway;
 - it does not cancel active jobs. Reindex is only admitted for terminal subtrees, so there should be no active indexing or expansion work to cancel.
 
 This prevents a later reindex request from cancelling delete cleanup or turning a deleting row back into `preparing` / `processing`.
 
-These two `deleting` checks are intentional, even though the entrypoint already rejects deleting subtrees. They cover the window between enqueue and job execution while preserving the rule that delete is always available.
+These `deleting` checks are intentional, even though the entrypoint already rejects deleting subtrees. They cover the window between enqueue and job execution while preserving the rule that delete is always available.
 
 ### Why Reindex Keeps Schedule-Failure Compensation
 
@@ -277,7 +284,12 @@ knowledge.prepare-root(baseId, itemId)
        delete removable descendants by resolved id
   -> under same-base mutation lock:
        re-read root and skip if it is now missing or deleting
-       expand source into new child rows
+       pin the root's raw/ prefix
+  -> off the lock:
+       scan the source folder and copy its files under the pinned prefix
+  -> under same-base mutation lock:
+       re-read root and skip if a delete landed during the copy
+       create the new child rows
        set root status processing
   -> schedule each recreated leaf
        if scheduling fails:
@@ -288,7 +300,7 @@ knowledge.prepare-root(baseId, itemId)
 
 The stale expansion cleanup clears derived vector material and purges Knowledge-owned raw/indexed files for removable leaf descendants before deleting resolved descendant rows, so a retry does not leave stale vectors or stale Knowledge-owned files from a previous partial expansion.
 
-The second root read closes the race where `prepare-root` loads an active root, then a delete request marks that root `deleting` before expansion starts. Once a root is deleting, no new children may be created under it.
+The later root reads close the race where `prepare-root` loads an active root, then a delete request marks that root `deleting` before expansion starts or while its files are copying off the lock. Once a root is deleting, no new children may be created under it; the bytes already copied sit under the pinned prefix, which the delete removes.
 
 The child scheduling compensation mirrors `addItems`: once a child job was accepted, the row is left alone; the failing child and later children are marked `failed` so no `processing` leaf remains without a job.
 
