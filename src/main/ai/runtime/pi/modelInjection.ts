@@ -17,6 +17,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { deriveAgentSessionRoutingKey, usesOpenRouterSessionRouting } from '@main/ai/utils/agentSessionRouting'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { isPiGatewayCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
@@ -361,11 +362,20 @@ export async function resolvePiProviderInjectionForSession(
   if (!usesPiGateway(provider, model)) {
     const injection = resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
     const headers = injection.providerConfig.headers
+    const resolvedEndpoint = resolvePiEndpoint(provider, model)
     if (
       matchesPreset(provider, SystemProviderIds.opencode) &&
       !Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
     ) {
       injection.providerConfig.headers = { ...headers, ...toPiHeaders({ 'x-opencode-session': sessionId }) }
+    } else if (
+      usesOpenRouterSessionRouting(provider, resolvedEndpoint.endpointType) &&
+      !Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-session-id')
+    ) {
+      injection.providerConfig.headers = {
+        ...headers,
+        ...toPiHeaders({ 'x-session-id': deriveAgentSessionRoutingKey(sessionId) })
+      }
     }
     return injection
   }

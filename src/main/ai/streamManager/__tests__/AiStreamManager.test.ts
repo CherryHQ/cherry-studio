@@ -296,6 +296,29 @@ describe('AiStreamManager', () => {
   })
 
   describe('streamPrompt', () => {
+    it('forwards routing headers alongside gateway timeout and retry options', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        listener: new FakeListener('gateway:request-1'),
+        contextOwner: 'caller',
+        headers: { 'x-session-id': 'opaque-routing-key' },
+        idleTimeoutMs: 30_000,
+        maxRetries: 0
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestOptions: expect.objectContaining({
+            headers: { 'x-session-id': 'opaque-routing-key' },
+            timeout: 30_000,
+            maxRetries: 0
+          })
+        })
+      )
+    })
+
     it('forwards context ownership to AiService.streamText', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
