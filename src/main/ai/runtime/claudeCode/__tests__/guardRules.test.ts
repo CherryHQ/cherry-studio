@@ -29,7 +29,12 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
   evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
-import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
+import {
+  approvalRequiredRuntimeNames,
+  CLAUDE_TOOL_GUARD_RULES,
+  CROSS_SESSION_DELEGATION_HEADLESS_DENIAL,
+  HEADLESS_INTERACTIVE_TOOL_DENIAL
+} from '../guardRules'
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
@@ -492,15 +497,17 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
 
     it.each(['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'] as const)(
-      'denies unattended delegation in %s',
+      'denies unattended delegation in %s with the delivery-aware denial',
       async (permissionMode) => {
         for (const interaction of [
           HEADLESS,
           { ...HEADLESS, userResponse: 'stream' },
           { ...INTERACTIVE, userResponse: 'unavailable' }
         ] as const) {
-          await expect(evaluate(makeCtx({ toolName, permissionMode, interaction }))).resolves.toMatchObject({
-            effect: 'deny'
+          await expect(evaluate(makeCtx({ toolName, permissionMode, interaction }))).resolves.toEqual({
+            effect: 'deny',
+            reason: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL,
+            ruleId: 'delegation-approval'
           })
         }
       }

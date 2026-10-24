@@ -37,6 +37,14 @@ import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependenc
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+/**
+ * Session-delegation twin of {@link HEADLESS_INTERACTIVE_TOOL_DENIAL}. The generic wording tells the
+ * model to "proceed without asking the user", which is impossible advice for a denied delegation
+ * call — the tool did not run — and never says why there is no responder. Without this, delivered
+ * Agents misread the denial as an opaque hook block and burn alternate channels trying to answer.
+ */
+export const CROSS_SESSION_DELEGATION_HEADLESS_DENIAL =
+  'Cross-Session delegation (session_send / session_create) always requires live per-call user approval, which a delivery-, channel-, or scheduled-triggered turn cannot present. The tool call was denied and did not run; do not retry it in this turn. If this turn was started by a delivery with reply "completion", your final assistant output is returned to the sender automatically — finish the turn with your answer as normal output instead.'
 const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'rename',
   'complete_bootstrap',
@@ -232,7 +240,9 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     },
     effect: 'ask',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool requires approval in this permission mode.`,
-    headless: { predicate: 'either', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+    // Same delivery-aware denial as `non-bypassable-approval` and canUseTool: a denied delegation
+    // cannot be answered by "proceed without asking the user".
+    headless: { predicate: 'either', reason: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL }
   },
   {
     id: 'non-bypassable-approval',
@@ -240,7 +250,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: (ctx) => matchesRequiredApproval(ctx, 'enforce') },
     effect: 'ask',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool requires live per-call user approval.`,
-    headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+    headless: { predicate: 'responder-unavailable', reason: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL }
   },
   {
     // The explicit per-call approval list (kb_manage / generate_image / cli_install + mounted

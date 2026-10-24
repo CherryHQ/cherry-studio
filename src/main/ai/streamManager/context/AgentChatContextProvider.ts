@@ -251,6 +251,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
         serviceTier: validated.serviceTier,
         fastMode: validated.fastMode,
         assistantMessageId,
+        // The raw durable row: the runtime derives the summary-naming text from this message, and
+        // the delivery-turn context is injected later, when the driver materializes its input.
         userMessage,
         headless: validated.headless,
         trustedNotifyChannels: validated.trustedNotifyChannels,
