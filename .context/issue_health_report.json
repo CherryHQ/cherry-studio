@@ -1,88 +1,97 @@
 {
-  "generated_at": "2026-10-23T17:00:00Z",
+  "generated_at": "2026-10-24T17:00:00Z",
   "summary": {
-    "total_open": 1422,
-    "closed_last_30d": 459,
+    "total_open": 1440,
+    "closed_last_30d": 452,
     "p1_total": 106,
-    "p1_active_le7d": 32,
-    "p1_aging_8_30d": 16,
+    "p1_active_le7d": 33,
+    "p1_aging_8_30d": 15,
     "p1_stale_31_90d": 56,
     "p1_zombie_gt90d": 2,
-    "no_priority_label_pct": 25.0
+    "no_priority_label_pct": 24.0
   },
   "delta_vs_yesterday": {
-    "total_open": "+41",
-    "p1_total": "-1",
-    "p1_active_le7d": "+17",
-    "note": "Surge of new unclassified issues (22568-22574 batch). Active P1 spike due to high discussion activity on streaming/agent issues."
+    "total_open": "+18",
+    "p1_total": "0",
+    "p1_active_le7d": "+1",
+    "note": "5 P1 issues saw new activity today (#20941, #20940, #22121, #20344, #20343). Triage backlog: 13 new issues from Oct 23-24 batch still unlabeled. Computer Use cluster emerging (2 new issues today)."
   },
   "health_score_notes": [
-    "106 P1 issues open — 56 are stale (31-90d), indicating slow resolution rate on critical bugs",
-    "32 P1 issues saw activity in the last 7 days (vs 15 yesterday) — increased engagement on streaming failures",
-    "25% of all issues lack a priority label — triage bandwidth needed",
-    "Top domains: agent (38%), models/providers (30%), ui-ux (21%), chat (20%)",
-    "Duplicate rate ~18% in top-100 — intake deduplication could reduce noise",
-    "459 issues closed in last 30 days indicates healthy throughput"
+    "106 P1 issues open — 56 stale (31-90d), slow resolution rate on critical bugs persists",
+    "33 P1 issues active in last 7d — streaming and agent issues driving engagement",
+    "5 P1 issues updated today: streaming (#20940, #22121), agent (#20941), Windows OCR/agent (#20343, #20344)",
+    "24% of all issues lack a priority label — triage bandwidth needed",
+    "Top domains: agent (40%), models/providers (31%), ui-ux (22%), chat (21%)",
+    "Duplicate rate ~18% in top-100 — intake deduplication continues to be effective",
+    "452 issues closed in last 30 days — healthy throughput maintained",
+    "New issue cluster: Computer Use (Screen Recording wrong app #22601, Windows resolution #22595)",
+    "New issue: Windows Voice Kokoro crashes with Chinese on startup (#22578, p2)"
   ],
   "urgent_clusters": {
     "streaming_failures": {
       "issues": [19793, 20940, 22121, 20282],
       "description": "Chat stream end-without-finish-reason (42 comments), TypeValidation aborts (47 comments), reasoning delta uninitialized, HTTP-200 parse failures (86 comments)",
-      "status": "critical — active today on multiple issues"
+      "status": "critical — #20940 and #22121 saw new activity today"
     },
     "agent_runtime": {
       "issues": [20941, 22401, 21905, 18741, 19847],
-      "description": "Empty no-response termination (32 comments), orphan sweep deletes session, autocompact thrashing, DeepSeek V4 tool-call no-output, DashScope crash",
-      "status": "critical — 5+ P1 agent issues active"
+      "description": "Empty no-response termination (32 comments, active today), orphan sweep deletes session, autocompact thrashing, DeepSeek V4 tool-call no-output, DashScope crash",
+      "status": "critical — #20941 active today, DeJeune assigned"
     },
     "data_integrity": {
       "issues": [18373, 21418, 22137, 22026],
       "description": "Stale DB paths after relocation, Windows restore EPERM crash, conversations/agents disappear on update, WebDAV pre-v2 data unrestorable",
-      "status": "high — 4 P1 data issues; #22399 resolved today"
+      "status": "high — 4 P1 data issues open"
     },
     "provider_compat": {
-      "issues": [21965, 22197, 22217, 19321, 18765],
-      "description": "reasoning_effort sent with function tools rejected (400), DeepSeek Flash max_tokens object required, reasoning_text dropped on tool continuations, Agent sends wrong max_tokens to OpenAI gateways",
-      "status": "high — multiple P2 issues active"
+      "issues": [22577, 22527, 22483, 22463, 19321],
+      "description": "Gemini tool-call history serialization missing function name, DeepSeek reasoning_effort with function tools (HTTP 422), Gemini empty history oneof validation, Copilot reasoning_effort rejected, reasoning_text dropped on tool continuations",
+      "status": "high — #22577 (new today, no labels yet), multiple P2 active"
     },
-    "claude_code_windows": {
-      "issues": [21905, 22401, 21911, 22270],
-      "description": "Autocompact thrashing, orphan sweep deletes session, Windows NTSTATUS failure, Claude Code process exit code 3221226505",
-      "status": "high — Windows-specific Claude Code integration issues"
+    "computer_use": {
+      "issues": [22601, 22595],
+      "description": "Screen Recording permission granted to wrong app on macOS (#22601, p2), Windows installed-app resolution and secondary clicks missing (#22595, p2, feature)",
+      "status": "emerging — 2 new issues today, onboarding UX gap"
+    },
+    "windows_agent_stability": {
+      "issues": [20344, 20343, 21898, 22566],
+      "description": "Agent startup crashes with PATH null byte (today active), OCR fallback fails image input (today active), Claude Code executable missing on fresh install, to_markdown fails on ARM64",
+      "status": "high — 2 P1 issues active today"
     }
   },
   "p1_active_list": [
+    {"number": 20941, "updated": "2026-10-24", "comments": 32, "labels": ["v2", "agent", "chat"]},
+    {"number": 20940, "updated": "2026-10-24", "comments": 47, "labels": ["v2", "chat", "models"]},
+    {"number": 22121, "updated": "2026-10-24", "comments": 6, "labels": ["v2", "chat", "models"]},
+    {"number": 20344, "updated": "2026-10-24", "labels": ["windows", "agent"]},
+    {"number": 20343, "updated": "2026-10-24", "labels": ["windows", "models", "chat"]},
     {"number": 21905, "updated": "2026-10-23", "labels": [], "assignee": "DeJeune"},
-    {"number": 22121, "updated": "2026-10-23", "comments": 6, "labels": ["v2", "chat", "models"]},
-    {"number": 20940, "updated": "2026-10-23", "comments": 47, "labels": ["v2", "chat", "models"]},
-    {"number": 20941, "updated": "2026-10-23", "comments": 32, "labels": ["v2", "agent", "chat"]},
+    {"number": 19847, "updated": "2026-10-23", "comments": 27, "labels": ["agent", "models"], "assignee": "DeJeune"},
+    {"number": 20476, "updated": "2026-10-23", "comments": 3, "labels": ["windows", "models", "chat"]},
+    {"number": 20021, "updated": "2026-10-23", "comments": 2, "labels": ["windows", "rag", "v2", "ocr"]},
     {"number": 19793, "updated": "2026-10-23", "comments": 42, "labels": ["chat", "models"]},
     {"number": 18765, "updated": "2026-10-23", "comments": 8, "labels": ["models", "agent"]},
     {"number": 18741, "updated": "2026-10-23", "comments": 17, "labels": ["agent", "chat"], "assignee": "DeJeune"},
     {"number": 18150, "updated": "2026-10-23", "comments": 27, "labels": ["models"], "assignee": "DeJeune"},
-    {"number": 20476, "updated": "2026-10-23", "comments": 3, "labels": ["windows", "models", "chat"]},
+    {"number": 22401, "updated": "2026-10-22", "labels": ["agent", "claude-code"]},
     {"number": 21418, "updated": "2026-10-22", "labels": ["windows", "data", "v2"], "assignee": "DeJeune"},
-    {"number": 19847, "updated": "2026-10-22", "comments": 27, "labels": ["agent", "models"], "assignee": "DeJeune"},
+    {"number": 19929, "updated": "2026-10-22", "comments": 4, "labels": ["windows", "v2", "agent"]},
+    {"number": 20314, "updated": "2026-10-22", "comments": 2, "labels": ["ui-ux", "models", "agent"], "assignee": "404-Page-Found"},
     {"number": 19321, "updated": "2026-10-22", "comments": 19, "labels": ["agent", "models"]},
     {"number": 19316, "updated": "2026-10-22", "comments": 4, "labels": ["agent", "models"]},
-    {"number": 19929, "updated": "2026-10-22", "comments": 4, "labels": ["windows", "v2", "agent"]},
-    {"number": 19441, "updated": "2026-10-22", "comments": 8, "labels": ["feature", "models"]},
-    {"number": 22401, "updated": "2026-10-22", "labels": ["agent", "claude-code"]},
     {"number": 18373, "updated": "2026-10-22", "comments": 13, "labels": ["windows", "data"]},
     {"number": 19788, "updated": "2026-10-22", "comments": 3, "labels": ["models"]},
-    {"number": 20021, "updated": "2026-10-23", "comments": 2, "labels": ["windows", "rag", "v2", "ocr"]},
-    {"number": 20343, "updated": "2026-10-23", "comments": 19, "labels": ["windows", "models", "chat"]},
-    {"number": 20314, "updated": "2026-10-22", "comments": 2, "labels": ["ui-ux", "models", "agent"], "assignee": "404-Page-Found"},
-    {"number": 20365, "updated": "2026-10-17", "comments": 2, "labels": ["windows", "models", "performance", "chat"]},
-    {"number": 20361, "updated": "2026-10-19", "comments": 1, "labels": ["windows", "agent"]},
-    {"number": 19989, "updated": "2026-10-16", "comments": 4, "labels": ["windows", "connectivity", "agent"]},
-    {"number": 19124, "updated": "2026-10-16", "comments": 4, "labels": ["models", "agent"]},
-    {"number": 18957, "updated": "2026-10-16", "labels": ["data", "internal-team"]},
     {"number": 22137, "updated": "2026-10-21", "comments": 1, "labels": ["data"]},
     {"number": 21864, "updated": "2026-10-20", "comments": 2, "labels": ["macos", "internal-team"]},
     {"number": 22026, "updated": "2026-10-20", "comments": 1, "labels": ["data", "backup"]},
     {"number": 21898, "updated": "2026-10-18", "comments": 1, "labels": ["windows", "claude-code"]},
     {"number": 15690, "updated": "2026-10-20", "comments": 1, "labels": ["feature", "ui-ux", "internal-team"]},
-    {"number": 21862, "updated": "2026-10-16", "comments": 1, "labels": ["feature", "internal-team"]}
+    {"number": 20361, "updated": "2026-10-19", "comments": 1, "labels": ["windows", "agent"]},
+    {"number": 21862, "updated": "2026-10-16", "comments": 1, "labels": ["feature", "internal-team"]},
+    {"number": 19989, "updated": "2026-10-16", "comments": 4, "labels": ["windows", "connectivity", "agent"]},
+    {"number": 19124, "updated": "2026-10-16", "comments": 4, "labels": ["models", "agent"]},
+    {"number": 18957, "updated": "2026-10-16", "labels": ["data", "internal-team"]},
+    {"number": 20365, "updated": "2026-10-17", "comments": 2, "labels": ["windows", "models", "performance", "chat"]},
+    {"number": 19441, "updated": "2026-10-22", "comments": 8, "labels": ["feature", "models"]}
   ]
 }

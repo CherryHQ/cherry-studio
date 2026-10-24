@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-10-23T17:00:00Z",
+  "generated_at": "2026-10-24T17:00:00Z",
   "v2_branch_open_prs": 0,
   "v2_labeled_open_issues": [
-    {"number": 20940, "title": "Responses API TypeValidation abort", "priority": "p1", "comments": 47, "updated": "2026-10-23"},
-    {"number": 20941, "title": "Work/Agent terminate empty no-response", "priority": "p1", "comments": 32, "updated": "2026-10-23"},
-    {"number": 22121, "title": "Responses reasoning delta uninitialized", "priority": "p1", "comments": 6, "updated": "2026-10-23"},
+    {"number": 20940, "title": "Responses API TypeValidation abort", "priority": "p1", "comments": 47, "updated": "2026-10-24"},
+    {"number": 20941, "title": "Work/Agent terminate empty no-response", "priority": "p1", "comments": 32, "updated": "2026-10-24"},
+    {"number": 22121, "title": "Responses reasoning delta uninitialized", "priority": "p1", "comments": 6, "updated": "2026-10-24"},
     {"number": 21418, "title": "Restore EPERM — data cannot be restored (Windows)", "priority": "p1", "updated": "2026-10-22", "assignee": "DeJeune"},
     {"number": 21667, "title": "Agent blocked: pi-ai image history >20 MiB (Windows)", "priority": "p2", "updated": "2026-10-23"},
     {"number": 20937, "title": "DSH cannot read under Program Files (EPERM)", "priority": "p1", "updated": "2026-09-22"},
@@ -19,6 +19,12 @@
       "prs": [22427, 22428, 22429, 22563],
       "description": "Web Core edition (database layer → chat → Pi agents → harden with CSP)",
       "status": "4 PRs in stack, foundation spec in #22427"
+    },
+    {
+      "name": "browser-session",
+      "prs": [22609, 22610],
+      "description": "Browser self-signed TLS trust for user-configured hosts (#22609), browser session retention marks and freeze retained tabs (#22610)",
+      "status": "2 new PRs opened today, to main"
     },
     {
       "name": "agent-runtime-behavior",
@@ -51,6 +57,9 @@
   ],
   "upcoming_features_from_open_prs": [
     "Web Core browser edition (database, chat, Pi agent tiers)",
+    "Browser session: TLS trust for self-signed certs on user-configured hosts",
+    "Browser session: retention marks and freeze for retained tabs",
+    "Voice dictation: reliable transcription for maximum-length recordings (#22611)",
     "Shared user memory across assistants",
     "Knowledge base: batch imports >20 files",
     "Follow-up queue persistence (4-part implementation)",
@@ -59,5 +68,10 @@
     "MCP Multi Calendar and Multi Mail hosted integrations",
     "Voice: Kokoro read-aloud by speech duration",
     "Provider: DotHoosh, Superbot, AI Stupid Level, Desearch, ContextFetch"
+  ],
+  "today_new_prs": [
+    {"number": 22611, "title": "fix(voice): make maximum-length dictation recordings transcribe reliably", "base": "main", "author": "angri450"},
+    {"number": 22610, "title": "feat(browser-session): expose retention marks and freeze retained tabs", "base": "main", "author": "angri450"},
+    {"number": 22609, "title": "feat(browser): trust self-signed certificates for user-configured hosts", "base": "main", "author": "angri450"}
   ]
 }
