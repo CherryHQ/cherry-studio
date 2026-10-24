@@ -339,16 +339,29 @@ export function useFollowupQueue({
     const settled = (pausedAcked[scope] ?? 0) === (pausedGenerationRef.current.get(scope) ?? 0)
     if (queueState.paused === held) {
       if (!settled) return
-    } else if (!(settled && held === false && queueState.paused === true)) {
-      return
+    } else {
+      // A strictly newer authoritative write supersedes the acknowledged
+      // override: the refreshed state carrying an updatedAt past this
+      // window's own acknowledged write proves a peer toggle landed after it
+      // (e.g. B's Resume commits after A's Pause while A's ack is still in
+      // flight). Retaining the acknowledged `true` override then parks the
+      // drain forever once the peer closes (cherry-pr-review
+      // inv_a8056ce80780fca8#f1). A stale read predating our write keeps the
+      // older updatedAt, so the override stays held — holding remains the
+      // fail-safe direction.
+      const ackedWriteAt = pausedAckedWriteAtRef.current.get(scope)
+      const superseded =
+        settled && ackedWriteAt !== undefined && ackedWriteAt !== '' && queueState.updatedAt > ackedWriteAt
+      if (!(settled && held === false && queueState.paused === true) && !superseded) {
+        return
+      }
     }
-    // Either the server echoes the acknowledged write, or an acknowledged
-    // Resume is contradicted by persisted `paused=true`: a newer peer Pause
+    // Either the server echoes the acknowledged write, an acknowledged
+    // Resume is contradicted by persisted `paused=true` (a newer peer Pause
     // won and the stale Resume override would mask it, letting a completion
-    // send against the persisted pause (cherry-pr-review round-10). The
-    // reverse mismatch (acknowledged Pause, server unpaused) stays held:
-    // dropping it could expose a stale unpaused read, and holding is the
-    // fail-safe direction.
+    // send against the persisted pause — cherry-pr-review round-10), or the
+    // refreshed state provably postdates the acknowledged write and a peer's
+    // newer toggle owns the flag.
     setPausedOverrides((prev) => {
       const next = { ...prev }
       delete next[scope]
@@ -469,6 +482,10 @@ export function useFollowupQueue({
   // hold then lets a committed older write enable automatic delivery while
   // the newest Pause is still pending (cherry-pr-review inv_2defea073e0ba391).
   const pausedAckedRef = useRef(new Map<string, number>())
+  // Server timestamp of each scope's acknowledged write: lets the clearing
+  // effect tell a refreshed read that postdates our write (peer toggle won)
+  // from a stale one that predates it (cherry-pr-review inv_a8056ce80780fca8).
+  const pausedAckedWriteAtRef = useRef(new Map<string, string>())
 
   // Track mount state for background timers. Resolve retries intentionally
   // survive unmount (a sent row must still be dequeued); claim retries stop.
@@ -993,12 +1010,17 @@ export function useFollowupQueue({
       pausedInflightRef.current.add(scope)
       const send = async (current: { scopeKey: string; paused: boolean; generation: number }) => {
         try {
-          await setPausedTrigger({ body: { scopeKey: current.scopeKey, paused: current.paused } })
+          const acknowledged = (await setPausedTrigger({
+            body: { scopeKey: current.scopeKey, paused: current.paused }
+          })) as { updatedAt?: unknown } | undefined
           // Generations settle in order per scope (writes are serialized), so
           // a later success never lowers the acknowledged generation.
           if (current.generation > (pausedAckedRef.current.get(current.scopeKey) ?? 0)) {
             pausedAckedRef.current.set(current.scopeKey, current.generation)
             setPausedAcked((prev) => ({ ...prev, [current.scopeKey]: current.generation }))
+            if (typeof acknowledged?.updatedAt === 'string' && acknowledged.updatedAt !== '') {
+              pausedAckedWriteAtRef.current.set(current.scopeKey, acknowledged.updatedAt)
+            }
           }
         } catch {
           toast.error(t('message.error.operation_unavailable'))
