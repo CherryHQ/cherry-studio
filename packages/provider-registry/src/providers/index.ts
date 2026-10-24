@@ -58,6 +58,7 @@ import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
 import p_together from './together'
 import p_tokendance from './tokendance'
+import p_tokendos from './tokendos'
 import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
@@ -133,5 +134,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_tokendos
 ]
