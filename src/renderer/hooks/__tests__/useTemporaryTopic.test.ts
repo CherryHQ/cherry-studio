@@ -50,4 +50,31 @@ describe('useTemporaryTopic', () => {
       }
     })
   })
+
+  it('pins the context message cap in the lease body when the surface sets one', async () => {
+    const { result } = renderHook(() => useTemporaryTopic({ enabled: true, maxMessages: 3 }))
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics', { body: { maxMessages: 3 } })
+  })
+
+  it('leases the cap-free body when maxMessages is null — follow the general chain', async () => {
+    const { result } = renderHook(() => useTemporaryTopic({ enabled: true, assistantId: 'asst_1', maxMessages: null }))
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics', { body: { assistantId: 'asst_1' } })
+  })
+
+  it('omits a poisoned out-of-safe-range cap so the lease body survives the main-process int schema', async () => {
+    // A persisted 1e20 passes the finite-positive guard but the main handler's zod .int()
+    // (zod 4: safe-integer range) rejects it — the lease would fail and Quick Assistant
+    // would stop sending. Out-of-range caps fall back to the general chain instead.
+    const { result } = renderHook(() => useTemporaryTopic({ enabled: true, maxMessages: 1e20 }))
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics', { body: {} })
+  })
 })

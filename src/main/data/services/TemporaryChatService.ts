@@ -21,7 +21,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
-import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
+import type { CreateTemporaryTopicDto } from '@shared/data/api/schemas/temporaryChats'
 import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 
@@ -45,6 +45,13 @@ type TemporaryTopicRow = Omit<Topic, 'createdAt' | 'lastActivityAt' | 'updatedAt
   createdAt: number
   lastActivityAt: number
   updatedAt: number
+  /**
+   * Context cap the leasing surface pinned at creation (Quick Assistant's
+   * independent context message count). Main-internal dispatch state — read
+   * via `getTopicMaxMessagesOverride`, never leaked into the Topic projection
+   * and never persisted to SQLite.
+   */
+  maxMessages?: number
 }
 
 type TemporaryMessageRow = Omit<Message, 'createdAt' | 'updatedAt'> & {
@@ -53,8 +60,15 @@ type TemporaryMessageRow = Omit<Message, 'createdAt' | 'updatedAt'> & {
 }
 
 function rowToTopic(row: TemporaryTopicRow): Topic {
+  // Field list, not a spread: `maxMessages` stays main-internal and never
+  // reaches the public Topic projection.
   return {
-    ...row,
+    id: row.id,
+    name: row.name,
+    isNameManuallyEdited: row.isNameManuallyEdited,
+    assistantId: row.assistantId,
+    activeNodeId: row.activeNodeId,
+    orderKey: row.orderKey,
     lastActivityAt: new Date(row.lastActivityAt).toISOString(),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString()
@@ -73,7 +87,7 @@ export class TemporaryChatService {
   private topics = new Map<string, TemporaryTopicRow>()
   private messages = new Map<string, TemporaryMessageRow[]>()
 
-  createTopic(dto: CreateTopicDto): Topic {
+  createTopic(dto: CreateTemporaryTopicDto): Topic {
     const now = Date.now()
     const row: TemporaryTopicRow = {
       id: uuidv4(),
@@ -84,6 +98,7 @@ export class TemporaryChatService {
       // In-memory store has no real ordering — temp topics are scoped per
       // session and never reordered or paginated like persistent ones.
       orderKey: '',
+      maxMessages: dto.maxMessages,
       lastActivityAt: now,
       createdAt: now,
       updatedAt: now
@@ -180,6 +195,16 @@ export class TemporaryChatService {
   getTopic(topicId: string): Topic | null {
     const row = this.topics.get(topicId)
     return row ? rowToTopic(row) : null
+  }
+
+  /**
+   * Main-process internal API — the context cap the leasing surface pinned at
+   * creation (Quick Assistant's independent context message count).
+   * `undefined` = the lease expressed no opinion; the global and assistant
+   * layers resolve as usual. Consumed by TemporaryChatContextProvider.
+   */
+  getTopicMaxMessagesOverride(topicId: string): number | undefined {
+    return this.topics.get(topicId)?.maxMessages
   }
 
   listMessages(topicId: string): Message[] {

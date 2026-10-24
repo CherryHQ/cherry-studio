@@ -110,7 +110,11 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       globals: resolveGlobalContextSettings(),
       assistant: assistant?.settings?.contextSettings
     })
-    const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
+    // The leasing surface's cap (Quick Assistant's independent context count)
+    // is the most specific layer of this conversation — it outranks both the
+    // assistant-level and the global maxMessages. `undefined` = no opinion.
+    const topicMaxMessages = temporaryChatService.getTopicMaxMessagesOverride(req.topicId)
+    const history = applyMaxMessagesWindow(fullHistory, topicMaxMessages ?? contextSettings.maxMessages)
 
     const messageId = uuidv7()
     const listeners: StreamListener[] = [
