@@ -4,12 +4,12 @@ import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { callTool, childSpec, holds, type Holds, latch, reply } from '../../src/contract/fixtures'
 import { ensureDriver } from '../../src/core/driver/jobs'
-import { callKeyOf, ENTRY_KINDS } from '../../src/core/facts'
+import { callKeyOf, ENTRY_KINDS, type UsageFact } from '../../src/core/facts'
 import { admittedRounds, currentGoal } from '../../src/core/goal/goalHistory'
 import { keys } from '../../src/core/keys'
 import { pendingResults } from '../../src/core/subagents/subagentLedger'
 import type { BoundPorts, StartResult } from '../../src/ports/harness'
-import { markers, records, type World, world, wrapJob } from './world'
+import { markers, records, SETTINGS, type World, world, wrapJob } from './world'
 
 /**
  * Driver ports that let a person's message start a run right before the driver's first commit, and that record what
@@ -79,6 +79,14 @@ async function finishBackgroundRun(w: World, t: ThreadId): Promise<void> {
   )
 }
 const ONE_ROUND = { goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 } }
+const tokens = (n: number): UsageFact => ({
+  input: n,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: n,
+  costUsd: 0
+})
 
 describe('idle driver', () => {
   // Catches a permission-change wake being deduplicated while the old driver still prepares its plan-mode exit.
@@ -377,5 +385,45 @@ describe('idle driver', () => {
       isError: true
     })
     expect(currentGoal(facts.history)?.roundsStarted).toBe(1)
+  })
+
+  // Catches a child a person's turn started billed to the goal whose notification turn came before the child's end:
+  // a small budget would force a wrap-up and stop the goal as budget_exhausted for work it never asked for.
+  it('bills no goal for a child a person started, though it ends after a goal-owned request', async () => {
+    const hold = holds()
+    const w = world({
+      settings: { goalDefaults: { ...SETTINGS.goalDefaults, budget: { tokens: 50 } } },
+      extra: (p) => p.tools.register(hold.tool),
+      scripts: (thread) =>
+        thread === 'thread-2'
+          ? [callTool('hold', { id: 'person-child' }), reply('a done', tokens(100))]
+          : thread === 'thread-3'
+            ? [reply('b done')]
+            : []
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('subagent', { description: 'a', prompt: 'a', background: true }),
+      callTool('hold', { id: 'person' }),
+      callTool('subagent', { description: 'b', prompt: 'b', background: true }),
+      reply('both started'),
+      callTool('hold', { id: 'notified' }, tokens(4)),
+      reply('read b'),
+      reply('read a'),
+      reply('round 1')
+    ])
+    await w.fake.sendUser(t, 'go')
+    await hold.started('person')
+    await w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'ship it', 'cmd-1'))
+    hold.release('person')
+    // The goal is armed, so b's notification turn bills its request to the goal; a ends only after that request.
+    await hold.started('notified')
+    hold.release('person-child')
+    hold.release('notified')
+    await w.fake.settle()
+    const facts = await w.read(t)
+    expect(markers(facts, 'goal-round')[0]?.marker.round.kind).toBe('work')
+    expect(currentGoal(facts.history)?.tokensUsed).toBe(4)
+    expect(currentGoal(facts.history)?.lastStop?.code).not.toBe('budget_exhausted')
   })
 })

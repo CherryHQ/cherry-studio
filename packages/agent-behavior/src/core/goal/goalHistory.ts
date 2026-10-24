@@ -87,8 +87,11 @@ const armedAfter = (history: readonly HistoryEntry[], goalId: string, at: number
 
 type Branch = {
   readonly counted: { readonly goalId: string; readonly tokens: number; readonly usd: number }[]
-  /** By `<child>:<run>`: the goal whose request started that run (the request before the run's first record). */
-  readonly owners: Map<string, { readonly child: ThreadId; readonly run: number; readonly goalId: string }>
+  /**
+   * By `<child>:<run>`: the goal whose request started that run (the request before the run's first record), fixed at
+   * that record; without `goalId` a human turn started it and it counts toward no goal.
+   */
+  readonly owners: Map<string, { readonly child: ThreadId; readonly run: number; readonly goalId?: string }>
   /** The latest background run of each child. */
   readonly latestRuns: Map<ThreadId, number>
 }
@@ -119,7 +122,8 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
       if (entry.record.type !== 'subagent-run') continue
       const { sessionId, run, background } = entry.record.value
       const key = runKey(sessionId, run)
-      if (!branch.owners.has(key) && callerGoal) branch.owners.set(key, { child: sessionId, run, goalId: callerGoal })
+      if (!branch.owners.has(key))
+        branch.owners.set(key, { child: sessionId, run, ...(callerGoal ? { goalId: callerGoal } : {}) })
       if (background) branch.latestRuns.set(sessionId, Math.max(run, branch.latestRuns.get(sessionId) ?? 0))
       continue
     }
