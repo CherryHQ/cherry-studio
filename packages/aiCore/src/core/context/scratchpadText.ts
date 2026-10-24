@@ -210,14 +210,34 @@ function isListItemStart(line: string): boolean {
   return /^(?: {0,3}> ?)* {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/.test(line)
 }
 
+function explicitQuoteDepth(line: string): number {
+  let rest = line
+  let depth = 0
+  for (;;) {
+    const marker = /^ {0,3}> ?/.exec(rest)
+    if (!marker) return depth
+    depth++
+    rest = rest.slice(marker[0].length)
+  }
+}
+
 function inlineBlockStart(text: string, index: number): number {
   let start = 0
-  for (let pos = 0; pos < index;) {
+  let quoteDepth = 0
+  for (let pos = 0; pos <= index;) {
     const end = lineEndAfter(text, pos)
-    if (end > index) break
     const line = text.slice(pos, lineContentEnd(text, pos))
-    if (isInlineBlockBoundary(line)) start = end
-    else if (isListItemStart(line)) start = pos
+    const depth = explicitQuoteDepth(line)
+    if (depth > 0 && depth !== quoteDepth) start = pos
+    if (end > index) break
+    if (isInlineBlockBoundary(line)) {
+      start = end
+      quoteDepth = 0
+    } else {
+      if (isListItemStart(line)) start = pos
+      if (depth > 0) quoteDepth = depth
+    }
+    if (end <= pos) break
     pos = end
   }
   return start
@@ -228,9 +248,12 @@ function inlineBlockEnd(text: string, from: number): number {
   const currentEnd = lineEndAfter(text, from)
   // A heading is its own leaf, including when its code span is unfinished.
   if (isInlineBlockBoundary(text.slice(currentStart, lineContentEnd(text, currentStart)))) return currentEnd
+  let quoteDepth = explicitQuoteDepth(text.slice(currentStart, lineContentEnd(text, currentStart)))
   for (let start = currentEnd; start < text.length; start = lineEndAfter(text, start)) {
     const line = text.slice(start, lineContentEnd(text, start))
-    if (isInlineBlockBoundary(line) || isListItemStart(line)) return start
+    const depth = explicitQuoteDepth(line)
+    if (isInlineBlockBoundary(line) || isListItemStart(line) || (depth > 0 && depth !== quoteDepth)) return start
+    if (depth > 0) quoteDepth = depth
   }
   return text.length
 }
@@ -686,8 +709,14 @@ function maskIndentedCodeBlocks(text: string): {
   const outLines: string[] = []
   let i = 0
   let paragraphOpen = false
+  let quoteDepth = 0
   while (i < lines.length) {
     const line = lines[i]
+    const depth = explicitQuoteDepth(line)
+    // A new explicit quote container cannot inherit an outer paragraph.
+    // Unmarked lazy continuation lines keep their paragraph's container.
+    if (depth > 0 && depth !== quoteDepth) paragraphOpen = false
+    if (depth > 0) quoteDepth = depth
     if (line.trim() === '' || isContainerOnlyLine(line)) {
       paragraphOpen = false
       outLines.push(line + (endings[i] ?? ''))
@@ -883,7 +912,8 @@ function maskCodeFences(text: string): {
 
     // Keep the closing line's newline in the masked document: the following
     // indented code must remain on its own line (inv_732c4e7e9bebf1a7).
-    const fenceEnd = text[closeEnd - 1] === '\n' ? closeEnd - 1 : closeEnd
+    const separator = /(?:\r\n|\r|\n)$/.exec(text.slice(0, closeEnd))?.[0] ?? ''
+    const fenceEnd = closeEnd - separator.length
     fences.push(text.slice(fenceStart, fenceEnd))
     out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
     pos = fenceEnd

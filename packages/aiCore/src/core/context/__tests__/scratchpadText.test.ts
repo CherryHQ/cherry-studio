@@ -11,6 +11,35 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it.each(['\r', '\n', '\r\n'])(
+    'does not pair inline spans across new blockquotes: %j (inv_087f3297499105f5)',
+    (eol) => {
+      const input = '`one\n> <analysis>SECRET</analysis> two`'.split('\n').join(eol)
+      expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+      expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET')
+    }
+  )
+
+  it.each(['\r', '\n', '\r\n'])('resets paragraph state for new quote containers: %j (inv_ea1efe67418ecef8)', (eol) => {
+    for (const source of [
+      'Here is a quote:\n>     <thinking>literal</thinking>',
+      '> outer paragraph\n> >     <thinking>literal</thinking>'
+    ]) {
+      const input = source.split('\n').join(eol)
+      expect(stripModelScratchpadBlocks(input)).toBe(input)
+      expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+    }
+  })
+
+  it.each(['\r', '\n', '\r\n'])(
+    'preserves a closing fence separator before indented code: %j (inv_03d53afef974b909)',
+    (eol) => {
+      const input = '```text\nfirst\n```\n    <thinking>literal</thinking>'.split('\n').join(eol)
+      expect(stripModelScratchpadBlocks(input)).toBe(input)
+      expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+    }
+  )
+
   it.each(['\r', '\n', '\r\n'])('preserves original line endings while masking literal blocks: %j', (eol) => {
     for (const input of [
       '```xml\n<thinking>literal</thinking>\n```',
