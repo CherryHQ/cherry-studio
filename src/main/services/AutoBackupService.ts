@@ -29,8 +29,6 @@ const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
 const ACTIVE_WRITERS_POLL_MS = 30_000
 const ANCHOR_SEARCH_DAYS = 7
-/** An anchored slot is a wall-clock promise; an offset change moves its epoch by whole minutes. */
-const ANCHORED_TARGET_TOLERANCE_MS = 60_000
 // Longest a pending anchored one-shot may sleep before re-reading the wall clock: an eastward
 // offset change moves the slot's instant earlier than the one the timer was armed for.
 const ANCHORED_RECHECK_MS = 15 * 60_000
@@ -121,6 +119,10 @@ const createScheduleState = (): ScheduleState => ({
 
 interface AnchoredTarget {
   scheduledAt: number
+  /** When the one-shot was last armed; destination slots crossed since then are overdue. */
+  armedAt: number
+  /** Zone the wall clock was named in; compared by name so a change is seen even across a DST match. */
+  timeZone: string
   year: number
   month: number
   day: number
@@ -309,6 +311,8 @@ export class AutoBackupService extends BaseService {
     const target = new Date(at)
     this.anchoredTargets.set(type, {
       scheduledAt: at,
+      armedAt: Date.now(),
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       year: target.getFullYear(),
       month: target.getMonth(),
       day: target.getDate(),
@@ -338,18 +342,18 @@ export class AutoBackupService extends BaseService {
     const anchored = settings.enabled && settings.intervalMs > 0 && startMinute !== null
     const now = Date.now()
 
-    // Same zone as when armed: the instant is unchanged, so run when due or re-arm a recheck.
-    if (Math.abs(recomputed - target.scheduledAt) < ANCHORED_TARGET_TOLERANCE_MS) {
+    // Same zone as when armed: the wall clock still names the same instant, so run when due only.
+    if (Intl.DateTimeFormat().resolvedOptions().timeZone === target.timeZone) {
       if (recomputed <= now) return true
       if (anchored) this.armAnchoredSchedule(type, generation, recomputed)
       return false
     }
 
-    // The offset changed under the pending target, so the date it named belongs to the previous
-    // zone: run it late when the reconverted instant has already passed, otherwise take the
-    // earliest slot on the current local grid (which westward can be today, not the stored date).
+    // The zone changed: the stored date belongs to the previous zone, so an instant already
+    // passed or a grid slot crossed since the last re-arm runs late; otherwise take the next slot.
     if (!anchored || startMinute === null) return true
     if (wallClockMatches && recomputed <= now) return true
+    if (nextAnchoredRun(target.armedAt, startMinute, settings.intervalMinutes) <= now) return true
     const nextAt = nextAnchoredRun(now, startMinute, settings.intervalMinutes)
     if (nextAt <= now) return true
     this.armAnchoredSchedule(type, generation, nextAt)
