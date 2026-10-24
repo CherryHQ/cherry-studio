@@ -67,6 +67,8 @@
   "appMenu.zoomOut": "Micșorează",
   "backup.restore.failed": "Restaurare eșuată",
   "backup.restore.retry": "Copia de rezervă nu a fost restaurată. Datele anterioare au fost păstrate. Încercați din nou restaurarea.",
+  "browser.tabbar.invalid_address": "Introdu o adresă web validă sau un termen de căutare",
+  "browser.tabbar.load_failed": "Această pagină nu a putut fi încărcată",
   "chat.conversation.new": "Conversație nouă",
   "common.channel_available_commands": "Comenzi disponibile:",
   "common.channel_command_processing_error": "⚠️ A apărut o eroare la procesarea comenzii. Încercați din nou mai târziu.",

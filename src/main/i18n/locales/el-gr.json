@@ -67,6 +67,8 @@
   "appMenu.zoomOut": "Σμίκρυνση",
   "backup.restore.failed": "Η αποκατάσταση απέτυχε",
   "backup.restore.retry": "Το αντίγραφο ασφαλείας δεν επαναφέρθηκε. Τα προηγούμενα δεδομένα σας διατηρήθηκαν. Δοκιμάστε ξανά την επαναφορά.",
+  "browser.tabbar.invalid_address": "Εισάγετε έγκυρη διεύθυνση ιστού ή όρο αναζήτησης",
+  "browser.tabbar.load_failed": "Δεν ήταν δυνατή η φόρτωση της σελίδας",
   "chat.conversation.new": "Νέα συνομιλία",
   "common.channel_available_commands": "Διαθέσιμες εντολές:",
   "common.channel_command_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία της εντολής. Δοκιμάστε ξανά αργότερα.",

@@ -7,14 +7,18 @@ import { application } from '@application'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import { BrowserPageController } from './BrowserPageController'
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
+import { resolveAddressBarInput } from './resolveAddressBarInput'
 import { TAB_BAR_HTML } from './tabbarHtml'
 import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
+
+const GOOGLE_SEARCH_URL = 'https://www.google.com/search?q='
 
 /**
  * Controller for managing browser windows via Chrome DevTools Protocol (CDP).
@@ -183,7 +187,9 @@ export class CdpBrowserController extends BrowserPageController {
     if (windowInfo.activeTabId) {
       const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
       if (activeTab && !activeTab.view.webContents.isDestroyed()) {
-        activeUrl = activeTab.view.webContents.getURL()
+        // Committed URL only: on a failed load `getURL()` returns the attempted
+        // address (possibly a mangled canonicalization) and must not reach the bar.
+        activeUrl = activeTab.url
         canGoBack = activeTab.view.webContents.canGoBack()
         canGoForward = activeTab.view.webContents.canGoForward()
       }
@@ -200,14 +206,14 @@ export class CdpBrowserController extends BrowserPageController {
     const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
     if (!activeTab || activeTab.view.webContents.isDestroyed()) return
 
-    let finalUrl = url.trim()
-    if (!/^https?:\/\//i.test(finalUrl)) {
-      if (/^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}/.test(finalUrl) || finalUrl.includes('.')) {
-        finalUrl = 'https://' + finalUrl
-      } else {
-        finalUrl = 'https://www.google.com/search?q=' + encodeURIComponent(finalUrl)
-      }
+    const resolution = resolveAddressBarInput(url)
+    if (resolution.kind === 'invalid') {
+      this.notifyAddressBarError(windowInfo, 'invalid_address')
+      return
     }
+
+    const finalUrl =
+      resolution.kind === 'url' ? resolution.url : GOOGLE_SEARCH_URL + encodeURIComponent(resolution.query)
 
     void activeTab.ready
       .then(() => {
@@ -216,7 +222,22 @@ export class CdpBrowserController extends BrowserPageController {
       })
       .catch((error) => {
         logger.warn('Navigation failed in tab bar', { error, url: finalUrl, tabId: activeTab.id })
+        // -3 (ERR_ABORTED) is a user- or redirect-initiated cancel, not a failed load.
+        const code = (error as { errorCode?: number } | undefined)?.errorCode
+        if (code === -3) return
+        this.notifyAddressBarError(windowInfo, 'load_failed', activeTab.url)
       })
+  }
+
+  /** Surface a navigation error in the tab bar; `restoredUrl` re-anchors the address bar to the last committed URL. */
+  private notifyAddressBarError(windowInfo: WindowInfo, key: 'invalid_address' | 'load_failed', restoredUrl?: string) {
+    if (!windowInfo.tabBarView || windowInfo.tabBarView.webContents.isDestroyed()) return
+    const message = key === 'invalid_address' ? t('browser.tabbar.invalid_address') : t('browser.tabbar.load_failed')
+    const restore = restoredUrl === undefined ? '' : `, ${JSON.stringify(restoredUrl)}`
+    const script = `window.showUrlError(${JSON.stringify(message)}${restore})`
+    windowInfo.tabBarView.webContents.executeJavaScript(script).catch((error) => {
+      logger.debug('Tab bar error notice failed', { error, windowKey: windowInfo.windowKey })
+    })
   }
 
   private handleBackAction(windowInfo: WindowInfo) {

@@ -67,6 +67,8 @@
   "appMenu.zoomOut": "ซูมออก",
   "backup.restore.failed": "กู้คืนไม่สำเร็จ",
   "backup.restore.retry": "ยังไม่ได้กู้คืนข้อมูลจากแบ็คอัพนี้ ข้อมูลเดิมของคุณถูกเก็บไว้ตามเดิม โปรดลองกู้คืนอีกครั้ง",
+  "browser.tabbar.invalid_address": "ป้อนที่อยู่เว็บหรือคำค้นหาที่ถูกต้อง",
+  "browser.tabbar.load_failed": "โหลดหน้านี้ไม่สำเร็จ",
   "chat.conversation.new": "แชทใหม่",
   "common.channel_available_commands": "คำสั่งที่ใช้ได้:",
   "common.channel_command_processing_error": "⚠️ เกิดข้อผิดพลาดในการประมวลผลคำสั่ง โปรดลองอีกครั้งภายหลัง",

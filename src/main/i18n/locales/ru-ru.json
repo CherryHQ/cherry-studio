@@ -67,6 +67,8 @@
   "appMenu.zoomOut": "Уменьшить",
   "backup.restore.failed": "Восстановление не удалось",
   "backup.restore.retry": "Резервная копия не восстановлена. Ваши прежние данные сохранены. Повторите восстановление.",
+  "browser.tabbar.invalid_address": "Введите корректный веб-адрес или поисковый запрос",
+  "browser.tabbar.load_failed": "Не удалось загрузить страницу",
   "chat.conversation.new": "Новый чат",
   "common.channel_available_commands": "Доступные команды:",
   "common.channel_command_processing_error": "⚠️ При обработке команды произошла ошибка. Повторите попытку позже.",

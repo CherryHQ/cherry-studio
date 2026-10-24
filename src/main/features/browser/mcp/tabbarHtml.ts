@@ -247,6 +247,18 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     }
     #url-input::placeholder { color: var(--color-text); }
     #url-input::-webkit-input-placeholder { color: var(--color-text); }
+    #url-error {
+      display: none;
+      margin-left: 8px;
+      max-width: 55%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #d93025;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    body.theme-dark #url-error { color: #f28b82; }
 
     /* Window controls for Windows - use inline-flex inside tab-row instead of fixed position */
     #window-controls {
@@ -309,11 +321,13 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     </button>
     <div id="url-container">
       <input type="text" id="url-input" placeholder="Search or enter URL" spellcheck="false" />
+      <span id="url-error" role="alert"></span>
     </div>
   </div>
   <script>
     const tabsContainer = document.getElementById('tabs-container');
     const urlInput = document.getElementById('url-input');
+    const urlError = document.getElementById('url-error');
     const backBtn = document.getElementById('back-btn');
     const forwardBtn = document.getElementById('forward-btn');
     const refreshBtn = document.getElementById('refresh-btn');
@@ -321,6 +335,36 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     window.currentUrl = '';
     window.canGoBack = false;
     window.canGoForward = false;
+
+    var urlErrorTimer = null;
+
+    // Called from the main process when navigation is rejected or fails.
+    // The message text is pre-localized there; the optional restoredUrl argument
+    // re-anchors the bar to the last committed URL so a failed load never
+    // leaves a mangled value.
+    window.showUrlError = function(message, restoredUrl) {
+      if (typeof restoredUrl === 'string') {
+        window.currentUrl = restoredUrl;
+        if (document.activeElement !== urlInput) {
+          urlInput.value = window.currentUrl;
+        }
+      }
+      urlError.textContent = message;
+      urlError.style.display = 'block';
+      if (urlErrorTimer) clearTimeout(urlErrorTimer);
+      urlErrorTimer = setTimeout(function() {
+        urlError.style.display = 'none';
+        urlErrorTimer = null;
+      }, 4000);
+    };
+
+    window.clearUrlError = function() {
+      urlError.style.display = 'none';
+      if (urlErrorTimer) {
+        clearTimeout(urlErrorTimer);
+        urlErrorTimer = null;
+      }
+    };
 
     // Helper function to update before-active class for separator hiding
     function updateBeforeActiveClass() {
@@ -509,12 +553,18 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       if (e.key === 'Enter') {
         var url = urlInput.value.trim();
         if (url) {
+          window.clearUrlError();
           sendAction({ type: 'navigate', url: url });
         }
       }
     });
 
+    urlInput.addEventListener('input', function() {
+      window.clearUrlError();
+    });
+
     urlInput.addEventListener('focus', function() {
+      window.clearUrlError();
       urlInput.select();
     });
 

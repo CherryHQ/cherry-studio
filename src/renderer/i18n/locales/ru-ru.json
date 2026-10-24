@@ -6125,7 +6125,7 @@
   "webview.annotation.save": "Сохранить",
   "webview.browser.dismiss_import": "Больше не показывать",
   "webview.browser.import_hint": "Импортируйте историю и данные сайтов из другого браузера.",
-  "webview.browser.load_failed": "Не удалось загрузить страницу. Проверьте, что локальный сервер всё ещё запущен.",
+  "webview.browser.load_failed": "Не удалось загрузить страницу. Проверьте адрес или попробуйте ещё раз.",
   "webview.browser.loading": "Загрузка страницы…",
   "webview.navigation.address": "Веб-адрес",
   "webview.navigation.address_placeholder": "Введите URL",

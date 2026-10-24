@@ -6125,7 +6125,7 @@
   "webview.annotation.save": "Lưu",
   "webview.browser.dismiss_import": "Không hiển thị lại",
   "webview.browser.import_hint": "Nhập lịch sử và dữ liệu trang web từ trình duyệt khác.",
-  "webview.browser.load_failed": "Không thể tải trang này. Hãy kiểm tra xem máy chủ cục bộ có còn đang chạy không.",
+  "webview.browser.load_failed": "Không thể tải trang này. Hãy kiểm tra địa chỉ hoặc thử lại.",
   "webview.browser.loading": "Đang tải trang…",
   "webview.navigation.address": "Địa chỉ web",
   "webview.navigation.address_placeholder": "Nhập URL",

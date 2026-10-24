@@ -67,6 +67,8 @@
   "appMenu.zoomOut": "Alejar",
   "backup.restore.failed": "Restauración fallida",
   "backup.restore.retry": "No se restauró la copia de seguridad. Se conservaron sus datos anteriores. Intente restaurar de nuevo.",
+  "browser.tabbar.invalid_address": "Introduce una dirección web válida o un término de búsqueda",
+  "browser.tabbar.load_failed": "No se pudo cargar esta página",
   "chat.conversation.new": "Nuevo chat",
   "common.channel_available_commands": "Comandos disponibles:",
   "common.channel_command_processing_error": "⚠️ Se produjo un error al procesar el comando. Inténtalo de nuevo más tarde.",

@@ -6125,7 +6125,7 @@
   "webview.annotation.save": "บันทึก",
   "webview.browser.dismiss_import": "ไม่ต้องแสดงอีก",
   "webview.browser.import_hint": "นำประวัติและข้อมูลเว็บไซต์จากเบราว์เซอร์อื่นมาใช้",
-  "webview.browser.load_failed": "โหลดหน้านี้ไม่สำเร็จ ตรวจสอบว่าเซิร์ฟเวอร์ในเครื่องยังทำงานอยู่",
+  "webview.browser.load_failed": "โหลดหน้านี้ไม่สำเร็จ ตรวจสอบที่อยู่หรือลองอีกครั้ง",
   "webview.browser.loading": "กำลังโหลดหน้า…",
   "webview.navigation.address": "ที่อยู่เว็บ",
   "webview.navigation.address_placeholder": "ป้อน URL",

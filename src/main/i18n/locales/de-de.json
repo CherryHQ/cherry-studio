@@ -67,6 +67,8 @@
   "appMenu.zoomOut": "Herauszoomen",
   "backup.restore.failed": "Wiederherstellung fehlgeschlagen",
   "backup.restore.retry": "Die Sicherung wurde nicht wiederhergestellt. Ihre bisherigen Daten wurden beibehalten. Bitte versuchen Sie die Wiederherstellung erneut.",
+  "browser.tabbar.invalid_address": "Gib eine gültige Webadresse oder einen Suchbegriff ein",
+  "browser.tabbar.load_failed": "Diese Seite konnte nicht geladen werden",
   "chat.conversation.new": "Neuer Chat",
   "common.channel_available_commands": "Verfügbare Befehle:",
   "common.channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",

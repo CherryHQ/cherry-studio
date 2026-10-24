@@ -6125,7 +6125,7 @@
   "webview.annotation.save": "Salvează",
   "webview.browser.dismiss_import": "Nu mai afișa",
   "webview.browser.import_hint": "Importă istoricul și datele site-urilor din alt browser.",
-  "webview.browser.load_failed": "Această pagină nu a putut fi încărcată. Verificați dacă serverul local încă rulează.",
+  "webview.browser.load_failed": "Această pagină nu a putut fi încărcată. Verifică adresa sau încearcă din nou.",
   "webview.browser.loading": "Se încarcă pagina…",
   "webview.navigation.address": "Adresă web",
   "webview.navigation.address_placeholder": "Introduceți un URL",

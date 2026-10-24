@@ -6125,7 +6125,7 @@
   "webview.annotation.save": "Guardar",
   "webview.browser.dismiss_import": "Não voltar a mostrar",
   "webview.browser.import_hint": "Importe o histórico e os dados de sites de outro navegador.",
-  "webview.browser.load_failed": "Não foi possível carregar esta página. Verifique se o servidor local ainda está em execução.",
+  "webview.browser.load_failed": "Não foi possível carregar esta página. Verifica o endereço ou tenta novamente.",
   "webview.browser.loading": "A carregar a página…",
   "webview.navigation.address": "Endereço web",
   "webview.navigation.address_placeholder": "Introduza um URL",

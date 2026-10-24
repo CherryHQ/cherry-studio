@@ -67,6 +67,8 @@
   "appMenu.zoomOut": "缩小",
   "backup.restore.failed": "恢复失败",
   "backup.restore.retry": "备份未能恢复。已保留原有数据。请重新尝试恢复。",
+  "browser.tabbar.invalid_address": "请输入有效的网址或搜索词",
+  "browser.tabbar.load_failed": "页面无法加载",
   "chat.conversation.new": "新对话",
   "common.channel_available_commands": "可用命令：",
   "common.channel_command_processing_error": "⚠️ 处理命令时发生错误，请稍后重试。",

@@ -6125,7 +6125,7 @@
   "webview.annotation.save": "儲存",
   "webview.browser.dismiss_import": "不再提示",
   "webview.browser.import_hint": "從其他瀏覽器匯入歷史記錄和網站資料。",
-  "webview.browser.load_failed": "無法載入此頁面。請確認本機伺服器仍在執行。",
+  "webview.browser.load_failed": "無法載入此頁面，請檢查網址或稍後再試。",
   "webview.browser.loading": "正在載入頁面…",
   "webview.navigation.address": "網址",
   "webview.navigation.address_placeholder": "輸入網址",

@@ -67,6 +67,8 @@
   "appMenu.zoomOut": "Zoom Out",
   "backup.restore.failed": "Restore failed",
   "backup.restore.retry": "The backup was not restored. Your previous data has been kept. Please try restoring again.",
+  "browser.tabbar.invalid_address": "Enter a valid web address or search term",
+  "browser.tabbar.load_failed": "This page could not be loaded",
   "chat.conversation.new": "New Chat",
   "common.channel_available_commands": "Available commands:",
   "common.channel_command_processing_error": "⚠️ An error occurred while processing the command. Please try again later.",

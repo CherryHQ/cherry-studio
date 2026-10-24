@@ -6125,7 +6125,7 @@
   "webview.annotation.save": "Kaydet",
   "webview.browser.dismiss_import": "Bir daha gösterme",
   "webview.browser.import_hint": "Geçmişinizi ve site verilerinizi başka bir tarayıcıdan içe aktarın.",
-  "webview.browser.load_failed": "Bu sayfa yüklenemedi. Yerel sunucunun hâlâ çalıştığını kontrol edin.",
+  "webview.browser.load_failed": "Bu sayfa yüklenemedi. Adresi kontrol et veya tekrar dene.",
   "webview.browser.loading": "Sayfa yükleniyor…",
   "webview.navigation.address": "Web adresi",
   "webview.navigation.address_placeholder": "Bir URL girin",
