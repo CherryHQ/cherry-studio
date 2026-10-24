@@ -9,7 +9,11 @@ import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
+import {
+  diagnosticDescriptionByteLength,
+  DIAGNOSTIC_FEEDBACK_FORM_URL,
+  normalizeDiagnosticDescription
+} from '@shared/utils/diagnostics'
 
 const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
@@ -166,6 +170,9 @@ function DiagnosticUploadDialog({
   return <TestDiagnosticUploadPanel initialDescription={initialDescription} onClose={() => onOpenChange(false)} />
 }
 
+const doctorAutomaticBlock =
+  'System diagnostics found an issue in Recent app issues (logs-recent-findings).\nMatched rule IDs: chat-stream-error, mcp-connection-closed'
+
 describe('DiagnosticUploadPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -233,6 +240,54 @@ describe('DiagnosticUploadPanel', () => {
     expect(screen.getByText('The problem description is too long')).toBeInTheDocument()
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
   })
+
+  it('submits the prefilled Doctor identity and rule IDs without manual copying', async () => {
+    const user = userEvent.setup()
+    render(<TestDiagnosticUploadPanel initialDescription={`  ${doctorAutomaticBlock}  `} />)
+    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue(`  ${doctorAutomaticBlock}  `)
+    const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
+    await waitFor(() => expect(submit).toBeEnabled())
+    await user.click(submit)
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
+        description: doctorAutomaticBlock,
+        includeChatRecords: true,
+        includeLogs: true,
+        includeTraces: true,
+        range: '24h'
+      })
+    )
+  })
+
+  it.each([3944, 3945])(
+    'validates the multibyte Doctor description boundary with %i padding bytes',
+    async (padding) => {
+      const description = `中🙂\r\nX${'a'.repeat(padding)}\n\n${doctorAutomaticBlock}`
+      const lfDescription = description.replaceAll('\r\n', '\n')
+      expect(diagnosticDescriptionByteLength(doctorAutomaticBlock)).toBe(138)
+      expect(diagnosticDescriptionByteLength(lfDescription)).toBe(diagnosticDescriptionByteLength(description))
+      expect(new TextEncoder().encode(normalizeDiagnosticDescription(description)).byteLength).toBe(padding + 152)
+      const user = userEvent.setup()
+      render(<TestDiagnosticUploadPanel initialDescription={description} />)
+      const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
+      await waitFor(() => expect(submit).toBeEnabled())
+      await user.click(submit)
+      if (padding === 3944) {
+        await waitFor(() =>
+          expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
+            description,
+            includeChatRecords: true,
+            includeLogs: true,
+            includeTraces: true,
+            range: '24h'
+          })
+        )
+      } else {
+        expect(screen.getByText('The problem description is too long')).toBeInTheDocument()
+        expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+      }
+    }
+  )
 
   it('defaults to uploading all sources for the last 24 hours and blocks submission when unchecked', async () => {
     const user = userEvent.setup()

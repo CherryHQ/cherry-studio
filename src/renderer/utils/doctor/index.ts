@@ -1,3 +1,4 @@
+export { buildDoctorReportDescription } from './buildDoctorReportDescription'
 export {
   DOCTOR_DOMAIN_LABEL_KEYS,
   DOCTOR_NAVIGATION_LABEL_KEYS,

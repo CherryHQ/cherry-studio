@@ -4577,6 +4577,7 @@
   "settings.doctor.panels.export": "Diagnosepaket exportieren",
   "settings.doctor.panels.report": "Problem melden",
   "settings.doctor.report.check_description": "Die Systemdiagnose hat ein Problem bei „{{title}}“ ({{checkId}}) gefunden.",
+  "settings.doctor.report.matched_rule_ids": "IDs der übereinstimmenden Regeln: {{ruleIds}}",
   "settings.doctor.stale.description": "Dieses Diagnoseergebnis ist veraltet.",
   "settings.doctor.status.error": "Prüfung nicht möglich",
   "settings.doctor.status.fail": "Problem",

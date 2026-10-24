@@ -4577,6 +4577,7 @@
   "settings.doctor.panels.export": "Export diagnostic bundle",
   "settings.doctor.panels.report": "Report a problem",
   "settings.doctor.report.check_description": "System diagnostics found an issue in {{title}} ({{checkId}}).",
+  "settings.doctor.report.matched_rule_ids": "Matched rule IDs: {{ruleIds}}",
   "settings.doctor.stale.description": "This diagnostic result is out of date.",
   "settings.doctor.status.error": "Could not check",
   "settings.doctor.status.fail": "Problem",
