@@ -12,6 +12,12 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('consumes inherited list indentation once before a quote (inv_eae0f87bf5ff88fe)', () => {
+    const input = '- First\n  >     <thinking>literal</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
   it('counts inherited list indentation before code indentation (inv_c5db9091dfd965bf)', () => {
     expect(
       stripModelScratchpadBlocks('- Notes:\n\n    <analysis>SECRET</analysis>\n\n<summary>Public</summary>')

@@ -1220,8 +1220,9 @@ export class ClaudeCodeStreamAdapter {
     // Completed plain paragraph context needs its block kind and escape
     // parity, not every already-emitted code span. Unfinished spans/markup
     // live in the remainder and are appended separately. Keep structured
-    // Markdown and HTML-bearing lines intact.
-    if (openLine.length > 256 && /^[A-Za-z]/.test(openLine) && !openLine.includes('<')) {
+    // Markdown lines intact. Complete HTML/inline spans are already emitted;
+    // unfinished markup and scratchpad blocks stay buffered separately.
+    if (openLine.length > 256 && /^[A-Za-z]/.test(openLine)) {
       return 'paragraph ' + (openLine.match(/\\+$/)?.[0] ?? '')
     }
     return openLine

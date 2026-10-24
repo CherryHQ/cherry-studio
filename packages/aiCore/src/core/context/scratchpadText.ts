@@ -709,7 +709,7 @@ function maskIndentedCodeBlocks(text: string): {
     }
     // Explicit markers were stripped above; continuation lines still carry
     // the inherited list's content indentation.
-    return isListItemStart(line) ? columns : Math.max(0, columns - inheritedListColumns)
+    return content !== line ? columns : Math.max(0, columns - inheritedListColumns)
   }
   const isIndentedCodeLine = (line: string): boolean => line.trim() !== '' && indentedCodeColumns(line) >= 4
 
