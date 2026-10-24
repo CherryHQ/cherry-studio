@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -1243,6 +1245,76 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
+  })
+
+  it('clears the session model override when reassignment crosses runtimes (inv_f15449b3ea653a29)', async () => {
+    // A subscription override selected under Claude Code is not servable by a
+    // Pi agent: retaining it makes Pi reject the first message with
+    // PiUnsupportedProviderError. The cross-runtime reassignment must clear
+    // the override atomically so the new agent's default applies.
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-pi-reassigned',
+      type: 'pi',
+      name: 'Pi Reassigned Agent',
+      instructions: '',
+      orderKey: 'z1'
+    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'anthropic::claude-sonnet-4-5',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        name: 'claude-sonnet-4-5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'm0'
+      })
+      .onConflictDoNothing()
+    const session = await createSession('Cross-runtime override')
+    agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-pi-reassigned' })
+
+    expect(updated.agentId).toBe('agent-pi-reassigned')
+    expect(updated.model).toBeNull()
+  })
+
+  it('keeps the session model override when reassignment stays within one runtime', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-cc-reassigned',
+      type: 'claude-code',
+      name: 'Claude Reassigned Agent',
+      instructions: '',
+      orderKey: 'z2'
+    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'anthropic::claude-sonnet-4-5',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        name: 'claude-sonnet-4-5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'm0'
+      })
+      .onConflictDoNothing()
+    const session = await createSession('Same-runtime override')
+    agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-cc-reassigned' })
+
+    expect(updated.agentId).toBe('agent-cc-reassigned')
+    expect(updated.model).toBe('anthropic::claude-sonnet-4-5')
   })
 
   it('does not clear a task relation when updating a trashed session fails', async () => {

@@ -847,7 +847,7 @@ export class AgentSessionService {
     patch: UpdateAgentSessionDto
   ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
     const [current] = tx
-      .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskScheduleId })
+      .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskScheduleId, model: sessionsTable.model })
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
@@ -859,6 +859,24 @@ export class AgentSessionService {
     }
 
     const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
+    if (reassigned && patch.model === undefined && current.model != null) {
+      // A session-level model override is scoped to the runtime that selected
+      // it: retaining it across a cross-runtime reassignment (e.g. Claude Code
+      // -> Pi) makes the new runtime pick a model it cannot serve — Pi rejects
+      // the first message with PiUnsupportedProviderError (cherry-pr-review
+      // inv_f15449b3ea653a29#f1). Clear it atomically with the reassignment so
+      // the session falls back to the new agent's default; a same-runtime
+      // reassignment keeps the override.
+      const agentTypes = tx
+        .select({ id: agentsTable.id, type: agentsTable.type })
+        .from(agentsTable)
+        .where(inArray(agentsTable.id, [current.agentId, patch.agentId as string]))
+        .all()
+      const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
+      if (typeOf.get(current.agentId) !== typeOf.get(patch.agentId as string)) {
+        patch.model = null
+      }
+    }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
     if (reassigned && current.taskScheduleId) {
       this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.id, id))
