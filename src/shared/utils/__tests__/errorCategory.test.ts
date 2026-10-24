@@ -81,6 +81,11 @@ describe('classifyErrorCategory transport failures', () => {
     expect(classifyErrorCategory({ text: 'net::ERR_SSL_PROTOCOL_ERROR' })).toBe('proxy')
   })
 
+  it('maps Chromium HTTP/2 protocol failures to network connectivity', () => {
+    expect(classifyErrorCategory({ text: 'net::ERR_HTTP2_PROTOCOL_ERROR' })).toBe('network')
+    expect(classifyErrorCategory({ text: 'net::ERR_HTTP2_PING_FAILED' })).toBe('network')
+  })
+
   it('maps Node OpenSSL certificate failures to proxy', () => {
     expect(classifyErrorCategory({ text: 'SELF_SIGNED_CERT_IN_CHAIN' })).toBe('proxy')
     expect(classifyErrorCategory({ text: 'unable to verify the first certificate' })).toBe('proxy')
