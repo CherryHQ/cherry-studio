@@ -7,6 +7,7 @@ import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-
 import { type AssistantMessage, InMemoryCredentialStore, type Message } from '@earendil-works/pi-ai'
 import {
   type AgentSession,
+  type SessionEntry,
   ModelRuntime,
   type ProviderModelConfig,
   SessionManager
@@ -22,7 +23,11 @@ import {
 import { MockLanguageModelV3 } from 'ai/test'
 import { onTestFinished } from 'vitest'
 
-import { type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
+import {
+  type AgentRuntimeSessionOptions,
+  type AgentRuntimeEvent,
+  createAgentRuntimeSession
+} from '@cherrystudio/agent-runtime-pi'
 import { type InputParamsMap, MessageConverterFactory, StreamAdapterFactory } from '@main/features/apiGateway/adapters'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -153,16 +158,18 @@ export function tempDir(label: string): string {
 type Defaulted = 'cwd' | 'agentDir' | 'model' | 'modelRuntime' | 'systemPrompt'
 export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted> &
   Partial<Pick<AgentRuntimeSessionOptions, 'cwd' | 'agentDir' | 'systemPrompt'>> & {
+    entries?: SessionEntry[]
+    sessionId?: string
     history?: Message[]
     model?: TestModel
     port: GatewayFixture
   }
 
 export async function createTestSession(options: TestSessionOptions) {
-  const { port, model, history, ...sessionOptions } = options
+  const { port, model, history, entries, sessionId, ...sessionOptions } = options
   const binding = await createTestBinding({ port, model })
   const cwd = options.cwd ?? tempDir('cwd')
-  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
+  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd, { id: sessionId }, entries)
   for (const message of history ?? []) sessionManager.appendMessage(message)
   const runtime = await createAgentRuntimeSession({
     cwd,
@@ -215,4 +222,15 @@ export function scriptedModel(scripts: LanguageModelV3StreamPart[][], chunkDelay
     }
   })
   return { model, calls }
+}
+
+/** Records copied observations for assertions; native SessionManager owns persistence. */
+export function hostStore() {
+  const entries: SessionEntry[] = []
+  const events: AgentRuntimeEvent[] = []
+  const onEvent = (event: AgentRuntimeEvent) => {
+    events.push(event)
+    if (event.type === 'session-append') entries.push(...plain(event.entries))
+  }
+  return { entries, events, onEvent }
 }
