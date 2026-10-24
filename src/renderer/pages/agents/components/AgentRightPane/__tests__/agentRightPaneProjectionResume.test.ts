@@ -1575,6 +1575,96 @@ describe('agent right pane flow rounds', () => {
 
     expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
   })
+
+  const queuedSendParts = [
+    () =>
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, LAUNCH_OUTPUT),
+    () => textPart('First round findings', 'call_launch'),
+    () =>
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        QUEUED_OUTPUT
+      )
+  ]
+
+  // A queued send's child can be known only by the identity its receipt names: a cache-only edge
+  // must still mark the live interval, or pre-delivery output moves beneath the instruction.
+  it('keeps live pre-delivery output when the child edge is cache-only', () => {
+    const parts = [...queuedSendParts.map((build) => build()), textPart('More original-run output', 'call_launch')]
+    const messages = [message('m1', parts)]
+    const lateTaskEvents = {
+      af5051807ed7aaa30: {
+        event: 'started',
+        taskId: 'af5051807ed7aaa30',
+        status: 'in_progress',
+        taskType: 'subagent'
+      }
+    } as const
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch', undefined, lateTaskEvents, {
+      activeMessageIds: new Set<string>(),
+      liveBackgroundTaskIds: new Set(['af5051807ed7aaa30'])
+    })
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual([
+      'First round findings',
+      'More original-run output'
+    ])
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toEqual([])
+  })
+
+  // A persisted edge that omits the optional toolUseId is owned by its task id the same way.
+  it('keeps live pre-delivery output when the child edge omits its toolUseId', () => {
+    const parts = [
+      ...queuedSendParts.map((build) => build()),
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'af5051807ed7aaa30', status: 'in_progress', taskType: 'subagent' }
+      } as unknown as CherryMessagePart,
+      textPart('More original-run output', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: parts },
+      'call_launch',
+      undefined,
+      {},
+      {
+        activeMessageIds: new Set(['m1']),
+        liveBackgroundTaskIds: new Set()
+      }
+    )
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual([
+      'First round findings',
+      'More original-run output'
+    ])
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toEqual([])
+  })
+
+  // Without any child evidence the flow still settles and opens the later round.
+  it('settles when no child evidence exists at all', () => {
+    const parts = [...queuedSendParts.map((build) => build()), textPart('More original-run output', 'call_launch')]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: parts },
+      'call_launch',
+      undefined,
+      {},
+      emptyLiveness
+    )
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual(['First round findings'])
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
+  })
 })
 
 describe('isResumeReceiptCall', () => {

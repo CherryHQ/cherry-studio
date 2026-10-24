@@ -593,6 +593,9 @@ export function buildAgentToolFlowProjection(
     // are the only evidence that the run itself settled or is still live.
     const flowTaskIds = new Set(taskIds)
     if (rootTaskId) flowTaskIds.add(rootTaskId)
+    // A queued send's child is owned by the identity the receipt names, even when its task edge
+    // is cache-only or omits `toolUseId`; without this its liveness never reaches the fold.
+    if (launchedAgentId) flowTaskIds.add(launchedAgentId)
     const latestTaskStatusByTaskId = new Map<string, NonNullable<AgentTaskEventPartData['status']>>()
     const taskOriginMessageIdByTaskId = new Map<string, string>()
     for (const { message, parts } of messageEntries) {
