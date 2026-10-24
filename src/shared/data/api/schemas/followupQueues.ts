@@ -20,7 +20,7 @@ import {
   type FollowupQueueState,
   FollowupQueueScopeKeySchema
 } from '../../types/followupQueue'
-import type { OrderEndpoints } from './_endpointHelpers'
+import { OrderRequestSchema, type OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -49,7 +49,16 @@ export const CreateFollowupQueueSchema = z.strictObject({
    * it ends — the session removes a superseded copy itself. A copy orphaned
    * by a crash self-heals once it ages past the stale-claim cutoff
    * (cherry-pr-review). */
-  held: z.boolean().optional()
+  held: z.boolean().optional(),
+  /** Best-effort placement for restore handoffs, applied atomically with the
+   * insert: `position` anchors are absolute, `before`/`after` reference an
+   * existing row in the scope. A stale or removed anchor id degrades to a
+   * tail insert rather than an error, so the restore always lands somewhere
+   * deliverable. Inserts are not claim-barred, so an anchored restore keeps
+   * its queue slot even while a peer's send holds the reorder barrier
+   * (cherry-pr-review inv_9ecff9fca3bdab04#f1). Ignored on the duplicate-id
+   * retry path — the landed row keeps its original position. */
+  anchor: OrderRequestSchema.optional()
 })
 export type CreateFollowupQueueDto = z.infer<typeof CreateFollowupQueueSchema>
 

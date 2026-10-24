@@ -312,7 +312,11 @@ export class FollowupQueueService {
           status: 'pending' as const,
           claimToken: dto.held ? FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN : null
         },
-        { pkColumn: followupQueueTable.id, scope: eq(followupQueueTable.scopeKey, dto.scopeKey) }
+        {
+          pkColumn: followupQueueTable.id,
+          scope: eq(followupQueueTable.scopeKey, dto.scopeKey),
+          anchor: dto.anchor
+        }
       )
       const insertedRow = inserted as FollowupQueueRow
       if (dto.fileEntryIds?.length) {

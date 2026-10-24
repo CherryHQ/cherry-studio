@@ -1280,7 +1280,10 @@ describe('useFollowupQueue', () => {
         scopeKey: SCOPE,
         draft: { text: 'first edited', tokens: [] },
         payload: { text: 'first edited', userMessageParts: [] },
-        held: true
+        held: true,
+        // The restore lands at its slot atomically with the insert — no
+        // reorder can be claim-barred out of it (inv_9ecff9fca3bdab04).
+        anchor: { position: 'first' }
       }
     })
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
@@ -1294,6 +1297,177 @@ describe('useFollowupQueue', () => {
     expect(releaseBody).toEqual(expect.objectContaining({ id: restoreId, held: false }))
     // 'a' was taken from slot 0, so its rebuilt copy goes back to the head.
     expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { position: 'first' } }] } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+  })
+
+  it('retries the slot restore across a peer claim conflict so the edit keeps its position (inv_9ecff9fca3bdab04)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      // A peer's live claim (its in-flight send) bars the first reorder; the
+      // barrier lifts once the send settles.
+      reorderTrigger
+        .mockRejectedValueOnce(new DataApiError(ErrorCode.CONFLICT, 'reorder conflicts with an in-flight send', 409))
+        .mockResolvedValue(undefined)
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        void result.current.takeForEdit('a', () => null)
+      })
+      await act(async () => {})
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let switched = false
+      await act(async () => {
+        void result.current.takeForEdit('b', captureOutgoing).then(() => {
+          switched = true
+        })
+      })
+      await act(async () => {})
+      // The first attempt conflicts with the peer's claim; the flow parks in
+      // the retry window instead of swallowing the position.
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+      expect(switched).toBe(false)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400)
+      })
+      expect(switched).toBe(true)
+      expect(reorderTrigger).toHaveBeenCalledTimes(2)
+      expect(postTrigger).toHaveBeenCalledTimes(2)
+      expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('completes the handoff at the tail when a peer claim outlives the retry window (inv_9ecff9fca3bdab04)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      // A peer's send holds the live-claim barrier past the bounded recovery
+      // window: every attempt conflicts. The switch must still complete —
+      // the restored copy stays safe (and deliverable) at the tail rather
+      // than blocking the handoff or dropping the draft.
+      reorderTrigger.mockRejectedValue(
+        new DataApiError(ErrorCode.CONFLICT, 'reorder conflicts with an in-flight send', 409)
+      )
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        void result.current.takeForEdit('a', () => null)
+      })
+      await act(async () => {})
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let switched = false
+      await act(async () => {
+        void result.current.takeForEdit('b', captureOutgoing).then(() => {
+          switched = true
+        })
+      })
+      await act(async () => {})
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+      expect(switched).toBe(false)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400 * 4)
+      })
+      expect(switched).toBe(true)
+      expect(reorderTrigger).toHaveBeenCalledTimes(4)
+      expect(postTrigger).toHaveBeenCalledTimes(2)
+      expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('anchors the restore after the row preceding its slot when taken from mid-queue (inv_9ecff9fca3bdab04)', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+    const { claimTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('b', () => null)
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('second edited'), payload: payload('second edited') }))
+    await act(async () => {
+      await result.current.takeForEdit('c', captureOutgoing)
+    })
+    const body = (postTrigger.mock.calls as unknown as Array<[{ body: { anchor?: unknown } }]>)[0][0].body
+    // 'b' was taken from slot 1: the restore anchors after the row preceding
+    // that slot, so the insert itself carries the position.
+    expect(body.anchor).toEqual({ after: 'a' })
+  })
+
+  it('skips the reorder pass once refreshed items confirm the anchored placement, however long the claim lasts (inv_9ecff9fca3bdab04)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, reorderTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      // The reorder stays claim-barred — a peer's send outlives the whole
+      // retry window.
+      reorderTrigger.mockRejectedValue(
+        new DataApiError(ErrorCode.CONFLICT, 'reorder conflicts with an in-flight send', 409)
+      )
+
+      const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        void result.current.takeForEdit('a', () => null)
+      })
+      await act(async () => {})
+      let switched = false
+      await act(async () => {
+        void result.current
+          .takeForEdit('b', () => ({ draft: draft('first edited'), payload: payload('first edited') }))
+          .then(() => {
+            switched = true
+          })
+      })
+      await act(async () => {})
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+
+      // The anchored INSERT already placed the copy: once the refreshed items
+      // confirm it, no further reorder is attempted and nothing surfaces.
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+      wireQuery([row(restoreId, 'first edited'), row('b', 'second')])
+      rerender()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400 * 5)
+      })
+      expect(switched).toBe(true)
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+      expect(toast.error).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not retry the slot restore on a non-conflict failure (inv_9ecff9fca3bdab04)', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, reorderTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+    reorderTrigger.mockRejectedValueOnce(new Error('db gone'))
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    await act(async () => {
+      await result.current.takeForEdit('b', captureOutgoing)
+    })
+    // A non-transient failure keeps the draft safe at the tail: no retry.
+    expect(reorderTrigger).toHaveBeenCalledTimes(1)
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
   })
 
@@ -2149,7 +2323,10 @@ describe('useFollowupQueue', () => {
         scopeKey: SCOPE,
         draft: { text: 'first edited', tokens: [] },
         payload: { text: 'first edited', userMessageParts: [] },
-        held: true
+        held: true,
+        // The restore lands at its slot atomically with the insert — no
+        // reorder can be claim-barred out of it (inv_9ecff9fca3bdab04).
+        anchor: { position: 'first' }
       }
     })
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id

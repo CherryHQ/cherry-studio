@@ -7,6 +7,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/followupQueues'
 import {
   FOLLOWUP_QUEUE_HEARTBEAT_MS,
@@ -74,6 +75,10 @@ type RestoreQueueBody = {
   /** Editor-owned recovery copy: ineligible for delivery until the owning
    * edit session ends (cherry-pr-review). */
   held?: boolean
+  /** Queue slot the copy must return to: the insert applies the placement
+   * atomically server-side; a concurrently removed anchor row degrades
+   * server-side to a tail insert. */
+  anchor?: OrderRequest
 }
 
 // Restoration enqueues (edit handoff, scope/unmount recovery, background
@@ -126,6 +131,12 @@ async function hydrateTakenAttachments(payload: ComposerQueuedMessagePayload): P
 // already gone, so the dequeue already took effect.
 function isAlreadyResolved(error: unknown): boolean {
   return error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
+}
+
+// The reorder barrier rejects while any send claim in the scope is live: a
+// transient state worth the bounded retry below, unlike hard failures.
+function isReorderConflict(error: unknown): boolean {
+  return error instanceof DataApiError && error.code === ErrorCode.CONFLICT
 }
 
 // Crash recovery rides the row itself: the owner records its successful send
@@ -193,6 +204,9 @@ const isCompletionConsumed = (scopeKey: string, completionAt: number, tentative:
 // auto-delivery (cherry-pr-review). Sessions that ended (or crashed) stop
 // refreshing, so orphaned copies self-heal server-side.
 const HELD_RESTORE_REFRESH_MS = Math.floor(STALE_SENDING_CLAIM_MS / 2)
+
+const RESTORE_SLOT_RETRY_MS = 400
+const RESTORE_SLOT_MAX_ATTEMPTS = 4
 
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
@@ -724,10 +738,6 @@ export function useFollowupQueue({
       // the outgoing draft entirely.
       const taken = takenEditRef.current
       let incomingSlot = itemsRef.current.findIndex((entry) => entry.id === id)
-      // The restore reorder must wait until the incoming row is deleted:
-      // reorderBatch refuses to run while any row in the scope is live-sending,
-      // and the take below holds the incoming row's claim until then.
-      let pendingRestoreMove: { id: string; anchor: { position: 'first' } | { after: string } } | null = null
       // The outgoing item's landed restore, if the switch got that far: a
       // failed switch after this point must hold the copy instead of leaving
       // it deliverable while the editor still owns its content.
@@ -760,6 +770,19 @@ export function useFollowupQueue({
           toast.error(t('message.error.operation_unavailable'))
           return undefined
         }
+        // Anchor the restore at the slot the outgoing item was taken from:
+        // the insert applies the placement atomically server-side and —
+        // unlike the reorder barrier — is never blocked by a peer's live
+        // send claim, so the queue slot survives arbitrarily long in-flight
+        // sends (cherry-pr-review inv_9ecff9fca3bdab04#f1). Anchors are
+        // computed against the queue without the incoming row, which the
+        // take below deletes; a concurrently removed anchor row degrades
+        // server-side to a tail insert, which the convergence pass after
+        // the take then repositions.
+        const restoreAnchorItems = itemsRef.current.filter((entry) => entry.id !== id)
+        const restoreAnchorSlot = Math.min(taken.slot, restoreAnchorItems.length)
+        restoreBody.anchor =
+          restoreAnchorSlot === 0 ? { position: 'first' } : { after: restoreAnchorItems[restoreAnchorSlot - 1].id }
         for (let attempt = 0; attempt < 3 && !restored; attempt++) {
           try {
             // Born held: the copy stays ineligible for delivery until editor
@@ -811,16 +834,6 @@ export function useFollowupQueue({
         // remove a copy it already landed) so a stale duplicate cannot
         // linger (cherry-pr-review).
         cancelTrackedEditRestoreRef.current()
-        // Move the restored row back to the slot it was taken from; the slot
-        // follows removals of earlier rows via noteItemRemoved. Anchors are
-        // computed against the queue without the incoming row, which the take
-        // deletes before the move executes. The move targets the fresh
-        // restoration identity (the original row is a closed receipt).
-        const remaining = itemsRef.current.filter((entry) => entry.id !== id)
-        const restoreSlot = Math.min(taken.slot, remaining.length)
-        const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: remaining[restoreSlot - 1].id }
-        pendingRestoreMove = { id: restoreId, anchor }
-        if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
       // The take below closes the row's file refs: hydrate each managed
       // attachment into an editor-owned Blob first, so the restored draft never
@@ -870,13 +883,51 @@ export function useFollowupQueue({
         }
       }
       const placeRestoredEdit = async () => {
-        if (!pendingRestoreMove) return
-        try {
-          await reorderTrigger({ body: { moves: [pendingRestoreMove] } })
-        } catch {
-          // The draft is safe at the end of the queue; only its position is off.
-          toast.error(t('message.error.operation_unavailable'))
+        if (!restoredCopy) return
+        // Positional convergence after the anchored restore: the insert
+        // normally already placed the copy at the slot it was taken from,
+        // which the refreshed items confirm and this pass skips. It remains
+        // the backstop for a stale-anchor tail insert: recompute the anchor
+        // from the latest items and retry while a peer's live claim bars the
+        // reorder; other failures leave the draft safe at the tail
+        // (cherry-pr-review inv_9ecff9fca3bdab04#f1). The incoming row is
+        // already deleted at this point, so filter it out of an items
+        // snapshot that predates the delete.
+        const restoreId = restoredCopy.id
+        // restoredCopy exists only on the taken path, so the slot is set.
+        const takenSlot = taken?.slot ?? 0
+        const currentWithoutIncoming = () => itemsRef.current.filter((entry) => entry.id !== id)
+        const positionConfirmed = () => {
+          const current = currentWithoutIncoming()
+          if (current.length === 0) return false
+          return current[Math.min(takenSlot, current.length - 1)]?.id === restoreId
         }
+        let restoreSlot = Math.min(takenSlot, currentWithoutIncoming().length)
+        for (let attempt = 0; ; attempt++) {
+          if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, RESTORE_SLOT_RETRY_MS))
+            // Unmounted or scope switched mid-retry: the row stays queued
+            // wherever it is; its position no longer has an owner.
+            if (!mountedRef.current || scopeKeyRef.current !== scope) break
+          }
+          if (positionConfirmed()) break
+          const current = currentWithoutIncoming()
+          restoreSlot = Math.min(takenSlot, current.length)
+          const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
+          try {
+            await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
+            break
+          } catch (error) {
+            if (!isReorderConflict(error) || attempt + 1 >= RESTORE_SLOT_MAX_ATTEMPTS || positionConfirmed()) {
+              // The draft is safe at the end of the queue; only its position is off.
+              if (!positionConfirmed()) toast.error(t('message.error.operation_unavailable'))
+              break
+            }
+          }
+        }
+        // The restored copy sits at restoreSlot in the post-delete list: an
+        // incoming row at or past that index shifts one down.
+        if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
       if (claim.alreadySent) {
         // The content was already sent before a crash: the delete above is the
@@ -1235,6 +1286,10 @@ export function useFollowupQueue({
           // Rebuild per tick: a failed inline persist gets another chance, and
           // an already-durable payload passes through unchanged.
           const rebuilt = await buildRestoreBody(body.id, body.scopeKey, body.draft, body.payload)
+          // buildRestoreBody does not own placement: carry the restore's
+          // queue-slot anchor across background retries
+          // (cherry-pr-review inv_9ecff9fca3bdab04#f1).
+          if (body.anchor) rebuilt.anchor = body.anchor
           // A tracked session still owns the item in the editor: the landed
           // copy must stay ineligible for delivery until ownership transfers,
           // or a completion drains the edited content mid-session and a later
