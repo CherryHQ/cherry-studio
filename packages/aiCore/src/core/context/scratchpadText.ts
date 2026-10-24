@@ -53,7 +53,13 @@ function parseOpeningTagAt(text: string, offset: number): ParsedOpeningTag | nul
         if (i >= text.length) return null
         i++
       } else {
-        while (i < text.length && text[i] !== ' ' && text[i] !== '\t' && text[i] !== '>' && text[i] !== '/') {
+        // Unquoted values end at whitespace or '>' only: a slash inside the
+        // value is ordinary content (HTML5 unquoted-attribute-value), so
+        // stopping at '/' here rejects tags such as <analysis path=foo/bar>
+        // and leaks the private block past stripping (cherry-pr-review
+        // inv_2bc29d4d0ef02dc5#f1). A self-closing terminator is still
+        // recognized after the value, when '/' directly precedes '>'.
+        while (i < text.length && text[i] !== ' ' && text[i] !== '\t' && text[i] !== '>') {
           i++
         }
       }
@@ -87,7 +93,10 @@ function isValidFenceLinePrefix(prefix: string): boolean {
   while (i < prefix.length) {
     if (prefix[i] === '>') {
       i++
-      if (i < prefix.length && prefix[i] === ' ') i++
+      // Container whitespace: after the blockquote marker Markdown expands a
+      // tab to the next 4-column stop, so '>\t' separates marker and content
+      // exactly like '> ' (cherry-pr-review inv_8d793e19d8fb1409#f1).
+      if (i < prefix.length && (prefix[i] === ' ' || prefix[i] === '\t')) i++
       continue
     }
     if (
@@ -646,36 +655,57 @@ function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolea
  * `pos` is outside any scratchpad block. Escaped tags are literal and ignored.
  */
 function enclosingScratchpadTag(text: string, pos: number): string | null {
-  const tagPattern = /<(\/?)(analysis|assessment|thinking)(?=[\s/>])[^>]*>/gi
   const stack: string[] = []
   // Inline-code tags are literals, not wrappers: an opener such as
   // `Use `<thinking>` blocks:` must not enlist the following fenced example
   // as enclosed scratchpad content (cherry-pr-review inv_fedee4736993b558).
   const { ranges: inlineCodeRanges } = maskInlineCodeSpans(text)
   let rangeIndex = 0
-  let match: RegExpExecArray | null
-  while ((match = tagPattern.exec(text)) !== null) {
-    if (match.index >= pos) break
-    if (isBackslashEscaped(text, match.index)) continue
-    while (rangeIndex < inlineCodeRanges.length && inlineCodeRanges[rangeIndex].end <= match.index) {
+  const inInlineCode = (index: number): boolean => {
+    while (rangeIndex < inlineCodeRanges.length && inlineCodeRanges[rangeIndex].end <= index) {
       rangeIndex++
     }
     const range = inlineCodeRanges[rangeIndex]
-    if (range && match.index >= range.start && match.index < range.end) continue
-    const tag = match[2].toLowerCase()
-    if (match[1]) {
+    return range !== undefined && index >= range.start && index < range.end
+  }
+  // Scan whole tags with the deterministic opener parser instead of a bare
+  // tag-name regex: quoted attribute contents (a `<thinking>` inside
+  // title="...") are attribute text, not wrappers, and counting them leaves
+  // the real boundary hidden through EOF so the private analysis survives
+  // stripping (cherry-pr-review inv_40ce8f82f82c9aee#f1).
+  let i = 0
+  while (i < pos) {
+    const lt = text.indexOf('<', i)
+    if (lt === -1 || lt >= pos) break
+    if (isBackslashEscaped(text, lt)) {
+      i = lt + 1
+      continue
+    }
+    const closeMatch = /^<\/([a-zA-Z][a-zA-Z0-9-]*)\s*>/.exec(text.slice(lt, pos + 1))
+    if (closeMatch) {
+      i = lt + closeMatch[0].length
+      const tag = closeMatch[1].toLowerCase()
+      if (!MODEL_SCRATCHPAD_TAG_SET.has(tag) || inInlineCode(lt)) continue
       const idx = stack.lastIndexOf(tag)
       if (idx !== -1) stack.splice(idx, 1)
-    } else {
-      // Self-closing tags enclose nothing: pushing `<thinking/>` leaves the
-      // stack awaiting a `</thinking>` that never comes, so a fence inside
-      // the enclosing block masks the real `</analysis>` through EOF and the
-      // private analysis survives stripping (cherry-pr-review
-      // inv_ad4c45e6af29f23f#f1). Parse openers consistently with the rest
-      // of the formatter.
-      if (parseOpeningTagAt(text, match.index)?.isSelfClosing) continue
-      stack.push(tag)
+      continue
     }
+    const parsed = parseOpeningTagAt(text, lt)
+    if (!parsed) {
+      i = lt + 1
+      continue
+    }
+    i = lt + parsed.opener.length
+    const tag = parsed.tagName.toLowerCase()
+    if (!MODEL_SCRATCHPAD_TAG_SET.has(tag) || inInlineCode(lt)) continue
+    // Self-closing tags enclose nothing: pushing `<thinking/>` leaves the
+    // stack awaiting a `</thinking>` that never comes, so a fence inside
+    // the enclosing block masks the real `</analysis>` through EOF and the
+    // private analysis survives stripping (cherry-pr-review
+    // inv_ad4c45e6af29f23f#f1). Parse openers consistently with the rest
+    // of the formatter.
+    if (parsed.isSelfClosing) continue
+    stack.push(tag)
   }
   return stack.length ? stack[stack.length - 1] : null
 }

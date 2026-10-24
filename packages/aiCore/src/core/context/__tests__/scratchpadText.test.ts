@@ -39,6 +39,36 @@ describe('scratchpadText', () => {
     expect(stripModelScratchpadBlocks(input.replace('<thinking/>', '<assessment />'))).toBe('Keep')
   })
 
+  it('strips scratchpad blocks whose tags carry slash-containing unquoted attributes (inv_2bc29d4d0ef02dc5)', () => {
+    // An unquoted attribute value may contain '/': stopping the value scan at
+    // the slash rejects the tag and the private block survives stripping,
+    // reaching replacement context (cherry-pr-review inv_2bc29d4d0ef02dc5#f1).
+    const input = '<analysis path=foo/bar>SECRET</analysis><summary>Visible</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Visible')
+    expect(stripKnownModelScratchpadBlocks(input)).toBe('<summary>Visible</summary>')
+  })
+
+  it('recognizes a blockquote fence whose marker is followed by a tab (inv_8d793e19d8fb1409)', () => {
+    // Markdown tab expansion makes '>\t' a valid container separator, like
+    // '> ': rejecting it unmasks the fence and stripping deletes the literal
+    // scratchpad example inside, corrupting the code block
+    // (cherry-pr-review inv_8d793e19d8fb1409#f1).
+    const fenced = '>\t```text\n> <thinking>literal</thinking>\n>\t```'
+    expect(stripModelScratchpadBlocks(fenced)).toBe(fenced)
+    expect(stripModelScratchpadBlocks('> ```text\n> <thinking>literal</thinking>\n> ```')).toBe(
+      '> ```text\n> <thinking>literal</thinking>\n> ```'
+    )
+  })
+
+  it('skips quoted attribute contents when tracking the enclosing scratchpad tag (inv_40ce8f82f82c9aee)', () => {
+    // `<thinking>` inside a quoted attribute is attribute text, not a
+    // wrapper: counting it keeps a phantom block open, fence masking hides
+    // the real analysis boundary through EOF, and the private analysis
+    // reaches replacement context (cherry-pr-review inv_40ce8f82f82c9aee#f1).
+    const input = '<analysis>Private\n<div title="<thinking>">\n```text\nsecret\n</analysis>\n<summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+  })
+
   it('strips known scratchpad blocks and unwraps a whole-output summary wrapper', () => {
     expect(
       stripModelScratchpadBlocks('<thinking>hidden</thinking><analysis>also hidden</analysis><summary>kept</summary>')
