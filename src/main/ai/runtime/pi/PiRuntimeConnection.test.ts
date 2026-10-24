@@ -120,6 +120,7 @@ vi.mock('node:fs', async (importOriginal) => ({
   readdirSync: mocks.readdirSync,
   readFileSync: mocks.readFileSync
 }))
+vi.mock('@main/ai/utils/customFetch', () => ({ customFetch: vi.fn() }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
@@ -707,8 +708,11 @@ describe('PiRuntimeConnection', () => {
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
     providerConfig.streamSimple({}, [], { env: { REQUEST_SCOPED: 'preserved' } })
 
+    vi.mocked(customFetch).mockResolvedValueOnce(new Response('ok'))
+    await mocks.providerStreamSimple.mock.calls[0][2].fetch('https://provider.invalid')
+    expect(customFetch).toHaveBeenCalledWith('https://provider.invalid', undefined)
     expect(mocks.providerStreamSimple.mock.calls[0][2]).toMatchObject({
-      fetch: customFetch,
+      fetch: expect.any(Function),
       env: {
         REQUEST_SCOPED: 'preserved',
         HTTP_PROXY: 'http://127.0.0.1:7890',
@@ -1183,6 +1187,14 @@ describe('PiRuntimeConnection', () => {
     injection.providerConfig.models = [{ id: 'm', maxTokens: 8192 }]
     mocks.resolveInjection.mockResolvedValue(injection)
     const conn = await new PiRuntimeConnection(input).start()
+    // Counts come from pre-normalization wire presence, not the SDK's default-filled message.
+    const response = new Response(
+      'data: {"usage":{"completion_tokens":8192,"completion_tokens_details":{"reasoning_tokens":7000}}}\n\n',
+      { headers: { 'content-type': 'text/event-stream' } }
+    )
+    vi.mocked(customFetch).mockResolvedValueOnce(response)
+    mocks.registerProvider.mock.calls[0][1].streamSimple({}, {}, {})
+    await (await mocks.providerStreamSimple.mock.calls.at(-1)![2].fetch('https://provider.invalid')).text()
     mocks.subscribeCb!({
       type: 'turn_end',
       message: { role: 'assistant', stopReason: 'length', usage: { output: 8192, reasoning: 7000 } },
@@ -1197,6 +1209,22 @@ describe('PiRuntimeConnection', () => {
     expect(String(failure?.error)).toContain('provider-reported output tokens: 8192')
     expect(String(failure?.error)).toContain('provider-reported reasoning tokens: 7000')
     expect(mocks.prompt).not.toHaveBeenCalled()
+  })
+
+  it('does not label SDK default zeros as reported usage', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.subscribeCb!({
+      type: 'turn_end',
+      message: { role: 'assistant', stopReason: 'length', usage: { output: 0, reasoning: 0 } },
+      toolResults: []
+    } as unknown as AgentSessionEvent)
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    const events = await collectUntilTerminal(conn.events)
+    const failure = events.find(
+      (event): event is Extract<AgentRuntimeEvent, { type: 'error' }> => event.type === 'error'
+    )
+    expect(String(failure?.error)).toContain('provider-reported output tokens: unknown')
+    expect(String(failure?.error)).not.toContain('provider-reported reasoning tokens:')
   })
 
   it('send routes normal messages to prompt', async () => {

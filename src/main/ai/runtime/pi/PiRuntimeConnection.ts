@@ -87,6 +87,7 @@ import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
+import { withReportedOutputUsage, type ReportedOutputUsage } from './reportedOutputUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 
@@ -164,6 +165,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private lastStopReason?: string
   private lastAgentError?: string
   private lastOutputLimitDiagnostic?: PiOutputLimitDiagnostic
+  private reportedOutputUsage: ReportedOutputUsage = {}
   private configuredMaxOutputTokens?: number
   private closed = false
   /** Injected model id (pi `apiModelId`), stamped on context-usage so the renderer's
@@ -249,12 +251,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const pi = await loadPiSdk()
 
     const materializedProvider = await materializePiProviderStream(injection)
-    this.configuredMaxOutputTokens = materializedProvider.providerConfig.models?.find(
-      (model) => model.id === injection.modelId
-    )?.maxTokens
+    const configuredModel = injection.providerConfig.models?.find((model) => model.id === injection.modelId)
+    this.configuredMaxOutputTokens =
+      configuredModel && 'maxTokens' in configuredModel ? configuredModel.maxTokens : undefined
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
-      withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
+      withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment, () => {
+        this.reportedOutputUsage = {}
+        return this.reportedOutputUsage
+      }),
       (message, metrics, pricingSnapshot) => this.recordProviderInvocation(message, metrics, pricingSnapshot),
       (model) => this.startProviderSpan(model),
       (model) => this.captureInvocationPricing(model.id)
@@ -664,14 +669,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (event.type === 'tool_execution_end') this.endToolSpan(event)
 
     if (event.type === 'turn_end') {
-      const stopReason = (event.message as { stopReason?: string }).stopReason
+      const stopReason = event.message.role === 'assistant' ? event.message.stopReason : undefined
       if (stopReason) this.lastStopReason = stopReason
       this.lastOutputLimitDiagnostic =
         stopReason === 'length'
           ? {
               configuredMaxTokens: this.configuredMaxOutputTokens,
-              outputTokens: event.message.usage?.output,
-              reasoningTokens: event.message.usage?.reasoning
+              ...this.reportedOutputUsage
             }
           : undefined
       return
@@ -1040,7 +1044,8 @@ interface PiProviderSpanObserver {
 
 function withPiRequestEnvironment(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  providerEnvironment: Record<string, string> | undefined
+  providerEnvironment: Record<string, string> | undefined,
+  beginReportedUsage: () => ReportedOutputUsage
 ): NonNullable<ProviderConfig['streamSimple']> {
   return (model, context, options) => {
     const proxyEnvironment = getProxyEnvironment(process.env)
@@ -1050,7 +1055,12 @@ function withPiRequestEnvironment(
     return streamSimple(model, context, {
       ...options,
       env: { ...options?.env, ...proxyEnvironment, ...providerEnvironment },
-      fetch: usesAuthenticatedNodeProxy ? (nodeFetch as unknown as typeof globalThis.fetch) : customFetch
+      fetch: withReportedOutputUsage(
+        // Preserve the Node transport cast: Undici and Electron use distinct RequestInit types.
+        // eslint-disable-next-line typescript/no-unnecessary-type-assertion
+        usesAuthenticatedNodeProxy ? (nodeFetch as unknown as typeof globalThis.fetch) : customFetch,
+        beginReportedUsage()
+      )
     })
   }
 }
