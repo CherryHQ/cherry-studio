@@ -72,7 +72,8 @@ describe('resolveLaunchCommand', () => {
 
     const launch = await resolve(`  ${command}  `, args)
 
-    expect(launch).toEqual({ command, args, env: {}, resolution: 'unresolved' })
+    expect(launch).toEqual({ command, args, env: {}, resolution: 'unresolved', lookupError: error })
+    expect(launch.lookupError).toBe(error)
     expect(launch.args).toBe(args)
     expect(launch).not.toHaveProperty('unavailableReason')
     expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
@@ -80,6 +81,19 @@ describe('resolveLaunchCommand', () => {
       { command, error }
     )
     expect(logger.warn.mock.calls[0][1].error).toBe(error)
+  })
+
+  it.each([undefined, null, ''])('preserves a falsy lookup rejection (%s) on the fallback launch', async (error) => {
+    const args = ['--stdio']
+    commandMock.findCommandInShellEnv.mockRejectedValueOnce(error)
+
+    const launch = await resolve('  my-server  ', args)
+
+    expect(launch).toEqual({ command: 'my-server', args, env: {}, resolution: 'unresolved', lookupError: error })
+    expect(launch).toHaveProperty('lookupError')
+    expect(launch.lookupError).toBe(error)
+    expect(launch.args).toBe(args)
+    expect(launch).not.toHaveProperty('unavailableReason')
   })
 
   it('evicts a failed lookup and caches its successful retry without deleting unrelated entries', async () => {
@@ -92,14 +106,22 @@ describe('resolveLaunchCommand', () => {
     commandMock.findCommandInShellEnv.mockReturnValueOnce(lookup.promise)
     const failed = resolveLaunchCommand({ ...options, command: 'my-server' })
     const failedKey = [...resolutionCache.keys()].find((key) => key !== healthyKey)!
-    lookup.reject(new Error('Lookup failed'))
+    const error = new Error('Lookup failed')
+    lookup.reject(error)
 
-    expect(await failed).toEqual({ command: 'my-server', args: [], env: {}, resolution: 'unresolved' })
+    expect(await failed).toEqual({
+      command: 'my-server',
+      args: [],
+      env: {},
+      resolution: 'unresolved',
+      lookupError: error
+    })
     expect(resolutionCache.has(failedKey)).toBe(false)
     expect(resolutionCache.get(healthyKey)).toBe(healthyPending)
     commandMock.findCommandInShellEnv.mockResolvedValueOnce('/opt/tools/my-server')
     const successful = await resolveLaunchCommand({ ...options, command: 'my-server' })
     expect(successful).toEqual({ command: '/opt/tools/my-server', args: [], env: {}, resolution: 'system' })
+    expect(successful).not.toHaveProperty('lookupError')
     const successfulPending = resolutionCache.get(failedKey)
     expect(successfulPending).toBeDefined()
     commandMock.findCommandInShellEnv.mockRejectedValue(new Error('Must reuse the cached success'))
@@ -124,11 +146,12 @@ describe('resolveLaunchCommand', () => {
     const [key, pending] = [...resolutionCache.entries()][0]
     const replacement = deferred<Awaited<typeof pending>>()
     resolutionCache.set(key, replacement.promise)
-    lookup.reject(new Error('Old lookup failed'))
+    const error = new Error('Old lookup failed')
+    lookup.reject(error)
 
     expect(await Promise.all([first, second])).toEqual([
-      { command: 'my-server', args: [], env: {}, resolution: 'unresolved' },
-      { command: 'my-server', args: [], env: {}, resolution: 'unresolved' }
+      { command: 'my-server', args: [], env: {}, resolution: 'unresolved', lookupError: error },
+      { command: 'my-server', args: [], env: {}, resolution: 'unresolved', lookupError: error }
     ])
     expect(resolutionCache.get(key)).toBe(replacement.promise)
     const next = resolveLaunchCommand(options)
@@ -295,11 +318,14 @@ describe('resolveLaunchCommand', () => {
 
   it('resolves an unknown command to a full path, and keeps it verbatim when resolution fails', async () => {
     commandMock.findCommandInShellEnv.mockResolvedValueOnce('/opt/tools/my-server')
-    expect((await resolve('my-server', ['--stdio'])).command).toBe('/opt/tools/my-server')
+    const healthy = await resolve('my-server', ['--stdio'])
+    expect(healthy.command).toBe('/opt/tools/my-server')
+    expect(healthy).not.toHaveProperty('lookupError')
 
     const unresolved = await resolve('my-server', ['--stdio'])
     expect(unresolved.command).toBe('my-server')
     expect(unresolved.resolution).toBe('unresolved')
+    expect(unresolved).not.toHaveProperty('lookupError')
   })
 
   it('returns unresolved facts without adding a diagnostic-specific policy', async () => {
