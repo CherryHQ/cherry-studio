@@ -3,6 +3,7 @@ import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { groupTable } from '@data/db/schemas/group'
+import { jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -58,7 +59,9 @@ vi.mock('@logger', () => ({
 }))
 
 const { KnowledgeService } = await import('../KnowledgeService')
+const { knowledgeQueueName, toKnowledgeBaseId } = await import('../types')
 const { knowledgeItemService } = await import('@data/services/KnowledgeItemService')
+const { jobService } = await import('@data/services/JobService')
 
 const SOURCE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SOURCE_GROUP_ID = '22222222-2222-4222-8222-222222222222'
@@ -549,6 +552,33 @@ describe('KnowledgeService integration', () => {
       expect(base.embeddingModelId).toBeNull()
       expect((await statusOf(FILE_ID)).status).toBe('completed')
       expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    // A refresh's items stay `completed` until its job resets them, so the backfill must see the job itself.
+    it('rejects while a reindex of the base is pending, and enables once it settles', async () => {
+      await seedBm25Base()
+      listMock.mockImplementation(async (filter) => jobService.list(filter))
+      const reindexJob = (baseId: string) => ({
+        type: 'knowledge.reindex-subtree',
+        status: 'pending',
+        queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+        scheduledAt: Date.now(),
+        input: { baseId, rootItemIds: [FILE_ID] }
+      })
+      const [pending] = await dbh.db.insert(jobTable).values(reindexJob(BM25_BASE_ID)).returning()
+      const service = new KnowledgeService()
+
+      await expect(enable(service)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      const [base] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, BM25_BASE_ID))
+      expect(base.embeddingModelId).toBeNull()
+      expect((await statusOf(FILE_ID)).status).toBe('completed')
+      expect(enqueueMock).not.toHaveBeenCalled()
+
+      // Once it settles, a reindex pending on another base does not block this one.
+      await dbh.db.update(jobTable).set({ status: 'completed' }).where(eq(jobTable.id, pending.id))
+      await dbh.db.insert(jobTable).values(reindexJob(SOURCE_BASE_ID))
+      await expect(enable(service)).resolves.toMatchObject({ embeddingModelId })
     })
 
     it('rejects a failed base before committing the model', async () => {

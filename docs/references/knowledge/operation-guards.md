@@ -263,6 +263,13 @@ model. It first requires every non-deleting root subtree to be `completed` or
 `failed`, like reindex, but it does not check whether the items' originals still
 exist: the backfill never reads them.
 
+It also rejects while any `knowledge.reindex-subtree` job of the base is pending
+or running. That check runs under the base mutation lock, just before the write
+transaction. A refresh keeps its items `completed` until its job resets them,
+so statuses alone cannot show it. A backfill admitted beside it could index the
+old copy over the refreshed one, and the refresh would then skip the item as
+already `completed`.
+
 Under the base mutation lock, one write transaction persists the
 model/dimensions through `KnowledgeBaseService.updateTx(..., { allowEmbeddingModelBackfill: true })`
 and moves every `completed` leaf to `processing` (`activateCompletedLeavesTx`),
@@ -333,7 +340,7 @@ When changing these operations, check the operation-specific failure behavior be
 | `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
 | `reindexItems` | Reject | Yes | Entire subtree terminal; selected root sources available | None | Throw; no active state was written |
-| `enableEmbeddingModel` | Reject | All `completed` leaves | BM25-only base; every root subtree terminal (no source check) | Model/dimensions and every `completed` leaf's `processing` in one transaction | Mark that leaf `failed`; schedule the rest; config remains enabled |
+| `enableEmbeddingModel` | Reject | All `completed` leaves | BM25-only base; every root subtree terminal (no source check); no active reindex job | Model/dimensions and every `completed` leaf's `processing` in one transaction | Mark that leaf `failed`; schedule the rest; config remains enabled |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

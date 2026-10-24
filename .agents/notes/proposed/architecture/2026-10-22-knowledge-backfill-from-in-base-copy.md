@@ -33,6 +33,7 @@ The backfill stops going through reindex and reuses the regular per-item indexin
   - `scheduleItem` runs without `forceFileReprocess`, so a file that already has a processed artifact is not reprocessed.
   - `rebuildMaterial` replaces each item's BM25-only material in one transaction, so nothing needs deleting first.
 - **Admission.** The base must be allowed to run runtime operations and every target subtree must be `completed` or `failed`; `KnowledgeBaseService.update` still rejects switching an already-configured model. The source-existence check is dropped, so a moved or deleted original no longer blocks the backfill.
+  - No `knowledge.reindex-subtree` job of the base may be pending or running. A refresh leaves its items `completed` until its job resets them, so their status does not show it. A backfill admitted beside it could index the old copy over the refreshed one, and the refresh would then skip the item as already `completed`. The check runs under the base mutation lock, just before the write transaction.
 - **Recovery stays as it is.** `knowledge.index-documents` keeps `recovery: 'abandon'`. After a quit, unfinished leaves are still in an in-flight status, so the boot sweep fails them with `indexing_interrupted`. Leaves that finished stay `completed`.
 - **User-triggered reindex is unchanged.** It still re-acquires from the original. Separating "rebuild from the in-base copy" from "refresh from source" for reindex is left to #22092.
 
@@ -43,6 +44,7 @@ This partially supersedes the [async source copy Spec](2026-10-21-knowledge-asyn
 - **Activate roots when their jobs are enqueued, keeping one `reindex-subtree` job per root.** This closes the restart window, but the backfill still re-acquires from the originals. A moved original therefore still blocks it, and a root whose original vanished before its job ran needs an extra failure path.
 - **One backfill job for every root, activated in the same transaction as the model, plus an integrity scan whenever a base is opened (#22402).** A delete during the backfill cancels the shared job and fails every other root. The scan marks items `failed` even when the reindex it points to cannot repair them, for example when the original has moved. It also runs a synchronous main-process scan on every visit to a base.
 - **Backfill `failed` leaves too, as `main` does.** Search never returns a `failed` leaf, so vectors would add nothing it can find. The backfill would become a retry nobody asked for: a URL whose first fetch failed has no snapshot and would be fetched, and a file whose processing failed would go through the processor again.
+- **Mark reindexed items active when the reindex is enqueued.** The backfill admission would then see a pending refresh from item statuses alone. But a waiting refresh would hide its items from search, and after a quit the boot sweep would fail items whose old index is still good. A dedicated pending status would avoid both, but it needs a migration and UI work, and it belongs with #22092.
 - **Resume never-started backfill jobs after a restart.** JobManager would need recovery that depends on job state, and the embedding API would be called again after a quit without the user asking.
 - **Track backfill progress on the base.** A base-level "vectors pending" state would keep items `completed` and BM25-searchable during the backfill. It needs a migration and new UI, so it is deferred.
 
@@ -56,6 +58,7 @@ This partially supersedes the [async source copy Spec](2026-10-21-knowledge-asyn
 - AC6 — A leaf whose indexing job cannot be scheduled is marked `failed` with the reason, and the other leaves are still scheduled. (verification: unit)
 - AC7 — A user-triggered reindex still re-acquires from the original source, and still rejects an item whose original is missing. (verification: unit)
 - AC8 — A leaf that is `failed` when the model is enabled keeps its status and error and gets no indexing job, so a URL whose first fetch failed is not fetched. (verification: unit)
+- AC9 — While a reindex of the base is pending or running, enabling an embedding model is rejected and changes neither the model nor any item status; it succeeds once that reindex settles. (verification: unit)
 
 ## Risks
 

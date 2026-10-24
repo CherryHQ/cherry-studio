@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
@@ -317,15 +318,35 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       this.assertSubtreesSettled(knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true }))
     }
 
-    const { updatedBase, leafItemIds } = await this.knowledgeLockManager.runExclusive(baseId, () =>
-      application.get('DbService').withWriteTx((tx) => ({
+    const { updatedBase, leafItemIds } = await this.knowledgeLockManager.runExclusive(baseId, async () => {
+      await this.assertNoReindexPending(baseId)
+      return application.get('DbService').withWriteTx((tx) => ({
         updatedBase: knowledgeBaseService.updateTx(tx, baseId, patch, { allowEmbeddingModelBackfill: true }),
         leafItemIds: knowledgeItemService.activateCompletedLeavesTx(tx, baseId)
       }))
-    )
+    })
 
     await this.scheduleBackfillLeaves(baseId, leafItemIds)
     return updatedBase
+  }
+
+  /**
+   * A queued or still-copying reindex leaves its items `completed`, so only its job shows it is
+   * pending; a backfill admitted next to it would index the old copy over the refreshed one.
+   */
+  private async assertNoReindexPending(baseId: string): Promise<void> {
+    const [reindexJob] = await application.get('JobManager').list({
+      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+      type: 'knowledge.reindex-subtree',
+      status: [...ACTIVE_JOB_STATUSES],
+      limit: 1
+    })
+    if (reindexJob) {
+      throw DataApiErrorFactory.validation(
+        { base: [`Knowledge base '${baseId}' has a reindex in progress`] },
+        'Cannot enable an embedding model until the reindex finishes'
+      )
+    }
   }
 
   /** Give each activated leaf its own indexing job; a leaf that cannot be scheduled fails on its own. */
