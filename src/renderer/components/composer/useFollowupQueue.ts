@@ -925,7 +925,6 @@ export function useFollowupQueue({
             }
           }
         }
-        if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
       // The take below closes the row's file refs: hydrate each managed
       // attachment into an editor-owned Blob first, so the restored draft never
@@ -1067,14 +1066,25 @@ export function useFollowupQueue({
       // position (cherry-pr-review inv_66de69107768f834#f1).
       const mirrorIds = itemsRef.current.map((entry) => entry.id)
       const membership = mirrorIds.filter((rowId) => rowId !== restoredItem.id)
+      const mirrorHasCopy = restoredCopy !== null && mirrorIds.includes(restoredCopy.id)
       // Splice the outgoing copy back only when the mirror does not already
       // hold it: a fast refresh can deliver the restored row before this
       // pass runs, and splicing anyway duplicates the row, letting it
       // capture predecessor slots twice while the rows between drop out
       // (cherry-pr-review inv_39ce2d2808a2a72e#f1, inv_62a64a1c0cf26410#f1).
-      if (restoredCopy && restoreSlot >= 0 && !mirrorIds.includes(restoredCopy.id))
+      if (restoredCopy && restoreSlot >= 0 && !mirrorHasCopy)
         membership.splice(Math.min(restoreSlot, membership.length), 0, restoredCopy.id)
-      const takenSlot = Math.max(incomingSlot, 0)
+      // Position the incoming row against the CURRENT queue, not the slot
+      // captured before the restore: a peer removing an earlier row
+      // mid-switch shifts the live index, and the stale slot would hand the
+      // incoming edit the restored copy and later rows as predecessors,
+      // reversing delivery order (cherry-pr-review inv_fbf5e5f4c8954adf#f1).
+      // When the mirror already holds the copy the live index includes it;
+      // otherwise the spliced copy bumps the slot exactly once
+      // (inv_39ce2d2808a2a72e#f1).
+      const liveIncomingSlot = mirrorIds.indexOf(restoredItem.id)
+      const baseSlot = liveIncomingSlot >= 0 ? liveIncomingSlot : incomingSlot
+      const takenSlot = Math.max(baseSlot + (!mirrorHasCopy && restoreSlot >= 0 && restoreSlot <= baseSlot ? 1 : 0), 0)
       takenEditRef.current = {
         item: restoredItem,
         slot: takenSlot,

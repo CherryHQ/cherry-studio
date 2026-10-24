@@ -1265,6 +1265,63 @@ describe('useFollowupQueue', () => {
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'e' } })
   })
 
+  it('reconciles the incoming position against the live queue when a peer removes an earlier row mid-restore (inv_fbf5e5f4c8954adf)', async () => {
+    // [A,B,C,D,E], edit C, then switch to B; another window removes A while
+    // C's restoration response is pending. The refreshed queue is [B,C,D,E]
+    // but the pre-restore slot for B stays stale, so B saves [C,D] as
+    // predecessors; switching B -> E then restores [C,D,B] and delivery
+    // sends C before B (cherry-pr-review inv_fbf5e5f4c8954adf#f1).
+    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third'), row('d', 'fourth'), row('e', 'fifth')])
+    const { claimTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('c', () => null)
+    })
+
+    // C's restore insert resolves only after the peer's removal of A lands
+    // in the mirror together with the restored row.
+    let resolveEnqueue: (() => void) | undefined
+    postTrigger.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveEnqueue = () => resolve()
+        })
+    )
+    const captureC = vi.fn(() => ({ draft: draft('third edited'), payload: payload('third edited') }))
+    let switched: Promise<unknown> | undefined
+    await act(async () => {
+      switched = result.current.takeForEdit('b', captureC)
+    })
+    await act(async () => {})
+    const restoreIdC = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+    wireQuery([row('b', 'second'), row(restoreIdC, 'third edited'), row('d', 'fourth'), row('e', 'fifth')])
+    rerender()
+    await act(async () => {
+      resolveEnqueue?.()
+      await switched
+    })
+
+    // With A gone, B's only original predecessor no longer exists: its
+    // restore after the B -> E switch must anchor at the head of the queue,
+    // not after the restored C copy it originally preceded.
+    wireQuery([row(restoreIdC, 'third edited'), row('d', 'fourth'), row('e', 'fifth')])
+    rerender()
+    const captureB = vi.fn(() => ({ draft: draft('second edited'), payload: payload('second edited') }))
+    await act(async () => {
+      await result.current.takeForEdit('e', captureB)
+    })
+
+    const heldEnqueues = (postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean; anchor?: unknown } }]>)
+      .map(([{ body }]) => body)
+      .filter((body) => body.held === true)
+    expect(heldEnqueues).toHaveLength(2)
+    expect(heldEnqueues[0].anchor).toEqual({ after: 'b' })
+    expect(heldEnqueues[1].anchor).toEqual({ position: 'first' })
+  })
+
   it('does not count the mirrored restore copy twice when reconciling the incoming edit slot (inv_39ce2d2808a2a72e)', async () => {
     // [a,b,c,d,e], edit c, then b, then e. c's restored row reaches the
     // query mirror before its enqueue resolves: the positional shortcut
