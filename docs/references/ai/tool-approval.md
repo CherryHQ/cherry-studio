@@ -15,7 +15,7 @@ sources:
 Main is the single writer of approval state. The renderer surfaces an
 `approval-requested` ToolUIPart, takes the user's decision, and posts it
 to Main. Main applies the decision to the DB-authoritative anchor parts,
-persists, and resumes the stream.
+persists, and resumes live calls or settles interrupted history.
 
 ## End-to-end flow
 
@@ -38,13 +38,18 @@ persists, and resumes the stream.
 4. **Main applies** — the IpcApi handler in `src/main/ipc/handlers/ai.ts`
    delegates to `AiService.respondToolApproval`, which branches on transport
    **before** touching the topic-message DB:
-   - **Agent-session registry path**: hands the decision to
-     `AgentSessionRuntimeService.respondToolApproval`, which settles any
-     persisted interaction card and dispatches the live approval registry
-     entry so the existing runtime proceeds. When a live entry handles it, the handler
-     **early-returns — no DB read happens** (and `topicId` / `anchorId`
-     are not required).
-   - **MCP path** (reached only when no live entry matched; requires
+   - **Agent-session path**: `AgentSessionRuntimeService.respondToolApproval`
+     returns `accepted`, `rejected`, or `not-agent`. A live stream approval dispatches
+     its exact waiter without requiring an anchor. A live message approval first
+     settles the matching session/anchor/approval part, then dispatches the waiter;
+     it remains answerable after its parent turn ends. If supplied, the topic must
+     match the waiter's session.
+     With an explicit Agent topic but no waiter, only a matching pending assistant
+     part outside the current live anchor can settle: Allow records `approved: true`
+     with `output-error`; Deny records `approved: false` and the reason with
+     `output-denied`. Neither replays the tool. Missing or already settled parts
+     return `rejected`. Only `not-agent` proceeds to the chat MCP path.
+   - **MCP path** (non-agent approvals only; requires
      `topicId` + `anchorId`): reads the anchor message's current `parts`
      from DB, applies the decision, and **writes only when the target
      `approval-requested` part is present on the DB row** — guarding the
@@ -53,7 +58,11 @@ persists, and resumes the stream.
      `continue-conversation` request through `dispatchStreamRequest`; the
      provider applies the decision when it reads parts.
 
-5. **Awaiting-approval clears** — the moment the continue stream
+5. **Awaiting-approval clears** — Agent message waiter cancellation terminalizes
+   its exact pending part as `output-error` without inventing a user decision.
+   The read-model notification removes the pending UI; a queued request consumed
+   after cancellation cannot recreate it. Stream-presented cancellation remains
+   owned by stream terminal persistence. For chat MCP approvals, the moment the continue stream
    broadcasts `pending`, the shared-cache entry flips back. Every window
    sees the approval card disappear in the same tick.
 

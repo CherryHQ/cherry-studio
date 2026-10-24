@@ -86,7 +86,11 @@ import {
   type StreamPausedResult,
   TraceFlushListener
 } from '../streamManager'
-import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
+import {
+  type DispatchDecision,
+  type ToolApprovalCancelledEvent,
+  toolApprovalRegistry
+} from '../toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   type AgentSessionRuntimeConnectionTarget,
@@ -487,6 +491,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
 
   protected async onInit(): Promise<void> {
+    this.registerDisposable(toolApprovalRegistry.onCancelled((event) => this.handleToolApprovalCancelled(event)))
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
@@ -1517,16 +1522,33 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * Resolve a Claude `canUseTool` approval registered against this runtime session. Persisted
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
-   * Returns `false` if no registry entry matches so the caller can fall back to the MCP path.
+   * Only non-agent approvals may fall back to the MCP path.
    */
-  respondToolApproval(approvalId: string, decision: DispatchDecision, anchorId?: string): boolean {
+  respondToolApproval(
+    approvalId: string,
+    decision: DispatchDecision,
+    context: { topicId?: string; anchorId?: string }
+  ): 'accepted' | 'rejected' | 'not-agent' {
+    const { topicId, anchorId } = context
     const pending = toolApprovalRegistry.peek(approvalId)
-    if (!pending) return false
+    if (pending && topicId && topicId !== buildAgentSessionTopicId(pending.sessionId)) return 'rejected'
+    if (!pending) {
+      if (!topicId || !isAgentSessionTopic(topicId)) return 'not-agent'
+      const sessionId = extractAgentSessionId(topicId)
+      if (!sessionId || !anchorId || this.getLiveAssistantMessageId(sessionId) === anchorId) return 'rejected'
+      return agentSessionMessageService.finalizeInterruptedToolApproval(sessionId, approvalId, {
+        messageId: anchorId,
+        decision: { approvalId, ...decision },
+        errorText: 'The tool call was interrupted before approval could be applied'
+      })
+        ? 'accepted'
+        : 'rejected'
+    }
 
     if (pending.presentation === 'message') {
       if (!anchorId) {
         logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
-        return false
+        return 'rejected'
       }
       const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
         approvalId,
@@ -1539,7 +1561,7 @@ export class AgentSessionRuntimeService extends BaseService {
           approvalId,
           anchorId
         })
-        return false
+        return 'rejected'
       }
     }
 
@@ -1549,14 +1571,14 @@ export class AgentSessionRuntimeService extends BaseService {
       approvalId,
       decision.approved ? decision : { ...decision, reasonSource: 'user' }
     )
-    if (!dispatched) return false
+    if (!dispatched) return 'rejected'
 
     if (dispatched.presentation === 'stream') {
       application
         .get('AiStreamManager')
         .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
     }
-    return true
+    return 'accepted'
   }
 
   /**
@@ -2579,7 +2601,27 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  private handleToolApprovalCancelled(event: ToolApprovalCancelledEvent): void {
+    if (event.presentation !== 'message') return
+    try {
+      agentSessionMessageService.finalizeInterruptedToolApproval(event.sessionId, event.approvalId, {
+        errorText: 'The turn was interrupted before this tool ran'
+      })
+    } catch (error) {
+      logger.warn('Failed to finalize cancelled tool approval', { ...event, error })
+    }
+  }
+
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
+    const pending = toolApprovalRegistry.peek(request.approvalId)
+    if (
+      !pending ||
+      pending.sessionId !== entry.sessionId ||
+      pending.toolCallId !== request.toolCallId ||
+      pending.presentation !== request.presentation
+    )
+      return
+
     if (request.presentation === 'stream') {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
@@ -2591,10 +2633,10 @@ export class AgentSessionRuntimeService extends BaseService {
           sessionId: entry.sessionId,
           approvalId: request.approvalId
         })
-        toolApprovalRegistry.dispatch(request.approvalId, {
-          approved: false,
-          reason: 'The turn ended before this approval request could be presented'
-        })
+        toolApprovalRegistry.cancel(
+          request.approvalId,
+          'The turn ended before this approval request could be presented'
+        )
       }
       return
     }
@@ -2636,10 +2678,7 @@ export class AgentSessionRuntimeService extends BaseService {
         approvalId: request.approvalId,
         error
       })
-      toolApprovalRegistry.dispatch(request.approvalId, {
-        approved: false,
-        reason: 'Unable to present this approval request to the user'
-      })
+      toolApprovalRegistry.cancel(request.approvalId, 'Unable to present this approval request to the user')
     }
   }
 

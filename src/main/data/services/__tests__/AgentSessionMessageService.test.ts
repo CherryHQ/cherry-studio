@@ -1211,6 +1211,63 @@ describe('AgentSessionMessageService', () => {
     now.mockRestore()
   })
 
+  it.each([true, false])('only advances interrupted approval activity when a decision exists: %s', (hasDecision) => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    dbh.db
+      .update(agentSessionTable)
+      .set({ createdAt: 1_000, updatedAt: 1_000, lastActivityAt: 1_000 })
+      .where(eq(agentSessionTable.id, SESSION_ID))
+      .run()
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-AskUserQuestion',
+              toolCallId: 'tool-call-1',
+              state: 'approval-requested',
+              input: { questions: [] },
+              approval: { id: 'approval-1' }
+            }
+          ]
+        }
+      }
+    })
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ createdAt: 1_000, updatedAt: 1_000 })
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+      .run()
+    now.mockReturnValue(3_000)
+    expect(
+      agentSessionMessageService.finalizeInterruptedToolApproval(SESSION_ID, 'approval-1', {
+        errorText: 'interrupted',
+        ...(hasDecision && { decision: { approvalId: 'approval-1', approved: false } })
+      })
+    ).toBe(true)
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID)).get()
+    ).toMatchObject({
+      updatedAt: 3_000,
+      data: {
+        parts: [
+          {
+            state: hasDecision ? 'output-denied' : 'output-error',
+            approval: hasDecision ? { id: 'approval-1', approved: false } : { id: 'approval-1' }
+          }
+        ]
+      }
+    })
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID)).get()).toMatchObject({
+      updatedAt: hasDecision ? 3_000 : 1_000,
+      lastActivityAt: hasDecision ? 3_000 : 1_000
+    })
+  })
+
   it('keeps attachment refs in sync with agent-session message history', async () => {
     await dbh.db.insert(fileEntryTable).values({
       id: FILE_ENTRY_ID,
