@@ -339,10 +339,11 @@ describe('subagent settlement wake (incident replay)', () => {
     void service.closeSession('session-1')
   })
 
-  // A headless completion delivered into a live desktop turn is consumed there: it never opens a
-  // wake of its own. Keeping its authority owed made a LATER interactive completion's wake run
-  // headless, denying the user's questions and approvals for work the desktop requested.
-  it('does not let a headless completion consumed by a desktop turn deny a later interactive wake', async () => {
+  // SDK 0.3.284 emits the task bookend at the terminal state transition and separately queues the
+  // shell result as input for the NEXT generation (priority "next"). A notification that lands in a
+  // live desktop stream therefore belongs to no reply yet: the completion keeps its own authority
+  // until the wake that receives the result starts, and only that boundary consumes it.
+  it('keeps a completion’s authority for the generation that receives it, then clears it', async () => {
     const service = new AgentSessionRuntimeService()
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
 
@@ -358,8 +359,7 @@ describe('subagent settlement wake (incident replay)', () => {
     handleRuntimeEvent({ type: 'background-work-state', active: true })
     service.markTurnTerminal('session-1', 'success')
 
-    // A running desktop turn is streaming when A's notification arrives: that generation consumes
-    // it, so no wake will ever report it.
+    // A desktop turn streams while A drains, and A's bookend lands inside that stream.
     service.beginTurn(baseTurnInput)
     const desktopTurn = currentTurn(entry)
     const desktopReader = service
@@ -367,24 +367,31 @@ describe('subagent settlement wake (incident replay)', () => {
       .getReader()
     await expect(desktopReader.read()).resolves.toMatchObject({ value: { type: 'start' } })
     handleRuntimeEvent({ type: 'background-tasks', tasks: [] })
-    // A's notification lands inside C's open stream: that delivery is the positive evidence C
-    // consumed it. Membership alone is not — the SDK can drain a task before its notification.
     handleRuntimeEvent({
       type: 'background-task-event',
       data: { event: 'notification', taskId: 'task-a', status: 'completed' }
     })
+    expect(mocks.retireStashedWakeTaskIds).not.toHaveBeenCalled()
     handleRuntimeEvent({ type: 'background-work-state', active: false })
     service.markTurnTerminal('session-1', 'success')
     await desktopReader.cancel().catch(() => undefined)
+    // A delivery is still owed, so the hold and the stash stay open for the generation that comes.
+    expect(mocks.clearPendingChannelListeners).not.toHaveBeenCalled()
+    expect(mocks.finalizeHeldTopicStream).not.toHaveBeenCalled()
 
-    // A later desktop turn's own task completes with no generation left to consume it, so its
-    // completion wakes the agent.
+    // The queued result starts its own generation: it must run unattended — A was headless work.
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+    expect(currentTurn(getEntry(service)).headless).toBe(true)
+    service.markTurnTerminal('session-1', 'success')
+
+    // That wake consumed A's authority, so a later desktop completion wakes interactively again.
     service.beginTurn(baseTurnInput)
     handleRuntimeEvent({ type: 'background-tasks', tasks: [{ id: 'task-c', type: 'task', description: 'desktop' }] })
     service.markTurnTerminal('session-1', 'success')
     handleRuntimeEvent({ type: 'background-tasks', tasks: [] })
     handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
-    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
 
     expect(currentTurn(getEntry(service)).headless).toBe(false)
     expect(service.getInteractionState('session-1')).toMatchObject({
@@ -394,9 +401,9 @@ describe('subagent settlement wake (incident replay)', () => {
     void service.closeSession('session-1')
   })
 
-  // A completion drained into a desktop reply is paid to that reply. Leaving it in the external
-  // chat's stashed debt let a later private wake claim the recipients and post desktop output there.
-  it('retires a completion consumed by a desktop turn from the chat’s stashed debt', async () => {
+  // The same boundary governs the chat's stashed recipients. A completion delivered into a desktop
+  // stream is not paid there: the wake that receives the result claims the debt when it starts.
+  it('keeps the chat’s stashed debt until the wake that receives the completion claims it', async () => {
     const service = new AgentSessionRuntimeService()
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
 
@@ -418,7 +425,7 @@ describe('subagent settlement wake (incident replay)', () => {
     handleRuntimeEvent({ type: 'background-work-state', active: true })
     service.markTurnTerminal('session-1', 'success')
 
-    // A desktop generation is streaming when A settles: that reply consumes A, no wake reports it.
+    // A desktop generation is streaming when A settles.
     service.beginTurn(baseTurnInput)
     const desktopTurn = currentTurn(entry)
     const desktopReader = service
@@ -432,12 +439,21 @@ describe('subagent settlement wake (incident replay)', () => {
     // Absence from membership alone retires nothing.
     expect(mocks.retireStashedWakeTaskIds).not.toHaveBeenCalled()
 
-    // A's notification is delivered into the live generation — now the chat's debt is paid.
+    // A's bookend lands inside the live stream: its result is queued for the next generation, so
+    // neither the debt nor the recipient obligation is retired here.
     handleRuntimeEvent({
       type: 'background-task-event',
       data: { event: 'notification', taskId: 'task-a', status: 'completed' }
     })
-    expect(mocks.retireStashedWakeTaskIds).toHaveBeenCalledWith('agent-session:session-1', new Set(['task-a']))
+    expect(mocks.retireStashedWakeTaskIds).not.toHaveBeenCalled()
+
+    // C ends and the queued generation starts, claiming the recipients the fire stashed.
+    service.markTurnTerminal('session-1', 'success')
+    await desktopReader.cancel().catch(() => undefined)
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ carryChannelListeners: true }))
+    expect(mocks.retireStashedWakeTaskIds).not.toHaveBeenCalled()
     void service.closeSession('session-1')
   })
 

@@ -2541,6 +2541,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // occupancy already gone) and releases the stream through the normal terminal lifecycle.
     if (isAgentSessionRuntimeBusy(entry.runtimeState)) return
     if (willAgentSessionRuntimeContinue(entry.runtimeState)) return
+    // A completion whose delivery generation has not started yet is a successor that is coming: the
+    // SDK queues the result as input and starts that generation after this turn. The wake settles
+    // the hold and pays the stash itself, so neither may be closed here.
+    if ((this.completedBackgroundTasks.get(entry.sessionId)?.size ?? 0) > 0) return
     // The stashed wake recipients were owed THIS work's delivery; it just drained without a wake,
     // so no future wake may inherit them on this still-warm connection.
     application.get('AiStreamManager').clearPendingChannelListeners(entry.topicId)
@@ -2880,14 +2884,19 @@ export class AgentSessionRuntimeService extends BaseService {
       this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
       this.backgroundTaskAuthorities.get(entry.sessionId)?.delete(data.taskId)
       application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
-    } else if (data.event === 'notification' && hasAgentSessionRuntimeOpenStream(entry.runtimeState)) {
-      // The notification landed inside a live generation, so that reply consumed the completion:
-      // no wake of its own will report it, and the chat it owed is paid. This — not the earlier
-      // membership drain — is the positive evidence; the SDK may deliver the notification only
-      // after the generation the task drained under has ended.
-      this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
-      this.backgroundTaskAuthorities.get(entry.sessionId)?.delete(data.taskId)
-      application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
+    } else if (data.event === 'notification') {
+      // The bookend is not consumption: the SDK emits it at the terminal transition and separately
+      // queues the shell result as input for the NEXT generation. Owe the authority (its drain may
+      // not have run yet); `receiveOnlyHeadless` consumes it when that generation starts, and the
+      // wake's claim pays the stashed recipients.
+      const authorities = this.backgroundTaskAuthorities.get(entry.sessionId)
+      const authority = authorities?.get(data.taskId)
+      if (authorities && authority !== undefined) {
+        authorities.delete(data.taskId)
+        const completed = this.completedBackgroundTasks.get(entry.sessionId) ?? new Map<string, boolean>()
+        completed.set(data.taskId, authority)
+        this.completedBackgroundTasks.set(entry.sessionId, completed)
+      }
     }
     // A live turn stream carries the lifecycle edge as an in-reply part; with no stream open (the
     // spawning turn already settled) the cached edge above is the delivery — the tasks panel reads it.
