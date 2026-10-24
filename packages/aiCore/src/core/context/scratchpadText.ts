@@ -139,7 +139,7 @@ function isValidFenceLinePrefix(prefix: string): boolean {
 }
 
 function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
-  const lineStart = text.lastIndexOf('\n', fenceMarkerIndex - 1) + 1
+  const lineStart = lineStartBefore(text, fenceMarkerIndex)
   const prefix = text.slice(lineStart, fenceMarkerIndex)
   if (prefix.length > 0 && isValidFenceLinePrefix(prefix)) {
     return lineStart
@@ -202,24 +202,35 @@ function isInlineBlockBoundary(line: string): boolean {
   )
 }
 
+function lineStartBefore(text: string, index: number): number {
+  return Math.max(text.lastIndexOf('\n', index - 1), text.lastIndexOf('\r', index - 1)) + 1
+}
+
+function isListItemStart(line: string): boolean {
+  return /^(?: {0,3}> ?)* {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/.test(line)
+}
+
 function inlineBlockStart(text: string, index: number): number {
   let start = 0
   for (let pos = 0; pos < index;) {
     const end = lineEndAfter(text, pos)
     if (end > index) break
-    if (isInlineBlockBoundary(text.slice(pos, lineContentEnd(text, pos)))) start = end
+    const line = text.slice(pos, lineContentEnd(text, pos))
+    if (isInlineBlockBoundary(line)) start = end
+    else if (isListItemStart(line)) start = pos
     pos = end
   }
   return start
 }
 
 function inlineBlockEnd(text: string, from: number): number {
-  const currentStart = text.lastIndexOf('\n', from - 1) + 1
+  const currentStart = lineStartBefore(text, from)
   const currentEnd = lineEndAfter(text, from)
   // A heading is its own leaf, including when its code span is unfinished.
   if (isInlineBlockBoundary(text.slice(currentStart, lineContentEnd(text, currentStart)))) return currentEnd
   for (let start = currentEnd; start < text.length; start = lineEndAfter(text, start)) {
-    if (isInlineBlockBoundary(text.slice(start, lineContentEnd(text, start)))) return start
+    const line = text.slice(start, lineContentEnd(text, start))
+    if (isInlineBlockBoundary(line) || isListItemStart(line)) return start
   }
   return text.length
 }
@@ -279,12 +290,9 @@ function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
 }
 
 function lineEndAfter(text: string, from: number): number {
-  const lf = text.indexOf('\n', from)
-  if (lf === -1) return text.length
-  if (text[lf] === '\r' && lf + 1 < text.length && text[lf + 1] === '\n') {
-    return lf + 2
-  }
-  return lf + 1
+  const end = lineContentEnd(text, from)
+  if (end === text.length) return end
+  return end + (text[end] === '\r' && text[end + 1] === '\n' ? 2 : 1)
 }
 
 function lineContentEnd(text: string, lineStart: number): number {
@@ -301,7 +309,7 @@ function isClosingFenceLine(text: string, markerStart: number, fenceChar: string
     return false
   }
   const afterFence = markerStart + match[0].length
-  const lineEnd = lineContentEnd(text, text.lastIndexOf('\n', markerStart - 1) + 1)
+  const lineEnd = lineContentEnd(text, lineStartBefore(text, markerStart))
   for (let i = afterFence; i < lineEnd; i++) {
     if (text[i] !== ' ' && text[i] !== '\t') {
       return false
@@ -426,7 +434,7 @@ function findCodeFenceClose(
   fenceLen: number,
   openerPrefix = ''
 ): number {
-  openerPrefix = inheritedFencePrefix(text, text.lastIndexOf('\n', searchFrom - 1) + 1, openerPrefix)
+  openerPrefix = inheritedFencePrefix(text, lineStartBefore(text, searchFrom), openerPrefix)
   const containerEnd = fenceContainerEnd(text, lineEndAfter(text, searchFrom), openerPrefix)
   let pos = searchFrom
   while (pos < text.length) {
@@ -437,7 +445,7 @@ function findCodeFenceClose(
       pos = markerStart + 1
       continue
     }
-    const candidateLineStart = text.lastIndexOf('\n', markerStart - 1) + 1
+    const candidateLineStart = lineStartBefore(text, markerStart)
     if (!fenceCloseMatchesContainerContext(text.slice(candidateLineStart, markerStart), openerPrefix)) {
       pos = markerStart + 1
       continue
@@ -631,12 +639,13 @@ function maskIndentedCodeBlocks(text: string): {
 } {
   const placeholderBase = pickPlaceholderBase(text, 'INDENTED_CODE')
   const blocks: string[] = []
-  const lines = text.split('\n')
+  const lines = text.split(/\r\n|\r|\n/)
+  const endings = text.match(/\r\n|\r|\n/g) ?? []
   const lineOffsets: number[] = []
   let offset = 0
   for (const line of lines) {
     lineOffsets.push(offset)
-    offset += line.length + 1
+    offset += line.length + (endings[lineOffsets.length - 1]?.length ?? 0)
   }
   // CommonMark 0.31.2 §4.4: any indentation of four or more columns opens an
   // indented code block - five/eight spaces and repeated tabs are valid too
@@ -681,13 +690,13 @@ function maskIndentedCodeBlocks(text: string): {
     const line = lines[i]
     if (line.trim() === '' || isContainerOnlyLine(line)) {
       paragraphOpen = false
-      outLines.push(line)
+      outLines.push(line + (endings[i] ?? ''))
       i++
       continue
     }
     if (paragraphOpen || !isIndentedCodeLine(line)) {
       paragraphOpen = !isLeafBlockBoundaryLine(line, paragraphOpen)
-      outLines.push(line)
+      outLines.push(line + (endings[i] ?? ''))
       i++
       continue
     }
@@ -695,7 +704,7 @@ function maskIndentedCodeBlocks(text: string): {
       // Indented content of a real scratchpad block must stay visible to
       // boundary detection; masking it could swallow the block's closer.
       paragraphOpen = true
-      outLines.push(line)
+      outLines.push(line + (endings[i] ?? ''))
       i++
       continue
     }
@@ -705,12 +714,17 @@ function maskIndentedCodeBlocks(text: string): {
       if (lines[end].trim() !== '') lastContent = end
       end++
     }
-    blocks.push(lines.slice(i, lastContent + 1).join('\n'))
-    outLines.push(`${placeholderBase}INDENTED_CODE_${blocks.length - 1}\uE001`)
+    blocks.push(
+      lines
+        .slice(i, lastContent + 1)
+        .map((line, j) => line + (j + i < lastContent ? endings[j + i] : ''))
+        .join('')
+    )
+    outLines.push(`${placeholderBase}INDENTED_CODE_${blocks.length - 1}\uE001${endings[lastContent] ?? ''}`)
     paragraphOpen = false
     i = lastContent + 1
   }
-  return { text: outLines.join('\n'), blocks, placeholderBase }
+  return { text: outLines.join(''), blocks, placeholderBase }
 }
 
 function unmaskIndentedCodeBlocks(text: string, blocks: string[], placeholderBase = '\uE000'): string {
@@ -721,7 +735,7 @@ function unmaskIndentedCodeBlocks(text: string, blocks: string[], placeholderBas
 }
 
 function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolean {
-  const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
+  const lineStart = lineStartBefore(text, markerStart)
   const prefix = text.slice(lineStart, markerStart)
   if (isValidFenceLinePrefix(prefix)) {
     return true
@@ -1244,7 +1258,9 @@ const TRAILING_TOOL_PROTOCOL_CLOSE_RE =
 
 /** Strips a trailing run of tool-protocol closing tags; does not touch tags in fences or inline code. */
 export function stripTrailingToolProtocolClosingFragments(raw: string): string {
-  if (!raw) return raw
+  // No suffix candidate means masking cannot remove anything. Avoid rescanning
+  // the entire streamed accumulator for ordinary prose and fenced snippets.
+  if (!raw || !TRAILING_TOOL_PROTOCOL_CLOSE_RE.test(raw)) return raw
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
   const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)

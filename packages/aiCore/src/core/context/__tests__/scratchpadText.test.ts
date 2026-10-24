@@ -11,6 +11,25 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it.each(['\r', '\n', '\r\n'])('preserves original line endings while masking literal blocks: %j', (eol) => {
+    for (const input of [
+      '```xml\n<thinking>literal</thinking>\n```',
+      'Example:\n\n    <thinking>literal</thinking>\n    next'
+    ]) {
+      const text = input.split('\n').join(eol)
+      expect(stripKnownModelScratchpadBlocksPreservingCodeFences(text)).toBe(text)
+    }
+    const leaked = '- `one\n- <analysis>SECRET</analysis> two`'.split('\n').join(eol)
+    expect(stripModelScratchpadBlocks(leaked)).not.toContain('SECRET')
+  })
+
+  it.each([
+    '- `one\n- <analysis>SECRET</analysis> two`',
+    'Unmatched ` marker.\r# Heading\r<analysis>SECRET</analysis>\rLater ` span`'
+  ])('does not shield analysis across sibling items or CR headings: %s', (input) => {
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+  })
+
   it.each([
     '- Example:\n  ```text\n  sample\n  ```\n<analysis>SECRET</analysis>',
     '> - Example:\n>   ~~~text\n>   sample\n<analysis>SECRET</analysis>',

@@ -21,6 +21,36 @@ vi.mock('@logger', () => ({
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
+it('scales fragmented fenced responses without rescanning every accumulator (inv_be69014e8d52ce1b)', () => {
+  const { adapter, parts } = createAdapter()
+  const answer = Array.from(
+    { length: 320 },
+    (_, i) => `Snippet ${i}:\n\x60\x60\x60ts\nconst n = ${i}\n\x60\x60\x60\n`
+  ).join('')
+  const start = performance.now()
+  adapter.handleMessage(
+    streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+  )
+  for (let i = 0; i < answer.length; i += 20)
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: answer.slice(i, i + 20) }
+      })
+    )
+  adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+  const elapsed = performance.now() - start
+  console.log({ fragmentedFenceCharacters: answer.length, elapsed })
+  expect(
+    parts
+      .filter((part) => part.type === 'text-delta')
+      .map((part) => (part as any).delta)
+      .join('')
+  ).toBe(answer)
+  expect(elapsed).toBeLessThan(1000)
+})
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
