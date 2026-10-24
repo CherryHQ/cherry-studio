@@ -214,7 +214,9 @@ function isInlineBlockBoundary(line: string): boolean {
   return (
     content.trim() === '' ||
     /^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001/.test(content.trim()) ||
-    /^ {0,3}<!--/.test(content) ||
+    /^ {0,3}(?:<!--|<\/?(?:div|table|pre|script|style|section|article|p|ul|ol|li|blockquote)(?:[ \t>]|$))/i.test(
+      content
+    ) ||
     /^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content) ||
     /^ {0,3}(?:=+|-+)[ \t]*$/.test(content) ||
     /^ {0,3}(?:\*[ \t]*){3,}$/.test(content) ||
@@ -662,7 +664,7 @@ function unmaskInlineCodeSpans(text: string, spans: string[], placeholderBase = 
  * (cherry-pr-review inv_5cfd1b3f92913a5c).
  */
 function stripMarkdownContainerMarkers(line: string): string {
-  let rest = line
+  let rest = expandFencePrefixTabs(line)
   for (;;) {
     const marker = /^ {0,3}(?:>[ ]?|(?:[-*+]|\d{1,9}[.)]) )/.exec(rest)
     if (!marker) return rest
@@ -1059,7 +1061,7 @@ export function shouldDeferScratchpadStripping(text: string): boolean {
     textHasUnclosedScratchpad(text) ||
     textHasUnclosedCodeFence(text) ||
     textEndsWithPartialFenceMarker(text) ||
-    textHasUnclosedInlineCode(text)
+    textHasUnclosedInlineCode(/[`~]{3}/.test(text) ? maskCodeFences(text).text : text)
   )
 }
 

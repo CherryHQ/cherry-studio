@@ -7,11 +7,24 @@ import {
   stripModelScratchpadBlocks,
   textHasUnclosedInlineCode,
   textHasUnclosedCodeFence,
+  shouldDeferScratchpadStripping,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('preserves tab-separated list code (inv_b29097d457dd8757)', () => {
+    const input = '-\t    <thinking>literal</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+  })
+  it('bounds spans at HTML block tags (inv_bc025925963e8a39)', () => {
+    const input = 'Unmatched ` marker.\n<div>\n<analysis>SECRET</analysis>\n</div>\nLater `example`.'
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+  })
+  it('ignores literal ticks inside completed tilde fences when deferring (inv_71aadfb8c04c8eb0)', () => {
+    expect(shouldDeferScratchpadStripping('~~~text\nA literal ` marker\n~~~\nAnswer')).toBe(false)
+  })
+
   it('consumes inherited list indentation once before a quote (inv_eae0f87bf5ff88fe)', () => {
     const input = '- First\n  >     <thinking>literal</thinking>'
     expect(stripModelScratchpadBlocks(input)).toBe(input)

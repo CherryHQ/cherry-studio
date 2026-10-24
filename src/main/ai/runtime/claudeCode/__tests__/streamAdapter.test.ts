@@ -4576,13 +4576,35 @@ describe('compaction artifact boundary', () => {
     expect(output).toBe(visible + 'public')
   })
 
-  it.each([false, true])(
+  it.each([
+    ['-\t    ', '<thinking>literal</thinking>', '\nDone.'],
+    ['~~~text\nA literal ` marker\n~~~\n', 'Answer chunk ', 'next']
+  ])('streams tab-list code and text after literal fenced ticks: %j', (first, second, third) => {
+    const { adapter, parts } = createAdapter()
+    const output = () =>
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of [first, second, third])
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    expect(output()).toContain(second)
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    expect(output()).toBe(first + second + third)
+  })
+
+  it.each([false, true, 'structured'])(
     'scales fragmented single-line inline code, HTML=%s (inv_b6f3cc350f53186d, inv_c85daa81d15fdc24)',
     (html) => {
       const { adapter, parts } = createAdapter()
-      const answer = Array.from({ length: 500 }, (_, i) =>
-        html ? 'Use `<span>` for item ' + i + '. ' : 'text `code' + i + '` more '
-      ).join('')
+      const answer =
+        (html === 'structured' ? '- ' : '') +
+        Array.from({ length: 500 }, (_, i) =>
+          html ? 'Use `<span>` for item ' + i + '. ' : 'text `code' + i + '` more '
+        ).join('')
       adapter.handleMessage(
         streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
       )

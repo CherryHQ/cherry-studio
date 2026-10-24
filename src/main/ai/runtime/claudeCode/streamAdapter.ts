@@ -1222,8 +1222,10 @@ export class ClaudeCodeStreamAdapter {
     // live in the remainder and are appended separately. Keep structured
     // Markdown lines intact. Complete HTML/inline spans are already emitted;
     // unfinished markup and scratchpad blocks stay buffered separately.
-    if (openLine.length > 256 && /^[A-Za-z]/.test(openLine)) {
-      return 'paragraph ' + (openLine.match(/\\+$/)?.[0] ?? '')
+    if (openLine.length > 256) {
+      const container = /^(?: {0,3}> ?)*(?: {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+)?/.exec(openLine)?.[0] ?? ''
+      const content = openLine.slice(container.length)
+      if (/^[A-Za-z]/.test(content)) return container + 'paragraph ' + (openLine.match(/\\+$/)?.[0] ?? '')
     }
     return openLine
   }
