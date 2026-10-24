@@ -1300,6 +1300,43 @@ describe('useFollowupQueue', () => {
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
   })
 
+  it('anchors the restored edit after a surviving predecessor when a peer removed an earlier row (inv_66de69107768f834)', async () => {
+    // Authoritative removals shift positions without noteItemRemoved:
+    // [a,b,c,d,e], take c for edit, a peer removes a in another window, the
+    // cache refreshes to [b,d,e], then take e. The numeric slot (2) is
+    // stale - anchoring by it restores c after d, yielding [b,d,c]; the
+    // base preserves [b,c,d] (cherry-pr-review inv_66de69107768f834#f1).
+    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third'), row('d', 'fourth'), row('e', 'fifth')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('c', () => null)
+    })
+    // The peer's removal of 'a' arrives as an authoritative refresh.
+    wireQuery([row('b', 'second'), row('d', 'fourth'), row('e', 'fifth')])
+    rerender()
+
+    const captureOutgoing = vi.fn(() => ({ draft: draft('third edited'), payload: payload('third edited') }))
+    let taken: unknown
+    await act(async () => {
+      taken = await result.current.takeForEdit('e', captureOutgoing)
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('fifth')
+    // The restore anchors after the nearest surviving original predecessor
+    // ('b'), not the stale numeric slot (which anchors after 'd').
+    expect(postTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.objectContaining({ anchor: { after: 'b' } }) })
+    )
+    const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+    // The convergence pass agrees with the reconciled anchor.
+    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { after: 'b' } }] } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'e' } })
+  })
+
   it('retries the slot restore across a peer claim conflict so the edit keeps its position (inv_9ecff9fca3bdab04)', async () => {
     vi.useFakeTimers()
     try {

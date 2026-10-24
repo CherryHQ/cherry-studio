@@ -426,7 +426,17 @@ export function useFollowupQueue({
   // Volatile record of the item taken out for editing plus its insertion
   // slot. Deliberately not persisted and scope-bound: a scope change drops
   // it instead of requeueing anything.
-  const takenEditRef = useRef<{ item: FollowupQueueItem; slot: number; scopeKey: string } | null>(null)
+  const takenEditRef = useRef<{
+    item: FollowupQueueItem
+    slot: number
+    scopeKey: string
+    // Ids preceding the taken item at take time, in order. A numeric slot
+    // goes stale under AUTHORITATIVE peer removals (noteItemRemoved only
+    // sees local ones), so restore anchors walk this chain to the nearest
+    // surviving predecessor instead (cherry-pr-review
+    // inv_66de69107768f834#f1).
+    predecessors: string[]
+  } | null>(null)
   const prevScopeForEditRef = useRef(scopeKey)
   if (prevScopeForEditRef.current !== scopeKey) {
     prevScopeForEditRef.current = scopeKey
@@ -601,8 +611,34 @@ export function useFollowupQueue({
       takenEditRef.current = null
       return
     }
-    if (index >= 0 && index < taken.slot) takenEditRef.current = { ...taken, slot: taken.slot - 1 }
+    if (index >= 0 && index < taken.slot)
+      // Prune the removed row from the predecessor chain too: the local
+      // cache can lag the delete, and the walk must not anchor after a row
+      // the queue no longer holds (cherry-pr-review inv_66de69107768f834#f1).
+      takenEditRef.current = {
+        ...taken,
+        slot: taken.slot - 1,
+        predecessors: taken.predecessors.filter((rowId) => rowId !== removedId)
+      }
   }, [])
+
+  // Restore position for a taken edit: walk its original predecessor chain
+  // to the nearest row still in the authoritative list, so a peer's removal
+  // of earlier rows cannot shift the restore past rows the edit originally
+  // preceded ([a,b,c,d,e] minus a restores c after b, not after d -
+  // cherry-pr-review inv_66de69107768f834#f1). The numeric slot is only a
+  // fallback for records captured before the chain existed.
+  const resolveRestoreSlot = (current: FollowupQueueItem[], taken: { slot: number; predecessors?: string[] }) => {
+    const predecessors = taken.predecessors
+    if (predecessors !== undefined) {
+      for (let i = predecessors.length - 1; i >= 0; i--) {
+        const index = current.findIndex((entry) => entry.id === predecessors[i])
+        if (index >= 0) return index + 1
+      }
+      return 0
+    }
+    return Math.min(taken.slot, current.length)
+  }
 
   const removeId = useCallback(
     (id: string) => {
@@ -752,6 +788,10 @@ export function useFollowupQueue({
       // failed switch after this point must hold the copy instead of leaving
       // it deliverable while the editor still owns its content.
       let restoredCopy: { id: string; body: RestoreQueueBody } | null = null
+      // The outgoing copy's reconciled restore slot (-1 while no outgoing
+      // edit was restored): the take below rebuilds queue membership around
+      // it when capturing the incoming item's predecessor chain.
+      let restoreSlot = -1
       if (taken) {
         let outgoing: Pick<FollowupQueueItem, 'draft' | 'payload'> | null = null
         try {
@@ -790,7 +830,10 @@ export function useFollowupQueue({
         // server-side to a tail insert, which the convergence pass after
         // the take then repositions.
         const restoreAnchorItems = itemsRef.current.filter((entry) => entry.id !== id)
-        const restoreAnchorSlot = Math.min(taken.slot, restoreAnchorItems.length)
+        // Reconciled against authoritative membership: the bare numeric
+        // slot anchors after the wrong row once a peer removes an earlier
+        // row in another window (cherry-pr-review inv_66de69107768f834#f1).
+        const restoreAnchorSlot = resolveRestoreSlot(restoreAnchorItems, taken)
         restoreBody.anchor =
           restoreAnchorSlot === 0 ? { position: 'first' } : { after: restoreAnchorItems[restoreAnchorSlot - 1].id }
         for (let attempt = 0; attempt < 3 && !restored; attempt++) {
@@ -904,15 +947,15 @@ export function useFollowupQueue({
         // already deleted at this point, so filter it out of an items
         // snapshot that predates the delete.
         const restoreId = restoredCopy.id
-        // restoredCopy exists only on the taken path, so the slot is set.
-        const takenSlot = taken?.slot ?? 0
+        // restoredCopy exists only on the taken path, so the record is set.
+        const takenRecord = taken ?? { slot: 0 }
         const currentWithoutIncoming = () => itemsRef.current.filter((entry) => entry.id !== id)
         const positionConfirmed = () => {
           const current = currentWithoutIncoming()
           if (current.length === 0) return false
-          return current[Math.min(takenSlot, current.length - 1)]?.id === restoreId
+          return current[resolveRestoreSlot(current, takenRecord)]?.id === restoreId
         }
-        let restoreSlot = Math.min(takenSlot, currentWithoutIncoming().length)
+        restoreSlot = resolveRestoreSlot(currentWithoutIncoming(), takenRecord)
         for (let attempt = 0; ; attempt++) {
           if (attempt > 0) {
             await new Promise((resolve) => setTimeout(resolve, RESTORE_SLOT_RETRY_MS))
@@ -922,7 +965,7 @@ export function useFollowupQueue({
           }
           if (positionConfirmed()) break
           const current = currentWithoutIncoming()
-          restoreSlot = Math.min(takenSlot, current.length)
+          restoreSlot = resolveRestoreSlot(current, takenRecord)
           const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
           try {
             await reorderTrigger({ body: { moves: [{ id: restoreId, anchor }] } })
@@ -1065,7 +1108,21 @@ export function useFollowupQueue({
       if (restoredCopy) {
         void enqueueTrigger({ body: { ...restoredCopy.body, held: false } }).catch(() => {})
       }
-      takenEditRef.current = { item: restoredItem, slot: Math.max(incomingSlot, 0), scopeKey: scope }
+      // Capture the predecessor chain against the queue the restore pass
+      // left behind: live rows minus the incoming take, with the outgoing
+      // copy spliced back at its reconciled slot. Restore anchors walk this
+      // chain so authoritative peer removals cannot shift the edit's
+      // position (cherry-pr-review inv_66de69107768f834#f1).
+      const membership = itemsRef.current.map((entry) => entry.id).filter((rowId) => rowId !== restoredItem.id)
+      if (restoredCopy && restoreSlot >= 0)
+        membership.splice(Math.min(restoreSlot, membership.length), 0, restoredCopy.id)
+      const takenSlot = Math.max(incomingSlot, 0)
+      takenEditRef.current = {
+        item: restoredItem,
+        slot: takenSlot,
+        scopeKey: scope,
+        predecessors: membership.slice(0, takenSlot)
+      }
       return restoredItem
     },
     [
