@@ -453,6 +453,7 @@ export interface PreferenceSchemas {
     // redux/settings/readClipboardAtStartup
     'feature.quick_assistant.read_clipboard_at_startup': boolean
     // target-key-definitions/complex/complex
+    'feature.reasoning.effort_mappings': PreferenceTypes.ReasoningEffortMappingOverrides
     'feature.remote_access.advertised_endpoint': PreferenceTypes.AdvertisedRemoteEndpoint | null
     // target-key-definitions/complex/complex
     'feature.screenshot.auto_ocr': boolean
@@ -840,6 +841,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.quick_assistant.enabled': false,
     'feature.quick_assistant.model_id': null,
     'feature.quick_assistant.read_clipboard_at_startup': true,
+    'feature.reasoning.effort_mappings': {},
     'feature.remote_access.advertised_endpoint': null,
     'feature.screenshot.auto_ocr': true,
     'feature.screenshot.enabled': false,

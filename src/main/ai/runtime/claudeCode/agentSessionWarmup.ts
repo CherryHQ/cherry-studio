@@ -20,7 +20,13 @@ import {
 } from '@main/ai/runtime/agentMcpServers'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
+import { getUserReasoningEffortMap } from '@main/ai/utils/reasoningEffortPreferences'
+import {
+  encodeReasoningInvocation,
+  resolveReasoningInvocation,
+  resolveSelection
+} from '@main/ai/utils/reasoningSerializers'
+import { syncSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -28,6 +34,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { applyUserReasoningEffortTranslation } from '@shared/ai/reasoningEffortMappings'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -402,11 +409,15 @@ async function deriveConnectionConfigFromSnapshot(
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
+  const { invocationModel: claudeCodeInvocationModel } = resolveClaudeCodeReasoningContext(model)
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
     maxOutputTokens,
     reasoningEffort,
+    reasoningEffortMapping: Object.entries(
+      getUserReasoningEffortMap({ id: model.providerId }, claudeCodeInvocationModel)
+    ).sort(([a], [b]) => a.localeCompare(b)),
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
@@ -518,7 +529,6 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const contextWindow = model.contextWindow
   const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
-  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
@@ -545,6 +555,24 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       icon: agent.configuration?.avatar ?? null
     }
   )
+  // The user effort map applies exactly once, at this boundary (the gateway's
+  // providerOptionsMapper deliberately never re-applies it). When the gateway
+  // route targets a non-Anthropic endpoint, Anthropic serialization cannot
+  // represent every canonical tier, so the mapped selection passes through
+  // verbatim for the gateway to serialize against the target profile.
+  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort, {
+    gatewayToNonAnthropicTarget:
+      route.branch === 'gateway' &&
+      resolveEffectiveEndpoint(provider, model).endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  })
+  // thinkingOptions.effort is the SDK transport tier, which may be the
+  // Anthropic-serialized carrier of this canonical destination (minimal ->
+  // low): record the destination so the gateway restores it during target
+  // serialization for this session's validated internal requests. A rebuild
+  // resolving a disabled/default effort or a non-gateway route clears the
+  // previous destination instead of leaving it stale (cherry-pr-review
+  // inv_234f741ac324acb8).
+  syncSessionCanonicalEffort(sessionId, thinkingOptions.canonicalEffort)
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
@@ -618,14 +646,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   }
 }
 
-/**
- * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
- * Cherry's gateway, the gateway translates those native fields again for the target endpoint.
- */
-function resolveClaudeCodeThinkingOptions(
-  model: Model,
-  reasoningEffort: ReasoningEffortOption
-): { effort?: Options['effort']; thinking?: Options['thinking'] } {
+function resolveClaudeCodeReasoningContext(model: Model) {
   const profile = providerRegistryService.resolveReasoningProfile(
     {
       id: 'anthropic',
@@ -638,17 +659,69 @@ function resolveClaudeCodeThinkingOptions(
   const invocationModel = profile.support
     ? { ...model, reasoning: projectRuntimeReasoning(profile.support, profile.wire) }
     : model
+  return { profile, invocationModel }
+}
+
+/**
+ * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. This boundary owns the
+ * user effort map for Claude Code sessions: it is applied to the canonical selection here and
+ * translated into the Anthropic dialect by the profile, because serialization can discard the
+ * canonical key before the gateway sees the request. A budget-based model keeps no effort field to
+ * map downstream, and a cross-provider tier (GPT-5 minimal) serializes to an Anthropic value (low)
+ * that would match the wrong map key there (cherry-pr-review inv_5fce608bcdee52df). On a gateway
+ * route to a non-Anthropic endpoint that serialization is also LOSSY for the mapped destination
+ * (minimal -> low), so the canonical, already-mapped tier passes through verbatim and the gateway
+ * serializes it against the target profile (cherry-pr-review inv_c617555adede2eca).
+ */
+// The only tiers SDK 0.3.284's Options.effort transport accepts (sdk.d.ts);
+// anything else is rejected and silently defaults to High.
+const SDK_TRANSPORT_EFFORT_TIERS: ReadonlySet<string> = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
+
+function resolveClaudeCodeThinkingOptions(
+  model: Model,
+  reasoningEffort: ReasoningEffortOption,
+  target?: { gatewayToNonAnthropicTarget?: boolean }
+): { effort?: Options['effort']; thinking?: Options['thinking']; canonicalEffort?: string } {
+  const { profile, invocationModel } = resolveClaudeCodeReasoningContext(model)
+  const userEffortMap = getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
   const invocation = resolveReasoningInvocation({
     selection: reasoningEffort,
     model: invocationModel,
     profile: profile.wire,
-    maxTokens: model.maxOutputTokens
+    maxTokens: model.maxOutputTokens,
+    userEffortMap
   })
   const encoded = encodeReasoningInvocation(invocation)
 
+  let effort = encoded.effort as Options['effort'] | undefined
+  let canonicalEffort: string | undefined
+  if (target?.gatewayToNonAnthropicTarget) {
+    // This route's Anthropic dialect ends at Cherry's own gateway, which
+    // serializes the literal tier against the TARGET profile. Anthropic
+    // serialization cannot represent every canonical tier (GPT-5 minimal
+    // serializes to low), so pass the canonical, already-mapped selection
+    // through verbatim or the configured destination is silently downgraded
+    // (cherry-pr-review inv_c617555adede2eca).
+    const canonical = resolveSelection(
+      applyUserReasoningEffortTranslation(reasoningEffort, userEffortMap),
+      invocationModel
+    )
+    if (canonical && canonical !== 'none' && canonical !== 'auto' && canonical !== 'default') {
+      // …but only when the SDK transport can carry it: SDK 0.3.284's
+      // Options.effort accepts low|medium|high|xhigh|max and silently
+      // defaults a rejected value to High. Preserve a destination outside
+      // that vocabulary (GPT-5 minimal) through the Anthropic-serialized
+      // tier (low) instead — the SDK-supported transport that lands where
+      // the frozen base landed (cherry-pr-review inv_ab2d93e990367ead).
+      effort = (SDK_TRANSPORT_EFFORT_TIERS.has(canonical) ? canonical : encoded.effort) as Options['effort']
+      canonicalEffort = canonical
+    }
+  }
+
   return {
-    effort: encoded.effort as Options['effort'] | undefined,
-    thinking: encoded.thinking as Options['thinking'] | undefined
+    effort,
+    thinking: encoded.thinking as Options['thinking'] | undefined,
+    canonicalEffort
   }
 }
 

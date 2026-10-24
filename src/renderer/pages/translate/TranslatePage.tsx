@@ -21,6 +21,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useUserReasoningEffortMap } from '@renderer/hooks/useUserReasoningEffortMap'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { exportContentToNotes } from '@renderer/services/ExportService'
 import { toast } from '@renderer/services/toast'
@@ -640,6 +641,7 @@ const TranslatePage: FC = () => {
   )
 
   const translateReasoning = useTranslateReasoningEffort()
+  const translateUserEffortMap = useUserReasoningEffortMap(translateReasoning.model)
 
   const modelSelectorFilter = useCallback<ModelSelectorFilter>(
     (model) =>
@@ -982,6 +984,7 @@ const TranslatePage: FC = () => {
                 model={translateReasoning.model}
                 reasoningEffort={translateReasoning.effort}
                 onReasoningEffortChange={translateReasoning.selectEffort}
+                userEffortMap={translateUserEffortMap}
               />
             )}
             <Button

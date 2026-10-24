@@ -19,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   resolveReasoningProfile: vi.fn()
 }))
 
+vi.mock('@main/ai/utils/reasoningEffortPreferences', () => ({
+  // Always offer a chained map: any gateway-side application is observable.
+  getUserReasoningEffortMap: vi.fn(() => ({ high: 'medium', medium: 'low' }))
+}))
+
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderRegistryServiceModule>()
   return {
@@ -303,6 +308,18 @@ describe('cross-dialect descriptor translation', () => {
     ).toEqual({ openai: { reasoningEffort: 'high', forceReasoning: true } })
   })
 
+  it('keeps a session-less literal low effort literal on the OpenAI target', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+
+    // External clients and session-less requests keep literal effort
+    // semantics: low stays low. The session-keyed canonical restore lives in
+    // proxyStream ahead of this mapper, keyed by the validated internal
+    // session header (cherry-pr-review inv_234f741ac324acb8).
+    expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, undefined, 'low')).toEqual({
+      openai: { reasoningEffort: 'low', forceReasoning: true }
+    })
+  })
+
   it('normalizes Gemini sentinels, levels, and positive budgets before target dispatch', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
@@ -392,6 +409,32 @@ describe('cross-dialect descriptor translation', () => {
 
     expect(mapReasoningEffortToProviderOptions(nvidia, gptOss, 'high')).toEqual({
       nvidia: { reasoningEffort: 'high' }
+    })
+  })
+
+  it('applies no user effort map: the session boundary owns the single mapping (inv_d3a354e6550a361e)', () => {
+    const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const nvidia = {
+      id: 'nvidia',
+      endpointConfigs: { [endpoint]: { adapterFamily: 'openai-compatible' } }
+    } as Provider
+    const gptOss = model('nvidia', 'gpt-oss-120b', endpoint, {
+      selectableEfforts: ['low', 'medium', 'high'],
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }]
+    })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'openai-chat',
+      wire: {
+        effort: {
+          operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }]
+        }
+      }
+    })
+
+    // The warmup/direct boundary already mapped High -> Medium; a gateway
+    // re-application would chain Medium -> Low.
+    expect(mapReasoningEffortToProviderOptions(nvidia, gptOss, 'medium')).toEqual({
+      nvidia: { reasoningEffort: 'medium' }
     })
   })
 

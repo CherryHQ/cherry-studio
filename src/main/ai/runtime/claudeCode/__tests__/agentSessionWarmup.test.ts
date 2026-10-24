@@ -2,6 +2,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
+import { clearSessionCanonicalEffort, resolveSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -210,6 +211,190 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.options.resume).toBeUndefined()
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+  })
+
+  it('applies the user effort map exactly once on a direct route', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'medium', medium: 'low' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('medium')
+  })
+
+  it('applies the user effort map at the boundary on a gateway route', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'medium', medium: 'low' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+
+    // The boundary owns the map: the canonical selection is mapped once, before
+    // Anthropic serialization (single lookup — no chained re-application)
+    // (cherry-pr-review inv_5fce608bcdee52df).
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('medium')
+  })
+
+  it('maps the canonical selection before Anthropic serialization on a gateway route', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: { selectableEfforts: ['minimal', 'low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { minimal: 'high', low: 'medium' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'minimal')
+
+    // GPT-5 minimal serializes to Anthropic low; mapping must fire on the
+    // canonical minimal (-> high), not on the serialized low (-> medium)
+    // (cherry-pr-review inv_5fce608bcdee52df).
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('high')
+  })
+
+  it('routes a destination tier outside the SDK vocabulary through the serialized transport', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'gpt-5',
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      reasoning: { selectableEfforts: ['minimal', 'low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'minimal' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+
+    // SDK 0.3.284's Options.effort accepts only low|medium|high|xhigh|max and
+    // silently defaults a rejected value to High, so GPT-5 minimal cannot
+    // cross the SDK boundary verbatim. The Anthropic-serialized transport
+    // (minimal -> low) is the SDK-supported value that lands where the frozen
+    // base landed — exactly-once mapping retained (cherry-pr-review
+    // inv_ab2d93e990367ead).
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('low')
+    // ...and the canonical destination is recorded for the gateway to restore
+    // during target serialization (cherry-pr-review inv_234f741ac324acb8).
+    expect(resolveSessionCanonicalEffort('session-1')).toBe('minimal')
+    clearSessionCanonicalEffort('session-1')
+  })
+
+  it('clears the recorded destination when a rebuild resolves a default effort (inv_234f741ac324acb8)', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'gpt-5',
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      reasoning: { selectableEfforts: ['minimal', 'low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'minimal' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+    expect(resolveSessionCanonicalEffort('session-1')).toBe('minimal')
+
+    // Same session rebuilt with the default effort: no canonical destination
+    // resolves, so the previously recorded one must be dropped rather than
+    // restored over the session's new literal intent.
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default')
+    expect(resolveSessionCanonicalEffort('session-1')).toBeUndefined()
+    clearSessionCanonicalEffort('session-1')
+  })
+
+  it('preserves an SDK-native mapped destination tier verbatim across the gateway boundary', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'gpt-5',
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      reasoning: { selectableEfforts: ['low', 'medium', 'high', 'xhigh'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'xhigh' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+
+    // Anthropic serialization cannot represent xhigh (the Claude model on this
+    // route selects from low|medium|high, so it degrades to high); this
+    // route's Anthropic dialect ends at Cherry's gateway, which serializes the
+    // literal tier against the target profile, and the SDK transport does
+    // accept xhigh — the mapped destination crosses verbatim
+    // (cherry-pr-review inv_c617555adede2eca).
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('xhigh')
+  })
+
+  it('applies the user effort map to budget serialization on a gateway route', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: {
+        selectableEfforts: ['low', 'medium', 'high'],
+        thinkingTokenLimits: { min: 1_024, max: 64_000 }
+      }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'low' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+    const mapped = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+
+    // Reference: the same route with a direct low selection and no map. A
+    // budget-based model keeps no effort field after serialization, so the map
+    // must fire here — the gateway pass-through has nothing left to key on
+    // (cherry-pr-review inv_5fce608bcdee52df).
+    mocks.preferenceGet.mockImplementation(() => undefined)
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'low')
+    const reference = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+
+    expect(mapped?.thinking ?? mapped?.effort).toEqual(reference?.thinking ?? reference?.effort)
   })
 
   it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
@@ -1710,6 +1895,29 @@ describe('deriveConnectionConfig', () => {
     )
     const enabled = await deriveSignature()
     expect(enabled.rebuildSignature).not.toBe(base.rebuildSignature)
+  })
+
+  it('rebuilds when reasoning effort mappings change', async () => {
+    const originalGet = mocks.preferenceGet.getMockImplementation()
+    const originalModelByKey = mocks.getModelByKey.getMockImplementation()
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+    }))
+    const base = await deriveSignature()
+    mocks.preferenceGet.mockImplementation((key) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'medium' } } : originalGet?.(key)
+    )
+    const mapped = await deriveSignature()
+    mocks.getModelByKey.mockImplementation(originalModelByKey!)
+    mocks.preferenceGet.mockImplementation(originalGet!)
+    expect(mapped.rebuildSignature).not.toBe(base.rebuildSignature)
+    expect(
+      Object.keys(base.rebuildFactFingerprints).filter(
+        (name) => base.rebuildFactFingerprints[name] !== mapped.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['reasoningEffortMapping'])
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {

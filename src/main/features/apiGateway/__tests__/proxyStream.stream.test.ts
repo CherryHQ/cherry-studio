@@ -99,6 +99,8 @@ vi.mock('../adapters', () => ({
   }
 }))
 
+import { clearSessionCanonicalEffort, syncSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
+
 import type { OutputFormat } from '../adapters'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
@@ -590,6 +592,61 @@ describe('processMessage (streaming)', () => {
 
     expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
+
+    commit(captured.listener!)
+    await captured.listener!.onDone({} as any)
+    await response
+  })
+
+  it('restores the boundary-synced canonical effort destination over the SDK transport tier (inv_234f741ac324acb8)', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    // The session boundary's production write path (sync with the resolved
+    // canonical destination) -> real registry -> gateway restore -> converter
+    // input: one warmup-through-target pass.
+    syncSessionCanonicalEffort('session-1', 'minimal')
+    try {
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', max_tokens: 64, messages: [], output_config: { effort: 'low' }, stream: true },
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic',
+        requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+      // The SDK transport tier (low) is only the carrier: the converter must
+      // see the session's canonical destination restored before dialect
+      // normalization (cherry-pr-review inv_234f741ac324acb8).
+      expect(mockExtractProviderOptions).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ output_config: expect.objectContaining({ effort: 'minimal' }) }),
+        undefined
+      )
+
+      commit(captured.listener!)
+      await captured.listener!.onDone({} as any)
+      await response
+    } finally {
+      clearSessionCanonicalEffort('session-1')
+    }
+  })
+
+  it('keeps the literal transport tier for an internal session with no registered destination', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const response = processMessage({
+      params: { model: 'openai:gpt-4', max_tokens: 64, messages: [], output_config: { effort: 'low' }, stream: true },
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    expect(mockExtractProviderOptions).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ output_config: expect.objectContaining({ effort: 'low' }) }),
+      undefined
+    )
 
     commit(captured.listener!)
     await captured.listener!.onDone({} as any)
