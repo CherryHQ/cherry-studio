@@ -48,7 +48,12 @@ const OUTCOMES: Members<SubagentOutcome> = {
   interrupted: true
 }
 const STOPPERS: Members<SubagentStopper> = { model: true, user: true, budget: true }
-const STOP_CAUSES: Members<TurnStop['cause']> = { user: true, 'goal-command': true, reopen: true }
+const STOP_CAUSES: Members<TurnStop['cause']> = {
+  user: true,
+  'goal-command': true,
+  reopen: true,
+  'goal-withdraw': true
+}
 
 const isMember = (value: JsonValue, members: object): boolean =>
   typeof value === 'string' && Object.hasOwn(members, value)

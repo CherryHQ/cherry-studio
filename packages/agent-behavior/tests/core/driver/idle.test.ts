@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Step } from '../../../src/core/decisions'
-import { admitRound, decideAtIdle, type IdleDecision } from '../../../src/core/driver/idle'
+import { admitRound, decideAtIdle, decideRoundWithdrawn, type IdleDecision } from '../../../src/core/driver/idle'
 import type { HistoryEntry, LiveFacts, RoundDetails } from '../../../src/core/facts'
 import { currentGoal } from '../../../src/core/goal/goalHistory'
 import { keys } from '../../../src/core/keys'
+import { turnStopping } from '../../../src/core/turns'
 import {
   apply,
   assistant,
@@ -234,5 +235,57 @@ describe('admitRound (R1)', () => {
       result: 'withdraw',
       effects: [{ type: 'retract-turn', key: start.key }]
     })
+  })
+})
+
+describe('decideRoundWithdrawn (R1, H2)', () => {
+  const nothing = { ops: [], effects: [], result: null }
+  /** Round 1 of g1 begun, then the goal edited under it, so the driver withdraws it after `Turns` took it. */
+  function withdrawn() {
+    const history = [goalEntry(goal())]
+    const decided = idle(history)
+    const start = decided.result
+    if (start.kind !== 'start-round') throw new Error('expected a round')
+    const begun = started(history, decided)
+    const running = [...begun, assistant('working'), goalEntry(goal({ revision: 2, objective: 'new' }))]
+    return { start, running, roundEntry: begun[begun.length - 1] }
+  }
+
+  // Catches a withdrawal stop that names no turn, so it aborts a person's turn begun since (H2), or that records no stop,
+  // so a spawn inside the withdrawn round still starts a child the stop never reaches; and the record taken for a
+  // person's stop, which would end the goal as aborted.
+  it('records the stop of the withdrawn round and names the entry it began with', () => {
+    const { start, running, roundEntry } = withdrawn()
+    const decided = decideRoundWithdrawn(facts(running), inputs(), start)
+    expect(decided).toEqual({
+      ops: [
+        {
+          type: 'append-record',
+          thread: 'parent',
+          record: { type: 'turn-stop', value: { cause: 'goal-withdraw', at: 1000 } },
+          key: keys.turnStop(start.key)
+        }
+      ],
+      effects: [{ type: 'stop-turn', thread: 'parent', cause: 'goal-withdraw', turn: roundEntry.id }],
+      result: null
+    })
+    const after = apply(running, decided)
+    expect(turnStopping(after)).toBe(true)
+    const again = decideRoundWithdrawn(facts(after), inputs(), start)
+    expect(apply(after, again)).toEqual(after)
+    expect(again.effects).toEqual(decided.effects)
+    expect(idle(after, { live: { runEnd: { outcome: 'aborted' } } }).result).toMatchObject({
+      kind: 'start-round',
+      round: { revision: 2 }
+    })
+  })
+
+  // Catches a stop decided without the round's entry, or after a later turn began: it would stop or fence that turn.
+  it('writes and stops nothing when the round never began or a later turn began after it', () => {
+    const { start, running, roundEntry } = withdrawn()
+    expect(decideRoundWithdrawn(facts(running.filter((entry) => entry !== roundEntry)), inputs(), start)).toEqual(
+      nothing
+    )
+    expect(decideRoundWithdrawn(facts([...running, user()]), inputs(), start)).toEqual(nothing)
   })
 })

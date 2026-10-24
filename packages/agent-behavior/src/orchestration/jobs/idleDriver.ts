@@ -1,6 +1,6 @@
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
-import { admitRound, decideAtIdle } from '../../core/driver/idle'
+import { admitRound, decideAtIdle, decideRoundWithdrawn } from '../../core/driver/idle'
 import { decidePermissionModeChanged } from '../../core/driver/lifecycle'
 import type { RoundDetails } from '../../core/facts'
 import type { Key } from '../../core/keys'
@@ -8,11 +8,15 @@ import type { JobHandler } from '../../ports/harness'
 import type { HostPorts } from '../../ports/host'
 import { type Context, gatherInputs, step } from '../step'
 
-/** R1: a round `Turns` took counts if the goal is still the one it was reserved for; otherwise it is withdrawn. */
+/**
+ * R1: a round `Turns` took counts if the goal is still the one it was reserved for; otherwise it is withdrawn, and one
+ * that already started is stopped by name (H2), so the stop never reaches a turn begun after it.
+ */
 async function admit(context: Context, thread: ThreadId, start: { readonly round: RoundDetails; readonly key: Key }) {
   const inputs = await gatherInputs(context, thread)
   const admitted = await step(context, thread, (facts) => admitRound(facts, inputs, start))
-  if (admitted.retracted === 'already-started') await context.ports.turns.stop(thread, 'goal-withdraw')
+  if (admitted.retracted === 'already-started')
+    await step(context, thread, (facts) => decideRoundWithdrawn(facts, inputs, start))
 }
 
 /**

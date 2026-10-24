@@ -87,7 +87,10 @@ export function pendingResults(history: readonly HistoryEntry[]): PendingResult[
   return [...ended].flatMap(([key, record]) => (delivered.has(key) ? [] : [record]))
 }
 
-/** After a stop (a person's, a `/goal` command's or a reopen's) nothing wakes the conversation until a run starts (R5). */
+/**
+ * After a stop (a person's, a `/goal` command's, a reopen's or a started round's withdrawal) nothing wakes the
+ * conversation until a run starts (R5).
+ */
 export function suppressed(history: readonly HistoryEntry[]): boolean {
   for (let i = history.length - 1; i >= 0; i--) {
     const entry = history[i]
