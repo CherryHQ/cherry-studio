@@ -192,12 +192,8 @@ describe('ChannelDetail', () => {
     description: 'agent.channels.feishu.description',
     available: true,
     defaultConfig: {
-      app_id: '',
-      app_secret: '',
-      encrypt_key: '',
-      verification_token: '',
-      allowed_chat_ids: [],
-      domain: 'feishu'
+      applicationCredentialId: null,
+      allowed_chat_ids: []
     }
   }
   const wechatChannelDef: AvailableChannel = {

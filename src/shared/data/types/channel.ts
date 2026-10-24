@@ -13,14 +13,11 @@ export type TelegramChannelConfig = z.infer<typeof TelegramChannelConfigSchema>
 export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
 export type FeishuDomain = z.infer<typeof FeishuDomainSchema>
 
-export const FeishuChannelConfigSchema = z.object({
+export const FeishuChannelConfigSchema = z.strictObject({
   type: z.literal('feishu'),
-  app_id: z.string(),
-  app_secret: z.string(),
-  encrypt_key: z.string(),
-  verification_token: z.string(),
-  allowed_chat_ids: z.array(z.string()).default([]),
-  domain: FeishuDomainSchema
+  applicationCredentialId: z.uuid().nullable(),
+  registrationDomain: FeishuDomainSchema.optional(),
+  allowed_chat_ids: z.array(z.string()).default([])
 })
 
 export type FeishuChannelConfig = z.infer<typeof FeishuChannelConfigSchema>

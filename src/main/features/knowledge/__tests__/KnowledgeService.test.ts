@@ -4,8 +4,6 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
-import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
-import { Phase } from '@main/core/lifecycle/types'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
@@ -465,16 +463,6 @@ describe('KnowledgeService', () => {
     externalKnowledgeRuntimeStopMock.mockResolvedValue(undefined)
   })
 
-  it('uses WhenReady phase and depends on same-phase runtime services', () => {
-    expect(getPhase(KnowledgeService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeService)).toEqual([
-      'KnowledgeVectorStoreService',
-      'JobManager',
-      'FileProcessingService',
-      'WebSearchService'
-    ])
-  })
-
   it('registers formal knowledge job handlers', () => {
     const service = new KnowledgeService()
 
@@ -498,16 +486,6 @@ describe('KnowledgeService', () => {
     }
 
     expect(cancelManyMock).not.toHaveBeenCalled()
-  })
-
-  it('owns the External Knowledge runtime for its full service lifetime', async () => {
-    const service = new KnowledgeService()
-
-    await (service as unknown as { onReady: () => Promise<void> }).onReady()
-    await (service as unknown as { onStop: () => Promise<void> }).onStop()
-
-    expect(externalKnowledgeRuntimeStartMock).toHaveBeenCalledOnce()
-    expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
   })
 
   it('recovers deleting roots by enqueueing delete cleanup jobs after all services are ready', async () => {

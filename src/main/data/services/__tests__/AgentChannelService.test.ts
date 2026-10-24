@@ -359,11 +359,8 @@ describe('AgentChannelService', () => {
         agentId,
         workspace: SYSTEM_WORKSPACE,
         config: {
-          app_id: 'app',
-          app_secret: 'secret',
-          encrypt_key: '',
-          verification_token: '',
-          domain: 'feishu'
+          applicationCredentialId: null,
+          allowed_chat_ids: []
         }
       })
       const first = agentSessionService.create({ agentId, name: 'First', workspace: SYSTEM_WORKSPACE })

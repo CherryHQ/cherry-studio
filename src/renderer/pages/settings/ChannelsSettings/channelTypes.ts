@@ -17,12 +17,8 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
     description: 'agent.channels.feishu.description',
     available: true,
     defaultConfig: {
-      app_id: '',
-      app_secret: '',
-      encrypt_key: '',
-      verification_token: '',
-      allowed_chat_ids: [],
-      domain: 'feishu'
+      applicationCredentialId: null,
+      allowed_chat_ids: []
     }
   },
   {

@@ -1430,12 +1430,8 @@ describe('cherry-tools autonomy tools', () => {
       agentId: 'agent_1',
       isActive: true,
       config: {
-        app_id: '',
-        app_secret: '',
-        encrypt_key: '',
-        verification_token: '',
         allowed_chat_ids: [],
-        domain: 'feishu'
+        applicationCredentialId: null
       }
     }
 
@@ -1642,12 +1638,8 @@ describe('cherry-tools autonomy tools', () => {
             name: 'My Feishu',
             auth_mode: 'qr',
             config: {
-              app_id: 'old-app-id',
-              app_secret: 'old-app-secret',
-              encrypt_key: 'old-encrypt-key',
-              verification_token: 'old-verification-token',
-              allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              applicationCredentialId: 'a4564266-060f-4f5c-acb0-9705404f41f8',
+              allowed_chat_ids: ['chat-1']
             }
           },
           'config'
@@ -1657,12 +1649,8 @@ describe('cherry-tools autonomy tools', () => {
           expect.objectContaining({
             config: {
               type: 'feishu',
-              app_id: '',
-              app_secret: '',
-              encrypt_key: '',
-              verification_token: '',
-              allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              applicationCredentialId: null,
+              allowed_chat_ids: ['chat-1']
             }
           }),
           30_000
@@ -1681,7 +1669,7 @@ describe('cherry-tools autonomy tools', () => {
           {
             ...feishuChannel,
             id: 'ch_existing',
-            config: { ...feishuChannel.config, app_id: 'app-id', app_secret: 'app-secret' }
+            config: { ...feishuChannel.config, applicationCredentialId: 'a4564266-060f-4f5c-acb0-9705404f41f8' }
           }
         ])
         mockCreateChannelAndWaitForQr.mockResolvedValue({
@@ -1724,7 +1712,7 @@ describe('cherry-tools autonomy tools', () => {
           {
             ...feishuChannel,
             id: 'ch_verified',
-            config: { ...feishuChannel.config, app_id: 'app-id', app_secret: 'app-secret' }
+            config: { ...feishuChannel.config, applicationCredentialId: 'a4564266-060f-4f5c-acb0-9705404f41f8' }
           },
           existingChannel
         ])
@@ -1744,10 +1732,8 @@ describe('cherry-tools autonomy tools', () => {
             name: 'Updated Feishu',
             auth_mode: 'qr',
             config: {
-              app_id: 'stale-app-id',
-              app_secret: 'stale-app-secret',
-              allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              applicationCredentialId: 'a4564266-060f-4f5c-acb0-9705404f41f8',
+              allowed_chat_ids: ['chat-1']
             }
           },
           'config'
@@ -1761,12 +1747,8 @@ describe('cherry-tools autonomy tools', () => {
             name: 'Updated Feishu',
             config: {
               type: 'feishu',
-              app_id: '',
-              app_secret: '',
-              encrypt_key: '',
-              verification_token: '',
-              allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              applicationCredentialId: null,
+              allowed_chat_ids: ['chat-1']
             },
             isActive: true
           },
@@ -1782,7 +1764,7 @@ describe('cherry-tools autonomy tools', () => {
           {
             ...feishuChannel,
             id: 'ch_verified',
-            config: { ...feishuChannel.config, app_id: 'app-id', app_secret: 'app-secret' }
+            config: { ...feishuChannel.config, applicationCredentialId: 'a4564266-060f-4f5c-acb0-9705404f41f8' }
           }
         ])
 
@@ -1838,7 +1820,7 @@ describe('cherry-tools autonomy tools', () => {
         )
 
         expect(result.isError).toBe(true)
-        expect(result.content[0].text).toContain('Missing required config field "app_id"')
+        expect(result.content[0].text).toContain('Missing required config field "applicationCredentialId"')
         expect(mockCreateChannel).not.toHaveBeenCalled()
       })
 

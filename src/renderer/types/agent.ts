@@ -41,18 +41,6 @@ export type PermissionModeCard = {
   warningFallback?: string
 }
 
-// ------------------ Channel config (Feishu) ------------------
-export type FeishuDomain = 'feishu' | 'lark'
-export type FeishuChannelConfig = {
-  type: 'feishu'
-  app_id: string
-  app_secret: string
-  encrypt_key: string
-  verification_token: string
-  allowed_chat_ids: string[]
-  domain: FeishuDomain
-}
-
 // ------------------ Type guards ------------------
 export const isAgentType = (type: unknown): type is AgentType => {
   // Runtime keys live in the shared capability descriptor; no zod schema needed.
