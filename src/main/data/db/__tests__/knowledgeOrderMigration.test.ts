@@ -50,7 +50,7 @@ describe('knowledge ordering migrate-forward', () => {
       .values({ baseId: values[0].id, type: 'note', data: content, status: 'completed' })
       .run()
     dbh.sqlite.exec(
-      'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
+      'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key; ALTER TABLE agent_knowledge_base DROP COLUMN access'
     )
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
     applyMigrations(dbh.db, migrationsFolder)
