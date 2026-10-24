@@ -4,11 +4,15 @@ import { join } from 'node:path'
 
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
+import { asc } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { KnowledgeBaseOrderSeeder } from '@data/db/seeding/seeders/knowledgeBaseOrderSeeder'
 import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { DbType } from '@data/db/types'
 
 /**
@@ -70,8 +74,41 @@ describe('applyMigrations over a populated database', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  it('initializes knowledge ordering without losing populated rows or changing timestamps', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0027_knowledge_base_order'))
+    const values = [
+      { id: '11111111-1111-4111-8111-111111111111', name: 'Older', createdAt: 1000, updatedAt: 1100 },
+      { id: '22222222-2222-4222-8222-222222222222', name: 'Newer', createdAt: 2000, updatedAt: 2100 }
+    ]
+    const groupId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    sqlite
+      .prepare(`INSERT INTO "group" (id, entity_type, name, order_key, created_at, updated_at)
+      VALUES (?, 'knowledge', 'Existing group', 'a0', 100, 100)`)
+      .run(groupId)
+    const insertBase = sqlite.prepare(`INSERT INTO knowledge_base
+      (id, name, group_id, status, chunk_size, chunk_overlap, created_at, updated_at)
+      VALUES (?, ?, ?, 'completed', 1024, 200, ?, ?)`)
+    for (const row of values) insertBase.run(row.id, row.name, groupId, row.createdAt, row.updatedAt)
+    const content = { source: 'Original note', content: 'Existing user content' }
+    db.insert(knowledgeItemTable)
+      .values({ baseId: values[0].id, type: 'note', data: content, status: 'completed' })
+      .run()
+
+    applyMigrations(db, resolveMigrationsPath())
+    new SeedRunner(db).runAll([new KnowledgeBaseOrderSeeder()])
+
+    const rows = db.select().from(knowledgeBaseTable).orderBy(asc(knowledgeBaseTable.orderKey)).all()
+    expect(rows.map((row) => row.name)).toEqual(['Newer', 'Older'])
+    for (const original of values) {
+      expect(rows.find((row) => row.id === original.id)).toMatchObject({ ...original, groupId })
+    }
+    expect(db.select().from(knowledgeItemTable).all()[0].data).toEqual(content)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
+  })
+
   it('adds diagnostic history to a populated database and retains it after reopening', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0026_clammy_the_renegades'))
     const now = Date.now()
     sqlite
       .prepare(
@@ -1326,6 +1363,71 @@ describe('applyMigrations over a populated database', () => {
     expect(
       sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message WHERE session_id = 'session-activity'`).get()
     ).toEqual({ count: 4 })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
+  })
+
+  it('adds External Knowledge connections without changing populated business data', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0028_minor_jackpot'))
+    sqlite
+      .prepare(
+        `INSERT INTO preference (scope, key, value, created_at, updated_at)
+         VALUES ('default', 'phase0.survives', '"kept"', 100, 200)`
+      )
+      .run()
+    sqlite
+      .prepare('INSERT INTO diagnostic_report (report_id, submitted_at, processing_status) VALUES (?, ?, ?)')
+      .run('existing-report', 150, 'pending')
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT scope, key, value, created_at, updated_at FROM preference`).get()).toEqual({
+      scope: 'default',
+      key: 'phase0.survives',
+      value: '"kept"',
+      created_at: 100,
+      updated_at: 200
+    })
+    expect(sqlite.prepare('SELECT report_id, submitted_at, processing_status FROM diagnostic_report').all()).toEqual([
+      { report_id: 'existing-report', submitted_at: 150, processing_status: 'pending' }
+    ])
+
+    const insertConnection = sqlite.prepare(
+      `INSERT INTO external_knowledge_connection
+        (id, provider, app_id, app_credential_source, authorization_status, credential_reference,
+         granted_scopes, created_at, updated_at)
+       VALUES (?, ?, 'cli_example', 'personal-agent', 'pending-authorization', ?, '[]', 300, 300)`
+    )
+    expect(() => insertConnection.run('01994c00-ef10-7000-8000-000000000001', 'feishu', 'cred_example')).not.toThrow()
+    expect(() => insertConnection.run('01994c00-ef10-7000-8000-000000000002', 'lark', 'cred_other')).toThrow(
+      /CHECK|constraint/i
+    )
+    expect(() => insertConnection.run('01994c00-ef10-7000-8000-000000000003', 'feishu', 'cred_example')).toThrow(
+      /UNIQUE|constraint/i
+    )
+
+    const columns = sqlite.prepare(`PRAGMA table_info('external_knowledge_connection')`).all() as Array<{
+      name: string
+      notnull: number
+      dflt_value: string | null
+    }>
+    const columnsByName = new Map(columns.map((column) => [column.name, column]))
+    expect(columnsByName.get('account_user_id')).toBeDefined()
+    expect(columnsByName.get('provider')).toMatchObject({ notnull: 1, dflt_value: null })
+    expect(columnsByName.get('granted_scopes')).toMatchObject({ notnull: 1, dflt_value: "'[]'" })
+    expect(columns.map((column) => column.name)).not.toEqual(
+      expect.arrayContaining(['app_secret', 'access_token', 'refresh_token'])
+    )
+    expect(() =>
+      sqlite
+        .prepare(
+          `INSERT INTO external_knowledge_connection
+            (id, app_id, app_credential_source, authorization_status, credential_reference, created_at, updated_at)
+           VALUES ('01994c00-ef10-7000-8000-000000000004', 'cli_example', 'personal-agent',
+             'pending-authorization', 'cred_without_provider', 300, 300)`
+        )
+        .run()
+    ).toThrow(/NOT NULL|constraint/i)
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
     expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
   })

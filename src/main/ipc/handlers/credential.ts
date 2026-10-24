@@ -1,4 +1,8 @@
+import { eq, sql } from 'drizzle-orm'
+
 import { application } from '@application'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
+import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
 import { CredentialStoreError, type CredentialStoreErrorCode } from '@main/services/credential'
 import { credentialErrorCodes } from '@shared/ipc/errors/credential'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -34,5 +38,22 @@ export const credentialHandlers: IpcHandlersFor<typeof credentialRequestSchemas>
       application.get('CredentialStoreService').create({ connector: 'feishu', kind: 'application', label, payload })
     ),
   'credential.feishu.replace_application': async (input) =>
-    credentialCommand(() => application.get('CredentialStoreService').replaceApplication(input))
+    credentialCommand(() => application.get('CredentialStoreService').replaceApplication(input)),
+  'credential.remove': async ({ id }) =>
+    credentialCommand(() => application.get('CredentialStoreService').remove(id, isCredentialReferenced))
+}
+
+function isCredentialReferenced(id: string): boolean {
+  const db = application.get('DbService').getDb()
+  const channel = db
+    .select({ id: agentChannelTable.id })
+    .from(agentChannelTable)
+    .where(sql`json_extract(${agentChannelTable.config}, '$.applicationCredentialId') = ${id}`)
+    .get()
+  const connection = db
+    .select({ id: externalKnowledgeConnectionTable.id })
+    .from(externalKnowledgeConnectionTable)
+    .where(eq(externalKnowledgeConnectionTable.credentialReference, id))
+    .get()
+  return Boolean(channel || connection)
 }

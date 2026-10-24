@@ -24,6 +24,7 @@ import { archiveHandlers } from './archives'
 import { assistantHandlers } from './assistants'
 import { browserVisitHandlers } from './browserVisits'
 import { diagnosticReportHandlers } from './diagnosticReports'
+import { externalKnowledgeConnectionHandlers } from './externalKnowledgeConnections'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
@@ -59,6 +60,7 @@ export const apiHandlers: ApiImplementation = {
   ...agentChannelHandlers,
   ...browserVisitHandlers,
   ...diagnosticReportHandlers,
+  ...externalKnowledgeConnectionHandlers,
   ...topicHandlers,
   ...messageHandlers,
   ...fileHandlers,
