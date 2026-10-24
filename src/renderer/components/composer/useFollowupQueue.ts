@@ -1116,14 +1116,14 @@ export function useFollowupQueue({
       clearTimeout(timer)
       pendingReenqueueRef.current.delete(tracked.restoreId)
     }
-    if (tracked.restored) {
-      // The retry already re-queued the item during the session: the session's
-      // end (sent/cleared/replaced) must not leave a deliverable copy behind.
-      // A transient DELETE failure must not strand it either — once the held
-      // stamp expires, a later completion would deliver cleared or duplicated
-      // content — so a failed cleanup joins the resolve retry chain until the
-      // copy is closed or confirmed absent (cherry-pr-review
-      // inv_a9a4ae6a7ed17c68).
+    // Acknowledged or not, every tracked restore ID may have committed: a
+    // lost insert response leaves the record restored: false with the row
+    // already in the queue, and abandoning it lets the held stamp expire
+    // into a cleared-content or duplicate delivery (cherry-pr-review
+    // inv_7deabefd1c4c947c#f1). Retain cleanup ownership until the copy is
+    // closed or confirmed absent; a transient DELETE failure joins the
+    // resolve retry chain (cherry-pr-review inv_a9a4ae6a7ed17c68).
+    {
       void (async () => {
         try {
           await removeTrigger({ params: { id: tracked.restoreId } })
@@ -1188,6 +1188,21 @@ export function useFollowupQueue({
           // The conversation was permanently deleted: the service refuses to
           // recreate its rows, so there is nothing left to restore into.
           if (isAlreadyResolved(error)) return
+          if (tracked?.cancelled) {
+            // The session ended while this write was in flight and its
+            // response was lost: the insert may have committed anyway, so
+            // close the possibly committed copy instead of rescheduling a
+            // tick the cancelled flag would silence — the stranded row would
+            // age back into claimability and duplicate the retained draft
+            // (cherry-pr-review inv_7deabefd1c4c947c#f1).
+            try {
+              await removeTrigger({ params: { id: body.id } })
+              if (mountedRef.current) void refetch()
+            } catch (removeError) {
+              if (!isAlreadyResolved(removeError)) scheduleResolveRetryRef.current(body.id, true, '')
+            }
+            return
+          }
           scheduleReenqueueRetryRef.current(body, tracked)
         }
       })()

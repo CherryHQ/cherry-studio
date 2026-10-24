@@ -1426,6 +1426,50 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('closes a possibly committed restore copy when the session ends before an insert is acknowledged (inv_7deabefd1c4c947c)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      // Every restore write reports failure; any of them may still have
+      // committed server-side (lost response), so the tracked record stays
+      // restored: false with the row possibly live in the queue
+      // (cherry-pr-review inv_7deabefd1c4c947c#f1).
+      postTrigger.mockRejectedValue(new Error('response lost'))
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        await result.current.takeForEdit('b', captureOutgoing)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+
+      // The background retry's insert is also unacknowledged: as far as the
+      // hook knows, nothing ever landed.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+
+      // Clearing the still-visible outgoing draft ends the edit session: the
+      // possibly committed copy must be closed, not abandoned to the hold
+      // expiry and a cleared-content or duplicate delivery
+      // (cherry-pr-review inv_7deabefd1c4c947c#f1).
+      await act(async () => {
+        result.current.releaseEdit()
+      })
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps cleanup ownership of the landed copy when the abandon-path removal fails transiently (inv_f89db3564dc86774)', async () => {
     vi.useFakeTimers()
     try {
@@ -1783,6 +1827,7 @@ describe('useFollowupQueue', () => {
         await vi.advanceTimersByTimeAsync(5000)
       })
       expect(postTrigger).toHaveBeenCalledTimes(4)
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
       deleteTrigger.mockRejectedValueOnce(new Error('temporary outage'))
       await act(async () => {
         result.current.releaseEdit()
@@ -1791,12 +1836,21 @@ describe('useFollowupQueue', () => {
         resolveRestore?.({})
       })
       await act(async () => {})
-      expect(deleteTrigger).toHaveBeenCalledTimes(1)
+      // Two closes: the cancel path closes every potentially committed copy
+      // regardless of acknowledgment (cherry-pr-review
+      // inv_7deabefd1c4c947c#f1) — it fails transiently here — and the
+      // acknowledged insert's cancelled-reconcile closes the copy it just
+      // committed.
+      expect(deleteTrigger).toHaveBeenCalledTimes(2)
+      expect(deleteTrigger).toHaveBeenLastCalledWith({ params: { id: restoreId } })
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5000)
       })
-      expect(deleteTrigger).toHaveBeenCalledTimes(2)
+      // The transiently failed cancel close settles through the resolve
+      // retry chain; the row is already closed, so the retried delete is a
+      // harmless NOT_FOUND.
+      expect(deleteTrigger).toHaveBeenCalledTimes(3)
     } finally {
       vi.useRealTimers()
     }
