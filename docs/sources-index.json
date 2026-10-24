@@ -398,6 +398,10 @@
       "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/data/migration/v2/migrators/KnowledgeVectorMigrator.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query"]
     },
     {
+      "path": "docs/references/knowledge/external-knowledge-feishu-read-adapter.md",
+      "sources": ["src/main/features/knowledge/KnowledgeService.ts","src/main/features/knowledge/external","src/main/ipc/handlers/knowledge.ts","src/shared/data/types/externalKnowledgeRead.ts","src/shared/ipc/schemas/knowledge.ts"]
+    },
+    {
       "path": "docs/references/knowledge/knowledge-service.md",
       "sources": ["src/main/ai/tools/knowledgeLookup.ts","src/main/data/db/schemas/externalKnowledgeConnection.ts","src/main/data/db/schemas/externalKnowledgeDocument.ts","src/main/data/db/schemas/externalKnowledgeSource.ts","src/main/data/db/schemas/knowledge.ts","src/main/data/services/ExternalKnowledgeConnectionService.ts","src/main/data/services/ExternalKnowledgeDocumentService.ts","src/main/data/services/ExternalKnowledgeSourceService.ts","src/main/data/services/KnowledgeBaseService.ts","src/main/data/services/KnowledgeItemService.ts","src/main/features/knowledge","src/main/ipc/handlers/knowledge.ts","src/main/services/feishuAppRegistration.ts","src/shared/data/types/externalKnowledge.ts","src/shared/data/types/externalKnowledgeConnection.ts","src/shared/ipc/schemas/knowledge.ts"]
     },

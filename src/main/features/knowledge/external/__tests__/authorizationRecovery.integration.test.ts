@@ -14,6 +14,9 @@ import {
   exchangeDeviceAuthorization,
   FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
+  getDocxMarkdown,
+  getWikiNode,
+  listWikiChildNodes,
   refreshUserToken,
   type FeishuUserTokenSet
 } from '../feishuKnowledgeProvider'
@@ -52,6 +55,9 @@ const token: FeishuUserTokenSet = {
 
 function provider() {
   return {
+    getWikiNode: vi.fn(),
+    listWikiChildNodes: vi.fn(),
+    getDocxMarkdown: vi.fn(),
     beginDeviceAuthorization: vi.fn(async () => device),
     exchangeDeviceAuthorization: vi.fn(async () => token),
     refreshUserToken: vi.fn(async () => token),
@@ -102,6 +108,107 @@ describe('authorization recovery ownership', () => {
     const initial = await runtime.beginUserAuthorization(app)
     return runtime.completeUserAuthorization(initial.authorizationSessionId)
   }
+
+  it('recovers Wiki preview after an HTTP 400 RPC failure without invalidating authorization', async () => {
+    const api = provider()
+    api.getWikiNode.mockResolvedValue({
+      spaceId: 'space',
+      nodeToken: 'root',
+      objToken: 'doc-root',
+      objType: 'docx',
+      parentNodeToken: null,
+      nodeType: 'origin',
+      originNodeToken: null,
+      originSpaceId: null,
+      title: 'Root',
+      hasChild: true,
+      objEditTime: '42'
+    })
+    api.listWikiChildNodes.mockImplementation(listWikiChildNodes)
+    const runtime = await start(api)
+    const original = await connected(runtime)
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockResolvedValueOnce(Response.json({ code: 131001, msg: 'rpc fail' }, { status: 400 }))
+      .mockResolvedValueOnce(Response.json({ code: 0, data: { items: [], has_more: false } }))
+
+    try {
+      await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).resolves.toMatchObject({
+        visibleNodeCount: 1,
+        supportedDocxCount: 1
+      })
+      expect(net.fetch).toHaveBeenCalledTimes(2)
+      expect(connections.getById(original.id)).toEqual(original)
+      await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+    } finally {
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
+
+  it.each([400, 429])('waits for the Feishu rate-limit reset before retrying HTTP %s', async (status) => {
+    let now = 1_000
+    const runtime = new ExternalKnowledgeRuntime({
+      credentials,
+      provider: provider(),
+      now: () => now,
+      sleep: async (milliseconds) => {
+        now += milliseconds
+      }
+    })
+    runtimes.push(runtime)
+    await runtime.start()
+    const original = await connected(runtime)
+    const availableAt = now + 52_000
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockImplementation(async () =>
+        now < availableAt
+          ? Response.json({ code: 99991400 }, { status, headers: { 'x-ogw-ratelimit-reset': '52' } })
+          : Response.json({ code: 0, data: { content: '# Recovered document' } })
+      )
+    try {
+      await expect(
+        runtime.runAuthorizedRequest(original.id, (accessToken, signal) =>
+          getDocxMarkdown({ ...app, accessToken }, 'document', signal)
+        )
+      ).resolves.toBe('# Recovered document')
+      expect(connections.getById(original.id)?.authorizationStatus).toBe('connected')
+    } finally {
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
+
+  it.each([
+    [400, 99991668],
+    [200, 99991677],
+    [400, 99991677]
+  ])('invalidates active authorization after HTTP %s / token error %s', async (status, code) => {
+    const api = provider()
+    api.getWikiNode.mockImplementation(getWikiNode)
+    const runtime = await start(api)
+    const original = await connected(runtime)
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockResolvedValueOnce(Response.json({ code, msg: 'Invalid or expired user_access_token' }, { status }))
+
+    try {
+      await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      expect(connections.getById(original.id)?.authorizationStatus).toBe('reauthorization-required')
+      await expect(runtime.acquireAccessToken(original.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
+      await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      await runtime.stop()
+      const restarted = await start(api)
+      await expect(restarted.acquireAccessToken(original.id)).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+    } finally {
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
 
   it.each([{ code: 20002 }, { error: 'invalid_client' }])(
     'persists recovery after invalid application credentials reject refresh: %j',

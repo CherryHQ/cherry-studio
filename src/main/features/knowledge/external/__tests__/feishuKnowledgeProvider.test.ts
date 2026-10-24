@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,6 +7,9 @@ import {
   FeishuProviderError,
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
+  getDocxMarkdown,
+  getWikiNode,
+  listWikiChildNodes,
   getUserIdentity,
   refreshUserToken,
   revokeUserToken
@@ -28,6 +32,69 @@ describe('feishuKnowledgeProvider', () => {
     vi.mocked(net.fetch).mockReset()
   })
   afterEach(() => vi.restoreAllMocks())
+
+  it('uses only the supplied user token for SDK reads, without acquiring a tenant token or sending app secrets', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { content: '# Document' } }))
+
+    await expect(getDocxMarkdown(authorization, 'doc-token')).resolves.toBe('# Document')
+
+    expect(net.fetch).toHaveBeenCalledTimes(1)
+    const [url, init] = vi.mocked(net.fetch).mock.calls[0]
+    expect(new URL(String(url)).pathname).toBe('/open-apis/docs/v1/content')
+    expect(init?.method?.toUpperCase()).toBe('GET')
+    expect(init?.body).toBeUndefined()
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer access-token-sentinel')
+    expect(JSON.stringify(vi.mocked(net.fetch).mock.calls)).not.toContain(authorization.appSecret)
+  })
+
+  it('isolates SDK credentials and cancellation between concurrent reads', async () => {
+    const first = new AbortController()
+    const second = new AbortController()
+    vi.mocked(net.fetch).mockImplementation((_url, init) => {
+      const token = new Headers(init?.headers).get('Authorization')
+      if (token === 'Bearer access-second') return Promise.resolve(response({ code: 0, data: { content: '# Second' } }))
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+      })
+    })
+    const cancelled = getDocxMarkdown(authorization, 'first', first.signal).catch((error: unknown) => error)
+    const completed = getDocxMarkdown(
+      { appId: 'cli_second', appSecret: 'second-secret', accessToken: 'access-second' },
+      'second',
+      second.signal
+    )
+    await expect(completed).resolves.toBe('# Second')
+    const reason = new DOMException('cancel first', 'AbortError')
+    first.abort(reason)
+
+    await expect(cancelled).resolves.toBe(reason)
+    expect(second.signal.aborted).toBe(false)
+  })
+
+  it('keeps provider payloads and credentials out of SDK error logs', async () => {
+    vi.mocked(mockMainLoggerService.warn).mockClear()
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 99991663, msg: 'private-provider-payload' }, { status: 429, headers: { 'Retry-After': '2' } })
+    )
+
+    await expect(getDocxMarkdown(authorization, 'doc-token')).rejects.toMatchObject({
+      code: 'transient',
+      retryAfterMs: 2000
+    })
+    const logs = JSON.stringify(mockMainLoggerService.warn.mock.calls)
+    expect(logs).not.toContain('private-provider-payload')
+    expect(logs).not.toContain(authorization.accessToken)
+    expect(logs).not.toContain(authorization.appSecret)
+  })
+
+  it.each(['node', 'children'] as const)('classifies missing application scopes on Wiki SDK reads', async (kind) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 99991672, msg: 'missing permissions' }))
+    await expect(
+      kind === 'node'
+        ? getWikiNode(authorization, { token: 'wiki-node', objType: 'wiki' })
+        : listWikiChildNodes(authorization, 'space-id', 'root-node')
+    ).rejects.toMatchObject({ code: 'app-scope-missing', terminal: true })
+  })
 
   it('starts device authorization with all required user scopes', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(
@@ -143,6 +210,160 @@ describe('feishuKnowledgeProvider', () => {
       tenantKey: 'tenant-key',
       displayName: 'Alice',
       avatarUrl: 'https://example.com/avatar.png'
+    })
+  })
+
+  it('reads Wiki node metadata only from the fixed Feishu China API origin', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          node: {
+            space_id: 'space-1',
+            node_token: 'wikcnNode',
+            obj_token: 'doxcnDocument',
+            obj_type: 'docx',
+            parent_node_token: 'wikcnParent',
+            node_type: 'origin',
+            title: 'Architecture',
+            has_child: false,
+            obj_edit_time: '42'
+          }
+        }
+      })
+    )
+
+    await expect(getWikiNode(authorization, { token: 'wikcnNode', objType: 'wiki' })).resolves.toMatchObject({
+      spaceId: 'space-1',
+      nodeToken: 'wikcnNode',
+      objToken: 'doxcnDocument'
+    })
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
+      'https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node?token=wikcnNode&obj_type=wiki'
+    )
+  })
+
+  it('rejects incomplete or contradictory Wiki node responses', async () => {
+    vi.mocked(net.fetch)
+      .mockResolvedValueOnce(response({ code: 0, data: { node: { space_id: 'space-1', node_token: 'wikcnNode' } } }))
+      .mockResolvedValueOnce(
+        response({
+          code: 0,
+          data: {
+            node: {
+              space_id: 'space-1',
+              node_token: 'shortcut-1',
+              obj_token: 'doc-1',
+              obj_type: 'docx',
+              node_type: 'shortcut',
+              title: 'Shortcut',
+              has_child: false,
+              obj_edit_time: '42'
+            }
+          }
+        })
+      )
+
+    await expect(getWikiNode(authorization, { token: 'wikcnNode', objType: 'wiki' })).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+    await expect(getWikiNode(authorization, { token: 'shortcut-1', objType: 'wiki' })).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+  })
+
+  it('classifies a null JSON provider response as invalid instead of throwing a decoder TypeError', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response(null))
+
+    await expect(getWikiNode(authorization, { token: 'wikcnNode', objType: 'wiki' })).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+  })
+
+  it('lists one Wiki child page from the fixed space endpoint', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          items: [
+            {
+              space_id: 'space-1',
+              node_token: 'child-1',
+              obj_token: 'doc-1',
+              obj_type: 'docx',
+              parent_node_token: 'root',
+              node_type: 'origin',
+              title: 'Child',
+              has_child: false,
+              obj_edit_time: '42'
+            }
+          ],
+          has_more: true,
+          page_token: 'page-2'
+        }
+      })
+    )
+
+    await expect(listWikiChildNodes(authorization, 'space-1', 'root', 'page-1')).resolves.toMatchObject({
+      nodes: [{ nodeToken: 'child-1' }],
+      nextPageToken: 'page-2'
+    })
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
+      'https://open.feishu.cn/open-apis/wiki/v2/spaces/space-1/nodes?page_size=50&parent_node_token=root&page_token=page-1'
+    )
+  })
+
+  it('rejects pagination responses that claim another page without a token', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { items: [], has_more: true } }))
+
+    await expect(listWikiChildNodes(authorization, 'space-1', 'root')).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+  })
+
+  it('reads Docx Markdown from the sole supported content endpoint', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 0, data: { content: '---\ntitle: Kept\n---\n{{placeholder}}' } })
+    )
+
+    await expect(getDocxMarkdown(authorization, 'doxcnDocument')).resolves.toBe(
+      '---\ntitle: Kept\n---\n{{placeholder}}'
+    )
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
+      'https://open.feishu.cn/open-apis/docs/v1/content?doc_token=doxcnDocument&doc_type=docx&content_type=markdown'
+    )
+  })
+
+  it.each([
+    [2889902, 403, 'resource-permission-denied'],
+    [2889914, 404, 'scope-not-found']
+  ] as const)('classifies resource error %s without invalidating the connection', async (code, status, expected) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code, msg: 'private-provider-detail' }, { status }))
+
+    const error = await getDocxMarkdown(authorization, 'doxcnDocument').catch((cause: unknown) => cause)
+
+    expect(error).toMatchObject({ code: expected, terminal: false })
+    expect((error as Error).message).not.toContain('private-provider-detail')
+  })
+
+  it('classifies an expired access token as terminal reauthorization', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 99991668, msg: 'expired' }, { status: 401 }))
+
+    await expect(getDocxMarkdown(authorization, 'doxcnDocument')).rejects.toMatchObject({
+      code: 'reauthorization-required',
+      terminal: true
+    })
+  })
+
+  it('classifies provider rate limits with Retry-After as transient', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 99991663, msg: 'rate limit' }, { status: 400, headers: { 'Retry-After': '2' } })
+    )
+
+    await expect(getDocxMarkdown(authorization, 'doxcnDocument')).rejects.toMatchObject({
+      code: 'transient',
+      terminal: false,
+      retryAfterMs: 2000
     })
   })
 
