@@ -35,6 +35,15 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
+import {
+  shouldDeferScratchpadStripping,
+  stripKnownModelScratchpadBlocksPreservingCodeFences,
+  stripTrailingToolProtocolClosingFragments,
+  textHasUnclosedCodeFence,
+  textHasUnclosedInlineCode,
+  textStartsWithModelScratchpadTag,
+  textStartsWithNonScratchpadOpeningTag
+} from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -146,6 +155,23 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** Parentless main-agent text may carry model scratchpad wrappers outside compaction windows. */
+  filterParentlessScratchpadText: boolean
+  scratchpadTextProbe: string
+  scratchpadStreamRemainder: string
+  /** Odd trailing backslash run at the processed tail: the next delta's first character is escaped. */
+  scratchpadStreamEscapeCarry: boolean
+  /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
+  toolProtocolStripAccumulator: string
+  toolProtocolStripEmittedLength: number
+  suppressActiveTextPart: boolean
+  /** Set once a text part is classified as a compaction artifact: its remaining deltas are dropped. */
+  suppressCompactionArtifactPart: boolean
+  compactionScratchpadStripped: boolean
+  textStartDeferred: boolean
+  textPartStarted: boolean
+  /** Parent of the active text part, retained so deferred text-start emission keeps it. */
+  textPartParentId: SdkParentToolUseId
 }
 
 /**
@@ -169,6 +195,15 @@ export type ClaudeCodeStreamStatusEvent = Extract<
       | 'autonomous-turn-state'
   }
 >
+
+/** True when the text ends with an odd-length backslash run: the next chunk's first character is escaped. */
+function hasOddTrailingBackslashRun(text: string): boolean {
+  let run = 0
+  for (let i = text.length - 1; i >= 0 && text[i] === '\\'; i--) {
+    run++
+  }
+  return run % 2 === 1
+}
 
 type StatusSink = {
   emit(event: ClaudeCodeStreamStatusEvent): void
@@ -509,6 +544,39 @@ export class ClaudeCodeStreamAdapter {
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
   private turnHasActivity = false
+  /** Runtime compaction prose is internal state transfer and must not land in visible transcript text. */
+  private runtimeCompactionActive = false
+  /**
+   * Grace window after a completed compaction. Non-standard gateways can commit the compaction
+   * exchange (an `<analysis>` scratchpad plus a `<summary>` in the compaction prompt's section
+   * format) as regular assistant text that arrives just after the compacting status clears, so
+   * text starts stay deferred until the first visible text emits.
+   */
+  private compactionArtifactGrace = false
+  /**
+   * Provenance for the compaction-artifact grace: a compaction that completes before the
+   * assistant produced any output for the pending user prompt runs AHEAD of the requested
+   * answer, so its success/boundary must not arm artifact suppression against that answer
+   * (cherry-pr-review inv_63b9c0bbf40500fd).
+   */
+  private hasSeenGenuineUserPrompt = false
+  /**
+   * Visible answer text delivered for the pending user prompt. Tool rounds are
+   * not the answer: a Read round before a runtime compaction must not flip the
+   * preemption provenance and arm artifact suppression against the requested
+   * answer (cherry-pr-review inv_fa1985c9a95f568f).
+   */
+  private assistantAnswerSinceUserPrompt = false
+  private compactionPreemptsPendingAnswer = false
+
+  /** Section headings demanded by the compaction instruction; two or more mark a compaction summary. */
+  private static readonly COMPACTION_SUMMARY_SECTIONS = [
+    'Task Overview',
+    'Current State',
+    'Important Discoveries',
+    'Next Steps',
+    'Context to Preserve'
+  ]
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
@@ -526,7 +594,7 @@ export class ClaudeCodeStreamAdapter {
    * missing-property check the guarantee that a turn starts clean — resetting fields individually
    * would silently leak whichever one a later change forgets.
    */
-  private createTurnContext(sink = this.sink): StreamContext {
+  private createTurnContext(sink = this.sink, filterParentlessScratchpadText = sink === this.sink): StreamContext {
     const systemReminderBodies = new Set<string>()
     return {
       sink: this.createSystemReminderFilteringSink(this.createActivityTrackingSink(sink), systemReminderBodies),
@@ -548,8 +616,77 @@ export class ClaudeCodeStreamAdapter {
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
-      textStreamedViaContentBlock: false
+      textStreamedViaContentBlock: false,
+      filterParentlessScratchpadText,
+      scratchpadTextProbe: '',
+      scratchpadStreamRemainder: '',
+      scratchpadStreamEscapeCarry: false,
+      toolProtocolStripAccumulator: '',
+      toolProtocolStripEmittedLength: 0,
+      suppressActiveTextPart: false,
+      suppressCompactionArtifactPart: false,
+      compactionScratchpadStripped: false,
+      textStartDeferred: false,
+      textPartStarted: false,
+      textPartParentId: null
     }
+  }
+
+  private resetToolProtocolStripState(ctx: StreamContext): void {
+    ctx.toolProtocolStripAccumulator = ''
+    ctx.toolProtocolStripEmittedLength = 0
+  }
+
+  /** Strips tool-protocol closings only once trailing content is known (block may span deltas). */
+  private takeToolProtocolStrippedVisibleDelta(text: string, ctx: StreamContext, flush = false): string {
+    if (!ctx.filterParentlessScratchpadText || (!text && !flush)) {
+      return text
+    }
+    ctx.toolProtocolStripAccumulator += text
+    const stripped = stripTrailingToolProtocolClosingFragments(ctx.toolProtocolStripAccumulator)
+    // Hold back the trailing suffix that further text could still complete into
+    // a strippable fragment (a whitespace run, or a partial `<...` tag).
+    // Emitting it eagerly rewinds toolProtocolStripEmittedLength when the
+    // fragment completes and is stripped, duplicating protocol text in the
+    // output (cherry-pr-review inv_9a2a758db93aa142). The offset only advances;
+    // flush at text-part end releases the remainder.
+    let emitEnd = stripped.length
+    if (!flush) {
+      // Whitespace alone is not held: a stripped fragment keeps its leading
+      // whitespace consumed, and emitted trailing whitespace must stay emitted.
+      const holdBack = /\s*<\/?[\p{L}\p{N}_|｜-]*$/u.exec(stripped)
+      if (holdBack) emitEnd -= holdBack[0].length
+    }
+    if (emitEnd <= ctx.toolProtocolStripEmittedLength) return ''
+    const emit = stripped.slice(ctx.toolProtocolStripEmittedLength, emitEnd)
+    ctx.toolProtocolStripEmittedLength = emitEnd
+    return emit
+  }
+
+  /**
+   * Releases the held-back tool-protocol remainder without hold-back when a
+   * text part closes. Whatever is still buffered at part end is final content:
+   * a completed trailing fragment was already stripped, so what remains is real
+   * text (cherry-pr-review inv_9a2a758db93aa142).
+   */
+  private flushToolProtocolStripRemainder(ctx: StreamContext): void {
+    const remaining = this.takeToolProtocolStrippedVisibleDelta('', ctx, true)
+    if (!remaining || ctx.suppressActiveTextPart) return
+    if (!ctx.textPartId) {
+      ctx.textPartId = generateId()
+    }
+    if (!ctx.textPartStarted) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        providerMetadata: this.textStartProviderMetadata(ctx)
+      })
+      ctx.textPartStarted = true
+    }
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: remaining })
+    ctx.textStreamedViaContentBlock = true
+    ctx.accumulatedText += remaining
+    ctx.streamedTextLength += remaining.length
   }
 
   /** Filter at the SDK adapter boundary so live rendering and persisted snapshots consume the same text. */
@@ -630,6 +767,7 @@ export class ClaudeCodeStreamAdapter {
       this.handleContentMessage(message, flow.stream)
       return { type: 'continue' }
     }
+    if (this.isCompactionInternalContent(message, parentToolUseId)) return { type: 'continue' }
 
     // A resumed CLI replays pending background-task notifications as their own zero-turn query before
     // pulling the host's input (claude-agent-sdk#383); that result belongs to the task, not the turn.
@@ -740,7 +878,7 @@ export class ClaudeCodeStreamAdapter {
 
     const flow: FlowContext = {
       rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
+      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId), false)
     }
     this.flowContexts.push(flow)
     return flow
@@ -793,6 +931,11 @@ export class ClaudeCodeStreamAdapter {
         this.handleMessageDelta(event, ctx)
         break
       case 'message_start':
+        // Scratchpad provenance belongs to the message whose text carried the
+        // wrapper: carrying it into a new message lets unrelated tool-round
+        // reasoning erase the final answer (cherry-pr-review inv_2d860893242eb158).
+        ctx.compactionScratchpadStripped = false
+        break
       case 'message_stop':
         break
     }
@@ -886,11 +1029,21 @@ export class ClaudeCodeStreamAdapter {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
     ctx.textPartId = partId
-    ctx.sink.enqueue({
-      type: 'text-start',
-      id: partId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
-    })
+    ctx.scratchpadTextProbe = ''
+    ctx.suppressActiveTextPart = false
+    ctx.suppressCompactionArtifactPart = false
+    ctx.textPartParentId = sdkParentToolUseId ?? null
+    this.resetToolProtocolStripState(ctx)
+    ctx.textStartDeferred = ctx.filterParentlessScratchpadText || this.compactionArtifactWatchActive()
+    ctx.textPartStarted = false
+    if (!ctx.textStartDeferred) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: partId,
+        providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      })
+      ctx.textPartStarted = true
+    }
     ctx.textStreamedViaContentBlock = true
   }
 
@@ -938,13 +1091,537 @@ export class ClaudeCodeStreamAdapter {
       return
     }
 
+    this.enqueueVisibleTextDelta(text, ctx)
+  }
+
+  private splitIncompleteTagSuffix(text: string): { emit: string; buffer: string } {
+    const lastOpen = text.lastIndexOf('<')
+    if (lastOpen === -1) {
+      return { emit: text, buffer: '' }
+    }
+    const tail = text.slice(lastOpen)
+    if (tail.includes('>') || !/^<[a-z/!?]/i.test(tail)) {
+      return { emit: text, buffer: '' }
+    }
+    return { emit: text.slice(0, lastOpen), buffer: tail }
+  }
+
+  private filterScratchpadFromOngoingDelta(text: string, ctx: StreamContext): string {
+    if (!ctx.filterParentlessScratchpadText || !ctx.textPartStarted || ctx.textStartDeferred) {
+      return text
+    }
+
+    // Reattach the escape context of the previous chunk: its trailing backslash was already
+    // emitted, so the scanner cannot see it. The synthetic prefix is removed again below.
+    // The same applies to Markdown line context: a delta continuing an
+    // indented-code line whose whitespace already emitted would be scanned as
+    // column-zero text and lose literal code content (cherry-pr-review
+    // inv_b4f675e18911386f).
+    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText + ctx.scratchpadStreamRemainder)
+    // A delta continues the line the previous chunk left open: carry that
+    // line's emitted content so the scanner classifies the combined first
+    // line with its real Markdown block context. Without it, a chunk like
+    // ` Example\n    <thinking>…` following an emitted `#` scans the heading
+    // line as a paragraph, the indented literal code after it is deleted
+    // (indented code cannot interrupt a paragraph), and the later snapshot -
+    // normalized with full-block context - appends the mismatched suffix
+    // (cherry-pr-review inv_f7b234887ed722ff). The carry holds any trailing
+    // backslash literally, subsuming the escape carry.
+    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText)
+    const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
+    const combined = prefix + ctx.scratchpadStreamRemainder + text
+    ctx.scratchpadStreamRemainder = ''
+    ctx.scratchpadStreamEscapeCarry = false
+
+    if (shouldDeferScratchpadStripping(combined)) {
+      ctx.scratchpadStreamRemainder = combined.slice(prefix.length)
+      // The flush path cannot see the emitted text before the remainder, so
+      // it needs the escape parity of the character run right before it.
+      ctx.scratchpadStreamEscapeCarry = hasOddTrailingBackslashRun(ctx.accumulatedText)
+      return ''
+    }
+
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(combined)
+    if (stripped.length < combined.length && this.compactionArtifactWatchActive()) {
+      ctx.compactionScratchpadStripped = true
+    }
+    // The carried context is already-emitted text; a scratchpad block it
+    // opened can close in this chunk and consume part of it, so measure the
+    // surviving shared head instead of assuming the carry round-trips whole
+    // (cherry-pr-review inv_f7b234887ed722ff).
+    let scanned = stripped
+    if (prefix !== '') {
+      const strippedPrefix = stripKnownModelScratchpadBlocksPreservingCodeFences(prefix)
+      let shared = 0
+      const limit = Math.min(strippedPrefix.length, stripped.length)
+      while (shared < limit && strippedPrefix[shared] === stripped[shared]) shared++
+      scanned = stripped.slice(shared)
+    }
+    const { emit, buffer } = this.splitIncompleteTagSuffix(scanned)
+    ctx.scratchpadStreamRemainder = buffer
+    // Escape context belongs to the emit/buffer boundary, not the stripped tail: a
+    // backslash inside the buffered partial tag is invisible to the next chunk, so
+    // the carry must describe the character run right before the buffer
+    // (cherry-pr-review inv_93cf115807fbf4b8).
+    ctx.scratchpadStreamEscapeCarry = buffer
+      ? hasOddTrailingBackslashRun(stripped.slice(0, stripped.length - buffer.length))
+      : hasOddTrailingBackslashRun(scanned || stripped)
+    return emit
+  }
+
+  /** Compaction artifact watch: live while compaction runs and during the post-complete grace. */
+  private compactionArtifactWatchActive(): boolean {
+    return this.runtimeCompactionActive || this.compactionArtifactGrace
+  }
+
+  private endCompactionArtifactGrace(): void {
+    this.compactionArtifactGrace = false
+  }
+
+  /**
+   * Visible answer text committed to the main transcript. Answer provenance
+   * derives from post-filtering output only: a scratchpad-only assistant
+   * message (e.g. `<thinking>…</thinking>` alongside a tool call) emits
+   * nothing, so it must not mark the pending prompt answered and arm artifact
+   * suppression against the real answer (cherry-pr-review
+   * inv_f006573bb1316667).
+   */
+  private noteVisibleAnswerText(text: string, ctx: StreamContext): void {
+    if (ctx === this.ctx && text.trim()) {
+      this.assistantAnswerSinceUserPrompt = true
+    }
+  }
+
+  /**
+   * Leading whitespace of the visible stream's open line when that line sits
+   * at four or more columns of indentation (or a tab) and cannot be a
+   * paragraph continuation: the next delta continues an indented Markdown
+   * code block, a context the scratchpad scanner cannot see once the
+   * indentation (and any already-emitted content) has landed
+   * (cherry-pr-review inv_b4f675e18911386f, inv_07cd547fcfcb085d).
+   * Partial indentation still in flight (fewer than four columns emitted
+   * before the delta boundary) is carried as well, so the completing delta
+   * is scanned with the full line indentation instead of as column-zero
+   * scratchpad text (cherry-pr-review inv_91c25cca41ade4f0).
+   */
+  /**
+   * The emitted content of the line the next delta continues, minus any part
+   * still buffered in the remainder (which is re-appended on its own).
+   * Whitespace-only open lines carry no block type of their own - the indent
+   * carry handles those - so only content lines are returned.
+   */
+  private emittedOpenLinePrefix(accumulatedText: string): string {
+    // The remainder starts immediately after emitted text, even when it
+    // spans several lines. Find context BEFORE it, not after its last newline
+    // (inv_8286fc83dcddad15: split '1' + '. ```xml\n').
+    const lineStart = accumulatedText.lastIndexOf('\n') + 1
+    const openLine = accumulatedText.slice(lineStart)
+    if (openLine.trim() === '') return ''
+    return openLine
+  }
+
+  private emittedIndentOnlyLinePrefix(text: string): string {
+    const lineStart = text.lastIndexOf('\n') + 1
+    const openLine = text.slice(lineStart)
+    // Any open line already sitting at four or more columns of indentation is
+    // an indented-code line, whether the delta split inside the leading
+    // whitespace or after content landed: the next chunk continues that line
+    // and must be scanned with its indentation restored (cherry-pr-review
+    // inv_07cd547fcfcb085d).
+    // Carry the complete mixed indentation: CommonMark measures columns with
+    // tab stops, so a run like three spaces and a tab reaches column four.
+    // Carrying only the leading spaces drops the tab and the completing chunk
+    // scans below the indented-code threshold (cherry-pr-review
+    // inv_f762891db4383e41).
+    // Markdown containers prefix every line of their content: a blockquote
+    // marker (`> `) or list marker (`- `) wraps the contained block, so the
+    // indentation that opens code sits after the markers. Carry the marker
+    // prefix along with the indentation, or quoted code scans as column-zero
+    // text and loses literal content (cherry-pr-review
+    // inv_5cfd1b3f92913a5c).
+    const containerPrefix = openLine.match(/^(?: {0,3}>(?: |$)| {0,3}(?:[-*+]|\d{1,9}[.)]) )*/)?.[0] ?? ''
+    const indent = openLine.slice(containerPrefix.length).match(/^[ \t]+/)?.[0]
+    if (!indent) return ''
+    const carry = containerPrefix + indent
+    if (lineStart === 0) return carry
+    const prevLineEnd = lineStart - 1
+    const prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1
+    const prevLine = text.slice(prevLineStart, prevLineEnd)
+    if (prevLine.trim() === '') return carry
+    // A line holding only blockquote markers is its container's blank line:
+    // it closes the paragraph just like an empty line.
+    if (/^ {0,3}(?:>[ ]?)+$/.test(prevLine)) return carry
+    const prevContent = this.stripMarkdownContainerMarkers(prevLine)
+    if (this.leadingIndentColumns(prevContent) >= 4) return carry
+    // Leaf blocks close a paragraph, so indentation after them opens indented
+    // code rather than continuing paragraph text (CommonMark 0.31.2 §4.4;
+    // cherry-pr-review inv_cc2d7448049afb39). Without this, an indented
+    // literal element following a heading is scanned as column-zero
+    // scratchpad and deleted from the stream.
+    if (this.isLeafBlockBoundaryLine(prevContent, text, prevLineStart)) return carry
+    return ''
+  }
+
+  /** Leading indentation of a line in CommonMark columns (tab stops of four). */
+  private leadingIndentColumns(line: string): number {
+    let columns = 0
+    for (const ch of line) {
+      if (ch === ' ') columns += 1
+      else if (ch === '\t') columns += 4 - (columns % 4)
+      else break
+    }
+    return columns
+  }
+
+  /**
+   * Removes leading Markdown container markers (blockquote `> `, list
+   * markers) so indentation and leaf-block checks see the contained content
+   * (cherry-pr-review inv_5cfd1b3f92913a5c).
+   */
+  private stripMarkdownContainerMarkers(line: string): string {
+    let rest = line
+    for (;;) {
+      const marker = /^ {0,3}(?:>[ ]?|(?:[-*+]|\d{1,9}[.)]) )/.exec(rest)
+      if (!marker) return rest
+      rest = rest.slice(marker[0].length)
+    }
+  }
+
+  /**
+   * Whether a completed line (already container-stripped) ends a paragraph,
+   * letting a following indented line open an indented code block. Mirrors
+   * the scanner's leaf-block-boundary rules so streaming and whole-text
+   * filtering agree on the visible text (cherry-pr-review
+   * inv_cc2d7448049afb39).
+   */
+  private isLeafBlockBoundaryLine(content: string, text: string, contentLineStart: number): boolean {
+    if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
+    if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:-[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:`{3,}|~{3,})/.test(content)) return true
+    if (!/^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return false
+    // A setext underline only closes an OPEN paragraph; on its own it is
+    // paragraph text. The line before it decides.
+    const prevEnd = contentLineStart - 1
+    if (prevEnd <= 0) return false
+    const prevStart = text.lastIndexOf('\n', prevEnd - 1) + 1
+    const prevLine = this.stripMarkdownContainerMarkers(text.slice(prevStart, prevEnd))
+    if (prevLine.trim() === '') return false
+    if (this.leadingIndentColumns(prevLine) >= 4) return false
+    if (
+      /^ {0,3}(?:#{1,6}(?:[ \t]+|$)|(?:\*[ \t]*){3,}$|(?:_[ \t]*){3,}$|(?:-[ \t]*){3,}$|(?:`{3,}|~{3,}))/.test(prevLine)
+    ) {
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Classifies deferred probe text against the compaction artifact shape: content that is entirely
+   * scratchpad plus a `<summary>` carrying the compaction prompt's numbered sections. Gateways that
+   * commit the compaction exchange as regular (parented) assistant text bypass the parentless
+   * message filter, so this shape check runs regardless of how the turn started.
+   */
+  private classifyCompactionArtifactProbe(
+    probe: string,
+    atBlockEnd: boolean,
+    ctx: StreamContext
+  ): 'pending' | 'artifact' | 'not-artifact' {
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
+    // Stripping only removes scratchpad blocks (code fences round-trip), so a
+    // length change is provenance that the model wrapped internal blocks
+    // around this content (cherry-pr-review inv_a80cefcbe270db4f).
+    // The probe itself may already be summary-only because a snapshot or an
+    // earlier block lost its scratchpad wrapper upstream; the context flag
+    // carries that provenance forward (cherry-pr-review inv_a80cefcbe270db4f).
+    const hadScratchpad = stripped.length < probe.length || ctx.compactionScratchpadStripped
+    const trimmed = stripped.trimStart()
+    if (!trimmed) {
+      if (!atBlockEnd) return 'pending'
+      // A block that is entirely scratchpad (e.g. a lone <analysis>) is internal content.
+      return probe.trim() ? 'artifact' : 'not-artifact'
+    }
+    if (!trimmed.startsWith('<')) return 'not-artifact'
+    if (!trimmed.includes('>')) {
+      return atBlockEnd ? 'not-artifact' : 'pending'
+    }
+    if (textStartsWithModelScratchpadTag(trimmed)) {
+      // Unclosed scratchpad block still streaming - wait for the close to see what follows.
+      return atBlockEnd ? 'not-artifact' : 'pending'
+    }
+    if (!trimmed.startsWith('<summary')) return 'not-artifact'
+    const markerCount = ClaudeCodeStreamAdapter.COMPACTION_SUMMARY_SECTIONS.filter((section) =>
+      new RegExp(`(^|\\n)\\s*\\d+\\.\\s*${section}\\b`, 'i').test(trimmed)
+    ).length
+    // A bare summary-shaped answer with numbered headings but no scratchpad
+    // provenance is legitimate user-facing prose, not a compaction artifact.
+    if (markerCount >= 2 && hadScratchpad) {
+      // The artifact is the summary exchange alone. Validate the complete
+      // boundary before suppressing: ordinary text after the closing tag is a
+      // real answer, not compaction prose (cherry-pr-review inv_673840dd69889b50).
+      const summaryClose = /<\/summary\s*>/i.exec(trimmed)
+      if (summaryClose && trimmed.slice(summaryClose.index + summaryClose[0].length).trim()) {
+        return 'not-artifact'
+      }
+      return atBlockEnd ? 'artifact' : 'pending'
+    }
+    if (!trimmed.includes('</summary>') && !atBlockEnd) return 'pending'
+    return 'not-artifact'
+  }
+
+  private classifyScratchpadProbe(
+    probe: string,
+    atBlockEnd = false
+  ): { action: 'pending'; rewriteProbe?: string } | { action: 'suppress' } | { action: 'emit'; visible: string } {
+    if (!probe) return { action: 'pending' }
+
+    const trimmed = probe.trimStart()
+    if (!trimmed) {
+      return atBlockEnd ? { action: 'emit', visible: probe } : { action: 'pending' }
+    }
+    if (!trimmed.startsWith('<')) {
+      return { action: 'emit', visible: probe }
+    }
+    if (!trimmed.includes('>')) {
+      if (atBlockEnd) {
+        return { action: 'emit', visible: probe }
+      }
+      return { action: 'pending' }
+    }
+
+    if (textStartsWithNonScratchpadOpeningTag(trimmed)) {
+      return { action: 'emit', visible: probe }
+    }
+
+    if (textStartsWithModelScratchpadTag(probe)) {
+      if (!atBlockEnd && (textHasUnclosedCodeFence(probe) || textHasUnclosedInlineCode(probe))) {
+        return { action: 'pending' }
+      }
+      const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
+      if (stripped.length < probe.length) {
+        const remainder = stripped
+        if (
+          textStartsWithModelScratchpadTag(remainder) ||
+          (!atBlockEnd && remainder.trimStart().startsWith('<') && !textStartsWithNonScratchpadOpeningTag(remainder))
+        ) {
+          return { action: 'pending', rewriteProbe: remainder }
+        }
+        if (remainder.trim().length > 0) {
+          return { action: 'emit', visible: this.trimAfterScratchpadStrip(probe, remainder) }
+        }
+        // A whitespace-only remainder is not disposable mid-stream: when the
+        // delta boundary lands right after the closed block, that whitespace
+        // carries the blank-line separator AND the next visible line's
+        // indentation - suppressing it here strips the indentation that
+        // combined delivery preserves (trimAfterScratchpadStrip), and the
+        // shortened stream then mismatches the assistant snapshot, which
+        // appends the duplicate suffix (cherry-pr-review
+        // inv_685fa6678f9069fa#f1). Stay pending so the completed probe
+        // classifies exactly like combined delivery; at block end the
+        // whitespace is trailing and suppresses with the block.
+        return atBlockEnd ? { action: 'suppress' } : { action: 'pending' }
+      }
+      if (atBlockEnd) {
+        return { action: 'emit', visible: probe }
+      }
+      return { action: 'pending' }
+    }
+
+    if (atBlockEnd) {
+      return { action: 'emit', visible: probe }
+    }
+    return { action: 'pending' }
+  }
+
+  private flushDeferredScratchpadText(ctx: StreamContext): void {
+    if (!ctx.textStartDeferred || !ctx.textPartId) return
+
+    const pending = ctx.scratchpadTextProbe
+    ctx.textStartDeferred = false
+    ctx.scratchpadTextProbe = ''
+    if (!pending) return
+
+    if (this.compactionArtifactWatchActive()) {
+      const verdict = this.classifyCompactionArtifactProbe(pending, true, ctx)
+      if (verdict === 'artifact') {
+        ctx.suppressActiveTextPart = true
+        ctx.suppressCompactionArtifactPart = true
+        return
+      }
+      if (!ctx.filterParentlessScratchpadText) {
+        // Flow-context text under the watch is healthy: emit verbatim.
+        ctx.sink.enqueue({
+          type: 'text-start',
+          id: ctx.textPartId,
+          providerMetadata: this.textStartProviderMetadata(ctx)
+        })
+        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: pending })
+        ctx.textPartStarted = true
+        ctx.textStreamedViaContentBlock = true
+        ctx.accumulatedText += pending
+        ctx.streamedTextLength += pending.length
+        this.endCompactionArtifactGrace()
+        return
+      }
+    }
+
+    const classified = this.classifyScratchpadProbe(pending, true)
+    if (classified.action === 'pending') {
+      if (classified.rewriteProbe !== undefined) {
+        ctx.scratchpadTextProbe = classified.rewriteProbe
+        ctx.textStartDeferred = true
+      }
+      return
+    }
+    if (classified.action === 'suppress') {
+      ctx.suppressActiveTextPart = true
+      return
+    }
+
+    const visible = this.trimAfterScratchpadStrip(pending, classified.visible)
+    ctx.sink.enqueue({
+      type: 'text-start',
+      id: ctx.textPartId,
+      providerMetadata: this.textStartProviderMetadata(ctx)
+    })
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: visible })
+    ctx.textPartStarted = true
+    ctx.textStreamedViaContentBlock = true
+    ctx.accumulatedText += visible
+    ctx.streamedTextLength += visible.length
+    this.noteVisibleAnswerText(visible, ctx)
+    this.endCompactionArtifactGrace()
+  }
+
+  /** Appends visible text without scratchpad probing — used when a content block ends. */
+  private appendVisibleTextDelta(text: string, ctx: StreamContext): void {
+    text = this.takeToolProtocolStrippedVisibleDelta(text, ctx)
+    if (!text) return
     if (!ctx.textPartId) {
       ctx.textPartId = generateId()
-      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+    }
+    if (!ctx.textPartStarted) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        providerMetadata: this.textStartProviderMetadata(ctx)
+      })
+      ctx.textPartStarted = true
     }
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
+    ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += text
     ctx.streamedTextLength += text.length
+    this.noteVisibleAnswerText(text, ctx)
+  }
+
+  private enqueueVisibleTextDelta(
+    text: string,
+    ctx: StreamContext,
+    providerMetadata?: Record<string, JSONObject>
+  ): void {
+    if (!text) return
+    if (ctx.suppressCompactionArtifactPart) return
+    if (ctx.suppressActiveTextPart) {
+      if (ctx.textPartStarted) return
+      ctx.suppressActiveTextPart = false
+    }
+
+    if (!ctx.textPartId) {
+      ctx.textPartId = generateId()
+      ctx.textStartDeferred = ctx.filterParentlessScratchpadText || this.compactionArtifactWatchActive()
+      ctx.scratchpadTextProbe = ''
+      ctx.textPartStarted = false
+      if (!ctx.textStartDeferred) {
+        ctx.sink.enqueue({
+          type: 'text-start',
+          id: ctx.textPartId,
+          providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
+        })
+        ctx.textPartStarted = true
+      }
+    }
+
+    if (ctx.textStartDeferred) {
+      ctx.scratchpadTextProbe += text
+      let watchEmittedProbe = false
+      if (this.compactionArtifactWatchActive()) {
+        const verdict = this.classifyCompactionArtifactProbe(ctx.scratchpadTextProbe, false, ctx)
+        if (verdict === 'pending') {
+          return
+        }
+        if (verdict === 'artifact') {
+          // Drop the rest of this text part too: the artifact is the whole part, so later
+          // deltas of the same block must not leak either.
+          ctx.scratchpadTextProbe = ''
+          ctx.textStartDeferred = false
+          ctx.suppressCompactionArtifactPart = true
+          return
+        }
+        if (!ctx.filterParentlessScratchpadText) {
+          // Flow-context text under the watch is healthy: emit the probe as-is. Scratchpad
+          // turns keep their own classification below.
+          ctx.textStartDeferred = false
+          text = ctx.scratchpadTextProbe
+          ctx.scratchpadTextProbe = ''
+          ctx.sink.enqueue({
+            type: 'text-start',
+            id: ctx.textPartId,
+            providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
+          })
+          ctx.textPartStarted = true
+          this.endCompactionArtifactGrace()
+          watchEmittedProbe = true
+        }
+      }
+      if (!watchEmittedProbe) {
+        const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
+        if (classified.action === 'pending') {
+          if (classified.rewriteProbe !== undefined) {
+            ctx.scratchpadTextProbe = classified.rewriteProbe
+          }
+          return
+        }
+        if (classified.action === 'suppress') {
+          ctx.scratchpadTextProbe = ''
+          return
+        }
+        ctx.textStartDeferred = false
+        ctx.sink.enqueue({
+          type: 'text-start',
+          id: ctx.textPartId,
+          providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
+        })
+        ctx.textPartStarted = true
+        this.endCompactionArtifactGrace()
+        text = classified.visible
+        ctx.scratchpadTextProbe = ''
+      }
+    }
+
+    if (ctx.filterParentlessScratchpadText && ctx.textPartStarted && !ctx.textStartDeferred) {
+      text = this.filterScratchpadFromOngoingDelta(text, ctx)
+      if (!text) return
+    }
+
+    text = this.takeToolProtocolStrippedVisibleDelta(text, ctx)
+    if (!text) return
+
+    if (!ctx.textPartStarted) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
+      })
+      ctx.textPartStarted = true
+    }
+
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
+    ctx.textStreamedViaContentBlock = true
+    ctx.accumulatedText += text
+    ctx.streamedTextLength += text.length
+    this.noteVisibleAnswerText(text, ctx)
   }
 
   private handleInputJsonDelta(partialJson: string, blockIndex: number, ctx: StreamContext): void {
@@ -954,6 +1631,7 @@ export class ClaudeCodeStreamAdapter {
       if (!ctx.textPartId) {
         ctx.textPartId = generateId()
         ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+        ctx.textPartStarted = true
       }
       ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: partialJson })
       ctx.accumulatedText += partialJson
@@ -990,9 +1668,27 @@ export class ClaudeCodeStreamAdapter {
 
     const textId = ctx.textBlocksByIndex.get(blockIndex)
     if (textId) {
-      ctx.sink.enqueue({ type: 'text-end', id: textId })
+      if (ctx.textPartId === textId) {
+        this.flushDeferredScratchpadText(ctx)
+        this.flushScratchpadStreamRemainder(ctx)
+        this.flushToolProtocolStripRemainder(ctx)
+      }
+      if (!ctx.suppressActiveTextPart && ctx.textPartStarted && ctx.textPartId === textId) {
+        ctx.sink.enqueue({ type: 'text-end', id: textId })
+      }
       ctx.textBlocksByIndex.delete(blockIndex)
-      if (ctx.textPartId === textId) ctx.textPartId = undefined
+      if (ctx.textPartId === textId) {
+        ctx.textPartId = undefined
+        ctx.scratchpadTextProbe = ''
+        ctx.scratchpadStreamRemainder = ''
+        ctx.scratchpadStreamEscapeCarry = false
+        this.resetToolProtocolStripState(ctx)
+        ctx.suppressActiveTextPart = false
+        ctx.suppressCompactionArtifactPart = false
+        ctx.textStartDeferred = false
+        ctx.textPartStarted = false
+        ctx.textPartParentId = null
+      }
       return
     }
 
@@ -1037,6 +1733,11 @@ export class ClaudeCodeStreamAdapter {
 
     if (!message.message?.content) return
 
+    // Scratchpad provenance belongs to this message alone: a strip from an
+    // earlier message in the turn must not mark this one's text as a
+    // compaction artifact (cherry-pr-review inv_2d860893242eb158).
+    ctx.compactionScratchpadStripped = false
+
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
     const tools = this.extractToolUses(content)
@@ -1054,11 +1755,48 @@ export class ClaudeCodeStreamAdapter {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
 
-    const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
+    const visibleText = content
+      .map((c: BetaContentBlock) => (c.type === 'text' ? c.text : ''))
+      .map((blockText) => this.normalizeParentlessAssistantBlockText(blockText, ctx))
+      .join('')
 
-    if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+    if (visibleText) {
+      this.handleAssistantText(visibleText, sdkParentToolUseId, ctx)
     }
+
+    // Snapshot block order varies: when the text block follows the tool
+    // blocks, per-block handling would leave the preamble flagged as the
+    // answer. A message with tool calls is always a tool round, so the
+    // message-level state wins (cherry-pr-review inv_58329b90d53633c8).
+    if (tools.length > 0 && ctx === this.ctx) {
+      this.assistantAnswerSinceUserPrompt = false
+    }
+  }
+
+  /** Per content block so multi-block streaming offsets match snapshot reconciliation. */
+  private normalizeParentlessAssistantBlockText(blockText: string, ctx: StreamContext): string {
+    if (!blockText) return ''
+    if (!ctx.filterParentlessScratchpadText) {
+      return blockText
+    }
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(blockText)
+    if (stripped.length < blockText.length && this.compactionArtifactWatchActive()) {
+      // The snapshot carried scratchpad alongside this text: that is the runtime
+      // provenance distinguishing a compaction artifact from a bare
+      // summary-shaped answer (cherry-pr-review inv_a80cefcbe270db4f).
+      ctx.compactionScratchpadStripped = true
+    }
+    const visible = this.trimAfterScratchpadStrip(blockText, stripped)
+    return stripTrailingToolProtocolClosingFragments(visible)
+  }
+
+  /** Trim separator whitespace only when scratchpad stripping actually changed the text. */
+  private trimAfterScratchpadStrip(original: string, stripped: string): string {
+    // Drop the blank separator lines between a stripped block and the visible
+    // content, but never the first visible line's own indentation: that
+    // whitespace is what makes an indented code block a code block
+    // (cherry-pr-review inv_b4af2f970a27a005#f1).
+    return stripped.length < original.length ? stripped.replace(/^(?:[ 	]*\r?\n)+/, '') : stripped
   }
 
   private handleAssistantToolUse(
@@ -1066,6 +1804,13 @@ export class ClaudeCodeStreamAdapter {
     sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
+    // A tool call means the turn is mid-work: text the same message carried is
+    // a preamble, not the requested answer, so it must not arm artifact
+    // suppression against the answer that follows the tool result
+    // (cherry-pr-review inv_58329b90d53633c8).
+    if (ctx === this.ctx) {
+      this.assistantAnswerSinceUserPrompt = false
+    }
     const toolId = tool.id
     let state = ctx.toolStates.get(toolId)
     // The name may be missing here too, in which case the streamed one (if any) stands.
@@ -1128,30 +1873,28 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
+  private handleAssistantText(visibleText: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    ctx.textPartParentId = sdkParentToolUseId ?? null
+    if (!visibleText) {
+      return
+    }
     if (ctx.hasReceivedStreamEvents) {
-      const newTextStart = ctx.streamedTextLength
-      const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
-      ctx.accumulatedText = text
+      const deltaText = visibleText.length > ctx.streamedTextLength ? visibleText.slice(ctx.streamedTextLength) : ''
 
-      if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
-        if (!ctx.textPartId) {
-          ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
-        }
-        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
+      if (ctx.options.responseFormat?.type === 'json') {
+        ctx.accumulatedText = visibleText
+        return
       }
-      ctx.streamedTextLength = text.length
+      if (deltaText) {
+        this.enqueueVisibleTextDelta(deltaText, ctx, providerMetadata)
+      }
+      ctx.accumulatedText = visibleText
+      ctx.streamedTextLength = visibleText.length
+    } else if (ctx.options.responseFormat?.type === 'json') {
+      ctx.accumulatedText += visibleText
     } else {
-      ctx.accumulatedText += text
-      if (ctx.options.responseFormat?.type !== 'json') {
-        if (!ctx.textPartId) {
-          ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
-        }
-        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
-      }
+      this.enqueueVisibleTextDelta(visibleText, ctx, providerMetadata)
     }
   }
 
@@ -1173,8 +1916,19 @@ export class ClaudeCodeStreamAdapter {
 
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
+    const toolResults = this.extractToolResults(content)
 
-    for (const result of this.extractToolResults(content)) {
+    // A genuine user prompt establishes that the following assistant text answers the
+    // user, not the compaction instruction: scratchpad removal plus a sectioned
+    // summary shape does not by itself establish compaction provenance, so the
+    // artifact grace ends here (cherry-pr-review inv_5b861e177143056b).
+    if (!message.isSynthetic && toolResults.length === 0 && getTextContent(content).some((text) => text.trim())) {
+      this.hasSeenGenuineUserPrompt = true
+      this.assistantAnswerSinceUserPrompt = false
+      this.endCompactionArtifactGrace()
+    }
+
+    for (const result of toolResults) {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
   }
@@ -1285,7 +2039,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.hasStreamedJson && ctx.options.responseFormat?.type === 'json' && ctx.hasReceivedStreamEvents
 
     if (alreadyStreamedJson) {
-      if (ctx.textPartId) ctx.sink.enqueue({ type: 'text-end', id: ctx.textPartId })
+      if (ctx.textPartId) this.closeActiveTextPart(ctx)
     } else if (structuredOutput !== undefined) {
       const jsonTextId = generateId()
       const jsonText = JSON.stringify(structuredOutput)
@@ -1293,15 +2047,30 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({ type: 'text-delta', id: jsonTextId, delta: jsonText })
       ctx.sink.enqueue({ type: 'text-end', id: jsonTextId })
     } else if (ctx.textPartId) {
-      ctx.sink.enqueue({ type: 'text-end', id: ctx.textPartId })
-    } else if (ctx.accumulatedText && !ctx.textStreamedViaContentBlock) {
-      const fallbackTextId = generateId()
-      ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
-      ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: ctx.accumulatedText })
-      ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
+      this.closeActiveTextPart(ctx)
+    } else if (
+      ctx.accumulatedText &&
+      !ctx.textStreamedViaContentBlock &&
+      ctx.streamedTextLength < ctx.accumulatedText.length
+    ) {
+      const fallbackDelta = ctx.accumulatedText.slice(ctx.streamedTextLength)
+      if (
+        !(
+          this.compactionArtifactWatchActive() &&
+          this.classifyCompactionArtifactProbe(fallbackDelta, true, ctx) === 'artifact'
+        )
+      ) {
+        const fallbackTextId = generateId()
+        ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
+        ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: fallbackDelta })
+        ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
+        this.endCompactionArtifactGrace()
+      }
+      ctx.streamedTextLength = ctx.accumulatedText.length
     }
 
     this.finalizeToolCalls(ctx)
+    this.runtimeCompactionActive = false
 
     ctx.sink.enqueue({
       type: 'finish',
@@ -1322,10 +2091,10 @@ export class ClaudeCodeStreamAdapter {
         this.handleTaskSystemMessage(message, ctx)
         return
       case 'status':
-        this.handleStatusSystemMessage(message)
+        this.handleStatusSystemMessage(message, ctx)
         return
       case 'compact_boundary':
-        this.handleCompactBoundarySystemMessage(message)
+        this.handleCompactBoundarySystemMessage(message, ctx)
         return
       case 'thinking_tokens':
         this.handleThinkingTokensSystemMessage(message, ctx)
@@ -1518,20 +2287,33 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleStatusSystemMessage(message: SDKStatusMessage): void {
+  private handleStatusSystemMessage(message: SDKStatusMessage, ctx: StreamContext): void {
     if (message.status === 'compacting') {
+      this.closeActiveTextPart(ctx)
+      ctx.accumulatedText = ''
+      ctx.streamedTextLength = 0
+      this.runtimeCompactionActive = true
+      this.compactionPreemptsPendingAnswer = this.hasSeenGenuineUserPrompt && !this.assistantAnswerSinceUserPrompt
       this.statusSink.emit({ type: 'compaction-start' })
       return
     }
     if (message.compact_result === 'failed' || message.compact_error) {
+      this.runtimeCompactionActive = false
       logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
       this.statusSink.emit({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
       return
     }
     if (message.compact_result === 'success') {
-      // A successful compaction may report `success` WITHOUT a following `compact_boundary` (the SDK
-      // does not guarantee one). Settle idempotently with a no-anchor completion so the session does
-      // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
+      // Success ends suppression: the SDK does not guarantee a boundary, so content after
+      // success is post-compaction output and must stay visible. A later boundary still wins.
+      // A compaction that preempted the pending user prompt's answer must not arm
+      // the grace against that answer (cherry-pr-review inv_63b9c0bbf40500fd).
+      this.runtimeCompactionActive = false
+      this.compactionArtifactGrace = !this.compactionPreemptsPendingAnswer
+      // closeActiveTextPart on compacting may have cleared textPartId while offsets still
+      // reflect pre-compaction streaming; reset so snapshot reconciliation starts fresh.
+      ctx.accumulatedText = ''
+      ctx.streamedTextLength = 0
       this.statusSink.emit({ type: 'compaction-complete' })
     }
   }
@@ -1557,7 +2339,16 @@ export class ClaudeCodeStreamAdapter {
     this.statusSink.emit({ type: 'background-work-state', active: false })
   }
 
-  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
+  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage, ctx: StreamContext): void {
+    this.runtimeCompactionActive = false
+    // Same provenance rule as compact success: a preempted pending answer stays
+    // visible (cherry-pr-review inv_63b9c0bbf40500fd).
+    this.compactionArtifactGrace = !this.compactionPreemptsPendingAnswer
+    // A boundary starts a fresh context window, so the next assistant snapshot is a new response.
+    // Reset the streaming offsets or its prefix would be sliced against pre-compaction lengths.
+    this.closeActiveTextPart(ctx)
+    ctx.accumulatedText = ''
+    ctx.streamedTextLength = 0
     const metadata = message.compact_metadata
     const anchor: AgentSessionCompactionAnchorData = {
       status: 'done',
@@ -1656,6 +2447,18 @@ export class ClaudeCodeStreamAdapter {
       toolUses: value.tool_uses,
       durationMs: value.duration_ms
     }
+  }
+
+  private isCompactionInternalContent(message: SDKMessage, parentToolUseId: string | null | undefined): boolean {
+    if (parentToolUseId != null || !this.runtimeCompactionActive) return false
+    if (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user') {
+      logger.debug('Suppressing runtime compaction content from transcript stream', {
+        type: message.type,
+        sessionId: this.sessionId
+      })
+      return true
+    }
+    return false
   }
 
   private extractToolUses(content: BetaContentBlock[]): ClaudeToolUseBlock[] {
@@ -1816,6 +2619,13 @@ export class ClaudeCodeStreamAdapter {
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
+  private textStartProviderMetadata(
+    ctx: StreamContext,
+    explicit?: Record<string, JSONObject>
+  ): Record<string, JSONObject> | undefined {
+    return explicit ?? this.buildParentProviderMetadata(ctx.textPartParentId)
+  }
+
   private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
     return {
@@ -1933,11 +2743,50 @@ export class ClaudeCodeStreamAdapter {
     return null
   }
 
+  private flushScratchpadStreamRemainder(ctx: StreamContext): void {
+    if (!ctx.scratchpadStreamRemainder) return
+    // Scan the remainder with the same open-line context the streaming filter
+    // carries, or flushed literal code can lose its block classification at
+    // the boundary (cherry-pr-review inv_f7b234887ed722ff).
+    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText)
+    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText)
+    const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
+    const pending = prefix + ctx.scratchpadStreamRemainder
+    ctx.scratchpadStreamRemainder = ''
+    ctx.scratchpadStreamEscapeCarry = false
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending)
+    let visible = stripped
+    if (prefix !== '') {
+      const strippedPrefix = stripKnownModelScratchpadBlocksPreservingCodeFences(prefix)
+      let shared = 0
+      const limit = Math.min(strippedPrefix.length, stripped.length)
+      while (shared < limit && strippedPrefix[shared] === stripped[shared]) shared++
+      visible = stripped.slice(shared)
+    }
+    if (visible) {
+      this.appendVisibleTextDelta(visible, ctx)
+    }
+  }
+
   private closeActiveTextPart(ctx: StreamContext): void {
     if (!ctx.textPartId) return
     const closedTextId = ctx.textPartId
-    ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
+    this.flushDeferredScratchpadText(ctx)
+    this.flushScratchpadStreamRemainder(ctx)
+    this.flushToolProtocolStripRemainder(ctx)
+    if (!ctx.suppressActiveTextPart && ctx.textPartStarted) {
+      ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
+    }
     ctx.textPartId = undefined
+    ctx.scratchpadTextProbe = ''
+    ctx.scratchpadStreamRemainder = ''
+    ctx.scratchpadStreamEscapeCarry = false
+    this.resetToolProtocolStripState(ctx)
+    ctx.suppressActiveTextPart = false
+    ctx.suppressCompactionArtifactPart = false
+    ctx.textStartDeferred = false
+    ctx.textPartStarted = false
+    ctx.textPartParentId = null
     for (const [idx, blockTextId] of ctx.textBlocksByIndex) {
       if (blockTextId === closedTextId) {
         ctx.textBlocksByIndex.delete(idx)
