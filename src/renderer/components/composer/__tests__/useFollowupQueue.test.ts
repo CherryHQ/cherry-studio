@@ -67,7 +67,7 @@ function wireQuery(rows: FollowupQueueRow[], paused = false, stateUpdatedAt = ''
 }
 
 function wireMutations() {
-  const postTrigger = vi.fn(async (): Promise<any> => undefined)
+  const postTrigger = vi.fn<(args: { body: any }) => Promise<any>>(async () => undefined)
   const deleteTrigger = vi.fn(async (): Promise<any> => undefined)
   // Takes delete on their own SWR mutation instance (see useFollowupQueue):
   // the hook calls useMutation('DELETE', …) twice per render — remove/resolve
