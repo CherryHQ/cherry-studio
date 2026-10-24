@@ -1719,7 +1719,20 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
+    // Two-session outcome (inv_58f93a93e82c4393): the M1 session keeps the
+    // selection-time save of E agent-wide - the model switch must not issue
+    // a second write re-normalizing the shared setting against M2 - while
+    // this session on M2 shows the normalized effective default.
     await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      {
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: model.id
+      },
+      { showSuccessToast: false }
+    )
   })
 
   it('keeps the session reasoning selection when the model update fails', async () => {
