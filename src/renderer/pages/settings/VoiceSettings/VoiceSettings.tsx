@@ -28,6 +28,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import {
   enumerateMicrophones,
@@ -61,6 +62,7 @@ import {
 } from '@shared/ai/localVoice'
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
+import type { ExpressiveRuleView } from '@shared/ipc/schemas/voice'
 import { defaultLanguage as fallbackSampleCatalog } from '@shared/utils/languages'
 
 import { DictationShortcutSettings } from './DictationShortcutSettings'
@@ -217,7 +219,27 @@ function VoiceSettings() {
   const microphoneQueryGeneration = useRef(0)
   const microphoneAuthorization = useRef<AbortController | null>(null)
   const [autoRead, setAutoRead] = usePreference('feature.voice.auto_read.enabled')
+  const [readExpressive, setReadExpressive] = usePreference('feature.voice.speech.read_expressive')
+  const [expressiveRules, setExpressiveRules] = useState<ExpressiveRuleView[]>([])
   const [disclosureConfirmed, setDisclosureConfirmed] = usePreference('feature.voice.auto_read.disclosure_confirmed')
+  useEffect(() => {
+    let active = true
+    void ipcApi
+      .request('voice.expressive.list')
+      .then((rules) => {
+        if (active) setExpressiveRules(Array.isArray(rules) ? rules : [])
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const removeExpressiveRule = async (id: string) => {
+    await ipcApi.request('voice.expressive.remove', { id })
+    setExpressiveRules((current) => current.filter((rule) => rule.id !== id))
+  }
+
   const speech = useSyncExternalStore(
     speechPlaybackService.subscribe,
     speechPlaybackService.getSnapshot,
@@ -1242,6 +1264,42 @@ function VoiceSettings() {
             onCheckedChange={(enabled) => void updateAutoRead(enabled)}
           />
         </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-voice-read-expressive" className="scroll-mt-6 flex-wrap gap-3">
+          <div>
+            <SettingRowTitle>{t('settings.voice.speech.read_expressive.label')}</SettingRowTitle>
+            <SettingDescription>{t('settings.voice.speech.read_expressive.description')}</SettingDescription>
+          </div>
+          <Switch
+            aria-label={t('settings.voice.speech.read_expressive.label')}
+            checked={readExpressive}
+            onCheckedChange={(enabled) => void setReadExpressive(enabled)}
+          />
+        </SettingRow>
+        {expressiveRules.length > 0 ? (
+          <>
+            <SettingDivider />
+            <SettingRow className="flex-wrap gap-3">
+              <div>
+                <SettingRowTitle>{t('settings.voice.expressive.title')}</SettingRowTitle>
+                <SettingDescription>{t('settings.voice.expressive.description')}</SettingDescription>
+              </div>
+            </SettingRow>
+            {expressiveRules.map((rule) => (
+              <SettingRow key={rule.id} className="flex-nowrap">
+                <div className="min-w-0 flex-1">
+                  <SettingRowTitle>{rule.match}</SettingRowTitle>
+                  <SettingDescription>
+                    {rule.zh} · {rule.en}
+                  </SettingDescription>
+                </div>
+                <Button variant="ghost" className="h-7 px-2 text-xs" onClick={() => void removeExpressiveRule(rule.id)}>
+                  {t('settings.voice.expressive.delete')}
+                </Button>
+              </SettingRow>
+            ))}
+          </>
+        ) : null}
       </SettingGroup>
 
       {actionFailed ? (

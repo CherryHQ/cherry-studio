@@ -8,11 +8,19 @@ import { unified } from 'unified'
 
 import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
+import { expressiveToSpeech, isProtectedCode, protectCodeForSpeech, type SpeechLanguage } from './expressiveText'
+
 export const READABLE_TEXT_CONFIRMATION_THRESHOLD = 5_000
 export const SPEECH_ADAPTER_TEXT_LIMIT = 10_000
 export const READABLE_TEXT_CHUNK_LIMIT = 4_000
 
 export type ReadableTextMode = 'document' | 'selection'
+
+export interface ReadableTextOptions {
+  mode?: ReadableTextMode
+  /** Language used for the labels that replace emoji and kaomoji. */
+  language?: SpeechLanguage
+}
 export type ReadableTextTrigger = 'manual' | 'auto_read'
 
 export type ReadableTextPlan =
@@ -112,6 +120,21 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;')
 }
 
+/**
+ * Raw HTML can carry its own `<code>` spans, including ones split across mdast
+ * inline nodes. Mark their text so the rewrite skips it; spans that already
+ * carry a marker (generated code blocks) are left alone.
+ */
+function protectHtmlCode(html: string): string {
+  return html.replace(
+    /<code(\s[^>]*)?>([\s\S]*?)<\/code>/gi,
+    (match, attributes: string | undefined, inner: string) => {
+      if (isProtectedCode(inner)) return match
+      return `<code${attributes ?? ''}>${protectCodeForSpeech(inner)}</code>`
+    }
+  )
+}
+
 function stripCitationMarkers(value: string): string {
   return value.replace(/([ \t]?)\[cite:(?=[^\]\n]*[\w-])[^\]\n]*\]/g, '')
 }
@@ -123,8 +146,9 @@ function phrasingToHtml(nodes: readonly PhrasingContent[]): string {
 function phrasingNodeToHtml(node: PhrasingContent): string {
   switch (node.type) {
     case 'text':
-    case 'inlineCode':
       return escapeHtml(node.value)
+    case 'inlineCode':
+      return protectCodeForSpeech(escapeHtml(node.value))
     case 'break':
       return '<br>'
     case 'image':
@@ -175,7 +199,7 @@ function blockToHtml(node: RootContent): string {
     case 'html':
       return node.value
     case 'code':
-      return `<pre><code>${escapeHtml(node.value)}</code></pre>`
+      return `<pre><code>${protectCodeForSpeech(escapeHtml(node.value))}</code></pre>`
     case 'text':
     case 'inlineCode':
     case 'break':
@@ -218,11 +242,16 @@ function normalizeWhitespace(value: string): string {
     .replace(/ +([,.;:!?。！？；：])/g, '$1')
 }
 
-export function normalizeReadableText(input: string, options: { mode?: ReadableTextMode } = {}): string {
-  if (options.mode === 'selection') return normalizeWhitespace(stripCitationMarkers(input))
+export function normalizeReadableText(input: string, options: ReadableTextOptions = {}): string {
+  const language = options.language ?? 'zh'
+  if (options.mode === 'selection') {
+    return expressiveToSpeech(normalizeWhitespace(stripCitationMarkers(input)), language)
+  }
 
   const tree = markdownParser.runSync(markdownParser.parse(input), input)
-  return normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(blocksToHtml(tree.children))))
+  const html = protectHtmlCode(blocksToHtml(tree.children))
+  const text = normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(html)))
+  return expressiveToSpeech(text, language)
 }
 
 function safeSliceEnd(text: string, start: number, maximumEnd: number): number {
@@ -287,9 +316,9 @@ export function chunkReadableText(text: string, requestedLimit = READABLE_TEXT_C
 
 export function planReadableText(
   input: string,
-  options: { trigger: ReadableTextTrigger; mode?: ReadableTextMode; confirmed?: boolean }
+  options: { trigger: ReadableTextTrigger; mode?: ReadableTextMode; confirmed?: boolean; language?: SpeechLanguage }
 ): ReadableTextPlan {
-  const normalized = normalizeReadableText(input, { mode: options.mode })
+  const normalized = normalizeReadableText(input, { mode: options.mode, language: options.language })
   const normalizedLength = normalized.length
 
   if (normalizedLength > READABLE_TEXT_CONFIRMATION_THRESHOLD) {

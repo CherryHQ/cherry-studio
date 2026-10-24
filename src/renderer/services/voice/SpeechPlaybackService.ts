@@ -1,9 +1,12 @@
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoicePlaybackState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
 import type { OutputFor } from '@shared/ipc/types'
 
+import { ensureExpressiveRulesLoaded } from './expressiveRulesBootstrap'
+import { speechLanguageFromLocale } from './expressiveText'
 import { FinitePlayback } from './FinitePlayback'
 import { PcmPlayback } from './PcmPlayback'
 import {
@@ -83,6 +86,7 @@ interface SpeechPlaybackServiceOptions {
   planText?: typeof planReadableText
   ownerWindow?: Window
   createAudio?: (source: string) => HTMLAudioElement
+  loadExpressiveRules?: () => Promise<void>
 }
 
 interface PlaybackRun {
@@ -147,6 +151,7 @@ export class SpeechPlaybackService {
   private readonly planText: typeof planReadableText
   private readonly ownerWindow: Window
   private readonly createAudio: (source: string) => HTMLAudioElement
+  private readonly loadExpressiveRules: () => Promise<void>
   private readonly listeners = new Set<() => void>()
   private readonly runs = new Map<string, PlaybackRun>()
   private snapshot: SpeechPlaybackSnapshot = IDLE_SNAPSHOT
@@ -165,6 +170,7 @@ export class SpeechPlaybackService {
     this.voice = options.voice ?? voiceService
     this.planText = options.planText ?? planReadableText
     this.ownerWindow = options.ownerWindow ?? window
+    this.loadExpressiveRules = options.loadExpressiveRules ?? ensureExpressiveRulesLoaded
     this.createAudio =
       options.createAudio ??
       ((source) => {
@@ -205,7 +211,11 @@ export class SpeechPlaybackService {
       })
     })
     this.ownerWindow.addEventListener('beforeunload', this.handleBeforeUnload)
-    const initialization = this.voice.initialize().catch((error: unknown) => {
+    const initialization = (async () => {
+      // Labels decide the planned text, so hydration must land before the voice starts.
+      await this.loadExpressiveRules()
+      await this.voice.initialize()
+    })().catch((error: unknown) => {
       if (generation === this.lifecycleGeneration && this.initialization === initialization) {
         this.detach()
         this.initialization = undefined
@@ -218,10 +228,14 @@ export class SpeechPlaybackService {
 
   async start(input: SpeechPlaybackStartInput): Promise<SpeechPlaybackStartResult> {
     if (input.signal?.aborted) throw new VoiceDomainError('aborted')
+    // The first read of a fresh renderer has no rules yet; plan only after they arrive.
+    await this.loadExpressiveRules()
+    if (input.signal?.aborted) throw new VoiceDomainError('aborted')
     const plan = this.planText(input.text, {
       trigger: input.trigger,
       mode: input.textInput ? 'selection' : input.mode,
-      confirmed: input.confirmed
+      confirmed: input.confirmed,
+      language: speechLanguageFromLocale(i18n.language)
     })
     if (plan.status !== 'ready') return planningResult(plan)
     if (input.textInput) plan.chunks = [input.text]

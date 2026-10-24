@@ -297,6 +297,7 @@ export function buildPathRegistry() {
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.files.intakes': path.join(appUserDataData, 'FileIntakes'),
+    'feature.voice.expressive_file': path.join(appUserData, 'voice-expressive.json'),
     'feature.voice.temp': path.join(
       appTemp,
       'voice',

@@ -55,6 +55,20 @@ Read [Cherry Studio](https://example.com/private-path) today. ![Architecture dia
     expect(normalizeReadableText('运行 <code>answer()</code>。')).toBe('运行 answer()。')
   })
 
+  it('leaves emoji and kaomoji inside code spans literal', () => {
+    expect(normalizeReadableText('Use `😄` literally.')).toBe('Use 😄 literally.')
+    expect(normalizeReadableText('代码 `(T_T)` 保持原样。')).toBe('代码 (T_T) 保持原样。')
+    expect(normalizeReadableText('HTML <code>😄</code> 也保持原样。')).toBe('HTML 😄 也保持原样。')
+  })
+
+  it('leaves emoji and kaomoji inside fenced code literal', () => {
+    expect(normalizeReadableText('```\n😄 (T_T)\n```')).toBe('😄 (T_T)')
+  })
+
+  it('rewrites prose around protected code without touching the code itself', () => {
+    expect(normalizeReadableText('完成 😄 后运行 `echo 😄`。')).toBe('完成 [开心] 后运行 echo 😄。')
+  })
+
   it('preserves literal markup and entities inside fenced code', () => {
     expect(normalizeReadableText('```html\n<think>结果</think>\n<p>A &amp; B</p>\n```')).toBe(
       '<think>结果</think>\n<p>A &amp; B</p>'
@@ -234,5 +248,30 @@ describe('planReadableText', () => {
       normalizedLength: input.length,
       chunks: []
     })
+  })
+})
+
+describe('expression labels in readable text', () => {
+  it('rewrites emoji and kaomoji before the text reaches speech', () => {
+    expect(normalizeReadableText('完成了 😄 (＾▽＾)')).toBe('完成了 [开心] [开心]')
+  })
+
+  it('uses English labels when asked', () => {
+    expect(normalizeReadableText('done 😄', { language: 'en' })).toBe('done [happy]')
+  })
+
+  it('applies the same rewrite to an explicit selection', () => {
+    expect(normalizeReadableText('😭 太难了', { mode: 'selection' })).toBe('[大哭] 太难了')
+  })
+
+  it('leaves ordinary parentheses and inline code alone', () => {
+    expect(normalizeReadableText('调用 `f(x)` 计算 (a+b)')).toBe('调用 f(x) 计算 (a+b)')
+  })
+
+  it('carries the language into the plan', () => {
+    const plan = planReadableText('😄', { trigger: 'manual', language: 'en' })
+
+    expect(plan.status).toBe('ready')
+    expect(plan.chunks.join('')).toBe('[happy]')
   })
 })
