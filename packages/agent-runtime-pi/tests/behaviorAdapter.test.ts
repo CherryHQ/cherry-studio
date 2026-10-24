@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs'
+import { readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { TSchema } from '@earendil-works/pi-ai'
@@ -22,6 +22,7 @@ import {
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { AgentRuntimeEvent, BehaviorSessionRequest, CompactionSummarizer } from '../src'
+import { historyOf } from '../src/behavior/history'
 import { type OpenSession, openPiHarness, type PiHarness } from './behaviorHarness'
 
 const read = (pi: PiHarness, thread: ThreadId): Promise<ConversationFacts> =>
@@ -126,6 +127,27 @@ async function spawn(pi: PiHarness, parent: ThreadId, fork?: ChildSpec['fork']):
   )
   return spawned[0].child
 }
+/** A stored parent and a stored conversation, one turn behind each; the second one's storage is gone, so writes fail. */
+async function brokenStorage(pi: PiHarness) {
+  const sessions = join(pi.cwd, 'sessions')
+  const manager = SessionManager.create(pi.cwd, sessions)
+  const parent = await pi.behavior.openConversation(manager)
+  const gone = join(pi.cwd, 'gone')
+  const broken = await pi.behavior.openConversation(SessionManager.create(pi.cwd, gone))
+  for (const thread of [parent, broken]) {
+    pi.harness.script(thread, [{ text: 'one' }])
+    await pi.harness.sendUser(thread, 'first')
+  }
+  await pi.harness.settle()
+  rmSync(gone, { recursive: true })
+  return { parent, broken, sessions, file: manager.getSessionFile()! }
+}
+const notice = (thread: ThreadId, label: string): TxOp => ({
+  type: 'append-record',
+  thread,
+  record: { type: 'goal-notice', value: { text: label, level: 'info' } },
+  key: key(label)
+})
 
 describe('coding-agent behavior adapter', () => {
   // Catches a stop made while Pi still prepares a person's prompt (its input handlers run): Pi clears that abort when
@@ -393,6 +415,47 @@ describe('coding-agent behavior adapter', () => {
       )
     ).rejects.toThrow('Cannot fork')
     expect(readdirSync(sessions)).toEqual(before)
+  })
+
+  // Catches a commit whose later write fails after a fork's records were written: the parent would keep the child's run
+  // record, in memory and on disk, with a reserved child that never launches (H1: a rejected commit writes nothing).
+  it('takes back the spawn of a commit whose later write fails', async () => {
+    const pi = await openPiHarness(() => {})
+    const { parent, broken, sessions, file } = await brokenStorage(pi)
+    const before = await read(pi, parent)
+    const files = readdirSync(sessions)
+    const at = before.history.find((entry) => entry.kind === 'assistant')!.id
+    const fork: TxOp = { type: 'spawn-child', spec: { ...spec, fork: { from: parent, at } }, key: key('fork') }
+    const commit = (ops: TxOp[]) =>
+      pi.harness.withCall(parent, (ports) => ports.ledger.transact(parent, () => ({ ops, effects: [], result: null })))
+    await expect(commit([fork, notice(broken, 'lost')])).rejects.toThrow('ENOENT')
+    const after = await read(pi, parent)
+    expect(after.history).toEqual(before.history)
+    expect(after.children.size).toBe(0)
+    expect(after.live.pendingLaunches).toBe(0)
+    expect(readdirSync(sessions)).toEqual(files)
+    expect(historyOf(SessionManager.open(file).getBranch(), parent)).toEqual(before.history)
+    // The broken storage cannot take the rollback entry either; that is reported, the commit's own error rethrown.
+    expect(pi.errors).toEqual([expect.objectContaining({ code: 'ENOENT' })])
+    const { spawned } = await commit([fork])
+    expect(readdirSync(sessions).filter((name) => !files.includes(name))).toEqual([
+      expect.stringContaining(spawned[0].child)
+    ])
+    expect((await read(pi, parent)).children.size).toBe(1)
+  })
+
+  // Catches a refused commit leaving its first write on the branch: in memory, or after a reload, where Pi takes the
+  // file's last entry as the leaf (H1).
+  it('leaves no write of a refused commit on the branch, also after a reload', async () => {
+    const pi = await openPiHarness(() => {})
+    const { parent, broken, file } = await brokenStorage(pi)
+    const before = (await read(pi, parent)).history
+    const ops = [notice(parent, 'first'), notice(broken, 'second')]
+    await expect(
+      pi.harness.withCall(parent, (ports) => ports.ledger.transact(parent, () => ({ ops, effects: [], result: null })))
+    ).rejects.toThrow('ENOENT')
+    expect((await read(pi, parent)).history).toEqual(before)
+    expect(historyOf(SessionManager.open(file).getBranch(), parent)).toEqual(before)
   })
 
   // Catches onCompacted running while Pi still compacts, where the quiet input it adds (the subagent status after a
