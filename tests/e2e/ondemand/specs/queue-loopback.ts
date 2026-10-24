@@ -51,7 +51,7 @@ export default async function queueLoopback(context: ScenarioContext): Promise<v
     await context.runSteps([
       { verb: 'expectText', text: 'Queued (1)', timeout: 30_000 },
       { verb: 'expectText', text: 'QUEUE_SECOND_SYNTHETIC', timeout: 30_000 },
-      { verb: 'screenshot', name: 'agent-followup-queued-during-loopback-stream' }
+      { verb: 'screenshot', name: 'queue-during-loopback-stream' }
     ])
     const queue = await page.evaluate(() =>
       window.api.dataApi.request({ id: 'loopback-queue-proof', method: 'GET', path: '/followup-queues' })
@@ -70,5 +70,6 @@ export default async function queueLoopback(context: ScenarioContext): Promise<v
     ])
   } finally {
     await server.close()
+    await context.ensureChinese()
   }
 }
