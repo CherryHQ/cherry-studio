@@ -254,7 +254,8 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     files,
     setFiles,
     inputCapability,
-    providerId: painting.providerId
+    providerId: painting.providerId,
+    modelId: painting.model
   })
 
   // Edit-image models: images live in the top reference-image tray (reads `files` from
