@@ -17,6 +17,7 @@ contracts.
 |---|---|
 | [File Module Architecture](./architecture.md) | Ownership, current shared types, DataApi/IpcApi split, legacy preload surface, and business references |
 | [FileManager Architecture](./file-manager-architecture.md) | Storage, entry lifecycle, atomic writes, external liveness, watcher, caches, and orphan sweeps |
+| [File Editing Sessions](./file-editing.md) | Independent draft ownership, conditional save receipts, revalidation, and retained draft recovery |
 | [Directory Tree Architecture](./directory-tree.md) | Builder/manager ownership, snapshot activation, mutation stream, renderer mirror, and cleanup |
 | [File Entry Cleanup](./file-entry-cleanup.md) | Policy-based scan that reclaims old unreferenced automatic entries |
 | [Upload Integrity](./upload-integrity.md) | Native mobile SHA-256, verified completion, recovery, and release acceptance |
