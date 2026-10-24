@@ -314,7 +314,13 @@ export class FollowupQueueService {
         },
         {
           pkColumn: followupQueueTable.id,
-          scope: eq(followupQueueTable.scopeKey, dto.scopeKey),
+          // Anchor resolution and boundary keys must not see `closed`
+          // receipts: removal retains the row, so a scope keyed only on
+          // scopeKey still resolves a removed anchor id and lands the insert
+          // ahead of waiting drafts instead of taking the documented
+          // removed-anchor tail fallback (cherry-pr-review
+          // inv_3f3a68791f4b48f1#f1).
+          scope: and(eq(followupQueueTable.scopeKey, dto.scopeKey), ne(followupQueueTable.status, 'closed')),
           anchor: dto.anchor
         }
       )
