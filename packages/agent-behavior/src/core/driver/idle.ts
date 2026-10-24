@@ -8,6 +8,7 @@ import {
   goalSubagents,
   lastError,
   lastRound,
+  roundOf,
   roundStopRequest,
   type StopRequest,
   userStoppedLastRun
@@ -34,7 +35,7 @@ import {
   wakes
 } from '../subagents/subagentLedger'
 import { notificationText, statusMessage } from '../subagents/subagentText'
-import { runActive } from '../turns'
+import { runActive, stoppedTurn } from '../turns'
 
 type Facts = ConversationFacts
 export type WaitReason = 'user-first' | 'host-call' | 'busy'
@@ -238,7 +239,8 @@ function done(facts: Facts, reason: DoneReason, goal?: GoalSnapshot): Step<IdleD
 
 /**
  * R1, after `turns.start` took the round: it counts if the goal is still the one it was reserved for (same round
- * key, still active and armed); otherwise it is withdrawn, and the caller stops it if it already started.
+ * key, still active and armed); otherwise it is withdrawn, and if it already started the caller decides
+ * `decideRoundWithdrawn`.
  */
 export function admitRound(
   facts: Facts,
@@ -258,5 +260,33 @@ export function admitRound(
     ops: [goalRecord(facts, admitted(goal, start.round, inputs.now), admit)],
     effects: [{ type: 'emit', event: { type: 'goal-round', thread: facts.thread, round: start.round } }],
     result: 'admitted'
+  }
+}
+
+/**
+ * R1, H2: a withdrawn round `Turns` had already started is stopped by the entry it began with, and the stop is recorded
+ * in this commit, so a spawn inside the round starts nothing (R5). The record names the turn begun last before it; once
+ * a later turn has begun the round is over, and nothing is written or stopped.
+ */
+export function decideRoundWithdrawn(
+  facts: Facts,
+  inputs: CallInputs,
+  start: { readonly round: RoundDetails; readonly key: Key }
+): Step<null> {
+  const key = keys.turnStop(start.key)
+  const turn = stoppedTurn(facts.history, key)
+  const begun = facts.history.find((entry) => entry.id === turn)
+  if (!begun || roundOf(begun)?.id !== start.round.id) return { ops: [], effects: [], result: null }
+  return {
+    ops: [
+      {
+        type: 'append-record',
+        thread: facts.thread,
+        record: { type: 'turn-stop', value: { cause: 'goal-withdraw', at: inputs.now } },
+        key
+      }
+    ],
+    effects: [{ type: 'stop-turn', thread: facts.thread, cause: 'goal-withdraw', turn: begun.id }],
+    result: null
   }
 }

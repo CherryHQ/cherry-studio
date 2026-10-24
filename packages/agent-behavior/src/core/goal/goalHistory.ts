@@ -278,7 +278,7 @@ export function lastRound(history: readonly HistoryEntry[], goal: GoalSnapshot):
 export const armedSinceLastRun = (history: readonly HistoryEntry[], goalId: string): boolean =>
   armedAfter(history, goalId, lastIndex(history, isActivity))
 
-/** A person's stop (a `turn-stop` with cause 'user') came after the last run started; command and reopen stops do not count. */
+/** A person's stop (a `turn-stop` with cause 'user') came after the last run started; other stops do not count. */
 export function userStoppedLastRun(history: readonly HistoryEntry[]): boolean {
   const start = lastIndex(history, startsTurn)
   return history.some(

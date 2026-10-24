@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { answerVerdict, decideApproval, repeatBlock } from '../../src/core/approval/approval'
 import { offloadPlan } from '../../src/core/context/offload'
 import { recallText } from '../../src/core/context/recall'
-import { admitRound, decideAtIdle } from '../../src/core/driver/idle'
+import { admitRound, decideAtIdle, decideRoundWithdrawn } from '../../src/core/driver/idle'
 import {
   decideOnOpen,
   decidePermissionModeChanged,
@@ -312,6 +312,13 @@ describe('purity (AC7)', () => {
   const started = decideAtIdle(fresh, inputs()).result
   if (started.kind !== 'start-round') throw new Error('an armed goal with no rounds starts one')
   add('admitRound', fresh, (f) => admitRound(f, inputs(), started))
+  const roundInput = decideAtIdle(fresh, inputs()).effects[0]
+  if (roundInput.type !== 'start-turn') throw new Error('a round starts a turn')
+  add(
+    'decideRoundWithdrawn',
+    facts([goalEntry(goal()), inputEntry(roundInput.input, roundInput.key), goalEntry(goal({ revision: 2 }))]),
+    (f: ConversationFacts) => decideRoundWithdrawn(f, inputs(), started)
+  )
   add('decideUserStop', facts([user()]), (f) => decideUserStop(f, inputs(), 'r1'))
   add('decideUserStopSubagent', facts([runEntry(run('a'))], live), (f: ConversationFacts) =>
     decideUserStopSubagent(f, inputs(), 'a' as never, 'r1')

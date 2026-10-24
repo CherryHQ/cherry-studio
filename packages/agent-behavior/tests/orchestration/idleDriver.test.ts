@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
-import { callTool, childSpec, holds, type Holds, latch, reply } from '../../src/contract/fixtures'
+import { callTool, childSpec, holds, type Holds, latch, reply, toolResults } from '../../src/contract/fixtures'
 import { ensureDriver } from '../../src/core/driver/jobs'
 import { callKeyOf, ENTRY_KINDS, type UsageFact } from '../../src/core/facts'
 import { admittedRounds, currentGoal } from '../../src/core/goal/goalHistory'
 import { keys } from '../../src/core/keys'
 import { pendingResults } from '../../src/core/subagents/subagentLedger'
+import { stoppedTurn } from '../../src/core/turns'
 import type { BoundPorts, StartResult } from '../../src/ports/harness'
 import { markers, records, SETTINGS, type World, world, wrapJob } from './world'
 
@@ -385,6 +386,66 @@ describe('idle driver', () => {
       isError: true
     })
     expect(currentGoal(facts.history)?.roundsStarted).toBe(1)
+  })
+
+  // Catches the withdrawal's stop reaching a later turn (H2): the round ends on its own and a person's turn begins
+  // while the stop is still on its way, and an unscoped stop would abort the person's work.
+  it('stops only the withdrawn round, never a person turn begun before its stop ran', async () => {
+    const hold = holds()
+    const stopReached = latch()
+    const stopGate = latch()
+    let edit: (() => Promise<unknown>) | undefined
+    const editThenHoldStop = (ports: BoundPorts): BoundPorts => ({
+      ...ports,
+      turns: {
+        ...ports.turns,
+        start: async (thread, input, key) => {
+          const started = await ports.turns.start(thread, input, key)
+          const run = input.kind === ENTRY_KINDS.goalRound ? edit : undefined
+          edit = undefined
+          await run?.()
+          return started
+        },
+        stop: async (thread, cause, turn) => {
+          if (cause === 'goal-withdraw') {
+            stopReached.release()
+            await stopGate.promise
+          }
+          return ports.turns.stop(thread, cause, turn)
+        }
+      }
+    })
+    const w = world({
+      settings: ONE_ROUND,
+      wrap: wrapJob('idle-driver', editThenHoldStop),
+      extra: (p) => p.tools.register(hold.tool)
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('hold', { id: 'round' }),
+      reply('round done'),
+      callTool('hold', { id: 'person' }),
+      reply('person done'),
+      reply('v2 done')
+    ])
+    edit = () => w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'edit a sharper objective', 'cmd-edit'))
+    await w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'ship it', 'cmd-1'))
+    await stopReached.promise
+    hold.release('round')
+    await w.enter(t, (_entries, ports) => ports.waits.untilIdle(t))
+    await w.fake.sendUser(t, 'person')
+    await hold.started('person')
+    stopGate.release()
+    hold.release('person')
+    await w.fake.settle()
+    const facts = await w.read(t)
+    expect(toolResults(facts).map(({ text, isError }) => [text, isError])).toEqual([
+      ['held round', false],
+      ['held person', false]
+    ])
+    const [withdrawn] = markers(facts, 'goal-round')
+    expect(records(facts, 'turn-stop').map(({ value }) => value.cause)).toEqual(['goal-withdraw'])
+    expect(stoppedTurn(facts.history, keys.turnStop(withdrawn.marker.round.id))).toBe(withdrawn.id)
   })
 
   // Catches a child a person's turn started billed to the goal whose notification turn came before the child's end:

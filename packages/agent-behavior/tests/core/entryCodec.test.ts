@@ -45,6 +45,7 @@ const records: PolicyRecord[] = [
   { type: 'subagent-origin', value: { parentToolCallId: 'call-1', fork: false, description: 'scan', modelKey: 'p/m' } },
   { type: 'plan', value: { active: true, at: 7 } },
   { type: 'turn-stop', value: { cause: 'goal-command', at: 9 } },
+  { type: 'turn-stop', value: { cause: 'goal-withdraw', at: 10 } },
   { type: 'idle-driver-exit', value: { generation: 2 } },
   { type: 'subagent-steer', value: { sessionId: child, run: 1, digest: 'ab12', withdrawn: false } },
   { type: 'subagent-user-stop', value: { sessionId: child, run: 2, at: 11 } },
