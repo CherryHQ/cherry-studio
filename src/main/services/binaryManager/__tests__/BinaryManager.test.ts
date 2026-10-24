@@ -4384,12 +4384,13 @@ describe('BinaryManager', () => {
           expect.stringContaining('cherry.bin/libopenh264-7.dll.tmp-')
         )
         expect(mockFsp.chmod.mock.calls.some(([path]) => String(path).endsWith('.dll'))).toBe(false)
+        expect(mockFs.readFileSync.mock.calls.some(([path]) => String(path).includes('.ffmpeg-version'))).toBe(true)
       } finally {
         Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
       }
     })
 
-    it('does not inspect or extract FFmpeg on Linux', async () => {
+    it('skips the Linux FFmpeg tree when the installed marker and tree match', async () => {
       const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
       const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
       Object.defineProperties(process, {
@@ -4404,7 +4405,7 @@ describe('BinaryManager', () => {
 
         await (service as any).extractBundledBinaries()
 
-        expect(mockFs.readFileSync.mock.calls.some(([path]) => String(path).includes('.ffmpeg-version'))).toBe(false)
+        expect(mockFs.readFileSync.mock.calls.some(([path]) => String(path).includes('.ffmpeg-version'))).toBe(true)
         expect(mockFsp.copyFile.mock.calls.some(([path]) => String(path).includes('ffmpeg'))).toBe(false)
       } finally {
         Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })

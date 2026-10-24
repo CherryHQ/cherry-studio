@@ -1,11 +1,17 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessMethod } from '@main/core/utilityProcess/types'
 import type { ClassifiedMediaProbe } from '@main/features/fileProcessing/media/probeClassification'
+import { toAsarUnpackedPath } from '@main/utils/asar'
+import { getBinaryName } from '@main/utils/binaryResolver'
 
 export interface MediaFfmpegInitData {
   ffmpegPath: string
   ffprobePath: string
+  /** Bundled Linux `ffmpeg/lib`. Absent on Darwin and Windows. */
+  linuxLibraryDir?: string
 }
 
 export interface MediaProbeInput {
@@ -61,8 +67,25 @@ export const mediaFfmpegProcess = defineUtilityProcess<MediaFfmpegContract, Medi
   cancellation: 'cooperative',
   idleTimeoutMs: 5 * 60 * 1000,
   createInitData: () => {
-    const binaryPath = (name: string) =>
-      application.getPath('cherry.bin', process.platform === 'win32' ? `${name}.exe` : name)
-    return { ffmpegPath: binaryPath('ffmpeg'), ffprobePath: binaryPath('ffprobe') }
+    if (process.platform === 'linux') {
+      return {
+        ffmpegPath: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.bin', 'ffmpeg')),
+        ffprobePath: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.bin', 'ffprobe')),
+        linuxLibraryDir: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.lib'))
+      }
+    }
+    // The packaged tree is immutable; cherry.bin is used by other managed tools.
+    return {
+      ffmpegPath: packagedMediaBinary('ffmpeg'),
+      ffprobePath: packagedMediaBinary('ffprobe')
+    }
   }
 })
+
+function packagedPlatformDir(): string {
+  return path.join(application.getPath('app.root.resources.binaries'), `${process.platform}-${process.arch}`)
+}
+
+function packagedMediaBinary(name: string): string {
+  return toAsarUnpackedPath(path.join(packagedPlatformDir(), getBinaryName(name)))
+}
