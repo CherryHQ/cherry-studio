@@ -38,6 +38,7 @@ import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
+  getNextComposerReasoningEffort,
   ModelSpeedControl,
   resolveSupportedReasoningEffort,
   resolveSupportedServiceTier
@@ -800,6 +801,7 @@ const AgentComposerInner = ({
     customizeFooterAction
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
+  const isActiveTab = useIsActiveTab()
   const agentModelFilter = useAgentModelFilter(agent?.type)
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
@@ -1419,6 +1421,17 @@ const AgentComposerInner = ({
       )
     },
     [agent, updateAgent]
+  )
+  useCommandHandler(
+    'chat.reasoning.cycle',
+    () => {
+      if (!model) return
+      const nextEffort = getNextComposerReasoningEffort(model, reasoningEffort)
+      if (nextEffort) handleReasoningEffortChange(nextEffort)
+    },
+    {
+      enabled: isActiveTab && Boolean(agent && model && getNextComposerReasoningEffort(model, reasoningEffort))
+    }
   )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
