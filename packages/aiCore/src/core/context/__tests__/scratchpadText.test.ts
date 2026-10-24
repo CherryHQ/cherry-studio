@@ -11,6 +11,21 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('preserves tab-separated list fences without masking following analysis (inv_9c339ad57c3b09fa)', () => {
+    const fence = '-\t```xml\n    <thinking>literal</thinking>\n    ```'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(fence)).toBe(fence)
+    const result = stripModelScratchpadBlocks(`${fence}\n\n<analysis>SECRET</analysis>\n<summary>Public</summary>`)
+    expect(result).toContain(fence)
+    expect(result).not.toContain('SECRET')
+    expect(result).toContain('Public')
+  })
+
+  it('keeps the line boundary between fenced and indented code (inv_732c4e7e9bebf1a7)', () => {
+    const text = '```text\nfirst example\n```\n    <thinking>literal</thinking>'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(text)).toBe(text)
+    expect(stripModelScratchpadBlocks(text)).toBe(text)
+  })
+
   it('keeps scratchpad-shaped text inside ordinary tag attributes opaque (inv_ea9aab25c6ad4f7d)', () => {
     const markup = '<div title="<thinking>literal example</thinking>">Useful</div>'
     expect(stripModelScratchpadBlocks(`<summary>${markup}</summary>`)).toBe(markup)

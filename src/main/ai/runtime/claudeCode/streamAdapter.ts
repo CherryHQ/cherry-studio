@@ -2749,7 +2749,8 @@ export class ClaudeCodeStreamAdapter {
     // carries, or flushed literal code can lose its block classification at
     // the boundary (cherry-pr-review inv_f7b234887ed722ff).
     const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText)
-    const prefix = openLinePrefix !== '' ? openLinePrefix : ctx.scratchpadStreamEscapeCarry ? '\\' : ''
+    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText)
+    const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
     const pending = prefix + ctx.scratchpadStreamRemainder
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false

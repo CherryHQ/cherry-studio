@@ -88,7 +88,15 @@ function pickPlaceholderBase(text: string, kind: string): string {
   return PLACEHOLDER_BASES[0]
 }
 
+/** Expand indentation tabs at CommonMark's four-column tab stops. */
+function expandFencePrefixTabs(prefix: string): string {
+  let expanded = ''
+  for (const char of prefix) expanded += char === '\t' ? ' '.repeat(4 - (expanded.length % 4)) : char
+  return expanded
+}
+
 function isValidFenceLinePrefix(prefix: string): boolean {
+  prefix = expandFencePrefixTabs(prefix)
   let i = 0
   while (i < prefix.length) {
     if (prefix[i] === '>') {
@@ -280,6 +288,7 @@ function isClosingFenceLine(text: string, markerStart: number, fenceChar: string
 type FenceContainerSegment = { type: 'quote' } | { type: 'list'; contentCol: number }
 
 function parseFenceContainerSegments(prefix: string): FenceContainerSegment[] {
+  prefix = expandFencePrefixTabs(prefix)
   const segments: FenceContainerSegment[] = []
   let rest = prefix
   for (;;) {
@@ -316,7 +325,7 @@ function parseFenceContainerSegments(prefix: string): FenceContainerSegment[] {
  */
 function fenceCloseMatchesContainerContext(candidatePrefix: string, openerPrefix: string): boolean {
   const segments = parseFenceContainerSegments(openerPrefix)
-  let rest = candidatePrefix
+  let rest = expandFencePrefixTabs(candidatePrefix)
   for (const segment of segments) {
     if (segment.type === 'quote') {
       const quote = /^ {0,3}>(?:[ \t]|$)/.exec(rest)
@@ -785,7 +794,9 @@ function maskCodeFences(text: string): {
       continue
     }
 
-    const fenceEnd = closeEnd
+    // Keep the closing line's newline in the masked document: the following
+    // indented code must remain on its own line (inv_732c4e7e9bebf1a7).
+    const fenceEnd = text[closeEnd - 1] === '\n' ? closeEnd - 1 : closeEnd
     fences.push(text.slice(fenceStart, fenceEnd))
     out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
     pos = fenceEnd
