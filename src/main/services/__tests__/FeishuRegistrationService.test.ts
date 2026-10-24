@@ -6,6 +6,9 @@ import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { ExternalKnowledgeCredentialStore } from '@main/features/knowledge/external/ExternalKnowledgeCredentialStore'
+import { ExternalKnowledgeRuntime } from '@main/features/knowledge/external/ExternalKnowledgeRuntime'
+import * as knowledgeProvider from '@main/features/knowledge/external/feishuKnowledgeProvider'
 
 import { applicationInput, setupCredentialStore } from '../credential/__tests__/credentialTestSetup'
 import type * as RegistrationTransport from '../feishuAppRegistration'
@@ -50,9 +53,14 @@ describe('Feishu registration ownership and persistence', () => {
     vi.useRealTimers()
   })
 
-  it.each([false, true])(
-    'requests knowledge permissions without changing an existing app preset: %s',
-    async (existing) => {
+  it.each([
+    { purpose: 'knowledge', existing: false },
+    { purpose: 'knowledge', existing: true },
+    { purpose: 'channel', existing: false },
+    { purpose: 'channel', existing: true }
+  ])(
+    'allows application choice without changing presets: $purpose, selected=$existing',
+    async ({ purpose, existing }) => {
       const transport = await vi.importActual<typeof RegistrationTransport>('../feishuAppRegistration')
       vi.mocked(registrationBegin).mockImplementationOnce(transport.registrationBegin)
       vi.mocked(net.fetch)
@@ -65,14 +73,109 @@ describe('Feishu registration ownership and persistence', () => {
           })
         )
       const app = existing ? await fixture.store.create(applicationInput) : undefined
-      const result = await begin({ applicationCredentialId: app?.id })
+      const result = await begin({ purpose, applicationCredentialId: app?.id })
       const url = new URL(result.verificationUri)
       expect(url.searchParams.get('clientID')).toBe(existing ? applicationInput.payload.appId : null)
-      expect(url.searchParams.get('createOnly')).toBe(existing ? null : 'true')
-      expect(JSON.parse(gunzipSync(Buffer.from(url.searchParams.get('addons')!, 'base64url')).toString())).toEqual({
-        ...(!existing && { preset: false }),
-        scopes: { user: ['wiki:node:read'] }
+      expect(url.searchParams.has('createOnly')).toBe(false)
+      expect(url.searchParams.has('name')).toBe(false)
+      if (purpose === 'knowledge') {
+        expect(JSON.parse(gunzipSync(Buffer.from(url.searchParams.get('addons')!, 'base64url')).toString())).toEqual({
+          scopes: { user: ['wiki:node:read'] }
+        })
+      } else {
+        expect(url.searchParams.has('addons')).toBe(false)
+      }
+    }
+  )
+
+  it.each([false, true])(
+    'reuses a remotely selected application without losing channel configuration; secret conflict=%s',
+    async (conflict) => {
+      const app = await fixture.store.create(applicationInput)
+      const original = await fixture.store.read(app.id)
+      const { registrationSessionId: id } = await begin()
+      vi.mocked(registrationPoll).mockResolvedValue({
+        appId: applicationInput.payload.appId,
+        appSecret: conflict ? 'other-secret' : applicationInput.payload.appSecret
       })
+      if (conflict) {
+        await expect(service.complete('owner', id)).rejects.toMatchObject({ code: 'conflict' })
+      } else {
+        expect(await service.complete('owner', id)).toEqual(app)
+      }
+      expect(await fixture.store.listSummaries()).toEqual([app])
+      expect(await fixture.store.read(app.id)).toEqual(original)
+    }
+  )
+
+  it.each([false, true])(
+    'authorizes a remotely selected app with existing scopes and still requires Knowledge scopes; missing=%s',
+    async (missing) => {
+      const app = await fixture.store.create(applicationInput)
+      vi.mocked(registrationPoll).mockResolvedValue({
+        appId: applicationInput.payload.appId,
+        appSecret: applicationInput.payload.appSecret
+      })
+      const runtime = new ExternalKnowledgeRuntime({
+        credentials: new ExternalKnowledgeCredentialStore(fixture.store),
+        sleep: async () => {},
+        provider: {
+          ...knowledgeProvider,
+          beginDeviceAuthorization: async () => ({
+            deviceCode: 'device',
+            userCode: 'code',
+            verificationUri: 'https://accounts.feishu.cn/verify',
+            expiresIn: 600,
+            interval: 1
+          }),
+          exchangeDeviceAuthorization: async () => ({
+            accessToken: 'access',
+            refreshToken: 'refresh',
+            expiresIn: 7200,
+            refreshTokenExpiresIn: 604800,
+            grantedScopes: [...(missing ? [] : knowledgeProvider.FEISHU_REQUIRED_USER_SCOPES), 'im:message']
+          }),
+          getUserIdentity: async () => ({
+            accountUserId: 'user',
+            accountOpenId: 'open',
+            accountUnionId: null,
+            tenantKey: 'tenant',
+            displayName: 'User',
+            avatarUrl: null
+          })
+        }
+      })
+      await runtime.start()
+      try {
+        const registration = await begin()
+        const authorization = await service.authorizeKnowledge(
+          'owner',
+          registration.registrationSessionId,
+          (input, signal) => runtime.beginUserAuthorization(input, signal),
+          (result) => runtime.cancelUserAuthorization(result.authorizationSessionId)
+        )
+        if (missing) {
+          await expect(runtime.completeUserAuthorization(authorization.authorizationSessionId)).rejects.toMatchObject({
+            code: 'scope-missing'
+          })
+        } else {
+          const connection = await runtime.completeUserAuthorization(authorization.authorizationSessionId)
+          expect(connection).toMatchObject({
+            authorizationStatus: 'connected',
+            appCredentialSource: 'custom-app',
+            appId: applicationInput.payload.appId,
+            accountUserId: 'user',
+            tenantKey: 'tenant'
+          })
+          expect(await fixture.store.read(connection.credentialReference)).toMatchObject({
+            status: 'ok',
+            record: { payload: { applicationCredentialId: app.id } }
+          })
+        }
+        expect(await fixture.store.listSummaries({ kind: 'application' })).toEqual([app])
+      } finally {
+        await runtime.stop()
+      }
     }
   )
 

@@ -108,14 +108,9 @@ export class FeishuRegistrationService extends BaseService {
       signal: controller.signal,
       verification: {
         source: knowledge ? 'cherry-knowledge' : 'cherry-channel',
-        ...(session.selected
-          ? { appId: session.selected.summary.appId }
-          : {
-              createOnly: true,
-              name: knowledge ? 'Cherry Studio Knowledge' : 'Cherry Studio'
-            }),
+        ...(session.selected && { appId: session.selected.summary.appId }),
         ...(knowledge && {
-          addons: { ...(!session.selected && { preset: false }), userScopes: [...(input.userScopes ?? [])] }
+          addons: { userScopes: [...(input.userScopes ?? [])] }
         })
       }
     })
@@ -157,7 +152,7 @@ export class FeishuRegistrationService extends BaseService {
           {
             kind: 'saved-application',
             applicationCredentialId: app.id,
-            source: session.selected ? 'custom-app' : 'personal-agent'
+            source: 'custom-app'
           },
           session.controller.signal
         )
@@ -196,11 +191,22 @@ export class FeishuRegistrationService extends BaseService {
       if (session.selected) {
         const { summary, appSecret } = session.selected
         if (result.appId !== summary.appId || result.appSecret !== appSecret) throw new CredentialStoreError('conflict')
-        return await store.withReferences([summary.id], ([current]) => {
+      }
+      const existing =
+        session.selected?.summary ??
+        (await store.listSummaries()).find(
+          (entry): entry is ApplicationSummary =>
+            entry.status === 'available' &&
+            entry.kind === 'application' &&
+            entry.domain === session.input.domain &&
+            entry.appId === result.appId
+        )
+      if (existing) {
+        return await store.withReferences([existing.id], ([current]) => {
           this.assertCurrent(session)
-          if (current.kind !== 'application' || current.payload.appSecret !== appSecret)
+          if (current.kind !== 'application' || current.payload.appSecret !== result.appSecret)
             throw new CredentialStoreError('conflict')
-          return summary
+          return existing
         })
       }
       const app = await store.create({
