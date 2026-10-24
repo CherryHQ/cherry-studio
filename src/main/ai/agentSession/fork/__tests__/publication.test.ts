@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -203,7 +203,8 @@ describe('Agent fork publication', () => {
         const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
         expect(rows.map((row) => row.id)).toEqual(outcome === 'commit' ? [messageId, newId] : [newId])
         expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
-        expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
+        if (outcome === 'commit') expect(agentSessionMessageService.getNativeSessionId(sessionId)).toBe('native-child')
+        else expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
         expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
           outcome === 'commit' ? 'native-child' : null
@@ -224,6 +225,19 @@ describe('Agent fork publication', () => {
             () => {}
           )
         ).rejects.toMatchObject({ reason: 'invalid_target' })
+        agentSessionMessageService.selectBranch(sessionId, tail[0].id)
+        expect(
+          agentSessionMessageService
+            .listSessionMessages(sessionId)
+            .items.toReversed()
+            .map((row) => row.id)
+        ).toEqual(outcome === 'commit' ? [messageId, ...tail.map((row) => row.id)] : tail.map((row) => row.id))
+        if (outcome === 'commit')
+          expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
+        agentSessionMessageService.selectBranch(sessionId, newId)
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
+          outcome === 'commit' ? 'native-child' : null
+        )
       } else {
         await expect(operation).rejects.toThrow()
         expect(
@@ -317,9 +331,13 @@ describe('Agent fork publication', () => {
       vi.spyOn(agentSessionService, 'notifyReadModelChange').mockImplementation((ids) => notifications.push(...ids))
       await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toThrow()
       expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
-      expect(dbh.db.select({ id: agentSessionMessageTable.id }).from(agentSessionMessageTable).all()).toEqual([
-        { id: messageId }
-      ])
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(ne(agentSessionMessageTable.role, 'root'))
+          .all()
+      ).toEqual([{ id: messageId }])
       expect(notifications).toEqual([])
       expect(await readForkResources()).toEqual([])
       expect(await readdir(forkRoot)).toEqual([])
