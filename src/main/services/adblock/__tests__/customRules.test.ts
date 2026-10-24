@@ -4,7 +4,14 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { CustomAdblockRuleStore, normalizeDomain, scopeNetworkRule, validateRuleInput } from '../customRules'
+import {
+  CustomAdblockRuleStore,
+  isAllowedScope,
+  normalizeDomain,
+  scopeNetworkRule,
+  splitSelectors,
+  validateRuleInput
+} from '../customRules'
 
 let directory: string
 let store: CustomAdblockRuleStore
@@ -26,6 +33,12 @@ describe('rule validation', () => {
 
   it('rejects values that are not hostnames', () => {
     for (const value of ['', 'localhost', 'http://example.com', 'example.com/path', 'exa mple.com']) {
+      expect(() => normalizeDomain(value), value).toThrow()
+    }
+  })
+
+  it('rejects public and private suffixes as a rule scope', () => {
+    for (const value of ['co.uk', 'github.io']) {
       expect(() => normalizeDomain(value), value).toThrow()
     }
   })
@@ -58,12 +71,46 @@ describe('rule validation', () => {
     }
   })
 
+  it('rejects the from and to aliases that choose a scope too', () => {
+    for (const value of [
+      '||cdn.example.invalid^$from=other.com',
+      '||cdn.example.invalid^$third-party,to=other.com',
+      '||cdn.example.invalid^$~domain=other.com'
+    ]) {
+      expect(() => validateRuleInput({ domain: 'example.com', kind: 'network', value }), value).toThrow()
+    }
+  })
+
   it('scopes a network rule to the saved domain and refuses to compile a conflicting one', () => {
     expect(scopeNetworkRule('||cdn.example.invalid^', 'example.com')).toBe('||cdn.example.invalid^$domain=example.com')
     expect(scopeNetworkRule('||cdn.example.invalid^$third-party', 'example.com')).toBe(
       '||cdn.example.invalid^$third-party,domain=example.com'
     )
     expect(scopeNetworkRule('||cdn.example.invalid^$domain=other.com', 'example.com')).toBeUndefined()
+    expect(scopeNetworkRule('||cdn.example.invalid^$from=other.com', 'example.com')).toBeUndefined()
+  })
+
+  it('only allows the page host or its registrable domain as a scope', () => {
+    expect(isAllowedScope('merchant.co.uk', 'merchant.co.uk')).toBe(true)
+    expect(isAllowedScope('www.example.com', 'www.example.com')).toBe(true)
+    expect(isAllowedScope('www.example.com', 'example.com')).toBe(true)
+    expect(isAllowedScope('merchant.co.uk', 'co.uk')).toBe(false)
+    expect(isAllowedScope('shop.github.io', 'github.io')).toBe(false)
+    expect(isAllowedScope('www.example.com', 'other.com')).toBe(false)
+  })
+
+  it('rejects selectors that cannot be parsed', () => {
+    for (const value of ['.ad[', '.ad:', '.ad)', '.ad(', 'a:not(.ad']) {
+      expect(() => validateRuleInput({ domain: 'example.com', kind: 'cosmetic', value }), value).toThrow()
+    }
+    expect(() =>
+      validateRuleInput({ domain: 'example.com', kind: 'cosmetic', value: 'a[href^="http:"]::before' })
+    ).not.toThrow()
+  })
+
+  it('splits a selector list only on top-level commas', () => {
+    expect(splitSelectors('.ad, .promo')).toEqual(['.ad', '.promo'])
+    expect(splitSelectors(':is(.ad, .promo) > .x')).toEqual([':is(.ad, .promo) > .x'])
   })
 })
 

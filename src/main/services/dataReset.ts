@@ -35,6 +35,7 @@ export const USER_DATA_WIPE = [
   'IndexedDB.restore',
   'Local Storage.restore',
   'cache.json',
+  'adblock-rules.json',
   'version.log',
   'restore-journal.json',
   'restore-staging',

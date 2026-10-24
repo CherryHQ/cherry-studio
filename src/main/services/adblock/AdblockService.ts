@@ -16,7 +16,8 @@ import {
   CustomAdblockRuleStore,
   hostnameMatchesDomain,
   type NewCustomAdblockRule,
-  scopeNetworkRule
+  scopeNetworkRule,
+  splitSelectors
 } from './customRules'
 import { setAdblockGate } from './gate'
 import { getSearchAdsCss } from './searchAds'
@@ -302,9 +303,11 @@ export class AdblockService extends BaseService {
     const selectors = this.rules
       .list()
       .filter((rule) => rule.enabled && rule.kind === 'cosmetic' && hostnameMatchesDomain(hostname, rule.domain))
-      .map((rule) => rule.value)
+      .flatMap((rule) => splitSelectors(rule.value))
     if (selectors.length === 0) return ''
-    return `${selectors.join(',\n')} {\n  display: none !important;\n}`
+    // One block per selector: an entry Chromium refuses to parse cannot take
+    // the valid rules beside it down with the shared selector list.
+    return selectors.map((selector) => `${selector} {\n  display: none !important;\n}`).join('\n')
   }
 
   /**

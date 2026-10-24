@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { parse as parseHostname } from 'tldts-experimental'
+
 import { loggerService } from '@logger'
 import { Sequencer } from '@shared/utils/async'
 
@@ -45,6 +47,10 @@ export function normalizeDomain(input: string): string {
   if (!DOMAIN_PATTERN.test(domain)) {
     throw new Error(`Invalid domain: ${input}`)
   }
+  // A public or private suffix would scope the rule to unrelated sites.
+  if (parseHostname(domain, { allowPrivateDomains: true }).domain === null) {
+    throw new Error(`Invalid domain: ${input}`)
+  }
   return domain
 }
 
@@ -55,27 +61,119 @@ export function hostnameMatchesDomain(hostname: string, domain: string): boolean
 }
 
 /**
- * The stored rule is always scoped to its saved `domain`. A rule that carries
- * its own `domain=` option would apply wherever that option points, so it is
- * rejected instead of being silently rewritten.
+ * The scope a new rule may claim for a page: the page host itself or its
+ * registrable domain. Public and private suffixes (`co.uk`, `github.io`) belong
+ * to unrelated sites, so they are never a valid scope.
  */
-function hasDomainOption(rule: string): boolean {
+export function isAllowedScope(hostname: string, domain: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/\.+$/, '')
+  if (domain === host) return true
+  const parsed = parseHostname(host, { allowPrivateDomains: true })
+  return parsed.domain !== null && parsed.domain === domain
+}
+
+/** Option names Ghostery consumes as the request's source/target scope. */
+const SCOPE_OPTION_PATTERN = /^\s*~?(?:domain|from|to)=/i
+
+/**
+ * The stored rule is always scoped to its saved `domain`. A rule that carries
+ * its own scope option (`domain`, `from`, `to`, including negated forms) would
+ * apply wherever that option points, so it is rejected instead of rewritten.
+ */
+function hasScopeOption(rule: string): boolean {
   const optionStart = rule.lastIndexOf('$')
   if (optionStart === -1) return false
   return rule
     .slice(optionStart + 1)
     .split(',')
-    .some((option) => /^\s*domain=/i.test(option))
+    .some((option) => SCOPE_OPTION_PATTERN.test(option))
 }
 
 /**
  * Pins a network rule to the domain it was saved under. Returns `undefined` for
- * a rule that carries its own `domain=` option: validation rejects those, and
- * compiling one would let the filter escape its stored scope.
+ * a rule that carries a scope option: validation rejects those, and compiling
+ * one would let the filter escape its stored scope.
  */
 export function scopeNetworkRule(value: string, domain: string): string | undefined {
-  if (hasDomainOption(value)) return undefined
+  if (hasScopeOption(value)) return undefined
   return value.includes('$') ? `${value},domain=${domain}` : `${value}$domain=${domain}`
+}
+
+/**
+ * Splits a selector list on top-level commas. Commas inside `:is(...)` or an
+ * attribute value stay part of their selector.
+ */
+export function splitSelectors(value: string): string[] {
+  const selectors: string[] = []
+  let current = ''
+  let square = 0
+  let paren = 0
+  let quote: string | undefined
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index]
+    if (quote) {
+      current += char
+      if (char === quote) quote = undefined
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      current += char
+      continue
+    }
+    if (char === '[') square++
+    else if (char === ']') square--
+    else if (char === '(') paren++
+    else if (char === ')') paren--
+    else if (char === ',' && square === 0 && paren === 0) {
+      selectors.push(current.trim())
+      current = ''
+      continue
+    }
+    current += char
+  }
+  selectors.push(current.trim())
+  return selectors.filter(Boolean)
+}
+
+/** Rejects selectors whose brackets, parentheses or quotes never close. */
+function hasBalancedDelimiters(selector: string): boolean {
+  let square = 0
+  let paren = 0
+  let quote: string | undefined
+  for (const char of selector) {
+    if (quote) {
+      if (char === quote) quote = undefined
+      continue
+    }
+    if (char === '"' || char === "'") quote = char
+    else if (char === '[') square++
+    else if (char === ']' && --square < 0) return false
+    else if (char === '(') paren++
+    else if (char === ')' && --paren < 0) return false
+  }
+  return square === 0 && paren === 0 && quote === undefined
+}
+
+/** Rejects a pseudo-class without a name, which invalidates its whole selector. */
+function hasIncompletePseudo(selector: string): boolean {
+  let quote: string | undefined
+  for (let index = 0; index < selector.length; index++) {
+    const char = selector[index]
+    if (quote) {
+      if (char === quote) quote = undefined
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char !== ':') continue
+    let next = selector[index + 1]
+    if (next === ':') next = selector[++index + 1]
+    if (!next || !/[a-zA-Z_-]/.test(next)) return true
+  }
+  return false
 }
 
 function validateCosmeticSelector(value: string): string {
@@ -88,6 +186,9 @@ function validateCosmeticSelector(value: string): string {
   // A selector that starts with a combinator or ends with one would be parsed
   // as a relative selector by some engines; reject instead of guessing.
   if (/^[>+~]/.test(selector)) throw new Error('CSS selector must not start with a combinator')
+  if (splitSelectors(selector).some((part) => !hasBalancedDelimiters(part) || hasIncompletePseudo(part))) {
+    throw new Error('CSS selector is malformed; check brackets, parentheses and pseudo-classes')
+  }
   return selector
 }
 
@@ -102,8 +203,8 @@ function validateNetworkRule(value: string): string {
   if (!/^(@@)?[|/]/.test(rule)) {
     throw new Error('Network rule must start with ||, | or /')
   }
-  if (hasDomainOption(rule)) {
-    throw new Error('Network rule must not carry a domain option; the domain argument sets the scope')
+  if (hasScopeOption(rule)) {
+    throw new Error('Network rule must not carry a domain, from or to option; the domain argument sets the scope')
   }
   return rule
 }
