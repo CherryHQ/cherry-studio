@@ -20,7 +20,14 @@ const FeishuAuthorizationStatus = ({ userCode, verificationUri, onCancel }: Feis
         {t('knowledge.external.wizard.authorizing')}
       </p>
       <div className="flex justify-center py-3">
-        <QRCodeSVG role="img" value={verificationUri} size={192} level="M" title={t('agent.channels.feishu.qrTitle')} />
+        <QRCodeSVG
+          role="img"
+          value={verificationUri}
+          size={192}
+          marginSize={4}
+          level="M"
+          title={t('knowledge.external.wizard.authorizing')}
+        />
       </div>
       <DialogFooter className="shrink-0 flex-row flex-wrap items-center justify-between gap-3 border-t pt-4 sm:justify-between">
         <div className="text-muted-foreground flex max-w-full min-w-0 items-center gap-1 text-xs">

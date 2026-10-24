@@ -65,7 +65,15 @@ export function FeishuRegistrationPanel({
         </>
       ) : uri ? (
         <>
-          <QRCodeSVG role="img" value={uri} size={192} level="M" title={t('agent.channels.feishu.qrTitle')} />
+          <QRCodeSVG
+            role="img"
+            value={uri}
+            size={192}
+            marginSize={4}
+            level="M"
+            title={t('agent.channels.feishu.qrTitle')}
+          />
+          <p className="text-center text-sm text-muted-foreground">{t('agent.channels.qrSetup.pending')}</p>
           <Button type="button" variant="link" onClick={() => void window.api.shell.openExternal(uri)}>
             {t('chat.artifacts.button.openExternal')}
           </Button>
