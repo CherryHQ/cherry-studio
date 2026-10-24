@@ -4684,6 +4684,36 @@ describe('compaction artifact boundary', () => {
     expect(output()).toBe(first + second + third)
   })
 
+  it('retains quoted complete setext heading across deltas and snapshot (inv_83c66e8f7a2b64b2)', () => {
+    const chunks = ['> Example\n> =======\n', '>     <thinking>literal</thinking>\n\nDone.']
+    const answer = chunks.join('')
+    for (const delivery of [chunks, [answer]]) {
+      const { adapter, parts } = createAdapter()
+      const output = () =>
+        parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part) => (part as any).delta)
+          .join('')
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (const text of delivery)
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+        )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      expect(output()).toBe(answer)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+      } as any)
+      expect(output()).toBe(answer)
+    }
+  })
+
   it('retains complete setext heading before newline split (inv_f0009d6c2bcd2afc)', () => {
     const { adapter, parts } = createAdapter()
     const chunks = ['Example\n=======\n', '    <thinking>literal</thinking>\n\nDone.']

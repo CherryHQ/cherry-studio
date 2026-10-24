@@ -1227,7 +1227,7 @@ export class ClaudeCodeStreamAdapter {
       const previous = accumulatedText.slice(previousStart, previousEnd)
       // A completed fence marker cannot become a synthetic new opener.
       if (/^ {0,3}(?:`{3,}|~{3,})/.test(previous)) return ''
-      if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(previous) && previousStart > 0) {
+      if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(previous)) && previousStart > 0) {
         const paragraphEnd = previousStart - 1
         const paragraphStart = accumulatedText.lastIndexOf('\n', paragraphEnd - 1) + 1
         const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd)
@@ -1238,7 +1238,7 @@ export class ClaudeCodeStreamAdapter {
     }
     // A partial setext underline needs the preceding paragraph too; the
     // underline can arrive one marker at a time across delta boundaries.
-    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(openLine) && lineStart > 0) {
+    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(openLine)) && lineStart > 0) {
       const previousEnd = lineStart - 1
       const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
       const previous = accumulatedText.slice(previousStart, previousEnd)

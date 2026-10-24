@@ -13,6 +13,17 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('ignores CDATA-contained closing tags (inv_05530378ffef12c7)', () => {
+    expect(
+      stripModelScratchpadBlocks('<analysis>Use <![CDATA[</analysis>]]> SECRET</analysis><summary>Public</summary>')
+    ).toBe('Public')
+  })
+  it('keeps comment-contained openers from capturing fences (inv_07c84e0e19a99d27)', () => {
+    const text =
+      '<summary><!-- <thinking> -->\n\n```xml\n</thinking>\n<assessment>literal</assessment>\n```\n</summary>'
+    expect(stripModelScratchpadBlocks(text)).toContain('```xml\n</thinking>\n<assessment>literal</assessment>\n```')
+  })
+
   it('tracks nested list continuation padding (inv_b981b2250f323698)', () => {
     expect(
       stripModelScratchpadBlocks(

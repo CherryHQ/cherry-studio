@@ -68,6 +68,14 @@ function parseOpeningTagAt(text: string, offset: number): ParsedOpeningTag | nul
   return null
 }
 
+/** Comments and CDATA contain literal markup, never scratchpad boundaries. */
+function opaqueMarkupEnd(text: string, start: number): number | null {
+  const terminator = text.startsWith('<!--', start) ? '-->' : text.startsWith('<![CDATA[', start) ? ']]>' : null
+  if (!terminator) return null
+  const close = text.indexOf(terminator, start + (terminator === '-->' ? 4 : 9))
+  return close < 0 ? text.length : close + terminator.length
+}
+
 /** HTML opening-tag attributes are opaque to Markdown code-span openers. */
 function htmlOpeningTagLookup(text: string): (index: number) => boolean {
   const ranges: Array<{ start: number; end: number }> = []
@@ -564,6 +572,11 @@ function findScratchpadBlockRanges(text: string): Array<{ start: number; end: nu
       searchFrom = openIndex + 1
       continue
     }
+    const opaqueEnd = opaqueMarkupEnd(text, openIndex)
+    if (opaqueEnd !== null) {
+      searchFrom = opaqueEnd
+      continue
+    }
     const parsed = parseOpeningTagAt(text, openIndex)
     if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
       searchFrom = openIndex + 1
@@ -913,6 +926,11 @@ function enclosingScratchpadTag(
       i = lt + 1
       continue
     }
+    const opaqueEnd = opaqueMarkupEnd(text, lt)
+    if (opaqueEnd !== null) {
+      i = opaqueEnd
+      continue
+    }
     const closeMatch = /^<\/([a-zA-Z][a-zA-Z0-9-]*)\s*>/.exec(text.slice(lt, pos + 1))
     if (closeMatch) {
       i = lt + closeMatch[0].length
@@ -939,7 +957,7 @@ function enclosingScratchpadTag(
     if (parsed.isSelfClosing) continue
     stack.push(tag)
   }
-  if (scanState) scanState.pos = pos
+  if (scanState) scanState.pos = Math.max(pos, i)
   return stack.length ? stack[stack.length - 1] : null
 }
 
@@ -1294,9 +1312,9 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
       scanPos = lt + 1
       continue
     }
-    if (text.startsWith('<!--', lt)) {
-      const close = text.indexOf('-->', lt + 4)
-      scanPos = close < 0 ? text.length : close + 3
+    const opaqueEnd = opaqueMarkupEnd(text, lt)
+    if (opaqueEnd !== null) {
+      scanPos = opaqueEnd
       continue
     }
     let tagEnd = -1
@@ -1378,6 +1396,11 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
       // prose and compaction summaries (cherry-pr-review).
       if (isBackslashEscaped(out, openIndex)) {
         searchFrom = openIndex + 1
+        continue
+      }
+      const opaqueEnd = opaqueMarkupEnd(out, openIndex)
+      if (opaqueEnd !== null) {
+        searchFrom = opaqueEnd
         continue
       }
       const parsed = parseOpeningTagAt(out, openIndex)
