@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   finalizeHeldTopicStream: vi.fn(async () => undefined),
+  noteTurnSettled: vi.fn(),
   clearPendingChannelListeners: vi.fn(),
   // Real-method default: no stash on the topic → the wake may carry (nothing owed anywhere).
   stashedWakeRecipientsDischarged: vi.fn(() => true),
@@ -573,6 +574,7 @@ describe('AgentSessionRuntimeService', () => {
           resolveToolApproval: mocks.resolveToolApproval,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream,
           finalizeHeldTopicStream: mocks.finalizeHeldTopicStream,
+          noteTurnSettled: mocks.noteTurnSettled,
           clearPendingChannelListeners: mocks.clearPendingChannelListeners,
           stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged,
           renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients
@@ -1011,6 +1013,38 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(entry.runtimeState.connection.occupancy).toEqual({})
       expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
+    // While detached work holds the topic stream open (for its receive-only wake) the topic never
+    // reports `done`, so a renderer that keys "the turn is over" off that status keeps the next
+    // user message queued for the whole background run. The settle edge publishes the foreground
+    // turn's own completion instead — the follow-up belongs to a new turn, not to this work.
+    it('marks the foreground turn settled while detached work keeps the topic stream held', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.noteTurnSettled.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(mocks.noteTurnSettled).toHaveBeenCalledWith('agent-session:session-1')
+      // The session is free for the follow-up even though the work still runs.
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      void service.closeSession('session-1')
+    })
+
+    it('leaves the topic snapshot alone when the turn settles with nothing in the background', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      getEntry(service).connection = warmConnection()
+      mocks.noteTurnSettled.mockClear()
+
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(mocks.noteTurnSettled).not.toHaveBeenCalled()
       void service.closeSession('session-1')
     })
 

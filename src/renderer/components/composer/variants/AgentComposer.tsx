@@ -1588,7 +1588,7 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
+  const { status: sessionStatus, lastCompletedAt, turnSettledAt } = useTopicStreamStatus(sessionTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1603,6 +1603,7 @@ const AgentComposerInner = ({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
     status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
     lastCompletedAt,
+    turnSettledAt,
     onDrain: sendQueuedPayload
   })
   releaseFollowupEditRef.current = releaseEdit

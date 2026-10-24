@@ -203,6 +203,12 @@ export interface ActiveStream {
    * coming after all" edge settle the stream instead of stranding it.
    */
   heldForContinuation?: boolean
+  /**
+   * When the foreground turn settled on a stream that detached background work keeps alive. The
+   * topic status stays live for the wake, so this is the only signal that a new user turn is free
+   * to start; absent while a turn is running and on a fresh stream.
+   */
+  turnSettledAt?: number
 }
 
 // ── Config ──────────────────────────────────────────────────────────

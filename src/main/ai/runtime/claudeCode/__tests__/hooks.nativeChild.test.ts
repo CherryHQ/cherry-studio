@@ -82,6 +82,7 @@ const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, a
       resolveToolApproval: vi.fn(),
       terminateHeldTopicStream: vi.fn(),
       finalizeHeldTopicStream: vi.fn(async () => undefined),
+      noteTurnSettled: vi.fn(),
       clearPendingChannelListeners: vi.fn()
     },
     // Explicit return type: `vi.fn(() => undefined)` would pin the mock to `undefined` and leave no

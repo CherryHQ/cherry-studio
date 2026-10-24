@@ -46,6 +46,11 @@ interface UseFollowupQueueParams {
   /** Stream completion is independent of the conversation list read receipt. */
   status: TopicStreamStatus | undefined
   lastCompletedAt: number | null
+  /**
+   * The foreground turn settled while detached background work keeps the stream live. That turn is
+   * its own completion for queue purposes — without it, the head waits for work it does not belong to.
+   */
+  turnSettledAt?: number | null
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when a send fails and leaves the queued draft paused for retry. */
@@ -77,9 +82,13 @@ export function useFollowupQueue({
   scopeKey,
   status,
   lastCompletedAt,
+  turnSettledAt = null,
   onDrain,
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
+  // The turn whose completion admits the next queued send: a finished stream, or a foreground turn
+  // that settled while detached background work keeps the stream live.
+  const settledAt = status === 'done' ? lastCompletedAt : (turnSettledAt ?? null)
   const readState = useCallback(
     () => ({
       scopeKey,
@@ -230,18 +239,15 @@ export function useFollowupQueue({
     },
     [scopeKey, removeId, setPaused]
   )
-  const sendId = useCallback(
-    (id: string) => sendItem(id, status === 'done' ? (lastCompletedAt ?? undefined) : undefined),
-    [sendItem, status, lastCompletedAt]
-  )
+  const sendId = useCallback((id: string) => sendItem(id, settledAt ?? undefined), [sendItem, settledAt])
 
   useEffect(() => {
-    if (state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
+    if (state.scopeKey !== scopeKey || state.paused || settledAt == null) return
     const head = state.items[0]
     const drained = loadCompletion(scopeKey)
-    if (!head || drained.pendingIds.length > 0 || (drained.consumed && drained.completedAt === lastCompletedAt)) return
-    void sendItem(head.id, lastCompletedAt)
-  }, [scopeKey, status, lastCompletedAt, state, sendItem])
+    if (!head || drained.pendingIds.length > 0 || (drained.consumed && drained.completedAt === settledAt)) return
+    void sendItem(head.id, settledAt)
+  }, [scopeKey, settledAt, state, sendItem])
 
   return {
     items: state.items,

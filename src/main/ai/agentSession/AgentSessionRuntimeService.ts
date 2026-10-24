@@ -1180,6 +1180,11 @@ export class AgentSessionRuntimeService extends BaseService {
         // busy guard; that turn is then the last event, so the held-stream release retries here
         // (a no-op once the wake has already settled the stream).
         this.releaseDrainedTopicStream(entry)
+        // Detached work keeps the topic reporting "still working", so the renderer would hold the
+        // next user message until the work finishes. The turn is over now: publish its settle.
+        if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) {
+          application.get('AiStreamManager').noteTurnSettled(entry.topicId)
+        }
         this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
       }
     }

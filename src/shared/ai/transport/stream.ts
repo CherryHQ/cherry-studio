@@ -134,6 +134,12 @@ export interface TopicStatusSnapshotEntry {
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   lastCompletedAt?: number
+  /**
+   * When the foreground turn settled on a stream kept live by detached background work. The status
+   * stays live until that work drains, so this — not `status` — tells the composer the topic is free
+   * for a new user turn.
+   */
+  turnSettledAt?: number
 }
 
 type AiStreamRegenerateTarget =

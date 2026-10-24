@@ -80,6 +80,37 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toEqual([])
   })
 
+  // Detached background work keeps the topic stream live for its receive-only wake, so a turn's
+  // own settle never reaches `done`. The queue must still drain on that edge: the foreground turn
+  // is over, and the follow-up belongs to a new turn — not to the background task's completion.
+  it('drains the head when the foreground turn settles under live background work', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    const head = item('h', 'head')
+    cacheService.setCasual('followup-queue.s1', [head])
+
+    const { result, rerender } = renderHook(
+      ({ turnSettledAt }) =>
+        useFollowupQueue({
+          scopeKey: 's1',
+          status: 'streaming',
+          lastCompletedAt: 100,
+          turnSettledAt,
+          onDrain
+        }),
+      { initialProps: { turnSettledAt: null as number | null } }
+    )
+
+    expect(onDrain).not.toHaveBeenCalled()
+
+    await act(async () => {
+      rerender({ turnSettledAt: 200 })
+    })
+
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(result.current.items).toEqual([])
+  })
+
   it('keeps the head queued and reports failure when auto-drain fails', async () => {
     const onDrain = vi.fn().mockResolvedValue(false)
     const onDrainFailed = vi.fn()

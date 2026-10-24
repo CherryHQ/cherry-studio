@@ -1820,6 +1820,18 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
+   * The session's foreground turn settled while detached background work keeps this topic's stream
+   * held. Publish that through the stream's lifecycle so cross-window consumers can start a new
+   * user turn without waiting for the work to drain. No-op unless the stream is actually held: a
+   * terminal stream already resolves "the turn is over" through its status.
+   */
+  noteTurnSettled(topicId: string): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream?.heldForContinuation) return
+    stream.lifecycle.onTurnSettled(stream)
+  }
+
+  /**
    * Clean twin of `terminateHeldTopicStream`: settle a stream a chaining turn kept alive
    * (`isTopicDone=false`, terminal lifecycle skipped) when its successor will never arrive — an agent
    * session held it for a receive-only wake that is not coming (task stopped/killed, headless

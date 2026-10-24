@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   broadcastTopicError: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   finalizeHeldTopicStream: vi.fn(async () => undefined),
+  noteTurnSettled: vi.fn(),
   clearPendingChannelListeners: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -180,6 +181,7 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
           broadcastTopicError: mocks.broadcastTopicError,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream,
           finalizeHeldTopicStream: mocks.finalizeHeldTopicStream,
+          noteTurnSettled: mocks.noteTurnSettled,
           clearPendingChannelListeners: mocks.clearPendingChannelListeners
         }
       }
