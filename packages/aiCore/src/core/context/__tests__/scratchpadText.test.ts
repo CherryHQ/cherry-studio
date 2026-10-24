@@ -6,11 +6,32 @@ import {
   stripTrailingToolProtocolClosingFragments,
   stripModelScratchpadBlocks,
   textHasUnclosedInlineCode,
+  textHasUnclosedCodeFence,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('keeps sibling list indented code (inv_ea30cb629bf6555d)', () => {
+    const input = '- First\n-     <thinking>literal</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+  it('keeps enclosing HTML attributes opaque despite tag-shaped values (inv_1fff6722f23de3fd)', () => {
+    const input = '<summary>Keep <span title="<thinking>`"></span><analysis>SECRET</analysis>Text `code`</summary>'
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET')
+  })
+  it('rejects backticks in fence info strings (inv_ca7b25d8a9179d30)', () => {
+    const input = '<summary>Keep\n```bad`info\n<analysis>SECRET</analysis>\n</summary>'
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+    expect(textHasUnclosedCodeFence(input)).toBe(false)
+    expect(textHasUnclosedCodeFence('```valid\ncode')).toBe(true)
+    expect(stripModelScratchpadBlocks('~~~bad`info\n<analysis>literal</analysis>\n~~~')).toContain(
+      '<analysis>literal</analysis>'
+    )
+  })
+
   it('does not open Markdown spans inside HTML attributes (inv_5e10fb47f657550e)', () => {
     const input = '<summary>Keep <span title="`"></span><analysis>SECRET_INTERNAL</analysis>Text `code`</summary>'
     expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET_INTERNAL')

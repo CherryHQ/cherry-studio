@@ -70,10 +70,20 @@ function parseOpeningTagAt(text: string, offset: number): ParsedOpeningTag | nul
 
 /** HTML opening-tag attributes are opaque to Markdown code-span openers. */
 function isInsideHtmlOpeningTag(text: string, index: number): boolean {
-  const start = text.lastIndexOf('<', index)
-  if (start < 0 || isBackslashEscaped(text, start)) return false
-  const tag = parseOpeningTagAt(text, start)
-  return tag !== null && index < start + tag.opener.length
+  // Walk complete tags in source order: a '<' inside a quoted attribute is
+  // data, not the start of a nearer enclosing tag.
+  let pos = 0
+  while (pos <= index) {
+    const start = text.indexOf('<', pos)
+    if (start < 0 || start > index) return false
+    const tag = isBackslashEscaped(text, start) ? null : parseOpeningTagAt(text, start)
+    if (tag) {
+      const end = start + tag.opener.length
+      if (index < end) return true
+      pos = end
+    } else pos = start + 1
+  }
+  return false
 }
 
 function parseLeadingOpeningTag(text: string): ParsedOpeningTag | null {
@@ -723,7 +733,7 @@ function maskIndentedCodeBlocks(text: string): {
     const depth = explicitQuoteDepth(line)
     // A new explicit quote container cannot inherit an outer paragraph.
     // Unmarked lazy continuation lines keep their paragraph's container.
-    if (depth > 0 && depth !== quoteDepth) paragraphOpen = false
+    if ((depth > 0 && depth !== quoteDepth) || isListItemStart(line)) paragraphOpen = false
     if (depth > 0) quoteDepth = depth
     if (line.trim() === '' || isContainerOnlyLine(line)) {
       paragraphOpen = false
@@ -768,6 +778,13 @@ function unmaskIndentedCodeBlocks(text: string, blocks: string[], placeholderBas
   return text.replace(
     new RegExp(`${placeholderBase}INDENTED_CODE_(\\d+)\\uE001`, 'g'),
     (match, index) => blocks[Number(index)] ?? match
+  )
+}
+
+function hasValidFenceInfo(text: string, markerStart: number, markerLength: number): boolean {
+  return (
+    text[markerStart] !== '`' ||
+    !text.slice(markerStart + markerLength, lineContentEnd(text, lineStartBefore(text, markerStart))).includes('`')
   )
 }
 
@@ -874,6 +891,12 @@ function maskCodeFences(text: string): {
       continue
     }
 
+    if (!hasValidFenceInfo(text, markerStart, openMatch[0].length)) {
+      const end = lineEndAfter(text, markerStart)
+      out += text.slice(fenceStart, end)
+      pos = end
+      continue
+    }
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
@@ -1040,6 +1063,10 @@ export function textHasUnclosedCodeFence(text: string): boolean {
       continue
     }
 
+    if (!hasValidFenceInfo(text, markerStart, openMatch[0].length)) {
+      pos = lineEndAfter(text, markerStart)
+      continue
+    }
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
