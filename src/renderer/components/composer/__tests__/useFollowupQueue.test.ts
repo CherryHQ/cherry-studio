@@ -1268,6 +1268,49 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('completes the handoff at the tail when a peer claim outlives the retry window (inv_9ecff9fca3bdab04)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      // A peer's send holds the live-claim barrier past the bounded recovery
+      // window: every attempt conflicts. The switch must still complete —
+      // the restored copy stays safe (and deliverable) at the tail rather
+      // than blocking the handoff or dropping the draft.
+      reorderTrigger.mockRejectedValue(
+        new DataApiError(ErrorCode.CONFLICT, 'reorder conflicts with an in-flight send', 409)
+      )
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        void result.current.takeForEdit('a', () => null)
+      })
+      await act(async () => {})
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let switched = false
+      await act(async () => {
+        void result.current.takeForEdit('b', captureOutgoing).then(() => {
+          switched = true
+        })
+      })
+      await act(async () => {})
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+      expect(switched).toBe(false)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400 * 4)
+      })
+      expect(switched).toBe(true)
+      expect(reorderTrigger).toHaveBeenCalledTimes(4)
+      expect(postTrigger).toHaveBeenCalledTimes(2)
+      expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not retry the slot restore on a non-conflict failure (inv_9ecff9fca3bdab04)', async () => {
     wireQuery([row('a', 'first'), row('b', 'second')])
     const { claimTrigger, takeDeleteTrigger, reorderTrigger } = wireMutations()
