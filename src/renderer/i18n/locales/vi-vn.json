@@ -5728,6 +5728,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Ưu tiên tìm kiếm web và truy xuất URL tích hợp của mô hình, tự động chuyển sang các dịch vụ ở trên khi không khả dụng.",
   "settings.tool.websearch.model_tools_preferred.label": "Ưu tiên công cụ web tích hợp của mô hình",
   "settings.tool.websearch.provider_description.bocha": "API tìm kiếm AI Trung Quốc với kết quả web thời gian thực và có cấu trúc.",
+  "settings.tool.websearch.provider_description.contextfetch": "API tìm kiếm web cho tác tử AI, sử dụng điểm cuối tìm kiếm tương thích với Exa.",
   "settings.tool.websearch.provider_description.crawl4ai": "Sử dụng Crawl4AI Cloud với khóa API hoặc nhập địa chỉ Crawl4AI tự lưu trữ với mã thông báo tùy chọn.",
   "settings.tool.websearch.provider_description.deepseek": "API Tìm kiếm và Lấy trang chính thức của DeepSeek, trả về kết quả web xếp hạng và nội dung trang dạng Markdown.",
   "settings.tool.websearch.provider_description.duckduckgo": "Tìm kiếm từ khóa miễn phí qua điểm cuối HTML của DuckDuckGo. Không cần khóa API.",
