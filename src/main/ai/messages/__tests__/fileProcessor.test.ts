@@ -2,8 +2,13 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { createOpenAI } from '@ai-sdk/openai'
+import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import { convertToModelMessages, generateText } from 'ai'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { prepareChatMessages } from '@main/ai/messages/attachmentRouting'
+import { AnthropicMessageConverter } from '@main/features/apiGateway/adapters/converters/AnthropicMessageConverter'
 import type { FileUIPart } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
@@ -32,16 +37,19 @@ const filePart = (p: Partial<FileUIPart>): FileUIPart => ({
 describe('materializeNativeFilePart — file:// inline', () => {
   let tmpDir: string
   let imgPath: string
+  let emptyPath: string
 
   beforeAll(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-fp-'))
     imgPath = path.join(tmpDir, 'pixel.png')
+    emptyPath = path.join(tmpDir, 'empty.png')
     const png = Buffer.from(
       '89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000D4944415478DA636400' +
         '01000000050001A7DFAA680000000049454E44AE426082',
       'hex'
     )
     await fs.writeFile(imgPath, png)
+    await fs.writeFile(emptyPath, '')
   })
 
   afterAll(async () => {
@@ -53,6 +61,24 @@ describe('materializeNativeFilePart — file:// inline', () => {
       filePart({ url: `file://${imgPath}`, mediaType: 'image/png', filename: 'pixel.png' })
     )
     expect(out?.url.startsWith('data:image/png;base64,')).toBe(true)
+  })
+
+  it('inlines a mixed-case FILE:// URL like a lowercase file URL', async () => {
+    const out = await materializeNativeFilePart(filePart({ url: `FILE://${imgPath}`, mediaType: 'image/png' }))
+    expect(out?.url).toBe(`data:image/png;base64,${(await fs.readFile(imgPath)).toString('base64')}`)
+  })
+
+  it('rejects a zero-byte file:// image and surfaces a visible note', async () => {
+    const part = filePart({ url: `file://${emptyPath}`, mediaType: 'image/png', filename: 'empty.png' })
+    expect(await materializeNativeFilePart(part)).toBeNull()
+    const prepared = await prepareChatMessages([{ id: 'empty-file', role: 'user', parts: [part] }], {
+      attachments: [],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: true
+    })
+    expect(prepared[0].parts).toEqual([
+      { type: 'text', text: 'Attached file "empty.png": [could not read this file].' }
+    ])
   })
 
   it('normalizes a bare-extension mediaType (.png) from the on-disk file', async () => {
@@ -71,6 +97,44 @@ describe('materializeNativeFilePart — file:// inline', () => {
   it('leaves data: URLs untouched', async () => {
     const out = await materializeNativeFilePart(filePart({ url: 'data:image/png;base64,AAA', mediaType: 'image/png' }))
     expect(out?.url).toBe('data:image/png;base64,AAA')
+  })
+
+  it('preserves a mixed-case DATA: URL with a payload', async () => {
+    const url = 'DATA:image/png;base64,AAA'
+    const out = await materializeNativeFilePart(filePart({ url, mediaType: 'image/png' }))
+    expect(out?.url).toBe(url)
+  })
+
+  it.each([
+    '',
+    '  ',
+    'data:image/png;base64,',
+    'data:image/png;base64,  ',
+    'data:image/png,',
+    'data:image/png',
+    'DATA:image/png;base64,'
+  ])('rejects an unresolvable legacy image URL %j', async (url) => {
+    expect(await materializeNativeFilePart(filePart({ url, mediaType: 'image/png' }))).toBeNull()
+  })
+
+  it('degrades an unresolved legacy image to a visible note before model conversion', async () => {
+    const prepared = await prepareChatMessages(
+      [
+        {
+          id: 'legacy',
+          role: 'user',
+          parts: [filePart({ url: 'data:image/png;base64,', mediaType: 'image/png', filename: 'missing.png' })]
+        }
+      ],
+      {
+        attachments: [],
+        nativeSupport: { image: true, pdf: false, audio: false, video: false },
+        isToolCapable: true
+      }
+    )
+    expect(prepared[0].parts).toEqual([
+      { type: 'text', text: 'Attached file "missing.png": [could not read this file].' }
+    ])
   })
 
   it('leaves http(s) URLs untouched', async () => {
@@ -115,6 +179,57 @@ describe('materializeNativeFilePart — file:// inline', () => {
   })
 })
 
+describe('gateway image provider boundary', () => {
+  it('keeps invalid converted images out of the OpenAI request body', async () => {
+    const request: MessageCreateParams = {
+      model: 'local:vision',
+      max_tokens: 100,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: '' } },
+            { type: 'image', source: { type: 'url', url: '' } }
+          ]
+        }
+      ]
+    }
+    const converted = new AnthropicMessageConverter().toUIMessages(request)
+    const prepared = await prepareChatMessages(converted, {
+      attachments: [],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: true
+    })
+    expect(prepared[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' },
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+
+    let requestBody: { messages?: Array<{ content?: unknown }> } = {}
+    const model = createOpenAI({
+      apiKey: 'test-key',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        return new Response(
+          JSON.stringify({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            created: 1,
+            model: 'vision',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      }
+    }).chat('vision')
+    await generateText({ model, messages: await convertToModelMessages(prepared) })
+    expect(JSON.stringify(requestBody)).not.toContain('image_url')
+    expect(JSON.stringify(requestBody)).toContain('[image attachment omitted: empty or unsupported image payload]')
+  })
+})
+
 describe('materializeNativeFilePart — fileEntryId inline', () => {
   it('reads via FileManager and applies its MIME (overriding a bad hint)', async () => {
     readMock.mockReset()
@@ -134,5 +249,46 @@ describe('materializeNativeFilePart — fileEntryId inline', () => {
       filePart({ url: '', providerMetadata: { cherry: { fileEntryId: 'gone' } } })
     )
     expect(out).toBeNull()
+  })
+
+  it('rejects a zero-byte entry and surfaces a visible note', async () => {
+    readMock.mockReset()
+    readMock.mockResolvedValue({ content: '', mime: 'image/png' })
+    const part = filePart({
+      url: '',
+      mediaType: 'image/png',
+      filename: 'empty.png',
+      providerMetadata: { cherry: { fileEntryId: 'empty-entry' } }
+    })
+    expect(await materializeNativeFilePart(part)).toBeNull()
+    const prepared = await prepareChatMessages([{ id: 'empty-entry', role: 'user', parts: [part] }], {
+      attachments: [],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: true
+    })
+    expect(prepared[0].parts).toEqual([
+      { type: 'text', text: 'Attached file "empty.png": [could not read this file].' }
+    ])
+  })
+
+  it('rescues a zero-byte entry read from a valid file:// snapshot', async () => {
+    readMock.mockReset()
+    readMock.mockResolvedValueOnce({ content: '', mime: 'image/png' })
+    const png = Buffer.from('pixel')
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-fp-rescue-'))
+    const imgPath = path.join(tmpDir, 'pixel.png')
+    try {
+      await fs.writeFile(imgPath, png)
+      const out = await materializeNativeFilePart(
+        filePart({
+          url: `file://${imgPath}`,
+          mediaType: 'image/png',
+          providerMetadata: { cherry: { fileEntryId: 'empty-entry' } }
+        })
+      )
+      expect(out?.url).toBe(`data:image/png;base64,${png.toString('base64')}`)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
   })
 })
