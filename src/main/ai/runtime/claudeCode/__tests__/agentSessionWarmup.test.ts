@@ -176,7 +176,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.apiGatewayStart.mockResolvedValue(undefined)
     mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({ 'x-cherry-agent-session-id': 'session-1' })
     mocks.getProxyEnvironment.mockReturnValue({})
-    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({ loginShellEnv: {}, rawShellEnv: {} })
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
@@ -1346,7 +1346,7 @@ describe('deriveConnectionConfig', () => {
     mocks.internalGateway = { baseUrl: 'http://127.0.0.1:23333', apiKey: 'gateway-key' }
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
-    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({ loginShellEnv: {}, rawShellEnv: {} })
   })
 
   async function deriveSignature() {
@@ -1599,11 +1599,12 @@ describe('deriveConnectionConfig', () => {
     const currentProxyEnvironment = { HTTP_PROXY: 'http://current-cherry-proxy.example:7890' }
     mocks.getProxyEnvironment.mockReturnValue(currentProxyEnvironment)
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValueOnce({
-      SOCKS_PROXY: 'socks5://user-shell-proxy.example:1080'
+      loginShellEnv: { SOCKS_PROXY: 'socks5://user-shell-proxy.example:1080' },
+      rawShellEnv: {}
     })
     const withUserShellProxy = await deriveSignature()
 
-    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValueOnce({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValueOnce({ loginShellEnv: {}, rawShellEnv: {} })
     const withoutUserShellProxy = await deriveSignature()
 
     expect(mocks.getClaudeCodeLoginShellEnvironment).toHaveBeenCalledWith(currentProxyEnvironment)

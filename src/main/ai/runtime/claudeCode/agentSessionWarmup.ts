@@ -359,7 +359,7 @@ async function deriveAgentProxyEnvironmentFingerprint(
   const proxyEnvironment = getProxyEnvironment(process.env)
   return createAgentProxyEnvironmentFingerprint(
     {
-      ...(await getClaudeCodeLoginShellEnvironment(proxyEnvironment)),
+      ...(await getClaudeCodeLoginShellEnvironment(proxyEnvironment)).loginShellEnv,
       ...proxyEnvironment,
       ...agent.configuration?.env_vars
     },

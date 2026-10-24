@@ -25,6 +25,19 @@ import { isWin } from '@main/core/platform'
  * here and `shellEnv.appendCherryToolDirsToPath` run it back-to-back on the
  * same PATH during shell capture, so they must agree byte-for-byte.
  */
+/** PATH segment identity for dedup/exclusion — trailing separators do not distinguish entries. */
+export function normalizePathSegmentForComparison(value: string): string {
+  let normalized = path.normalize(value.trim())
+  if (isWin) {
+    normalized = normalized.replace(/[\\/]+$/, '')
+    return normalized.toLowerCase()
+  }
+  while (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
+  return normalized
+}
+
 export function dedupePathSegments(segments: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
@@ -46,12 +59,14 @@ export function dedupePathSegments(segments: string[]): string[] {
  * keeps its separator — on Windows `C:` is drive-relative while `C:\` is the
  * drive root, and on POSIX an empty result would mean `/`.
  */
-function canonicalPathSegment(segment: string): string {
+export function canonicalPathSegment(segment: string): string {
   const normalized = isWin ? path.normalize(segment).toLowerCase() : path.normalize(segment)
   // Strip only the platform's own trailing separator. On POSIX a backslash is an
   // ordinary filename character, so `/usr/bin\` must stay distinct from `/usr/bin`
-  // rather than being collapsed into it by the trailing-separator rule.
-  const trailingSep = isWin ? /\\+$/ : /\/+$/
+  // rather than being collapsed into it by the trailing-separator rule. The Windows
+  // branch also strips `/`: win32 path.normalize already converts it, and platform-stubbed
+  // tests run POSIX normalize where a stray trailing `/` survives.
+  const trailingSep = isWin ? /[\\/]+$/ : /\/+$/
   const stripped = normalized.replace(trailingSep, '')
   if (stripped.length === 0) return normalized
   if (isWin && /^[a-z]:$/i.test(stripped)) return normalized
@@ -159,13 +174,15 @@ function mergePathEntries(
   // Windows env keys are case-insensitive, so the input can carry several PATH
   // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
   // the output to a single key — otherwise a stale casing left untouched can
-  // shadow the merged value when the child process spawns.
-  const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  // shadow the merged value when the child process spawns. POSIX keys are
+  // case-sensitive, so only the exact `PATH` feeds the merge: a lowercase
+  // `path` entry is an unrelated variable and must neither leak into the
+  // child PATH nor be clobbered by it.
+  const pathLikeKeys = isWin
+    ? Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+    : Object.keys(env).filter((key) => key === 'PATH')
   const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
-  const normalize = (value: string) => {
-    const normalized = path.normalize(value)
-    return isWin ? normalized.toLowerCase() : normalized
-  }
+  const normalize = canonicalPathSegment
   const excluded = new Set(excludedEntries.map(normalize))
   // Prefixes, retained caller PATH, then suffixes — deduped with first occurrence
   // winning. Explicit exclusions are removed from the caller PATH as well as from
@@ -180,7 +197,6 @@ function mergePathEntries(
   const merged = { ...env }
   for (const key of pathLikeKeys) delete merged[key]
   merged[pathKey] = pathValue
-  if (!isWin) merged.PATH = pathValue
   return merged
 }
 
