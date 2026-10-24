@@ -110,6 +110,40 @@ describe('FollowupQueueService', () => {
   })
 
   describe('enqueue anchor placement (inv_9ecff9fca3bdab04)', () => {
+    it.each([false, true])(
+      'atomically restores before successors when predecessor anchors disappear, earlier sent=%s (inv_e83eca5d2cb29820)',
+      (removeEarlier) => {
+        const a = enqueueIn(SCOPE_A, 'a')
+        const b = enqueueIn(SCOPE_A, 'b')
+        enqueueIn(SCOPE_A, 'd')
+        const e = enqueueIn(SCOPE_A, 'e')
+        followupQueueService.remove(b.id)
+        if (removeEarlier) followupQueueService.remove(a.id)
+        followupQueueService.claim(e.id, 'live-incoming')
+        const restored = followupQueueService.enqueue({
+          scopeKey: SCOPE_A,
+          draft: draft('c restored'),
+          payload: payload('c restored'),
+          held: true,
+          anchor: { after: b.id },
+          restorePredecessors: [a.id, b.id]
+        })
+        followupQueueService.remove(e.id, restored.id)
+        followupQueueService.enqueue({
+          id: restored.id,
+          scopeKey: SCOPE_A,
+          draft: restored.draft,
+          payload: restored.payload
+        })
+        if (!removeEarlier) followupQueueService.remove(a.id)
+        expect(followupQueueService.claimHead(SCOPE_A, 'peer')).toEqual({
+          claimed: true,
+          id: restored.id,
+          alreadySent: false
+        })
+      }
+    )
+
     it('inserts at the referenced slot while a live claim bars reorders', () => {
       const first = enqueueIn(SCOPE_A, 'a')
       const second = enqueueIn(SCOPE_A, 'b')

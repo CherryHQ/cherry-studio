@@ -25,7 +25,9 @@ import { createSWRTestWrapper } from '../../src/renderer/data/hooks/__tests__/te
 const ids = [
   '11111111-1111-7111-8111-111111111111',
   '22222222-2222-7222-8222-222222222222',
-  '33333333-3333-7333-8333-333333333333'
+  '33333333-3333-7333-8333-333333333333',
+  '44444444-4444-7444-8444-444444444444',
+  '55555555-5555-7555-8555-555555555555'
 ]
 const scope = 'topic:assistant'
 const originalApi = window.api
@@ -38,85 +40,99 @@ afterEach(() => {
 // persistence are faked; handler validation below is the production boundary.
 
 describe('production edit-transfer transport contract', () => {
-  it('carries the actual hook DELETE body through mutation, IPC and validated handler before release', async () => {
-    let rows = ids.map((id, index) => ({
-      id,
-      scopeKey: scope,
-      draft: { text: String(index), tokens: [] },
-      payload: { text: String(index), userMessageParts: [] },
-      status: 'pending',
-      orderKey: String(index),
-      createdAt: '2026-01-01T00:00:00Z',
-      updatedAt: '2026-01-01T00:00:00Z',
-      sentAt: null
-    }))
-    const transferred: string[] = []
-    service.listByScope.mockImplementation(() => [...rows])
-    service.getState.mockImplementation(() => ({ scopeKey: scope, paused: false }))
-    service.claim.mockReturnValue({ claimed: true, alreadySent: false })
-    service.enqueue.mockImplementation((body) => {
-      const existing = rows.find((row) => row.id === body.id)
-      if (!existing) rows = [{ ...rows[0], ...body, orderKey: '0' }, ...rows]
-      return existing ?? rows[0]
-    })
-    service.remove.mockImplementation((id, transferHeldId) => {
-      if (transferHeldId) transferred.push(transferHeldId)
-      rows = rows.filter((row) => row.id !== id)
-    })
-    const seen: Array<{ method: string; path: string; body?: unknown }> = []
-    const request = vi.fn(async (req) => {
-      seen.push(req)
-      const match = req.path.match(/^\/followup-queues\/([^/]+)(?:\/(claim|heartbeat))?$/)
-      let data: unknown
-      if (req.path === '/followup-queues') {
-        data =
-          req.method === 'GET'
-            ? await followupQueueHandlers['/followup-queues'].GET({ query: req.params })
-            : await followupQueueHandlers['/followup-queues'].POST({ body: req.body })
-      } else if (req.path === '/followup-queue-states') {
-        data = await followupQueueHandlers['/followup-queue-states'].GET({ query: req.params })
-      } else if (match?.[2] === 'claim') {
-        data = await followupQueueHandlers['/followup-queues/:id/claim'].POST({
-          params: { id: match[1] },
-          body: req.body
-        })
-      } else if (match && req.method === 'DELETE') {
-        data = await followupQueueHandlers['/followup-queues/:id'].DELETE({ params: { id: match[1] }, body: req.body })
-      } else if (req.path === '/followup-queues/order:batch') data = undefined
-      else throw new Error(`Unexpected request ${req.method} ${req.path}`)
-      return { id: req.id, status: 200, data }
-    })
-    Object.defineProperty(window, 'api', { configurable: true, value: { ...window.api, dataApi: { request } } })
-    const { Wrapper } = createSWRTestWrapper()
-    const { result, unmount } = renderHook(
-      () =>
-        useFollowupQueue({ scopeKey: scope, status: 'streaming', lastCompletedAt: null, onDrain: async () => true }),
-      { wrapper: Wrapper }
-    )
-    await waitFor(() => expect(result.current.items).toHaveLength(3))
-    await act(async () => {
-      await result.current.takeForEdit(ids[0], () => null)
-    })
-    await act(async () => {
-      await result.current.takeForEdit(ids[1], () => ({
-        draft: { text: 'edited', tokens: [] },
-        payload: { text: 'edited', userMessageParts: [] }
+  it.each([
+    [0, 1],
+    [2, 4]
+  ])(
+    'carries edit %s -> %s placement and DELETE bodies through the production contract',
+    async (outgoingIndex, incomingIndex) => {
+      let rows = ids.map((id, index) => ({
+        id,
+        scopeKey: scope,
+        draft: { text: String(index), tokens: [] },
+        payload: { text: String(index), userMessageParts: [] },
+        status: 'pending',
+        orderKey: String(index),
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+        sentAt: null
       }))
-    })
-    expect(transferred).toHaveLength(1)
-    expect(seen).toContainEqual(
-      expect.objectContaining({
-        method: 'DELETE',
-        path: `/followup-queues/${ids[1]}`,
-        body: { transferHeldId: transferred[0] }
+      const transferred: string[] = []
+      service.listByScope.mockImplementation(() => [...rows])
+      service.getState.mockImplementation(() => ({ scopeKey: scope, paused: false }))
+      service.claim.mockReturnValue({ claimed: true, alreadySent: false })
+      service.enqueue.mockImplementation((body) => {
+        const existing = rows.find((row) => row.id === body.id)
+        if (!existing) rows = [{ ...rows[0], ...body, orderKey: '0' }, ...rows]
+        return existing ?? rows[0]
       })
-    )
-    expect(service.remove).toHaveBeenCalledWith(ids[1], transferred[0])
-    const transferDelete = seen.findIndex((req) => req.method === 'DELETE' && req.path === `/followup-queues/${ids[1]}`)
-    const release = seen.findIndex(
-      (req, index) => index > transferDelete && req.method === 'POST' && req.path === '/followup-queues'
-    )
-    expect(release).toBeGreaterThan(transferDelete)
-    unmount()
-  })
+      service.remove.mockImplementation((id, transferHeldId) => {
+        if (transferHeldId) transferred.push(transferHeldId)
+        rows = rows.filter((row) => row.id !== id)
+      })
+      const seen: Array<{ method: string; path: string; body?: unknown }> = []
+      const request = vi.fn(async (req) => {
+        seen.push(req)
+        const match = req.path.match(/^\/followup-queues\/([^/]+)(?:\/(claim|heartbeat))?$/)
+        let data: unknown
+        if (req.path === '/followup-queues') {
+          data =
+            req.method === 'GET'
+              ? await followupQueueHandlers['/followup-queues'].GET({ query: req.params })
+              : await followupQueueHandlers['/followup-queues'].POST({ body: req.body })
+        } else if (req.path === '/followup-queue-states') {
+          data = await followupQueueHandlers['/followup-queue-states'].GET({ query: req.params })
+        } else if (match?.[2] === 'claim') {
+          data = await followupQueueHandlers['/followup-queues/:id/claim'].POST({
+            params: { id: match[1] },
+            body: req.body
+          })
+        } else if (match && req.method === 'DELETE') {
+          data = await followupQueueHandlers['/followup-queues/:id'].DELETE({
+            params: { id: match[1] },
+            body: req.body
+          })
+        } else if (req.path === '/followup-queues/order:batch') data = undefined
+        else throw new Error(`Unexpected request ${req.method} ${req.path}`)
+        return { id: req.id, status: 200, data }
+      })
+      Object.defineProperty(window, 'api', { configurable: true, value: { ...window.api, dataApi: { request } } })
+      const { Wrapper } = createSWRTestWrapper()
+      const { result, unmount } = renderHook(
+        () =>
+          useFollowupQueue({ scopeKey: scope, status: 'streaming', lastCompletedAt: null, onDrain: async () => true }),
+        { wrapper: Wrapper }
+      )
+      await waitFor(() => expect(result.current.items).toHaveLength(5))
+      await act(async () => {
+        await result.current.takeForEdit(ids[outgoingIndex], () => null)
+      })
+      await act(async () => {
+        await result.current.takeForEdit(ids[incomingIndex], () => ({
+          draft: { text: 'edited', tokens: [] },
+          payload: { text: 'edited', userMessageParts: [] }
+        }))
+      })
+      expect(transferred).toHaveLength(1)
+      expect(seen).toContainEqual(
+        expect.objectContaining({
+          method: 'DELETE',
+          path: `/followup-queues/${ids[incomingIndex]}`,
+          body: { transferHeldId: transferred[0] }
+        })
+      )
+      expect(service.remove).toHaveBeenCalledWith(ids[incomingIndex], transferred[0])
+      expect(service.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ held: true, restorePredecessors: ids.slice(0, outgoingIndex) })
+      )
+      const transferDelete = seen.findIndex(
+        (req) => req.method === 'DELETE' && req.path === `/followup-queues/${ids[incomingIndex]}`
+      )
+      const release = seen.findIndex(
+        (req, index) => index > transferDelete && req.method === 'POST' && req.path === '/followup-queues'
+      )
+      expect(release).toBeGreaterThan(transferDelete)
+      unmount()
+    }
+  )
 })

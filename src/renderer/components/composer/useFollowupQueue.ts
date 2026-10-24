@@ -78,6 +78,7 @@ type RestoreQueueBody = {
   /** Best-effort placement applied atomically with the insert; a stale or
    * removed anchor row degrades server-side to a tail insert. */
   anchor?: OrderRequest
+  restorePredecessors?: string[]
 }
 
 // Restoration enqueues (edit handoff, scope/unmount recovery, background
@@ -801,6 +802,7 @@ export function useFollowupQueue({
           return undefined
         }
         let restored = false
+        let atomicPlacementConfirmed = false
         // Fresh insertion identity, stable across the retries: the original
         // row closed when it was taken, so re-enqueueing under its id returns
         // the receipt without storing the edited content (cherry-pr-review).
@@ -821,6 +823,7 @@ export function useFollowupQueue({
           // row in another window (cherry-pr-review inv_66de69107768f834#f1).
           const anchorSlot = resolveRestoreSlot(anchorItems, taken)
           restoreBody.anchor = anchorSlot === 0 ? { position: 'first' } : { after: anchorItems[anchorSlot - 1].id }
+          restoreBody.restorePredecessors = taken.predecessors ?? anchorItems.slice(0, anchorSlot).map((row) => row.id)
         } catch {
           // Attachments cannot be made durable right now: refuse the switch —
           // the outgoing edit is still in the editor, nothing is lost.
@@ -832,7 +835,8 @@ export function useFollowupQueue({
           try {
             // Born held: the copy stays ineligible for delivery until editor
             // ownership actually transfers; the failure paths only re-stamp it.
-            await enqueueTrigger({ body: { ...restoreBody, held: true } })
+            const inserted = await enqueueTrigger({ body: { ...restoreBody, held: true } })
+            atomicPlacementConfirmed = inserted?.id === restoreId
             restored = true
           } catch (error) {
             // The conversation was permanently deleted: nothing to restore
@@ -902,7 +906,10 @@ export function useFollowupQueue({
           restoreSlot = confirmedSlot
           return true
         }
-        for (let attempt = 0; ; attempt++) {
+        // A successful production response acknowledges atomic placement. Do
+        // not let a stale renderer mirror undo it with a second reorder.
+        if (atomicPlacementConfirmed) restoreSlot = resolveRestoreSlot(itemsRef.current, taken)
+        for (let attempt = 0; !atomicPlacementConfirmed; attempt++) {
           if (attempt > 0) {
             await new Promise((resolve) => setTimeout(resolve, RESTORE_SLOT_RETRY_MS))
             // Unmounted or scope switched mid-retry: the row stays queued
@@ -1354,6 +1361,7 @@ export function useFollowupQueue({
           // queue-slot anchor across background retries
           // (cherry-pr-review inv_9ecff9fca3bdab04#f1).
           if (body.anchor) rebuilt.anchor = body.anchor
+          if (body.restorePredecessors !== undefined) rebuilt.restorePredecessors = body.restorePredecessors
           if (body.held !== undefined) rebuilt.held = body.held
           // A tracked session still owns the item in the editor: the landed
           // copy must stay ineligible for delivery until ownership transfers,
