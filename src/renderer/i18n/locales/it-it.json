@@ -693,6 +693,7 @@
   "chat.input.file_error": "Errore durante l'elaborazione del file",
   "chat.input.file_not_supported": "Il modello non supporta questo tipo di file",
   "chat.input.file_not_supported_count": "{{count}} file non sono supportati",
+  "chat.input.followup_queue.auto_send_stopped": "Invio automatico interrotto. I messaggi rimangono in coda; puoi modificarli, rimuoverli o inviarli manualmente.",
   "chat.input.followup_queue.edit": "Modifica",
   "chat.input.followup_queue.pause": "Sospendi invio automatico",
   "chat.input.followup_queue.remove": "Rimuovi",

@@ -693,6 +693,7 @@
   "chat.input.file_error": "Lỗi khi xử lý tệp",
   "chat.input.file_not_supported": "Mô hình không hỗ trợ loại tệp này",
   "chat.input.file_not_supported_count": "{{count}} tệp không được hỗ trợ",
+  "chat.input.followup_queue.auto_send_stopped": "Đã dừng gửi tự động. Tin nhắn của bạn vẫn nằm trong hàng đợi; bạn có thể chỉnh sửa, xóa hoặc gửi thủ công.",
   "chat.input.followup_queue.edit": "Chỉnh sửa",
   "chat.input.followup_queue.pause": "Tạm dừng gửi tự động",
   "chat.input.followup_queue.remove": "Xóa",
