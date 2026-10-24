@@ -3237,7 +3237,7 @@ describe('AiStreamManager', () => {
         } else {
           expect(listener.errorResults[0].error.executionFailure).toMatchObject({
             retryable: false,
-            failure: { reasonCode: 'internal', source: { layer: 'host' } }
+            failure: { reasonCode: 'internal', source: { layer: 'host' }, stage: 'parse' }
           })
           expect(writes[0].finalMessage?.parts).toContainEqual(
             expect.objectContaining({
