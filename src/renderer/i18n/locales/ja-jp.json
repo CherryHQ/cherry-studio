@@ -1474,6 +1474,7 @@
   "error.render.block": "このコンテンツブロックはレンダリングに失敗しました",
   "error.render.description": "メッセージの内容のレンダリングに失敗しました。メッセージの内容の形式が正しいか確認してください",
   "error.render.title": "レンダリングエラー",
+  "error.reply_interrupted": "アプリが終了したため、この返信は中断されました。完全な回答を得るには再生成してください。",
   "error.requestBody": "要求されたコンテンツ",
   "error.requestBodyValues": "リクエストボディ",
   "error.requestUrl": "リクエストパス",

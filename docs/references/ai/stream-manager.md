@@ -154,9 +154,9 @@ Choose by **consumer / producer fanout**:
   `done`) compared against `topic.stream.last_seen_completion.${topicId}`
   (cross-window shared cache, written when the user acknowledges).
   Memory tier — both reset on app restart.
-- **`PersistenceListener` placement.** Terminal-only consumer — doesn't
-  need chunk bandwidth → not added via `attach`; the provider includes
-  it in the `listeners` array passed to `send()`.
+- **`PersistenceListener` placement.** Terminal consumer plus periodic
+  checkpoints — doesn't need chunk bandwidth → not added via `attach`; the
+  provider includes it in the `listeners` array passed to `send()`.
 - **`TraceFlushListener` placement.** Terminal-only consumer that flushes
   `TraceStorageService.saveSpans(topicId)` after a chat / agent turn completes.
   It belongs with the turn owner (`PersistentChatContextProvider` or
@@ -244,7 +244,7 @@ continuations.
 | Listener | Role | id | isAlive |
 |---|---|---|---|
 | **WebContentsListener** | chunks → renderer window | `wc:${wc.id}:${topicId}` | `!wc.isDestroyed()` |
-| **PersistenceListener** | terminal write via strategy | `persistence:${backendKind}:${topicId}:${modelId ?? 'default'}` | always `true` |
+| **PersistenceListener** | checkpoints + terminal write via strategy | `persistence:${backendKind}:${topicId}:${modelId ?? 'default'}` | always `true` |
 | **TraceFlushListener** | terminal trace-cache flush | `persistence:trace:${topicId}` | always `true` |
 | **ChannelAdapterListener** | text → IM platform | `channel:${channelId}:${chatId}` | `adapter.connected` |
 | **SseListener** | API-server SSE passthrough | `sse:${uuid}` | `!res.writableEnded` |
@@ -319,6 +319,24 @@ consistency: renderer, channel, and SSE terminal notifications wait for the
 terminal persistence write. A slow database therefore delays the visible
 terminal event, but consumers never observe success before the durable row is
 committed. Per-chunk delivery is unaffected.
+
+#### Checkpoints and crash recovery
+
+While an execution streams, the manager hands its latest accumulated message to
+each listener's optional `onCheckpoint` at most once per `checkpointIntervalMs`
+(1 s), and stops once the loop ends. `PersistenceListener` passes it to the
+backend's optional `checkpoint(parts)`. The SQLite and agent-session backends
+store it as `data.streamCheckpoint` on the `pending` row, never in `data.parts`:
+a reconnecting renderer seeds its reader from the row's `parts` and replays the
+buffer on top, so partial parts there would render twice. The write is a no-op
+once the row has settled, the terminal write replaces `data` and drops the
+checkpoint, and reads strip the field.
+
+If the process dies mid-stream (a crash, a quit, or a closed Web tab), the boot
+reconcile in `AiStreamManager` and `AgentSessionRuntimeService` settles each
+stale `pending` row as `error` with `interruptedReplyParts(checkpoint)`: the
+saved parts with their live parts closed, followed by a `data-error` part whose
+`i18nKey` (`reply_interrupted`) tells the user the reply was cut off.
 
 ## ActiveStream & StreamExecution
 

@@ -5,20 +5,26 @@
   "description": "Core Worker host that runs the Cherry Studio data layer in the browser on SQLite-WASM and OPFS.",
   "license": "AGPL-3.0-only",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/page/preload.ts"
+  ],
   "exports": {
     "./client": "./src/client/CoreClient.ts",
     "./worker": "./src/worker/startCoreWorker.ts"
   },
   "scripts": {
+    "build:app": "cd ../.. && vite build --config packages/web-core/vite.app.config.ts",
     "build:harness": "vite build",
-    "test:browser": "vite build && playwright test",
-    "typecheck": "tsc --noEmit"
+    "test:browser": "vite build && pnpm run build:app && playwright test",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.page.json"
   },
   "dependencies": {
     "@cherrystudio/sqlite-wasm-compat": "workspace:*",
+    "@noble/hashes": "^2.4.0",
+    "buffer": "^6.0.3",
     "drizzle-orm": "^0.44.5",
-    "es-toolkit": "^1.49.0"
+    "es-toolkit": "^1.49.0",
+    "pathe": "^2.0.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

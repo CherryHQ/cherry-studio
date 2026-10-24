@@ -1502,13 +1502,14 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    it('resolves crash-orphaned pending rows with terminalized parts and invalidates their sessions', async () => {
+    it('resolves crash-orphaned pending rows with their checkpointed parts and invalidates their sessions', async () => {
       mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
         {
           id: 'stale-1',
           sessionId: 'session-a',
           data: {
-            parts: [
+            parts: [],
+            streamCheckpoint: [
               { type: 'text', text: 'partial answer' },
               { type: 'tool-Bash', toolCallId: 'call-1', state: 'input-available', input: { command: 'ls' } }
             ]
@@ -1518,6 +1519,10 @@ describe('AgentSessionRuntimeService', () => {
         { id: 'stale-3', sessionId: 'session-b', data: {} }
       ])
       const service = new AgentSessionRuntimeService()
+      const interrupted = expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ i18nKey: 'reply_interrupted' })
+      })
 
       await (service as any).onInit()
 
@@ -1534,12 +1539,13 @@ describe('AgentSessionRuntimeService', () => {
                   state: 'output-error',
                   input: { command: 'ls' },
                   errorText: 'Stream errored before tool completed'
-                }
+                },
+                interrupted
               ]
             }
           },
-          { id: 'stale-2', data: { parts: [] } },
-          { id: 'stale-3', data: { parts: [] } }
+          { id: 'stale-2', data: { parts: [interrupted] } },
+          { id: 'stale-3', data: { parts: [interrupted] } }
         ],
         ['session-a', 'session-b']
       )

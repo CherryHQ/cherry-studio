@@ -1474,6 +1474,7 @@
   "error.render.block": "Dieser Inhaltsblock konnte nicht gerendert werden",
   "error.render.description": "Rendering der Nachricht fehlgeschlagen. Bitte überprüfen Sie das Format des Nachrichteninhalts",
   "error.render.title": "Rendering-Fehler",
+  "error.reply_interrupted": "Diese Antwort wurde unterbrochen, weil die App geschlossen wurde. Generieren Sie sie neu, um eine vollständige Antwort zu erhalten.",
   "error.requestBody": "Anfrage-Inhalt",
   "error.requestBodyValues": "Anfrage-Body",
   "error.requestUrl": "Anfrage-URL",

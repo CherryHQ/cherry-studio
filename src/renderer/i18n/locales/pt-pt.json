@@ -1474,6 +1474,7 @@
   "error.render.block": "Este bloco de conteúdo não foi renderizado",
   "error.render.description": "Falha ao renderizar a fórmula, por favor verifique se o formato da fórmula está correto",
   "error.render.title": "Erro de Renderização",
+  "error.reply_interrupted": "Esta resposta foi interrompida porque a aplicação foi fechada. Regenere-a para obter uma resposta completa.",
   "error.requestBody": "Conteúdo do pedido",
   "error.requestBodyValues": "Corpo do pedido",
   "error.requestUrl": "Caminho do pedido",

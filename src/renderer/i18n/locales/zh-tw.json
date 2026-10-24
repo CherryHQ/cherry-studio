@@ -1474,6 +1474,7 @@
   "error.render.block": "此內容區塊渲染失敗",
   "error.render.description": "訊息內容渲染失敗，請檢查訊息內容格式是否正確",
   "error.render.title": "渲染錯誤",
+  "error.reply_interrupted": "應用程式關閉導致這則回覆中斷，請重新產生以取得完整回答。",
   "error.requestBody": "請求內容",
   "error.requestBodyValues": "請求本文值",
   "error.requestUrl": "請求路徑",

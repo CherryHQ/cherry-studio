@@ -1474,6 +1474,7 @@
   "error.render.block": "Acest bloc de conținut nu a putut fi redat",
   "error.render.description": "Nu s-a putut randa conținutul mesajului. Te rugăm să verifici dacă formatul conținutului mesajului este corect",
   "error.render.title": "Eroare de randare",
+  "error.reply_interrupted": "Acest răspuns a fost întrerupt deoarece aplicația s-a închis. Regenerează-l pentru a obține un răspuns complet.",
   "error.requestBody": "Corp cerere",
   "error.requestBodyValues": "Valori corp cerere",
   "error.requestUrl": "URL cerere",

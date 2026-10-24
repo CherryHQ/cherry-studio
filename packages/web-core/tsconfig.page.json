@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.web.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "noEmit": true,
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/page/**/*.ts",
+    "harness/bridge.ts",
+    "../../src/renderer/env.d.ts",
+    "../../src/renderer/types/*.d.ts",
+    "../../src/preload/*.d.ts"
+  ]
+}
