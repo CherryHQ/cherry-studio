@@ -2497,6 +2497,30 @@ describe('a footnote definition behind a container', () => {
       expect(chunk.text).toContain('second')
     }
   })
+
+  it('keeps the item around a carried list-held definition out of the footnote', () => {
+    // The item's content column is where its continuation lines start, so `    - item` is a list
+    // nested in the item rather than footnote content. Carried at its absolute indentation it
+    // re-based inside the note, and every chunk printed `item` in the footnote.
+    const content = ['- [^a]: first', '    - item', '', 'see [^a]'].join('\n')
+    type Node = { type: string; identifier?: string; children?: Node[] }
+    const noteBlocks = (source: string): string[] | undefined => {
+      let note: Node | undefined
+      const walk = (node: Node): void => {
+        if (node.type === 'footnoteDefinition' && node.identifier === 'a') note ??= node
+        for (const child of node.children ?? []) walk(child)
+      }
+      walk(parsed(source))
+      return note?.children?.map((child) => child.type)
+    }
+
+    // The unsplit document renders the nested list outside the note.
+    expect(noteBlocks(content)).toEqual(['paragraph'])
+
+    for (const chunk of chunksOf(content)) {
+      expect(noteBlocks(chunk.text)).toEqual(['paragraph'])
+    }
+  })
 })
 
 describe('document-wide heading slugs across heading syntaxes', () => {

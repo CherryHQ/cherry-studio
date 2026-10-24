@@ -153,6 +153,38 @@ describe('MarkdownChunkPreview', () => {
     expect(ids.map((id) => id?.split('--')[1])).toEqual(['foo2', 'foo2-1'])
   })
 
+  it('leaves an undefined footnote reference out of the number a heading is keyed on', async () => {
+    // `[^missing]` has no definition, so it stays literal text and `[^n]` is note 1: `Title[^n]`
+    // renders `Title1`, the duplicate of the `# Title1` above it, and takes `-1`. Numbering the
+    // undefined reference first keyed the heading `title2`, so it fell past `title1` and `title1-1`
+    // to `title1-2` — the id `[jump](#title1-1)` names.
+    const content = ['# Title1', '', '[^missing]', '', '# Title[^n]', '', '[jump](#title1-1)', '', '[^n]: note'].join(
+      '\n'
+    )
+    const chunks = splitMarkdownChunks(content).chunks
+    mocks.range = chunks.map((_, index) => index)
+    const { container } = render(<MarkdownChunkPreview chunks={chunks} id="undefined-footnote" />)
+
+    const ids = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
+
+    expect(ids.map((id) => id?.split('--')[1])).toEqual(['title1', 'title1-1'])
+  })
+
+  it('reads a heading tag to its real terminator, so a quoted `>` keeps the heading text', async () => {
+    // The attribute value holds a `>`; ending the tag there named the first heading `b-title`, which
+    // left the later `# Title` unnumbered — both rendered `title` and the `#title-1` link had no
+    // target even with every chunk mounted.
+    const filler = 'filler\n\n'.repeat(3072)
+    const content = `<h2 title="a>b">Title</h2>\n\n${filler}# Title\n\n[jump](#title-1)\n`
+    const chunks = splitMarkdownChunks(content).chunks
+    mocks.range = chunks.map((_, index) => index)
+    const { container } = render(<MarkdownChunkPreview chunks={chunks} id="quoted-attribute" />)
+
+    const ids = Array.from(container.querySelectorAll('h1, h2')).map((heading) => heading.getAttribute('id'))
+
+    expect(ids.map((id) => id?.split('--')[1])).toEqual(['title', 'title-1'])
+  })
+
   it('resolves a footnote backlink inside the chunk that was clicked', async () => {
     // Each mounted chunk numbers its footnotes from the same reference, so every chunk emits the
     // same reference id and a preview-wide search always finds the first chunk's — a later chunk's

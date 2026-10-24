@@ -280,9 +280,18 @@ function stripDefinitionContainer(line: string, container: DefinitionContainer):
   // An item's content column is measured past its marker; a line that carries the quote markers
   // but not the item's indentation has left the item. The content's column is counted on the line
   // itself, quote markers included: a tab advances to the next multiple of four wherever it falls.
-  const columns = content.match(/^[ \t]*/)?.[0] ?? ''
-  const contentStart = line.length - content.length + columns.length
-  return columnCount(line.slice(0, contentStart)) >= container.labelColumn ? content : null
+  let index = line.length - content.length
+  let column = columnCount(line.slice(0, index))
+  while (index < line.length && column < container.labelColumn) {
+    column += line[index] === '\t' ? 4 - (column % 4) : 1
+    index += 1
+  }
+  if (column < container.labelColumn) return null
+  // The indentation up to the content column belongs to the item, and the carried definition is
+  // written without it: re-basing the line here keeps the blocks the parser finds inside the note
+  // inside it, and the ones it finds outside outside. A tab spanning past the column leaves the
+  // columns it overshoots as spaces, the way `afterColumns` keeps them.
+  return `${' '.repeat(Math.max(column - container.labelColumn, 0))}${line.slice(index)}`
 }
 
 /** The next content line read from inside the open definition's container, or undefined. */
@@ -1289,9 +1298,30 @@ function htmlHeadingOpens(content: string): Array<{ index: number; end: number; 
       cursor = start + 1
       continue
     }
-    const close = content.indexOf('>', start + 3)
-    // Nothing after this candidate can be terminated either, so the scan is over.
-    if (close === -1) break
+    // The tag ends at the first `>` outside an attribute value — a quoted value may hold one, and
+    // ending there read the rest of the value as the heading's text. Each character is read once,
+    // so the scan stays linear.
+    let close = start + 3
+    let quote = ''
+    let pendingValue = false
+    for (; close < content.length; close += 1) {
+      const character = content[close]
+      if (quote !== '') {
+        if (character === quote) quote = ''
+      } else if (character === '=') {
+        pendingValue = true
+      } else if (pendingValue) {
+        if (character !== ' ' && character !== '\t' && character !== '\n' && character !== '\r' && character !== '\f') {
+          pendingValue = false
+          if (character === '"' || character === "'") quote = character
+        }
+      } else if (character === '>') {
+        break
+      }
+    }
+    // An unterminated value quote leaves the candidate open to the block's end, and nothing after
+    // it can be terminated either, so the scan is over.
+    if (close >= content.length) break
     opens.push({ index: start, end: close + 1, level: Number(content.charAt(start + 2)) })
     cursor = close + 1
   }
@@ -2649,10 +2679,13 @@ export function splitMarkdownChunks(
         continue
       }
       // A definition line is hoisted and read with the footnotes, not where it stands; its label is
-      // not a reference, and its content takes whatever numbers the notes still ahead receive.
+      // not a reference, and its content takes whatever numbers the notes still ahead receive. A
+      // reference the document never defines stays literal text and takes no number, as it takes
+      // none in the document-wide pass — numbering it here shifted every note behind it.
       if (!FOOTNOTE_DEFINITION_START.test(line) && !LINK_DEFINITION_LINE.test(line))
         for (const label of footnoteReferences(line))
-          if (!localFootnotes.has(label)) localFootnotes.set(label, localFootnotes.size + 1)
+          if (definedFootnotes.has(label) && !localFootnotes.has(label))
+            localFootnotes.set(label, localFootnotes.size + 1)
       for (const heading of lineSlugs[i] ?? []) {
         const base = normalizeHeadingText(
           heading.plain ? heading.source : headingRenderedText(heading.source, definesLabel, localFootnoteNumber)
