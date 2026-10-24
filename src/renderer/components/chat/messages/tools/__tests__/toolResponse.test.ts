@@ -313,13 +313,15 @@ describe('toolResponse adapter', () => {
 
   it.each([
     ['pi-agent', 'bash', 'Bash'],
-    ['dsh-agent', 'bash', 'Bash'],
-    ['dsh-agent', 'pwsh', 'Bash'],
-    ['dsh-agent', 'read', 'Read'],
-    ['dsh-agent', 'write', 'Write'],
-    ['dsh-agent', 'edit', 'Edit'],
-    ['dsh-agent', 'skill', 'Skill'],
-    ['dsh-agent', 'todo_write', 'TodoWrite']
+    ['pi-agent', 'pwsh', 'Bash'],
+    ['pi-agent', 'read', 'Read'],
+    ['pi-agent', 'write', 'Write'],
+    ['pi-agent', 'edit', 'Edit'],
+    ['pi-agent', 'skill', 'Skill'],
+    ['pi-agent', 'todo_write', 'TodoWrite'],
+    ['pi-agent', 'vcc_recall', 'vcc_recall']
+    // `vcc_recall` is stamped `cherry.tool.type='builtin'`; the name is still recognized first, so
+    // it stays on the provider card path — the same precedence the shared visibility rule uses.
   ])('maps %s builtin %s to the shared %s renderer identity', (transport, toolName, expectedName) => {
     const part = {
       type: 'dynamic-tool',
@@ -444,7 +446,7 @@ describe('toolResponse adapter', () => {
     expect(response?.parentToolUseId).toBe('parent-call')
   })
 
-  it('extracts parent tool id from the runtime-neutral cherry metadata (dsh subagents)', () => {
+  it('extracts parent tool id from the runtime-neutral cherry metadata (pi subagents)', () => {
     const part = {
       type: 'dynamic-tool',
       toolName: 'read',
@@ -454,7 +456,7 @@ describe('toolResponse adapter', () => {
       output: 'ok',
       callProviderMetadata: {
         cherry: {
-          transport: 'dsh-agent',
+          transport: 'pi-agent',
           parentToolCallId: 'parent-call'
         }
       }

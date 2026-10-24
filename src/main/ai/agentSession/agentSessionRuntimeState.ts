@@ -129,13 +129,22 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
   | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'autonomous-turn-abandoned' }
   | { type: 'autonomous-turn-created'; turn: TTurn }
-  | { type: 'continuation-turn-created'; turn: TTurn }
+  | { type: 'continuation-turn-created'; turn: TTurn; chunks?: UIMessageChunk[] }
   | { type: 'turn-stream-opened'; turn: TTurn }
   | { type: 'turn-admitted'; turn: TTurn }
   | { type: 'buffer-chunk'; chunk: UIMessageChunk }
   | { type: 'runtime-terminal'; outcome: AgentSessionTerminalOutcome }
   | { type: 'flush-transition' }
-  | { type: 'turn-terminal'; turn: TTurn; status: AgentSessionTerminalStatus }
+  | {
+      type: 'turn-terminal'
+      turn: TTurn
+      status: AgentSessionTerminalStatus
+      /**
+       * The terminal is an `error` only because persistence reclassified an already-settled
+       * successful turn — the row's stored classification, not a runtime failure.
+       */
+      downgraded?: boolean
+    }
   | { type: 'launch-requested'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'launch-started'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'launch-suppressed'; target: AgentSessionRuntimeLaunchTarget }
@@ -369,7 +378,15 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         return invalid(state, event)
       }
       return {
-        state: { ...state, execution: { ...state.execution, continuationTurn: event.turn } },
+        state: {
+          ...state,
+          execution: {
+            ...state.execution,
+            continuationTurn: event.turn,
+            // Chunks the continuation owns from birth; a recorded terminal closes ordinary buffering.
+            ...(event.chunks?.length ? { buffer: [...state.execution.buffer, ...event.chunks] } : {})
+          }
+        },
         effects: []
       }
     case 'turn-stream-opened': {
@@ -570,7 +587,11 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
     case 'turn-terminal': {
       const execution = state.execution
       if (execution.kind === 'steer-transition' && execution.sourceTurn === event.turn) {
-        if (event.status === 'success') {
+        // Settlement ownership is decided by whether the SOURCE TURN ended cleanly, not by how the
+        // row was stored: persistence may reclassify an empty success to `error` after the runtime
+        // already sent the steer onward. The storage classification must not strand the accepted
+        // inputs and buffered chunks — the continuation still owns them and must be launched.
+        if (event.status === 'success' || event.downgraded) {
           if (execution.sourceStream === 'settled') return { state, effects: [] }
           return {
             state: {
