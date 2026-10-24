@@ -57,6 +57,22 @@ describe('TimeOfDayInput', () => {
     expect(onChange).toHaveBeenLastCalledWith(null)
   })
 
+  it('keeps the anchor when a segment is left incomplete and the field is blurred', async () => {
+    // Deleting only the hour leaves the minute filled: the native input reports `""` while its raw
+    // value is still incomplete, which `validity.badInput` distinguishes from an intentional clear.
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<TimeOfDayInput value={18 * 60} onChange={onChange} aria-label="First Backup Time" />)
+
+    const input = screen.getByLabelText('First Backup Time') as HTMLInputElement
+    await user.clear(input)
+    Object.defineProperty(input, 'validity', { configurable: true, value: { badInput: true } })
+    await user.tab()
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(input).toHaveValue('18:00')
+  })
+
   it('does not clear the anchor on blur when a time is present', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

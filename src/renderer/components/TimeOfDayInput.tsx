@@ -47,9 +47,12 @@ export const TimeOfDayInput = ({ value, onChange, disabled, 'aria-label': ariaLa
         const minutes = fromTimeOfDay(event.target.value)
         if (minutes !== null) onChange(minutes)
       }}
-      onBlur={() => {
+      onBlur={(event) => {
+        // An unfinished segment is not a clear: the browser reports `""` with `badInput` while the
+        // hour or minute is still empty, and publishing null would drop the stored anchor.
+        const { badInput } = event.currentTarget.validity
         setDraft(null)
-        if (display === '') onChange(null)
+        if (!badInput && display === '') onChange(null)
       }}
     />
   )
