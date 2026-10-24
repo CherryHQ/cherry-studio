@@ -329,22 +329,31 @@ export function useFollowupQueue({
   const serverPaused = queueState?.scopeKey === scopeKey ? (queueState?.paused ?? false) : false
   const paused = pausedOverrides[scopeKey] ?? serverPaused
   useEffect(() => {
-    const held = queueState ? pausedOverrides[queueState.scopeKey] : undefined
-    if (queueState && held !== undefined && queueState.paused === held) {
-      // Keep the override until its owning request generation is acknowledged
-      // (or fails): the matching echo must come from the server holding the
-      // override's own write, not from a stale read (cherry-pr-review
-      // inv_2defea073e0ba391).
-      const scope = queueState.scopeKey
-      if ((pausedAcked[scope] ?? 0) !== (pausedGenerationRef.current.get(scope) ?? 0)) {
-        return
-      }
-      setPausedOverrides((prev) => {
-        const next = { ...prev }
-        delete next[scope]
-        return next
-      })
+    const scope = queueState?.scopeKey
+    const held = scope === undefined ? undefined : pausedOverrides[scope]
+    if (queueState === undefined || scope === undefined || held === undefined) return
+    // Keep the override until its owning request generation is acknowledged
+    // (or fails): the matching echo must come from the server holding the
+    // override's own write, not from a stale read (cherry-pr-review
+    // inv_2defea073e0ba391).
+    const settled = (pausedAcked[scope] ?? 0) === (pausedGenerationRef.current.get(scope) ?? 0)
+    if (queueState.paused === held) {
+      if (!settled) return
+    } else if (!(settled && held === false && queueState.paused === true)) {
+      return
     }
+    // Either the server echoes the acknowledged write, or an acknowledged
+    // Resume is contradicted by persisted `paused=true`: a newer peer Pause
+    // won and the stale Resume override would mask it, letting a completion
+    // send against the persisted pause (cherry-pr-review round-10). The
+    // reverse mismatch (acknowledged Pause, server unpaused) stays held:
+    // dropping it could expose a stale unpaused read, and holding is the
+    // fail-safe direction.
+    setPausedOverrides((prev) => {
+      const next = { ...prev }
+      delete next[scope]
+      return next
+    })
   }, [pausedOverrides, queueState, pausedAcked])
   // Fail closed on the pause flag: while the pause-state read is unloaded,
   // scoped elsewhere, or errored, the drain stays parked instead of sending

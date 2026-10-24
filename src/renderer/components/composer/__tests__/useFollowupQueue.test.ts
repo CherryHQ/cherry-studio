@@ -3162,6 +3162,52 @@ describe('useFollowupQueue', () => {
     expect(onDrain).not.toHaveBeenCalled()
   })
 
+  it('drops an acknowledged Resume override when the server persists a newer peer Pause (round-10)', async () => {
+    // Interleaving from review: Resume's PUT is in flight while a peer Pause
+    // keeps the persisted flag true. The refreshed cache reports paused=true
+    // before the ack, so no echo can ever match the optimistic `false`; once
+    // the delayed ack lands the stale override must be dropped or a
+    // completion drains against persisted `paused=true`.
+    wireQuery([row('h', 'head')], true)
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let resolveResume!: () => void
+    setPausedTrigger.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveResume = () => resolve({ scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' })
+        })
+    )
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
+    )
+
+    act(() => {
+      result.current.setPaused(false)
+    })
+    expect(result.current.paused).toBe(false)
+
+    // The peer Pause persists while Resume is in flight: the cache reports
+    // paused=true, contradicting the optimistic override.
+    wireQuery([row('h', 'head')], true)
+    rerender({ completion: { status: 'streaming', lastCompletedAt: null } })
+
+    // The delayed ack lands: the stale Resume override must be dropped so
+    // the persisted peer Pause owns the flag.
+    await act(async () => {
+      resolveResume()
+    })
+    expect(result.current.paused).toBe(true)
+
+    await act(async () => {
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
+    expect(onDrain).not.toHaveBeenCalled()
+  })
+
   it('retains a pending Pause per scope when another scope pauses before the write settles', async () => {
     // Pause assistant A while its PUT awaits retry, switch to assistant B in
     // the same topic (the composer stays mounted) and pause it, then return
