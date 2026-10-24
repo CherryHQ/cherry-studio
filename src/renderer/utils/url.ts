@@ -7,7 +7,7 @@ export function getUrlOriginOrFallback(url: string): string {
 }
 
 /** Protocols the proxy settings and Electron's proxy stack accept. */
-const PROXY_PROTOCOLS = new Set(['http:', 'https:', 'socks4:', 'socks5:'])
+const PROXY_PROTOCOLS = new Set(['http:', 'https:', 'socks:', 'socks4:', 'socks5:'])
 
 /**
  * 检查 URL 是否是有效的代理 URL。
