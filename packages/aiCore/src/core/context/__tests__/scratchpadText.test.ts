@@ -13,6 +13,12 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('keeps HTML comment ticks opaque (inv_1f37db24d5849b59)', () => {
+    expect(
+      stripModelScratchpadBlocks('<summary>Keep<!-- ` --> <analysis>SECRET</analysis> public `x`</summary>')
+    ).not.toContain('SECRET')
+  })
+
   it.each(['<!DOCTYPE html>', '<?pi data?>', '<![CDATA[data]]>'])(
     'bounds inline spans at HTML special blocks: %s (inv_61ef437e3bc90d4c)',
     (block) => {

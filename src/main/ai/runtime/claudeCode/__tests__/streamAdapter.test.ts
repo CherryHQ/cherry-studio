@@ -21,6 +21,28 @@ vi.mock('@logger', () => ({
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
+it('bounds mixed HTML and inline-code snapshot scanning (inv_e03c8c83b73ab4ce)', () => {
+  const { adapter, parts } = createAdapter()
+  const answer = 'Example `x` and code <b>x</b>.\n'.repeat(2000)
+  const start = performance.now()
+  adapter.handleMessage({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    session_id: 'sdk-1',
+    uuid: crypto.randomUUID(),
+    message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+  } as any)
+  const elapsed = performance.now() - start
+  console.log({ mixedSnapshotCharacters: answer.length, elapsed })
+  expect(
+    parts
+      .filter((part) => part.type === 'text-delta')
+      .map((part) => (part as any).delta)
+      .join('')
+  ).toBe(answer)
+  expect(elapsed).toBeLessThan(1000)
+})
+
 it('scales repeated literal fences in assistant snapshots (inv_69cc1f308e73a4d7)', () => {
   const { adapter, parts } = createAdapter()
   const answer = '```xml\n<thinking>literal</thinking>\n```\n\n'.repeat(400)
@@ -4616,6 +4638,23 @@ describe('compaction artifact boundary', () => {
     expect(output()).toContain(second)
     adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     expect(output()).toBe(first + second + third)
+  })
+
+  it('retains setext paragraph context across newline split (inv_4a0dc3e0a791a9d7)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'Example\n=======\n    <thinking>literal</thinking>\n\nDone.'
+    const output = () =>
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of ['Example\n', answer.slice(8)])
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    expect(output()).toBe(answer)
   })
 
   it('retains inherited container context across newline delta split (inv_925b386483f0fc34)', () => {

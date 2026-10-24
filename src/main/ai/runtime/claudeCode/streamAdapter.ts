@@ -1222,7 +1222,8 @@ export class ClaudeCodeStreamAdapter {
       const previousEnd = Math.max(0, lineStart - 1)
       const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
       const previous = accumulatedText.slice(previousStart, previousEnd)
-      if (/^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]/.test(previous)) return previous.slice(0, 128) + '\n'
+      if (/^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]/.test(previous) || /^[A-Za-z]/.test(previous))
+        return previous.slice(0, 128) + '\n'
       return ''
     }
     // Completed plain paragraph context needs its block kind and escape

@@ -69,21 +69,37 @@ function parseOpeningTagAt(text: string, offset: number): ParsedOpeningTag | nul
 }
 
 /** HTML opening-tag attributes are opaque to Markdown code-span openers. */
-function isInsideHtmlOpeningTag(text: string, index: number): boolean {
-  // Walk complete tags in source order: a '<' inside a quoted attribute is
-  // data, not the start of a nearer enclosing tag.
+function htmlOpeningTagLookup(text: string): (index: number) => boolean {
+  const ranges: Array<{ start: number; end: number }> = []
   let pos = 0
-  while (pos <= index) {
+  while (pos < text.length) {
     const start = text.indexOf('<', pos)
-    if (start < 0 || start > index) return false
+    if (start < 0) break
+    if (text.startsWith('<!--', start)) {
+      const close = text.indexOf('-->', start + 4)
+      const end = close < 0 ? text.length : close + 3
+      ranges.push({ start, end })
+      pos = end
+      continue
+    }
     const tag = isBackslashEscaped(text, start) ? null : parseOpeningTagAt(text, start)
     if (tag) {
-      const end = start + tag.opener.length
-      if (index < end) return true
-      pos = end
+      pos = start + tag.opener.length
+      ranges.push({ start, end: pos })
     } else pos = start + 1
   }
-  return false
+  return (index) => {
+    let low = 0
+    let high = ranges.length - 1
+    while (low <= high) {
+      const mid = (low + high) >>> 1
+      const range = ranges[mid]
+      if (index < range.start) high = mid - 1
+      else if (index >= range.end) low = mid + 1
+      else return true
+    }
+    return false
+  }
 }
 
 function parseLeadingOpeningTag(text: string): ParsedOpeningTag | null {
@@ -172,9 +188,10 @@ function isInsideInlineCodeBefore(text: string, markerStart: number): boolean {
   // keeps a stray backtick in an earlier paragraph from masking them.
   const blockStart = inlineBlockStart(text, markerStart)
   const lineSlice = text.slice(blockStart, markerStart)
+  const inHtml = htmlOpeningTagLookup(lineSlice)
   let i = 0
   while (i < lineSlice.length) {
-    if (lineSlice[i] !== '`' || isInsideHtmlOpeningTag(lineSlice, i)) {
+    if (lineSlice[i] !== '`' || inHtml(i)) {
       i++
       continue
     }
@@ -285,12 +302,14 @@ function inlineBlockEnd(text: string, from: number): number {
  * cross leaf-block boundaries, so start at the containing block's edge.
  */
 function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
+  let cachedBlockEnd = -1
+  const inHtml = htmlOpeningTagLookup(text)
   const blockStart = inlineBlockStart(text, index)
   let pos = blockStart
   while (pos < index) {
     const tick = text.indexOf('`', pos)
     if (tick === -1 || tick >= index) return false
-    if (isBackslashEscaped(text, tick) || isInsideHtmlOpeningTag(text, tick)) {
+    if (isBackslashEscaped(text, tick) || inHtml(tick)) {
       pos = tick + 1
       continue
     }
@@ -307,7 +326,7 @@ function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
     }
     let j = tick + run
     let closedAt = -1
-    const blockEnd = inlineBlockEnd(text, j)
+    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
     while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
@@ -560,6 +579,8 @@ function maskInlineCodeSpans(text: string): {
   ranges: Array<{ start: number; end: number }>
   placeholderBase: string
 } {
+  let cachedBlockEnd = -1
+  const inHtml = htmlOpeningTagLookup(text)
   const placeholderBase = pickPlaceholderBase(text, 'INLINE_CODE')
   const spans: string[] = []
   const ranges: Array<{ start: number; end: number }> = []
@@ -582,7 +603,7 @@ function maskInlineCodeSpans(text: string): {
     // An escaped backtick is literal text: treating it as an opener would
     // pair it with a later backtick and mask real content (including
     // scratchpad closers) between them (cherry-pr-review).
-    if (isBackslashEscaped(text, pos) || isInsideHtmlOpeningTag(text, pos)) {
+    if (isBackslashEscaped(text, pos) || inHtml(pos)) {
       out += text[pos]
       pos++
       continue
@@ -597,7 +618,7 @@ function maskInlineCodeSpans(text: string): {
     const contentStart = i
     let j = contentStart
     let closedAt = -1
-    const blockEnd = inlineBlockEnd(text, j)
+    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
     while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
@@ -985,6 +1006,8 @@ export function textEndsWithPartialFenceMarker(text: string): boolean {
 
 /** True when an inline code span opened by backticks has no closing delimiter yet. */
 export function textHasUnclosedInlineCode(text: string): boolean {
+  let cachedBlockEnd = -1
+  const inHtml = htmlOpeningTagLookup(text)
   let pos = 0
   while (pos < text.length) {
     if (text[pos] !== '`') {
@@ -997,7 +1020,7 @@ export function textHasUnclosedInlineCode(text: string): boolean {
     // An escaped backtick is literal text, never an opener: pairing it with a
     // later backtick releases an unresolved code span over real content,
     // unlike the masking scanner (cherry-pr-review inv_c15500c90c596f07).
-    if (isBackslashEscaped(text, pos) || isInsideHtmlOpeningTag(text, pos)) {
+    if (isBackslashEscaped(text, pos) || inHtml(pos)) {
       pos++
       continue
     }
@@ -1011,7 +1034,7 @@ export function textHasUnclosedInlineCode(text: string): boolean {
     const contentStart = i
     let j = contentStart
     let closedAt = -1
-    const blockEnd = inlineBlockEnd(text, j)
+    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
     while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
