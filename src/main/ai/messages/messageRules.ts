@@ -148,7 +148,7 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
 }
 
 /**
- * Drop dismissed no-response markers before conversion.
+ * Drop UI-only no-response and successful-handoff markers before conversion.
  *
  * The marker is renderer UI state ("don't show the fallback again") persisted
  * on the assistant message. Left in place, a marker-only turn converts to
@@ -160,10 +160,17 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
  */
 function stripDismissedNoResponseMarkers<T extends UIMessage>(messages: T[]): T[] {
   return messages.map((message) => {
-    if (!message.parts?.some((part) => part.type === DISMISSED_NO_RESPONSE_PART_TYPE)) return message
+    if (
+      !message.parts?.some(
+        (part) => part.type === DISMISSED_NO_RESPONSE_PART_TYPE || part.type === 'data-steer-handoff'
+      )
+    )
+      return message
     return {
       ...message,
-      parts: message.parts.filter((part) => part.type !== DISMISSED_NO_RESPONSE_PART_TYPE)
+      parts: message.parts.filter(
+        (part) => part.type !== DISMISSED_NO_RESPONSE_PART_TYPE && part.type !== 'data-steer-handoff'
+      )
     }
   })
 }

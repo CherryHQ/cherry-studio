@@ -152,6 +152,8 @@ export type CherryDataPartTypes = {
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   'no-response-dismissed': DismissedNoResponsePartData
+  /** Main-authoritative successful ordinary-chat continuation boundary. */
+  'steer-handoff': Record<string, never>
   code: CodePartData
   retry: RetryPartData
 }

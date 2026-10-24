@@ -75,6 +75,23 @@ function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
 }
 
 describe('PersistenceListener + TemporaryChatBackend', () => {
+  it('keeps the successful handoff marker when dropping empty content', async () => {
+    const listener = makeListener('openai::gpt-4o')
+    await listener.onDone({
+      finalMessage: {
+        id: 'a',
+        role: 'assistant',
+        parts: [{ type: 'step-start' }, { type: 'text', text: '' }, { type: 'data-steer-handoff', data: {} }]
+      },
+      status: 'success',
+      modelId: 'openai::gpt-4o'
+    })
+    expect(appendAssistantMessageMock.mock.calls[0][1].data.parts).toContainEqual({
+      type: 'data-steer-handoff',
+      data: {}
+    })
+  })
+
   it('retains the execution failure and reports a distinct persistence failure to cleanup observers', async () => {
     const result: StreamErrorResult = {
       status: 'error',

@@ -13,6 +13,16 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('keeps successful handoff markers out of provider messages', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui('assistant', [{ type: 'data-steer-handoff', data: {} }], 'a1'),
+      ui('user', [{ type: 'text', text: 'continue' }], 'u2')
+    ])
+    expect(model.some((message) => message.role === 'assistant')).toBe(false)
+    expect(JSON.stringify(model)).not.toContain('steer-handoff')
+  })
+
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [

@@ -20,6 +20,16 @@ const piTransport = {
   callProviderMetadata: { cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'codemode' } } }
 }
 
+describe('successful handoff marker', () => {
+  it('is hidden and exempts only marked marker-only successes', () => {
+    const marker = part({ type: 'data-steer-handoff', data: {} })
+    expect(isHiddenMarkerPart(marker)).toBe(true)
+    expect(hasRenderableContent([marker])).toBe(false)
+    expect(isSteerHandoffEmptySuccess([part({ type: 'step-start' }), marker])).toBe(true)
+    expect(isSteerHandoffEmptySuccess([part({ type: 'step-start' })])).toBe(false)
+  })
+})
+
 describe('isRenderablePart tool names', () => {
   it('treats pi meta registry tools as visible agent content', () => {
     for (const name of ['tool_search', 'tool_inspect', 'tool_invoke', 'tool_exec']) {

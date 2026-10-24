@@ -747,6 +747,38 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('ordinary-static-tools')?.status).toBe('error')
     })
 
+    it('persists the marker-only successful steer handoff distinction (inv_c6986dc74f41e8fb)', async () => {
+      vi.useRealTimers()
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:steer-read-file')
+      startSingle(mgr, {
+        topicId: 'steer-read-file',
+        modelId: 'provider-a::model-a',
+        request: req('steer-read-file'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      mgr.enqueuePendingSteer('steer-read-file', 'u-steer')
+
+      feed.enqueue({ type: 'start', messageId: 'm1' })
+      feed.enqueue({ type: 'start-step' })
+      feed.close()
+
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+      expect(listener.errorResults).toEqual([])
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+      expect(listener.doneResults[0].finalMessage?.parts).toContainEqual({ type: 'data-steer-handoff', data: {} })
+      for (let i = 0; i < 6; i++) await Promise.resolve()
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ trigger: 'steer-continuation', userMessageId: 'u-steer' })
+      )
+      expect(mgr.hasPendingSteer('steer-read-file')).toBe(false)
+    })
+
     it('preserves a clean steer yield when the turn ends with only a non-renderable read_file step', async () => {
       vi.useRealTimers()
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)

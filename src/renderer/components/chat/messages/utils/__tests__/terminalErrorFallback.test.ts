@@ -117,6 +117,13 @@ describe('withEmptySuccessFallback', () => {
     expect(next).toBe(partsByMessageId)
   })
 
+  it('does not synthesize an error for a persisted marker-only handoff (inv_c6986dc74f41e8fb)', () => {
+    const handoff = { type: 'data-steer-handoff', data: {} } as CherryMessagePart
+    const messages = [makeMessage('m1', 'success', [stepStart, handoff])]
+    const partsByMessageId = { m1: [stepStart, handoff] }
+    expect(withEmptySuccessFallback(messages, partsByMessageId, 'No response')).toBe(partsByMessageId)
+  })
+
   it('does not synthesize an error for a steer handoff row with only read_file', () => {
     const readFile = { type: 'tool-read_file', toolCallId: 'call-1' } as unknown as CherryMessagePart
     const messages = [makeMessage('m1', 'success', [stepStart, readFile])]

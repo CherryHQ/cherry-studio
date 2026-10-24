@@ -27,7 +27,8 @@ export const HIDDEN_MARKER_PART_TYPES: ReadonlySet<string> = new Set([
   'data-agent-task-event',
   'data-knowledge-scope',
   'data-clear',
-  'data-no-response-dismissed'
+  'data-no-response-dismissed',
+  'data-steer-handoff'
 ])
 
 const KNOWN_RENDERABLE_TOOL_NAMES = new Set<string>([
@@ -419,11 +420,13 @@ export function hasRenderableContent(parts: CherryMessagePart[]): boolean {
 
 /**
  * Deliberate ordinary-chat steer yields can end as `success` with only a
- * non-renderable tool step (e.g. `read_file`) while the follow-up is queued.
+ * non-renderable content while the follow-up is queued. New rows carry an
+ * explicit hidden marker; legacy tool-shaped handoffs remain supported.
  * `AiStreamManager` preserves that boundary; Home must not synthesize a
  * no-response error for it when showing historical rows.
  */
 export function isSteerHandoffEmptySuccess(parts: CherryMessagePart[]): boolean {
+  if (parts.some((part) => part.type === 'data-steer-handoff')) return true
   if (hasRenderableContent(parts)) {
     return false
   }

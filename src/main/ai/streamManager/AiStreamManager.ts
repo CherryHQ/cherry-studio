@@ -1464,6 +1464,19 @@ export class AiStreamManager extends BaseService {
       isAgentSessionTopic(topicId) &&
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
     const chaining = chatChaining || agentChaining
+    // Persist the handoff as message-owned state, not a tool-shape guess:
+    // empty text may leave only step-start after persistence. Historical
+    // genuinely empty successes still need Home's no-response fallback
+    // (cherry-pr-review inv_c6986dc74f41e8fb).
+    if (chatChaining && exec.finalMessage && !hasRenderableContent(exec.finalMessage.parts)) {
+      exec.finalMessage = {
+        ...exec.finalMessage,
+        parts: [
+          ...exec.finalMessage.parts.filter((part) => part.type !== 'data-steer-handoff'),
+          { type: 'data-steer-handoff', data: {} }
+        ]
+      }
+    }
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {

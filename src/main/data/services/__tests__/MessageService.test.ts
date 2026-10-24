@@ -204,6 +204,24 @@ describe('MessageService', () => {
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
 
+  it('round-trips a marker-only successful handoff through SQLite without changing genuine historical empties', () => {
+    const topic = topicService.create({ name: 'marker handoff' })
+    const assistant = messageService.create(topic.id, { role: 'assistant', data: mainText(''), status: 'pending' })
+    messageService.finalizeAssistantMessage(assistant.id, {
+      data: { parts: [{ type: 'step-start' }, { type: 'data-steer-handoff', data: {} }] },
+      status: 'success'
+    })
+    const reloaded = messageService.getById(assistant.id)
+    expect(reloaded.status).toBe('success')
+    expect(reloaded.data.parts).toEqual([{ type: 'step-start' }, { type: 'data-steer-handoff', data: {} }])
+    const historical = messageService.create(topic.id, {
+      role: 'assistant',
+      data: { parts: [{ type: 'step-start' }] },
+      status: 'success'
+    })
+    expect(messageService.getById(historical.id).data.parts).toEqual([{ type: 'step-start' }])
+  })
+
   describe('trashed Topic message addressability', () => {
     const topicId = 'topic-message-gate'
     const attachmentFileId = '019606a0-0000-7000-8000-00000000fd01'

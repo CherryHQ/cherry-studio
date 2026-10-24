@@ -548,6 +548,28 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message.id === liveMessage.id)).toHaveLength(2)
   })
 
+  it('keeps a persisted marker-only successful handoff error-free after reload (inv_c6986dc74f41e8fb)', () => {
+    const emptyAssistantMessage = {
+      id: 'empty-message',
+      role: 'assistant',
+      metadata: { status: 'success' },
+      parts: [{ type: 'step-start' }, { type: 'data-steer-handoff', data: {} }]
+    } as CherryUIMessage
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[emptyAssistantMessage]}
+        partsByMessageId={{ 'empty-message': emptyAssistantMessage.parts }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    const displayParts = value?.state.partsByMessageId['empty-message'] ?? []
+    expect(displayParts.some((part) => part.type === 'data-error')).toBe(false)
+  })
+
   it('appends a no-response error part to empty terminal assistant messages for display', () => {
     const emptyAssistantMessage = {
       id: 'empty-message',
