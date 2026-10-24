@@ -1529,6 +1529,11 @@ describe('useFollowupQueue', () => {
       })
       expect(postTrigger).toHaveBeenCalledTimes(4)
       const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+      // The retried restore still carries the queue-slot anchor
+      // (inv_9ecff9fca3bdab04).
+      expect((postTrigger.mock.calls as unknown as Array<[{ body: { anchor?: unknown } }]>)[3][0].body.anchor).toEqual({
+        position: 'first'
+      })
 
       // Ending the session (sent/cleared/replaced) removes the landed copy:
       // the queue must not keep a deliverable duplicate of what was in the editor.

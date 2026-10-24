@@ -1229,6 +1229,10 @@ export function useFollowupQueue({
           // Rebuild per tick: a failed inline persist gets another chance, and
           // an already-durable payload passes through unchanged.
           const rebuilt = await buildRestoreBody(body.id, body.scopeKey, body.draft, body.payload)
+          // buildRestoreBody does not own placement: carry the restore's
+          // queue-slot anchor across background retries
+          // (cherry-pr-review inv_9ecff9fca3bdab04#f1).
+          if (body.anchor) rebuilt.anchor = body.anchor
           // A tracked session still owns the item in the editor: the landed
           // copy must stay ineligible for delivery until ownership transfers,
           // or a completion drains the edited content mid-session and a later
