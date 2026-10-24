@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-20-composer-message-content-order.md
+2026-10-20-composer-message-content-order.md: d94650fb1ce519bd7beab368f5c25c298842b6b6
+2026-10-20-composer-message-content-order.zh.md: ff5964dd66b42de99348496765730232f7b45a02
