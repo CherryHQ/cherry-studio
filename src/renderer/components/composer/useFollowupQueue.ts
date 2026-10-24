@@ -891,7 +891,17 @@ export function useFollowupQueue({
         const positionConfirmed = () => {
           const current = itemsRef.current
           if (current.length === 0) return false
-          return current[resolveRestoreSlot(current, taken)]?.id === restoreId
+          const confirmedSlot = resolveRestoreSlot(current, taken)
+          if (current[confirmedSlot]?.id !== restoreId) return false
+          // Accept the mirrored placement as the reconciled slot too:
+          // confirming without recording it leaves restoreSlot at -1, the
+          // incoming-slot adjustment below then counts the mirrored copy a
+          // second time, and the incoming edit captures the restored row as
+          // a predecessor - restoring behind the row it originally preceded
+          // and reversing delivery order (cherry-pr-review
+          // inv_39ce2d2808a2a72e#f1).
+          restoreSlot = confirmedSlot
+          return true
         }
         for (let attempt = 0; ; attempt++) {
           if (attempt > 0) {
@@ -1055,8 +1065,14 @@ export function useFollowupQueue({
       // copy spliced back at its reconciled slot. Restore anchors walk this
       // chain so authoritative peer removals cannot shift the edit's
       // position (cherry-pr-review inv_66de69107768f834#f1).
-      const membership = itemsRef.current.map((entry) => entry.id).filter((rowId) => rowId !== restoredItem.id)
-      if (restoredCopy && restoreSlot >= 0)
+      const mirrorIds = itemsRef.current.map((entry) => entry.id)
+      const membership = mirrorIds.filter((rowId) => rowId !== restoredItem.id)
+      // Splice the outgoing copy back only when the mirror does not already
+      // hold it: a fast refresh can deliver the restored row before this
+      // pass runs, and splicing anyway duplicates the row, letting it
+      // capture predecessor slots twice while the rows between drop out
+      // (cherry-pr-review inv_39ce2d2808a2a72e#f1, inv_62a64a1c0cf26410#f1).
+      if (restoredCopy && restoreSlot >= 0 && !mirrorIds.includes(restoredCopy.id))
         membership.splice(Math.min(restoreSlot, membership.length), 0, restoredCopy.id)
       const takenSlot = Math.max(incomingSlot, 0)
       takenEditRef.current = {

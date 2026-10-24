@@ -1265,6 +1265,69 @@ describe('useFollowupQueue', () => {
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'e' } })
   })
 
+  it('does not count the mirrored restore copy twice when reconciling the incoming edit slot (inv_39ce2d2808a2a72e)', async () => {
+    // [a,b,c,d,e], edit c, then b, then e. c's restored row reaches the
+    // query mirror before its enqueue resolves: the positional shortcut
+    // confirms the placement without recording the slot, the incoming-slot
+    // adjustment counts the mirrored copy a second time, and b captures c
+    // as a predecessor - restoring [a,c,b,d] and reversing delivery order
+    // (cherry-pr-review inv_39ce2d2808a2a72e#f1).
+    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third'), row('d', 'fourth'), row('e', 'fifth')])
+    const { claimTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('c', () => null)
+    })
+
+    // The restore insert resolves only after the refreshed mirror already
+    // shows the restored row.
+    let resolveEnqueue: (() => void) | undefined
+    postTrigger.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveEnqueue = () => resolve()
+        })
+    )
+    const captureC = vi.fn(() => ({ draft: draft('third edited'), payload: payload('third edited') }))
+    let switched: Promise<unknown> | undefined
+    await act(async () => {
+      switched = result.current.takeForEdit('b', captureC)
+    })
+    await act(async () => {})
+    const restoreIdC = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+    wireQuery([
+      row('a', 'first'),
+      row('b', 'second'),
+      row(restoreIdC, 'third edited'),
+      row('d', 'fourth'),
+      row('e', 'fifth')
+    ])
+    rerender()
+    await act(async () => {
+      resolveEnqueue?.()
+      await switched
+    })
+
+    // After b's take, its restore must anchor after 'a' - its only original
+    // predecessor - not after the restored c copy it originally preceded.
+    wireQuery([row('a', 'first'), row(restoreIdC, 'third edited'), row('d', 'fourth'), row('e', 'fifth')])
+    rerender()
+    const captureB = vi.fn(() => ({ draft: draft('second edited'), payload: payload('second edited') }))
+    await act(async () => {
+      await result.current.takeForEdit('e', captureB)
+    })
+
+    const heldEnqueues = (postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean; anchor?: unknown } }]>)
+      .map(([{ body }]) => body)
+      .filter((body) => body.held === true)
+    expect(heldEnqueues).toHaveLength(2)
+    expect(heldEnqueues[0].anchor).toEqual({ after: 'b' })
+    expect(heldEnqueues[1].anchor).toEqual({ after: 'a' })
+  })
+
   it('retries the slot restore across a peer claim conflict so the edit keeps its position (inv_9ecff9fca3bdab04)', async () => {
     vi.useFakeTimers()
     try {
