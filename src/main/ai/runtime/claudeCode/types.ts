@@ -62,6 +62,7 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
    */
   warmQueryInitializeTimeoutMs?: number
   /** Display-only metadata for Claude Code MCP tool names. Not passed to the SDK. */
+  boundedMcpToolNames?: boolean
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
 }
 

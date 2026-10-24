@@ -602,6 +602,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(mocks.buildSessionSettings.mock.lastCall?.[2]).toMatchObject({ boundedMcpToolNames: true })
 
     expect(request?.sdkModelId).toBe('claude-sonnet')
     expect(request?.settings.env).toMatchObject({
@@ -756,6 +757,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(mocks.buildSessionSettings.mock.lastCall?.[2]).toMatchObject({ boundedMcpToolNames: false })
 
     expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalled()
     expect(request?.settings.env).toMatchObject({
@@ -858,6 +860,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(mocks.buildSessionSettings.mock.lastCall?.[2]).toMatchObject({ boundedMcpToolNames: false })
 
     expect(request?.sdkModelId).toBe('claude-sonnet-4-5')
     expect(request?.settings.env).toMatchObject({
@@ -1222,6 +1225,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(mocks.buildSessionSettings.mock.lastCall?.[2]).toMatchObject({ boundedMcpToolNames: false })
 
     // Stays on the subscription login: no gateway, no injected API key, and the
     // off-provider plan/small models collapse to the primary claude-code model.
