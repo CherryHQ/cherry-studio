@@ -6,6 +6,7 @@ import { FORK_PLACEHOLDER_RESULT, INTERRUPTED_CALL_RESULT } from '../core/subage
 import type { MessageResult, ToolDefinition } from '../ports/harness'
 import { check, same } from './assert'
 import {
+  aborted,
   append,
   assistantTexts,
   callTool,
@@ -103,6 +104,41 @@ export const childCases: readonly ContractCase[] = [
       hold.release('c11-bg')
       const bgEnd = await h.withCall(t, (p) => p.helpers.awaitAnswer(children.bg!, 1, key('c11-bg-msg')))
       same(bgEnd, { outcome: 'completed', text: 'bg done' }, 'the background child must finish its run')
+    }
+  },
+  // Catches a foreground child started after the call that owns it aborted (H3, AC10): the parent's stop passed the
+  // child while it had no run, so nothing would stop the run a late first input starts.
+  {
+    name: 'a foreground child whose owning call aborted before its first input never runs',
+    covers: ['ledger.transact', 'ledger.read', 'helpers.message', 'turns.stop', 'tools.register'],
+    needs: [],
+    async run(open) {
+      const spawned = latch()
+      const sent: { child?: ThreadId; answer?: MessageResult } = {}
+      const spawner: ToolDefinition = {
+        ...toolBase('spawner'),
+        async run(call, ports) {
+          const { spawned: created } = await ports.ledger.transact(call.thread, () =>
+            step([{ type: 'spawn-child', spec: childSpec('foreground', 'late-fg'), key: key('late-fg') }], null)
+          )
+          sent.child = created[0].child
+          h.script(sent.child, [reply('ran anyway')])
+          spawned.release()
+          await aborted(call.signal)
+          sent.answer = await ports.helpers.message(sent.child, message('task'), key('late-fg-msg'))
+          return { text: sent.answer.status, isError: false }
+        }
+      }
+      const h = await open((p) => p.tools.register(spawner))
+      const t = await h.createThread()
+      h.script(t, [callTool('spawner', {}), reply('never')])
+      await h.sendUser(t, 'go')
+      await spawned.promise
+      await h.withCall(t, (p) => p.turns.stop(t, 'user'))
+      await h.settle()
+      check(sent.answer?.status === 'withdrawn', 'a first input sent after its owning call aborted must be withdrawn')
+      check((await read(h, t)).children.get(sent.child!)?.runUsage.length === 0, 'the child must start no run')
+      check(markersWith(await read(h, sent.child!), key('late-fg-msg')).length === 0, 'the child must gain no input')
     }
   },
   // Catches a completed foreground child's background continuation inheriting its first run's cancellation owner.

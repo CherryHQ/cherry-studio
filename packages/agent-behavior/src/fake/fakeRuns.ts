@@ -72,19 +72,23 @@ export function submit(host: RunHost, thread: ThreadState, key: string, input: T
   return admission
 }
 
-/** H3: a running child takes the message at its next boundary; an idle one starts a run with it, unless it steers `run`. */
+/**
+ * H3: a running child takes the message at its next boundary; an idle one starts a run with it, unless it steers `run`
+ * or `ownerAborted` says the call that owns the child's first run has aborted.
+ */
 export function message(
   host: RunHost,
   thread: ThreadState,
   input: TurnInput,
   key: string,
-  run?: number
+  run?: number,
+  ownerAborted = false
 ): MessageResult {
   const existing = thread.submissions.get(key)
   if (existing) return existing.admission as MessageResult
   const active = thread.active
-  if (run !== undefined && active?.run !== run) {
-    const withdrawn: MessageResult = { run, status: 'withdrawn' }
+  if (run !== undefined ? active?.run !== run : !active && ownerAborted) {
+    const withdrawn: MessageResult = { run: run ?? thread.runs + 1, status: 'withdrawn' }
     thread.submissions.set(key, { input, admission: withdrawn, state: 'withdrawn' })
     return withdrawn
   }

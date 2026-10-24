@@ -81,6 +81,11 @@ export interface Turns {
   stop(thread: ThreadId, cause: StopCause, turn?: ItemId): Promise<void>
 }
 
+/**
+ * `run` is the run the message started, joined or was meant for. 'withdrawn' started nothing: a steer whose run was not
+ * active or ended before taking it, or whose tool call aborted, or the first input of a child's run whose cancellation
+ * owner is the calling tool call, sent after that call's signal aborted.
+ */
 export type MessageResult = { readonly run: number; readonly status: 'started' | 'queued' | 'withdrawn' }
 /**
  * H3. Message a child, wait for its answer, stop it.
@@ -88,26 +93,32 @@ export type MessageResult = { readonly run: number; readonly status: 'started' |
  * A child's run is what one run-starting input begins, an input that finds the child idle; a message to a running
  * child (a steer) joins that run and never starts one: when that run ends before a boundary takes the steer, the steer
  * is withdrawn (G-C5). A steer sent through a tool call's ports is also withdrawn when that call aborts, so stopping
- * the caller's turn never waits for the child's next boundary. `ChildFacts.runUsage` partitions the child's usage by
- * these runs. Before a message starts a run, each call of the child's last assistant entry that has no result gets one
- * with `INTERRUPTED_CALL_RESULT` as its text and `isError: true`, unless that entry ended in an error or was aborted.
+ * the caller's turn never waits for the child's next boundary. A first input sent through the ports of the tool call
+ * that owns the child's first run (a foreground spawn) starts nothing and answers 'withdrawn' once that call's signal
+ * aborted: the stop that aborted the call may have passed the child while it had no run. `ChildFacts.runUsage`
+ * partitions the child's usage by these runs. Before a message starts a run, each call of the child's last assistant
+ * entry that has no result gets one with `INTERRUPTED_CALL_RESULT` as its text and `isError: true`, unless that entry
+ * ended in an error or was aborted.
  * Continuing a finished child keeps its id and native history and starts the next run in the background, independent
  * of the completed run's parent cancellation boundary. `message` never forks or aliases the child to another id.
  *
  * @harness coding-agent `message` steers a running child and loads then continues a finished one, answering its open
  * calls first; a steer that missed the run's last boundary, or whose tool call's signal aborted, is withdrawn, not
- * carried into the next run; `awaitAnswer` follows `message_end` until the run that took the message ends; `stop`
- * aborts the child session only if its active run number is `run`.
+ * carried into the next run; a foreground child's first input from its owning tool call is withdrawn without loading
+ * the child once that call's signal aborted; `awaitAnswer` follows `message_end` until the run that took the message
+ * ends; `stop` aborts the child session only if its active run number is `run`.
  * @harness durable `message` is `conversation(child).submit({ whenBusy: 'followUp', requestId: key })` for an idle
  * child, after appending the results its open calls lack; a steer submits with `whenBusy: 'steer'` only while its run
- * is `pi.live.run`, and aborts the submission when that run ends before taking it or the calling tool task aborts.
+ * is `pi.live.run`, and aborts the submission when that run ends before taking it or the calling tool task aborts; a
+ * foreground child's first input is not submitted once its owning tool task aborted.
  * `awaitAnswer` refetches that submission by request id, waits and reads the answer entry; `stop` checks that the
  * child's active run is `run`, then calls `conversation(child).abort()`, or before resume marks it as `Turns.stop`
  * does. A completed foreground child's immutable native owner does not provide the independent continuation above:
  * until ownership is resolved, the adapter must reject that continuation transaction before writing its run record
  * or report job. Silently forking or treating a foreground-owned run as background is not supported.
  * @harness fake Children are fake conversations; a steer waits for the child's next boundary and is withdrawn when the
- * run ends first or the calling tool's signal aborts; a message that starts a run answers the open calls first;
+ * run ends first or the calling tool's signal aborts; a first input from the call that owns the child's first run is
+ * withdrawn once that call's signal aborted; a message that starts a run answers the open calls first;
  * `awaitAnswer` waits for the run the message actually joined; `stop` aborts only when the fake child's active run is
  * `run`.
  * @keys `message` keys are request ids (`subagent-msg:<child>:<n>`, `subagent-steer:<call>:<run>`): the same key returns
@@ -124,7 +135,8 @@ export interface Helpers {
    * 'started' with the new run's number when the child is idle; a steer otherwise, 'queued' with the number of the
    * running run once that run took it. With `run`, the message is a steer for run `run` only: 'withdrawn' (and nothing
    * started) when that is not the child's active run, when it ends before a boundary takes the steer, or when the tool
-   * call whose ports sent it aborts first.
+   * call whose ports sent it aborts first. Without `run`, 'withdrawn' (and nothing started) when the input would start
+   * a run whose cancellation owner is the calling tool call and that call's signal already aborted.
    */
   message(child: ThreadId, input: TurnInput, key: Key, run?: number): Promise<MessageResult>
   awaitAnswer(child: ThreadId, run: number, key: Key): Promise<RunEndFacts>

@@ -58,7 +58,7 @@ are named as a verb and an object and carry no harness noun (hook, commit, sessi
 | --- | --------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | H1  | `Ledger`        | `read`, `transact`, `modelContext` | Read a conversation's facts, decide, and commit the writes the decision asks for, together.               |
 | H2  | `Turns`         | `start`, `retract`, `stop`         | Give the agent a turn under a request key, take back one that has not started, stop the current one or only the one a stop names. |
-| H3  | `Helpers`       | `message`, `awaitAnswer`, `stop`   | Message a child, wait for the answer of one of its runs, stop that run if it is still the child's active run. |
+| H3  | `Helpers`       | `message`, `awaitAnswer`, `stop`   | Message a child, wait for the answer of one of its runs, stop that run if it is still the child's active run; a first input the owning tool call sends after it aborted starts nothing. |
 | H4  | `Jobs`          | `register`                         | Finish what a call started after it returns, across restarts.                                             |
 | H5  | `Waits`         | `untilIdle`, `untilDone`           | Wait until a conversation has no run, or until an input submitted under a key has run to its end; waiting keeps no state. |
 | H6  | `Memory`        | `remember`                         | Remember an answer from a person or a model so a restart never asks again.                                |
@@ -291,7 +291,9 @@ serve any call.
 | `todo_write`, `vcc_recall`               | safe     | parallel        | all            |
 
 `subagent` starts no child once its turn is stopping, that is once `call.signal` aborted or a stop is recorded after
-the turn began, because that stop already took the turn's children; it answers with an error instead.
+the turn began, because that stop already took the turn's children; it answers with an error instead. When the signal
+aborts during the spawn commit or before the first input arrives, the foreground child it created never runs: its
+first run is recorded as stopped by the user.
 `message_subagent` refuses the same way to continue a finished child, and refuses a steer only once the signal aborted.
 
 A finished child continues on the same native Thread and id: `message_subagent` increments its run number,
@@ -361,6 +363,9 @@ Beyond [What the adapters provide](#what-the-adapters-provide), each adapter mus
 - Pass each tool call's turn abort signal to `GateHandlers.before` as `call.signal`, and withdraw a steer that misses
   its run, or whose tool call aborts first (`Helpers.message` called with `run` answers `withdrawn`; the key
   `subagent-steer:<callKey>:<run>` is spent), instead of carrying it into the next run or holding the stopped turn.
+- Withdraw a foreground child's first input when the tool call that owns the child's first run sends it after that
+  call aborted: `Helpers.message` answers `withdrawn` and starts nothing, because the stop may have passed the child
+  while it had no run (H3; the case `a foreground child whose owning call aborted before its first input never runs`).
 - Contain no product constants or stop-code literals; they come from the package's results.
 
 Not in the package yet: `enter_plan_mode` and `exit_plan_mode` (PR-3d); the shutdown record `onClose` writes for

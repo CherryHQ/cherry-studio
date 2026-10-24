@@ -19,7 +19,7 @@ import {
 } from '../../core/subagents/subagentText'
 import type { ToolCall, ToolDefinition, ToolOutcome, TransactResult } from '../../ports/harness'
 import type { HostPorts } from '../../ports/host'
-import { runChild, SUBAGENT_TOOL_NAME } from '../childRuns'
+import { abandonSpawn, runChild, SUBAGENT_TOOL_NAME } from '../childRuns'
 import { type Context, gatherInputs, step } from '../step'
 
 const DESCRIPTION = [
@@ -99,6 +99,8 @@ async function spawn(context: Context, call: ToolCall): Promise<ToolOutcome> {
       isError: false,
       details: { sessionId: child, fork: decision.fork, background: true }
     }
+  // A stop during the spawn commit found the child with no run yet, so a run started now would go on unstopped.
+  if (call.signal.aborted) return abandonSpawn(context, call.thread, call.key)
   return runChild(context, call.thread, child, 1, decision.input, call.key)
 }
 

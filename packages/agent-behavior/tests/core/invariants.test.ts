@@ -27,6 +27,7 @@ import {
   decideMessage,
   decideRunEnd,
   decideSpawn,
+  decideSpawnAbandoned,
   decideSteerWithdrawn,
   decideStop,
   decideUserStopSubagent,
@@ -291,6 +292,10 @@ describe('purity (AC7)', () => {
   add('decideSteerWithdrawn', facts(steered, live), (f: ConversationFacts) => decideSteerWithdrawn(f, call('k')))
   add('decideStop', { f: facts([runEntry(run('a'))], live), i: inputs({ args: { id: 'a' } }) }, ({ f, i }) =>
     decideStop(f, i)
+  )
+  const spawnKey = keys.subagentSpawn(call('k'))
+  add('decideSpawnAbandoned', facts([runEntry(run('a', { background: false }), spawnKey)]), (f: ConversationFacts) =>
+    decideSpawnAbandoned(f, spawnKey)
   )
   add('decideRunEnd', facts([runEntry(run('a'))], live), (f) =>
     decideRunEnd(f, 'a' as never, 1, { outcome: 'completed', text: 'r' }, { report: 'r' })
