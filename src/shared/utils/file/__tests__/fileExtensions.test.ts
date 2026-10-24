@@ -141,6 +141,13 @@ describe('media catalogs are grounded in mime-db', () => {
     expect(imageExts).not.toContain('.jxl')
   })
 
+  it('keeps the relational-algebra .ra alias out of the audio catalog so query scripts stay text', () => {
+    // radb-style exercise scripts are plain-text `.ra` files; an audio claim
+    // would reject them before the content sniff runs (same contract as `.caf`,
+    // `.amr`, `.mid` and `.dts`).
+    expect(audioExts).not.toContain('.ra')
+  })
+
   it('keeps the Acclaim .asf alias out of the video catalog so motion-capture text files stay text', () => {
     // Acclaim motion-capture skeletons are plain-text `.asf` files, and the
     // CMU Graphics Lab archive publishes them with that extension. The video

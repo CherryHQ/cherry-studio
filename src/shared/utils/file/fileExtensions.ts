@@ -45,6 +45,11 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * `.jxl` is deliberately absent for the same reason: Trimble JobXML survey
  * files are plain text, while JPEG XL images share the extension. An image
  * claim would send the survey files to OCR instead of the text path.
+ *
+ * `.ra` is deliberately absent for the same reason: relational-algebra
+ * exercise scripts (e.g. the radb samples) are plain-text `.ra` files, while
+ * RealAudio shares the extension. Leaving it unclassified lets the content
+ * sniff keep the scripts as text.
  */
 export const imageExts = [
   '.apng',
@@ -102,7 +107,6 @@ export const audioExts = [
   '.oga',
   '.ogg',
   '.opus',
-  '.ra',
   '.wav',
   '.weba',
   '.wma'
