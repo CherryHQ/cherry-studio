@@ -847,7 +847,11 @@ export class AgentSessionService {
     patch: UpdateAgentSessionDto
   ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
     const [current] = tx
-      .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskScheduleId, model: sessionsTable.model })
+      .select({
+        agentId: sessionsTable.agentId,
+        taskScheduleId: sessionsTable.taskScheduleId,
+        model: sessionsTable.model
+      })
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
@@ -858,8 +862,9 @@ export class AgentSessionService {
       throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
     }
 
-    const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
-    if (reassigned && patch.model === undefined && current.model != null) {
+    const previousAgentId = current.agentId
+    const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
+    if (reassigned && patch.model === undefined && previousAgentId != null && current.model != null) {
       // A session-level model override is scoped to the runtime that selected
       // it: retaining it across a cross-runtime reassignment (e.g. Claude Code
       // -> Pi) makes the new runtime pick a model it cannot serve — Pi rejects
@@ -870,10 +875,10 @@ export class AgentSessionService {
       const agentTypes = tx
         .select({ id: agentsTable.id, type: agentsTable.type })
         .from(agentsTable)
-        .where(inArray(agentsTable.id, [current.agentId, patch.agentId as string]))
+        .where(inArray(agentsTable.id, [previousAgentId, patch.agentId as string]))
         .all()
       const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
-      if (typeOf.get(current.agentId) !== typeOf.get(patch.agentId as string)) {
+      if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
         patch.model = null
       }
     }
