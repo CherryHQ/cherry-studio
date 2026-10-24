@@ -93,6 +93,7 @@
   "common.dingtalk_file_type": "โปรดใส่นามสกุลไฟล์ที่ DingTalk รองรับไว้ในชื่อไฟล์",
   "common.dingtalk_processing": "กำลังดำเนินการ…",
   "common.dingtalk_unsupported_message": "ไม่รองรับข้อความประเภทนี้ โปรดส่งข้อความ เสียง รูปภาพ วิดีโอ หรือไฟล์",
+  "common.feishu_credential_migration_failed": "ไม่สามารถย้ายข้อมูลแอป Feishu ที่บันทึกไว้ได้ โปรดเลือกแอปหรือป้อนข้อมูลรับรองอีกครั้ง",
   "common.inspect": "ตรวจสอบ",
   "common.paste": "วาง",
   "common.wecom_attachment_failed": "อ่านไฟล์แนบไม่สำเร็จ โปรดส่งใหม่ (20 MB ต่อไฟล์ รวมไม่เกิน 40 MB)",

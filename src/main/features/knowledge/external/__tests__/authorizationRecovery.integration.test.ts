@@ -1,12 +1,10 @@
-import { mkdtemp, rm } from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 
-import { setupTestDatabase } from '@test-helpers/db'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { externalKnowledgeConnectionService as connections } from '@data/services/ExternalKnowledgeConnectionService'
+import { setupCredentialStore } from '@main/services/credential/__tests__/credentialTestSetup'
 
 import { ExternalKnowledgeCredentialStore } from '../ExternalKnowledgeCredentialStore'
 import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
@@ -61,29 +59,18 @@ function provider() {
 }
 
 describe('authorization recovery ownership', () => {
-  setupTestDatabase()
-  let directory: string
+  const fixture = setupCredentialStore()
   let credentials: ExternalKnowledgeCredentialStore
   const runtimes: ExternalKnowledgeRuntime[] = []
 
   beforeEach(async () => {
-    directory = await mkdtemp(path.join(os.tmpdir(), 'authorization-recovery-'))
-    credentials = new ExternalKnowledgeCredentialStore({
-      filePath: path.join(directory, 'Credentials', 'knowledge.json'),
-      safeStorage: {
-        isEncryptionAvailable: () => true,
-        getSelectedStorageBackend: () => 'gnome_libsecret',
-        encryptString: (value) => Buffer.from(`sealed:${value}`),
-        decryptString: (value) => value.toString().slice('sealed:'.length)
-      }
-    })
+    credentials = new ExternalKnowledgeCredentialStore(fixture.store)
   })
 
   afterEach(async () => {
     await Promise.all(runtimes.splice(0).map((runtime) => runtime.stop()))
     vi.restoreAllMocks()
     vi.mocked(net.fetch).mockReset()
-    await rm(directory, { recursive: true, force: true })
   })
 
   async function start(api = provider(), now: () => number = () => 1_000) {
@@ -102,6 +89,32 @@ describe('authorization recovery ownership', () => {
     const initial = await runtime.beginUserAuthorization(app)
     return runtime.completeUserAuthorization(initial.authorizationSessionId)
   }
+
+  it.each(['removed', 'replaced'])('rejects authorization if the selected application was %s', async (change) => {
+    const application = await fixture.store.create({
+      connector: 'feishu',
+      kind: 'application',
+      label: 'Existing app',
+      payload: { domain: 'feishu', appId: app.appId, appSecret: app.appSecret }
+    })
+    const runtime = await start()
+    const initial = await runtime.beginUserAuthorization({
+      kind: 'saved-application',
+      applicationCredentialId: application.id
+    })
+    if (change === 'removed') await fixture.store.remove(application.id, () => false)
+    else await fixture.store.replaceApplication({ id: application.id, appSecret: 'replacement-secret' })
+    await expect(runtime.completeUserAuthorization(initial.authorizationSessionId)).rejects.toMatchObject({
+      code: 'conflict'
+    })
+    expect(connections.list()).toEqual([])
+    expect(await fixture.store.listSummaries({ kind: 'user-authorization' })).toEqual([])
+    expect(await fixture.store.read(application.id)).toMatchObject(
+      change === 'removed'
+        ? { status: 'missing' }
+        : { status: 'ok', record: { payload: { appSecret: 'replacement-secret' } } }
+    )
+  })
 
   it.each([{ code: 20002 }, { error: 'invalid_client' }])(
     'persists recovery after invalid application credentials reject refresh: %j',
@@ -135,10 +148,10 @@ describe('authorization recovery ownership', () => {
     const cleanupEntered = deferred()
     const releaseCleanup = deferred()
     const remove = credentials.remove.bind(credentials)
-    vi.spyOn(credentials, 'remove').mockImplementationOnce(async (reference) => {
+    vi.spyOn(credentials, 'remove').mockImplementationOnce(async (reference, release) => {
       cleanupEntered.resolve()
       await releaseCleanup.promise
-      return remove(reference)
+      return remove(reference, release)
     })
     const cancelling = runtime.cancelUserAuthorization(initial.authorizationSessionId)
     await cleanupEntered.promise
@@ -244,10 +257,9 @@ describe('authorization recovery ownership', () => {
     await expect(runtime.completeUserAuthorization(reconnect.authorizationSessionId)).rejects.toMatchObject({ code })
     expect(connections.getById(original.id)).toEqual(original)
     await expect(credentials.read(original.credentialReference)).resolves.toEqual(originalCredential)
-    await expect(credentials.listReferences()).resolves.toEqual({
-      status: 'ok',
-      credentialReferences: [original.credentialReference]
-    })
+    expect((await fixture.store.listSummaries({ kind: 'user-authorization' })).map((entry) => entry.id)).toEqual([
+      original.credentialReference
+    ])
     await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
     await runtime.stop()
     const restarted = await start()
@@ -255,13 +267,14 @@ describe('authorization recovery ownership', () => {
   })
 
   it('preserves PersonalAgent authorization when candidate consent grants excess scopes', async () => {
+    const reference = randomUUID()
     const original = connections.create({
       appId: app.appId,
       appCredentialSource: 'personal-agent',
-      credentialReference: 'original'
+      credentialReference: reference
     })
     const active = connections.markConnected(original.id, { ...identity, grantedScopes: token.grantedScopes })
-    await credentials.put('original', {
+    await credentials.put(reference, {
       appId: app.appId,
       appSecret: app.appSecret,
       accessToken: 'access',
@@ -381,10 +394,10 @@ describe('authorization recovery ownership', () => {
     const cleanupEntered = deferred()
     const releaseCleanup = deferred()
     const remove = credentials.remove.bind(credentials)
-    vi.spyOn(credentials, 'remove').mockImplementationOnce(async (reference) => {
+    vi.spyOn(credentials, 'remove').mockImplementationOnce(async (reference, release) => {
       cleanupEntered.resolve()
       await releaseCleanup.promise
-      return remove(reference)
+      return remove(reference, release)
     })
     const cancelling = runtime.cancelUserAuthorization(old.authorizationSessionId)
     await cleanupEntered.promise

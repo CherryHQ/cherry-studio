@@ -278,7 +278,6 @@ class FeishuAdapter extends ChannelAdapter {
         this.appId = result.appId
         this.appSecret = result.appSecret
         this.emit('credentials', { appId: result.appId, appSecret: result.appSecret })
-        this.sendQrToRenderer('', 'confirmed', result.appId, result.appSecret)
         this.log.info('Feishu app registration completed')
       })
       .catch((error) => {
@@ -289,18 +288,11 @@ class FeishuAdapter extends ChannelAdapter {
       })
   }
 
-  private sendQrToRenderer(
-    url: string,
-    status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error',
-    appId?: string,
-    appSecret?: string
-  ): void {
+  private sendQrToRenderer(url: string, status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'): void {
     application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.feishu.qr_login', {
       channelId: this.channelId,
       url,
-      status,
-      appId,
-      appSecret
+      status
     })
   }
 

@@ -17,10 +17,11 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
+import { FeishuApplicationPicker } from '@renderer/components/credentials/FeishuApplicationPicker'
 import { PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
+import type { FeishuAgentChannelConfig } from '@shared/data/api/schemas/agentChannels'
 
 import type { ChannelData } from './channelTypes'
 import { DingTalkForm } from './DingTalkForm'
@@ -213,33 +214,12 @@ export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) 
   )
 }
 
-const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
-  const { t } = useTranslation()
-  const cfg = channel.config
-  return (
-    <div>
-      <Label className="mb-1 block text-xs">{t('agent.channels.feishu.domain')}</Label>
-      <Select
-        value={(cfg.domain as FeishuDomain) ?? 'feishu'}
-        onValueChange={(value) => onConfigChange({ config: { ...cfg, domain: value } })}>
-        <SelectTrigger size="sm" className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="feishu">{t('agent.channels.feishu.domainFeishu')}</SelectItem>
-          <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}
-
 type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
 
 export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
-  const cfg = channel.config as FeishuChannelConfig
-  const hasCredentials = !!(cfg.app_id && cfg.app_secret)
+  const cfg = channel.config as FeishuAgentChannelConfig
+  const hasCredentials = !!cfg.applicationCredentialId
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
 
@@ -283,38 +263,37 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
       {hasCredentials && (
         <div className="flex items-center gap-2">
           <span className="inline-block h-2 w-2 rounded-full bg-success" />
-          <span className="text-xs text-success">{t('agent.channels.feishu.connected')}</span>
+          <span className="text-xs text-success">{t('common.saved')}</span>
+        </div>
+      )}
+      {!hasCredentials && (
+        <div className="flex flex-col gap-1">
+          <Label>{t('agent.channels.feishu.domain')}</Label>
+          <Select
+            value={cfg.registrationDomain ?? 'feishu'}
+            onValueChange={(domain) => onConfigChange({ config: { ...cfg, registrationDomain: domain } })}>
+            <SelectTrigger aria-label={t('agent.channels.feishu.domain')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="feishu">{t('agent.channels.feishu.domainFeishu')}</SelectItem>
+              <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       )}
       <ChannelFieldsForm
         channel={channel}
         onConfigChange={onConfigChange}
-        fields={[
-          {
-            key: 'app_id',
-            label: t('agent.channels.feishu.appId'),
-            placeholder: t('agent.channels.feishu.appIdPlaceholder')
-          },
-          {
-            key: 'app_secret',
-            label: t('agent.channels.feishu.appSecret'),
-            placeholder: t('agent.channels.feishu.appSecretPlaceholder'),
-            secret: true
-          },
-          {
-            key: 'encrypt_key',
-            label: t('agent.channels.feishu.encryptKey'),
-            placeholder: t('agent.channels.feishu.encryptKeyPlaceholder'),
-            secret: true
-          },
-          {
-            key: 'verification_token',
-            label: t('agent.channels.feishu.verificationToken'),
-            placeholder: t('agent.channels.feishu.verificationTokenPlaceholder'),
-            secret: true
-          }
-        ]}
-        extraContent={<FeishuDomainSelector channel={channel} onConfigChange={onConfigChange} />}
+        fields={[]}
+        extraContent={
+          <div className="col-span-2">
+            <FeishuApplicationPicker
+              value={cfg.applicationCredentialId}
+              onChange={(id) => onConfigChange({ config: { ...cfg, applicationCredentialId: id } })}
+            />
+          </div>
+        }
         chatIds={{
           label: t('agent.channels.feishu.chatIds'),
           placeholder: t('agent.channels.feishu.chatIdsPlaceholder'),

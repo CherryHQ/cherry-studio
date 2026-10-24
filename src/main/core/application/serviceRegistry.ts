@@ -54,6 +54,7 @@ import { ConversationNavigationService } from '@main/services/ConversationNaviga
 import { CredentialStoreService } from '@main/services/credential'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
+import { FeishuCredentialMigrationService } from '@main/services/FeishuCredentialMigrationService'
 import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
@@ -111,6 +112,7 @@ import { WebviewService } from '@main/services/webview'
  */
 export const services = {
   CredentialStoreService,
+  FeishuCredentialMigrationService,
   ComputerUseService,
   AutomationReplService,
   RemoteAccessService,

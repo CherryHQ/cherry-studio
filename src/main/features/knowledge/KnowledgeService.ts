@@ -49,14 +49,22 @@ import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from '
  */
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
+@DependsOn([
+  'KnowledgeVectorStoreService',
+  'JobManager',
+  'FileProcessingService',
+  'WebSearchService',
+  'FeishuCredentialMigrationService'
+])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KeyedMutex()
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
-  private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime()
+  private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime({
+    isConnectionBlocked: (id) => application.get('FeishuCredentialMigrationService').isConnectionBlocked(id)
+  })
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
@@ -77,6 +85,12 @@ export class KnowledgeService extends BaseService {
   }
 
   protected async onReady(): Promise<void> {
+    this.registerDisposable(
+      application.get('CredentialStoreService').onDidChange((event) => {
+        if (event.kind === 'application' && event.operation !== 'created')
+          this.externalKnowledgeRuntime.applicationChanged(event.id)
+      })
+    )
     await this.externalKnowledgeRuntime.start()
   }
 
@@ -89,8 +103,8 @@ export class KnowledgeService extends BaseService {
     this.ingestionService.recoverInterruptedItems()
   }
 
-  async beginFeishuAppRegistration(): Promise<BeginAppRegistrationResult> {
-    return await this.externalKnowledgeRuntime.beginAppRegistration()
+  async beginFeishuAppRegistration(applicationCredentialId?: string): Promise<BeginAppRegistrationResult> {
+    return await this.externalKnowledgeRuntime.beginAppRegistration(applicationCredentialId)
   }
 
   async cancelFeishuAppRegistration(registrationSessionId: string): Promise<void> {

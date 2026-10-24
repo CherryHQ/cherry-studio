@@ -65,9 +65,6 @@ function getChannelSummary(channel: ChannelData): string {
 
   switch (channel.type) {
     case 'feishu': {
-      if (cfg.app_id) parts.push(truncateId(cfg.app_id as string))
-      const domain = cfg.domain as string
-      parts.push(domain === 'lark' ? 'Lark (International)' : 'Feishu (China)')
       break
     }
     case 'telegram':

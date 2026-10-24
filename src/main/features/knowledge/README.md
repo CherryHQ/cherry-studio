@@ -31,7 +31,7 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method, and creates the shared per-base mutation lock (`KeyedMutex`). No domain logic. |
 | `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore), failed-base guard (`baseGuards.ts`). |
 | `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, subtree purge (`subtreePurge.ts`), boot recovery. |
-| `external/` | External Knowledge connection foundation: main-only encrypted credentials, Feishu user authorization, token refresh, and the runtime owned by `KnowledgeService`. It does not traverse or ingest remote content. |
+| `external/` | External Knowledge connection foundation: shared connector credential references, Feishu user authorization, token refresh, and the runtime owned by `KnowledgeService`. It does not traverse or ingest remote content. |
 | `pipeline/sources/` | Input stage: directory expansion, url fetch (Jina reader), url/note snapshot capture, OKF frontmatter. |
 | `pipeline/readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
 | `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers. |
@@ -80,7 +80,7 @@ mutation section, never across slow I/O (fetch, read, embed).
 
 External Knowledge uses a separate credential-scoped lane. Refreshes for one credential collapse
 into one token rotation, while different credentials keep independent request and backoff state.
-`KnowledgeService` starts this runtime after initialization and closes admission, aborts in-flight
+`FeishuCredentialMigrationService` converts legacy bindings before `KnowledgeService` starts this runtime and closes admission, aborts in-flight
 operations, and clears transient state during service shutdown.
 
 ## Related docs

@@ -76,11 +76,14 @@ async function externalKnowledgeCommand<T>(
  * route's `z.void()` output (see selection.ts hide_toolbar).
  */
 export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> = {
-  'knowledge.feishu.registration.begin': async () =>
-    externalKnowledgeCommand(() => application.get('KnowledgeService').beginFeishuAppRegistration(), {
-      code: knowledgeErrorCodes.FEISHU_REGISTRATION_FAILED,
-      message: 'Feishu application registration failed'
-    }),
+  'knowledge.feishu.registration.begin': async (input) =>
+    externalKnowledgeCommand(
+      () => application.get('KnowledgeService').beginFeishuAppRegistration(input?.applicationCredentialId),
+      {
+        code: knowledgeErrorCodes.FEISHU_REGISTRATION_FAILED,
+        message: 'Feishu application registration failed'
+      }
+    ),
   'knowledge.feishu.registration.cancel': async ({ registrationSessionId }) => {
     await externalKnowledgeCommand(
       () => application.get('KnowledgeService').cancelFeishuAppRegistration(registrationSessionId),
