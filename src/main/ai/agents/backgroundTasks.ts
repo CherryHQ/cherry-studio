@@ -1030,6 +1030,15 @@ function readMarkerProcesses(taskId: string, anchorPid: number): MarkerRead {
 }
 
 /**
+ * Whether the table does not prove the task has no live marker holder. `unknown` counts: a table
+ * that cannot show environments is not evidence that the work is gone, so nothing may settle.
+ */
+function hasUnverifiedMarkerWork(taskId: string, anchorPid: number): boolean {
+  const read = readMarkerProcesses(taskId, anchorPid)
+  return read.status !== 'observable' || read.holders.length > 0
+}
+
+/**
  * SIGKILL every process still carrying the task marker and wait for the table to lose them. Unlike
  * the group signal this reaches a setsid() worker that closed its descriptors; unlike the pipe it
  * works after a restart. The task's anchor is excluded: it carries the marker only to pass it on.
@@ -1178,11 +1187,14 @@ export async function startDetachedBackgroundTask(
     // lands as observed, with the leader's own exit evidence, once the group drains. The liveness
     // pipe is the same evidence for work the group no longer contains: as long as it has a writer,
     // a worker that called setsid() may still be running, so nothing may be published or owned away.
+    // The inherited marker names that worker once it has dropped every pipe.
     const settleThroughGroupDrain = async (): Promise<void> => {
       if (
         process.platform !== 'win32' &&
         record.pid > 0 &&
-        (groupHasLiveMember(record.pid) || ownedTaskGroups.get(id)?.liveness?.open)
+        (groupHasLiveMember(record.pid) ||
+          ownedTaskGroups.get(id)?.liveness?.open ||
+          hasUnverifiedMarkerWork(id, record.pid))
       ) {
         const poll = setTimeout(() => void settleThroughGroupDrain(), LEADERLESS_GROUP_POLL_MS)
         poll.unref?.()
@@ -1227,6 +1239,12 @@ export async function startDetachedBackgroundTask(
       logger.warn('Detached background task failed to spawn', { taskId: id, error })
       finalize('failed', null, null)
     })
+    // 'exit' is the reap, which 'close' can trail by the time a descendant holds the output pipes:
+    // from the reap on, the leader's pid is the OS's to reuse and may never seed ownership.
+    child.on('exit', () => {
+      const owned = ownedTaskGroups.get(id)
+      if (owned) owned.leaderReaped = true
+    })
     // 'close' rather than 'exit': it waits for the task's stdio to drain, so the final log
     // bytes are readable by the time completion is published. The supervisor holds the group until
     // it is empty, so this fires only once nothing of the task's is left — and a worker forked
@@ -1270,6 +1288,16 @@ export async function startDetachedBackgroundTask(
             if (!(await waitForGroupDrain(record.pid))) {
               survivor = true
               throw new Error(`process group ${record.pid} still holds live members after SIGKILL`)
+            }
+            // The group kill cannot reach a worker that left through setsid(), so an empty group
+            // alone certifies nothing: the marker sweep and the liveness pipe must agree too.
+            if ((await killMarkerSurvivors(id, record.pid)) !== 'clear') {
+              survivor = true
+              throw new Error(`background task ${id} still holds marked workers after SIGKILL`)
+            }
+            if (liveness && (await waitForLivenessClose(liveness)) !== 'closed') {
+              survivor = true
+              throw new Error(`background task ${id} still holds a live liveness writer after SIGKILL`)
             }
           }
           cleaned = true
@@ -1481,11 +1509,8 @@ async function stopDetachedBackgroundTaskUnlocked(
   // nothing about it. The liveness pipe does: until it closes, the record must not claim stopped
   // or the survivor loses its tracking and its workspace is free to be erased underneath it.
   if (process.platform !== 'win32') {
-    const liveness = await waitForLivenessClose(ownedLiveness)
-    if (liveness === 'open') return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
-    // The pipe is the in-process proof; after a restart the inherited marker is. Survivors are the
-    // task's own, so the kill may reach them even though the group could not, and only their
-    // absence certifies the termination.
+    // The attributable sweep runs before the pipe wait: a marked worker that left the group can be
+    // the very writer holding the pipe open, so waiting first would never reach it.
     const markers = await killMarkerSurvivors(record.id, record.pid)
     if (markers === 'unknown') {
       const unverified: BackgroundTaskRecord = { ...requested, terminationUnverified: true }
@@ -1493,6 +1518,11 @@ async function stopDetachedBackgroundTaskUnlocked(
       return unverified
     }
     if (markers === 'survivors') return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+    // The pipe is the in-process proof; after a restart the inherited marker is. Survivors are the
+    // task's own, so the kill may reach them even though the group could not, and only their
+    // absence certifies the termination.
+    const liveness = await waitForLivenessClose(ownedLiveness)
+    if (liveness === 'open') return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
     // The anchor was deliberately left alive: it reads the stdio pipes close_fds cannot drop, so
     // its own exit is the last statement that nothing of the task is left. An anchor still alive
     // there is holding a survivor's evidence, and the kill did not establish termination.

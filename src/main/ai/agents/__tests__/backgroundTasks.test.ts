@@ -590,11 +590,11 @@ describe('backgroundTasks', () => {
     )
 
     it.skipIf(process.platform === 'win32' || !python3Available)(
-      'keeps a task unresolved while a worker that left the group holds the liveness pipe',
+      'kills a marked worker that left the group instead of waiting out the liveness pipe',
       async () => {
-        // `setsid()` puts the worker in a session of its own, so the PGID probe cannot see it.
-        // Without a liveness channel the supervisor would exit with the shell, completion would
-        // publish a terminal status, and the survivor's workspace and tracking would be swept.
+        // `setsid()` puts the worker in a session of its own, so the PGID probe cannot see it, but
+        // it keeps the inherited marker. Waiting for the pipe to close before the marker sweep
+        // returned every force kill early and left the worker running for good.
         const pidFile = path.join(storageDir, 'daemon.pid')
         const shellDoneFile = path.join(storageDir, 'shell.done')
         const onExit = vi.fn()
@@ -629,17 +629,17 @@ describe('backgroundTasks', () => {
           expect(task?.status).toBe('running')
           expect(onExit).not.toHaveBeenCalled()
 
-          // Stop stays reachable and honest: the group signal cannot reach the worker, so the
-          // task must not read as finished while the worker lives.
+          // Stop stays reachable and honest: the SIGTERM group signal cannot reach the worker, so
+          // the task must not read as finished while the worker lives.
           const afterStop = await stopDetachedBackgroundTask(storageDir, record.id)
           expect(afterStop?.status).toBe('running')
           expect(isPidAlive(workerPid)).toBe(true)
 
-          // The group kill cannot reach the worker either; the liveness pipe is the only proof
-          // that anything survived, and it must withhold the stopped record.
+          // Force kill must run the marker sweep before waiting on the pipe: the marked worker is
+          // attributable wherever it lives, and only its death may certify the task stopped.
           const afterKill = await stopDetachedBackgroundTask(storageDir, record.id, true)
-          expect(afterKill?.status).toBe('running')
-          expect(isPidAlive(workerPid)).toBe(true)
+          expect(afterKill?.status).toBe('stopped')
+          expect(isPidAlive(workerPid)).toBe(false)
         } finally {
           try {
             if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
@@ -1667,6 +1667,88 @@ describe('backgroundTasks', () => {
               // already reaped
             }
           }
+        }
+      }
+    )
+
+    // A descendant that keeps fd 3 delays `close` past the leader's exit and reap. Until the app
+    // observes the close it once kept `leaderReaped` false, so the pulse could adopt whatever
+    // process the OS then gave the leader's pid and authorize a group signal to that stranger.
+    it.skipIf(process.platform === 'win32')(
+      'does not adopt a leader the OS reused while a descendant keeps the close pending',
+      async () => {
+        const pidFile = path.join(storageDir, 'fd-holder.pid')
+        const script = path.join(storageDir, 'fd-holder.cjs')
+        // The worker leaves the group, scrubs the marker out of its environment and keeps only fd 3:
+        // the supervisor has no channel left but the app's pipe, which this descendant now holds.
+        await writeFile(
+          script,
+          [
+            "const { spawn } = require('node:child_process')",
+            "const fs = require('node:fs')",
+            "const child = spawn('/bin/sleep', ['60'], { detached: true, stdio: ['ignore', 'ignore', 'ignore', 3], env: {} })",
+            'child.unref()',
+            'fs.writeFileSync(process.argv[2], String(child.pid))',
+            'process.exit(0)'
+          ].join('\n') + '\n'
+        )
+        // The identity probes fail while the leader lives, so the spawn captures no stamp and the
+        // recovery cannot seed one: the ownership entry is empty when the pid is reaped.
+        psSteer.read = (args) => (args[0] === '-p' || args[0] === '-axwwo' ? '' : null)
+        let record: BackgroundTaskRecord
+        let workerPid = 0
+        try {
+          record = await startDetachedBackgroundTask({
+            storageDir,
+            command: `${nodeBin} "${script}" "${pidFile}"`,
+            cwd: storageDir
+          })
+          expect(record.pidStartTime).toBeUndefined()
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(workerPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          // The leader exits and is reaped, but the descendant's fd 3 keeps `close` from firing:
+          // the record stays unresolved through the ownership entry, not through the leader.
+          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+
+          // A replacement now sits at the leader's pid and leads the recorded group.
+          psSteer.read = (args) =>
+            args[0] === '-axwwo' ? `${record.pid} ${record.pid} 1 S Mon Jan  1 00:00:00 2001\n` : null
+          const realKill = process.kill.bind(process)
+          const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+            if (signal === 0) return realKill(pid, signal)
+            return true
+          })
+          try {
+            // The reaped leader's number is no proof of ownership any more, so the stranger's group
+            // is not the task's to signal.
+            await expect(stopDetachedBackgroundTask(storageDir, record.id)).resolves.toBeUndefined()
+            expect(killSpy.mock.calls.filter(([pid, signal]) => pid < 0 && signal !== 0)).toEqual([])
+          } finally {
+            psSteer.read = null
+            killSpy.mockRestore()
+          }
+        } finally {
+          psSteer.read = null
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          // The pipe closing lets the pending close publish; wait for it before the directory goes.
+          await vi
+            .waitFor(
+              async () => {
+                expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).not.toBe('running')
+              },
+              { timeout: 10_000 }
+            )
+            .catch(() => {})
         }
       }
     )

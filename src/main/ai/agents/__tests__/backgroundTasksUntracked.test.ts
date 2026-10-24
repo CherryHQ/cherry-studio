@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import type * as NodeFs from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -18,6 +19,7 @@ import {
   BACKGROUND_TASK_SENTINEL_EXT,
   type BackgroundTaskRecord,
   getDetachedBackgroundTask,
+  hasLiveTaskEvidence,
   isPidAlive,
   listDetachedBackgroundTasks,
   startDetachedBackgroundTask,
@@ -25,6 +27,17 @@ import {
 } from '../backgroundTasks'
 
 const nodeBin = `"${process.execPath}"`
+// Escaping the process group needs `setsid()`, which Node does not expose; driven through python3.
+const python3Available =
+  process.platform !== 'win32' &&
+  (() => {
+    try {
+      execFileSync('python3', ['--version'], { stdio: 'ignore', timeout: 5_000 })
+      return true
+    } catch {
+      return false
+    }
+  })()
 
 describe('a task whose record write fails', () => {
   let storageDir: string
@@ -397,6 +410,81 @@ describe('a task whose record write fails', () => {
           process.kill(-pid, 'SIGKILL')
         } catch {
           // already reaped
+        }
+      }
+    }
+  )
+
+  it.skipIf(process.platform === 'win32' || !python3Available)(
+    'keeps an escaped worker recorded and running when the cleanup kill cannot reach it',
+    async () => {
+      // `setsid()` puts the worker outside the group the cleanup kill reaches, so an empty group
+      // and a closed pipe describe a termination that never happened. Its inherited marker is the
+      // evidence the recovery must honor: no record may be skipped and no start may claim stopped.
+      const pidFile = path.join(storageDir, 'escaped.pid')
+      const real = (await vi.importActual<typeof NodeFs>('node:fs')).writeFileSync
+      let writes = 0
+      writeFileSyncMock.mockImplementation((...args: unknown[]) => {
+        writes += 1
+        if (writes === 1) {
+          // Delay the failure until the worker exists: the cleanup must race a real escape.
+          const deadline = Date.now() + 10_000
+          while (Date.now() < deadline) {
+            try {
+              readFileSync(pidFile)
+              break
+            } catch {
+              execFileSync('sleep', ['0.05'])
+            }
+          }
+          throw new Error('ENOSPC: no space left on device')
+        }
+        return (real as unknown as (...a: unknown[]) => void)(...args)
+      })
+      const realKill = process.kill.bind(process)
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        // The group kill still lands and liveness stays real; the escaped worker is the survivor.
+        if (pid < 0 || signal === 0) return realKill(pid, signal)
+        return true
+      })
+      let workerPid = 0
+      try {
+        const failure = await startDetachedBackgroundTask({
+          storageDir,
+          command:
+            `python3 -c "import subprocess,sys; p=subprocess.Popen(['sleep','60'], start_new_session=True); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"` +
+            ` & sleep 0.6`,
+          cwd: storageDir
+        }).then(
+          () => {
+            throw new Error('expected the start to fail')
+          },
+          (error: Error) => error
+        )
+
+        expect(failure.message).toMatch(/is still running/)
+        expect(failure.message).not.toMatch(/was stopped/)
+        workerPid = Number(readFileSync(pidFile, 'utf8'))
+        const record = await readRecoveryRecord()
+        expect(record.status).toBe('running')
+        expect(isPidAlive(workerPid)).toBe(true)
+        await expect(hasLiveTaskEvidence(storageDir, record)).resolves.toBe(true)
+        expect((await listDetachedBackgroundTasks(storageDir)).map((task) => task.id)).toContain(record.id)
+
+        // The survivor leaving settles the recovered task; wait for that write before cleanup.
+        realKill(workerPid, 'SIGKILL')
+        await vi.waitFor(
+          async () => {
+            expect((await readdir(storageDir)).some((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toBe(true)
+          },
+          { timeout: 10_000 }
+        )
+      } finally {
+        killSpy.mockRestore()
+        try {
+          if (workerPid > 0) realKill(workerPid, 'SIGKILL')
+        } catch {
+          // already gone
         }
       }
     }
