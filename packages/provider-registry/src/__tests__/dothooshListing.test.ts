@@ -132,6 +132,68 @@ describe('parseDotHooshListings — endpoint choice', () => {
   })
 })
 
+describe('parseDotHooshListings — capabilities of the selected protocol', () => {
+  const RESPONSES_TOOLS = ['prompt-caching', 'reasoning', 'streaming', 'structured-output', 'text', 'tools']
+  const gpt = (extra: object = {}) => ({
+    id: 'gpt-x',
+    supported_parameters: ['max_tokens'],
+    protocols: [
+      { protocol: 'openai-chat-completions' },
+      { protocol: 'openai-responses', capabilities: RESPONSES_TOOLS }
+    ],
+    ...extra
+  })
+  const parse = (entry: object) => parseDotHooshListings({ openai: { data: [entry] } })[0]
+
+  it('keeps function calls for a model whose tools are declared on the Responses protocol only', () => {
+    const model = parse(gpt())
+    expect(model.endpointTypes[0]).toBe('openai-responses')
+    expect(model.capabilities.add).toEqual(expect.arrayContaining(['function-call', 'reasoning', 'structured-output']))
+    expect(model.capabilities.remove).not.toContain('function-call')
+  })
+
+  it('falls back to the shared declarations when the selected protocol has no capability list', () => {
+    const withTools = parse({
+      id: 'c',
+      supported_parameters: ['tools'],
+      protocols: [{ protocol: 'openai-chat-completions' }]
+    })
+    expect(withTools.capabilities.add).toContain('function-call')
+    const without = parse({ id: 'c', supported_parameters: [], protocols: [{ protocol: 'openai-chat-completions' }] })
+    expect(without.capabilities.remove).toContain('function-call')
+  })
+
+  it('lets the selected protocol decide, not a protocol the model will not be called through', () => {
+    const model = parse(
+      gpt({
+        supported_parameters: ['tools'],
+        protocols: [
+          { protocol: 'openai-chat-completions', capabilities: ['text', 'tools'] },
+          { protocol: 'openai-responses', capabilities: ['text', 'streaming'] }
+        ]
+      })
+    )
+    expect(model.capabilities.remove).toContain('function-call')
+    expect(model.capabilities.remove).toContain('reasoning')
+  })
+
+  it('reads the Chat Completions list when that is the selected protocol', () => {
+    const model = parse({
+      id: 'c',
+      supported_parameters: [],
+      protocols: [{ protocol: 'openai-chat-completions', capabilities: ['tools', 'text'] }]
+    })
+    expect(model.capabilities.add).toContain('function-call')
+  })
+
+  it('ignores an unusable capability list instead of dropping the model', () => {
+    const model = parse(
+      gpt({ supported_parameters: ['tools'], protocols: [{ protocol: 'openai-responses', capabilities: 'tools' }] })
+    )
+    expect(model.capabilities.add).toContain('function-call')
+  })
+})
+
 describe('parseDotHooshListings — tier carry-over', () => {
   const usd = (perMillionTokens: number) => ({ currency: 'USD', perMillionTokens })
   const priced = (pricing: object, pricing_tiers: object[]) =>

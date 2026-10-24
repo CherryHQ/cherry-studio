@@ -1967,6 +1967,33 @@ describe('listModels — DotHoosh live catalog', () => {
     }
   })
 
+  it.each([
+    ['a versioned Anthropic base', 'https://gateway.dothoosh.com', 'https://gateway.dothoosh.com/anthropic/v1'],
+    ['versioned bases on both routes', 'https://gateway.dothoosh.com/v1', 'https://gateway.dothoosh.com/anthropic/v1/'],
+    ['an unversioned Anthropic base', 'https://gateway.dothoosh.com', 'https://gateway.dothoosh.com/anthropic']
+  ])('never doubles the API version for %s', async (_label, chatBase, anthropicBase) => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    answerByUrl()
+
+    await listModels(
+      makeProvider({
+        id: 'dothoosh',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: chatBase },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: anthropicBase }
+        }
+      }),
+      undefined,
+      { throwOnError: true }
+    )
+
+    expect(calledUrls().sort()).toEqual([
+      'https://gateway.dothoosh.com/anthropic/v1/models',
+      'https://gateway.dothoosh.com/v1/models'
+    ])
+  })
+
   it('sends no provider headers to the public mirror', async () => {
     getRotatedApiKeyMock.mockReturnValue('')
     answerByUrl()
