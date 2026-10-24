@@ -475,26 +475,26 @@ function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: st
   return text.length
 }
 
-/** Recover a list opened on an earlier line when its fence starts on a continuation. */
-function inheritedFencePrefix(text: string, openerStart: number, openerPrefix: string): string {
-  if (openerPrefix === '') return openerPrefix
-  if (parseFenceContainerSegments(openerPrefix).some((segment) => segment.type === 'list')) return openerPrefix
-  let start = 0
-  let inherited = openerPrefix
-  while (start < openerStart) {
-    const lineEnd = lineContentEnd(text, start)
-    const line = expandFencePrefixTabs(text.slice(start, lineEnd))
+/** Precompute list-container extents once instead of scanning every prefix per fence. */
+function inheritedFencePrefixLookup(text: string): (openerStart: number, prefix: string) => string {
+  const lists: Array<{ start: number; end: number; prefix: string }> = []
+  for (let start = 0; start < text.length; start = lineEndAfter(text, start)) {
+    const line = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
     const prefix = /^(?:(?: {0,3}> ?)|(?: {0,3}(?:[-*+]|\d{1,9}[.)]) +))+/.exec(line)?.[0]
-    if (
-      prefix &&
-      parseFenceContainerSegments(prefix).some((segment) => segment.type === 'list') &&
-      fenceCloseMatchesContainerContext(openerPrefix, prefix) &&
-      fenceContainerEnd(text, lineEndAfter(text, start), prefix) > openerStart
-    )
-      inherited = prefix
-    start = lineEndAfter(text, start)
+    if (prefix && parseFenceContainerSegments(prefix).some((segment) => segment.type === 'list'))
+      lists.push({ start, end: fenceContainerEnd(text, lineEndAfter(text, start), prefix), prefix })
   }
-  return inherited
+  return (openerStart, openerPrefix) => {
+    if (openerPrefix === '' || parseFenceContainerSegments(openerPrefix).some((segment) => segment.type === 'list'))
+      return openerPrefix
+    let inherited = openerPrefix
+    for (const list of lists) {
+      if (list.start >= openerStart) break
+      if (list.end > openerStart && fenceCloseMatchesContainerContext(openerPrefix, list.prefix))
+        inherited = list.prefix
+    }
+    return inherited
+  }
 }
 
 function findCodeFenceClose(
@@ -502,9 +502,10 @@ function findCodeFenceClose(
   searchFrom: number,
   fenceChar: string,
   fenceLen: number,
-  openerPrefix = ''
+  openerPrefix = '',
+  inheritedPrefix = inheritedFencePrefixLookup(text)
 ): number {
-  openerPrefix = inheritedFencePrefix(text, lineStartBefore(text, searchFrom), openerPrefix)
+  openerPrefix = inheritedPrefix(lineStartBefore(text, searchFrom), openerPrefix)
   const containerEnd = fenceContainerEnd(text, lineEndAfter(text, searchFrom), openerPrefix)
   let pos = searchFrom
   while (pos < text.length) {
@@ -787,10 +788,14 @@ function maskIndentedCodeBlocks(text: string): {
     const depth = explicitQuoteDepth(line)
     const previousListColumns = inheritedListColumns
     const expanded = expandFencePrefixTabs(line)
-    const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(expanded)
+    // Nested items begin at their parent's content column, which can exceed
+    // the three optional columns allowed relative to the current container.
+    const nestedOffset =
+      inheritedListColumns > 0 && expanded.startsWith(' '.repeat(inheritedListColumns)) ? inheritedListColumns : 0
+    const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(expanded.slice(nestedOffset))
     if (list) {
       const padding = list[3].length <= 4 ? list[3].length : 1
-      inheritedListColumns = list[1].length + list[2].length + padding
+      inheritedListColumns = nestedOffset + list[1].length + list[2].length + padding
     } else if (line.trim() !== '' && !line.startsWith(' '.repeat(inheritedListColumns))) inheritedListColumns = 0
     // A new explicit quote container cannot inherit an outer paragraph.
     // Unmarked lazy continuation lines keep their paragraph's container.
@@ -948,6 +953,7 @@ function maskCodeFences(text: string): {
   const inlineRanges = maskInlineCodeSpans(text).ranges
   const scratchpadScan = { pos: 0, stack: [] as string[] }
   let out = ''
+  const inheritedPrefix = inheritedFencePrefixLookup(text)
   let pos = 0
 
   while (pos < text.length) {
@@ -980,7 +986,14 @@ function maskCodeFences(text: string): {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
-    const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen, text.slice(fenceStart, markerStart))
+    const closeEnd = findCodeFenceClose(
+      text,
+      afterOpen,
+      fenceChar,
+      fenceLen,
+      text.slice(fenceStart, markerStart),
+      inheritedPrefix
+    )
     // A fence opened inside a scratchpad block ends at that block's closing
     // tag, whether it has no close of its own or only finds one past the
     // boundary: masking through the closer would hide it and keep internal
@@ -1138,6 +1151,7 @@ export function shouldDeferScratchpadStripping(text: string): boolean {
 
 /** True when the text opens a fenced code block that has no closing delimiter yet. */
 export function textHasUnclosedCodeFence(text: string): boolean {
+  const inheritedPrefix = inheritedFencePrefixLookup(text)
   let pos = 0
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
@@ -1161,7 +1175,14 @@ export function textHasUnclosedCodeFence(text: string): boolean {
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
     const openerLineStart = fenceLinePrefixStart(text, markerStart)
-    const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen, text.slice(openerLineStart, markerStart))
+    const closeEnd = findCodeFenceClose(
+      text,
+      afterOpen,
+      fenceChar,
+      fenceLen,
+      text.slice(openerLineStart, markerStart),
+      inheritedPrefix
+    )
     if (closeEnd === -1) return true
     pos = closeEnd
   }

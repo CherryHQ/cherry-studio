@@ -13,6 +13,14 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('tracks nested list continuation padding (inv_b981b2250f323698)', () => {
+    expect(
+      stripModelScratchpadBlocks(
+        '- One\n  - Two\n    - Three\n\n        <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
+      )
+    ).not.toContain('SECRET')
+  })
+
   it('ignores comment-contained scratchpad closing tags (inv_a7e5f0f1985e0e7c)', () => {
     expect(
       stripModelScratchpadBlocks('<analysis>Use <!-- </analysis> --> SECRET</analysis><summary>Keep</summary>')

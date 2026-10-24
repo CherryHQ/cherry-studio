@@ -1227,6 +1227,12 @@ export class ClaudeCodeStreamAdapter {
       const previous = accumulatedText.slice(previousStart, previousEnd)
       // A completed fence marker cannot become a synthetic new opener.
       if (/^ {0,3}(?:`{3,}|~{3,})/.test(previous)) return ''
+      if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(previous) && previousStart > 0) {
+        const paragraphEnd = previousStart - 1
+        const paragraphStart = accumulatedText.lastIndexOf('\n', paragraphEnd - 1) + 1
+        const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd)
+        if (paragraph.trim() !== '') return paragraph.slice(0, 128) + '\n' + previous + '\n'
+      }
       if (previous.trim() !== '') return previous.slice(0, 128) + '\n'
       return ''
     }

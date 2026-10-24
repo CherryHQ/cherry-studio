@@ -65,6 +65,28 @@ it.each([1000, 2000])('bounds large fenced snapshots %s (inv_87cd6e7b52ba40de)',
   expect(elapsed).toBeLessThan(1000)
 })
 
+it.each([1000, 2000])('bounds quoted fenced snapshots %s (inv_ad23ebfecae34f4b)', (count) => {
+  const { adapter, parts } = createAdapter()
+  const answer = '> ```xml\n> <thinking>literal</thinking>\n> ```\n\n'.repeat(count)
+  const start = performance.now()
+  adapter.handleMessage({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    session_id: 'sdk-1',
+    uuid: crypto.randomUUID(),
+    message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+  } as any)
+  const elapsed = performance.now() - start
+  console.log({ quotedFenceCharacters: answer.length, elapsed })
+  expect(
+    parts
+      .filter((part) => part.type === 'text-delta')
+      .map((part) => (part as any).delta)
+      .join('')
+  ).toBe(answer)
+  expect(elapsed).toBeLessThan(1000)
+})
+
 it('scales repeated literal fences in assistant snapshots (inv_69cc1f308e73a4d7)', () => {
   const { adapter, parts } = createAdapter()
   const answer = '```xml\n<thinking>literal</thinking>\n```\n\n'.repeat(400)
@@ -4660,6 +4682,32 @@ describe('compaction artifact boundary', () => {
     expect(output()).toContain(second)
     adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     expect(output()).toBe(first + second + third)
+  })
+
+  it('retains complete setext heading before newline split (inv_f0009d6c2bcd2afc)', () => {
+    const { adapter, parts } = createAdapter()
+    const chunks = ['Example\n=======\n', '    <thinking>literal</thinking>\n\nDone.']
+    const answer = chunks.join('')
+    const output = () =>
+      parts
+        .filter((part) => part.type === 'text-delta')
+        .map((part) => (part as any).delta)
+        .join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of chunks)
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    expect(output()).toBe(answer)
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    expect(output()).toBe(answer)
   })
 
   it('retains paragraph before split setext underline (inv_8807d8feba56f9ee)', () => {
