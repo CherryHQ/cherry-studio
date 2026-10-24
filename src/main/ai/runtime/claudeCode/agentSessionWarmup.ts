@@ -326,7 +326,10 @@ export async function deriveConnectionConfig(
   connectionModelId?: UniqueModelId,
   reasoningEffort: ReasoningEffortOption = 'default',
   fastMode = false,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
+   *  default while ignoring session overrides. */
+  headless = false
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
@@ -349,7 +352,8 @@ export async function deriveConnectionConfig(
         fastMode,
         selectedKnowledgeBaseIds,
         undefined,
-        connectionModelId
+        connectionModelId,
+        headless
       )
     }
   } catch (error) {
@@ -388,7 +392,8 @@ async function deriveConnectionConfigFromSnapshot(
   fastMode: boolean,
   selectedKnowledgeBaseIds: readonly string[] = [],
   materialized?: ConnectionMaterializationFacts,
-  connectionModelId?: UniqueModelId
+  connectionModelId?: UniqueModelId,
+  headless = false
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
@@ -407,11 +412,11 @@ async function deriveConnectionConfigFromSnapshot(
     // the agent default — those runs resolve against the default while
     // ignoring session overrides, so treating the default as stale would
     // discard the configured sonnet/haiku aliases on every scheduled run
-    // behind an interactive override (cherry-pr-review inv_2a46bb6139db6292#f1).
+    // behind an interactive override (cherry-pr-review inv_2a46bb6139db6292#f1). The
+    // dispatch mode, not model equality, decides which resolution the capture is compared
+    // against (cherry-pr-review inv_d81d8d063f588b6a#f1).
     const pinSubModelsToPrimary =
-      connectionModelId !== undefined &&
-      connectionModelId !== (session.model ?? agent.model) &&
-      connectionModelId !== agent.model
+      connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -523,7 +528,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
+   *  default while ignoring session overrides. */
+  headless = false
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -560,12 +568,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // Headless runs resolve against the agent default while ignoring session overrides, so a capture
   // matching the agent default is current for them too — treating it as stale would discard the
   // configured sonnet/haiku aliases on every scheduled run behind an interactive override
-  // (cherry-pr-review inv_2a46bb6139db6292#f1). With
+  // (cherry-pr-review inv_2a46bb6139db6292#f1). An interactive capture matching the agent
+  // default while the session has since switched models is NOT current — model equality cannot
+  // stand in for the dispatch mode, or the old turn launches with the captured primary but the
+  // newer edited aliases (cherry-pr-review inv_d81d8d063f588b6a#f1). With
   // no capture (or a turn-less connection) the latest sub-models apply as well.
   const pinSubModelsToPrimary =
-    connectionModelId !== undefined &&
-    connectionModelId !== (session.model ?? agent.model) &&
-    connectionModelId !== agent.model
+    connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
   const route = await resolveClaudeCodeRuntimeRoute(

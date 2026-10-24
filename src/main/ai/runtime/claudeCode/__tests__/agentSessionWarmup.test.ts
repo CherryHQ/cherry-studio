@@ -638,13 +638,59 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       workspace: { type: 'user', path: '/workspace/project' }
     })
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-1')
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-1',
+      'default',
+      false,
+      [],
+      true
+    )
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_MODEL: 'model-1-api',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-plan-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-small-api'
     })
 
+    const current = await deriveConnectionConfig('session-1', 'provider-1::model-1', 'default', false, [], true)
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
+  it('pins aliases to the captured default when an interactive turn captured it before a session switch (inv_d81d8d063f588b6a)', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
+    // The turn captured the then-current resolution (the agent default); the
+    // session has SINCE switched to its own override and the Sonnet/Haiku
+    // aliases were edited in the same window. Matching the agent default by
+    // equality does NOT make the capture current for an interactive turn —
+    // the aliases must pin to the captured primary, not leak the newer edits
+    // (cherry-pr-review inv_d81d8d063f588b6a#f1).
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-1')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-1-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-1-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-1-api'
+    })
+
+    // The connection-signature derivation agrees with query construction.
     const current = await deriveConnectionConfig('session-1', 'provider-1::model-1')
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')

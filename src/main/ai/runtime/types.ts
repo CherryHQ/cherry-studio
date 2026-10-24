@@ -73,6 +73,10 @@ export interface AgentRuntimeConnectInput {
   resumeToken?: string
   /** Independent native identity for an edited first turn with no history to resume. */
   nativeSessionId?: string
+  /** True when this connection's turn is headless: headless turns resolve against the agent
+   *  default and ignore session model overrides, which decides which resolution a captured
+   *  connection model is compared against for stale-capture pinning. */
+  headless?: boolean
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this

@@ -267,6 +267,8 @@ type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   fastMode: boolean
+  /** The target turn's dispatch mode: headless turns resolve against the agent default. */
+  headless?: boolean
 }
 
 type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessionTurn, SteerContinuationReservation>
@@ -1713,6 +1715,7 @@ export class AgentSessionRuntimeService extends BaseService {
           serviceTier: turn.serviceTier,
           knowledgeBaseIds: turn.knowledgeBaseIds,
           fastMode: turn.fastMode,
+          headless: turn.headless === true,
           trustedNotifyChannels: turn.trustedNotifyChannels
         }
       : {
@@ -1882,6 +1885,7 @@ export class AgentSessionRuntimeService extends BaseService {
       serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
+      headless: target.headless,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId),
