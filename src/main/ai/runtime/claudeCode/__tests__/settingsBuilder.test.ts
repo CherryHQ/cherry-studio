@@ -5,6 +5,7 @@ import path from 'node:path'
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { Server } from '@modelcontextprotocol/server'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -161,6 +162,7 @@ vi.mock('@application', () => ({
     // Session-keyed live state always resolves to the one real service instance (created below),
     // so the many per-test `applicationGet` overrides don't each have to register it.
     get: (name: string) => {
+      if (name === 'McpSkillService') return defaultServiceInstances.McpSkillService
       if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
       if (name === 'AgentSessionRuntimeService') {
@@ -1651,6 +1653,62 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   })
 
+  it.each(['Bash', 'mcp__skills__load_mcp_skill'])(
+    'does not auto-allow %s and rechecks skill context after approval',
+    async (toolName) => {
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn(() => ({ approval: 'auto' })),
+        isDisabled: () => false,
+        getPermissionMode: () => 'default',
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      const validate = vi.fn()
+      defaultServiceInstances.McpSkillService.toolApproval.mockReturnValue({
+        signal: new AbortController().signal,
+        approve: () => {
+          validate()
+          return toolName === 'Bash'
+            ? { command: 'echo ready' }
+            : { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
+        }
+      })
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+      try {
+        for (const changed of [false, true]) {
+          const input =
+            toolName === 'Bash'
+              ? { command: 'echo ready' }
+              : { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
+          const pending = settings.canUseTool!(toolName, input, {
+            signal: new AbortController().signal,
+            toolUseID: 'skill-exec',
+            requestId: 'skill-exec-request'
+          })
+          if (changed)
+            validate.mockImplementation(() => {
+              throw new Error('Skill changed')
+            })
+          mocks.approvalRegister.mock.lastCall![0].resolve({ approved: true })
+          await expect(pending).resolves.toMatchObject(
+            changed ? { behavior: 'deny', message: 'Skill changed' } : { behavior: 'allow', updatedInput: input }
+          )
+        }
+      } finally {
+        defaultServiceInstances.McpSkillService.toolApproval.mockReset().mockReturnValue(undefined)
+      }
+    }
+  )
+
   describe.each(['auto', 'bypassPermissions'])('SDK-forced delegation approval in %s', (permissionMode) => {
     it.each(
       DELEGATION_RUNTIME_NAMES.flatMap((toolName) =>
@@ -2424,6 +2482,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(() => ({ approval: 'auto' })),
       isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => 'bypassPermissions'),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
@@ -3392,6 +3451,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       mocks.createToolPolicySnapshot.mockResolvedValue({
         resolve: vi.fn(() => ({ approval: 'auto' })),
         isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => 'auto'),
         update: vi.fn(),
         setPermissionMode: vi.fn()
       })

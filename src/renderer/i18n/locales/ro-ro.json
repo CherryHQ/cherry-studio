@@ -2238,6 +2238,8 @@
   "lmstudio.keep_alive_time.description": "Timpul în minute pentru a menține conexiunea activă; implicit este 5 minute.",
   "lmstudio.keep_alive_time.placeholder": "Minute",
   "lmstudio.keep_alive_time.title": "Timp menținere conexiune",
+  "mcp.skills.unavailable": "Abilități MCP indisponibile",
+  "mcp.skills.use": "Folosește abilitatea MCP „{{name}}” de la {{server}} ({{origin}}).",
   "message.agents.import.error": "Import eșuat",
   "message.agents.imported": "S-au importat cu succes {{count}} asistent/asistenți",
   "message.api.check.model.title": "Selectează modelul de utilizat pentru detectare",

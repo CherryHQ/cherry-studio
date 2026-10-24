@@ -2238,6 +2238,8 @@
   "lmstudio.keep_alive_time.description": "Tempo que o modelo permanece na memória após a conversa (padrão: 5 minutos)",
   "lmstudio.keep_alive_time.placeholder": "minutos",
   "lmstudio.keep_alive_time.title": "Manter tempo ativo",
+  "mcp.skills.unavailable": "Competências MCP indisponíveis",
+  "mcp.skills.use": "Utilize a competência MCP «{{name}}» de {{server}} ({{origin}}).",
   "message.agents.import.error": "Falha na importação",
   "message.agents.imported": "Foram importados {{count}} assistentes com êxito",
   "message.api.check.model.title": "Selecione o modelo a ser verificado",

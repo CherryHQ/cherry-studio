@@ -3,6 +3,7 @@ import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-o
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
+import type { McpSkillContext } from '@shared/types/mcpSkills'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
@@ -18,7 +19,9 @@ export const agentSessionMessageTable = sqliteTable(
     role: text().notNull(),
     // `data` stores MessageData (`{ parts }`); Drizzle handles
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
-    data: text({ mode: 'json' }).$type<MessageData & { runtimeAnchor?: unknown; nativeSessionId?: string }>().notNull(),
+    data: text({ mode: 'json' })
+      .$type<MessageData & { runtimeAnchor?: unknown; nativeSessionId?: string; mcpSkills?: McpSkillContext[] }>()
+      .notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),

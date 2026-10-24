@@ -2238,6 +2238,8 @@
   "lmstudio.keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
   "lmstudio.keep_alive_time.placeholder": "Minutes",
   "lmstudio.keep_alive_time.title": "Keep Alive Time",
+  "mcp.skills.unavailable": "MCP skills unavailable",
+  "mcp.skills.use": "Use the MCP skill “{{name}}” from {{server}} ({{origin}}).",
   "message.agents.import.error": "Import failed",
   "message.agents.imported": "Successfully imported {{count}} assistant(s)",
   "message.api.check.model.title": "Select the model to use for detection",

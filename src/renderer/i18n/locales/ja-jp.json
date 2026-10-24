@@ -2238,6 +2238,8 @@
   "lmstudio.keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
   "lmstudio.keep_alive_time.placeholder": "分",
   "lmstudio.keep_alive_time.title": "保持時間",
+  "mcp.skills.unavailable": "MCP スキルを利用できません",
+  "mcp.skills.use": "{{server}} の MCP スキル「{{name}}」（{{origin}}）を使用してください。",
   "message.agents.import.error": "インポートに失敗しました",
   "message.agents.imported": "{{count}} 件のアシスタントをインポートしました",
   "message.api.check.model.title": "検出に使用するモデルを選択してください",

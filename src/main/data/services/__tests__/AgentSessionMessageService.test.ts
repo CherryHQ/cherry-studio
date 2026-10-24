@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { createMcpSkillsFixture } from '@test-helpers/mcpSkills'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -382,6 +383,68 @@ describe('AgentSessionMessageService', () => {
           .runtimeAnchor
       ).toBeUndefined()
     })
+
+    it.each([false, true])(
+      'keeps MCP skill provenance private across a native fork (invalidated: %s)',
+      async (invalidated) => {
+        await seedAgent('fork-agent', 'Fork Agent')
+        await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+        agentSessionMessageService.saveMessage({
+          sessionId: 'fork-source',
+          runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' } },
+          message: {
+            id: USER_MESSAGE_ID,
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'Use reports' }] }
+          }
+        })
+        const skill = {
+          ...createMcpSkillsFixture().manifest(),
+          serverId: 'origin',
+          serverName: 'Reports',
+          originFingerprint: 'a'.repeat(64),
+          invalidated
+        }
+        agentSessionMessageService.recordMcpSkill('fork-source', USER_MESSAGE_ID, { ...skill, invalidated: false })
+        if (invalidated) agentSessionMessageService.invalidateMcpSkill('fork-source', skill.serverId, skill.uri)
+        const source = agentSessionForkService.read('fork-source', USER_MESSAGE_ID)
+        commitData({
+          source,
+          messageId: USER_MESSAGE_ID,
+          targetSessionId: 'fork-child',
+          createdAt: Date.now(),
+          excludedIds: [],
+          messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID, runtimeResumeToken: 'child-token' }))
+        })
+        expect(agentSessionMessageService.listMcpSkills('fork-child')).toEqual([skill])
+        expect(() => agentSessionMessageService.deleteSessionMessage('fork-child', FILE_ENTRY_ID)).toThrow()
+        expect(agentSessionMessageService.listMcpSkills('fork-child')).toEqual([skill])
+        expect(agentSessionMessageService.getSessionMessage('fork-child', FILE_ENTRY_ID).data).not.toHaveProperty(
+          'mcpSkills'
+        )
+        agentSessionMessageService.saveMessage({
+          sessionId: 'fork-child',
+          message: {
+            id: FILE_ENTRY_ID,
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'edited' }], ...{ mcpSkills: [] } }
+          }
+        })
+        expect(agentSessionMessageService.listMcpSkills('fork-child')).toEqual([skill])
+        agentSessionMessageService.saveMessage({
+          sessionId: 'fork-child',
+          message: {
+            id: ASSISTANT_MESSAGE_ID,
+            role: 'user',
+            status: 'success',
+            data: { parts: [], ...{ mcpSkills: [skill] } }
+          }
+        })
+        expect(agentSessionMessageService.listMcpSkills('fork-child')).toEqual([skill])
+      }
+    )
 
     it.each([
       ['Source', 'Source (1)', 'Source (2)'],
