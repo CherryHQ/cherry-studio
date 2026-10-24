@@ -4679,6 +4679,7 @@
   "settings.mcp.builtinServersDescriptions.browser": "Sayfa anlık görüntüleriyle gezinin, öğelere tıklayıp metin girin, sekmeler arasında geçiş yapın ve iletişim kutularını yönetin. Varsayılan olarak arka planda çalışır.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Harita arama, fiyat tahmini, sipariş yönetimi ve sürücü takibi dâhil araç çağırma hizmetleri sunan DiDi MCP sunucusu. Yalnızca Çin ana karasında kullanılabilir. DIDI_API_KEY ortam değişkeninin yapılandırılması gerekir",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Dify'ın MCP sunucusu uygulaması, Dify ile etkileşim kurmak için basit bir API sağlar. Dify Key'in yapılandırılması gerekir",
+  "settings.mcp.builtinServersDescriptions.evolink": "150'den fazla yapay zekâ modeliyle görsel, video, müzik ve konuşma üretmek için EvoLink'e bağlanır. Model arama, fiyatlar ve fiyat teklifleri ücretsizdir, üretim ise EvoLink bakiyenizden ücretlendirilir. EvoLink hesabı yetkilendirmesi gerekir.",
   "settings.mcp.builtinServersDescriptions.fetch": "URL'deki web içeriğini almak için MCP sunucusu",
   "settings.mcp.builtinServersDescriptions.filesystem": "Dosya sistemi işlemleri için Model Context Protocol (MCP) uygulayan bir Node.js sunucusu. Erişime izin verilen dizinlerin yapılandırılması gerekir.",
   "settings.mcp.builtinServersDescriptions.flomo": "Yapay zekâ aracılığıyla notları ve fikirleri hızla kaydetmek için flomo'ya bağlanır. flomo hesabı yetkilendirmesi gerekir.",

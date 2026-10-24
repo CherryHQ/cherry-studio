@@ -4679,6 +4679,7 @@
   "settings.mcp.builtinServersDescriptions.browser": "ควบคุมหน้าต่าง Electron แบบ headless ผ่าน Chrome DevTools Protocol เครื่องมือ: เปิด URL, รัน JS บรรทัดเดียว, รีเซ็ตเซสชัน",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "MCP server ของ DiDi ที่ให้บริการเรียกรถรวมถึงการค้นหาแผนที่ ประมาณราคา การจัดการออเดอร์ และการติดตามคนขับ เฉพาะในจีนแผ่นดินใหญ่ ต้องกำหนดค่าตัวแปรสภาพแวดล้อม DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "MCP server ของ Dify ให้ API ที่เรียบง่ายเพื่อโต้ตอบกับ Dify ต้องกำหนดค่า Dify Key",
+  "settings.mcp.builtinServersDescriptions.evolink": "เชื่อมต่อกับ EvoLink เพื่อสร้างภาพ วิดีโอ เพลง และเสียงพูดด้วยโมเดล AI กว่า 150 รายการ การค้นหาโมเดล ดูราคา และขอใบเสนอราคาใช้ได้ฟรี ส่วนการสร้างจะหักจากยอดคงเหลือ EvoLink ของคุณ ต้องอนุญาตบัญชี EvoLink",
   "settings.mcp.builtinServersDescriptions.fetch": "MCP server สำหรับดึงเนื้อหาเว็บจาก URL",
   "settings.mcp.builtinServersDescriptions.filesystem": "เซิร์ฟเวอร์ Node.js ที่ใช้ Model Context Protocol (MCP) สำหรับการดำเนินการระบบไฟล์ ต้องกำหนดค่าไดเรกทอรีที่อนุญาตให้เข้าถึง",
   "settings.mcp.builtinServersDescriptions.flomo": "เชื่อมต่อกับ flomo เพื่อบันทึกโน้ตและแนวคิดผ่าน AI อย่างรวดเร็ว ต้องอนุญาตบัญชี flomo",

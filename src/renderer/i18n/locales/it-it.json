@@ -4679,6 +4679,7 @@
   "settings.mcp.builtinServersDescriptions.browser": "Esplora pagine tramite istantanee, fai clic e digita negli elementi, naviga tra le schede e gestisci le finestre di dialogo. Viene eseguito in background per impostazione predefinita.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Server MCP di DiDi che offre servizi di trasporto con conducente, tra cui ricerca su mappa, stima dei prezzi, gestione degli ordini e monitoraggio del conducente. Disponibile solo nella Cina continentale. Richiede la configurazione della variabile d'ambiente DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Il server MCP di Dify offre una semplice API per interagire con Dify. Richiede la configurazione della chiave Dify",
+  "settings.mcp.builtinServersDescriptions.evolink": "Connettiti a EvoLink per generare immagini, video, musica e voce con oltre 150 modelli di IA. Ricerca dei modelli, prezzi e preventivi sono gratuiti, mentre la generazione viene addebitata sul tuo saldo EvoLink. Richiede l'autorizzazione dell'account EvoLink.",
   "settings.mcp.builtinServersDescriptions.fetch": "Server MCP per recuperare contenuti web da URL",
   "settings.mcp.builtinServersDescriptions.filesystem": "Un server Node.js che implementa il Model Context Protocol (MCP) per le operazioni sul file system. Richiede la configurazione delle cartelle a cui è consentito accedere.",
   "settings.mcp.builtinServersDescriptions.flomo": "Connettiti a flomo per annotare rapidamente note e idee tramite l'IA. Richiede l'autorizzazione dell'account flomo.",

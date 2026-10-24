@@ -4679,6 +4679,7 @@
   "settings.mcp.builtinServersDescriptions.browser": "ページのスナップショットを確認し、要素のクリックや入力、タブの移動、ダイアログの操作ができます。既定ではバックグラウンドで動作します。",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "DiDi MCPサーバーは、地図検索、料金見積もり、注文管理、ドライバー追跡を含むライドシェアサービスを提供します。中国本土でのみ利用可能です。DIDI_API_KEY環境変数の設定が必要です",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "DifyのMCPサーバー実装は、Difyと対話するためのシンプルなAPIを提供します。Dify Keyの設定が必要です。",
+  "settings.mcp.builtinServersDescriptions.evolink": "EvoLinkに接続して、150以上のAIモデルで画像、動画、音楽、音声を生成します。モデル検索、価格確認、見積もりは無料で、生成はEvoLinkの残高から課金されます。EvoLinkアカウントの認可が必要です。",
   "settings.mcp.builtinServersDescriptions.fetch": "URLのウェブページコンテンツを取得するためのMCPサーバー",
   "settings.mcp.builtinServersDescriptions.filesystem": "Node.jsサーバーによるファイルシステム操作を実現するモデルコンテキストプロトコル（MCP）。アクセスを許可するフォルダーの設定が必要です",
   "settings.mcp.builtinServersDescriptions.flomo": "flomoに接続して、AIを通じてメモやアイデアを素早くキャプチャします。flomoアカウントの認可が必要です。",
