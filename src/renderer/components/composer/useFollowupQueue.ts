@@ -779,7 +779,6 @@ export function useFollowupQueue({
       // crash mid-switch leaves a duplicate in the queue rather than losing
       // the outgoing draft entirely.
       const taken = takenEditRef.current
-      const incomingSlot = itemsRef.current.findIndex((entry) => entry.id === id)
       // The outgoing item's landed restore, if the switch got that far: a
       // failed switch after this point must hold the copy instead of leaving
       // it deliverable while the editor still owns its content.
@@ -947,6 +946,16 @@ export function useFollowupQueue({
         await releaseClaim()
         return undefined
       }
+      // Preserve identity-based position BEFORE DELETE can remove the incoming
+      // row from the query mirror (inv_7cb28f349bd94df4). Include the outgoing
+      // restore even when its membership refresh has not arrived yet.
+      const beforeDeleteIds = itemsRef.current.map((entry) => entry.id)
+      if (restoredCopy && taken && !beforeDeleteIds.includes(restoredCopy.id)) {
+        const outgoingSlot = resolveRestoreSlot(itemsRef.current, taken)
+        beforeDeleteIds.splice(outgoingSlot, 0, restoredCopy.id)
+      }
+      const beforeDeleteSlot = beforeDeleteIds.indexOf(id)
+      const incomingPredecessors = beforeDeleteIds.slice(0, Math.max(beforeDeleteSlot, 0))
       // A committed DELETE can still time out: retry once and treat NOT_FOUND
       // as deleted, so a lost response cannot drop the draft.
       let deleted = false
@@ -1083,8 +1092,21 @@ export function useFollowupQueue({
       // otherwise the spliced copy bumps the slot exactly once
       // (inv_39ce2d2808a2a72e#f1).
       const liveIncomingSlot = mirrorIds.indexOf(restoredItem.id)
-      const baseSlot = liveIncomingSlot >= 0 ? liveIncomingSlot : incomingSlot
-      const takenSlot = Math.max(baseSlot + (!mirrorHasCopy && restoreSlot >= 0 && restoreSlot <= baseSlot ? 1 : 0), 0)
+      let takenSlot: number
+      if (liveIncomingSlot >= 0) {
+        takenSlot = liveIncomingSlot + (!mirrorHasCopy && restoreSlot >= 0 && restoreSlot <= liveIncomingSlot ? 1 : 0)
+      } else {
+        // DELETE's refresh already landed: walk surviving predecessors, not
+        // the stale pre-restore numeric slot, which can put B before A.
+        takenSlot = 0
+        for (let i = incomingPredecessors.length - 1; i >= 0; i--) {
+          const predecessor = membership.indexOf(incomingPredecessors[i])
+          if (predecessor >= 0) {
+            takenSlot = predecessor + 1
+            break
+          }
+        }
+      }
       takenEditRef.current = {
         item: restoredItem,
         slot: takenSlot,
