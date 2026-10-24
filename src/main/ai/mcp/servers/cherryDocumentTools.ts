@@ -60,8 +60,11 @@ async function isAuthorizedOutsideWorkspace(context: CherryDocumentContext, requ
  * Resolve the source document, confined to the session workspace plus the trusted roots above.
  * Anything else keeps the workspace guard's rejection — this tool is auto-approved, so an
  * unauthorized path must fail here rather than reach the converter.
+ *
+ * Shared with sibling office tools (e.g. {@link ./cherryOfficeTools} `preview_slides`) that need
+ * the same authorization envelope.
  */
-async function resolveDocumentSource(context: CherryDocumentContext, sourcePath: string): Promise<FileAttachment> {
+export async function resolveDocumentSource(context: CherryDocumentContext, sourcePath: string): Promise<FileAttachment> {
   try {
     return await resolveWorkspaceFile(context.workspacePath, sourcePath)
   } catch (workspaceError) {
