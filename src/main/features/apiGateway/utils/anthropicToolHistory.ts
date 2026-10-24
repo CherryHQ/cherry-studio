@@ -51,6 +51,7 @@ export function normalizeAnthropicToolHistory(messages: MessageParam[]): Anthrop
       const duplicateLocation = { messageIndex, contentIndex }
 
       if (block.type === 'tool_use') {
+        if (typeof block.id !== 'string' || !block.id.trim()) continue
         const first = seenToolUses.get(block.id)
         if (!first) {
           seenToolUses.set(block.id, { block, location: duplicateLocation })
@@ -78,6 +79,7 @@ export function normalizeAnthropicToolHistory(messages: MessageParam[]): Anthrop
         markDuplicate(messageIndex, contentIndex)
         duplicateToolUseCount += 1
       } else if (block.type === 'tool_result') {
+        if (typeof block.tool_use_id !== 'string' || !block.tool_use_id.trim()) continue
         const first = seenToolResults.get(block.tool_use_id)
         if (!first) {
           seenToolResults.set(block.tool_use_id, { block, location: duplicateLocation })
