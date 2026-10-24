@@ -910,6 +910,46 @@ sessions. Cherry does not rebuild their context from visible messages when nativ
 history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for the
 separate publication and file-resource recovery path.
 
+### Claude process diagnostics and automatic reset
+
+Every failed Claude spawn logs a warning with `reference`, Cherry `sessionId` (null for
+callers without one), the exact `resumeToken` supplied to that spawn (null for a fresh
+spawn), and `spawnArgsFingerprint`, alongside `category`, `exitCode`, `exitSignal`, and
+`spawnFailed`. Spawn facts are frozen before the first spawn attempt; later native session
+IDs do not change them. The fingerprint is `claude-spawn-v1:` plus a SHA-256 digest of the
+executable family and ordered, sanitized argv structure. Known flag names, operand arity,
+order, repetition, and equals/separate form contribute; argument values, unknown flag names,
+installation paths, cwd, and environment do not. Neither warnings nor surfaced process
+errors include stderr, credentials, or raw argv. The existing bounded stderr tail and drain
+grace remain classification inputs only.
+
+The runtime host counts one persistence-confirmed foreground terminal error per user turn
+when its structured error identifies `ClaudeCodeProcessExitError`, including category
+`unknown` and startup failures. Three consecutive qualifying failures require a session
+runtime reset. Success, cancellation, and ordinary API errors break the streak; an effective
+model change starts a new streak. Background, receive-only, headless, idle-prime, and parked
+prewarm outcomes neither increment nor clear it. Disconnect and entry disposal preserve the
+service-owned streak; a successful reset or service restart clears it.
+
+The third terminal notification synchronously registers a single-flight reset and closes
+admissions, then returns normally. Reset waits outside the listener for terminal dispatch
+to settle, joins prior fork/edit and launch work, acquires exclusive mutation ownership,
+and strictly drains runtime connections, connecting and closing generations, warm queries,
+and warm preparations. Active writers, approvals, compaction, or failed closure prevent
+identity clearing. A blocked or failed reset remains required; dependent sends reject and
+later admissions retry. Reset promises participate in activity, write-quiesce, and shutdown
+drains. New sends and edits meet the barrier before writing rows; priming and prewarming
+skip required resets. Already submitted queued messages survive teardown in order and run
+once after a successful reset.
+
+Only after persistence and strict teardown does one atomic message-service update clear
+`runtimeResumeToken` on **every** session message and remove historical `data.nativeSessionId`.
+The old entry and closing-token handoff are retired. IDs, visible conversation, attachments,
+usage, timestamps, and unrelated metadata remain intact. Reconnect and app restart cannot
+restore those abandoned selectors. The next user turn starts a fresh native transcript;
+its new token becomes the ordinary durable reconnect anchor. Failed input is never replayed
+automatically, and visible UI history is never reconstructed into native context.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.
@@ -934,7 +974,8 @@ its close is chained behind the prior one so callers wait for every connection g
 An immediate retry may create its entry while that close is still draining, but it cannot connect until
 the predecessor has closed. Teardown also joins an in-flight `driver.connect()` and closes any stale
 connection it produces before releasing the successor; the predecessor's observed resume token is handed
-to that successor directly.
+to that successor directly, except when a required runtime reset retires the predecessor and clears
+its durable identity before admitting a successor.
 
 `ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,

@@ -190,6 +190,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', 'explicit-token')
 
+    expect(request?.diagnosticContext).toEqual({ sessionId: 'session-1' })
+    expect(request?.options).not.toHaveProperty('diagnosticContext')
     expect(request?.options.resume).toBe('explicit-token')
     expect(mocks.getLastRuntimeResumeToken).not.toHaveBeenCalled()
   })
@@ -236,6 +238,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const current = await deriveConnectionConfig('session-1')
 
     if (!warmRequest || !current.ok) throw new Error('expected warm request and current config')
+    expect(warmRequest.diagnosticContext).toEqual({ sessionId: 'session-1' })
+    expect(warmRequest.options).not.toHaveProperty('diagnosticContext')
     expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
   })
 

@@ -96,6 +96,7 @@ const fake = vi.hoisted(() => {
       })
     },
     runtime: {
+      ensureRuntimeResetComplete: async () => {},
       assertSessionWritable() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,

@@ -530,6 +530,38 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
   })
 
+  it('normalizes synchronous startup spawn failures with Cherry identity and no raw payload', async () => {
+    let captured: any
+    mocks.processManagerSpawn.mockImplementationOnce((_options, diagnostics) => {
+      captured = diagnostics
+      diagnostics.spawnFailed = true
+      diagnostics.category = 'unknown'
+      throw new Error('planted-startup-secret')
+    })
+    mocks.createClaudeQuery.mockImplementationOnce(({ options }) =>
+      options.spawnClaudeCodeProcess({
+        command: 'claude',
+        args: ['--resume=T'],
+        env: {},
+        signal: new AbortController().signal
+      })
+    )
+    const error = await new ClaudeCodeRuntimeDriver()
+      .connect({
+        sessionId: 'cherry-startup',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      .catch((failure) => failure)
+    expect(captured.sessionId).toBe('cherry-startup')
+    expect(error).toMatchObject({
+      name: 'ClaudeCodeProcessExitError',
+      claudeCodeExitCategory: 'unknown',
+      diagnosticReference: captured.reference
+    })
+    expect(error.message).not.toContain('planted-startup-secret')
+  })
+
   it('uses the serving receipt retained by a consumed warm process', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -608,6 +640,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       warmQuery: { query: vi.fn(() => query) },
       processDiagnostics: {
         reference: 'warm-diagnostic-ref',
+        sessionId: 'session-1',
+        spawn: Object.freeze({ resumeToken: 'parked-T', spawnArgsFingerprint: 'claude-spawn-v1:' + 'a'.repeat(64) }),
         terminalReason: 'Failed to spawn Claude Code process: spawn ENOENT; api_key=sk-ant-private',
         category: 'auth',
         spawnFailed: true
@@ -618,6 +652,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
       agentId: 'agent-1',
       modelId: 'claude-code::sonnet'
     })
+    expect((connection as any).processDiagnostics).toBe(
+      (await mocks.consumeWarmQuery.mock.results.at(-1)!.value).processDiagnostics
+    )
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
