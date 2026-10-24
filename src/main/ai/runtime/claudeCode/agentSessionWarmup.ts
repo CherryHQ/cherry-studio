@@ -386,9 +386,15 @@ async function deriveConnectionConfigFromSnapshot(
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
     // Same pinning semantics as the query-request builder (see its comment):
     // pin only a genuinely stale capture, never an ordinary session override
-    // (cherry-pr-review inv_f7cde0553102c364).
+    // (cherry-pr-review inv_f7cde0553102c364) or a headless capture matching
+    // the agent default — those runs resolve against the default while
+    // ignoring session overrides, so treating the default as stale would
+    // discard the configured sonnet/haiku aliases on every scheduled run
+    // behind an interactive override (cherry-pr-review inv_2a46bb6139db6292#f1).
     const pinSubModelsToPrimary =
-      connectionModelId !== undefined && connectionModelId !== (session.model ?? agent.model)
+      connectionModelId !== undefined &&
+      connectionModelId !== (session.model ?? agent.model) &&
+      connectionModelId !== agent.model
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -533,9 +539,16 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // otherwise the captured turn would launch with the old ANTHROPIC_MODEL but new sonnet/haiku defaults,
   // or be forced onto the gateway by a sub-model that now points at another provider. An ordinary session
   // override (`session.model` differing from `agent.model`) is current session state, not a stale
-  // capture: the configured sub-model aliases still apply (cherry-pr-review inv_f7cde0553102c364). With
+  // capture: the configured sub-model aliases still apply (cherry-pr-review inv_f7cde0553102c364).
+  // Headless runs resolve against the agent default while ignoring session overrides, so a capture
+  // matching the agent default is current for them too — treating it as stale would discard the
+  // configured sonnet/haiku aliases on every scheduled run behind an interactive override
+  // (cherry-pr-review inv_2a46bb6139db6292#f1). With
   // no capture (or a turn-less connection) the latest sub-models apply as well.
-  const pinSubModelsToPrimary = connectionModelId !== undefined && connectionModelId !== (session.model ?? agent.model)
+  const pinSubModelsToPrimary =
+    connectionModelId !== undefined &&
+    connectionModelId !== (session.model ?? agent.model) &&
+    connectionModelId !== agent.model
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
   const route = await resolveClaudeCodeRuntimeRoute(

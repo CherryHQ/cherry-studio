@@ -614,6 +614,42 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
   })
 
+  it('keeps configured aliases when a headless run supplies the agent default behind a session override (inv_2a46bb6139db6292)', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
+    // The interactive session carries its own override; a scheduled run
+    // resolves against the agent default and supplies it as the connection
+    // model. That capture is current for headless resolution, NOT a stale
+    // interactive capture — the aliases must survive (cherry-pr-review
+    // inv_2a46bb6139db6292#f1).
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-1')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-1-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-small-api'
+    })
+
+    const current = await deriveConnectionConfig('session-1', 'provider-1::model-1')
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
   it('fingerprints the enabled key set, stable across rotation and sensitive to key-set edits', async () => {
     mocks.getApiKeys.mockReturnValue([
       { key: 'key-a', isEnabled: true },
