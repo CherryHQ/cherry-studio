@@ -10,6 +10,7 @@ import {
   decideMessage,
   decideRunEnd,
   decideSpawn,
+  decideSpawnAbandoned,
   decideSteerWithdrawn,
   decideStop,
   decideUserStopSubagent,
@@ -134,6 +135,39 @@ describe('spawning', () => {
       child: 'c1',
       run: 1
     })
+  })
+
+  // Catches a foreground child its aborted call never started left running in the ledger: no run will end it, so the
+  // facts and the host's views would show it live forever (H3, AC10); and a started run ended behind its stop's back.
+  it('ends run 1 of a foreground child its call abandoned as stopped by the user, and leaves a started run alone', () => {
+    const history = apply([user(), assistant('x')], spawn(job), ['c1'])
+    const abandoned = decideSpawnAbandoned(facts(history), keys.subagentSpawn(k))
+    expect(abandoned.ops).toMatchObject([
+      {
+        type: 'append-record',
+        record: {
+          type: 'subagent-run',
+          value: {
+            sessionId: 'c1',
+            run: 1,
+            background: false,
+            status: 'finished',
+            outcome: 'stopped',
+            stoppedBy: 'user'
+          }
+        },
+        key: keys.subagentEnd('c1' as never, 1)
+      }
+    ])
+    expect(abandoned.effects).toEqual([])
+    const after = apply(history, abandoned)
+    expect(decideMessage(facts(after), inputs({ args: { id: 'c1', message: 'm' } }), call('k2')).result).toMatchObject({
+      kind: 'refused',
+      text: expect.stringContaining('stopped by the user')
+    })
+    expect(decideSpawnAbandoned(facts(after), keys.subagentSpawn(k)).ops).toEqual([])
+    const running = facts(history, { children: { c1: { running: true, runUsage: [usage(1)] } } })
+    expect(decideSpawnAbandoned(running, keys.subagentSpawn(k))).toEqual({ ops: [], effects: [], result: null })
   })
 })
 

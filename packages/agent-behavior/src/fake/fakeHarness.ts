@@ -136,7 +136,14 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         message: (child, input, key, run) =>
           enter(scope, async () => {
             const target = thread(child)
-            const accepted = message(host, target, input, key, run)
+            const { owner } = target
+            // H3: once the call that owns the child's first run aborted, its stop may have passed the child already.
+            const ownerAborted =
+              owner !== undefined &&
+              owner.thread === scope.owner?.thread &&
+              owner.run === scope.owner.run &&
+              scope.signal?.aborted === true
+            const accepted = message(host, target, input, key, run, ownerAborted)
             if (accepted.status !== 'queued') return accepted
             // A steer answers once a boundary took it, or once its run ended first or its tool call aborted (G-C5, H3).
             const submission = target.submissions.get(key)!

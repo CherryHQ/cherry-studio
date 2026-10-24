@@ -141,6 +141,23 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
   return { ops, effects: [], result: { kind: 'spawn', key, background, fork, input } }
 }
 
+/**
+ * H3, AC10: the foreground child spawned under `spawn` will never run, because its calling tool aborted during the
+ * spawn commit or the harness withdrew its first input. Its run 1 ends here as stopped by the user, as a stop before
+ * the first input ends it (G-C4); a run that started is left to the stop that reached it.
+ */
+export function decideSpawnAbandoned(facts: Facts, spawn: Key): Step<null> {
+  const created = facts.history.find((entry) => entry.kind === 'record' && entry.key === spawn)
+  const child =
+    created?.kind === 'record' && created.record.type === 'subagent-run' ? created.record.value.sessionId : undefined
+  const first = readSubagents(facts.history)
+    .find((ledger) => ledger.child === child)
+    ?.runs.get(1)
+  if (first?.status !== 'running') return refuse(null)
+  const stopped = stopRun(facts, first, 'user')
+  return stopped.ended ? { ops: stopped.ops, effects: [], result: null } : refuse(null)
+}
+
 export type MessageDecision =
   | { readonly kind: 'refused'; readonly text: string }
   | { readonly kind: 'queued'; readonly child: ThreadId; readonly text: string }

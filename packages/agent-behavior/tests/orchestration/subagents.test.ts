@@ -503,6 +503,71 @@ describe('subagent tools', () => {
     ])
   })
 
+  // Catches a foreground child started after the parent's stop passed it (H3, AC10): the stop came while the spawn
+  // commit returned or the first input was on its way, the child had no run to stop, and its run would go on unstopped.
+  it.each(['the spawn commit', 'the first input'] as const)(
+    'starts no foreground child when the turn stops during %s',
+    async (at) => {
+      const reached = latch()
+      const gate = latch()
+      let signal: AbortSignal | undefined
+      // Held after the spawn commit, the input goes through ports no call owns, so only the tool's own check holds it.
+      const commitHeld = (ports: BoundPorts, parent: ThreadId): BoundPorts => ({
+        ...ports,
+        ledger: {
+          ...ports.ledger,
+          transact: async (thread, decide) => {
+            const committed = await ports.ledger.transact(thread, decide)
+            reached.release()
+            await gate.promise
+            return committed
+          }
+        },
+        helpers: { ...ports.helpers, message: (...args) => w.fake.withCall(parent, (p) => p.helpers.message(...args)) }
+      })
+      const inputHeld = (ports: BoundPorts): BoundPorts => ({
+        ...ports,
+        helpers: {
+          ...ports.helpers,
+          message: async (...args) => {
+            reached.release()
+            await gate.promise
+            return ports.helpers.message(...args)
+          }
+        }
+      })
+      const w = world({
+        wrap: wrapTool('subagent', (run) => (call, ports) => {
+          signal = call.signal
+          return run(call, at === 'the spawn commit' ? commitHeld(ports, call.thread) : inputHeld(ports))
+        }),
+        scripts: (_t, lineage) => (lineage.kind === 'subagent' ? [reply('child ran')] : [])
+      })
+      const t = await w.fake.createThread()
+      w.fake.script(t, [callTool('subagent', SPAWN), reply('never')])
+      await w.fake.sendUser(t, 'go')
+      await reached.promise
+      const stopping = w.enter(t, (entries, ports) => entries.userStop(ports, t, 'stop-1'))
+      await aborted(signal!)
+      gate.release()
+      await stopping
+      await w.fake.settle()
+      const facts = await w.read(t)
+      expect(w.fake.requestLog(CHILD)).toEqual([])
+      expect(facts.children.get(CHILD)?.runUsage).toEqual([])
+      expect(facts.live.runEnd?.outcome).toBe('aborted')
+      expect(runRecords(facts).at(-1)).toMatchObject({
+        sessionId: CHILD,
+        status: 'finished',
+        outcome: 'stopped',
+        stoppedBy: 'user'
+      })
+      expect(toolResults(facts).filter(({ tool }) => tool === 'subagent')).toMatchObject([
+        { isError: true, text: TURN_STOPPED }
+      ])
+    }
+  )
+
   // Catches a named model ignored: the child would run on the default model the host gave (D16).
   it('spawns a child on the model the call names', async () => {
     const sonnet = { key: 'anthropic/sonnet', provider: 'Anthropic', model: 'Sonnet', exact: true }
