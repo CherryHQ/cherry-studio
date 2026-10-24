@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
@@ -24,6 +25,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
+import { installFakeFollowupQueueBackend } from '../../__tests__/fakeFollowupQueueBackend'
 import * as ComposerDraftModule from '../../composerDraft'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
@@ -62,6 +64,7 @@ const mocks = vi.hoisted(() => ({
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
+  filesDispatchListeners: [] as Array<() => void>,
   setSelectedKnowledgeBases: vi.fn(),
   inputAdapterFocus: vi.fn(),
   surfaceFocus: vi.fn(),
@@ -461,6 +464,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   }),
   useComposerToolDispatch: () => ({
     setFiles: mocks.setFiles,
+    subscribeFilesDispatch: (listener: () => void) => {
+      mocks.filesDispatchListeners.push(listener)
+      return () => {}
+    },
     setSelectedKnowledgeBases: mocks.setSelectedKnowledgeBases,
     setIsExpanded: vi.fn(),
     addNewTopic: vi.fn(),
@@ -780,6 +787,7 @@ describe('AgentComposer', () => {
     mocks.openResourceEditDialog.mockReset()
     mocks.registeredLaunchers.clear()
     mocks.registeredFooterActions.clear()
+    installFakeFollowupQueueBackend()
     mocks.optionalQuickPanel = null
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
@@ -887,6 +895,7 @@ describe('AgentComposer', () => {
     })
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
+    mocks.filesDispatchListeners = []
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.surfaceFocus.mockReset()
@@ -1111,9 +1120,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('restores a queued Agent message knowledge scope when editing it', async () => {
+  it('restores a queued Agent message knowledge scope when editing it', async () => {
     mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
     const view = render(
       <AgentComposer
@@ -1137,6 +1144,17 @@ describe('AgentComposer', () => {
       />
     )
     fireEvent.click(screen.getByText('send'))
+    // The DataApi write settles asynchronously; flush it, then re-render to pick up the revalidated queue.
+    await act(async () => {})
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
     const queued = getQueueDock()
     expect(queued).toBeTruthy()
     expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
@@ -1178,9 +1196,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('restores queued reasoning and Fast controls when editing the item', async () => {
+  it('restores queued reasoning and Fast controls when editing the item', async () => {
     mocks.updateAgent.mockReturnValue(new Promise(() => undefined))
     mocks.modelResult = {
       ...model,
@@ -1327,6 +1343,173 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('queues the follow-up only once when Send is activated again while the first enqueue persists', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      const first = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      // Second activation lands while the first enqueue write is still in flight.
+      const second = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await Promise.all([first, second])
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
+  })
+
+  it('queues the follow-up only once when the composer remounts while the first enqueue persists', async () => {
+    // Hold the queue POST open so the first request stays unsettled across
+    // the remount below; count POSTs to catch a second minted UUID.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const firstView = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Navigate away while the enqueue write is still in flight, reopen, and
+    // Send the restored draft before the first request settles: the reopened
+    // instance's fresh local guard must not mint a second queued row
+    // (cherry-pr-review inv_785c705f28b6e100).
+    firstView.unmount()
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    let replayedSend: void | Promise<void> | undefined
+    await act(async () => {
+      replayedSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+
+    await act(async () => {
+      releaseEnqueue?.()
+      // onSendDraft may return void; normalize before settling (cherry-pr-review inv_4359c31231f90009).
+      await Promise.allSettled([Promise.resolve(firstSend), Promise.resolve(replayedSend)])
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    // The enqueue's revalidation targeted the first (now unmounted) instance;
+    // a later reopen reads the landed queue fresh: exactly one row.
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
+  })
+
+  it("does not clear another agent's same-text draft when a delayed enqueue settles after reopen (inv_6caaca041360920a)", async () => {
+    // Hold the queue POST open so agent-1's enqueue settles only after the
+    // session has reopened under agent-2.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const firstView = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Reopen the retained session under a DIFFERENT agent and write the same
+    // document: agent-1's delayed settlement must not reconcile (clear) the
+    // visible draft through content equality — the session-keyed editor
+    // registry entry belongs to agent-2 (cherry-pr-review
+    // inv_6caaca041360920a).
+    firstView.unmount()
+    render(
+      <AgentComposer
+        agentId="agent-2"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('hello'))
+    expect(mocks.surfaceProps?.text).toBe('hello')
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await firstSend
+    })
+    await act(async () => {})
+
+    expect(mocks.surfaceProps?.text).toBe('hello')
   })
 
   it('treats the steer option as a plain send when idle', async () => {
@@ -2195,9 +2378,7 @@ describe('AgentComposer', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('does NOT save input history when the follow-up is enqueued during streaming (only on real drain)', async () => {
+  it('does NOT save input history when the follow-up is enqueued during streaming (only on real drain)', async () => {
     mocks.sendMessage.mockResolvedValue(undefined)
 
     render(
@@ -3601,6 +3782,205 @@ describe('AgentComposer', () => {
     )
   })
 
+  it("does not clear an ordinary editor's matching draft when a launch composer's enqueue settles (inv_1ea4a927cfde8561)", async () => {
+    // Hold the queue POST open so the launch composer's enqueue settles only
+    // after the session has reopened in an ordinary composer holding an
+    // independently written matching draft. The launch composer does not own
+    // that draft: its settlement must not find (and clear) the ordinary
+    // editor through the shared registry key (cherry-pr-review
+    // inv_1ea4a927cfde8561#f1).
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const launchView = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{ initialDraft: { text: '', tokens: [] } }}
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'continue', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    launchView.unmount()
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+    expect(mocks.surfaceProps?.text).toBe('continue')
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await firstSend
+    })
+    await act(async () => {})
+
+    // The ordinary editor keeps its independently owned draft.
+    expect(mocks.surfaceProps?.text).toBe('continue')
+  })
+
+  it('still clears the submitting launch editor when its own enqueue settles (inv_1ea4a927cfde8561)', async () => {
+    // Launch-scoped registration must not strand the submitting launch
+    // editor itself: its settlement still resolves its own registry entry.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{ initialDraft: { text: '', tokens: [] } }}
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'continue', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mocks.surfaceProps?.text).toBe('continue')
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await firstSend
+    })
+    await act(async () => {})
+
+    expect(mocks.surfaceProps?.text).toBe('')
+  })
+
+  it('clears the reopened agent editor when settlement lands before its registration installs (inv_69ddf60f8d01a98a)', async () => {
+    // The render-phase cache read captures the queued draft; settlement then
+    // empties the entry before this instance's registration effect installs
+    // (a render that yielded). The install-time reconcile must still clear
+    // the editor, or the queued message stays submittable a second time
+    // (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+    let cached: unknown = {
+      text: 'queued while streaming',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [],
+      agentId: 'agent-1',
+      workspaceKey: 'workspace-1\0/workspace'
+    }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'agent.composer_draft.session_session-1' ? cached : undefined
+    )
+    // A sibling whose effect runs first settles the cache: the composer
+    // render already captured the draft, its registration is not yet
+    // installed.
+    const Settler = () => {
+      useEffect(() => {
+        cached = {
+          text: '',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          agentId: 'agent-1',
+          workspaceKey: 'workspace-1\0/workspace'
+        }
+      }, [])
+      return null
+    }
+
+    render(
+      <>
+        <Settler />
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      </>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+  })
+
+  it("preserves another tab's matching session draft when a launch composer settles an enqueue (inv_0f6e49ac89e5815f)", async () => {
+    // A launch composer does not own session-draft persistence: settling its
+    // queued send must not reconcile the session cache, or tab B\'s saved
+    // draft with the same content is wiped (cherry-pr-review
+    // inv_0f6e49ac89e5815f#f1).
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'agent.composer_draft.session_session-1'
+        ? { text: 'continue', tokens: [], files: [], agentId: 'agent-1', workspaceKey: 'workspace-1\0/workspace' }
+        : undefined
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{ initialDraft: { text: '', tokens: [] } }}
+      />
+    )
+
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'continue', tokens: [] })
+    })
+
+    expect(cacheService.set).not.toHaveBeenCalledWith(
+      'agent.composer_draft.session_session-1',
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
   it('adopts launch options that arrive after the restored session first renders', async () => {
     const issueReporterToken = {
       id: 'skill:issue-reporter',
@@ -4765,10 +5145,8 @@ describe('AgentComposer', () => {
     )
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('queues a follow-up while the agent session is streaming (does not send directly)', () => {
-    render(
+  it('queues a follow-up while the agent session is streaming (does not send directly)', async () => {
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -4779,10 +5157,168 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
+    await act(async () => {})
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
 
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(getQueueDock()).toBeTruthy()
+  })
+
+  it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('draft A'))
+
+    await act(async () => {
+      const submitted = mocks.surfaceProps?.onSendDraft({ text: 'draft A', tokens: [] })
+      // The editor stays editable while the enqueue write is in flight.
+      mocks.surfaceProps?.onTextChange('draft A plus newer edits')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await submitted
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('draft A plus newer edits')
+  })
+
+  it('preserves unsaved edits in a second composer when a delayed enqueue settles (cache ownership is not document ownership)', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('submitted A'))
+
+    // The enqueue stays in flight while a second composer sharing the draft
+    // registry key mounts and gains unsaved edits that never persisted into
+    // the session cache (e.g. a message-edit session) (cherry-pr-review
+    // inv_d544282ace304750).
+    let settlement: void | Promise<void> | undefined
+    act(() => {
+      settlement = mocks.surfaceProps?.onSendDraft({ text: 'submitted A', tokens: [] })
+    })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('unsaved B'))
+
+    await act(async () => {
+      await settlement
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('unsaved B')
+  })
+
+  it('preserves an independently owned message edit with identical text when a delayed enqueue settles (inv_6986297a343908d7)', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('continue'))
+
+    // The enqueue stays in flight while a message-edit composer opens for an
+    // older message in the same session with the SAME text. Identical content
+    // must not establish document ownership over the edit
+    // (cherry-pr-review inv_6986297a343908d7).
+    let settlement: void | Promise<void> | undefined
+    act(() => {
+      settlement = mocks.surfaceProps?.onSendDraft({ text: 'continue', tokens: [] })
+    })
+    // Move the submitting composer past the submitted document so its own
+    // settlement leaves it alone; the last render then belongs to the edit
+    // composer, making its surviving text observable.
+    act(() => mocks.surfaceProps?.onTextChange('continue plus more'))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{
+          initialDraft: { text: 'continue', tokens: [] },
+          editing: { messageId: 'msg-1', onCancel: () => {} }
+        }}
+      />
+    )
+
+    await act(async () => {
+      await settlement
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('continue')
+  })
+
+  it('keeps a just-dispatched attachment in a reopened composer when a delayed enqueue settles (inv_390d6de6f59203f8)', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('submitted A'))
+
+    // The enqueue stays in flight while a reopened composer takes over the
+    // draft key and a tool/picker dispatch lands an attachment synchronously,
+    // before React commits it to the live refs (cherry-pr-review
+    // inv_390d6de6f59203f8).
+    let settlement: void | Promise<void> | undefined
+    act(() => {
+      settlement = mocks.surfaceProps?.onSendDraft({ text: 'submitted A', tokens: [] })
+    })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    await act(async () => {
+      for (const listener of mocks.filesDispatchListeners) listener()
+      mocks.setFiles([file])
+      await settlement
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.files, 'a pending attachment is an editor mutation: settlement must not clear it').toEqual([file])
   })
 
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
@@ -4807,9 +5343,7 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeFalsy()
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('drains a streaming-period follow-up when the foreground stream ends despite background tasks', async () => {
+  it('drains a streaming-period follow-up when the foreground stream ends despite background tasks', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' }
     ])
@@ -4829,9 +5363,7 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
+  it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
     seedInputHistory(['queued agent draft'])
     mocks.availableSkills = [pdfSkill]
     mocks.files = [file]
@@ -4976,12 +5508,10 @@ describe('AgentComposer', () => {
     expect(mocks.files).toEqual([])
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('keeps a steered follow-up in the dock when its manual send fails', async () => {
+  it('keeps a steered follow-up in the dock when its manual send fails', async () => {
     mocks.draftText = 'queued message'
 
-    render(
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -4992,6 +5522,16 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
+    await act(async () => {})
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
     const dock = getQueueDock()
     expect(dock).toBeTruthy()
     const itemId = dock.props.items[0].id
@@ -5587,6 +6127,22 @@ describe('AgentComposer', () => {
     expect(mocks.ipcApiRequest).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
   })
   describe('queued edit switching', () => {
+    // Our API-backed restore creates a fresh row under a FRESH id: the original
+    // id names a closed receipt and cannot represent the restored row. Assert
+    // content + ordering here; capture each restored row's new id from the dock
+    // for any subsequent Edit/Steer/reorder action.
+    const expectQueue = (dock: () => any, expected: any[], message: string) => {
+      const items = dock()?.items ?? []
+      expect(items, message).toHaveLength(expected.length)
+      expected.forEach((entry, index) => {
+        expect(items[index], message).toMatchObject({ draft: entry.draft, payload: entry.payload })
+      })
+    }
+    const liveItem = (dock: () => any, draftText: string, message: string) => {
+      const entry = (dock()?.items ?? []).find((item: any) => item.draft?.text === draftText)
+      expect(entry, message).toBeTruthy()
+      return entry
+    }
     async function setup(texts = ['A', 'B']) {
       mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
       const send = mocks.sendMessage
@@ -5607,48 +6163,54 @@ describe('AgentComposer', () => {
           await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
         })
       }
+      view.rerender(component())
       const originals = [...dock().items]
       const edit = async (id: string) => {
         await act(async () => {
-          dock().onEdit(id)
+          await dock().onEdit(id)
         })
+        view.rerender(component())
       }
       return { dock, originals, edit, view, component, send }
     }
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('rebuilds live controls without reviving removed Fast mode', async () => {
+    it('rebuilds live controls without reviving removed Fast mode', async () => {
       mocks.modelResult = { ...model, supportsFastMode: true }
       mocks.updateAgent.mockReturnValue(new Promise(() => undefined))
       const {
         dock,
         originals: [a, b],
-        edit
+        edit,
+        view,
+        component
       } = await setup()
-      act(() => {
+      await act(async () => {
         dock().onRemove(a.id)
+      })
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).not.toContain(a.id)
       })
       act(() => mocks.speedControlProps?.onFastModeChange(true))
       await act(async () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'fast A', tokens: [] })
       })
+      view.rerender(component())
       const fastA = dock().items[1]
       expect(fastA.payload.fastMode, 'the queued snapshot must start with Fast enabled').toBe(true)
       await edit(fastA.id)
       act(() => mocks.speedControlProps?.onFastModeChange(false))
       await edit(b.id)
       expect(dock()?.items, 'the outgoing item must be returned after live controls change').toHaveLength(1)
-      expect(dock().items[0].id, 'rebuilding controls must preserve the original queued identity').toBe(fastA.id)
+      expect(dock().items[0].id, 'the restored row gets a fresh id; the old id is a closed receipt').not.toBe(fastA.id)
+      expect(dock().items[0].draft, 'rebuilding controls must return the outgoing draft').toEqual(fastA.draft)
       expect(
         dock().items[0].payload,
         'capturing must rebuild instead of spreading obsolete optional fields'
       ).not.toHaveProperty('fastMode')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('returns unchanged A under its original identity and supports switching back', async () => {
+    it('returns unchanged A under a fresh identity and supports switching back', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5656,33 +6218,37 @@ describe('AgentComposer', () => {
       } = await setup()
       await edit(a.id)
       await edit(b.id)
-      expect(dock()?.items, 'switching to B must preserve the entire queued A').toEqual([a])
+      expectQueue(dock, [a], 'switching to B must preserve the entire queued A')
       expect(mocks.surfaceProps?.text, 'B must own the editor after the switch').toBe('B')
-      await edit(a.id)
-      expect(dock()?.items, 'switching back must preserve B under its original id').toEqual([b])
+      const restoredA = liveItem(dock, 'A', 'restored A must be present in the queue')
+      expect(restoredA.id, 'restored A gets a fresh id; its original id is a closed receipt').not.toBe(a.id)
+      await edit(restoredA.id)
+      expectQueue(dock, [b], 'switching back must preserve B under its own fresh id')
       expect(mocks.surfaceProps?.text, 'A must reopen').toBe('A')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('rebuilds edited A from the live document before restoring B', async () => {
+    it('rebuilds edited A from the live document before restoring B', async () => {
       const {
         dock,
         originals: [a, b],
         edit,
+        view,
+        component,
         send
       } = await setup()
       await edit(a.id)
       act(() => mocks.surfaceProps?.onTextChange('A-prime'))
       await edit(b.id)
-      expect(dock()?.items?.[0], 'A edits must survive under the existing id').toMatchObject({
-        id: a.id,
+      expect(dock()?.items?.[0], 'A edits must survive under a fresh id').toMatchObject({
         draft: { text: 'A-prime', tokens: [] },
         payload: { text: 'A-prime', userMessageParts: [{ type: 'text', text: 'A-prime' }] }
       })
+      const restoredAId = dock().items[0].id
+      expect(restoredAId, 'the original id is a closed receipt and cannot be restored').not.toBe(a.id)
       await act(async () => {
-        await dock().onSteer(a.id)
+        await dock().onSteer(restoredAId)
       })
+      view.rerender(component())
       expect(JSON.stringify(send.mock.calls), 'the actual queued dispatch must carry the edited content').toContain(
         'A-prime'
       )
@@ -5690,9 +6256,7 @@ describe('AgentComposer', () => {
       expect(dock(), 'accepted A must leave the visible queue').toBeFalsy()
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('returns the original draft and payload together when A is empty', async () => {
+    it('returns the original draft and payload together when A is empty', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5701,13 +6265,11 @@ describe('AgentComposer', () => {
       await edit(a.id)
       act(() => mocks.surfaceProps?.onTextChange('   '))
       await edit(b.id)
-      expect(dock()?.items, 'blank editing must not discard or mismatch A draft and payload').toEqual([a])
+      expectQueue(dock, [a], 'blank editing must not discard or mismatch A draft and payload')
       expect(mocks.surfaceProps?.text, 'the valid switch must open B').toBe('B')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('refuses a switch with unsynchronised files without touching queue cache or editor', async () => {
+    it('refuses a switch with unsynchronised files without touching queue cache or editor', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5718,43 +6280,43 @@ describe('AgentComposer', () => {
       await edit(a.id)
       mocks.files = [file]
       view.rerender(component())
-      const writes = vi
-        .mocked(cacheService.setCasual)
-        .mock.calls.filter(([key]) => key.startsWith('followup-queue.')).length
       const restores = mocks.replaceDraft.mock.calls.length
       await edit(b.id)
-      expect(dock()?.items, 'pending files must leave B queued').toEqual([b])
+      expectQueue(dock, [b], 'pending files must leave B queued')
       expect(mocks.surfaceProps?.text, 'pending files must leave A in the editor').toBe('A')
       expect(mocks.replaceDraft.mock.calls.length, 'refusal must not restore B').toBe(restores)
-      expect(
-        vi.mocked(cacheService.setCasual).mock.calls.filter(([key]) => key.startsWith('followup-queue.')).length,
-        'refusal must not persist a changed queue'
-      ).toBe(writes)
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('adjusts the insertion slot after removing an earlier row', async () => {
+    it('adjusts the insertion slot after removing an earlier row', async () => {
       const {
         dock,
         originals: [x, a, b, c],
-        edit
+        edit,
+        view,
+        component
       } = await setup(['X', 'A', 'B', 'C'])
       await edit(a.id)
-      act(() => {
+      await act(async () => {
         dock().onRemove(x.id)
       })
-      await edit(b.id)
-      expect(dock()?.items, 'removing X must restore A before C').toEqual([a, c])
-      act(() => {
-        dock().onReorder([c, a])
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).not.toContain(x.id)
       })
-      expect(dock()?.items, 'returned items must remain reorderable').toEqual([c, a])
+      await edit(b.id)
+      expectQueue(dock, [a, c], 'removing X must restore A before C')
+      const restoredA = liveItem(dock, 'A', 'restored A must be present in the queue')
+      await act(async () => {
+        dock().onReorder([c, restoredA])
+      })
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).toEqual([c.id, restoredA.id])
+      })
+      expectQueue(dock, [c, a], 'returned items must remain reorderable')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip.each(['enqueue', 'direct send'])('does not resurrect a consumed edit after successful %s', async (mode) => {
+    it.each(['enqueue', 'direct send'])('does not resurrect a consumed edit after successful %s', async (mode) => {
       const {
         dock,
         originals: [a, b],
@@ -5767,6 +6329,7 @@ describe('AgentComposer', () => {
       await act(async () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'A-consumed', tokens: [] })
       })
+      view.rerender(component())
       await edit(b.id)
       expect(
         dock()?.items?.map((entry: any) => entry.id) ?? [],
@@ -5781,9 +6344,7 @@ describe('AgentComposer', () => {
       }
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('refuses editing and duplicate steering until manual steer acceptance resolves', async () => {
+    it('refuses editing and duplicate steering until manual steer acceptance resolves', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5805,27 +6366,23 @@ describe('AgentComposer', () => {
         await Promise.resolve()
       })
       const editor = mocks.surfaceProps?.text
-      const writes = vi.mocked(cacheService.setCasual).mock.calls.length
       await edit(a.id)
       await act(async () => {
         await dock().onSteer(a.id)
       })
-      expect(dock()?.items, 'admitted A must remain queued and unavailable to Edit').toEqual([a, b])
+      expectQueue(dock, [a, b], 'admitted A must remain queued and unavailable to Edit')
       expect(mocks.surfaceProps?.text, 'admission refusal must not replace the editor').toBe(editor)
-      expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'admission refusal must not write cache').toBe(writes)
       expect(send.mock.calls.length, 'one admitted id must produce only one dispatch').toBe(1)
       await act(async () => {
         resolve(false)
         await pending
       })
       await edit(a.id)
-      expect(dock()?.items, 'failed acceptance must release A for editing').toEqual([b])
+      expectQueue(dock, [b], 'failed acceptance must release A for editing')
       expect(mocks.surfaceProps?.text, 'A must open after admission release').toBe('A')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('drains returned A-prime once without consuming the B editor', async () => {
+    it('drains returned A-prime once without consuming the B editor', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5843,7 +6400,10 @@ describe('AgentComposer', () => {
       })
       expect(send.mock.calls, 'one completion must dispatch only returned A-prime').toHaveLength(1)
       expect(send.mock.calls[0][0], 'drain must send the rebuilt live document').toEqual({ text: 'A-prime' })
-      expect(dock(), 'accepted A-prime must leave the queue').toBeFalsy()
+      await waitFor(() => {
+        view.rerender(component(false))
+        expect(dock(), 'accepted A-prime must leave the queue').toBeFalsy()
+      })
       expect(mocks.surfaceProps?.text, 'draining A must preserve B in the editor').toBe('B')
     })
   })

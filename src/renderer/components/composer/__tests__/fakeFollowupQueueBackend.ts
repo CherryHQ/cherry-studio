@@ -117,6 +117,7 @@ export function installFakeFollowupQueueBackend() {
               draft: FollowupQueueRow['draft']
               payload: FollowupQueueRow['payload']
               held?: boolean
+              restorePredecessors?: string[]
             }
           }) => {
             // Mirror production idempotency: a retried POST carries the same
@@ -163,7 +164,15 @@ export function installFakeFollowupQueueBackend() {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             }
-            state.rows.push(row)
+            if (body.restorePredecessors !== undefined) {
+              // Match the production insertion transaction: removed predecessors
+              // cannot turn an edit restoration into a tail insert.
+              const predecessor = [...body.restorePredecessors]
+                .reverse()
+                .find((id) => state.rows.some((entry) => entry.scopeKey === body.scopeKey && entry.id === id))
+              const index = predecessor ? state.rows.findIndex((entry) => entry.id === predecessor) + 1 : 0
+              state.rows.splice(index, 0, row)
+            } else state.rows.push(row)
             if (body.held) {
               heldRows.add(row.id)
               claimTokens.set(row.id, HELD_TOKEN)

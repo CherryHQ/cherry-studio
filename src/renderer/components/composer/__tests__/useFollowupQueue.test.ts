@@ -1360,6 +1360,126 @@ describe('useFollowupQueue', () => {
     expect(heldEnqueues[1].anchor).toEqual({ position: 'first' })
   })
 
+  it('builds unique membership before capturing predecessors when the mirror already holds the restore (inv_62a64a1c0cf26410)', async () => {
+    // Queue a,b,c; edit a, then c. c's take-delete resolves only after the
+    // query mirror already shows a's restored copy: splicing the copy into
+    // membership anyway duplicates it, so c captures predecessors [a,a]
+    // instead of [a,b] - retaking a then restores c before b, reversing
+    // delivery order (cherry-pr-review inv_62a64a1c0cf26410#f1).
+    wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result, rerender } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+
+    // The incoming take-delete resolves only after the refreshed mirror
+    // already shows the restored a copy.
+    let resolveTake: (() => void) | undefined
+    takeDeleteTrigger.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveTake = () => resolve()
+        })
+    )
+    const captureA = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    let switched: Promise<unknown> | undefined
+    await act(async () => {
+      switched = result.current.takeForEdit('c', captureA)
+    })
+    await act(async () => {})
+    const restoreIdA = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+    wireQuery([row(restoreIdA, 'first edited'), row('b', 'second'), row('c', 'third')])
+    rerender()
+    await act(async () => {
+      resolveTake?.()
+      await switched
+    })
+
+    // Retaking the restored a restores c after b - c's predecessors are
+    // [a,b], not [a,a] with b dropped.
+    wireQuery([row(restoreIdA, 'first edited'), row('b', 'second')])
+    rerender()
+    const captureC = vi.fn(() => ({ draft: draft('third edited'), payload: payload('third edited') }))
+    await act(async () => {
+      await result.current.takeForEdit(restoreIdA, captureC)
+    })
+
+    const heldEnqueues = (postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean; anchor?: unknown } }]>)
+      .map(([{ body }]) => body)
+      .filter((body) => body.held === true)
+    expect(heldEnqueues).toHaveLength(2)
+    expect(heldEnqueues[0].anchor).toEqual({ position: 'first' })
+    expect(heldEnqueues[1].anchor).toEqual({ after: 'b' })
+  })
+
+  it.each(['unmount', 'scope switch'] as const)(
+    'recovers the incoming draft after %s during convergence (inv_7c3ab6fed0c3e32c)',
+    async (navigation) => {
+      wireQuery([row('p', 'predecessor'), row('a', 'first'), row('b', 'second'), row('c', 'third')])
+      const { claimTrigger, postTrigger, reorderTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      const { result, rerender, unmount } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      wireQuery([row('p', 'predecessor'), row('b', 'second'), row('c', 'third')])
+      rerender({ scopeKey: SCOPE })
+      let resolveEnqueue: (() => void) | undefined
+      postTrigger.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveEnqueue = resolve
+          })
+      )
+      let resolveReorder: (() => void) | undefined
+      reorderTrigger.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveReorder = resolve
+          })
+      )
+      let switched: Promise<unknown> | undefined
+      await act(async () => {
+        switched = result.current.takeForEdit('b', () => ({
+          draft: draft('first edited'),
+          payload: payload('first edited')
+        }))
+      })
+      const restoreIdA = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+      // Peer removed P, so the anchored INSERT landed A at the tail.
+      wireQuery([row('b', 'second'), row('c', 'third'), row(restoreIdA, 'first edited')])
+      rerender({ scopeKey: SCOPE })
+      await act(async () => {
+        resolveEnqueue?.()
+      })
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+      if (navigation === 'unmount') unmount()
+      else rerender({ scopeKey: 's2' })
+      let received: unknown
+      await act(async () => {
+        resolveReorder?.()
+        received = await switched
+      })
+      expect(received).toBeUndefined()
+      const bodies = (
+        postTrigger.mock.calls as unknown as Array<
+          [{ body: { held?: boolean; scopeKey: string; payload: { text: string } } }]
+        >
+      ).map(([{ body }]) => body)
+      expect(bodies).toContainEqual(
+        expect.objectContaining({ scopeKey: SCOPE, payload: expect.objectContaining({ text: 'second' }) })
+      )
+      expect(bodies.some((body) => body.payload.text === 'first edited' && body.held === false)).toBe(false)
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreIdA } })
+    }
+  )
+
   it('keeps incoming predecessors when DELETE refreshes membership before resolving (inv_7cb28f349bd94df4)', async () => {
     wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
     const { claimTrigger, postTrigger, takeDeleteTrigger } = wireMutations()

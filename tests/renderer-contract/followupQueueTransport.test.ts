@@ -113,6 +113,7 @@ describe('production edit-transfer transport contract', () => {
           payload: { text: 'edited', userMessageParts: [] }
         }))
       })
+      expect(seen.some((req) => req.path === '/followup-queues/order:batch')).toBe(false)
       expect(transferred).toHaveLength(1)
       expect(seen).toContainEqual(
         expect.objectContaining({

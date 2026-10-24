@@ -688,6 +688,7 @@
   "chat.input.file_not_supported": "Il modello non supporta questo tipo di file",
   "chat.input.file_not_supported_count": "{{count}} file non sono supportati",
   "chat.input.followup_queue.edit": "Modifica",
+  "chat.input.followup_queue.limit_reached": "La coda è piena (massimo {{count}})",
   "chat.input.followup_queue.pause": "Sospendi invio automatico",
   "chat.input.followup_queue.remove": "Rimuovi",
   "chat.input.followup_queue.resume": "Riprendi invio automatico",

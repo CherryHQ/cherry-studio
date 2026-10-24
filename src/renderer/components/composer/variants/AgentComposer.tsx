@@ -107,11 +107,13 @@ import {
 import {
   type AgentComposerDraftCache,
   type AgentComposerDraftCacheKey,
+  clearAgentDraftCacheIfMatches,
   getAgentDraftCacheKey,
   getAgentDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
+  readAgentDraftCacheEntryState,
   type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
@@ -135,6 +137,11 @@ import { emptyActions, type ProviderActionHandlers } from './shared/composerProv
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
+import {
+  acquirePendingSubmission,
+  isSubmissionPending,
+  releasePendingSubmission
+} from './shared/pendingSubmissionGuard'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
@@ -158,6 +165,23 @@ const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
 const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
 const EMPTY_ACCESSIBLE_PATHS: readonly AbsoluteFilePath[] = []
 const FILE_IPC_BATCH_SIZE = 500
+
+type SubmittedAgentDraft = Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'files' | 'knowledgeBaseIds'>
+
+type ActiveAgentDraftEditor = {
+  /** The owning instance's clear callback — identifies same-instance settlements. */
+  owner: (options?: { preserveCache?: boolean }) => void
+  /** True only while the visible editor holds exactly this submitted document. */
+  isShowing: (submitted: SubmittedAgentDraft) => boolean
+  /** Clear the submitted document from the editor, keeping an unrelated cached draft untouched. */
+  clearSubmitted: (options: { preserveCache: boolean }) => void
+}
+
+// The editor actually on screen for each draft-cache key. A queue settlement
+// can resolve in an unmounted instance after a navigate-away + reopen, and
+// only the active editor's clear reaches the visible draft (cherry-pr-review
+// inv_8e5cbb8f581e03ec).
+const activeAgentDraftEditors = new Map<string, ActiveAgentDraftEditor>()
 
 type AccessibleAttachment = {
   attachment: ComposerAttachment
@@ -397,6 +421,25 @@ const AgentComposerRoot = ({
   const resolvedWorkspaceId = workspaceId ?? session?.workspaceId ?? null
   const workspaceKey = buildAgentFileWorkspaceKey(resolvedWorkspaceId, session?.workspace?.path)
   const draftCacheKey = getAgentDraftCacheKey(sessionId)
+  // A message-edit composer is not the owner of the session's conversation
+  // draft: identical contents must not authorize a settlement to clear an
+  // independently owned edit, so its editor registers under a target-scoped
+  // key (cherry-pr-review inv_6986297a343908d7). The key is agent-scoped too:
+  // a session reopened under a DIFFERENT agent owns its visible draft
+  // independently, and a delayed settlement from the previous agent must not
+  // clear it through content equality (cherry-pr-review
+  // inv_6caaca041360920a).
+  const editingMessageId = launchOptions?.editing?.messageId
+  // A launch composer does not own the session draft either: its settlement
+  // must clean up its OWN editor without reconciling an ordinary composer of
+  // the same session whose matching draft was saved independently
+  // (cherry-pr-review inv_1ea4a927cfde8561#f1), so it registers under a
+  // launch-scoped key its own settlement still resolves.
+  const draftEditorRegistryKey = editingMessageId
+    ? `${draftCacheKey}:agent:${agentId}:edit:${editingMessageId}`
+    : draftPersistenceEnabled
+      ? `${draftCacheKey}:agent:${agentId}`
+      : `${draftCacheKey}:agent:${agentId}:launch`
   const initialDraftRef = useRef<{
     instanceKey: string
     draft: RestoredAgentComposerDraftCache
@@ -485,6 +528,7 @@ const AgentComposerRoot = ({
         sessionId={sessionId}
         initialDraft={initialDraft}
         draftCacheKey={draftCacheKey}
+        draftEditorRegistryKey={draftEditorRegistryKey}
         draftPersistenceEnabled={draftPersistenceEnabled}
         workspaceKey={workspaceKey}
         sessionData={sessionData}
@@ -528,6 +572,7 @@ interface InnerProps {
   sessionId: string
   initialDraft: RestoredAgentComposerDraftCache
   draftCacheKey: AgentComposerDraftCacheKey
+  draftEditorRegistryKey: string
   draftPersistenceEnabled: boolean
   workspaceKey: string
   sessionData?: ToolContext['session']
@@ -748,6 +793,7 @@ const AgentComposerInner = ({
   sessionId,
   initialDraft,
   draftCacheKey,
+  draftEditorRegistryKey,
   draftPersistenceEnabled,
   workspaceKey,
   sessionData,
@@ -778,7 +824,8 @@ const AgentComposerInner = ({
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
   const { files, isExpanded, selectedKnowledgeBases } = useComposerToolState()
-  const { setFiles, setIsExpanded, setSelectedKnowledgeBases, toolsRegistry } = useComposerToolDispatch()
+  const { setFiles, subscribeFilesDispatch, setIsExpanded, setSelectedKnowledgeBases, toolsRegistry } =
+    useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -862,6 +909,12 @@ const AgentComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  // Pending queued-edit take: the claim and DELETE await across the network
+  // and restoreFollowupDraft then replaces the whole document, so the input
+  // is blocked for the duration to keep intervening edits from being
+  // silently overwritten (cherry-pr-review).
+  const followupTakePendingRef = useRef(false)
+  const [followupTakePending, setFollowupTakePending] = useState(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
@@ -964,6 +1017,7 @@ const AgentComposerInner = ({
     text
   ])
   const filesRef = useLatest(files)
+  const textRef = useLatest(text)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
@@ -1000,8 +1054,17 @@ const AgentComposerInner = ({
   const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
   })
+  // Bumped synchronously on every user draft edit (text, tokens, attachments). An awaited enqueue only clears
+  // the composer when nothing changed meanwhile, so newer unsent input is never wiped by an older submission.
+  const draftEditRevisionRef = useRef(0)
+  // The revision as of the last React commit. A synchronous dispatch (attachment
+  // picker, runtime tool) bumps draftEditRevisionRef before its state commit, so
+  // a gap between the two marks a pending mutation the live refs cannot see yet
+  // (cherry-pr-review inv_390d6de6f59203f8).
+  const committedEditRevisionRef = useRef(0)
   const handleTextChange = useCallback(
     (nextText: string) => {
+      draftEditRevisionRef.current += 1
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       setText(nextText)
@@ -1051,11 +1114,20 @@ const AgentComposerInner = ({
   ])
 
   const persistedOnceRef = useRef(false)
+  // A settlement clear that preserves an unrelated cached draft (history
+  // preview) empties the editor: keep the cache entry until the user writes
+  // something new instead of persisting the emptied editor over it
+  // (cherry-pr-review inv_ccf47fc3bab12fcf).
+  const suppressEmptyPersistRef = useRef(false)
   useEffect(() => {
     if (!draftPersistenceEnabled || isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
       return
+    }
+    if (suppressEmptyPersistRef.current) {
+      if (text === '' && draftTokens.length === 0 && files.length === 0) return
+      suppressEmptyPersistRef.current = false
     }
 
     const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
@@ -1098,6 +1170,10 @@ const AgentComposerInner = ({
 
   const persistFinalDraft = useEffectEvent(() => {
     if (!draftPersistenceEnabled || isInputHistoryActive) return
+    if (suppressEmptyPersistRef.current) {
+      if (textRef.current === '' && draftTokensRef.current.length === 0 && filesRef.current.length === 0) return
+      suppressEmptyPersistRef.current = false
+    }
     // Managed-sync token changes never reach `draftTokens` (isSyncingTokensRef suppresses
     // onTokensChange), so the cache must come from one surface serialization, not the shadow state.
     const draft = actionsRef.current.getDraft()
@@ -1428,6 +1504,7 @@ const AgentComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
+      draftEditRevisionRef.current += 1
       const nextDraftTokens = getAgentDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
@@ -1552,54 +1629,160 @@ const AgentComposerInner = ({
     ]
   )
 
-  const clearCurrentDraft = useCallback(() => {
-    releaseFollowupEditRef.current()
-    setText('')
-    setFiles([])
-    setSelectedSkills([])
-    setShouldValidateSkills(false)
-    setDraftTokens([])
-    draftTokensRef.current = []
-    if (draftPersistenceEnabled) {
-      writeAgentDraftCache(draftCacheKey, {
-        text: '',
-        tokens: [],
-        files: [],
-        knowledgeBaseIds: knowledgeBaseIdsRef.current,
-        workspaceKey,
-        agentId
-      })
+  // Attachment edits arrive through tool state rather than the editor callbacks.
+  useEffect(() => {
+    draftEditRevisionRef.current += 1
+  }, [files])
+  useEffect(() => {
+    committedEditRevisionRef.current = draftEditRevisionRef.current
+  })
+  // The effect above runs after React commits — too late when an enqueue
+  // resolves in the same window. Tool dispatches (the attachment picker,
+  // runtime tools) bypass the revision wrapper below, so track attachment
+  // mutations synchronously at the dispatch boundary itself (cherry-pr-review).
+  useEffect(
+    () =>
+      subscribeFilesDispatch(() => {
+        draftEditRevisionRef.current += 1
+      }),
+    [subscribeFilesDispatch]
+  )
+  // The effect above runs only after React commits, which is too late when an
+  // enqueue resolves in the same window: an attachment update dispatched while
+  // the enqueue is pending would not have bumped the revision yet, so the
+  // settlement cleanup would erase the new attachment. Bump at the update
+  // boundary too (cherry-pr-review).
+  const setFilesWithRevision = useCallback<typeof setFiles>(
+    (next) => {
+      draftEditRevisionRef.current += 1
+      setFiles(next)
+    },
+    [setFiles]
+  )
+  const clearCurrentDraft = useCallback(
+    (options?: { preserveCache?: boolean }) => {
+      if (options?.preserveCache) suppressEmptyPersistRef.current = true
+      releaseFollowupEditRef.current()
+      setText('')
+      setFiles([])
+      setSelectedSkills([])
+      setShouldValidateSkills(false)
+      setDraftTokens([])
+      draftTokensRef.current = []
+      if (!options?.preserveCache && draftPersistenceEnabled) {
+        writeAgentDraftCache(draftCacheKey, {
+          text: '',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: knowledgeBaseIdsRef.current,
+          workspaceKey,
+          agentId
+        })
+      }
+      setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
+      // Drop the input-history nav state so a recalled draft that gets sent/queued
+      // does not leave useInputHistory pointing at it; otherwise the next
+      // ArrowDown would restore the already-sent draft and ArrowUp would resume
+      // from a stale index.
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+    },
+    [
+      agentId,
+      draftCacheKey,
+      draftPersistenceEnabled,
+      resetHistoryIndex,
+      setFiles,
+      setText,
+      setTimeoutTimer,
+      workspaceKey
+    ]
+  )
+
+  // Publish the live editor as the owner of this draft identity so an enqueue
+  // settlement resolving in another (unmounted) instance reconciles the
+  // visible editor instead of a dead one (cherry-pr-review
+  // inv_8e5cbb8f581e03ec). The key distinguishes a message-edit target from
+  // the conversation draft: a settlement of the queued conversation draft must
+  // never reconcile (and thereby clear) an edit composer's editor
+  // (cherry-pr-review inv_6986297a343908d7).
+  useEffect(() => {
+    const entry: ActiveAgentDraftEditor = {
+      owner: clearCurrentDraft,
+      isShowing: (submitted) => {
+        // Compare against the live state refs (what is actually on screen),
+        // not a surface serialization, which can lag the visible document. A
+        // revision ahead of the last commit is a synchronous pending mutation
+        // (e.g. a just-dispatched attachment) the refs do not reflect yet:
+        // treat the document as changed rather than clearing it
+        // (cherry-pr-review inv_390d6de6f59203f8).
+        if (draftEditRevisionRef.current !== committedEditRevisionRef.current) return false
+        return (
+          textRef.current === submitted.text &&
+          JSON.stringify(draftTokensRef.current) === JSON.stringify(submitted.tokens) &&
+          JSON.stringify(filesRef.current) === JSON.stringify(submitted.files) &&
+          JSON.stringify(knowledgeBaseIdsRef.current) === JSON.stringify(submitted.knowledgeBaseIds)
+        )
+      },
+      clearSubmitted: (options) => clearCurrentDraft(options)
     }
-    setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
-    // Drop the input-history nav state so a recalled draft that gets sent/queued
-    // does not leave useInputHistory pointing at it; otherwise the next
-    // ArrowDown would restore the already-sent draft and ArrowUp would resume
-    // from a stale index.
-    resetHistoryIndex()
-    inputHistoryToolsRef.current = null
+    activeAgentDraftEditors.set(draftEditorRegistryKey, entry)
+    // Settlement may have landed between the mount-time draft load and this
+    // registration (a render that yielded): reconcile the CURRENT cache state
+    // immediately, or the reopened editor keeps the queued message
+    // submittable a second time (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+    // Only a persistence-owning conversation composer reconciles the session
+    // cache; a missing entry is ordinary TTL eviction, not a settlement
+    // (cherry-pr-review inv_994d0262e39459d3).
+    const loaded = initialDraft
+    if (
+      draftPersistenceEnabled &&
+      !launchOptions?.editing?.messageId &&
+      loaded &&
+      (loaded.text !== '' || loaded.tokens.length > 0 || loaded.files.length > 0) &&
+      readAgentDraftCacheEntryState(draftCacheKey, { workspaceKey, agentId }) === 'owned-empty' &&
+      entry.isShowing({
+        text: loaded.text,
+        tokens: loaded.tokens,
+        files: loaded.files,
+        knowledgeBaseIds: loaded.knowledgeBaseIds
+      })
+    ) {
+      clearCurrentDraft()
+    }
+    return () => {
+      if (activeAgentDraftEditors.get(draftEditorRegistryKey) === entry)
+        activeAgentDraftEditors.delete(draftEditorRegistryKey)
+    }
   }, [
     agentId,
+    clearCurrentDraft,
     draftCacheKey,
+    draftEditorRegistryKey,
     draftPersistenceEnabled,
-    resetHistoryIndex,
-    setFiles,
-    setText,
-    setTimeoutTimer,
+    initialDraft,
+    launchOptions,
     workspaceKey
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
+  // Live queue scope for the async enqueue below: clearing the editor after
+  // the POST must not wipe the newly selected session's draft.
+  const queueScopeRef = useRef(sessionTopicId)
+  queueScopeRef.current = sessionTopicId
+
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
-    steer: steerFollowup,
+
     removeId: removeFollowup,
     reorder: reorderFollowups,
     takeForEdit: takeFollowupForEdit,
     releaseEdit,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    steer: steerFollowup
   } = useFollowupQueue({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
     status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
@@ -1660,7 +1843,11 @@ const AgentComposerInner = ({
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
-      if (directSendInFlightRef.current) return
+      // Cross-instance too: a reopened composer's fresh ref must not re-Send
+      // while this scope's first submission is still in flight
+      // (cherry-pr-review inv_785c705f28b6e100).
+      const submissionScope = `agent:${draftCacheKey}`
+      if (directSendInFlightRef.current || isSubmissionPending(submissionScope)) return
       if (!model) {
         toast.error(t('code.model_required'))
         return
@@ -1676,30 +1863,112 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer) {
-        void enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        const enqueueScope = sessionTopicId
+        const enqueueRevision = draftEditRevisionRef.current
+        const enqueueFiles = filesRef.current
+        const enqueueKnowledgeBaseIds = knowledgeBaseIdsRef.current
+        // Hold the submission guard across the enqueue too: the direct-send guard below is
+        // acquired only under this branch, so a second Send activation while this enqueue is
+        // in flight would mint a second UUID and queue a duplicate. The editor stays editable
+        // (newer edits win via the revision check) and a failed enqueue keeps the draft.
+        directSendInFlightRef.current = true
+        acquirePendingSubmission(submissionScope)
+        try {
+          const queued = await enqueueFollowup(draft, payload)
+          if (queued) {
+            const submitted = {
+              text: draft.text,
+              tokens: draft.tokens,
+              files: enqueueFiles,
+              knowledgeBaseIds: enqueueKnowledgeBaseIds
+            }
+            // An unmount between submit and settlement persists the submitted
+            // draft, and a reopened composer keeps editing it: reconcile
+            // against the current cached document and draft owner so this
+            // now-obsolete instance cannot overwrite the newer cached draft
+            // with empty content (cherry-pr-review inv_e49e883e1e3d4bb6).
+            // Launch composers do not own session-draft persistence: an
+            // independently saved matching session draft (another tab's
+            // ordinary editor on the same session) must survive this
+            // settlement, so only a persistence-owning composer reconciles
+            // the cache (cherry-pr-review inv_0f6e49ac89e5815f#f1). The local
+            // launch editor still clears below via the ownership checks.
+            const stillOwnsCache = draftPersistenceEnabled
+              ? clearAgentDraftCacheIfMatches(draftCacheKey, { workspaceKey, agentId }, submitted)
+              : false
+            // The editor on screen may belong to a reopened instance rather
+            // than the one this settlement closes over: reconcile the ACTIVE
+            // editor owner, clearing only the unchanged submitted document
+            // and preserving subsequent edits (cherry-pr-review
+            // inv_8e5cbb8f581e03ec). A history preview deliberately leaves an
+            // unrelated draft cached — clear the submitted document from the
+            // editor and reset history navigation without touching that cache
+            // entry (cherry-pr-review inv_ccf47fc3bab12fcf).
+            const activeEditor = activeAgentDraftEditors.get(draftEditorRegistryKey)
+            if (activeEditor) {
+              const sameInstance = (activeEditor.owner as unknown) === clearCurrentDraft
+              // Same instance that submitted: the synchronous revision guard
+              // sees edits that have not rendered yet. Another (reopened)
+              // instance has its own revision counter, so only its live
+              // document comparison applies (cherry-pr-review
+              // inv_8e5cbb8f581e03ec).
+              const unchanged = sameInstance
+                ? queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision
+                : true
+              // stillOwnsCache speaks only for the cache entry, never for what
+              // another instance is showing: a message-edit session keeps its
+              // unsaved text out of the session cache, so cache ownership
+              // cannot clear that editor. A different instance must prove the
+              // visible document still equals the submitted one; the same
+              // instance may also rely on cache ownership because its own
+              // edits persist through it (cherry-pr-review
+              // inv_ccf47fc3bab12fcf, inv_d544282ace304750).
+              const mayClear = sameInstance
+                ? stillOwnsCache || activeEditor.isShowing(submitted)
+                : activeEditor.isShowing(submitted)
+              if (unchanged && mayClear) {
+                activeEditor.clearSubmitted({ preserveCache: !stillOwnsCache })
+              }
+            } else if (
+              stillOwnsCache &&
+              queueScopeRef.current === enqueueScope &&
+              draftEditRevisionRef.current === enqueueRevision
+            ) {
+              clearCurrentDraft()
+            }
+          }
+        } finally {
+          directSendInFlightRef.current = false
+          releasePendingSubmission(submissionScope)
+        }
         return
       }
 
       directSendInFlightRef.current = true
+      acquirePendingSubmission(submissionScope)
       setIsDirectSending(true)
       try {
         const sent = await sendQueuedPayload(payload)
         if (sent) clearCurrentDraft()
       } finally {
         directSendInFlightRef.current = false
+        releasePendingSubmission(submissionScope)
         setIsDirectSending(false)
       }
     },
     [
+      agentId,
       buildQueuedPayload,
       clearCurrentDraft,
+      draftCacheKey,
       enqueueFollowup,
       isStreaming,
       model,
       sendDisabled,
       sendQueuedPayload,
+      sessionTopicId,
       t,
+      workspaceKey,
       workspaceWarning
     ]
   )
@@ -1858,7 +2127,7 @@ const AgentComposerInner = ({
           voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}
           text={text}
           onTextChange={handleTextChange}
-          editable={!isDirectSending}
+          editable={!isDirectSending && !followupTakePending}
           tokens={tokens}
           draftTokens={draftTokens}
           managedTokenKinds={
@@ -1913,22 +2182,30 @@ const AgentComposerInner = ({
                   }}
                   onEdit={async (id) => {
                     if (directSendInFlightRef.current) return
-                    if (launchOptions?.editing) {
-                      // A message-edit session owns the composer: taking a queued
-                      // item must not try to capture it as an outgoing followup.
-                      releaseEdit()
-                      const item = await takeFollowupForEdit(id, () => null)
-                      if (!item) return
-                      restoreFollowupDraft(item)
-                      return
+                    if (followupTakePendingRef.current) return
+                    followupTakePendingRef.current = true
+                    setFollowupTakePending(true)
+                    try {
+                      if (launchOptions?.editing) {
+                        // A message-edit session owns the composer: taking a queued
+                        // item must not try to capture it as an outgoing followup.
+                        releaseEdit()
+                        const item = await takeFollowupForEdit(id, () => null)
+                        if (!item) return
+                        restoreFollowupDraft(item)
+                        return
+                      }
+                      // Atomic take: undefined when the item is owned by an
+                      // in-flight drain, so an edit can never race its send.
+                      // Switching the edit target returns the outgoing draft to
+                      // its queue slot, rebuilt from the live editor, first.
+                      const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
+                      if (!incoming) return
+                      restoreFollowupDraft(incoming)
+                    } finally {
+                      followupTakePendingRef.current = false
+                      setFollowupTakePending(false)
                     }
-                    // Atomic take: undefined when the item is owned by an
-                    // in-flight drain, so an edit can never race its send.
-                    // Switching the edit target returns the outgoing draft to
-                    // its queue slot, rebuilt from the live editor, first.
-                    const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
-                    if (!incoming) return
-                    restoreFollowupDraft(incoming)
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
@@ -1937,12 +2214,12 @@ const AgentComposerInner = ({
             </>
           }
           supportedExts={supportedExts}
-          setFiles={setFiles}
+          setFiles={setFilesWithRevision}
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}
           quickPanelEnabled={config.enableQuickPanel ?? true}
-          enableDragDrop={config.enableDragDrop ?? true}
+          enableDragDrop={(config.enableDragDrop ?? true) && !followupTakePending}
           enableSpellCheck={enableSpellCheck}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
