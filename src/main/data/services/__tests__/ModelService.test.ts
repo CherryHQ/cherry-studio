@@ -17,13 +17,13 @@ import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
-import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
+import { MODELS_DELETE_MAX_IDS, UpdateModelSchema } from '@shared/data/api/schemas/models'
 import {
   CHERRYAI_DEFAULT_MODEL_ID,
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -34,7 +34,11 @@ const { resolveModelMock } = vi.hoisted(() => ({
   // Default to no registry match; individual cases supply the preset contract
   // needed to verify stored overrides and resolved model behavior.
   resolveModelMock: vi.fn<
-    (providerContext: ProviderRegistryServiceModule.ReasoningProviderContext, modelId: string) => any
+    (
+      providerContext: ProviderRegistryServiceModule.ReasoningProviderContext,
+      modelId: string,
+      endpointType?: EndpointType
+    ) => any
   >(() => ({
     presetModel: null,
     registryOverride: null,
@@ -140,27 +144,152 @@ describe('user_model delta storage invariant', () => {
 // FIELD_MAP completeness — prevents forgetting to map new DTO fields
 // ─────────────────────────────────────────────────────────────────────────────
 
+describe('Ollama discovered reasoning persistence', () => {
+  const dbh = setupTestDatabase()
+  const reasoning = {
+    controls: [
+      { kind: 'effort' as const, values: ['none' as const, 'low' as const, 'medium' as const, 'xhigh' as const] }
+    ],
+    selectableEfforts: ['none' as const, 'low' as const, 'medium' as const, 'xhigh' as const],
+    defaultEffort: 'medium' as const
+  }
+
+  it('projects an explicitly native model through Ollama even when the provider defaults to Anthropic', async () => {
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ ...providerRow('ollama', 'Ollama'), defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('ollama', 'my-alias', {
+        endpointTypes: [ENDPOINT_TYPE.OLLAMA_CHAT],
+        reasoning
+      })
+    )
+    resolveModelMock.mockImplementation((context, _modelId, endpointType) => ({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile:
+        (endpointType ?? context.defaultChatEndpoint) === ENDPOINT_TYPE.OLLAMA_CHAT
+          ? OLLAMA_REASONING_PROFILE
+          : { format: 'anthropic', wire: { disabled: true } }
+    }))
+    expect(modelService.getByKey('ollama', 'my-alias').reasoning).toMatchObject(reasoning)
+  })
+
+  it.each(['custom', 'recognized-custom', 'preset'] as const)(
+    'retains native levels when rereading a %s model',
+    async (kind) => {
+      await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
+      const registryData = {
+        presetModel:
+          kind === 'custom'
+            ? null
+            : {
+                id: 'qwen3-8-27b',
+                name: 'Qwen3.8 27B',
+                capabilities: [MODEL_CAPABILITY.REASONING],
+                reasoning: {
+                  controls: [{ kind: 'toggle' as const }],
+                  supportedEfforts: ['none' as const, 'auto' as const]
+                }
+              },
+        registryOverride: null,
+        reasoningProfile: OLLAMA_REASONING_PROFILE
+      }
+      resolveModelMock.mockReturnValue(registryData)
+      const modelId = kind === 'custom' ? 'my-quantized-model:latest' : 'qwen3.8:27b'
+      const [created] = modelService.create([
+        {
+          dto: {
+            providerId: 'ollama',
+            modelId,
+            name: 'My local model',
+            reasoning,
+            capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+          },
+          registryData
+        }
+      ])
+      if (kind === 'recognized-custom') {
+        await dbh.db
+          .update(userModelTable)
+          .set({
+            presetModelId: null,
+            name: 'My local model',
+            capabilities: created.capabilities,
+            supportsStreaming: true
+          })
+          .where(eq(userModelTable.id, created.id))
+      }
+
+      const reread = modelService.getByKey('ollama', modelId)
+      expect(reread.reasoning).toMatchObject(reasoning)
+      expect(reread.name).toBe('My local model')
+      expect(reread.capabilities).toContain(MODEL_CAPABILITY.FUNCTION_CALL)
+      const [stored] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, created.id))
+      expect(stored.reasoning).toMatchObject(reasoning)
+    }
+  )
+
+  it('refreshes an existing model without changing its user settings, and preserves metadata on unrelated updates', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('ollama', 'qwen3.8:27b', {
+        name: 'Custom name',
+        notes: 'Keep me',
+        isHidden: true,
+        contextWindow: 8192
+      })
+    )
+    modelService.bulkUpdate([
+      {
+        providerId: 'ollama',
+        modelId: 'qwen3.8:27b',
+        patch: {
+          reasoning,
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        }
+      }
+    ])
+    modelService.update('ollama', 'qwen3.8:27b', { isEnabled: false })
+    expect(modelService.getByKey('ollama', 'qwen3.8:27b')).toMatchObject({
+      name: 'Custom name',
+      notes: 'Keep me',
+      isHidden: true,
+      contextWindow: 8192,
+      isEnabled: false,
+      reasoning
+    })
+  })
+
+  it('keeps explicit no-thinking metadata instead of inferring Qwen controls', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    })
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'ollama',
+          modelId: 'qwen3.8:27b',
+          reasoning: { controls: [], selectableEfforts: [] }
+        }
+      }
+    ])
+    expect(modelService.getByKey('ollama', 'qwen3.8:27b').reasoning?.selectableEfforts).toEqual([])
+    expect(created.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
+  })
+})
+
 describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
   it('covers every key in UpdateModelDto', () => {
-    const dtoKeys: (keyof UpdateModelDto)[] = [
-      'name',
-      'description',
-      'group',
-      'capabilities',
-      'inputModalities',
-      'outputModalities',
-      'endpointTypes',
-      'parameterSupport',
-      'supportsStreaming',
-      'contextWindow',
-      'maxInputTokens',
-      'maxOutputTokens',
-      'pricing',
-      'isEnabled',
-      'isHidden',
-      'isDeprecated',
-      'notes'
-    ]
+    const dtoKeys = Object.keys(UpdateModelSchema.shape)
 
     const mappedDtoKeys = UPDATE_MODEL_FIELD_MAP.map((entry) => (Array.isArray(entry) ? entry[0] : entry))
 

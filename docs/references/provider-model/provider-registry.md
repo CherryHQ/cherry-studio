@@ -232,7 +232,7 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `name` / `capabilities` / `supportsStreaming` | Required for custom rows; nullable preset deltas |
 | `inputModalities` / `outputModalities` | Complete custom config or nullable preset deltas |
 | `contextWindow` / `maxOutputTokens` | Complete custom config or nullable preset deltas |
-| `reasoning` | Custom-model intrinsic controls/token limits; preset rows resolve it from the registry |
+| `reasoning` | Custom-model intrinsic controls/token limits; preset rows use registry data except for stored native Ollama controls |
 | `pricing` | Complete custom config or nullable preset delta |
 | `parameters` | Complete custom config or nullable preset delta |
 | `orderKey` | Fractional order key in the provider's model list |
@@ -322,6 +322,8 @@ Reasoning is split across two boundaries:
 - **Provider registry data** declares a closed `reasoningFormat` wire profile. It is resolved and interpreted in Main only; it is never copied into SQLite, DataApi, or renderer state.
 
 The request path resolves one profile from exact provider-model, endpoint override/default, then exhaustive format defaults. It combines that profile with the submit-time canonical selection and emits either native AI SDK provider options or generic compatible parameters.
+
+The built-in Ollama provider defaults to `ollama-chat`. Native model discovery reads `thinking.values` and `thinking.default` from `/api/show`. When the active endpoint is native Ollama, these model-specific controls take precedence over catalog reasoning on both custom and preset-backed models. Model reads project reasoning and request controls through the first saved model endpoint, ahead of provider and catalog defaults, so non-native endpoint choices do not expose native-only levels. Fetching models refreshes the saved controls and reasoning capability without changing other model settings. An unavailable or omitted thinking declaration leaves saved controls unchanged; an explicit `[false]` declaration exposes no thinking choices. Named levels outside the application's reasoning vocabulary are not offered.
 
 See [Reasoning Control](../../../packages/provider-registry/docs/reasoning-control.md) for the schemas, precedence rules, and UI-to-request data flow.
 
