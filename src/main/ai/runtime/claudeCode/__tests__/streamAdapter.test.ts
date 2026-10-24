@@ -21,6 +21,28 @@ vi.mock('@logger', () => ({
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
+it('scales repeated literal fences in assistant snapshots (inv_69cc1f308e73a4d7)', () => {
+  const { adapter, parts } = createAdapter()
+  const answer = '```xml\n<thinking>literal</thinking>\n```\n\n'.repeat(400)
+  const start = performance.now()
+  adapter.handleMessage({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    session_id: 'sdk-1',
+    uuid: crypto.randomUUID(),
+    message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+  } as any)
+  const elapsed = performance.now() - start
+  console.log({ snapshotCharacters: answer.length, elapsed })
+  expect(
+    parts
+      .filter((part) => part.type === 'text-delta')
+      .map((part) => (part as any).delta)
+      .join('')
+  ).toBe(answer)
+  expect(elapsed).toBeLessThan(1000)
+})
+
 it('scales fragmented fenced responses without rescanning every accumulator (inv_be69014e8d52ce1b)', () => {
   const { adapter, parts } = createAdapter()
   const answer = Array.from(

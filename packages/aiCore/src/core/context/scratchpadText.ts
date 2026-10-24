@@ -214,7 +214,7 @@ function isInlineBlockBoundary(line: string): boolean {
   return (
     content.trim() === '' ||
     /^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001/.test(content.trim()) ||
-    /^ {0,3}(?:<!--|<\/?(?:div|table|pre|script|style|section|article|p|ul|ol|li|blockquote)(?:[ \t>]|$))/i.test(
+    /^ {0,3}(?:<!--|<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|source|style|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t>]|$))/i.test(
       content
     ) ||
     /^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content) ||
@@ -738,13 +738,15 @@ function maskIndentedCodeBlocks(text: string): {
   while (i < lines.length) {
     const line = lines[i]
     const depth = explicitQuoteDepth(line)
+    const previousListColumns = inheritedListColumns
     const expanded = expandFencePrefixTabs(line)
     const list = /^( {0,3})([-*+]|\d{1,9}[.)]) (.*)$/.exec(expanded)
     if (list) inheritedListColumns = list[1].length + list[2].length + 1
     else if (line.trim() !== '' && !line.startsWith(' '.repeat(inheritedListColumns))) inheritedListColumns = 0
     // A new explicit quote container cannot inherit an outer paragraph.
     // Unmarked lazy continuation lines keep their paragraph's container.
-    if ((depth > 0 && depth !== quoteDepth) || isListItemStart(line)) paragraphOpen = false
+    if ((depth > 0 && depth !== quoteDepth) || isListItemStart(line) || previousListColumns !== inheritedListColumns)
+      paragraphOpen = false
     if (depth > 0) quoteDepth = depth
     if (line.trim() === '' || isContainerOnlyLine(line)) {
       paragraphOpen = false
@@ -815,12 +817,16 @@ function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolea
  * Tag name of the innermost scratchpad block still open at `pos`, or null when
  * `pos` is outside any scratchpad block. Escaped tags are literal and ignored.
  */
-function enclosingScratchpadTag(text: string, pos: number): string | null {
+function enclosingScratchpadTag(
+  text: string,
+  pos: number,
+  cachedInlineRanges?: Array<{ start: number; end: number }>
+): string | null {
   const stack: string[] = []
   // Inline-code tags are literals, not wrappers: an opener such as
   // `Use `<thinking>` blocks:` must not enlist the following fenced example
   // as enclosed scratchpad content (cherry-pr-review inv_fedee4736993b558).
-  const { ranges: inlineCodeRanges } = maskInlineCodeSpans(text)
+  const inlineCodeRanges = cachedInlineRanges ?? maskInlineCodeSpans(text).ranges
   let rangeIndex = 0
   const inInlineCode = (index: number): boolean => {
     while (rangeIndex < inlineCodeRanges.length && inlineCodeRanges[rangeIndex].end <= index) {
@@ -878,6 +884,7 @@ function maskCodeFences(text: string): {
 } {
   const placeholderBase = pickPlaceholderBase(text, 'CODE_FENCE')
   const fences: string[] = []
+  const inlineRanges = maskInlineCodeSpans(text).ranges
   let out = ''
   let pos = 0
 
@@ -919,7 +926,7 @@ function maskCodeFences(text: string): {
     // inv_e5404aa552bba2ea). A fence outside any scratchpad block still masks
     // to its own close or EOF.
     let blockCloseIdx = -1
-    const enclosing = enclosingScratchpadTag(text, fenceStart)
+    const enclosing = enclosingScratchpadTag(text, fenceStart, inlineRanges)
     if (enclosing) {
       const findBlockClose = (from: number): number => {
         const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
@@ -1325,6 +1332,12 @@ export function stripModelScratchpadBlocks(raw: string): string {
   const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
   let out = stripKnownModelScratchpadBlocks(inlineMasked)
 
+  // A complete summary is usable even if the model forgot the leading
+  // scratchpad's closing tag. Code/attribute literals are already masked.
+  if (/^\s*<(?:analysis|assessment|thinking)\b/i.test(out)) {
+    const summary = /<summary\b[^>]*>([\s\S]*)<\/summary\s*>\s*$/i.exec(out)
+    if (summary) out = summary[1]
+  }
   const unwrapped = unwrapWholeSummaryWrapper(out)
   if (unwrapped !== null) {
     out = unwrapped

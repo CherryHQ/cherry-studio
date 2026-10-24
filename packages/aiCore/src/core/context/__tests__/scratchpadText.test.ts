@@ -13,6 +13,21 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('resets paragraph identity when inherited list quote ends (inv_abe5b2ba1a27f3e4)', () => {
+    const input = '- First\n  > First\n>     <thinking>literal</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+  })
+  it('bounds inline spans at details HTML blocks (inv_53675383c8c9885e)', () => {
+    expect(
+      stripModelScratchpadBlocks(
+        'Unmatched ` marker.\n<details>\n<analysis>SECRET</analysis>\n</details>\nLater `example`.'
+      )
+    ).not.toContain('SECRET')
+  })
+  it('uses complete summary after unmatched leading analysis (inv_b290db1b201353da)', () => {
+    expect(stripModelScratchpadBlocks('<analysis>private reasoning\n<summary>public</summary>')).toBe('public')
+  })
+
   it('preserves tab-separated list code (inv_b29097d457dd8757)', () => {
     const input = '-\t    <thinking>literal</thinking>'
     expect(stripModelScratchpadBlocks(input)).toBe(input)
