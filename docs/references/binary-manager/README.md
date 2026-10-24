@@ -36,7 +36,7 @@ Backup and restore transport `feature.binary.tools` as portable custom definitio
 
 ## Snapshots
 
-`getToolSnapshots(names)` is the one availability surface for renderer and main consumers. Each `BinaryToolSnapshot` combines four independent dimensions:
+`getToolSnapshots(names)` provides management snapshots for renderer and main consumers. Main-process services resolve a single executable through `resolveToolExecution(name, { signal, deadline })`. Each `BinaryToolSnapshot` combines four independent dimensions:
 
 - `definition`: the user-added `CustomToolDefinition` backing this name; absent for a fixed tool.
 - `application`: the exact-backend-application fact (`applied` / `broken` / `absent` / `conflict` / `unknown`) — whether the exact managed recipe is applied through mise, computed independently of `availability`. Only an `active: true` mise entry whose executable shim and `mise which` target are both runnable can be `applied`; installed but inactive entries are `broken`, and their shim contributes mise availability only when the same target check passes. A tool name is not always an executable — `core:rust` exposes `rustc`/`cargo` and no `rust` — so a recipe without an eponymous shim qualifies through a concrete executable `mise bin-paths --json` reports for it, and only when that executable clears the same bar: a shim that passes the platform-appropriate access check whose target `mise which --tool` still resolves for this recipe.
@@ -156,6 +156,10 @@ The cache reclaims itself: a version whose files are hard-linked into some workt
 
 ## Consuming a tool
 
-A service that needs to execute a CLI asks `getToolSnapshots([executableName])` and uses the current availability path. It may execute a `mise`, bundled, or system result; availability alone is sufficient for that decision. If availability is `none` and the executable is a fixed catalog tool, it calls `installByName({ name: executableName })`; main resolves the canonical recipe. An arbitrary user-supplied recipe goes through `addCustomTool(definition)`. Re-read the snapshot after installation before launching.
+A service that needs to execute one CLI calls the main-only `resolveToolExecution(name, { signal, deadline })` and uses the returned path and environment. Management and installation decisions continue to use snapshots and their `application` facts. Resolve the executable again after installation. An `unknown` application or `failed` resolution must never automatically become an installation request; rtk does not auto-install.
+
+The execution resolver handles one executable name, in mise → bundled → system order, without enumerating management state or deriving executable names from recipes. Its result is `available` (executable and environment), `unavailable` (all queries completed without a runnable candidate), or `failed` (phase, reason, and timing). `path` is the absolute execution path, canonicalized for mise; `resolvedPath` preserves the original candidate before canonicalization. Managed and bundled execution keep the user's HOME/XDG; system execution uses a copy of the raw environment used for lookup.
+
+All resolution stages share the caller's absolute `performance.now()` deadline and have individual limits. Timeout or cancellation ends resolution immediately, including when underlying work does not observe cancellation; late results cannot start later stages. Query failures may fall back to another source, but remain failures if no fallback is available. The resolver has no installation or update authority. Management UI continues to use the snapshot superset.
 
 Do not recreate mise commands, custom registry writes, or binary search paths in a consumer. Use BinaryManager for install/remove and `application.getPath()` for main-process paths. `getBinaryPath()` and `isBinaryExists()` are narrower main-only helpers for Cherry search directories, not substitutes for snapshots when a consumer needs system-path availability.
