@@ -949,7 +949,8 @@ export function useFollowupQueue({
         }
         return undefined
       }
-      if (scopeKeyRef.current !== scope || !mountedRef.current) {
+      const recoverAbandonedTake = async (): Promise<boolean> => {
+        if (scopeKeyRef.current === scope && mountedRef.current) return false
         // Scope moved or the consumer unmounted while DELETE was pending: the
         // row is gone, but its draft belongs to the old scope — put it back at
         // the end of that scope's queue instead of restoring it into a composer
@@ -1015,8 +1016,9 @@ export function useFollowupQueue({
           if (!removed) scheduleResolveRetryRef.current(restoredCopy.id, true, '')
         }
         takenEditRef.current = null
-        return undefined
+        return true
       }
+      if (await recoverAbandonedTake()) return undefined
       // Delete the incoming row before convergence: its claim bars reorder,
       // and an anchor removed in another window may have made INSERT fall
       // back to the tail. Reconcile without the incoming row even if its
@@ -1073,6 +1075,9 @@ export function useFollowupQueue({
         }
       }
       await placeRestoredEdit()
+      // Convergence awaits can outlive the consumer too. Recover the deleted
+      // incoming draft before releasing the outgoing hold (inv_7c3ab6fed0c3e32c).
+      if (await recoverAbandonedTake()) return undefined
       // Editor ownership actually transferred only now: release the outgoing
       // copy's recovery hold so it is claimable as ordinary pending content.
       // A lost release self-heals when the hold ages out.

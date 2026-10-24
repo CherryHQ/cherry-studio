@@ -1378,6 +1378,70 @@ describe('useFollowupQueue', () => {
     expect(heldEnqueues[1].anchor).toEqual({ after: 'b' })
   })
 
+  it.each(['unmount', 'scope switch'] as const)(
+    'recovers the incoming draft after %s during convergence (inv_7c3ab6fed0c3e32c)',
+    async (navigation) => {
+      wireQuery([row('p', 'predecessor'), row('a', 'first'), row('b', 'second'), row('c', 'third')])
+      const { claimTrigger, postTrigger, reorderTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      const { result, rerender, unmount } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      wireQuery([row('p', 'predecessor'), row('b', 'second'), row('c', 'third')])
+      rerender({ scopeKey: SCOPE })
+      let resolveEnqueue: (() => void) | undefined
+      postTrigger.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveEnqueue = resolve
+          })
+      )
+      let resolveReorder: (() => void) | undefined
+      reorderTrigger.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveReorder = resolve
+          })
+      )
+      let switched: Promise<unknown> | undefined
+      await act(async () => {
+        switched = result.current.takeForEdit('b', () => ({
+          draft: draft('first edited'),
+          payload: payload('first edited')
+        }))
+      })
+      const restoreIdA = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+      // Peer removed P, so the anchored INSERT landed A at the tail.
+      wireQuery([row('b', 'second'), row('c', 'third'), row(restoreIdA, 'first edited')])
+      rerender({ scopeKey: SCOPE })
+      await act(async () => {
+        resolveEnqueue?.()
+      })
+      expect(reorderTrigger).toHaveBeenCalledTimes(1)
+      if (navigation === 'unmount') unmount()
+      else rerender({ scopeKey: 's2' })
+      let received: unknown
+      await act(async () => {
+        resolveReorder?.()
+        received = await switched
+      })
+      expect(received).toBeUndefined()
+      const bodies = (
+        postTrigger.mock.calls as unknown as Array<
+          [{ body: { held?: boolean; scopeKey: string; payload: { text: string } } }]
+        >
+      ).map(([{ body }]) => body)
+      expect(bodies).toContainEqual(
+        expect.objectContaining({ scopeKey: SCOPE, payload: expect.objectContaining({ text: 'second' }) })
+      )
+      expect(bodies.some((body) => body.payload.text === 'first edited' && body.held === false)).toBe(false)
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreIdA } })
+    }
+  )
+
   it('keeps incoming predecessors when DELETE refreshes membership before resolving (inv_7cb28f349bd94df4)', async () => {
     wireQuery([row('a', 'first'), row('b', 'second'), row('c', 'third')])
     const { claimTrigger, postTrigger, takeDeleteTrigger } = wireMutations()
