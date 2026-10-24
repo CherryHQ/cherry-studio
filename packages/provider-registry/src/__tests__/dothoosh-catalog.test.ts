@@ -24,4 +24,12 @@ describe('DotHoosh provider', () => {
       expect.arrayContaining(['openai-chat-completions', 'anthropic-messages'])
     )
   })
+
+  // The gateway lists tools for these models on its Responses protocol only; Responses is their primary route.
+  it.each(['gpt-6-astra', 'gpt-6-luna', 'gpt-6-1-sol'])('keeps function calls for %s on its Responses route', (id) => {
+    const override = loader.findOverride('dothoosh', id)
+    expect(override?.endpointTypes?.[0]).toBe('openai-responses')
+    expect(override?.capabilities?.add).toContain('function-call')
+    expect(override?.capabilities?.remove ?? []).not.toContain('function-call')
+  })
 })

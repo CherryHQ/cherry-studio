@@ -96,6 +96,9 @@ const PROTOCOL_ENDPOINT: Record<string, EndpointType> = {
   'openai-responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'anthropic-messages': ENDPOINT_TYPE.ANTHROPIC_MESSAGES
 }
+const PROTOCOL_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(PROTOCOL_ENDPOINT).map(([protocol, endpoint]) => [endpoint, protocol])
+)
 // Responses first: the gateway refuses function tools on GPT-6 Chat Completions. A model on Chat
 // Completions and the Anthropic route (DeepSeek) stays on Chat Completions.
 const ENDPOINT_ORDER: EndpointType[] = [
@@ -156,7 +159,32 @@ function parsePricing(entry: EntryT): DotHooshPricing | undefined {
   return { ...base, ...(tiers.length ? { inputTokenTiers: tiers } : {}) }
 }
 
-function parseCapabilities(entry: EntryT, inputModalities: ModalityType[]): DotHooshModel['capabilities'] {
+// What a protocol's `capabilities` list can say about a model, by the listing's own words.
+const PROTOCOL_CAPABILITY: Record<string, (typeof LISTED_CAPABILITIES)[number]> = {
+  tools: MODEL_CAPABILITY.FUNCTION_CALL,
+  reasoning: MODEL_CAPABILITY.REASONING,
+  'structured-output': MODEL_CAPABILITY.STRUCTURED_OUTPUT
+}
+
+/** The capability list a model's entry declares for one protocol, when it declares one. */
+function protocolCapabilities(entry: EntryT, endpoint: EndpointType | undefined): Set<string> | undefined {
+  if (!endpoint) return undefined
+  const declared = (entry.protocols ?? []).find(
+    (p) => (p as { protocol?: unknown } | null)?.protocol === PROTOCOL_NAME[endpoint]
+  ) as { capabilities?: unknown } | undefined
+  const list = declared?.capabilities
+  return Array.isArray(list) && list.every((c) => typeof c === 'string') ? new Set<string>(list) : undefined
+}
+
+/**
+ * Capabilities are read for the protocol Cherry will call first (`endpoint`): its own list wins over the
+ * shared `supported_parameters`, which cover only what every protocol accepts (GPT-6 tools are Responses-only).
+ */
+function parseCapabilities(
+  entry: EntryT,
+  inputModalities: ModalityType[],
+  endpoint: EndpointType | undefined
+): DotHooshModel['capabilities'] {
   const parameters = new Set(entry.supported_parameters ?? [])
   const declared: Record<(typeof LISTED_CAPABILITIES)[number], boolean> = {
     [MODEL_CAPABILITY.FUNCTION_CALL]: parameters.has('tools'),
@@ -167,6 +195,10 @@ function parseCapabilities(entry: EntryT, inputModalities: ModalityType[]): DotH
     [MODEL_CAPABILITY.VIDEO_RECOGNITION]: inputModalities.includes(MODALITY.VIDEO),
     // The listing has no file modality today; direct file input stays off until it declares one.
     [MODEL_CAPABILITY.FILE_INPUT]: (entry.architecture?.input_modalities ?? []).includes('file')
+  }
+  const own = protocolCapabilities(entry, endpoint)
+  if (own) {
+    for (const [token, capability] of Object.entries(PROTOCOL_CAPABILITY)) declared[capability] = own.has(token)
   }
   return {
     add: LISTED_CAPABILITIES.filter((c) => declared[c]),
@@ -250,10 +282,11 @@ export function parseDotHooshListings(listings: { openai?: unknown; anthropic?: 
       MODALITIES.has(m)
     )
     const pricing = parsePricing(entry)
+    const endpointTypes = ENDPOINT_ORDER.filter((e) => endpoints.has(e))
     return {
       id: entry.id,
       name: entry.display_name?.trim() || entry.name?.trim() || entry.id,
-      endpointTypes: ENDPOINT_ORDER.filter((e) => endpoints.has(e)),
+      endpointTypes,
       ...dropUndefined({
         contextWindow:
           positive(entry.context_length) ??
@@ -263,7 +296,7 @@ export function parseDotHooshListings(listings: { openai?: unknown; anthropic?: 
       }),
       inputModalities,
       outputModalities,
-      capabilities: parseCapabilities(entry, inputModalities),
+      capabilities: parseCapabilities(entry, inputModalities, endpointTypes[0]),
       ...(pricing ? { pricing } : {})
     }
   })

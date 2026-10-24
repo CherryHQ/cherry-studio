@@ -1025,7 +1025,7 @@ const dothooshFetcher: ModelFetcher = {
     const openaiUrl = useMirror ? `${DOTHOOSH_MIRROR_URL}/v1/models` : `${formatApiHost(chatBase)}/models`
     const anthropicUrl = useMirror
       ? `${DOTHOOSH_MIRROR_URL}/anthropic/v1/models`
-      : `${base(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)}/v1/models`
+      : `${formatApiHost(base(ENDPOINT_TYPE.ANTHROPIC_MESSAGES))}/models`
     const appHeaders = useMirror ? {} : mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider))
     const [openai, anthropic] = await Promise.all([
       getFromApi({
