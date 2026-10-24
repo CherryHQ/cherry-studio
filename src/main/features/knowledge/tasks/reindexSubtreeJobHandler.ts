@@ -58,6 +58,7 @@ export function createReindexSubtreeJobHandler(
       // after enqueue. Keep this fast path so delete remains the only preemptive action.
       const liveRoots = resolveReindexableRoots(baseId, rootItemIds, ctx.jobId)
       if (!liveRoots) {
+        knowledgeItemService.failActiveSubtrees(baseId, rootItemIds, KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
         reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
         return
       }
@@ -79,6 +80,7 @@ export function createReindexSubtreeJobHandler(
         // subtree back into preparing/processing during cleanup/reset.
         const subtreeResult = resolveLiveKnowledgeSubtree(baseId, rootItemIds)
         if ('skip' in subtreeResult) {
+          knowledgeItemService.failActiveSubtrees(baseId, rootItemIds, KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
           logger.info('Skipping reindex-subtree reset for deleting subtree', { baseId, rootItemIds, jobId: ctx.jobId })
           return { roots: [], skippedDeleting: true, skippedMissingSource: 0 }
         }
@@ -96,6 +98,13 @@ export function createReindexSubtreeJobHandler(
             rebuildableRoots.push(root)
           } else {
             missingSourceRootIds.push(root.id)
+            if (REINDEX_RECOVERY_ACTIVE_STATUSES.has(root.status)) {
+              knowledgeItemService.failActiveSubtrees(
+                baseId,
+                [root.id],
+                'Source is no longer available; restore the source and reindex to finish embedding backfill'
+              )
+            }
           }
         }
         if (missingSourceRootIds.length > 0) {
@@ -317,7 +326,7 @@ async function markReindexSubtreeFailedOnSettled(
       event.status === 'cancelled'
         ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
         : `Reindex job ${event.status}: ${reason}`
-    knowledgeItemService.setSubtreeStatus(baseId, rootsToFail, 'failed', { error })
+    knowledgeItemService.failActiveSubtrees(baseId, rootsToFail, error)
   } catch (error) {
     logger.error(
       'Failed to flip reindex-subtree targets to failed in onSettled',

@@ -465,6 +465,26 @@ export class KnowledgeIndexStore {
     }
   }
 
+  findIncompleteMaterials(materialIds: string[], dimensions: number): string[] {
+    if (materialIds.length === 0) return []
+    const requested = materialIds.map(() => '(?)').join(', ')
+    const result = this.driver.execute(
+      `WITH requested(material_id) AS (VALUES ${requested})
+       SELECT r.material_id FROM requested r
+       LEFT JOIN material m ON m.material_id = r.material_id
+       LEFT JOIN content c ON c.content_hash = m.current_content_hash
+       LEFT JOIN search_unit u ON u.material_id = m.material_id
+       LEFT JOIN search_text t ON t.target_id = u.unit_id AND t.target_type = 'search_unit' AND t.kind = 'body'
+       LEFT JOIN embedding e ON e.embedding_text_hash = t.embedding_text_hash
+       GROUP BY r.material_id
+       HAVING count(u.unit_id) = 0 OR max(CASE WHEN c.content_hash IS NULL
+         OR u.content_hash <> m.current_content_hash OR t.text IS NULL
+         OR e.embedding_text_hash IS NULL OR length(e.vector_blob) <> ? THEN 1 ELSE 0 END) = 1`,
+      [...materialIds, dimensions * 4]
+    )
+    return result.rows.map((row) => row.material_id as string)
+  }
+
   /**
    * Fold the WAL back into the main db file (TRUNCATE) so the committed pages are
    * durable in `index.sqlite` itself and the next opener sees a self-contained

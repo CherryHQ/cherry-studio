@@ -9,6 +9,7 @@ import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/sc
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 
 import DetailHeader from '../components/DetailHeader'
+import { useKnowledgeEmbeddingIntegrity } from '../hooks/useKnowledgeEmbeddingIntegrity'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
 import { nextKnowledgeItemSort } from '../utils/itemSort'
@@ -43,6 +44,8 @@ const KnowledgePageDetailSection = () => {
     handleRecallTestDrawerOpenChange,
     openRestoreBaseDialog
   } = useKnowledgePage()
+
+  useKnowledgeEmbeddingIntegrity(selectedBaseId, baseNavigationVersion)
 
   const [sortState, setSortState] = useState<{ baseId: string; sort: KnowledgeItemSort | null }>(() => ({
     baseId: selectedBaseId,

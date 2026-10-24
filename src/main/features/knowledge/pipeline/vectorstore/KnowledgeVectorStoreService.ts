@@ -9,7 +9,7 @@ import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 
 import { isIndexableKnowledgeItem } from '../../items'
 import { deleteKnowledgeBaseDir, getKnowledgeVectorStoreFilePathSync } from '../../pathStorage'
-import { createKnowledgeIndexStoreAtPath } from './indexStore/createIndexStore'
+import { createKnowledgeIndexStoreAtPath, openIndexStoreForInspection } from './indexStore/createIndexStore'
 import type { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
@@ -41,6 +41,16 @@ export class KnowledgeVectorStoreService extends BaseService {
   // same base can ever observe an in-flight open, and a failed open never gets
   // cached (the throw happens before .set() below runs).
   private instanceCache = new Map<string, KnowledgeIndexStore>()
+
+  findIncompleteMaterials(baseId: string, materialIds: string[], dimensions: number): string[] {
+    if (!this.storeFileExists(baseId)) return materialIds
+    const store = openIndexStoreForInspection(getKnowledgeVectorStoreFilePathSync(baseId), baseId)
+    try {
+      return store.findIncompleteMaterials(materialIds, dimensions)
+    } finally {
+      store.close()
+    }
+  }
 
   /** Open (or reuse) the base's index store, ensuring its schema exists. */
   getIndexStore(base: KnowledgeBase): KnowledgeIndexStore {

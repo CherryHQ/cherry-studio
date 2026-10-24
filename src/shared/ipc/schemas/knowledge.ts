@@ -8,6 +8,7 @@ import {
   KnowledgeAddItemInputSchema,
   KnowledgeAddItemsResultSchema,
   KnowledgeBaseSchema,
+  KnowledgeEmbeddingIntegrityResultSchema,
   KnowledgeItemChunkSchema,
   KnowledgeSearchResultSchema,
   RestoreKnowledgeBaseResultSchema,
@@ -41,6 +42,10 @@ const itemIdsInputSchema = z.strictObject({
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const knowledgeRequestSchemas = {
+  'knowledge.check_embedding_integrity': defineRoute({
+    input: z.strictObject({ baseId: baseIdSchema }),
+    output: KnowledgeEmbeddingIntegrityResultSchema
+  }),
   'knowledge.create_base': defineRoute({
     input: z.strictObject({ base: CreateKnowledgeBaseSchema }),
     output: KnowledgeBaseSchema

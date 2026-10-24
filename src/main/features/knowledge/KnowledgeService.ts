@@ -123,6 +123,10 @@ export class KnowledgeService extends BaseService {
     return await this.ingestionService.enableEmbeddingModel(baseId, patch)
   }
 
+  async checkEmbeddingIntegrity(baseId: string) {
+    return this.ingestionService.checkEmbeddingIntegrity(baseId)
+  }
+
   listRootItems(baseId: string): KnowledgeItem[] {
     return this.queryService.listRootItems(baseId)
   }

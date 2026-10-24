@@ -1102,47 +1102,6 @@ describe('KnowledgeService', () => {
   })
 
   describe('enableEmbeddingModel', () => {
-    it('sets the model with the backfill bypass and reindexes every existing root item', async () => {
-      const service = new KnowledgeService()
-      const rootItems = [createNoteItem('note-1', 'kb-1', null, 'completed'), createFileItem('file-1')]
-      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue(rootItems)
-      knowledgeItemGetByIdMock.mockImplementation((id: string) => rootItems.find((item) => item.id === id))
-
-      const patch = { embeddingModelId: 'provider::embed', dimensions: 3 }
-      const result = await service.enableEmbeddingModel('kb-1', patch)
-
-      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', patch, { allowEmbeddingModelBackfill: true })
-      expect(result.embeddingModelId).toBe('provider::embed')
-      expect(enqueueMock).toHaveBeenCalledWith(
-        'knowledge.reindex-subtree',
-        expect.objectContaining({ baseId: 'kb-1', rootItemIds: expect.arrayContaining(['note-1', 'file-1']) }),
-        expect.anything()
-      )
-    })
-
-    it('skips reindexing when the base has no items yet', async () => {
-      const service = new KnowledgeService()
-      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
-
-      const patch = { embeddingModelId: 'provider::embed', dimensions: 3 }
-      const result = await service.enableEmbeddingModel('kb-1', patch)
-
-      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', patch, { allowEmbeddingModelBackfill: true })
-      expect(result.embeddingModelId).toBe('provider::embed')
-      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
-    })
-
-    it('excludes items already being deleted from the backfill reindex', async () => {
-      const service = new KnowledgeService()
-      const deletingItem = createNoteItem('note-2', 'kb-1', null, 'completed')
-      deletingItem.status = 'deleting'
-      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([deletingItem])
-
-      await service.enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
-
-      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
-    })
-
     it('rejects a doomed backfill before committing the model, instead of leaving it set with no vectors', async () => {
       const service = new KnowledgeService()
       const activeRoot = createNoteItem('note-3', 'kb-1', null, 'embedding')

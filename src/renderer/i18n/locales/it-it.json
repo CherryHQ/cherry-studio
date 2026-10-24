@@ -1824,6 +1824,8 @@
   "knowledge.empty_action": "Crea base di conoscenza",
   "knowledge.empty_description": "Arricchisci le tue conoscenze con l'IA",
   "knowledge.error.directory_not_migrated": "Migrazione della cartella non riuscita. Eliminala e caricala di nuovo.",
+  "knowledge.error.embedding_index_incomplete": "L’indice degli embedding è incompleto. Reindicizza questo elemento per completarlo.",
+  "knowledge.error.embedding_integrity_check_failed": "Impossibile verificare l’indice degli embedding. Riapri questa base di conoscenze per riprovare.",
   "knowledge.error.failed_base_unknown": "Migrazione di questa base di conoscenza non riuscita. Ricostruiscila e scegli un nuovo modello di embedding.",
   "knowledge.error.failed_to_create": "Impossibile creare la base di conoscenza",
   "knowledge.error.failed_to_delete": "Impossibile eliminare la base di conoscenza",

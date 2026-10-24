@@ -38,6 +38,7 @@ Helpers may own source planning, lifecycle writes, knowledge-owned raw files, an
 - `addItems` resolves after root rows are created and first Knowledge jobs are queued.
 - `deleteItems` resolves after top-level target subtrees are marked `deleting` and `knowledge.delete-subtree` is queued.
 - `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and `knowledge.reindex-subtree` is queued.
+- First-time embedding setup commits the model, active target states, and reindex job atomically. Unlike ordinary refresh, it must not leave queued targets claiming complete vector coverage.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
 
@@ -80,7 +81,7 @@ Registered job types:
 - `knowledge.prepare-root`: expand a container and schedule each child.
 - `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source. Empty reader results or zero chunks still write an empty vector set and complete the item.
 - `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, delete base-directory files, then delete resolved item ids with `deleteItemsByIds`. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
-- `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
+- `knowledge.reindex-subtree`: handles admitted terminal subtrees or already-activated first-time embedding targets; delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
 
 - `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
 

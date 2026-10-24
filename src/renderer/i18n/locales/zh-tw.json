@@ -1824,6 +1824,8 @@
   "knowledge.empty_action": "建立知識庫",
   "knowledge.empty_description": "你尚未建立任何知識庫。建立一個知識庫，以整理並檢索檔案。",
   "knowledge.error.directory_not_migrated": "該資料夾內容移轉失敗，請刪除後重新上傳。",
+  "knowledge.error.embedding_index_incomplete": "嵌入索引不完整，請重新索引此項目以完成。",
+  "knowledge.error.embedding_integrity_check_failed": "無法檢查嵌入索引，請重新開啟此知識庫重試。",
   "knowledge.error.failed_base_unknown": "該知識庫移轉失敗，請重建知識庫並選擇新的嵌入模型。",
   "knowledge.error.failed_to_create": "知識庫建立失敗",
   "knowledge.error.failed_to_delete": "知識庫刪除失敗",

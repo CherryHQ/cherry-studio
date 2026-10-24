@@ -217,10 +217,20 @@ Current persisted `knowledge_base` columns include:
   `missing_embedding_model` or `missing_vector_store`.
 
 For a completed BM25-only base, `knowledge.enable_embedding_model` sets the
-first embedding model and dimensions in place, then reindexes all non-deleting
-roots to backfill vectors. Changing a base that already has an embedding model
+first embedding model and dimensions, activates existing target items, and
+enqueues reindex in one transaction. An interrupted backfill becomes visibly
+retryable even if its job never started. Changing a base that already has an embedding model
 is rejected by this path; that operation uses `restore_base` because the
 existing vector contract must be rebuilt in a new base.
+
+Opening a base calls `knowledge.check_embedding_integrity` with `{ baseId }`.
+It returns `{ status: 'checked' | 'deferred' | 'not_applicable', changedCount }`.
+Completed leaves with incomplete local embedding coverage become failed and
+retryable; completed siblings are preserved. Active jobs defer the check by two
+seconds while the page remains open. This inspection reads the index without
+creating or migrating it, never calls an embedding provider, and does not infer
+success for failed items from the presence of vectors alone. See
+[operation guards](./operation-guards.md#checkembeddingintegrity) for failure semantics.
 
 ## Delete And Reindex
 

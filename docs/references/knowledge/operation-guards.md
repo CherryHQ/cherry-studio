@@ -253,14 +253,36 @@ Leaf indexing reads from the current `knowledge_item.data` and rewrites derived 
 
 This operation is only for a completed BM25-only base that has no embedding
 model. It first applies the same terminal-subtree and source-availability checks
-as reindex. It then persists the model/dimensions through
-`KnowledgeBaseService.update(..., { allowEmbeddingModelBackfill: true })` and
-enqueues reindex for every non-deleting root.
+as reindex. Under the base lock it rechecks the admission snapshot and rejects
+active jobs. One main-database transaction then saves the model/dimensions,
+activates the selected subtrees, and enqueues reindex. An enqueue failure rolls
+back all three writes. Startup recovery can therefore identify even a backfill
+that never started. Completed leaves remain completed when unfinished work is
+settled; deleting items retain deletion ownership.
 
 It cannot switch an already-configured embedding model; that remains a restore
 operation because existing vectors were built under a different contract. If
 the base has no roots, only the configuration changes and no reindex job is
 needed.
+
+## `checkEmbeddingIntegrity`
+
+Opening a base triggers this local inspection. BM25-only and failed bases are
+skipped; active jobs defer inspection until the next attempt. Batches contain
+at most 500 completed leaves, with an event-loop yield between batches. Each
+batch rechecks the base and active jobs under the mutation lock.
+
+The index is opened read-only without creating or migrating it. Missing
+materials, chunks, body text, or vectors, and vectors with the wrong width,
+mark only still-completed leaves `failed` with `embedding_index_incomplete`.
+Container states roll up from their children. A missing index is incomplete;
+an unreadable, foreign, or unsupported index throws without classifying that
+batch. Earlier batches may already have been reconciled, so the renderer also
+refreshes after an inspection error.
+
+Inspection never embeds, schedules repairs, or promotes failed items back to
+completed. Users retry through the existing reindex action; failed items are
+excluded from search until that succeeds.
 
 ## `prepare-root`
 
@@ -305,7 +327,7 @@ When changing these operations, check the operation-specific failure behavior be
 | `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
 | `reindexItems` | Reject | Yes | Entire subtree terminal; selected root sources available | None | Throw; no active state was written |
-| `enableEmbeddingModel` | Reject | All non-deleting roots | BM25-only base; same reindex admission checks | Model/dimensions committed before reindex enqueue | Propagate the reindex enqueue error; config remains enabled |
+| `enableEmbeddingModel` | Reject | All non-deleting roots | BM25-only base; reindex admission; unchanged snapshot; no active jobs | Model, active item states, and job committed atomically | Roll back configuration, item states, and job |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

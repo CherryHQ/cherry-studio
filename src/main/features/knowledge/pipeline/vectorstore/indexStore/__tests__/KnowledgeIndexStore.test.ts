@@ -53,6 +53,31 @@ describe('KnowledgeIndexStore', () => {
 
   const count = async (table: string) => Number(driver.execute(`SELECT COUNT(*) AS n FROM ${table}`).rows[0].n)
 
+  it('locates missing materials, empty units and missing or wrong-width vectors without flagging complete siblings', () => {
+    store.rebuildMaterial('good', buildInput('good', [[0, 4]], 'good.md'))
+    store.rebuildMaterial(
+      'partial',
+      buildInput(
+        'alpha beta',
+        [
+          [0, 5],
+          [6, 10]
+        ],
+        'partial.md'
+      )
+    )
+    store.rebuildMaterial('empty', buildInput('', [], 'empty.md'))
+    store.rebuildMaterial('wrong-width', buildInput('wrong', [[0, 5]], 'wrong.md', [1, 2]))
+    driver.execute('DELETE FROM embedding WHERE embedding_text_hash = ?', [hashEmbeddingText('beta')])
+    expect(store.findIncompleteMaterials(['good', 'partial', 'empty', 'wrong-width', 'absent'], 3).sort()).toEqual([
+      'absent',
+      'empty',
+      'partial',
+      'wrong-width'
+    ])
+    expect(store.listMaterialUnits('good').map((unit) => unit.text)).toEqual(['good'])
+  })
+
   const ftsMatchCount = async (term: string) =>
     driver.execute(
       `SELECT st.search_text_id AS id

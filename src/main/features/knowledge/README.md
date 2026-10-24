@@ -56,6 +56,11 @@ Indexing jobs and `knowledge.reindex-subtree` declare `recovery: 'abandon'` — 
 silently resumes them (that would auto-spend the paid embedding API); boot recovery parks
 interrupted items at `failed` instead. Only `knowledge.delete-subtree` uses `recovery: 'retry'`.
 
+First-time embedding setup commits model configuration, active subtree statuses, and the reindex
+job together, so recovery also catches queued backfills. Opening a base inspects completed leaves
+against the existing index through a read-only connection, deferring while jobs are active. Missing
+embedding coverage becomes `embedding_index_incomplete`; repair requires a user-triggered reindex.
+
 Item status flow: `preparing` (directory) / `processing` → `completed` | `failed`; any status →
 `deleting` → row removed. `reading`/`embedding` are transient sub-phases surfaced while the index
 job runs.

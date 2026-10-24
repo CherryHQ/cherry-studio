@@ -1824,6 +1824,8 @@
   "knowledge.empty_action": "Создать базу знаний",
   "knowledge.empty_description": "Расширяйте свои знания с помощью ИИ",
   "knowledge.error.directory_not_migrated": "Не удалось перенести папку. Пожалуйста, удалите её и загрузите заново.",
+  "knowledge.error.embedding_index_incomplete": "Индекс эмбеддингов неполон. Повторно проиндексируйте этот элемент.",
+  "knowledge.error.embedding_integrity_check_failed": "Не удалось проверить индекс эмбеддингов. Откройте эту базу знаний заново, чтобы повторить попытку.",
   "knowledge.error.failed_base_unknown": "Не удалось перенести эту базу знаний. Пересоздайте её и выберите новую модель эмбеддингов.",
   "knowledge.error.failed_to_create": "Не удалось создать базу знаний",
   "knowledge.error.failed_to_delete": "Не удалось удалить базу знаний",

@@ -1,12 +1,28 @@
 import { loggerService } from '@logger'
 
-import { openBetterSqlite3IndexDriver } from './BetterSqlite3Driver'
+import { openBetterSqlite3IndexDriver, openReadOnlyIndexDriver } from './BetterSqlite3Driver'
 import { betterSqlite3VectorIndex } from './BetterSqlite3VectorIndex'
 import { ensureIndexMeta, readIndexSchemaVersion } from './indexMeta'
 import { KnowledgeIndexStore } from './KnowledgeIndexStore'
 import { createKnowledgeIndexSchema, KNOWLEDGE_INDEX_SCHEMA_VERSION, resetKnowledgeIndexSchema } from './schema'
 
 const logger = loggerService.withContext('KnowledgeIndexStoreFactory')
+
+export function openIndexStoreForInspection(dbPath: string, baseId: string): KnowledgeIndexStore {
+  const driver = openReadOnlyIndexDriver(dbPath)
+  try {
+    if (readIndexSchemaVersion(driver) !== KNOWLEDGE_INDEX_SCHEMA_VERSION) {
+      throw new Error('Cannot inspect an unsupported knowledge index schema')
+    }
+    if (driver.execute('SELECT base_id FROM meta WHERE id = 1').rows[0]?.base_id !== baseId) {
+      throw new Error('Knowledge index belongs to a different base')
+    }
+    return new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
+  } catch (error) {
+    driver.close()
+    throw error
+  }
+}
 
 export interface CreateKnowledgeIndexStoreOptions {
   baseId: string

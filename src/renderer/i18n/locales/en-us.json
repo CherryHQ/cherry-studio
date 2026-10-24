@@ -1824,6 +1824,8 @@
   "knowledge.empty_action": "Create Knowledge Base",
   "knowledge.empty_description": "Build up your knowledge with AI",
   "knowledge.error.directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
+  "knowledge.error.embedding_index_incomplete": "The embedding index is incomplete. Reindex this item to finish.",
+  "knowledge.error.embedding_integrity_check_failed": "Could not check the embedding index. Reopen this knowledge base to retry.",
   "knowledge.error.failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
   "knowledge.error.failed_to_create": "Failed to create knowledge base",
   "knowledge.error.failed_to_delete": "Failed to delete knowledge base",

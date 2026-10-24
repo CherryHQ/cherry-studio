@@ -1824,6 +1824,8 @@
   "knowledge.empty_action": "创建知识库",
   "knowledge.empty_description": "与 AI 一起积累知识",
   "knowledge.error.directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
+  "knowledge.error.embedding_index_incomplete": "嵌入索引不完整，请重新索引此条目以完成。",
+  "knowledge.error.embedding_integrity_check_failed": "无法检查嵌入索引，请重新打开此知识库重试。",
   "knowledge.error.failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
   "knowledge.error.failed_to_create": "知识库创建失败",
   "knowledge.error.failed_to_delete": "知识库删除失败",

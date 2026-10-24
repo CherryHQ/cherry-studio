@@ -1824,6 +1824,8 @@
   "knowledge.empty_action": "Wissensdatenbank erstellen",
   "knowledge.empty_description": "Bauen Sie Ihr Wissen mit KI auf",
   "knowledge.error.directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",
+  "knowledge.error.embedding_index_incomplete": "Der Einbettungsindex ist unvollständig. Indizieren Sie diesen Eintrag erneut.",
+  "knowledge.error.embedding_integrity_check_failed": "Der Einbettungsindex konnte nicht geprüft werden. Öffnen Sie diese Wissensdatenbank erneut, um es nochmals zu versuchen.",
   "knowledge.error.failed_base_unknown": "Bei der Migration dieser Wissensdatenbank ist ein Fehler aufgetreten. Erstellen Sie sie neu und wählen Sie ein neues Embedding-Modell.",
   "knowledge.error.failed_to_create": "Fehler beim Erstellen der Wissensdatenbank",
   "knowledge.error.failed_to_delete": "Fehler beim Löschen der Wissensdatenbank",

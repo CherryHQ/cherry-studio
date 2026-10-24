@@ -1824,6 +1824,8 @@
   "knowledge.empty_action": "ナレッジベースを作成",
   "knowledge.empty_description": "AI とともに知識を蓄積しましょう",
   "knowledge.error.directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
+  "knowledge.error.embedding_index_incomplete": "埋め込みインデックスが不完全です。この項目のインデックスを再作成してください。",
+  "knowledge.error.embedding_integrity_check_failed": "埋め込みインデックスを確認できませんでした。このナレッジベースを開き直して再試行してください。",
   "knowledge.error.failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
   "knowledge.error.failed_to_create": "ナレッジベースの作成に失敗しました",
   "knowledge.error.failed_to_delete": "ナレッジベースの削除に失敗しました",

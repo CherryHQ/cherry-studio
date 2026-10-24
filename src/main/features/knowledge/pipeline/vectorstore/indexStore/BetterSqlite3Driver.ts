@@ -184,3 +184,14 @@ export function openBetterSqlite3IndexDriver(filePath: string): BetterSqlite3Dri
   }
   return new BetterSqlite3Driver(db)
 }
+
+export function openReadOnlyIndexDriver(filePath: string): BetterSqlite3Driver {
+  const db = new Database(filePath, { readonly: true, fileMustExist: true })
+  try {
+    db.pragma('busy_timeout = 5000')
+    return new BetterSqlite3Driver(db)
+  } catch (error) {
+    db.close()
+    throw error
+  }
+}
