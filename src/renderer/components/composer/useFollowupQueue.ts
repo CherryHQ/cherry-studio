@@ -758,6 +758,26 @@ export function useFollowupQueue({
         if (!restored) {
           await releaseClaim()
           toast.error(t('message.error.operation_unavailable'))
+          if (!mountedRef.current || scopeKeyRef.current !== scope) {
+            // The edit session ended (or the scope switched) while the claim
+            // release was in flight: its composer cache owns the draft, so
+            // registering the restore retry now would attach it to a session
+            // nobody ends — the uncancelled retry would insert the copy,
+            // renewal stops at unmount, and the copy ages back into
+            // claimability, duplicating the retained draft (cherry-pr-review
+            // inv_dc0d409a37700e67#f1). Skip the retry and close any copy a
+            // failed attempt may already have committed, retaining cleanup
+            // ownership until it is closed or confirmed absent, same
+            // obligation as inv_f89db3564dc86774.
+            void (async () => {
+              try {
+                await removeTrigger({ params: { id: restoreBody.id } })
+              } catch (error) {
+                if (!isAlreadyResolved(error)) scheduleResolveRetryRef.current(restoreBody.id, true, '')
+              }
+            })()
+            return undefined
+          }
           // Editor-owned retry: the outgoing item stays in the editor, so this
           // restore belongs to the live session — ending the session cancels
           // it (and removes a landed copy) instead of letting the item

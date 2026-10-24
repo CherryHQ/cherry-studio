@@ -1440,6 +1440,64 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('registers no restore retry when the edit session ends while the claim release is in flight (inv_dc0d409a37700e67)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, failTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      // All three restoration requests fail; the claim release stays pending
+      // until the composer has already unmounted.
+      postTrigger.mockRejectedValue(new Error('queue full'))
+      let resolveRelease!: () => void
+      failTrigger.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          resolveRelease = () => resolve(undefined)
+        })
+      )
+
+      const { result, unmount } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let settle!: () => void
+      const switched = new Promise<void>((resolve) => {
+        settle = resolve
+      })
+      await act(async () => {
+        void result.current.takeForEdit('b', captureOutgoing).then(() => settle())
+        await Promise.resolve()
+      })
+      // The three restore attempts have failed; the release is still in flight.
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+
+      // Navigate away before the release settles: cleanup runs before any
+      // recovery record exists, so the old code's uncancelled retry would
+      // insert the copy into the retired session (cherry-pr-review
+      // inv_dc0d409a37700e67#f1).
+      act(() => {
+        unmount()
+      })
+      await act(async () => {
+        resolveRelease()
+        await switched
+      })
+
+      // No retry was registered: the copy is never re-inserted, and any copy
+      // a failed attempt already committed is closed instead.
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60 * 1000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps cleanup ownership of the landed copy when the abandon-path removal fails transiently (inv_f89db3564dc86774)', async () => {
     vi.useFakeTimers()
     try {
