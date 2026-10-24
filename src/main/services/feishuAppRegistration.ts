@@ -36,6 +36,7 @@ export type RegistrationResult = {
 export type RegistrationVerificationOptions = {
   source?: string
   createOnly?: boolean
+  appId?: string
   name?: string
   description?: string
   addons?: {
@@ -77,6 +78,7 @@ function configureVerificationUri(uri: string, options: RegistrationVerification
   url.searchParams.set('source', options.source ? `node-sdk/${options.source}` : 'node-sdk')
   url.searchParams.set('tp', 'sdk')
   if (options.createOnly === true) url.searchParams.set('createOnly', 'true')
+  if (options.appId) url.searchParams.set('clientID', options.appId)
   if (options.name !== undefined) url.searchParams.set('name', options.name)
   if (options.description !== undefined) url.searchParams.set('desc', options.description)
   if (options.addons !== undefined) url.searchParams.set('addons', encodeAddons(options.addons))

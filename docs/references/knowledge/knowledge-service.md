@@ -206,12 +206,16 @@ or cancelled scan never treats unseen documents as deleted.
 sessions, credential-scoped queues, token refresh, validation, cancellation,
 startup reconciliation, and shutdown drain. `ExternalKnowledgeConnectionService`
 owns the SQLite Connection state and guarded credential-reference replacement.
-`ExternalKnowledgeCredentialStore` owns the Knowledge-private encrypted file;
+`ExternalKnowledgeCredentialStore` resolves application and user-authorization records through
+the shared main-only `CredentialStoreService`;
 `feishuKnowledgeProvider` and the Channel-shared `feishuAppRegistration` remain
 stateless transport boundaries.
 
-Feishu setup supports PersonalAgent registration and a self-built App ID and
-App Secret. Both use user device authorization.
+Feishu setup supports PersonalAgent registration, a saved application, and a self-built App ID and
+App Secret. All use user device authorization. Updating a saved application requests additional
+permissions using `clientID`, without `createOnly` or replacing the application preset/name.
+Only new PersonalAgent creation uses `createOnly: true`; selected existing applications use
+the custom-app permission policy. The registration result must match the selected application.
 Connection DataApi and IPC results exclude the main-only credential reference,
 App Secret, tokens, and raw provider payloads.
 
@@ -269,13 +273,17 @@ Connection before credential commit only while its cleanup generation, runtime
 state, and persisted reference still belong to that session after awaited cleanup; a
 reconnect failure preserves the existing account.
 
-Startup reconciles referenced credentials and removes valid unreferenced entries
-before opening provider admission. A crash before the reference switch retains
-the old entry and removes the orphan candidate; a crash after the switch retains
-the candidate and removes the old entry. A pending Connection without usable
-credentials requires reauthorization. Files whose top-level schema fails
-validation or whose encryption backend is unavailable are preserved rather than
-rewritten or pruned; orphan enumeration does not decrypt each entry.
+`FeishuCredentialMigrationService` runs after the shared store initializes and before either
+Channel or Knowledge starts. It inventories old Channel configs and Knowledge credentials,
+combines compatible applications, writes records, then conditionally switches SQLite references.
+Conflicting secrets and unreadable legacy entries remain unchanged and block only their binding.
+Knowledge startup skips these blocked bindings rather than treating them as missing grants.
+Old encrypted entries are removed only after their conversion commits; cleanup retries after restart.
+
+Startup checks referenced shared grants before opening provider admission. A pending Connection
+without usable credentials requires reauthorization. It does not sweep unreferenced shared records:
+applications and grants can belong to another consumer. Authorization attempts clean only their
+own unused candidates; interrupted cleanup can leave an unreferenced record on disk.
 
 Explicit validation invalidates the generation's successful validation cache;
 concurrent validation calls share one request. Ordinary provider work reuses a
@@ -288,12 +296,16 @@ Stale generations cannot publish success or failure. Startup calls share one
 reconciliation flight; shutdown closes admission, aborts work, and waits for
 startup and tracked operations before clearing runtime state.
 
-### Secure storage and transport
+### Credential storage and transport
 
-The credential store requires Electron encryption availability and, on Linux,
-a supported keyring backend; `basic_text` and `unknown` are rejected. It uses
-`atomicWriteFile` with file mode `0600` and enforces directory mode `0700` on
-POSIX writes, including previously created directories.
+Shared credentials are plaintext JSON files under `{userData}/Credentials/connectors`, outside
+backup-managed `Data`. `atomicWriteFile` uses file mode `0600` and directory mode `0700` on
+POSIX; these permissions do not encrypt the contents. Only legacy conversion needs Electron's
+encryption backend. App secrets never leave main through list/read responses or QR events.
+Binding commits and deletion guards share the store's queue. Token rotation requires the
+expected refresh token and application snapshot, so a response using an old application secret
+cannot overwrite a newer grant. Application changes fence affected runtime requests before
+asynchronous reconciliation.
 
 Registration accepts recognized polling error statuses on HTTP 400 for poll
 requests, rejects other unsuccessful responses, and validates non-empty response fields without
@@ -307,9 +319,12 @@ Knowledge transport failures use the existing bounded retries; registration
 request timeouts retry within the registration deadline. Other registration
 network failures remain request errors, and malformed JSON/schema responses
 remain distinct from transport failures.
-A registration session is claimed synchronously before a consumer awaits its
-polling result, so it cannot be consumed twice but remains cancellable while its
-first consumer runs.
+`FeishuRegistrationService` owns registration for both Channels and Knowledge. Renderer sessions
+belong to their managed window; closing the window, cancellation, expiry, or shutdown invalidates
+late results. Repeated completion returns the same safe application summary. Knowledge claims
+one handoff into user authorization, and cancellation also fences an in-flight handoff before it
+can publish a pending connection. Channel activation never implicitly registers an application;
+UI setup and the explicit agent QR command register before binding through the credential store.
 
 ## Caller Contract
 

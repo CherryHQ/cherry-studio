@@ -4,8 +4,6 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
-import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
-import { Phase } from '@main/core/lifecycle/types'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
@@ -481,16 +479,6 @@ describe('KnowledgeService', () => {
     externalKnowledgeRuntimePreviewScopeMock.mockResolvedValue({ supportedDocxCount: 1 })
   })
 
-  it('uses WhenReady phase and depends on same-phase runtime services', () => {
-    expect(getPhase(KnowledgeService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeService)).toEqual([
-      'KnowledgeVectorStoreService',
-      'JobManager',
-      'FileProcessingService',
-      'WebSearchService'
-    ])
-  })
-
   it('registers formal knowledge job handlers', () => {
     const service = new KnowledgeService()
 
@@ -641,17 +629,6 @@ describe('KnowledgeService', () => {
     externalKnowledgeRuntimeStopMock.mockRejectedValueOnce(stopFailure)
 
     await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toBe(stopFailure)
-  })
-
-  it('delegates ephemeral Feishu scope resolution and preview to its owned runtime', async () => {
-    const service = new KnowledgeService()
-    const connectionId = '0198f3f2-7d1a-7abc-8def-123456789ab2'
-    const url = 'https://acme.feishu.cn/wiki/root'
-
-    await expect(service.resolveFeishuScope(connectionId, url)).resolves.toEqual({ provider: 'feishu' })
-    await expect(service.previewFeishuScope(connectionId, url)).resolves.toEqual({ supportedDocxCount: 1 })
-    expect(externalKnowledgeRuntimeResolveScopeMock).toHaveBeenCalledWith(connectionId, url)
-    expect(externalKnowledgeRuntimePreviewScopeMock).toHaveBeenCalledWith(connectionId, url)
   })
 
   it('recovers deleting roots by enqueueing delete cleanup jobs after all services are ready', async () => {

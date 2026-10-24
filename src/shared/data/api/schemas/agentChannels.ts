@@ -24,12 +24,9 @@ export const TelegramAgentChannelConfigSchema = z.strictObject({
 
 export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
 export const FeishuAgentChannelConfigSchema = z.strictObject({
-  app_id: z.string(),
-  app_secret: z.string(),
-  encrypt_key: z.string(),
-  verification_token: z.string(),
-  allowed_chat_ids: z.array(z.string()).optional(),
-  domain: FeishuDomainSchema
+  applicationCredentialId: z.uuid().nullable(),
+  registrationDomain: FeishuDomainSchema.optional(),
+  allowed_chat_ids: z.array(z.string()).default([])
 })
 
 export const QQAgentChannelConfigSchema = z.strictObject({

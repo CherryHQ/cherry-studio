@@ -93,6 +93,7 @@
   "common.dingtalk_file_type": "Tên tệp phải có phần mở rộng được DingTalk hỗ trợ.",
   "common.dingtalk_processing": "Đang xử lý…",
   "common.dingtalk_unsupported_message": "Loại tin nhắn này chưa được hỗ trợ. Hãy gửi văn bản, tin nhắn thoại, hình ảnh, video hoặc tệp.",
+  "common.feishu_credential_migration_failed": "Không thể di chuyển ứng dụng Feishu đã lưu. Hãy chọn một ứng dụng hoặc nhập lại thông tin xác thực.",
   "common.inspect": "Kiểm tra",
   "common.paste": "Dán",
   "common.wecom_attachment_failed": "Không đọc được tệp đính kèm. Hãy gửi lại (20 MB mỗi tệp, tổng 40 MB).",
