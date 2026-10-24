@@ -1543,6 +1543,79 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
+  it('does not replay a captured reasoning edit over a newer external save (inv_b84ca94ae8d72b50)', async () => {
+    // The high edit's own save is still in flight when the model switch
+    // starts; before the switch finishes, another surface (agent settings,
+    // another window) persists low. The component's refs cannot see that
+    // save, so the replay must re-read the agent and stand down.
+    const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string, options?: unknown) => {
+      if (path === '/agents/agent-1') return { id: 'agent-1', configuration: { reasoning_effort: 'low' } }
+      return dataApiGetBase?.(path as never, options as never)
+    }) as never)
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
+    // Only the user's own high save ran: the captured edit must not replay
+    // over the newer external low.
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('still replays a captured reasoning edit that remains the latest persisted value', async () => {
+    const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string, options?: unknown) => {
+      if (path === '/agents/agent-1') return { id: 'agent-1', configuration: { reasoning_effort: 'high' } }
+      return dataApiGetBase?.(path as never, options as never)
+    }) as never)
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateAgent).toHaveBeenLastCalledWith(
+        {
+          id: 'agent-1',
+          configuration: { reasoning_effort: 'high' },
+          reasoningValidationModelId: 'anthropic::claude-opus-4'
+        },
+        { showSuccessToast: false }
+      )
+    )
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(2)
+  })
+
   it('does not mistake an in-flight model update for a pending reasoning edit', () => {
     mocks.updateSession.mockImplementation(() => new Promise(() => undefined))
 
