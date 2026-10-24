@@ -343,6 +343,53 @@ describe('native Claude child authority across a desktop follow-up', () => {
     expect(decisionOf(await fireGuard({ agent_id: 'grandchild' })).permissionDecision).toBe('deny')
   })
 
+  // The pinned SDK (0.3.284) returns a background launch's `PostToolUse` before the child starts
+  // (`status: 'async_launched'`); its `SubagentStart` arrives afterwards. Treating that successful
+  // result as "finished without spawning" drops the attribution, so the descendant binds to
+  // whichever turn is live — here the desktop follow-up — and inherits its interactive authority.
+  it('keeps a headless child’s background launch attributed across its early PostToolUse', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    beginTurn(false)
+    // The headless child issues the spawn call — its `agent_id` is the parent.
+    await fireGuard({
+      tool_name: 'Task',
+      agent_id: NATIVE_CHILD,
+      tool_input: { description: 'bg', prompt: 'go', subagent_type: 'general-purpose', run_in_background: true }
+    })
+    // The background launch reports success before its child starts.
+    await hook('PostToolUse', 2)(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Task',
+        tool_use_id: 'tool-use-1',
+        tool_response: {
+          status: 'async_launched',
+          isAsync: true,
+          agentId: 'grandchild-bg',
+          description: 'bg',
+          prompt: 'go',
+          outputFile: '/tmp/bg.out'
+        }
+      } as never,
+      'tool-use-1',
+      { signal: new AbortController().signal }
+    )
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'grandchild-bg', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'grandchild-bg' })).permissionDecision).toBe('deny')
+  })
+
   // A skill declared `context: fork` launches its descendant through the Skill tool (SDK 0.3.284),
   // not Task/Agent. The Skill call is therefore the spawn record — without it the forked descendant
   // binds to the desktop follow-up that merely happens to own the session.

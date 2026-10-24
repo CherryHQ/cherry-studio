@@ -43,6 +43,16 @@ const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
  */
 const SUBAGENT_LAUNCH_TOOL_NAMES: ReadonlySet<string> = new Set(['Task', 'Agent', SKILL_TOOL_NAME])
 
+/**
+ * The pinned SDK returns a background agent launch's result BEFORE its `SubagentStart`
+ * (`status: 'async_launched'`), so a successful terminal there does not mean "no child is coming".
+ */
+function isAsyncSpawnResult(response: unknown): boolean {
+  if (!response || typeof response !== 'object') return false
+  const record = response as Record<string, unknown>
+  return record.status === 'async_launched' || record.isAsync === true
+}
+
 // Tools whose successful completion mutates the workspace and therefore breaks a no-progress run:
 // the native edit tools, plus the assistant-files MCP tools (referenced by runtime name).
 const RUN_BREAK_TOOLS: ReadonlySet<string> = new Set([
@@ -283,6 +293,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       SUBAGENT_LAUNCH_TOOL_NAMES.has(event.tool_name) &&
       typeof event.tool_use_id === 'string'
     ) {
+      // A background launch's child starts AFTER this success, so its attribution must survive to
+      // bind it; a failure, a denial, or a call whose child already ran cannot still spawn.
+      if (event.hook_event_name === 'PostToolUse' && isAsyncSpawnResult(event.tool_response)) return {}
       sessionState().clearNativeSpawnAttempt(sessionId, event.tool_use_id)
     }
     return {}
