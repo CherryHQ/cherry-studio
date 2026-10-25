@@ -751,20 +751,22 @@ function stripMarkdownContainerMarkers(line: string): string {
  */
 function stripMarkdownContainerMarkersDetailed(line: string): {
   content: string
-  markersConsumedIndent: boolean
+  strippedQuoteDepth: number
+  ownListMarkerStripped: boolean
 } {
   let rest = expandFencePrefixTabs(line)
-  let markersConsumedIndent = false
+  let strippedQuoteDepth = 0
+  let ownListMarkerStripped = false
   for (;;) {
     const quote = /^( {0,3})>[ ]?/.exec(rest)
     if (quote) {
-      if (quote[1].length > 0) markersConsumedIndent = true
+      strippedQuoteDepth++
       rest = rest.slice(quote[0].length)
       continue
     }
     const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)/.exec(rest)
-    if (!list) return { content: rest, markersConsumedIndent }
-    if (list[1].length > 0) markersConsumedIndent = true
+    if (!list) return { content: rest, strippedQuoteDepth, ownListMarkerStripped }
+    ownListMarkerStripped = true
     // CommonMark list content uses one to four padding columns. Five or
     // more means one separator followed by indented code, not wider padding.
     const padding = list[3].length <= 4 ? list[3].length : 1
@@ -804,21 +806,34 @@ function maskIndentedCodeBlocks(text: string): {
   let listInsideQuote = false
   // Dedenting from a nested item may return to its outer list, not column zero.
   const listColumnStack: number[] = []
+  // Quote depth of each stacked list item: a nested quote marker consumes the
+  // inherited indentation of lists OUTSIDE it, while a list inside the
+  // current container still contributes its continuation indent
+  // (cherry-pr-review inv_4f2b0c2d3f9c4a0b).
+  const listQuoteDepthStack: number[] = []
   const indentedCodeColumns = (line: string): number => {
-    const { content, markersConsumedIndent } = stripMarkdownContainerMarkersDetailed(line)
+    const { content, strippedQuoteDepth, ownListMarkerStripped } = stripMarkdownContainerMarkersDetailed(line)
     let columns = 0
     for (let k = 0; k < content.length; k++) {
       if (content[k] === ' ') columns += 1
       else if (content[k] === '\t') columns += 4 - (columns % 4)
       else break
     }
-    // Explicit markers were stripped above; continuation lines still carry
-    // the inherited list's content indentation - unless a stripped marker
-    // already consumed it (a nested quote/list marker's own leading spaces),
-    // which would subtract the same indentation twice and expose literal
-    // code inside the nested container (cherry-pr-review
-    // inv_4f2b0c2d3f9c4a0b).
-    if (content !== line && (!listInsideQuote || markersConsumedIndent)) return columns
+    if (content !== line) {
+      // The line's own list marker was stripped: the remaining columns are
+      // already relative to that item's content column.
+      // Crossing into a deeper quote container consumes the inherited list
+      // indentation as the nested marker's own leading spaces; subtracting
+      // it again double-counts and exposes literal code inside the nested
+      // container. A list inside the CURRENT container (same quote depth)
+      // still contributes its continuation indent, so container paragraph
+      // text is not mistaken for code (cherry-pr-review
+      // inv_4f2b0c2d3f9c4a0b).
+      const innermostListQuoteDepth = listQuoteDepthStack.length
+        ? listQuoteDepthStack[listQuoteDepthStack.length - 1]
+        : -1
+      if (ownListMarkerStripped || !listInsideQuote || strippedQuoteDepth > innermostListQuoteDepth) return columns
+    }
     return Math.max(0, columns - inheritedListColumns)
   }
   const isIndentedCodeLine = (line: string): boolean => line.trim() !== '' && indentedCodeColumns(line) >= 4
@@ -856,6 +871,7 @@ function maskIndentedCodeBlocks(text: string): {
     if (depth === 0 && listInsideQuote && line.trim()) {
       listInsideQuote = false
       listColumnStack.length = 0
+      listQuoteDepthStack.length = 0
       inheritedListColumns = 0
     }
     const expanded = listInsideQuote ? withoutQuote : rawExpanded
@@ -867,12 +883,19 @@ function maskIndentedCodeBlocks(text: string): {
     if (list) {
       const padding = list[3].length <= 4 ? list[3].length : 1
       const nextColumns = nestedOffset + list[1].length + list[2].length + padding
-      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] >= nextColumns) listColumnStack.pop()
+      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] >= nextColumns) {
+        listColumnStack.pop()
+        listQuoteDepthStack.pop()
+      }
       listColumnStack.push(nextColumns)
+      listQuoteDepthStack.push(depth)
       inheritedListColumns = nextColumns
     } else if (expanded.trim() !== '') {
       const columns = expanded.length - expanded.trimStart().length
-      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] > columns) listColumnStack.pop()
+      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] > columns) {
+        listColumnStack.pop()
+        listQuoteDepthStack.pop()
+      }
       inheritedListColumns = listColumnStack[listColumnStack.length - 1] ?? 0
     }
     // A new explicit quote container cannot inherit an outer paragraph.
@@ -1253,12 +1276,13 @@ export function shouldDeferScratchpadStripping(text: string): boolean {
 }
 
 /** True when the text opens a fenced code block that has no closing delimiter yet. */
-export function textHasUnclosedCodeFence(text: string): boolean {
+/** Position of the first code fence still open at the end of `text`, if any. */
+function findUnclosedCodeFence(text: string): { markerStart: number } | null {
   const inheritedPrefix = inheritedFencePrefixLookup(text)
   let pos = 0
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
-    if (rel === -1) return false
+    if (rel === -1) return null
     const markerStart = pos + rel
     if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
       pos = markerStart + 1
@@ -1286,10 +1310,38 @@ export function textHasUnclosedCodeFence(text: string): boolean {
       text.slice(openerLineStart, markerStart),
       inheritedPrefix
     )
-    if (closeEnd === -1) return true
+    if (closeEnd === -1) return { markerStart }
     pos = closeEnd
   }
-  return false
+  return null
+}
+
+export function textHasUnclosedCodeFence(text: string): boolean {
+  return findUnclosedCodeFence(text) !== null
+}
+
+/**
+ * Confirmed-open code fence for incremental streaming: the opener line is
+ * complete (the info string can no longer change), the fence is still open
+ * at the end of `text`, and it sits outside any scratchpad block. The
+ * returned opener line (with its ending) is carried into the next streamed
+ * scan for fence context; content through `stableEnd` - every complete
+ * content line - is stable literal text that can be emitted immediately
+ * instead of buffering the whole fence (cherry-pr-review
+ * inv_4f2b0c2d3f9c4a0b). Only the trailing partial line can still become
+ * the closing marker, so it stays buffered.
+ */
+export function confirmedOpenFenceStreamPrefix(text: string): { openerLine: string; stableEnd: number } | null {
+  const fence = findUnclosedCodeFence(text)
+  if (!fence) return null
+  // A fence inside a scratchpad block ends at the block's closer: its
+  // content is private and must never stream early.
+  if (enclosingScratchpadTag(text, fence.markerStart) !== null) return null
+  const openerLineEnd = lineEndAfter(text, fence.markerStart)
+  if (openerLineEnd >= text.length) return null
+  const stableEnd = lineStartBefore(text, text.length)
+  if (stableEnd <= openerLineEnd) return null
+  return { openerLine: text.slice(lineStartBefore(text, fence.markerStart), openerLineEnd), stableEnd }
 }
 
 function isModelScratchpadTagName(tag: string): boolean {

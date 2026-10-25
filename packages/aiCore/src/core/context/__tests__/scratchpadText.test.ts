@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  confirmedOpenFenceStreamPrefix,
   stripKnownModelScratchpadBlocks,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripTrailingToolProtocolClosingFragments,
@@ -149,6 +150,30 @@ describe('scratchpadText', () => {
     // CommonMark 0.31.2 renders the final line as an indented code block
     // inside the nested containers.
     const input = '> - Parent\n>\n>   >     <thinking>literal</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it('strips an analysis block that is paragraph content of a nested quoted list item (inv_4f2b0c2d3f9c4a0b)', () => {
+    // The quote marker's two leading spaces belong to the OUTER list
+    // `- First`, while the inherited list indentation comes from `- Second`
+    // INSIDE the quote: each container consumes its own indentation exactly
+    // once. CommonMark 0.31.2 parses the final quoted line as paragraph
+    // content of the nested item (4 spaces after `> ` minus the 2-column
+    // continuation indent), so the analysis block is real markup and strips
+    // like the base build.
+    const input = '- First\n  > - Second\n  >\n  >     <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
+    const stripped = stripModelScratchpadBlocks(input)
+    expect(stripped).not.toContain('SECRET')
+    expect(stripped).toContain('Public')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET')
+  })
+
+  it('still preserves deeper literal code inside the same nested containers (inv_4f2b0c2d3f9c4a0b)', () => {
+    // Seven spaces after the quote marker: the inner list item's 2-column
+    // continuation indent leaves 4 - a real indented code block in
+    // CommonMark, so the literal content is preserved.
+    const input = '- First\n  > - Second\n  >\n  >       <analysis>literal</analysis>'
     expect(stripModelScratchpadBlocks(input)).toBe(input)
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
   })
@@ -987,12 +1012,46 @@ describe('trailing tool-protocol suffix scan cost (cherry-pr-review: whitespace 
         for (const tail of ['', ' text', ' </parameter>', ' <thinking>x</thinking>', ' title="a>b"'])
           for (const sep of ['', '\n']) cases.push(prefix + run + sep + tail)
 
+    // Multi-line nested containers: an indented payload line inside stacked
+    // list/quote structures exercises per-container inherited-indentation
+    // accounting across paragraph/code boundaries.
+    for (const head of ['- First', '> - First', '- > First'])
+      for (const pad of ['    ', '     ', '      ', '\t'])
+        for (const tail of ['<analysis>SECRET</analysis>', '<thinking>literal</thinking>', '```x`', 'plain'])
+          cases.push(head + '\n  > - Second\n  >\n  > ' + pad + tail + '\n\n<summary>Public</summary>')
+
     it.each(cases)('terminates, stays bounded, and reaches a fixpoint: %#', (input) => {
       for (const fn of Object.values(fns)) {
         const out = fn(input)
         expect(out.length).toBeLessThanOrEqual(input.length)
         expect(fn(out)).toBe(out)
       }
+    })
+  })
+})
+
+describe('confirmedOpenFenceStreamPrefix', () => {
+  it('returns null while the opener line is incomplete', () => {
+    expect(confirmedOpenFenceStreamPrefix('```ts')).toBeNull()
+  })
+
+  it('returns null without a complete content line', () => {
+    expect(confirmedOpenFenceStreamPrefix('```ts\n')).toBeNull()
+  })
+
+  it('returns null when the fence sits inside a scratchpad block', () => {
+    expect(confirmedOpenFenceStreamPrefix('<analysis>\n```ts\nsecret\n')).toBeNull()
+  })
+
+  it('returns null when every fence is closed', () => {
+    expect(confirmedOpenFenceStreamPrefix('```ts\nx\n```\n')).toBeNull()
+  })
+
+  it('carries the opener line and the last complete-line boundary', () => {
+    const text = 'intro\n\n```ts\nconst a = 1\nconst b = 2\npart'
+    expect(confirmedOpenFenceStreamPrefix(text)).toEqual({
+      openerLine: '```ts\n',
+      stableEnd: 'intro\n\n```ts\nconst a = 1\nconst b = 2\n'.length
     })
   })
 })

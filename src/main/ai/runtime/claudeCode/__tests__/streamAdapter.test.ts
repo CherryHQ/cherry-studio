@@ -4077,6 +4077,85 @@ describe('scratchpad escape carry across buffered partial tags', () => {
   })
 })
 
+describe('incremental fenced-code streaming (inv_4f2b0c2d3f9c4a0b)', () => {
+  const joinVisible = (parts: CherryUIMessageChunk[]) =>
+    parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+
+  const streamPieces = (adapter: ClaudeCodeStreamAdapter, pieces: string[]) => {
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of pieces) {
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+  }
+
+  it('emits complete fence content lines while the fence is still open', () => {
+    const { adapter, parts } = createAdapter()
+    const pieces = ['Here is code:\n\n', '```ts\n', 'const a = 1\n', 'const b = 2\n', '```\n', 'Done.']
+    const answer = pieces.join('')
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of pieces.slice(0, 3)) {
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    }
+    // Buffering the whole remainder while a fence is open stalls long code
+    // answers: a complete code line must already be visible before the
+    // closing fence arrives.
+    expect(joinVisible(parts)).toContain('const a = 1\n')
+    for (const text of pieces.slice(3)) {
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    expect(joinVisible(parts)).toBe(answer)
+  })
+
+  it('reproduces the full fence answer through character-sized deltas', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'Here is code:\n\n```ts\nconst a = 1\nconst b = 2\n```\nDone.'
+    streamPieces(adapter, [...answer])
+    expect(joinVisible(parts)).toBe(answer)
+  })
+
+  it('keeps stripping scratchpad text that follows a completed fence', () => {
+    const { adapter, parts } = createAdapter()
+    streamPieces(adapter, ['```ts\n', 'const a = 1\n', '```\n\n', '<analysis>SECRET</analysis>', '\n\nVisible'])
+    const text = joinVisible(parts)
+    expect(text).toBe('```ts\nconst a = 1\n```\n\n\n\nVisible')
+    expect(text).not.toContain('SECRET')
+  })
+
+  it('never streams a fence that opened inside a scratchpad block', () => {
+    const { adapter, parts } = createAdapter()
+    streamPieces(adapter, ['<analysis>\n', '```ts\n', 'secret\n', '```\n', '</analysis>Visible'])
+    const text = joinVisible(parts)
+    expect(text).toBe('Visible')
+    expect(text).not.toContain('secret')
+  })
+
+  it('emits fence content after intro text buffered with the opener', () => {
+    // The fence opener arrives with earlier un-emitted text: the stable
+    // prefix still streams once content lines complete.
+    const { adapter, parts } = createAdapter()
+    const answer = 'intro\n\n```ts\nx = 1\ny = 2\n```\nafter'
+    streamPieces(adapter, ['intro\n\n```ts\n', 'x = 1\n', 'y = 2\n', '```\n', 'after'])
+    expect(joinVisible(parts)).toBe(answer)
+  })
+})
+
 describe('compaction artifact boundary', () => {
   it('keeps a background child summary answer visible during main-agent compaction (inv_4f2b0c2d3f9c4a0b)', () => {
     const { adapter, parts } = createAdapter()

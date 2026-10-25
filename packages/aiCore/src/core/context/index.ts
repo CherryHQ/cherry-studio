@@ -35,6 +35,7 @@ export {
 export { ContextPrompts, PERSISTED_OUTPUT_TAG } from './prompts'
 export {
   MODEL_SCRATCHPAD_TAG_NAMES,
+  confirmedOpenFenceStreamPrefix,
   stripKnownModelScratchpadBlocks,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripModelScratchpadBlocks,

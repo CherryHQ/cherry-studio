@@ -36,6 +36,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
 import {
+  confirmedOpenFenceStreamPrefix,
   shouldDeferScratchpadStripping,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripTrailingToolProtocolClosingFragments,
@@ -163,6 +164,8 @@ type StreamContext = {
   scratchpadStreamRemainder: string
   /** Odd trailing backslash run at the processed tail: the next delta's first character is escaped. */
   scratchpadStreamEscapeCarry: boolean
+  /** Opener line of a confirmed-open code fence whose content already streamed; pairs mid-fence remainder content. */
+  scratchpadStreamFenceCarry: string
   /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
   toolProtocolStripAccumulator: string
   toolProtocolStripEmittedLength: number
@@ -624,6 +627,7 @@ export class ClaudeCodeStreamAdapter {
       scratchpadTextProbe: '',
       scratchpadStreamRemainder: '',
       scratchpadStreamEscapeCarry: false,
+      scratchpadStreamFenceCarry: '',
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
       suppressActiveTextPart: false,
@@ -1145,18 +1149,45 @@ export class ClaudeCodeStreamAdapter {
     // (cherry-pr-review inv_f7b234887ed722ff). The carry holds any trailing
     // backslash literally, subsuming the escape carry.
     const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
-    const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
+    const prefix =
+      ctx.scratchpadStreamFenceCarry +
+      (openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix)
     const combined = prefix + ctx.scratchpadStreamRemainder + text
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
 
     if (shouldDeferScratchpadStripping(combined)) {
+      // A confirmed-open code fence (opener line complete, outside any
+      // scratchpad block) holds only literal text through its last complete
+      // content line: fences are preserved verbatim, so those lines are
+      // text-identical to their eventual combined delivery. Emit them now
+      // instead of buffering the whole fence, which stalls long code answers
+      // (cherry-pr-review inv_4f2b0c2d3f9c4a0b). Only the trailing partial
+      // line can still become the closing marker, so it stays buffered; the
+      // carried opener line keeps fence context for the next scan.
+      const openFence = confirmedOpenFenceStreamPrefix(combined)
+      const stableText =
+        openFence && openFence.stableEnd > prefix.length ? combined.slice(prefix.length, openFence.stableEnd) : ''
+      // Never emit unreviewed text verbatim: if stripping the stable region
+      // would change it (e.g. a scratchpad block ahead of the fence), keep
+      // buffering everything.
+      if (stableText && stripKnownModelScratchpadBlocksPreservingCodeFences(stableText) === stableText) {
+        ctx.scratchpadStreamRemainder = combined.slice(openFence.stableEnd)
+        ctx.scratchpadStreamFenceCarry = openFence.openerLine
+        // The cut sits at a line boundary: no adjacent backslash run carries.
+        ctx.scratchpadStreamEscapeCarry = false
+        return stableText
+      }
       ctx.scratchpadStreamRemainder = combined.slice(prefix.length)
       // The flush path cannot see the emitted text before the remainder, so
       // it needs the escape parity of the character run right before it.
       ctx.scratchpadStreamEscapeCarry = hasOddTrailingBackslashRun(ctx.accumulatedText)
       return ''
     }
+    // No unclosed fence remains on this scan, so a carried opener is stale:
+    // keeping it would prepend a phantom fence that masks later scratchpad
+    // text as literal code content.
+    ctx.scratchpadStreamFenceCarry = ''
 
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(combined)
     if (stripped.length < combined.length && this.compactionArtifactWatchActive()) {
@@ -1768,6 +1799,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadTextProbe = ''
         ctx.scratchpadStreamRemainder = ''
         ctx.scratchpadStreamEscapeCarry = false
+        ctx.scratchpadStreamFenceCarry = ''
         this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
         ctx.suppressCompactionArtifactPart = false
@@ -2838,13 +2870,19 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private flushScratchpadStreamRemainder(ctx: StreamContext): void {
+    // The fence carry pairs remainder content that starts inside an open code
+    // fence; it is consumed here whether or not a remainder is pending.
+    const fenceCarry = ctx.scratchpadStreamFenceCarry
+    ctx.scratchpadStreamFenceCarry = ''
     if (!ctx.scratchpadStreamRemainder) return
     // Scan the remainder with the same open-line context the streaming filter
     // carries, or flushed literal code can lose its block classification at
     // the boundary (cherry-pr-review inv_f7b234887ed722ff).
     const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
     const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
-    const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
+    const prefix =
+      fenceCarry +
+      (openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix)
     const pending = prefix + ctx.scratchpadStreamRemainder
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
@@ -2875,6 +2913,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadTextProbe = ''
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
+    ctx.scratchpadStreamFenceCarry = ''
     this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false
