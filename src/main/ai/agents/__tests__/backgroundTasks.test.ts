@@ -1293,6 +1293,57 @@ describe('backgroundTasks', () => {
       },
       40_000
     )
+
+    // An unreadable row is only evidence about this task while something ties it to what the task
+    // ran. A daemon another program leaves behind shares uid, orphanhood, age and an empty
+    // environment; without the tie it must not hold the task open.
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'completes past an unrelated same-user orphan it never launched',
+      async () => {
+        const orphanPidFile = path.join(storageDir, 'unrelated.pid')
+        // The task is still running when the orphan appears, so the orphan is a row the task's
+        // completion check will actually see and have to rule out.
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setTimeout(() => process.exit(0), 1_500)"`,
+          cwd: storageDir
+        })
+        // Truly empty environment, own session, and no working relation to the task: it runs in the
+        // harness's directory, not the task's, and names a program the task never launched.
+        const launcher = spawn(
+          `python3 -c "import subprocess,sys; p=subprocess.Popen(['/bin/sleep','300'], env={}, close_fds=True, start_new_session=True); open(sys.argv[1],'w').write(str(p.pid))" "${orphanPidFile}"`,
+          { cwd: process.cwd(), env: {}, detached: true, stdio: 'ignore', shell: true }
+        )
+        launcher.unref()
+        let orphanPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              orphanPid = Number((await readFile(orphanPidFile, 'utf8')).trim())
+              expect(orphanPid).toBeGreaterThan(0)
+              expect(execFileSync('ps', ['-o', 'ppid=', '-p', String(orphanPid)], { encoding: 'utf8' }).trim()).toBe(
+                '1'
+              )
+            },
+            { timeout: 10_000 }
+          )
+
+          await vi.waitFor(
+            async () => {
+              expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('completed')
+            },
+            { timeout: 15_000 }
+          )
+        } finally {
+          try {
+            if (orphanPid > 0) process.kill(orphanPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+        }
+      },
+      40_000
+    )
   })
 
   // A pgid outlives the group it names: once the task's own members have drained from it the OS
