@@ -5,8 +5,10 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
+import type { AppInfo } from '@renderer/types/app'
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { TopicSchema } from '@shared/data/types/topic'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
@@ -88,8 +90,11 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     }
 
     // Topic timestamps are read-only in DataApi; seed only these run-owned rows in the real database.
-    // The harness launches with its own profile as --user-data-dir, so the database path is derived, not probed.
-    const databasePath = join(app.paths.profiles, app.record.profile, 'Data', 'cherrystudio.sqlite')
+    // Branch launches relocate userData beneath the dev profile root, so ask the app where its data lives.
+    const appInfo = (await page.evaluate(() => window.api.ipcApi.request('app.get_info'))) as IpcResult<AppInfo>
+    expect(appInfo.ok).toBe(true)
+    if (!appInfo.ok) throw new Error(appInfo.error.message)
+    const databasePath = join(appInfo.data.appDataPath, 'Data', 'cherrystudio.sqlite')
     expect(existsSync(databasePath), `Run-owned database must exist at ${databasePath}`).toBe(true)
     const db = new DatabaseSync(databasePath)
     try {
