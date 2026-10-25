@@ -87,6 +87,8 @@ export class DownloadManagerService extends BaseService {
   private readonly reserved = new Map<string, string>()
   /** One probe/reset per task; concurrent Retry clicks join the running one. */
   private readonly retries = new Map<string, Promise<void>>()
+  /** Tasks whose row should be deleted once their live worker settles. */
+  private readonly removals = new Set<string>()
   private readonly speeds = new SpeedMeter()
   private active = 0
 
@@ -437,7 +439,17 @@ export class DownloadManagerService extends BaseService {
   }
 
   async remove(taskId: string): Promise<void> {
-    this.running.get(taskId)?.abort()
+    this.dequeue(taskId)
+    const controller = this.running.get(taskId)
+    if (controller) {
+      // An already-submitted rename cannot be cancelled. Deleting the row and its
+      // temporary file now would let a newer same-name task claim both while the
+      // old rename is still pending — and that rename would then consume the
+      // newer task's payload. Defer the destructive half until the worker settles.
+      this.removals.add(taskId)
+      controller.abort(DOWNLOAD_CANCELLED)
+      return
+    }
     const entry = this.store.get(taskId)
     // A cancelled row keeps its old paths on disk. If a newer task has since
     // reused the name, this row no longer owns them and must leave them alone.
@@ -520,15 +532,28 @@ export class DownloadManagerService extends BaseService {
       this.running.delete(taskId)
       this.active -= 1
       const entry = this.store.get(taskId)
-      if (entry?.task.state === 'cancelled') {
+      if (this.removals.delete(taskId)) {
+        // Settled: a submitted rename can no longer land on a reused path.
+        await this.discardFiles(taskId, entry?.task)
+        this.store.delete(taskId)
+      } else if (entry?.task.state === 'cancelled') {
         // The worker kept ownership while it settled; release only what this
         // task still owns so a reused name is not torn down underneath it.
-        const ownsTemp = !!entry.task.tempPath && this.owns(entry.task.tempPath, taskId)
-        this.release(entry.task.filePath, taskId)
-        if (ownsTemp) await fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
+        await this.discardFiles(taskId, entry.task)
+      } else if (entry?.task.state === 'queued') {
+        // Resume arrived while the runner was closing its file. `enqueue` was
+        // rejected then because the worker still occupied this id; dispatch now.
+        this.enqueue(taskId)
       }
       this.pump()
     }
+  }
+
+  /** Releases what `task` still owns and removes its temporary file. */
+  private async discardFiles(taskId: string, task: DownloadTaskRecord | undefined): Promise<void> {
+    const ownsTemp = !!task?.tempPath && this.owns(task.tempPath, taskId)
+    this.release(task?.filePath, taskId)
+    if (ownsTemp && task) await fs.rm(task.tempPath, { force: true }).catch(() => undefined)
   }
 
   private fetchFor(partition: string): (input: string, init?: RequestInit) => Promise<Response> {

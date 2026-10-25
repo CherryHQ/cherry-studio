@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, promises as fs, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
@@ -28,6 +28,7 @@ function internals(service: DownloadManagerService) {
     fetchFor(partition: string): FetchLike
     enqueue(taskId: string): void
     pump(): void
+    store: DownloadStore
     queue: string[]
     running: Map<string, AbortController>
   }
@@ -256,6 +257,94 @@ describe('DownloadManagerService recovery', () => {
 
     expect(existsSync(`${reused}.crdownload`)).toBe(true)
     expect(await view.reservePath(dir, 'payload.bin', 'uniquify', 'third-task')).toBe(join(dir, 'payload (1).bin'))
+  })
+
+  it('defers removal until a live worker has finished its rename', async () => {
+    const { task } = createTask('remove-merge.bin')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const view = internals(service)
+    vi.spyOn(view, 'fetchFor').mockReturnValue(servingFetch())
+
+    const realRename = fs.rename
+    let releaseRename!: () => void
+    const renameGate = new Promise<void>((resolve) => (releaseRename = resolve))
+    const renameSpy = vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      await renameGate
+      return realRename(from, to)
+    })
+
+    try {
+      service.resume(task.id)
+      await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('merging'))
+
+      await service.remove(task.id)
+      // The rename is still pending: the row and its paths must stay owned.
+      expect(store.get(task.id)).toBeDefined()
+
+      releaseRename()
+      await vi.waitFor(() => expect(store.get(task.id)).toBeUndefined())
+    } finally {
+      renameSpy.mockRestore()
+    }
+  })
+
+  it('dispatches a resume that arrives while the worker is closing its file', async () => {
+    const { task } = createTask('resume-close.bin')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const view = internals(service)
+
+    const serve = servingFetch()
+    let stalled = false
+    const stallingOnce: FetchLike = (url, init) => {
+      const header = new Headers(init?.headers).get('range')
+      const range = header ? /bytes=(\d+)-(\d+)/.exec(header) : null
+      if (stalled || !range) return serve(url, init)
+      stalled = true
+      const start = Number(range[1])
+      const end = Math.min(Number(range[2]), CONTENT.length - 1)
+      const slice = CONTENT.subarray(start, end + 1)
+      const signal = init?.signal
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(slice.subarray(0, 4096))
+          await new Promise<void>((_resolve, reject) => {
+            const onAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+            if (signal?.aborted) return onAbort()
+            signal?.addEventListener('abort', onAbort, { once: true })
+          })
+          controller.close()
+        }
+      })
+      return Promise.resolve(
+        new Response(body, {
+          status: 206,
+          headers: { 'content-range': `bytes ${start}-${end}/${CONTENT.length}` }
+        })
+      )
+    }
+    vi.spyOn(view, 'fetchFor').mockReturnValue(stallingOnce)
+
+    const realSetState = view.store.setState.bind(view.store)
+    const setStateSpy = vi.spyOn(view.store, 'setState').mockImplementation((taskId, state, error) => {
+      realSetState(taskId, state, error)
+      // Resume arrives after `paused` is persisted but before the worker leaves
+      // `running`, so `enqueue` cannot accept it at that moment.
+      if (taskId === task.id && state === 'paused') service.resume(task.id)
+    })
+
+    try {
+      service.resume(task.id)
+      await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('downloading'))
+
+      service.pause(task.id)
+      await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('completed'), { timeout: 5000 })
+    } finally {
+      setStateSpy.mockRestore()
+    }
   })
 
   /** Serves HEAD and byte ranges from CONTENT; `gate` holds every HEAD response. */
