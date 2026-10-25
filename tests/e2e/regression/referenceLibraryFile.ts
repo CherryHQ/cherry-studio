@@ -262,36 +262,53 @@ export async function referenceLibraryFile(app: RegressionApp, page: Page, testI
     expect(await readBytes()).toEqual(bytes)
     await screenshot('MP-72 library and physical PDF retained')
   } finally {
-    const retained = await readEntry()
-    expect(retained.status).toBe(200)
-    expect(InternalEntrySchema.parse(retained.data).deletedAt).toBeUndefined()
-    expect(await readBytes()).toEqual(bytes)
-    await screenshot('MP-72 retained file evidence before cleanup')
-    const trashed = (await page.evaluate(
-      (ids) => window.api.ipcApi.request('file.batch_trash', { ids }),
-      [fileId]
-    )) as IpcResult<OutputFor<'file.batch_trash'>>
-    if (!trashed.ok) throw new Error(trashed.error.message)
-    expect(trashed.data.failed, 'Trashing the owned PDF must not fail').toEqual([])
-    const purged = (await page.evaluate(
-      (ids) => window.api.ipcApi.request('file.batch_permanent_delete_from_trash', { ids }),
-      trashed.data.succeeded
-    )) as IpcResult<OutputFor<'file.batch_permanent_delete_from_trash'>>
-    if (!purged.ok) throw new Error(purged.error.message)
-    expect(purged.data.failed, 'Permanently deleting the owned PDF must not fail').toEqual([])
-    await page.evaluate(
-      async ({ preferences, assistantId, providerId }) => {
-        await window.api.preference.setMultiple({
-          'topic.naming.enabled': preferences.naming,
-          'chat.input.toolbar.pinned_tools': preferences.pinned
-        })
-        if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
-        }
-        await window.api.dataApi.request({ id: 'mp72-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
-      },
-      { preferences, assistantId, providerId }
-    )
+    try {
+      const retained = await readEntry()
+      expect(retained.status).toBe(200)
+      expect(InternalEntrySchema.parse(retained.data).deletedAt).toBeUndefined()
+      expect(await readBytes()).toEqual(bytes)
+      await screenshot('MP-72 retained file evidence before cleanup')
+    } finally {
+      try {
+        // The PDF is referenced by the conversation's messages, and permanent
+        // deletion rejects referenced entries, so the owning conversation goes first.
+        await page.evaluate(
+          async ({ assistantId }) => {
+            if (!assistantId) return
+            await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
+            await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          },
+          { assistantId }
+        )
+        const trashed = (await page.evaluate(
+          (ids) => window.api.ipcApi.request('file.batch_trash', { ids }),
+          [fileId]
+        )) as IpcResult<OutputFor<'file.batch_trash'>>
+        if (!trashed.ok) throw new Error(trashed.error.message)
+        expect(trashed.data.failed, 'Trashing the owned PDF must not fail').toEqual([])
+        const purged = (await page.evaluate(
+          (ids) => window.api.ipcApi.request('file.batch_permanent_delete_from_trash', { ids }),
+          trashed.data.succeeded
+        )) as IpcResult<OutputFor<'file.batch_permanent_delete_from_trash'>>
+        if (!purged.ok) throw new Error(purged.error.message)
+        expect(purged.data.failed, 'Permanently deleting the owned PDF must not fail').toEqual([])
+      } finally {
+        // Preference and provider restoration must run even when cleanup fails.
+        await page.evaluate(
+          async ({ preferences, providerId }) => {
+            await window.api.preference.setMultiple({
+              'topic.naming.enabled': preferences.naming,
+              'chat.input.toolbar.pinned_tools': preferences.pinned
+            })
+            await window.api.dataApi.request({
+              id: 'mp72-cleanup',
+              method: 'DELETE',
+              path: `/providers/${providerId}`
+            })
+          },
+          { preferences, providerId }
+        )
+      }
+    }
   }
 }

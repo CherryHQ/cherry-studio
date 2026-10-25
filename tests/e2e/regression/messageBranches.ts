@@ -180,9 +180,25 @@ export async function messageBranches(app: RegressionApp, page: Page, testInfo: 
     await page.getByRole('menuitem', { name: 'Copy as New Conversation', exact: true }).click()
     await expect(page.getByText('Copied to a new conversation', { exact: true })).toBeVisible()
     const rows = chat.getByTestId('topic-list-row')
-    await expect(rows).toHaveCount(2)
-    const copiedRow = rows.first()
-    await expect(copiedRow).toHaveCount(1)
+    // The shared profile can hold unrelated conversations, so identify the copy by
+    // its own topic id instead of counting or taking the first row.
+    const topicList = await page.evaluate(
+      (name) =>
+        window.api.dataApi.request({
+          id: 'mp29-topics',
+          method: 'GET',
+          path: '/topics',
+          params: { q: name, limit: 50 }
+        }),
+      topicName
+    )
+    expect(topicList.status).toBe(200)
+    const copiedTopics = (topicList.data as { items: unknown[] }).items
+      .map((item) => TopicSchema.parse(item))
+      .filter(({ id }) => id !== topicId)
+    expect(copiedTopics, 'Copying a branch must create exactly one new conversation').toHaveLength(1)
+    const copiedRow = chat.locator(`[id="resource-list-option-${encodeURIComponent(copiedTopics[0].id)}"]`)
+    await expect(copiedRow, 'The copied conversation must be listed').toBeVisible()
     await copiedRow.click()
     await expect(messages).toHaveCount(2)
     await expect(messages.getByText(second.prompt, { exact: true })).toBeVisible()
@@ -198,6 +214,7 @@ export async function messageBranches(app: RegressionApp, page: Page, testInfo: 
     expect(copiedResponse.status).toBe(200)
     const copiedTopicId = MessageSchema.parse(copiedResponse.data).topicId
     expect(copiedTopicId).not.toBe(topicId)
+    expect(copiedTopicId, 'The opened conversation must be the copy reported by the API').toBe(copiedTopics[0].id)
     const copied = await page.evaluate(
       (id) => window.api.dataApi.request({ id: 'mp29-copied-messages', method: 'GET', path: `/topics/${id}/messages` }),
       copiedTopicId

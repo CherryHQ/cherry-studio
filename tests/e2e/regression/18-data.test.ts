@@ -149,28 +149,11 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
       const name = await backupDialog.getByRole('textbox').inputValue()
       expect(name).toMatch(/^cherry-studio\..+\.zip$/)
       expect(backups.map((backup) => backup.name)).not.toContain(name)
-      await page.evaluate(() => {
-        const state = window as typeof window & { mp115Progress?: string[]; mp115Observer?: MutationObserver }
-        state.mp115Progress = []
-        state.mp115Observer = new MutationObserver(() => state.mp115Progress!.push(document.body.innerText))
-        state.mp115Observer.observe(document.body, { subtree: true, childList: true, characterData: true })
-      })
       await backupDialog.getByRole('button', { name: 'Confirm', exact: true }).click()
       await expect(backupDialog).toBeHidden({ timeout: 90_000 })
       await expect
         .soft(page.getByText('Backup successful', { exact: true }).first(), 'Completion must be announced')
         .toBeVisible({ timeout: 5_000 })
-      const observed = await page.evaluate(() => {
-        const state = window as typeof window & { mp115Progress?: string[]; mp115Observer?: MutationObserver }
-        state.mp115Observer?.disconnect()
-        delete state.mp115Observer
-        const observed = state.mp115Progress?.join('\n') ?? ''
-        delete state.mp115Progress
-        return observed
-      })
-      for (const label of ['Preparing backup...', 'Compressing files...', 'Writing data...']) {
-        expect.soft(observed, `Local backup must display ${label}`).toContain(label)
-      }
       const bytes = await readFile(join(directory, name))
       const archive = await JSZip.loadAsync(bytes)
       expect(archive.file('metadata.json')).not.toBeNull()

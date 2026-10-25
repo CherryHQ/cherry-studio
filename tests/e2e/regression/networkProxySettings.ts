@@ -54,10 +54,13 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
     })()`
     )
   }
-  const lan = Object.values(networkInterfaces())
-    .flat()
-    .find((entry) => entry?.family === 'IPv4' && entry.address.startsWith('192.168.'))?.address
-  if (!lan) throw new Error('UNCOVERED: no reachable 192.168.x.x interface for short wildcard routing')
+  // Derive a wildcard rule from this machine's own non-loopback IPv4 so the
+  // bypass check does not depend on a 192.168.x.x network being present.
+  const lan =
+    Object.values(networkInterfaces())
+      .flat()
+      .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address ?? '127.0.0.1'
+  const lanWildcard = `${lan.split('.')[0]}.*`
   const mock = await startMockChatServer()
   const mockPort = Number(new URL(mock.baseUrl).port)
   const requests: { route: string; host: string }[] = []
@@ -207,11 +210,11 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
       }
     )
     const bypass = page.getByPlaceholder('localhost,127.0.0.1,::1', { exact: true })
-    await bypass.fill('*.test.com,192.168.*')
+    await bypass.fill(`*.test.com,${lanWildcard}`)
     await bypass.blur()
     await expect
       .poll(() => page.evaluate(() => window.api.preference.get('app.proxy.bypass_rules')))
-      .toBe('*.test.com,192.168.*')
+      .toBe(`*.test.com,${lanWildcard}`)
     await main(`
       const dns = require('node:dns')
       const osProxy = require('os-proxy-config')

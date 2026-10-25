@@ -51,7 +51,7 @@ so package-manager subprocesses cannot escape the owned process group. Each prof
 state, user data, and logs from developer instances. Launches disable occluded-window
 backgrounding so Playwright actionability checks keep receiving animation frames.
 
-The workflow keeps ten separately timed steps. Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
+The workflow keeps one separately timed step per phase (21 today). Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
 `cases.ts` is the execution manifest. The workflow task dropdown lists `all` and every task ID from the manifest. When adding a task, update the workflow options too; the manifest tests enforce that the lists stay in sync.
 
 `run.json` schema version 2 records both cases and phases. The parent marks a phase running before starting Playwright; the reporter records test results and executor errors; a nonzero child exit also fails the phase.

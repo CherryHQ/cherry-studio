@@ -592,7 +592,7 @@ export const REGRESSION_CASES = [
     title: 'Network proxy settings',
     task: '15-settings',
     phase: '15-settings',
-    capabilities: []
+    capabilities: ['lanInterface']
   },
   {
     id: 'MP-151',

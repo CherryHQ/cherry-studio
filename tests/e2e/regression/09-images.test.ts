@@ -295,31 +295,35 @@ test(...caseDefinition('MP-91'), async ({ mainWindow: page }, testInfo) => {
       body: JSON.stringify(requests, null, 2),
       contentType: 'application/json'
     })
-    expect.soft(imageRequests()[1].body.prompt, 'Enhancement must expand the actual image prompt').toBe(expanded)
+    // SiliconFlow enhances server-side: the app forwards the prompt as typed and flags
+    // the request, so the provider (not the client) produces the expanded wording.
+    expect.soft(imageRequests()[1].body.prompt, 'Server-side enhancement receives the prompt as typed').toBe(original)
+    expect.soft(imageRequests()[1].body.prompt_enhancement, 'Enhancement must be requested from the provider').toBe(true)
     await screenshot('MP-91 enhancement result and prompt')
-    await expect.soft(view.getByTestId('artboard-prompt-bar-measure')).toContainText(expanded, { timeout: 2_000 })
+    await expect.soft(view.getByTestId('artboard-prompt-bar-measure')).toContainText(original, { timeout: 2_000 })
 
     failEnhancement = true
     await view.getByRole('button', { name: 'Expand prompt', exact: true }).click()
     await editor.fill(original)
     await view.getByRole('button', { name: 'Send', exact: true }).click()
     await expect.poll(() => imageRequests().length).toBeGreaterThanOrEqual(3)
+    expect(imageRequests()[2].body.prompt, 'A rejected enhancement still sends the typed prompt').toBe(original)
+    expect(imageRequests()[2].body.prompt_enhancement).toBe(true)
     await expect
-      .soft(page.getByText(/enhancement.*(fail|unavailable)|failed.*enhance/i).first())
-      .toBeVisible({ timeout: 5_000 })
-    await expect.soft
-      .poll(
-        () =>
-          imageRequests()
-            .slice(2)
-            .some(({ body }) => body.prompt === original && body.prompt_enhancement !== true),
-        {
-          message: 'Failed enhancement must retry generation with the original prompt',
-          timeout: 10_000
-        }
-      )
-      .toBe(true)
-    await screenshot('MP-91 enhancement failure recovery')
+      .soft(page.getByText(/MP91 prompt enhancement unavailable/).first(), 'A rejected enhancement must be reported')
+      .toBeVisible({ timeout: 10_000 })
+    await page.keyboard.press('Escape')
+    failEnhancement = false
+    // Recovery: with enhancement off the same prompt goes out without the flag and renders.
+    await view.getByRole('button', { name: /^Settings(:|$)/ }).click()
+    await enhancement.setChecked(false)
+    await page.keyboard.press('Escape')
+    await view.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect.poll(() => imageRequests().length).toBeGreaterThanOrEqual(4)
+    expect(imageRequests()[3].body.prompt).toBe(original)
+    expect(imageRequests()[3].body.prompt_enhancement).not.toBe(true)
+    await expect(result).toBeVisible({ timeout: 60_000 })
+    await screenshot('MP-91 recovery after a rejected enhancement')
     await testInfo.attach('MP-91 failure request details (loopback fixture)', {
       body: JSON.stringify(requests, null, 2),
       contentType: 'application/json'

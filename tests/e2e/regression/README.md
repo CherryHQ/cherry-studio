@@ -5,7 +5,7 @@ The separate [Playwright config](../../../playwright.regression.config.ts) uses 
 
 ## File organization
 
-- Numbered `*.test.ts` files are the ten CI phases, ordered from startup to runtime tasks.
+- Numbered `*.test.ts` files are the CI phases (21 today), ordered from startup to runtime tasks.
 - `fixture.ts` validates required capabilities and owns each test's CDP connection and failure evidence.
 - `RegressionApp.ts` locates windows and delegates process operations. Connecting or locating a window does not change application preferences.
 - `setup.ts` explicitly establishes English locale, onboarding/telemetry settings, and disabled desktop assistants before each non-startup scenario.
