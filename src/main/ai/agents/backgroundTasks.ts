@@ -66,7 +66,7 @@ function trackVerifiedMembers(taskId: string, storageDir?: string): void {
   // A fork child is still this task's after setsid(), and its parent is the only thing that says
   // so: while that tie exists, its identity is written down, because a worker that then closes
   // every descriptor leaves no channel for the table's environment to name it.
-  const adoptedDescendant = adoptDescendants(owned, table)
+  const adoptedDescendant = adoptDescendants(owned.members, table)
   // Persist what the spawn could not capture, so a later restart can re-identify the leader from
   // the record alone and a permanent purge can still discover and stop the task.
   if (adopted && storageDir) void persistPidStartTime(taskId, storageDir, owned)
@@ -133,17 +133,17 @@ interface RecordedMember {
  * the parent that forked it — and while that parent is still verified, the child is provably the
  * task's own. Adding it here is what lets its identity be recorded before it drops every pipe.
  */
-function adoptDescendants(owned: OwnedGroup, table: ProcessRow[]): boolean {
+function adoptDescendants(members: Map<number, string>, table: ProcessRow[]): boolean {
   const byPid = new Map(table.map((row) => [row.pid, row]))
   let added = false
   for (let expanded = true; expanded;) {
     expanded = false
     for (const row of table) {
-      if (row.zombie || owned.members.has(row.pid)) continue
-      const parentStamp = owned.members.get(row.ppid)
+      if (row.zombie || members.has(row.pid)) continue
+      const parentStamp = members.get(row.ppid)
       const parent = byPid.get(row.ppid)
       if (parentStamp === undefined || parent?.lstart !== parentStamp || parent.zombie) continue
-      owned.members.set(row.pid, row.lstart)
+      members.set(row.pid, row.lstart)
       expanded = added = true
     }
   }
@@ -255,13 +255,47 @@ async function killRecordedMembers(storageDir: string, taskId: string, anchorPid
   }
 }
 
-/** Signals the recorded survivors of a task whose group has no verified leader to address. */
+/**
+ * Discovers and persists the descendants of the recorded survivors before a signal destroys the
+ * parent tie that names them. A survivor recorded before a restart can fork while this app is not
+ * running: the child is in no ledger and carries no marker, so its descent from a verified parent
+ * is the only thing that can attribute it — and the signal erases that chain by killing its way
+ * up. Captured here, the identities stay sweepable by pid and start stamp however the signal ends.
+ */
+async function captureSurvivorDescendants(storageDir: string, taskId: string): Promise<void> {
+  if (process.platform === 'win32') return
+  const recorded = await readRecordedMembers(storageDir, taskId)
+  if (recorded.length === 0) return
+  const table = readProcessTable()
+  // An unreadable table establishes nothing, so no identity may be written from it.
+  if (!table) return
+  const members = new Map<number, string>()
+  for (const row of table) {
+    if (row.zombie) continue
+    const stamp = recorded.find((member) => member.pid === row.pid)?.lstart
+    if (stamp !== undefined && stamp === row.lstart) members.set(row.pid, row.lstart)
+  }
+  if (members.size === 0) return
+  adoptDescendants(members, table)
+  await recordObservedMembers(
+    storageDir,
+    taskId,
+    [...members].map(([pid, lstart]) => ({ pid, lstart }))
+  )
+}
+
+/**
+ * Signals the recorded survivors of a task whose group has no verified leader to address. Their
+ * descendants are captured and persisted first: the signal destroys the parent chains that name
+ * them, and a child forked while this app was closed has no other identity to be swept by.
+ */
 async function signalRecordedSurvivors(
   storageDir: string,
   taskId: string,
   anchorPid: number,
   signal: NodeJS.Signals
 ): Promise<void> {
+  await captureSurvivorDescendants(storageDir, taskId)
   for (const member of await liveRecordedSurvivors(storageDir, taskId, anchorPid)) {
     if (getPidStartTime(member.pid) !== member.lstart) continue
     try {

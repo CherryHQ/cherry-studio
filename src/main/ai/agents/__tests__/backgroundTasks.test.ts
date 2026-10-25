@@ -1707,6 +1707,99 @@ describe('backgroundTasks', () => {
       40_000
     )
 
+    // A survivor the ledger recorded before a restart can fork while this app is not running: the
+    // child is in no ledger and, with its environment scrubbed, in no marker scan either, so the
+    // parent chain is the one channel that names it. Signalling the survivor destroys exactly that
+    // chain — the orphan it leaves cannot be attributed by any later walk — and the kill reads
+    // back unverified while the child runs on, with the next Kill refused for lack of a recorded
+    // identity. The descendants must be captured through their verified parents before the signal.
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'kills the children a recorded survivor forked while the app was closed',
+      async () => {
+        const workerPidFile = path.join(storageDir, 'closed-fork.pid')
+        const childPidFile = path.join(storageDir, 'closed-fork-child.pid')
+        const trigger = path.join(storageDir, 'closed-fork.trigger')
+        // The launcher stays in the group only long enough for the membership pulse to attribute
+        // the daemon and record its identity. The daemon itself waits for the trigger below, so
+        // its child is forked only once this app has "restarted" and stopped pulsing — the shape
+        // of work created while Cherry was closed.
+        await writeFile(
+          path.join(storageDir, 'closed-fork-launch.py'),
+          [
+            'import subprocess, sys, time',
+            'p = subprocess.Popen([sys.executable, sys.argv[2], sys.argv[3], sys.argv[4]], start_new_session=True, close_fds=True,',
+            '                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={})',
+            'open(sys.argv[1], "w").write(str(p.pid))',
+            'time.sleep(1.2)'
+          ].join('\n') + '\n'
+        )
+        await writeFile(
+          path.join(storageDir, 'closed-fork-daemon.py'),
+          [
+            'import os, subprocess, sys, time',
+            'while not os.path.exists(sys.argv[1]):',
+            '    time.sleep(0.1)',
+            'child = subprocess.Popen(["/bin/sleep", "120"], env={}, close_fds=True,',
+            '                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)',
+            'open(sys.argv[2], "w").write(str(child.pid))',
+            'time.sleep(120)'
+          ].join('\n') + '\n'
+        )
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `python3 "${path.join(storageDir, 'closed-fork-launch.py')}" "${workerPidFile}" "${path.join(storageDir, 'closed-fork-daemon.py')}" "${trigger}" "${childPidFile}"`,
+          cwd: storageDir
+        })
+        let workerPid = 0
+        let childPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(workerPidFile, 'utf8')).trim())
+              expect(workerPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          // The anchor leaves once its group, both pipes and the marker read empty, while the
+          // recorded daemon keeps the task running on its ledger identity alone.
+          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+
+          // A restart forgets the ownership the pulse was extending; only now may the daemon fork,
+          // so no in-process scan ever sees the child it creates.
+          forgetDetachedTaskOwnershipForTest(record.id)
+          await writeFile(trigger, '')
+          await vi.waitFor(
+            async () => {
+              childPid = Number((await readFile(childPidFile, 'utf8')).trim())
+              expect(childPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          expect(isPidAlive(childPid)).toBe(true)
+
+          // The kill must take the child with it: the child is the task's own work, and leaving it
+          // alive keeps the task unresolved and its workspace undeletable.
+          const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(stopped?.status).toBe('stopped')
+          expect(stopped?.terminationUnverified).toBeUndefined()
+          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+          await vi.waitFor(() => expect(isPidAlive(childPid)).toBe(false), { timeout: 10_000 })
+          await expect(hasLiveTaskEvidence(storageDir, stopped!)).resolves.toBe(false)
+        } finally {
+          for (const pid of [workerPid, childPid]) {
+            try {
+              if (pid > 0) process.kill(pid, 'SIGKILL')
+            } catch {
+              // already gone
+            }
+          }
+        }
+      },
+      40_000
+    )
+
     // The supervisor's number survives the supervisor: once it exits the OS can hand its pid to
     // anything, while a worker it witnessed stays positively identified in `.pids`. Folding the
     // record to `unknown` on that replacement takes away the one status Stop/Kill accepts and
