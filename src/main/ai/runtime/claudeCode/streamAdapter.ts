@@ -1291,13 +1291,40 @@ export class ClaudeCodeStreamAdapter {
    * Whitespace-only open lines carry no block type of their own - the indent
    * carry handles those - so only content lines are returned.
    */
+
+  /**
+   * Linear equivalent of the former trailing quoted-list regex
+   * `(?:^|\n)( {0,3}> ?(?:[-*+]|\d{1,9}[.)])[^\n]*\n(?: {0,3}>[^\n]*\n)*(?: {0,3}>[^\n]*)?$`:
+   * the longest suffix of `window` made of complete quoted lines plus at most
+   * one trailing partial quoted line, whose earliest complete line is a
+   * quoted list item. The regex backtracked quadratically over a long
+   * single-line quote run on every streamed delta (cherry-pr-review perf).
+   */
+  private trailingQuotedListPrefix(window: string): string | null {
+    if (window === '') return null
+    // The final (possibly empty) partial line must itself open as a quote.
+    const finalStart = window.lastIndexOf('\n') + 1
+    const finalLine = window.slice(finalStart)
+    if (finalLine !== '' && !/^ {0,3}>/.test(finalLine)) return null
+    // Walk back over the maximal run of complete quoted lines touching the
+    // end; the match begins at the earliest quoted list-item line in the run.
+    let pos = finalStart
+    let earliestListItemStart = -1
+    while (pos > 0) {
+      const lineStart = window.lastIndexOf('\n', pos - 2) + 1
+      const line = window.slice(lineStart, pos - 1)
+      if (!/^ {0,3}>/.test(line)) break
+      if (/^ {0,3}> ?(?:[-*+]|\d{1,9}[.)])/.test(line)) earliestListItemStart = lineStart
+      pos = lineStart
+    }
+    return earliestListItemStart === -1 ? null : window.slice(earliestListItemStart)
+  }
+
   private emittedOpenLinePrefix(accumulatedText: string): string {
     // A quote-only blank keeps its list container. Retain a bounded quoted
     // list prefix so continuation indentation is not mistaken for literal code.
-    const quotedList = /(?:^|\n)( {0,3}> ?(?:[-*+]|\d{1,9}[.)])[^\n]*\n(?: {0,3}>[^\n]*\n)*(?: {0,3}>[^\n]*)?)$/.exec(
-      accumulatedText.slice(-2048)
-    )
-    if (quotedList) return quotedList[1]
+    const quotedList = this.trailingQuotedListPrefix(accumulatedText.slice(-2048))
+    if (quotedList !== null) return quotedList
     // The remainder starts immediately after emitted text, even when it
     // spans several lines. Find context BEFORE it, not after its last newline
     // (inv_8286fc83dcddad15: split '1' + '. ```xml\n').
