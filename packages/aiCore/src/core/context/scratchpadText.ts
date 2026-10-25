@@ -766,6 +766,8 @@ function maskIndentedCodeBlocks(text: string): {
   // spaces, five/eight spaces, or repeated tabs (cherry-pr-review
   // inv_4ab3f6f347edda60, inv_c51149ed55871417).
   let inheritedListColumns = 0
+  // Dedenting from a nested item may return to its outer list, not column zero.
+  const listColumnStack: number[] = []
   const indentedCodeColumns = (line: string): number => {
     const content = stripMarkdownContainerMarkers(line)
     let columns = 0
@@ -814,8 +816,15 @@ function maskIndentedCodeBlocks(text: string): {
     const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(expanded.slice(nestedOffset))
     if (list) {
       const padding = list[3].length <= 4 ? list[3].length : 1
-      inheritedListColumns = nestedOffset + list[1].length + list[2].length + padding
-    } else if (line.trim() !== '' && !line.startsWith(' '.repeat(inheritedListColumns))) inheritedListColumns = 0
+      const nextColumns = nestedOffset + list[1].length + list[2].length + padding
+      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] >= nextColumns) listColumnStack.pop()
+      listColumnStack.push(nextColumns)
+      inheritedListColumns = nextColumns
+    } else if (line.trim() !== '') {
+      const columns = expanded.length - expanded.trimStart().length
+      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] > columns) listColumnStack.pop()
+      inheritedListColumns = listColumnStack[listColumnStack.length - 1] ?? 0
+    }
     // A new explicit quote container cannot inherit an outer paragraph.
     // Unmarked lazy continuation lines keep their paragraph's container.
     if ((depth > 0 && depth !== quoteDepth) || isListItemStart(line) || previousListColumns !== inheritedListColumns)
@@ -1490,6 +1499,17 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
     // inv_c4d88ac9b0f0f954).
     const tagIndex = trailing.index + trailing[0].indexOf('<')
     if (isBackslashEscaped(out, tagIndex)) break
+    // Only unmatched protocol closers are debris. Balanced elements in ordinary
+    // answer prose are literal markup, not evidence of a tool call.
+    const name = /^<\/([^\s/>]+)/u.exec(out.slice(tagIndex))?.[1].toLowerCase()
+    let balance = 0
+    const tagPattern = /<(\/?)([^\s/>]+)(?=[\s/>])[^>]*>/gu
+    for (const match of out.slice(0, tagIndex).matchAll(tagPattern)) {
+      if (match[2].toLowerCase() !== name || isBackslashEscaped(out, match.index) || /\/\s*>$/.test(match[0])) continue
+      if (match[1]) balance = Math.max(0, balance - 1)
+      else balance += 1
+    }
+    if (balance > 0) break
     out = out.slice(0, trailing.index)
   }
   out = unmaskInlineCodeSpans(out, spans, inlineBase)

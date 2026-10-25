@@ -694,6 +694,30 @@ Example:
     expect(performance.now() - started).toBeLessThan(200)
   })
 
+  it('preserves balanced protocol elements while removing unmatched suffixes (inv_e50b098aa3667988)', () => {
+    for (const tag of ['tool_result', 'parameter', 'invoke', 'tool_calls']) {
+      const balanced = `The response is <${tag}>ok</${tag}>`
+      expect(stripTrailingToolProtocolClosingFragments(balanced)).toBe(balanced)
+      expect(stripTrailingToolProtocolClosingFragments(balanced + '</invoke>')).toBe(balanced)
+    }
+  })
+
+  it.each(['\n', '\r\n', '\r'])('preserves real nested-list code while stripping outer prose: %j', (eol) => {
+    for (const source of [
+      '- Parent\n  - Child\n\n        <analysis>literal</analysis>',
+      '- Parent\n  - Child\n\n  Continued\n\n      <analysis>literal</analysis>'
+    ]) {
+      const input = source.split('\n').join(eol)
+      expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+    }
+  })
+
+  it('returns to the containing list level after a nested item (inv_bb718394b9e39625)', () => {
+    const input = '- Parent\n  - Child\n\n  Continued\n\n    <analysis>SECRET</analysis>'
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET')
+  })
+
   it('strips trailing tool-protocol closing fragments after visible prose', () => {
     const input = '继续补「以前的信息」。\n\n</parameter>\n</tool_calls>'
     expect(stripTrailingToolProtocolClosingFragments(input)).toBe('继续补「以前的信息」。')
