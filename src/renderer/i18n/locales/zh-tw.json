@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "取得模型失敗",
   "paintings.req_error_no_balance": "請檢查 Token 的有效性",
   "paintings.req_error_token": "請檢查 Token 的有效性",
+  "paintings.request_timeout": "請求逾時（秒）",
+  "paintings.request_timeout_tip": "單次影像生成請求的最長等待時間，留空使用預設值（10 分鐘）。",
   "paintings.revealing": "正在呈現產生的圖片",
   "paintings.safety_tolerance": "安全容忍度",
   "paintings.safety_tolerance_tip": "數值越高 = 篩選條件越寬鬆；0 為最嚴格，6 為最寬鬆",

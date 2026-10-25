@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "モデルの取得に失敗しました",
   "paintings.req_error_no_balance": "トークンの有効性を確認してください",
   "paintings.req_error_token": "トークンの有効性を確認してください",
+  "paintings.request_timeout": "リクエストタイムアウト（秒）",
+  "paintings.request_timeout_tip": "画像生成リクエスト 1 回あたりの最大待機時間です。空欄の場合はデフォルト（10 分）を使用します。",
   "paintings.revealing": "生成された画像の公開",
   "paintings.safety_tolerance": "安全許容範囲",
   "paintings.safety_tolerance_tip": "高いほどフィルターが緩やかになります。0が最も厳しく、6が最も緩やかです。",

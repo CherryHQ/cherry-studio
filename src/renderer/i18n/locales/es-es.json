@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "Error al obtener el modelo",
   "paintings.req_error_no_balance": "Por favor, verifique la validez del token",
   "paintings.req_error_token": "Por favor, verifique la validez del token",
+  "paintings.request_timeout": "Tiempo de espera (segundos)",
+  "paintings.request_timeout_tip": "Tiempo máximo de espera para una solicitud de generación de imágenes. Déjalo vacío para usar el valor predeterminado (10 minutos).",
   "paintings.revealing": "Revelando imagen generada",
   "paintings.safety_tolerance": "Tolerancia de seguridad",
   "paintings.safety_tolerance_tip": "Más alto = filtro más permisivo; 0 es el más estricto, 6 es el más permisivo",

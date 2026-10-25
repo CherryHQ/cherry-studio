@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "Nu s-a putut prelua modelul",
   "paintings.req_error_no_balance": "Te rugăm să verifici validitatea tokenului",
   "paintings.req_error_token": "Te rugăm să verifici validitatea tokenului",
+  "paintings.request_timeout": "Timp limită solicitare (secunde)",
+  "paintings.request_timeout_tip": "Timp maxim de așteptare pentru o solicitare de generare a imaginii. Lăsați gol pentru a folosi valoarea implicită (10 minute).",
   "paintings.revealing": "Se afișează imaginea generată",
   "paintings.safety_tolerance": "Toleranță la siguranță",
   "paintings.safety_tolerance_tip": "Mai mare = filtru mai permisiv; 0 este cel mai strict, 6 este cel mai permisiv",

@@ -355,6 +355,32 @@ describe('FunASR local adapter', () => {
     expect(await readdir(directory)).toEqual([])
   })
 
+  it('extends the inference deadline for long recordings beyond the fixed floor', async () => {
+    // 120s of canonical WAV: max(120s floor, 120s × 2 realtime factor) = 240s.
+    const audio = canonicalPcmWav(120 * 32_000)
+    const inferenceTimeout = new AbortController()
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds: number) => {
+      expect(milliseconds).toBe(240_000)
+      return inferenceTimeout.signal
+    })
+    mocks.transcribe.mockImplementation((_modelId, _source, signal) => {
+      assert(signal)
+      return new Promise((_resolve, reject) =>
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      )
+    })
+
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
+      audio,
+      mediaType: 'audio/wav'
+    })
+    await vi.waitFor(() => expect(mocks.transcribe).toHaveBeenCalledOnce())
+    inferenceTimeout.abort(new DOMException('private timeout details', 'TimeoutError'))
+
+    await expect(work).rejects.toMatchObject({ reason: 'timeout', message: 'timeout' })
+    expect(await readdir(directory)).toEqual([])
+  })
+
   it('aborts canonical WAV inference and removes the scratch input', async () => {
     const audio = canonicalPcmWav(2)
     const controller = new AbortController()

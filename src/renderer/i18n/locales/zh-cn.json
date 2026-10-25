@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "获取模型失败",
   "paintings.req_error_no_balance": "请检查令牌有效性",
   "paintings.req_error_token": "请检查令牌有效性",
+  "paintings.request_timeout": "请求超时（秒）",
+  "paintings.request_timeout_tip": "单次图像生成请求的最长等待时间，留空使用默认值（10 分钟）。",
   "paintings.revealing": "正在呈现生成的图片",
   "paintings.safety_tolerance": "安全容忍度",
   "paintings.safety_tolerance_tip": "数值越高过滤越宽松，0 最严格，6 最宽松",
