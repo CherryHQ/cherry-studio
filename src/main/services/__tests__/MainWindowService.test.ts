@@ -892,8 +892,23 @@ describe('MainWindowService', () => {
       const record = vi.spyOn(browserRequestMethods, 'record')
       const partition = getWebviewPartition(WebviewSecurityProfile.AgentBrowser)
       try {
-        requestHandler({ url: 'https://example.com/export', resourceType: 'mainFrame', method: 'POST', id: 1 }, vi.fn())
-        expect(record).toHaveBeenCalledWith('https://example.com/export', 'POST', 1, partition)
+        requestHandler(
+          {
+            url: 'https://example.com/export',
+            resourceType: 'mainFrame',
+            method: 'POST',
+            id: 1,
+            referrer: 'https://example.com/inbox'
+          },
+          vi.fn()
+        )
+        expect(record).toHaveBeenCalledWith(
+          'https://example.com/export',
+          'POST',
+          1,
+          partition,
+          'https://example.com/inbox'
+        )
 
         completedHandler({ id: 1, url: 'https://example.com/export' })
         expect(finish).toHaveBeenCalledWith(1, partition)

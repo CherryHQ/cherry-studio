@@ -39,6 +39,8 @@ export interface DownloadTaskOptions {
   probe: DownloadProbe
   store: DownloadStore
   fetchImpl: FetchLike
+  /** Context the original browser request carried, such as its `Referer`. */
+  headers?: Record<string, string>
   maxSegmentAttempts?: number
   /** Base backoff; tests pass 0 to keep the suite fast. */
   retryDelayMs?: number
@@ -181,10 +183,10 @@ export class DownloadTask {
   }
 
   private async streamSegment(range: ByteRange, handle: fs.FileHandle, signal: AbortSignal): Promise<void> {
-    const { probe, fetchImpl, task } = this.options
+    const { probe, fetchImpl, task, headers } = this.options
     const offset = resumeOffset(range, this.received[range.index])
     const response = await fetchImpl(probe.finalUrl, {
-      headers: segmentHeaders(range, offset, probe),
+      headers: { ...headers, ...segmentHeaders(range, offset, probe) },
       redirect: 'follow',
       signal
     })
@@ -221,10 +223,10 @@ export class DownloadTask {
 
   /** Servers without Range support: one stream from zero, no resume. */
   private async runSingleStream(signal: AbortSignal): Promise<DownloadRunResult> {
-    const { probe, fetchImpl, task, store } = this.options
+    const { probe, fetchImpl, task, store, headers } = this.options
     let response: Response
     try {
-      response = await fetchImpl(probe.finalUrl, { redirect: 'follow', signal })
+      response = await fetchImpl(probe.finalUrl, { redirect: 'follow', signal, headers })
     } catch (error) {
       // A pause can land while the request is still waiting for headers.
       if (!signal.aborted) throw error

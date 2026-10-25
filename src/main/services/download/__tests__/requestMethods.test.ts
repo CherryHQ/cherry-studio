@@ -121,6 +121,28 @@ describe('RequestMethods', () => {
     expect(methods.methodFor('https://example.com/file')).toBe('GET')
   })
 
+  it('keeps the referrer of the last request so the replay can resend it', () => {
+    const methods = new RequestMethods(4, 60_000, () => 0)
+    methods.record('https://example.com/report.pdf', 'GET', 1, 'agent-browser', 'https://example.com/inbox')
+
+    expect(methods.referrerFor('https://example.com/report.pdf')).toBe('https://example.com/inbox')
+  })
+
+  it('replaces the referrer with the one attached to the download request', () => {
+    const methods = new RequestMethods(4, 60_000, () => 0)
+    methods.record('https://example.com/report.pdf', 'GET', 1, 'agent-browser', 'https://example.com/inbox')
+    methods.record('https://example.com/report.pdf', 'GET', 2, 'agent-browser', 'https://example.com/viewer')
+
+    expect(methods.referrerFor('https://example.com/report.pdf')).toBe('https://example.com/viewer')
+  })
+
+  it('reports no referrer for a request that carried none', () => {
+    const methods = new RequestMethods(4, 60_000, () => 0)
+    methods.record('https://example.com/report.pdf', 'GET', 1, 'agent-browser')
+
+    expect(methods.referrerFor('https://example.com/report.pdf')).toBeUndefined()
+  })
+
   it('only treats requests without a body as replayable', () => {
     expect(isReplayableDownload('GET')).toBe(true)
     expect(isReplayableDownload('HEAD')).toBe(true)

@@ -328,7 +328,8 @@ describe('Browser download takeover', () => {
       partition,
       target,
       // The partition policy records methods; the service only reads them.
-      record: (url: string, method: string) => browserRequestMethods.record(url, method)
+      record: (url: string, method: string, referrer?: string) =>
+        browserRequestMethods.record(url, method, undefined, '', referrer)
     }
   }
 
@@ -350,7 +351,7 @@ describe('Browser download takeover', () => {
     expect(postEvent.preventDefault).not.toHaveBeenCalled()
     expect(start).not.toHaveBeenCalled()
 
-    record('https://example.com/report.pdf', 'GET')
+    record('https://example.com/report.pdf', 'GET', 'https://example.com/inbox')
     const getEvent = { preventDefault: vi.fn() }
     target.emit('will-download', getEvent, {
       getURL: () => 'https://example.com/report.pdf',
@@ -363,7 +364,9 @@ describe('Browser download takeover', () => {
       fileName: 'report.pdf',
       mime: 'application/pdf',
       partition,
-      source: 'browser'
+      source: 'browser',
+      // Without this header a referrer-protected attachment answers 403 to the replay.
+      referrer: 'https://example.com/inbox'
     })
   })
 })

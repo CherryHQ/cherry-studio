@@ -44,6 +44,8 @@ describe('DownloadManagerService recovery', () => {
     store = new DownloadStore(dbh.db)
     dir = mkdtempSync(join(tmpdir(), 'cs-download-recovery-'))
     await application.get('PreferenceService').set('app.browser.downloads.auto_resume', false)
+    // The preference mock keeps its state across tests in this file.
+    await application.get('PreferenceService').set('app.browser.downloads.conflict_policy', 'uniquify')
   })
 
   afterEach(() => {
@@ -496,5 +498,125 @@ describe('DownloadManagerService recovery', () => {
     expect(stored.task.state).toBe('completed')
     expect(stored.task.tempPath).toBe('')
     expect(view.queue).not.toContain(task.id)
+  })
+
+  it('does not overwrite an existing file when retrying a failed allocation', async () => {
+    await application.get('PreferenceService').set('app.browser.downloads.dir', dir)
+    await application.get('PreferenceService').set('app.browser.downloads.conflict_policy', 'fail')
+    const existing = join(dir, 'payload.bin')
+    writeFileSync(existing, 'ORIGINAL USER FILE')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    vi.spyOn(internals(service), 'fetchFor').mockReturnValue(servingFetch())
+
+    // `fail` records the taken name on the failed row; Retry must not rename over it.
+    const task = await service.start({ url: 'http://127.0.0.1/file', fileName: 'payload.bin' })
+    expect(task.state).toBe('failed')
+    expect(task.filePath).toBe(existing)
+
+    await service.retry(task.id)
+
+    expect(readFileSync(existing, 'utf8')).toBe('ORIGINAL USER FILE')
+    const stored = store.get(task.id)!
+    expect(stored.task.state).toBe('failed')
+    expect(stored.task.error).toContain('file already exists')
+  })
+
+  it('allocates a new name when the failed destination was taken in the meantime', async () => {
+    const { task, filePath } = createTask('taken.bin')
+    store.setState(task.id, 'failed', 'probe failed')
+    // An unrelated file appears at the recorded destination after the failure.
+    writeFileSync(filePath, 'SOMEONE ELSE')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    vi.spyOn(internals(service), 'fetchFor').mockReturnValue(servingFetch())
+
+    await service.retry(task.id)
+
+    await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('completed'))
+    expect(readFileSync(filePath, 'utf8')).toBe('SOMEONE ELSE')
+    const stored = store.get(task.id)!
+    expect(stored.task.filePath).toBe(join(dir, 'taken (1).bin'))
+    expect(readFileSync(stored.task.filePath).equals(CONTENT)).toBe(true)
+  })
+
+  it('retries against the URL the probe was redirected to', async () => {
+    const filePath = join(dir, 'signed.bin')
+    const { task } = store.create({
+      url: 'http://127.0.0.1/stable',
+      finalUrl: 'http://127.0.0.1/expired',
+      fileName: 'signed.bin',
+      filePath,
+      tempPath: `${filePath}.crdownload`,
+      totalBytes: CONTENT.length,
+      connections: 2,
+      source: 'manual',
+      etag: '"v1"',
+      ranges: planSegments(CONTENT.length, 2, 1)
+    })
+    store.setState(task.id, 'failed', 'link expired')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const fresh = 'http://127.0.0.1/fresh?sig=2'
+    const requested: { url: string; method: string }[] = []
+    vi.spyOn(internals(service), 'fetchFor').mockReturnValue(async (url, init) => {
+      requested.push({ url, method: init?.method ?? 'GET' })
+      if (url.includes('expired')) return new Response(null, { status: 403 })
+      if (init?.method === 'HEAD') {
+        // A stable URL that redirects to a freshly signed one.
+        const head = new Response(null, {
+          status: 200,
+          headers: { 'content-length': String(CONTENT.length), 'accept-ranges': 'bytes' }
+        })
+        Object.defineProperty(head, 'url', { value: fresh })
+        return head
+      }
+      const range = /bytes=(\d+)-(\d+)/.exec(new Headers(init?.headers).get('range') ?? '')
+      const start = Number(range?.[1] ?? 0)
+      const end = Math.min(Number(range?.[2] ?? CONTENT.length - 1), CONTENT.length - 1)
+      return new Response(CONTENT.subarray(start, end + 1), {
+        status: 206,
+        headers: { 'content-range': `bytes ${start}-${end}/${CONTENT.length}` }
+      })
+    })
+
+    await service.retry(task.id)
+    await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('completed'))
+
+    // The probe starts at the stable URL, but every transfer must follow its redirect.
+    expect(requested.some(({ url }) => url === 'http://127.0.0.1/stable')).toBe(true)
+    expect(requested.filter(({ method }) => method !== 'HEAD').every(({ url }) => url === fresh)).toBe(true)
+    expect(requested.some(({ url }) => url === 'http://127.0.0.1/expired')).toBe(false)
+    expect(store.get(task.id)?.task.finalUrl).toBe(fresh)
+    expect(readFileSync(filePath).equals(CONTENT)).toBe(true)
+  })
+
+  it('replays the browser referrer on the probe and the transfer', async () => {
+    await application.get('PreferenceService').set('app.browser.downloads.dir', dir)
+    const page = 'https://example.com/inbox'
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const seen: (string | null)[] = []
+    const serve = servingFetch()
+    vi.spyOn(internals(service), 'fetchFor').mockReturnValue(async (url, init) => {
+      const referer = new Headers(init?.headers).get('referer')
+      seen.push(referer)
+      // A server that only serves the attachment to the referring page.
+      if (referer !== page) return new Response(null, { status: 403 })
+      return serve(url, init)
+    })
+
+    const task = await service.start({
+      url: 'http://127.0.0.1/file',
+      fileName: 'referrer.bin',
+      referrer: page
+    })
+
+    await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('completed'))
+    expect(seen.length).toBeGreaterThan(1)
+    expect(seen.every((referer) => referer === page)).toBe(true)
   })
 })

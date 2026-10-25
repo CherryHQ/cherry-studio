@@ -171,7 +171,10 @@ export class BrowserSessionService extends BaseService {
             fileName: item.getFilename(),
             mime: item.getMimeType() || undefined,
             partition,
-            source: 'browser'
+            source: 'browser',
+            // A referrer-protected attachment answers 403 to a replay without
+            // the header the browser itself sent.
+            referrer: browserRequestMethods.referrerFor(url)
           })
           .catch((error) => logger.warn('Failed to enqueue browser download', { error }))
       }

@@ -36,6 +36,8 @@ export interface StartDownloadInput {
   mime?: string
   partition?: string
   source?: DownloadSource
+  /** Referrer the originating browser request carried, replayed on probe and transfer. */
+  referrer?: string
 }
 
 /** A task row plus the numbers a status consumer cannot derive from the database alone. */
@@ -89,6 +91,12 @@ export class DownloadManagerService extends BaseService {
   private readonly retries = new Map<string, Promise<void>>()
   /** Tasks whose row should be deleted once their live worker settles. */
   private readonly removals = new Set<string>()
+  /**
+   * Request context a replay must keep (today: the browser's `Referer`). It is
+   * deliberately not persisted: a resumed task after a restart probes with the
+   * session's own transport, and a stale referrer would be worse than none.
+   */
+  private readonly requestHeaders = new Map<string, Record<string, string>>()
   private readonly speeds = new SpeedMeter()
   private active = 0
 
@@ -217,6 +225,8 @@ export class DownloadManagerService extends BaseService {
     const taskId = uuidv7()
     const partition = input.partition ?? ''
     const fetchImpl = this.fetchFor(partition)
+    const headers = input.referrer ? { Referer: input.referrer } : undefined
+    if (headers) this.requestHeaders.set(taskId, headers)
     // Best effort until the reservation succeeds; the failure row below still
     // needs a path so the error is visible in Settings and to agents.
     let filePath = join(dir, fileName)
@@ -226,7 +236,7 @@ export class DownloadManagerService extends BaseService {
       await fs.mkdir(dir, { recursive: true })
       filePath = await this.reservePath(dir, fileName, policy, taskId)
       tempPath = `${filePath}.crdownload`
-      const probe = await probeDownload(input.url, fetchImpl)
+      const probe = await probeDownload(input.url, fetchImpl, { headers })
       const ranges =
         probe.supportsRanges && probe.totalBytes > 0
           ? planSegments(probe.totalBytes, connections)
@@ -412,6 +422,7 @@ export class DownloadManagerService extends BaseService {
     const ownsTemp = !!entry?.task.tempPath && this.owns(entry.task.tempPath, taskId)
     this.release(entry?.task.filePath, taskId)
     this.store.setState(taskId, 'cancelled')
+    this.requestHeaders.delete(taskId)
     if (ownsTemp && entry) void fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
   }
 
@@ -431,10 +442,21 @@ export class DownloadManagerService extends BaseService {
     const entry = this.store.get(taskId)
     if (!entry) return
     const { task } = entry
-    const probe = await probeDownload(task.url, this.fetchFor(task.partition))
+    const probe = await probeDownload(task.url, this.fetchFor(task.partition), {
+      headers: this.requestHeaders.get(taskId)
+    })
     // The row can reach a terminal state while the probe is in flight: removed,
     // cancelled, or completed by the retry this call joined.
     if (!this.canRetry(taskId)) return
+    let destination: { filePath: string; tempPath: string }
+    try {
+      destination = await this.revalidateDestination(task)
+    } catch (error) {
+      // The name the row recorded is still unavailable under the current policy;
+      // keep it failed with that reason instead of renaming over someone's file.
+      if (this.canRetry(taskId)) this.store.setState(taskId, 'failed', errorMessage(error))
+      return
+    }
     const ranges =
       probe.supportsRanges && probe.totalBytes > 0
         ? planSegments(probe.totalBytes, task.connections)
@@ -442,16 +464,44 @@ export class DownloadManagerService extends BaseService {
     if (task.tempPath) await fs.rm(task.tempPath, { force: true }).catch(() => undefined)
     // Removing the temporary file is another await; do not reset a row that
     // stopped being failed in the meantime.
-    if (!this.canRetry(taskId)) return
+    if (!this.canRetry(taskId)) {
+      if (this.reservationKey(destination.filePath) !== this.reservationKey(task.filePath)) {
+        this.release(destination.filePath, taskId)
+      }
+      return
+    }
+    // Persist the refreshed URL and destination with the new plan: a signed URL
+    // that redirected during the probe is the only one the server still accepts.
     this.store.reset(taskId, {
       totalBytes: probe.totalBytes,
       supportsRanges: probe.supportsRanges,
       etag: probe.etag,
       lastModified: probe.lastModified,
-      ranges
+      ranges,
+      finalUrl: probe.finalUrl,
+      filePath: destination.filePath,
+      tempPath: destination.tempPath
     })
     this.enqueue(taskId)
     this.pump()
+  }
+
+  /**
+   * A failed row's recorded destination is not automatically writable on retry:
+   * a `fail` row exists precisely because the name was taken, and under
+   * `uniquify` an unrelated file may have appeared since. Re-check the current
+   * policy and allocate a new name when the old one is no longer available.
+   */
+  private async revalidateDestination(task: DownloadTaskRecord): Promise<{ filePath: string; tempPath: string }> {
+    const policy = parsePolicy(application.get('PreferenceService').get(PREF.conflict))
+    if (this.owns(task.filePath, task.id) && (policy === 'overwrite' || !(await fileExists(task.filePath)))) {
+      return { filePath: task.filePath, tempPath: task.tempPath }
+    }
+    const filePath = await this.reservePath(dirname(task.filePath), task.fileName, policy, task.id)
+    if (this.reservationKey(filePath) !== this.reservationKey(task.filePath)) {
+      this.release(task.filePath, task.id)
+    }
+    return { filePath, tempPath: `${filePath}.crdownload` }
   }
 
   /** Retry may only reset a row that is still failed. */
@@ -476,6 +526,7 @@ export class DownloadManagerService extends BaseService {
     // reused the name, this row no longer owns them and must leave them alone.
     const ownsTemp = !!entry?.task.tempPath && this.owns(entry.task.tempPath, taskId)
     this.release(entry?.task.filePath, taskId)
+    this.requestHeaders.delete(taskId)
     if (ownsTemp && entry) await fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
     this.store.delete(taskId)
   }
@@ -533,6 +584,7 @@ export class DownloadManagerService extends BaseService {
         },
         store: this.store,
         fetchImpl: this.fetchFor(task.partition),
+        headers: this.requestHeaders.get(taskId),
         onProgress: (received) => {
           this.speeds.update(taskId, received)
         }
@@ -540,6 +592,7 @@ export class DownloadManagerService extends BaseService {
       const result = await runner.run(controller.signal)
       if (result === 'completed') {
         this.release(task.filePath, taskId)
+        this.requestHeaders.delete(taskId)
         logger.info('Download completed', { taskId, bytes: task.totalBytes })
       }
     } catch (error) {
@@ -556,11 +609,13 @@ export class DownloadManagerService extends BaseService {
       if (this.removals.delete(taskId)) {
         // Settled: a submitted rename can no longer land on a reused path.
         await this.discardFiles(taskId, entry?.task)
+        this.requestHeaders.delete(taskId)
         this.store.delete(taskId)
       } else if (entry?.task.state === 'cancelled') {
         // The worker kept ownership while it settled; release only what this
         // task still owns so a reused name is not torn down underneath it.
         await this.discardFiles(taskId, entry.task)
+        this.requestHeaders.delete(taskId)
       } else if (entry?.task.state === 'queued') {
         // Resume arrived while the runner was closing its file. `enqueue` was
         // rejected then because the worker still occupied this id; dispatch now.
@@ -594,4 +649,11 @@ function parsePolicy(value: string): DownloadConflictPolicy {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function fileExists(filePath: string): Promise<boolean> {
+  return fs.stat(filePath).then(
+    () => true,
+    () => false
+  )
 }

@@ -159,6 +159,29 @@ describe('DownloadTask', () => {
     expect(stored?.task.receivedBytes).toBe(CONTENT.length)
   })
 
+  it('sends the browser request context on a single-stream transfer', async () => {
+    const { task, segments, filePath } = createTask(1)
+    const seen: (string | null)[] = []
+    const fetchImpl: FetchLike = async (_url, init) => {
+      seen.push(new Headers(init?.headers).get('referer'))
+      return new Response(CONTENT, { status: 200, headers: { 'content-length': String(CONTENT.length) } })
+    }
+
+    const runner = new DownloadTask({
+      task,
+      segments,
+      probe: { finalUrl: task.url, totalBytes: 0, supportsRanges: false },
+      store,
+      fetchImpl,
+      headers: { Referer: 'https://example.com/inbox' }
+    })
+
+    await expect(runner.run(new AbortController().signal)).resolves.toBe('completed')
+
+    expect(seen).toEqual(['https://example.com/inbox'])
+    expect((await fs.readFile(filePath)).equals(CONTENT)).toBe(true)
+  })
+
   it('stores the unwritten remainder when the filesystem accepts a partial write', async () => {
     const { task, segments, filePath } = createTask(2)
 

@@ -6,6 +6,8 @@ const DEFAULT_TTL_MS = 10 * 60_000
 interface Entry {
   methods: string[]
   at: number
+  /** Referrer of the most recent request; it is part of the context a replay must keep. */
+  referrer?: string
 }
 
 interface PendingRequest {
@@ -48,7 +50,7 @@ export class RequestMethods {
     private readonly now: () => number = Date.now
   ) {}
 
-  record(url: string, method: string | undefined, requestId?: number, scope = ''): void {
+  record(url: string, method: string | undefined, requestId?: number, scope = '', referrer?: string): void {
     if (!method) return
     const upper = method.toUpperCase()
     const now = this.now()
@@ -56,11 +58,21 @@ export class RequestMethods {
     const existing = this.entries.get(url)
     if (existing && now - existing.at <= this.ttlMs) {
       existing.at = now
+      existing.referrer = referrer || undefined
       if (!existing.methods.includes(upper)) existing.methods.push(upper)
       return
     }
     if (this.entries.size >= this.limit) this.prune()
-    this.entries.set(url, { methods: [upper], at: now })
+    this.entries.set(url, { methods: [upper], at: now, referrer: referrer || undefined })
+  }
+
+  /**
+   * Referrer the browser attached to the last request for `url`. Replaying a
+   * referrer-protected attachment without it gets HTTP 403 even though the
+   * browser's own transfer succeeded.
+   */
+  referrerFor(url: string): string | undefined {
+    return this.entries.get(url)?.referrer
   }
 
   /** A request that completed or failed can no longer deliver an attachment. */

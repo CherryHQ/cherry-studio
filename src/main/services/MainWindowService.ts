@@ -406,7 +406,7 @@ export class MainWindowService extends BaseService {
       // this listener must stay the only one on the session: record here rather
       // than letting another module replace the policy. The request id keeps a
       // long-running POST attributed until its completion or error arrives.
-      browserRequestMethods.record(details.url, details.method, details.id, partition)
+      browserRequestMethods.record(details.url, details.method, details.id, partition, details.referrer)
       try {
         const result = isAllowed(details)
         if (typeof result === 'boolean') {

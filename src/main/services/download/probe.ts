@@ -59,14 +59,21 @@ function totalFromContentRange(value: string | undefined): number | undefined {
   return Number.isSafeInteger(total) && total > 0 ? total : undefined
 }
 
+export interface ProbeOptions {
+  signal?: AbortSignal
+  /** Headers the original browser request carried; a referrer check rejects the replay without them. */
+  headers?: Record<string, string>
+}
+
 /** Asks for one byte to learn whether the server honours `Range`. */
 async function probeRange(
   url: string,
   fetchImpl: FetchLike,
-  signal?: AbortSignal
+  options: ProbeOptions
 ): Promise<Pick<DownloadProbe, 'totalBytes' | 'supportsRanges'> & { etag?: string; lastModified?: string }> {
+  const { signal, headers } = options
   const response = await fetchImpl(url, {
-    headers: { Range: 'bytes=0-0' },
+    headers: { ...headers, Range: 'bytes=0-0' },
     redirect: 'follow',
     signal
   })
@@ -98,10 +105,15 @@ async function probeRange(
  * `Accept-Ranges`, so a one-byte `Range` request is the fallback and also the
  * way to confirm range support rather than trusting the header alone.
  */
-export async function probeDownload(url: string, fetchImpl: FetchLike, signal?: AbortSignal): Promise<DownloadProbe> {
+export async function probeDownload(
+  url: string,
+  fetchImpl: FetchLike,
+  options: ProbeOptions = {}
+): Promise<DownloadProbe> {
+  const { signal, headers } = options
   let head: Response | undefined
   try {
-    head = await fetchImpl(url, { method: 'HEAD', redirect: 'follow', signal })
+    head = await fetchImpl(url, { method: 'HEAD', redirect: 'follow', signal, headers })
   } catch (error) {
     if (signal?.aborted) throw error
   }
@@ -125,7 +137,7 @@ export async function probeDownload(url: string, fetchImpl: FetchLike, signal?: 
       const confirmed: Pick<DownloadProbe, 'totalBytes' | 'supportsRanges'> & {
         etag?: string
         lastModified?: string
-      } = await probeRange(result.finalUrl, fetchImpl, signal).catch((error: unknown) => {
+      } = await probeRange(result.finalUrl, fetchImpl, options).catch((error: unknown) => {
         if (signal?.aborted) throw error
         return { totalBytes: length, supportsRanges: false }
       })
@@ -141,8 +153,8 @@ export async function probeDownload(url: string, fetchImpl: FetchLike, signal?: 
     }
   }
 
-  const ranged = await probeRange(url, fetchImpl, signal)
-  const response = await fetchImpl(url, { method: 'HEAD', redirect: 'follow', signal }).catch(() => undefined)
+  const ranged = await probeRange(url, fetchImpl, options)
+  const response = await fetchImpl(url, { method: 'HEAD', redirect: 'follow', signal, headers }).catch(() => undefined)
   return requireRangeValidator({
     finalUrl: response?.url || url,
     totalBytes: ranged.totalBytes,

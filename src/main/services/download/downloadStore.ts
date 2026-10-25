@@ -119,10 +119,22 @@ export class DownloadStore {
   /**
    * Re-plans a failed task in place: old segment offsets are meaningless once the
    * file has to be fetched again, so they are replaced atomically with the new plan.
+   * The refreshed URL and any re-allocated destination travel with it: a retry
+   * that keeps the expired signed URL, or a path the policy no longer allows,
+   * would run the old transfer against resources that are gone.
    */
   reset(
     taskId: string,
-    input: { totalBytes: number; supportsRanges: boolean; etag?: string; lastModified?: string; ranges: ByteRange[] }
+    input: {
+      totalBytes: number
+      supportsRanges: boolean
+      etag?: string
+      lastModified?: string
+      ranges: ByteRange[]
+      finalUrl?: string
+      filePath?: string
+      tempPath?: string
+    }
   ): void {
     this.db.transaction((tx) => {
       tx.delete(downloadSegmentTable).where(eq(downloadSegmentTable.taskId, taskId)).run()
@@ -147,7 +159,10 @@ export class DownloadStore {
           totalBytes: input.totalBytes,
           supportsRanges: input.supportsRanges,
           etag: input.etag ?? null,
-          lastModified: input.lastModified ?? null
+          lastModified: input.lastModified ?? null,
+          ...(input.finalUrl === undefined ? {} : { finalUrl: input.finalUrl }),
+          ...(input.filePath === undefined ? {} : { filePath: input.filePath }),
+          ...(input.tempPath === undefined ? {} : { tempPath: input.tempPath })
         })
         .where(eq(downloadTaskTable.id, taskId))
         .run()
