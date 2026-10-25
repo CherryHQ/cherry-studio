@@ -2116,6 +2116,18 @@ export async function hasLiveTaskEvidence(storageDir: string, record: Background
   return !(await hasReplacedWindowsRunner(storageDir, record, readWindowsProcessTable))
 }
 
+/**
+ * Whether the record's numerical group is led by a process that is demonstrably not this task's
+ * anchor. A live leader at the anchor's number with a mismatched start stamp is a replacement
+ * seated there after the task's group drained, and the group behind that number is its own work.
+ * A leaderless group is not covered: its members may still be the task's own orphans.
+ */
+function groupLedByReplacement(record: BackgroundTaskRecord): boolean {
+  if (!record.pidStartTime) return false
+  const leader = readGroupMembers(record.pid)?.find((member) => member.pid === record.pid)
+  return leader !== undefined && leader.lstart !== record.pidStartTime
+}
+
 export async function hasLiveGroupEvidence(
   storageDir: string,
   record: BackgroundTaskRecord,
@@ -2142,7 +2154,10 @@ export async function hasLiveGroupEvidence(
   // stamped while its parent still tied it to the task, so a live entry is the task's own work.
   if (await hasLiveRecordedMember(storageDir, record.id)) return true
   if (process.platform === 'win32') return false
-  if (groupHasLiveMember(record.pid)) return true
+  // The group behind the anchor's number is live work only while nothing proves that number was
+  // handed to a replacement: a leader there under a different stamp leads a group of its own, and
+  // its members are not evidence about this task either way.
+  if (groupHasLiveMember(record.pid) && !groupLedByReplacement(record)) return true
   // Nothing else is left, so only a row this table cannot read could still be the task's work.
   return hasUnreadableEnvironmentCandidate(readCandidates, await markerReadContext(storageDir, record))
 }

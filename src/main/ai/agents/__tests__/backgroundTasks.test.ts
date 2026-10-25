@@ -1874,6 +1874,88 @@ describe('backgroundTasks', () => {
       }
     )
 
+    // A mismatched start stamp on the anchor's number proves the occupant there is a replacement.
+    // One that leads a group of its own — the shape any setsid'd process takes — puts its children
+    // behind the task's old pgid, and counting that group as live work holds a long-dead task's
+    // record at `unknown` with live evidence: the one status Stop/Kill refuses, and the one answer
+    // deletion, reset, restore and workspace cleanup block on, while none of it was ever the
+    // task's. The group must not count; the marker and ledger evidence still do.
+    it.skipIf(process.platform === 'win32')(
+      'does not count a replacement-led group behind a mismatched anchor stamp',
+      async () => {
+        // A native session leader with its own workers: what the OS seats at a freed pid, holding
+        // the pgid that number names.
+        const occupant = spawn('/bin/sh', ['-c', 'sleep 120 & sleep 120 & wait'], {
+          detached: true,
+          stdio: 'ignore'
+        })
+        occupant.unref()
+        const occupantPid = occupant.pid ?? 0
+        const startStamp = (pid: number): string =>
+          String(execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' }))
+            .trim()
+            .replace(/\s+/g, ' ')
+        const id = `bt-replacement-group-${Date.now()}`
+        try {
+          await vi.waitFor(() => expect(isPidAlive(occupantPid)).toBe(true), { timeout: 10_000 })
+          // The state a restart finds: the anchor's old number, a stale stamp its current occupant
+          // does not run under, and no ledger — the task left nothing recorded behind.
+          await writeFile(
+            path.join(storageDir, `${id}${BACKGROUND_TASK_RECORD_EXT}`),
+            JSON.stringify({
+              id,
+              name: 'replacement-group',
+              command: 'cherry-bg-replacement-probe',
+              pid: occupantPid,
+              pidStartTime: 'Mon Jan  1 00:00:00 2001',
+              cwd: storageDir,
+              startedAt: new Date().toISOString(),
+              logFile: path.join(storageDir, `${id}.log`),
+              status: 'running',
+              exitCode: null,
+              signal: null
+            } satisfies BackgroundTaskRecord)
+          )
+
+          const reconciled = await getDetachedBackgroundTask(storageDir, id)
+          expect(reconciled?.status).toBe('unknown')
+          // The occupant's group is not this task's work, so nothing may keep the record reading
+          // as live work for the deletion, reset and restore paths that consult this evidence.
+          await expect(hasLiveTaskEvidence(storageDir, reconciled!)).resolves.toBe(false)
+          // Unknown is what Stop/Kill refuses; the refusal must not resolve into live evidence.
+          await expect(stopDetachedBackgroundTask(storageDir, id, true)).resolves.toBeUndefined()
+
+          // Independent evidence still counts with the replacement group running: a ledger entry
+          // is proof in its own right, and excluding the group must not exclude it.
+          const worker = spawn(nodeBin.replace(/^"|"$/g, ''), ['-e', 'setInterval(() => {}, 60_000)'], {
+            stdio: 'ignore'
+          })
+          worker.unref()
+          try {
+            await vi.waitFor(() => expect(isPidAlive(worker.pid!)).toBe(true), { timeout: 10_000 })
+            await writeFile(
+              path.join(storageDir, `${id}${BACKGROUND_TASK_EVIDENCE_EXT}`),
+              JSON.stringify({ members: [{ pid: worker.pid, lstart: startStamp(worker.pid!) }] })
+            )
+            await expect(hasLiveTaskEvidence(storageDir, reconciled!)).resolves.toBe(true)
+          } finally {
+            try {
+              process.kill(worker.pid!, 'SIGKILL')
+            } catch {
+              // already gone
+            }
+          }
+          expect(isPidAlive(occupantPid)).toBe(true)
+        } finally {
+          try {
+            if (occupantPid > 0) process.kill(-occupantPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+        }
+      }
+    )
+
     // A verified worker can fork a child and exit between two 250-ms pulses. The child stays in
     // the task's group but is reparented, so a parent-chain walk never reaches it — and a stop
     // that can only verify through a live parent returns without signalling while the task still
