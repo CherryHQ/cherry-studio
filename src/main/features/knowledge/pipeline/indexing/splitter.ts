@@ -283,18 +283,22 @@ function findCodeFences(text: string): AtomicRegion[] {
 }
 
 /** Inline code spans are masked from display/inline math detection. */
-function findInlineCodeRegions(text: string, codeFences: AtomicRegion[]): AtomicRegion[] {
+function findInlineCodeRegions(text: string, codeRegions: AtomicRegion[]): AtomicRegion[] {
   const runs: Array<{ start: number; length: number }> = []
   for (const match of text.matchAll(/`+/g)) {
     const start = match.index ?? 0
-    if (isEscaped(text, start)) continue
-    if (isInsideAtomicRegion(start, codeFences)) continue
+    // Start-inclusive: the opening fence delimiter itself must not become an opener.
+    if (isInsideOrAtStart(start, codeRegions)) continue
     runs.push({ start, length: match[0].length })
   }
 
   const regions: AtomicRegion[] = []
   for (let index = 0; index < runs.length; index += 1) {
     const open = runs[index]
+    // Backslash escapes only apply to prospective openers; a matching run
+    // inside an open code span is still a valid closer.
+    if (isEscaped(text, open.start)) continue
+
     let closeIndex = -1
     for (let candidate = index + 1; candidate < runs.length; candidate += 1) {
       if (runs[candidate].length === open.length) {
@@ -312,13 +316,57 @@ function findInlineCodeRegions(text: string, codeFences: AtomicRegion[]): Atomic
   return regions
 }
 
-/** Code fences, tables, display math, and inline math must never be split. */
+/** Indented code blocks (four spaces or a tab after a blank line) are masked from math detection. */
+function findIndentedCodeRegions(text: string, existing: AtomicRegion[]): AtomicRegion[] {
+  const regions: AtomicRegion[] = []
+  let blockStart: number | null = null
+  let blockEnd = 0
+  let previousBlank = true
+  let offset = 0
+
+  for (const line of text.split('\n')) {
+    const lineStart = offset
+    const lineEnd = lineStart + line.length
+    const isBlank = line.trim() === ''
+    const isIndented = /^(?: {4}|\t)/.test(line)
+    const protectedLine = isInsideOrAtStart(lineStart, existing)
+
+    if (protectedLine) {
+      if (blockStart !== null) {
+        regions.push({ start: blockStart, end: blockEnd, kind: 'code' })
+        blockStart = null
+      }
+    } else if (blockStart !== null) {
+      if (!isBlank && !isIndented) {
+        regions.push({ start: blockStart, end: blockEnd, kind: 'code' })
+        blockStart = null
+      } else if (!isBlank) {
+        blockEnd = lineEnd
+      }
+    } else if (!isBlank && isIndented && previousBlank) {
+      blockStart = lineStart
+      blockEnd = lineEnd
+    }
+
+    previousBlank = isBlank
+    offset = lineEnd + 1
+  }
+
+  if (blockStart !== null) {
+    regions.push({ start: blockStart, end: blockEnd, kind: 'code' })
+  }
+  return regions
+}
+
+/** Code fences, indented code, tables, display math, and inline math must never be split. */
 function findAtomicRegions(text: string): AtomicRegion[] {
   const codeFences = findCodeFences(text)
-  const inlineCode = findInlineCodeRegions(text, codeFences)
-  const tables = findTableRegions(text, [...codeFences, ...inlineCode])
-  const displayMath = findDisplayMathRegions(text, [...codeFences, ...inlineCode, ...tables])
-  const regions = [...codeFences, ...tables, ...displayMath]
+  const indentedCode = findIndentedCodeRegions(text, codeFences)
+  const codeRegions = [...codeFences, ...indentedCode]
+  const inlineCode = findInlineCodeRegions(text, codeRegions)
+  const tables = findTableRegions(text, [...codeRegions, ...inlineCode])
+  const displayMath = findDisplayMathRegions(text, [...codeRegions, ...inlineCode, ...tables])
+  const regions = [...codeRegions, ...tables, ...displayMath]
   regions.push(...findInlineMathRegions(text, [...regions, ...inlineCode]))
   return mergeRegions(regions)
 }
@@ -550,6 +598,11 @@ function fitEndToTokenBudget(
 
 function isInsideAtomicRegion(pos: number, regions: AtomicRegion[]): boolean {
   return regions.some((region) => pos > region.start && pos < region.end)
+}
+
+/** Start-inclusive membership for delimiter scans (a region's opening marker is inside it). */
+function isInsideOrAtStart(pos: number, regions: AtomicRegion[]): boolean {
+  return regions.some((region) => pos >= region.start && pos < region.end)
 }
 
 /**

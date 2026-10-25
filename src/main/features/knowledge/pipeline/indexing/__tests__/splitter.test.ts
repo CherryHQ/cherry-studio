@@ -428,6 +428,68 @@ describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
     expect(chunks.some((chunk) => chunk.text.includes(formula))).toBe(true)
   })
 
+  it('closes an inline code span whose closing backtick follows a backslash', () => {
+    const text = 'Use `echo $$ \\` to print the PID followed by a backslash. ' + '普通句子。'.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+  })
+
+  it('masks $$ inside a four-space-indented code block', () => {
+    const text =
+      'Paragraph.\n\n    echo $$\n\n' + 'This is an ordinary sentence about knowledge retrieval. '.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+  })
+
+  it('splits an oversized indented code block at line boundaries', () => {
+    const code = Array.from({ length: 200 }, (_, index) => `    const value${index} = ${index};`).join('\n')
+    const text = `说明句。\n\n${code}\n\n结尾句。`
+    const chunks = splitTextWithOffsets(text, { chunkSize: 32, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(2)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(32)
+    }
+
+    const covered = new Uint8Array(text.length)
+    for (const chunk of chunks) {
+      for (let index = chunk.start; index < chunk.end; index += 1) covered[index] = 1
+    }
+    for (let index = 0; index < text.length; index += 1) {
+      if (!/\s/.test(text[index])) {
+        expect(covered[index]).toBe(1)
+      }
+    }
+  })
+
+  it('does not let fence delimiters create a false inline-code span', () => {
+    const formula = '$a+b+c+d+e+f+g+h$'
+    const text =
+      '```ts\nconst a = 1\n```\n\n' +
+      'word '.repeat(200) +
+      formula +
+      ' ' +
+      'word '.repeat(200) +
+      '\n\n```ts\nconst b = 2\n```'
+
+    for (const chunkSize of [64, 96, 128, 160]) {
+      const chunks = splitTextWithOffsets(text, { chunkSize, chunkOverlap: 8 })
+      expectVerbatimSlices(text, chunks)
+      expect(chunks.some((chunk) => chunk.text.includes(formula))).toBe(true)
+    }
+  })
+
   it('keeps boundaries between touching tables', () => {
     const table = '<table><tr><td>1</td></tr></table>'
     const text = table.repeat(100) + '普通句子。'.repeat(50)
