@@ -14,15 +14,15 @@ async function ensureAgentModel(
   await closeSettings(page)
   return app.config.customProvider.chatModel
 }
-import { agentPreviewPanel } from './agentPreviewPanel'
-import { agentStatusPanel } from './agentStatusPanel'
-import { workspaceLifecycle } from './workspaceLifecycle'
-import { agentSessionList } from './agentSessionList'
-import { interruptAgentTask } from './interruptAgentTask'
 import { agentMemoryContext } from './agentMemoryContext'
 import { agentPermissionDecisions } from './agentPermissionDecisions'
+import { agentPreviewPanel } from './agentPreviewPanel'
 import { agentRuntimeMessages } from './agentRuntimeMessages'
+import { agentSessionList } from './agentSessionList'
+import { agentStatusPanel } from './agentStatusPanel'
+import { interruptAgentTask } from './interruptAgentTask'
 import { scheduledTasks } from './scheduledTasks'
+import { workspaceLifecycle } from './workspaceLifecycle'
 
 test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
   test.setTimeout(10 * 60_000)

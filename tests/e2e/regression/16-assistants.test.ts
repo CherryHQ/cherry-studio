@@ -1,25 +1,28 @@
+import { execFileSync } from 'node:child_process'
 import { writeFile, readFile } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
+import { performance } from 'node:perf_hooks'
+
+import type { Page } from '@playwright/test'
+
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { type BranchMessagesResponse, MessageSchema } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
+import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { assistantGroupManagement } from './assistantGroupManagement'
 import { sendChatMarker } from './chat'
 import { expect, test } from './fixture'
+import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
 import { switchConversationModel } from './switchConversationModel'
-import { performance } from 'node:perf_hooks'
-import { execFileSync } from 'node:child_process'
-import { basename, dirname, join } from 'node:path'
-import type { Page } from '@playwright/test'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import type { IpcResult } from '@shared/ipc/errors/IpcError'
-import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
-import { selectVisibleModel } from './models'
 
 test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
   // Mock only the provider HTTP boundary; topic creation, navigation and persistence use the real app.

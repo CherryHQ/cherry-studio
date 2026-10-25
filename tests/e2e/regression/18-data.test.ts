@@ -1,24 +1,27 @@
-import { caseDefinition } from '../../../scripts/e2e/regression/cases'
-import { clearCacheItems } from './clearCacheItems'
-import { test, expect } from './fixture'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, stat, writeFile, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+
 import JSZip from 'jszip'
+
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { TopicSchema } from '@shared/data/types/topic'
+
+import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { applicationDataMigration } from './applicationDataMigration'
 import { sendChatMarker } from './chat'
-import { selectSidebarApp } from './navigation'
-import { openSettingsSection } from './settings'
-import type { BranchMessagesResponse } from '@shared/data/types/message'
-import { TopicSchema } from '@shared/data/types/topic'
 import { chooseImportFile } from './chooseImportFile'
+import { clearCacheItems } from './clearCacheItems'
+import { test, expect } from './fixture'
 import { importConversationFixtures } from './importConversationFixtures'
+import { selectSidebarApp } from './navigation'
 import { resetAppData } from './resetAppData'
+import { openSettingsSection } from './settings'
 
 test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) => {
   const attachScreenshot = async (name: string) => {

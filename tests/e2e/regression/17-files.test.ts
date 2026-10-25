@@ -1,30 +1,33 @@
 import { execFileSync } from 'node:child_process'
 import { copyFile, mkdir, mkdtemp, rm, stat, writeFile, access, readFile } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
+
+import * as XLSX from '@e965/xlsx'
+import type { Locator } from '@playwright/test'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
+import sharp from 'sharp'
+
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { AssistantSchema } from '@shared/data/types/assistant'
+import { FileEntrySchema, InternalEntrySchema } from '@shared/data/types/file'
+import { createUniqueModelId } from '@shared/data/types/model'
+import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
+import { evaluateCdpExpression } from '../../../scripts/e2e/regression/cdpClient'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
-import { expect, test } from './fixture'
-import { selectSidebarApp } from './navigation'
-import * as XLSX from '@e965/xlsx'
-import sharp from 'sharp'
-import { FileEntrySchema, InternalEntrySchema } from '@shared/data/types/file'
-import { openSettingsSection } from './settings'
-import type { Locator } from '@playwright/test'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { AssistantSchema } from '@shared/data/types/assistant'
-import { createUniqueModelId } from '@shared/data/types/model'
-import { TopicSchema } from '@shared/data/types/topic'
-import { evaluateCdpExpression } from '../../../scripts/e2e/regression/cdpClient'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { sendChatMarker } from './chat'
+import { expect, test } from './fixture'
+import { selectSidebarApp } from './navigation'
 import { referenceLibraryFile } from './referenceLibraryFile'
 import { createRtfPreviewFixtures } from './rtfPreviewFixtures'
+import { openSettingsSection } from './settings'
 
 test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
@@ -292,20 +295,10 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
   const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp68-assets-'))
   const upload = join(root, 'upload')
-  const documents = join(root, 'test-assets', 'documents')
-  const images = join(root, 'test-assets', 'images')
-  const video = join(root, 'test-assets', 'video')
+  const documents = app.fixturesPath('documents')
+  const images = app.fixturesPath('images')
+  const video = join(root, 'video')
   await Promise.all([upload, documents, images, video].map((path) => mkdir(path, { recursive: true })))
-  const pdf = await PDFDocument.create()
-  pdf.addPage().drawText('MP-68 real file library upload')
-  await writeFile(join(documents, 'sample.pdf'), await pdf.save())
-  await writeFile(
-    join(images, 'sample.png'),
-    Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7l8AAAAASUVORK5CYII=',
-      'base64'
-    )
-  )
   const movie = join(video, 'sample-5s.mp4')
   execFileSync('ffmpeg', [
     '-v',
@@ -338,15 +331,25 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
       .locator('div.group.absolute')
       .filter({ has: page.getByText(name, { exact: true }) })
   const entries = async () => {
-    const response = await page.evaluate(() =>
-      window.api.dataApi.request({
-        id: 'mp68-read-files',
-        method: 'GET',
-        path: '/files/entries?limit=100'
-      })
-    )
-    expect(response.status).toBe(200)
-    return (response.data as { items: { id: string; name: string; ext: string; size: number; origin: string }[] }).items
+    const items: { id: string; name: string; ext: string; size: number; origin: string }[] = []
+    let cursor: string | undefined
+    do {
+      const response = await page.evaluate(
+        (cursor) =>
+          window.api.dataApi.request({
+            id: 'mp68-read-files',
+            method: 'GET',
+            path: '/files/entries',
+            params: { limit: 100, cursor }
+          }),
+        cursor
+      )
+      expect(response.status).toBe(200)
+      const data = response.data as { items: typeof items; nextCursor?: string }
+      items.push(...data.items)
+      cursor = data.nextCursor
+    } while (cursor)
+    return items
   }
   const drop = async (path: string, removeBeforeDrop = false) => {
     // A browser-backed File retains its real path; a synthetic new File does not in Electron.
@@ -372,6 +375,7 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
       await input.dispose()
     }
   }
+  const originalIds = new Set((await entries()).map(({ id }) => id))
   try {
     const chooseFiles = async (path: string, multiple: boolean) => {
       await view().getByRole('button', { name: 'Upload files', exact: true }).click()
@@ -469,7 +473,18 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
     expect((await entries()).filter((entry) => before.some(({ id }) => id === entry.id))).toEqual(before)
     await screenshot('MP-68 files persist after restart')
   } finally {
-    await rm(root, { recursive: true, force: true })
+    try {
+      const ids = (await entries()).filter(({ id }) => !originalIds.has(id)).map(({ id }) => id)
+      if (ids.length) {
+        const result = (await page.evaluate(
+          (ids) => window.api.ipcApi.request('file.batch_remove_from_library', { ids }),
+          ids
+        )) as IpcResult<OutputFor<'file.batch_remove_from_library'>>
+        if (!result.ok) throw new Error(result.error.message)
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   }
 })
 

@@ -1,14 +1,15 @@
+import { execFileSync } from 'node:child_process'
 import { mkdtemp, rm, writeFile, mkdir, stat, utimes, readFile, readdir } from 'node:fs/promises'
-import { join, basename, dirname, resolve } from 'node:path'
+import { join, basename, dirname } from 'node:path'
+import { setTimeout } from 'node:timers/promises'
+
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
+import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from './fixture'
 import { openLaunchpadApp, selectSidebarApp } from './navigation'
-import { setTimeout } from 'node:timers/promises'
 import { noteKnowledgeExport } from './noteKnowledgeExport'
-import { execFileSync } from 'node:child_process'
-import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { notesAndExport } from './notesAndExport'
 function appleScript(script: string, ...args: string[]): string {
   return execFileSync('osascript', ['-e', script, '--', ...args], { encoding: 'utf8', timeout: 20_000 }).trim()
@@ -163,8 +164,8 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   await attachScreenshot('MP-75 application before Markdown import')
-  const source = resolve('test-assets/documents/sample-note.md')
-  const vault = resolve('test-assets/imports/obsidian-vault')
+  const source = app.fixturesPath('documents/sample-note.md')
+  const vault = app.fixturesPath('imports/obsidian-vault')
   const readMarkdown = async (directory: string): Promise<{ path: string; content: string }[]> => {
     const files: { path: string; content: string }[] = []
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -372,6 +373,7 @@ test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
 })
 
 test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => {
+  test.skip(app.record.platform !== 'macos', 'PDF/Word inspection and print automation require macOS Preview and Pages')
   const attachScreenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))

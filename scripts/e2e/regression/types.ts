@@ -6,7 +6,7 @@ export const CASE_STATUSES = ['pending', 'running', 'passed', 'failed', 'blocked
 export type Platform = (typeof PLATFORMS)[number]
 export type RunMode = (typeof RUN_MODES)[number]
 export type CaseStatus = (typeof CASE_STATUSES)[number]
-export type TestProfile = 'authenticated' | 'clean'
+export type TestProfile = 'authenticated' | 'clean' | 'translation-history'
 
 export interface CaseResult {
   id: string

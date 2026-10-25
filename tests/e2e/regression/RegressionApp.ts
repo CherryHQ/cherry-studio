@@ -31,6 +31,10 @@ export class RegressionApp {
     return basename(this.paths.workspace)
   }
 
+  fixturesPath(...segments: string[]): string {
+    return join(this.paths.fixtures, ...segments)
+  }
+
   resourceName(name: string): string {
     return `${name} ${this.caseId}`
   }

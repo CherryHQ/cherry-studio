@@ -1,25 +1,29 @@
 import { execFileSync } from 'node:child_process'
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+
+import type { AiUsageRecordListResponse } from '@shared/data/api/schemas/aiUsageRecords'
+import type { TranslateHistoryListResponse } from '@shared/data/api/schemas/translate'
+import type { DataResponse } from '@shared/data/api/types'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
+import { createUniqueModelId } from '@shared/data/types/model'
+import type { TranslateLanguage } from '@shared/data/types/translate'
+import { TranslateHistorySchema, type TranslateHistory } from '@shared/data/types/translate'
+
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
+import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { expect, test } from './fixture'
 import { ensureCustomChatProvider, selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
 import { closeSettings, closeOpenSettingsDrawer, openSettingsSection } from './settings'
-import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
-import { createUniqueModelId } from '@shared/data/types/model'
-import type { TranslateLanguage } from '@shared/data/types/translate'
-import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { startTranslationSettingsServer } from './translationSettingsServer'
-import { TranslateHistorySchema, type TranslateHistory } from '@shared/data/types/translate'
-import type { TranslateHistoryListResponse } from '@shared/data/api/schemas/translate'
-import type { AiUsageRecordListResponse } from '@shared/data/api/schemas/aiUsageRecords'
-import type { DataResponse } from '@shared/data/api/types'
 
-test(...caseDefinition('MP-81'), async ({ mainWindow: page }, testInfo) => {
+const historyTest = test.extend({ profile: 'translation-history' })
+
+historyTest(...caseDefinition('MP-81'), async ({ mainWindow: page }, testInfo) => {
   const attachScreenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -169,26 +173,8 @@ test(...caseDefinition('MP-81'), async ({ mainWindow: page }, testInfo) => {
 test(...caseDefinition('MP-82'), async ({ app, mainWindow: page }, testInfo) => {
   // Catches dropped documents losing structure, missing progress/counts, and unavailable or misnamed exports.
   const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp82-assets-'))
-  const documents = join(root, 'test-assets', 'documents')
-  await mkdir(documents, { recursive: true })
-  const suppliedSample = join(process.cwd(), 'test-assets/documents/sample-chinese.md')
-  const sample = (await access(suppliedSample).then(
-    () => true,
-    () => false
-  ))
-    ? suppliedSample
-    : join(documents, 'sample-chinese.md')
-  if (sample !== suppliedSample) {
-    await writeFile(
-      sample,
-      '# 春日旅行\n\n今天我们一起去公园散步，欣赏盛开的鲜花。\n\n## 旅行计划\n\n明天我们将参观博物馆，了解这座城市的历史。\n',
-      'utf8'
-    )
-    testInfo.annotations.push({
-      type: 'fixture',
-      description: 'Missing checkout sample: generated Chinese Markdown fixture.'
-    })
-  }
+  const documents = root
+  const sample = app.fixturesPath('translation-documents', 'sample-chinese.md')
   testInfo.annotations.push({ type: 'provider', description: 'Uses the run-configured real translation provider.' })
   const source = await readFile(sample, 'utf8')
   const oversized = join(documents, 'oversized.md')
@@ -335,14 +321,8 @@ test(...caseDefinition('MP-82'), async ({ app, mainWindow: page }, testInfo) => 
 test(...caseDefinition('MP-83'), async ({ app, mainWindow: page }, testInfo) => {
   // Catches lost OCR text, translations unrelated to the image, and silent empty OCR results.
   const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp83-assets-'))
-  const images = join(root, 'test-assets/images')
-  await mkdir(images, { recursive: true })
-  const suppliedSample = join(process.cwd(), 'test-assets/images/sample.png')
-  const supplied = await access(suppliedSample).then(
-    () => true,
-    () => false
-  )
-  const sample = supplied ? suppliedSample : join(images, 'sample.png')
+  const images = root
+  const sample = app.fixturesPath('images', 'sample.png')
   const blank = join(images, 'no-text.png')
   const pngs = await page.evaluate(() => {
     const canvas = document.createElement('canvas')
@@ -352,16 +332,8 @@ test(...caseDefinition('MP-83'), async ({ app, mainWindow: page }, testInfo) => 
     context.fillStyle = 'white'
     context.fillRect(0, 0, canvas.width, canvas.height)
     const blank = canvas.toDataURL('image/png').split(',')[1]
-    context.fillStyle = 'black'
-    context.font = '48px Arial'
-    context.fillText('The red apple is on the table.', 60, 140)
-    context.fillText('There are seven blue books.', 60, 240)
-    return { blank, sample: canvas.toDataURL('image/png').split(',')[1] }
+    return { blank }
   })
-  if (!supplied) {
-    await writeFile(sample, Buffer.from(pngs.sample, 'base64'))
-    testInfo.annotations.push({ type: 'fixture', description: 'Missing sample.png: generated known English image.' })
-  }
   await writeFile(blank, Buffer.from(pngs.blank, 'base64'))
   await testInfo.attach('MP-83 source image', { path: sample, contentType: 'image/png' })
   await testInfo.attach('MP-83 no-text image', { path: blank, contentType: 'image/png' })
@@ -430,22 +402,16 @@ test(...caseDefinition('MP-83'), async ({ app, mainWindow: page }, testInfo) => 
     await expect(input).not.toHaveValue('')
     const recognized = await input.inputValue()
     expect(recognized).toMatch(/[a-z]{3,}/i)
-    if (!supplied) {
-      expect(recognized).toMatch(/red apple.*table/is)
-      expect(recognized).toMatch(/seven blue books/is)
-    }
+    expect(recognized).toMatch(/red apple.*table/is)
+    expect(recognized).toMatch(/seven blue books/is)
     await screenshot('MP-83 recognized English and OCR completion')
     await view.getByRole('button', { name: 'Translate', exact: true }).click()
     await expect(output).toContainText(/[\u3400-\u9fff]/, { timeout: 120_000 })
     await expect(view.getByRole('button', { name: 'Stop', exact: true })).toBeHidden({ timeout: 120_000 })
-    if (!supplied) {
-      await expect(output).toContainText(/红.*苹果/)
-      await expect(output).toContainText(/桌/)
-      await expect(output).toContainText(/七|7/)
-      await expect(output).toContainText(/蓝.*书/)
-    } else {
-      throw new Error('Supplied sample.png needs a reviewed expected transcription and translation before it can pass')
-    }
+    await expect(output).toContainText(/红.*苹果/)
+    await expect(output).toContainText(/桌/)
+    await expect(output).toContainText(/七|7/)
+    await expect(output).toContainText(/蓝.*书/)
     await expect(input).toHaveValue(recognized)
     await screenshot('MP-83 translation corresponding to recognized text')
 
@@ -826,13 +792,14 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
 
     await expect
       .poll(async () => {
-        const usage = await page.evaluate(() =>
-          window.api.dataApi.request({
-            id: 'mp86-usage',
-            method: 'GET',
-            path: '/ai-usage-records',
-            params: { limit: 100 }
-          }) as Promise<DataResponse<AiUsageRecordListResponse>>
+        const usage = await page.evaluate(
+          () =>
+            window.api.dataApi.request({
+              id: 'mp86-usage',
+              method: 'GET',
+              path: '/ai-usage-records',
+              params: { limit: 100 }
+            }) as Promise<DataResponse<AiUsageRecordListResponse>>
         )
         expect(usage.status).toBe(200)
         return usage.data?.items.filter(

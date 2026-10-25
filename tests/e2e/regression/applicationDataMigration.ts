@@ -6,6 +6,7 @@ import JSZip from 'jszip'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
@@ -30,9 +31,13 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
   for (const directory of [destination, nonempty, readonly, backup]) await mkdir(directory, { recursive: true })
   await writeFile(join(nonempty, 'keep.txt'), 'MP119 existing content')
   await chmod(readonly, 0o555)
-  const original = await page.evaluate(
-    () => window.api.ipcApi.request('app.get_info') as Promise<OutputFor<'app.get_info'>>
-  )
+  const readAppInfo = () =>
+    page.evaluate(async () => {
+      const result = (await window.api.ipcApi.request('app.get_info')) as IpcResult<OutputFor<'app.get_info'>>
+      if (!result.ok) throw new Error(result.error.message)
+      return result.data
+    })
+  const original = await readAppInfo()
   const previous = await page.evaluate(async () => ({
     naming: await window.api.preference.get('topic.naming.enabled'),
     retention: await window.api.preference.get('app.logs.retention_days'),
@@ -137,10 +142,7 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
         `MP-119 invalid directory ${path === nonempty ? 'nonempty' : path === readonly ? 'readonly' : 'root'}`
       )
       if (await dialog.isVisible()) await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-      expect(
-        (await page.evaluate(() => window.api.ipcApi.request('app.get_info') as Promise<OutputFor<'app.get_info'>>))
-          .appDataPath
-      ).toBe(original.appDataPath)
+      expect((await readAppInfo()).appDataPath).toBe(original.appDataPath)
     }
     expect(await readFile(join(nonempty, 'keep.txt'), 'utf8')).toBe('MP119 existing content')
     expect(await readdir(destination)).toEqual([])
@@ -160,10 +162,7 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     const migrationImage = await captureMaskedScreenshot(relocation, getSensitiveConfigValues())
     await testInfo.attach('MP-119 migration completed', { body: migrationImage, contentType: 'image/png' })
     page = await app.restart()
-    expect(
-      (await page.evaluate(() => window.api.ipcApi.request('app.get_info') as Promise<OutputFor<'app.get_info'>>))
-        .appDataPath
-    ).toBe(destination)
+    expect((await readAppInfo()).appDataPath).toBe(destination)
     const migratedDb = await readFile(join(destination, 'Data/cherrystudio.sqlite'))
     expect(migratedDb.subarray(0, 16).toString()).toBe('SQLite format 3\0')
     expect((await readFile(join(original.appDataPath, 'Data/cherrystudio.sqlite'))).length).toBeGreaterThan(0)

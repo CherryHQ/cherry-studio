@@ -1,18 +1,20 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { type BranchMessagesResponse, type Message, MessageSchema } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { type Topic, TopicSchema } from '@shared/data/types/topic'
+
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { sendChatMarker } from './chat'
+import { exportTopicFiles } from './exportTopicFiles'
 import { expect, test } from './fixture'
 import { selectSidebarApp, dismissOnboarding } from './navigation'
-import { exportTopicFiles } from './exportTopicFiles'
 import { topicGrouping } from './topicGrouping'
 
 test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {

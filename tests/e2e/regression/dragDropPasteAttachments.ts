@@ -1,5 +1,4 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
@@ -137,7 +136,7 @@ export async function dragDropPasteAttachments(app: RegressionApp, page: Page, t
     const composer = chat.locator('[data-ui~="chat.composer"]')
     const editor = composer.locator('[contenteditable="true"]').first()
     const tokens = composer.locator('[data-composer-token-kind="file"]')
-    const asset = (name: string) => join(__dirname, 'test-assets', 'edge', name)
+    const asset = (name: string) => app.fixturesPath('edge', name)
     const chineseName = '中文 文件名 带空格.txt'
     const chineseText = await readFile(asset(chineseName), 'utf8')
     const longText = await readFile(asset('long-text-20k.txt'), 'utf8')
@@ -180,8 +179,12 @@ export async function dragDropPasteAttachments(app: RegressionApp, page: Page, t
             const content =
               typeof user.content === 'string' ? user.content : user.content.map((part) => part.text ?? '').join('\n')
             expect(content).toContain(prompt)
+            // Trailing whitespace of a text file is not part of the assertion: compare the payloads with
+            // trailing blank lines trimmed on both sides so a fixture's final newline does not fail the case.
             if (expectedText)
-              expect.soft(content, 'Complete attachment content must reach the model').toContain(expectedText)
+              expect
+                .soft(content.trimEnd(), 'Complete attachment content must reach the model')
+                .toContain(expectedText.trimEnd())
             expect(content).not.toContain('MP33_REJECTED_BINARY_CONTENT')
             expect(content).not.toContain('unsupported.exe')
           } finally {

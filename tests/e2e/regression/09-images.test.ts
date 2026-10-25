@@ -1,8 +1,12 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { once } from 'node:events'
 import { readFile, writeFile } from 'node:fs/promises'
+import { createServer, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
+
 import sharp from 'sharp'
+
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { validateFileEvidence } from '../../../scripts/e2e/regression/fileEvidence'
@@ -13,8 +17,6 @@ import { expect, test } from './fixture'
 import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
 import { closeSettings } from './settings'
-import { once } from 'node:events'
-import { createServer, type ServerResponse } from 'node:http'
 
 test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => {
   const attachScreenshot = async (name: string) => {

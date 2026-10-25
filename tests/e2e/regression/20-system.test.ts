@@ -1,25 +1,33 @@
-import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import type { Page } from '@playwright/test'
-import { caseDefinition } from '../../../scripts/e2e/regression/cases'
-import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
-import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
-import { saveNativeFile, sendSystemHotkey, closeExternalText, openExternalText } from '../../../scripts/e2e/regression/systemAutomation'
-import { expect, test } from './fixture'
-import { openLaunchpad, selectSidebarApp } from './navigation'
-import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
-import { computerUseMain, nativeComputerUse, readNativePermission, stopNativeDesktopControl } from './computerUseNative'
-import { globalSearch } from './globalSearch'
-import { openSettingsSection, closeSettings } from './settings'
-import { systemTrayMenu } from './systemTrayMenu'
-import { createServer } from 'node:net'
-import { singleInstanceRelaunch } from './singleInstanceRelaunch'
 import { execFileSync } from 'node:child_process'
+import { readFile, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
+import { join } from 'node:path'
+
+import type { Page } from '@playwright/test'
+
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
+
+import { caseDefinition } from '../../../scripts/e2e/regression/cases'
+import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
+import {
+  saveNativeFile,
+  sendSystemHotkey,
+  closeExternalText,
+  openExternalText
+} from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
+import { computerUseMain, nativeComputerUse, readNativePermission, stopNativeDesktopControl } from './computerUseNative'
+import { expect, test } from './fixture'
+import { globalSearch } from './globalSearch'
 import { launchpadPinning } from './launchpadPinning'
+import { openLaunchpad, selectSidebarApp } from './navigation'
+import { openSettingsSection, closeSettings } from './settings'
+import { singleInstanceRelaunch } from './singleInstanceRelaunch'
+import { systemTrayMenu } from './systemTrayMenu'
 
 test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) => {
   const screenshot = async (target: typeof page, name: string) => {

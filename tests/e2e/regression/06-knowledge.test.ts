@@ -6,7 +6,6 @@ import { basename, dirname, extname, join, resolve } from 'node:path'
 
 import type { KnowledgeBaseListResponse, KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
 import { GroupSchema } from '@shared/data/types/group'
-import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import {
   type KnowledgeBase,
   type KnowledgeItem,
@@ -16,6 +15,7 @@ import {
   type KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
@@ -298,7 +298,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  const filePath = resolve('test-assets/documents/sample-chinese.md')
+  const filePath = app.fixturesPath('documents/sample-chinese.md')
   await attachScreenshot('MP-60 application before file import')
   await test.step('Verify the required Chinese Markdown fixture is readable', async () => {
     await access(filePath, constants.R_OK)
@@ -412,7 +412,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
 })
 
 test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => {
-  const documents = resolve('test-assets/documents')
+  const documents = app.fixturesPath('documents')
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -455,12 +455,12 @@ test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => 
   expect(skippedCount, 'Documents must include an unsupported file to verify the warning').toBeGreaterThan(0)
 
   // BM25 needs no external model; only the base precondition is seeded, all imports use the UI.
-  const base = KnowledgeBaseSchema.parse(
-    await page.evaluate(
-      (name) => window.api.ipcApi.request('knowledge.create_base', { base: { name } }),
-      app.resourceName(`Directory import ${Date.now()}`)
-    )
-  )
+  const baseResult = (await page.evaluate(
+    (name) => window.api.ipcApi.request('knowledge.create_base', { base: { name } }),
+    app.resourceName(`Directory import ${Date.now()}`)
+  )) as IpcResult<KnowledgeBase>
+  if (!baseResult.ok) throw new Error(baseResult.error.message)
+  const base = KnowledgeBaseSchema.parse(baseResult.data)
   const list = async (groupId: string | null): Promise<KnowledgeItem[]> => {
     const items: KnowledgeItem[] = []
     let cursor: string | undefined

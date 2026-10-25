@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
@@ -221,18 +221,19 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     }
     await attachScreenshot('MP-97 per-edit confirmation restored')
   } finally {
-    closeTerminal()
-    await page.keyboard.press('Escape')
-    await page.evaluate(
-      async ({ configs, original }) => {
-        await window.api.preference.set('feature.code_cli.configs', configs)
-        if (original.content !== null)
-          await window.api.ipcApi.request('code_cli.write_config', {
-            cliTool: 'claude-code',
-            files: [{ target: 'claude-settings', content: original.content }]
-          })
-      },
-      { configs: originalPreferences, original: originalSettings }
-    )
+    try {
+      try {
+        closeTerminal()
+      } finally {
+        await page.evaluate(
+          (configs) => window.api.preference.set('feature.code_cli.configs', configs),
+          originalPreferences
+        )
+      }
+      await page.keyboard.press('Escape')
+    } finally {
+      if (originalSettings.content === null) await rm(originalSettings.path, { force: true })
+      else await writeFile(originalSettings.path, originalSettings.content)
+    }
   }
 }
