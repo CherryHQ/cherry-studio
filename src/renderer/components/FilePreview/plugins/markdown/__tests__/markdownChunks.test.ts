@@ -72,6 +72,24 @@ const resolvedReferenceUrls = (source: string): string[] => {
 }
 
 /**
+ * The text a note renders with — mdast keeps a paragraph's soft line breaks in its value, so this
+ * is what the footnote definition the renderer registers first prints.
+ */
+const renderedFootnoteText = (source: string, identifier: string): string | undefined => {
+  type Node = { type: string; identifier?: string; value?: string; children?: Node[] }
+  const find = (node: Node): Node | undefined => {
+    if (node.type === 'footnoteDefinition' && node.identifier?.toLowerCase() === identifier) return node
+    for (const child of node.children ?? []) {
+      const found = find(child)
+      if (found) return found
+    }
+    return undefined
+  }
+  const text = (node: Node): string => (node.value ?? '') + (node.children ?? []).map(text).join('')
+  return find(parsed(source))?.children?.map(text).join('\n')
+}
+
+/**
  * The numbers the ordered lists of a source render with. A list is one block: split apart, every
  * piece restarts at its own first marker and the numbering the document shows is lost.
  */
@@ -779,6 +797,24 @@ describe('splitMarkdownChunks', () => {
 
     expect(resolvedReferenceUrls(content)).toEqual(['/intended'])
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/intended'])
+  })
+
+  it('keeps the first definition an empty item above it opens', () => {
+    // An empty item opens a list outside a paragraph, so the definition below it stands where it
+    // does; read as paragraph text it was skipped and the carried second copy reversed precedence.
+    const content = [
+      '-',
+      '[label]: https://example.com/first',
+      '',
+      '[label]: https://example.com/second',
+      '',
+      'see [label]'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://example.com/first'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual([
+      'https://example.com/first'
+    ])
   })
 
   it('carries a definition whose title escapes its own delimiter', () => {
@@ -2540,6 +2576,28 @@ describe('a footnote definition behind a container', () => {
 
     for (const chunk of chunksOf(content)) {
       expect(noteBlocks(chunk.text)).toEqual(['paragraph'])
+    }
+  })
+
+  it('carries a list-held definition lazy continuation without eating its characters', () => {
+    // The item's content column is indentation, so only whitespace comes off the line: read as
+    // indentation too, the ordinary characters up to the column were lost from the carried copy.
+    const content = ['- [^n]: first', 'second', '', 'see [^n]'].join('\n')
+
+    expect(renderedFootnoteText(content, 'n')).toBe('first\nsecond')
+    for (const chunk of chunksOf(content)) {
+      expect(renderedFootnoteText(chunk.text, 'n')).toBe(renderedFootnoteText(content, 'n'))
+    }
+  })
+
+  it('carries a quoted item definition lazy continuation without its marker', () => {
+    // The line reproduces the quote but not the item's indent, so the carried copy drops the
+    // marker: written back whole it opened a quote inside the note and the second line vanished.
+    const content = ['> - [^n]: first', '> second', '', 'see [^n]'].join('\n')
+
+    expect(renderedFootnoteText(content, 'n')).toBe('first\nsecond')
+    for (const chunk of chunksOf(content)) {
+      expect(renderedFootnoteText(chunk.text, 'n')).toBe(renderedFootnoteText(content, 'n'))
     }
   })
 })

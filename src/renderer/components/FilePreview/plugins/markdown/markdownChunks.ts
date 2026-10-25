@@ -278,10 +278,11 @@ function containerParams(prefix: string): DefinitionContainer {
 
 /**
  * Take a definition continuation line past the container its opening line was written behind,
- * returning the content the parser reads there — or null when the line does not reproduce the
+ * returning the content the parser reads there — or null when the line falls short of that
  * container and so leaves the definition's block. Block quote markers strip off one per level
  * while a list item's marker is content-prefixed rather than reproduced: its continuation lines
- * are indented to the item's content column, so that much whitespace comes away with it.
+ * are indented to the item's content column, so that much whitespace comes away with them, and
+ * only whitespace counts toward the column — ordinary characters never do.
  */
 function stripDefinitionContainer(line: string, container: DefinitionContainer): string | null {
   let content = line
@@ -291,12 +292,12 @@ function stripDefinitionContainer(line: string, container: DefinitionContainer):
     content = content.slice(marker[0].length)
   }
   if (container.labelColumn < 0) return content
-  // An item's content column is measured past its marker; a line that carries the quote markers
-  // but not the item's indentation has left the item. The content's column is counted on the line
-  // itself, quote markers included: a tab advances to the next multiple of four wherever it falls.
+  // An item's content column is measured past its marker; only indentation counts toward it, and
+  // the content's column is counted on the line itself, quote markers included — a tab advances to
+  // the next multiple of four wherever it falls.
   let index = line.length - content.length
   let column = columnCount(line.slice(0, index))
-  while (index < line.length && column < container.labelColumn) {
+  while (index < line.length && column < container.labelColumn && (line[index] === ' ' || line[index] === '\t')) {
     column += line[index] === '\t' ? 4 - (column % 4) : 1
     index += 1
   }
@@ -875,6 +876,9 @@ function isCompletedBlock(line: string, container: string | null, paragraphOpen:
   // A quote marker with nothing behind it opens an empty block quote, which interrupts the
   // paragraph above it — so the line below starts a fresh block, not that paragraph's text.
   if (container !== null && isBlankLine(pastQuoteMarkers(line).content)) return true
+  // An empty item opens a list only where no paragraph is open, and that list ends the block the
+  // line stands in: without it the definition below reads as prose and a carried copy wins instead.
+  if (!paragraphOpen && EMPTY_LIST_ITEM.test(content)) return true
   return ATX_HEADING.test(content) || (paragraphOpen && isSetextUnderline(line)) || THEMATIC_BREAK.test(line)
 }
 
@@ -2542,19 +2546,16 @@ export function splitMarkdownChunks(
       // definition's blank line, or `>` plus indentation on its paragraphs). The definition was
       // carried without that container, so its lines lose it too: markers strip away and the
       // content keeps the columns the parser measures past them.
-      const carried =
+      const stripped =
         activeDefinitionContainer && !blank ? stripDefinitionContainer(line, activeDefinitionContainer) : line
-      if (carried !== null) {
-        // A quoted definition's blank marker line carries as a plain blank line: the parser reads
-        // the definition's paragraphs across it, and `>` alone would start a quote block of its own.
-        definitions.push(isBlankLine(carried) ? '' : carried)
-        definitionLines += 1
-        if (!isBlankLine(carried)) footnoteParagraphOpen = continuesFootnoteParagraph(carried)
-        continue
-      }
-      definitions.push(line)
+      // A line short of the container is a lazy paragraph continuation: it carries the content
+      // read past the markers, never the markers themselves.
+      const carried = stripped ?? footnoteLazyContent ?? line
+      // A quoted definition's blank marker line carries as a plain blank line: the parser reads
+      // the definition's paragraphs across it, and `>` alone would start a quote block of its own.
+      definitions.push(isBlankLine(carried) ? '' : carried)
       definitionLines += 1
-      footnoteParagraphOpen = continuesFootnoteParagraph(line)
+      if (!isBlankLine(carried)) footnoteParagraphOpen = continuesFootnoteParagraph(carried)
       continue
     }
     const footnoteStart = containerHoldsCode ? null : FOOTNOTE_DEFINITION_START.exec(uncontained)
