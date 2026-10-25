@@ -2,7 +2,7 @@ import { once } from 'node:events'
 import { constants } from 'node:fs'
 import { access, mkdir, readdir, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
-import { basename, dirname, extname, join, resolve } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 
 import type { KnowledgeBaseListResponse, KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
 import { GroupSchema } from '@shared/data/types/group'
@@ -713,13 +713,25 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
   const base = (bases.data as { items: KnowledgeBase[] }).items.find((base) => base.name === name)
   expect(base).toBeDefined()
   const baseId = base!.id
+  const sectionText = (index: number) =>
+    `## 第 ${index} 节 测试记录\n这一节只记录回归测试的背景信息，编号 ${index}。客户端把会话与知识条目保存在本地，重启后依旧可用，不会把内容发送到外部服务。检索时系统先切分文本，再写入向量索引，查询按相似度召回若干分块并拼进上下文。引用需要带编号，方便核对来源文件与命中的原文片段。以上说明与内部代号无关，只用于填充分块数量。`
+  const canarySection =
+    '## 内部代号\n本项目的内部代号是 canary-seven，只在测试环境使用。任何对外文档都不得出现这个代号，canary-seven 也不应该出现在发布说明里。'
+  const sections = Array.from({ length: 26 }, (_, index) => sectionText(index + 1))
+  const groundTruthPath = testInfo.outputPath('mp66-ground-truth.md')
+  await writeFile(
+    groundTruthPath,
+    `# mp66 ground truth\n\n${sections.slice(0, 13).join('\n\n')}\n\n${canarySection}\n\n${sections
+      .slice(13)
+      .join('\n\n')}\n`
+  )
   await page.evaluate(
     ({ baseId, path }) =>
       window.api.ipcApi.request('knowledge.add_items', {
         baseId,
         items: [{ type: 'file', data: { path, source: 'mp66-ground-truth.md' } }]
       }),
-    { baseId, path: resolve('tests/e2e/regression/mp66-ground-truth.md') }
+    { baseId, path: groundTruthPath }
   )
   const readItems = async () => {
     const result = await page.evaluate(

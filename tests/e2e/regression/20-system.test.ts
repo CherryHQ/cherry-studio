@@ -702,9 +702,11 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
       await expect(refresh).toBeEnabled()
       await expect(settings.getByRole('alert')).toHaveCount(0)
     }
-    const status = computerUseRequestSchemas['computer_use.get_permission_status'].output.parse(
-      await page.evaluate(() => window.api.ipcApi.request('computer_use.get_permission_status'))
-    )
+    const permissionResult = (await page.evaluate(() =>
+      window.api.ipcApi.request('computer_use.get_permission_status')
+    )) as { ok: true; data: unknown } | { ok: false; error: unknown }
+    if (!permissionResult.ok) throw new Error(JSON.stringify(permissionResult.error))
+    const status = computerUseRequestSchemas['computer_use.get_permission_status'].output.parse(permissionResult.data)
     if (status.permissions.some(({ status }) => status !== 'granted')) {
       throw new Error('UNCOVERED: desktop control requires both helper permissions to be granted in System Settings')
     }

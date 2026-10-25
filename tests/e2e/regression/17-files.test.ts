@@ -92,11 +92,16 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
             body: {
               providerId,
               name: 'MP150 mock',
-              isEnabled: true,
               defaultChatEndpoint: 'openai-chat-completions',
               endpointConfigs: { 'openai-chat-completions': { baseUrl } },
               apiKeys: [{ id: 'mock', key: 'mock-key', isEnabled: true }]
             }
+          })
+          const enabled = await request({
+            id: 'mp150-provider-enable',
+            method: 'PATCH',
+            path: `/providers/${providerId}`,
+            body: { isEnabled: true }
           })
           const models = await request({
             id: 'mp150-model',
@@ -110,11 +115,13 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
             path: '/assistants',
             body: { name: 'MP150 RTF assistant', modelId: `${providerId}::${modelId}` }
           })
-          return { provider, models, assistant }
+          return { provider, enabled, models, assistant }
         },
         { providerId, baseUrl: server.baseUrl, modelId: server.modelId }
       )
       expect(seeded.provider.status).toBe(201)
+      expect(seeded.enabled.status).toBe(200)
+      expect((seeded.enabled.data as { isEnabled: boolean }).isEnabled).toBe(true)
       expect(seeded.models.status).toBe(201)
       expect(createUniqueModelId(providerId, server.modelId)).toBe(`${providerId}::${server.modelId}`)
       assistantId = AssistantSchema.parse(seeded.assistant.data).id

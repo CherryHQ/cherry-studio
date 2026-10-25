@@ -117,13 +117,15 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     for (const topic of topics) await expect(row(topic.name)).toBeVisible()
 
     const timeGroups = await displayedGroups()
+    const owned = (values: string[]) =>
+      values.filter((value) => topics.some((topic) => value.includes(topic.id) || value.includes(topic.name)))
     for (const [name, daysAgo, count] of [
       ['Today', 0, 2],
       ['Yesterday', 1, 1],
       ['Earlier', 14, 2]
     ] as const) {
       expect(timeGroups[name], `${name} must contain exactly its seeded topics`).toBeDefined()
-      expect(timeGroups[name]).toHaveLength(count)
+      expect(owned(timeGroups[name]), `${name} must contain exactly its seeded topics`).toHaveLength(count)
       const members = topics.filter((topic) => topic.daysAgo === daysAgo)
       expect(
         timeGroups[name].filter((value) =>

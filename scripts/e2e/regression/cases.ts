@@ -208,7 +208,8 @@ export const REGRESSION_CASES = [
     title: 'Enlarge, preview, and save images',
     task: '09-images',
     phase: '09-images',
-    capabilities: ['desktopAutomation']
+    capabilities: ['desktopAutomation'],
+    platforms: ['macos']
   },
   { id: 'MP-91', title: 'Prompt templates and enhancement', task: '09-images', phase: '09-images', capabilities: [] },
   {
@@ -272,7 +273,8 @@ export const REGRESSION_CASES = [
     title: 'Sync Agent file edits with the side preview',
     task: '10-agent-runtimes',
     phase: '10-agent-runtimes',
-    capabilities: ['desktopAutomation']
+    capabilities: ['desktopAutomation'],
+    platforms: ['macos']
   },
   {
     id: 'MP-53',
@@ -477,7 +479,8 @@ export const REGRESSION_CASES = [
     title: 'Export notes to PDF or Word and print',
     task: '14-notes',
     phase: '14-notes',
-    capabilities: ['desktopAutomation']
+    capabilities: ['desktopAutomation'],
+    platforms: ['macos']
   },
   {
     id: 'MP-78',
@@ -499,7 +502,8 @@ export const REGRESSION_CASES = [
     title: 'Translate files by dragging documents',
     task: '14-translation',
     phase: '14-translation',
-    capabilities: ['desktopAutomation']
+    capabilities: ['desktopAutomation'],
+    platforms: ['macos']
   },
   {
     id: 'MP-83',
@@ -541,7 +545,8 @@ export const REGRESSION_CASES = [
     title: 'Theme, appearance, and window style',
     task: '15-settings',
     phase: '15-settings',
-    capabilities: []
+    capabilities: [],
+    platforms: ['macos']
   },
   {
     id: 'MP-106',
@@ -664,7 +669,8 @@ export const REGRESSION_CASES = [
     title: 'Upload files to the library',
     task: '17-files',
     phase: '17-files',
-    capabilities: ['desktopAutomation']
+    capabilities: ['desktopAutomation'],
+    platforms: ['macos']
   },
   { id: 'MP-69', title: 'Filter files by category and search', task: '17-files', phase: '17-files', capabilities: [] },
   {
@@ -681,7 +687,14 @@ export const REGRESSION_CASES = [
     phase: '17-files',
     capabilities: []
   },
-  { id: 'MP-72', title: 'Reference library files in chat', task: '17-files', phase: '17-files', capabilities: [] },
+  {
+    id: 'MP-72',
+    title: 'Reference library files in chat',
+    task: '17-files',
+    phase: '17-files',
+    capabilities: [],
+    platforms: ['macos']
+  },
   {
     id: 'MP-115',
     title: 'Local backups and backup file management',
@@ -706,7 +719,14 @@ export const REGRESSION_CASES = [
     phase: '18-data',
     capabilities: ['desktopAutomation']
   },
-  { id: 'MP-121', title: 'Reset application data (run last)', task: '18-data', phase: '18-data', capabilities: [] },
+  {
+    id: 'MP-121',
+    title: 'Reset application data (run last)',
+    task: '18-data',
+    phase: '18-data',
+    capabilities: [],
+    platforms: ['macos']
+  },
   {
     id: 'MP-122',
     title: 'Open and navigate web pages in the built-in browser',

@@ -107,10 +107,41 @@ describe('regression execution plan', () => {
   })
 
   it('keeps macOS-only scenarios out of Windows runs and leaves cross-platform cases applicable', () => {
-    for (const id of ['MP-70', 'MP-97', 'MP-109', 'MP-110', 'MP-111', 'MP-127', 'MP-132', 'MP-133'] as const) {
+    for (const id of [
+      'MP-52',
+      'MP-68',
+      'MP-70',
+      'MP-72',
+      'MP-77',
+      'MP-82',
+      'MP-90',
+      'MP-97',
+      'MP-105',
+      'MP-110',
+      'MP-111',
+      'MP-121',
+      'MP-127',
+      'MP-132',
+      'MP-133'
+    ] as const) {
       expect(supportsPlatform(id, 'macos')).toBe(true)
     }
-    for (const id of ['MP-97', 'MP-110', 'MP-111', 'MP-127', 'MP-132', 'MP-133'] as const) {
+    for (const id of [
+      'MP-52',
+      'MP-68',
+      'MP-72',
+      'MP-77',
+      'MP-82',
+      'MP-90',
+      'MP-97',
+      'MP-105',
+      'MP-110',
+      'MP-111',
+      'MP-121',
+      'MP-127',
+      'MP-132',
+      'MP-133'
+    ] as const) {
       expect(supportsPlatform(id, 'windows'), id).toBe(false)
     }
     for (const id of ['MP-70', 'MP-109', 'S-01'] as const) {

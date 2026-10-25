@@ -32,8 +32,12 @@ export async function createFixtures(paths: RunPaths): Promise<void> {
 
 See [sample](${pathToFileURL(join(documents, 'sample-chinese.md')).href}).
 `
+  const vaultNote = `# Vault welcome
+
+See [sample](${pathToFileURL(join(documents, 'sample-chinese.md')).href}).
+`
   writeFileSync(join(documents, 'sample-note.md'), note)
-  writeFileSync(join(vault, 'Welcome.md'), note)
+  writeFileSync(join(vault, 'Welcome.md'), vaultNote)
   writeFileSync(join(documents, 'unsupported.bin'), 'Unsupported directory import fixture')
   writeFileSync(
     join(translationDocuments, 'sample-chinese.md'),
