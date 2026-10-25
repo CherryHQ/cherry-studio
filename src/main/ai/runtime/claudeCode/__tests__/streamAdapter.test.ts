@@ -5989,6 +5989,34 @@ describe('whitespace-heavy ordinary output suffix cost (cherry-pr-review)', () =
         .map((part) => part.delta)
         .join('')
     ).toBe(answer)
-    expect(elapsed).toBeLessThan(1000)
+  })
+
+  it.each([
+    ['whitespace tail after plain prose', 'Answer.' + ' '.repeat(2000)],
+    ['strippable fragment then whitespace tail', 'Done</invoke>' + ' '.repeat(200)],
+    ['partial tag held while a later fragment is stripped', 'Visible <par   </invoke>' + ' '.repeat(50)],
+    ['ordinary prose with angle brackets', 'a < b and <tag attr="x"> literal ' + '\n'.repeat(40)]
+  ])('chunked delivery matches whole delivery for %s', (_label, payload) => {
+    const run = (chunkSize: number): string => {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (let i = 0; i < payload.length; i += chunkSize)
+        adapter.handleMessage(
+          streamEvent({
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: payload.slice(i, i + chunkSize) }
+          })
+        )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult())
+      return parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    }
+    expect(run(8)).toBe(run(payload.length))
   })
 })

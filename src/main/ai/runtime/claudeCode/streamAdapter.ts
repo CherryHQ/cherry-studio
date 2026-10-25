@@ -170,6 +170,9 @@ type StreamContext = {
   /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
   toolProtocolStripAccumulator: string
   toolProtocolStripEmittedLength: number
+  /** Incremental tail memos over the accumulator: index of the last non-whitespace char, and of the last '<'. Kept in lockstep with the accumulator so per-delta suffix checks stay O(delta) over a long whitespace tail (cherry-pr-review perf). */
+  toolProtocolStripLastNonWsIndex: number
+  toolProtocolStripLastLtIndex: number
   suppressActiveTextPart: boolean
   /** Set once a text part is classified as a compaction artifact: its remaining deltas are dropped. */
   suppressCompactionArtifactPart: boolean
@@ -631,6 +634,8 @@ export class ClaudeCodeStreamAdapter {
       scratchpadStreamFenceCarry: '',
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
+      toolProtocolStripLastNonWsIndex: -1,
+      toolProtocolStripLastLtIndex: -1,
       suppressActiveTextPart: false,
       suppressCompactionArtifactPart: false,
       compactionScratchpadStripped: false,
@@ -643,6 +648,8 @@ export class ClaudeCodeStreamAdapter {
   private resetToolProtocolStripState(ctx: StreamContext): void {
     ctx.toolProtocolStripAccumulator = ''
     ctx.toolProtocolStripEmittedLength = 0
+    ctx.toolProtocolStripLastNonWsIndex = -1
+    ctx.toolProtocolStripLastLtIndex = -1
   }
 
   /** Strips tool-protocol closings only once trailing content is known (block may span deltas). */
@@ -650,8 +657,23 @@ export class ClaudeCodeStreamAdapter {
     if (!ctx.filterParentlessScratchpadText || (!text && !flush)) {
       return text
     }
+    const appendBase = ctx.toolProtocolStripAccumulator.length
     ctx.toolProtocolStripAccumulator += text
-    const stripped = stripTrailingToolProtocolClosingFragments(ctx.toolProtocolStripAccumulator)
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i]
+      if (ch === '<') ctx.toolProtocolStripLastLtIndex = appendBase + i
+      if (!/\s/u.test(ch)) ctx.toolProtocolStripLastNonWsIndex = appendBase + i
+    }
+    // The strip is a no-op unless the last non-whitespace character is '>'
+    // (its linear guard's first check). Skipping the call then keeps a long
+    // streamed whitespace tail O(delta) instead of rescanning the whole
+    // accumulator per delta (cherry-pr-review perf).
+    const accumulator = ctx.toolProtocolStripAccumulator
+    const lastNonWs = ctx.toolProtocolStripLastNonWsIndex
+    const stripped =
+      lastNonWs === -1 || accumulator[lastNonWs] !== '>'
+        ? accumulator
+        : stripTrailingToolProtocolClosingFragments(accumulator)
     // Hold back the trailing suffix that further text could still complete into
     // a strippable fragment (a whitespace run, or a partial `<...` tag).
     // Emitting it eagerly rewinds toolProtocolStripEmittedLength when the
@@ -666,7 +688,11 @@ export class ClaudeCodeStreamAdapter {
       // quadratically over a long whitespace-only tail, and this check runs on
       // every streamed delta (cherry-pr-review). Only one `<` can lead the
       // held-back suffix, so the last one is the only candidate.
-      const tagStart = stripped.lastIndexOf('<')
+      // Same linear lookup as lastIndexOf('<'), from the append-time memo.
+      // Identity comparison: when the strip actually removed a fragment the
+      // memo indexes the accumulator, not the shortened string, so rescan
+      // that (rare) path directly (cherry-pr-review inv_9a2a758db93aa142).
+      const tagStart = stripped === accumulator ? ctx.toolProtocolStripLastLtIndex : stripped.lastIndexOf('<')
       if (tagStart !== -1 && /^<\/?[\p{L}\p{N}_|｜-]*$/u.test(stripped.slice(tagStart))) {
         let holdStart = tagStart
         while (holdStart > 0 && /\s/u.test(stripped[holdStart - 1])) holdStart--
