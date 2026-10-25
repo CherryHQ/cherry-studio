@@ -404,6 +404,9 @@ export function resolveFlowToolCallId(
     for (const part of parts) {
       const record = part as { toolCallId?: unknown; output?: unknown }
       if (typeof record.toolCallId !== 'string' || record.toolCallId !== toolCallId) continue
+      // Only a canonical SendMessage result is a receipt; an ordinary Agent report can name an
+      // agent without continuing one, so it opens its own flow.
+      if (getCanonicalToolName(part) !== AgentToolsType.SendMessage) continue
       // Opening a flow means this caller can navigate, so an unresolvable receipt must not resolve.
       const state = resolveResumeReceiptState(record.output, getPartLaunchToolCallId(part), launchIndex, true)
       return state.kind === 'navigable' ? { toolCallId: state.toolCallId, description: state.description } : undefined
@@ -709,6 +712,8 @@ export function buildAgentToolFlowProjection(
       parts.some((part) => getPartParentToolCallId(part) === selectedToolCallId)
     )
     if (!hasDetachedFlow) {
+      const selectedIsSendMessage =
+        selectedToolPart !== undefined && getCanonicalToolName(selectedToolPart) === AgentToolsType.SendMessage
       const selectedOutput =
         resolvedSelectedOutput !== undefined
           ? resolvedSelectedOutput
@@ -729,10 +734,10 @@ export function buildAgentToolFlowProjection(
         (typeof selectedOutputText === 'string' &&
           foregroundBody === undefined &&
           extractLaunchReceiptId(selectedOutputText) !== undefined)
-      // A receipt's own text is delivery metadata, never the child's answer. Only the receipt is
-      // suppressed: a root whose result is the resumed run's answer keeps its body.
+      // A SendMessage receipt's own text is delivery metadata, never the child's answer. Only the
+      // receipt is suppressed: a root whose result is the resumed run's answer keeps its body.
       const foregroundResultText =
-        getResumedAgentId(selectedOutput) !== undefined || backgroundLaunch
+        (selectedIsSendMessage && getResumedAgentId(selectedOutput) !== undefined) || backgroundLaunch
           ? undefined
           : foregroundBody !== undefined
             ? foregroundBody || undefined

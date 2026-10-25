@@ -1807,3 +1807,114 @@ describe('cold-resumed dsh flows', () => {
     ])
   })
 })
+
+// A foreground Agent report may carry an agent id without continuing anything. Receipt handling
+// belongs to SendMessage only, or the report's own answer disappears from its flow.
+describe('agent right pane foreground reports', () => {
+  it('keeps an ordinary foreground Agent report as JSON text', () => {
+    const report = '{"subagent_id":"agent-a","findings":["All good"]}'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, report)
+    ]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'call_launch')
+
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant']).toEqual([
+      expect.objectContaining({ type: 'text', text: report })
+    ])
+  })
+
+  it('keeps an ordinary foreground Agent report as a normalized object', () => {
+    const report = { subagent_id: 'agent-a', findings: ['All good'] }
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, report)
+    ]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'call_launch')
+
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant']).toEqual([
+      expect.objectContaining({ type: 'text', text: JSON.stringify(report, null, 2) })
+    ])
+  })
+
+  it('still suppresses a SendMessage receipt result', () => {
+    const parts = [
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'agent-a', message: 'Continue' },
+        {
+          subagent_id: 'agent-a'
+        }
+      )
+    ]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'call_send')
+
+    expect(projection.partsByMessageId['call_send:agent-flow-assistant']).toBeUndefined()
+  })
+
+  it('still suppresses an async launch acknowledgement', () => {
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the review' },
+        {
+          status: 'async_launched',
+          taskId: 'task-77'
+        }
+      )
+    ]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'call_launch')
+
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant']).toBeUndefined()
+  })
+
+  it('does not follow an ordinary Agent report to another agent', () => {
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the review' },
+        { status: 'async_launched', taskId: 'task-77' }
+      ),
+      toolPart(
+        'call_report',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Report' },
+        {
+          pin: { id: 'task-77' },
+          findings: ['All good']
+        }
+      )
+    ]
+    const partsByMessageId = { m1: parts }
+
+    expect(resolveFlowToolCallId('call_report', partsByMessageId)).toBeUndefined()
+
+    const send = toolPart(
+      'call_send',
+      'SendMessage',
+      undefined,
+      'output-available',
+      { to: 'task-77', message: 'Continue' },
+      {
+        pin: { id: 'task-77' }
+      }
+    )
+    expect(resolveFlowToolCallId('call_send', { m1: [...parts, send] })).toEqual({
+      toolCallId: 'call_launch',
+      description: 'Launch the review'
+    })
+  })
+})
