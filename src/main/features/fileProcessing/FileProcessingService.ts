@@ -47,10 +47,13 @@ export class FileProcessingService extends BaseService {
    * type to enqueue under (background vs remote-poll), and for background the
    * processor's `runtime` picks the local or remote half. Both are synchronous
    * lookups — no `await prepare()` is needed at enqueue time.
+   *
+   * `options.recovery` overrides the handler's restart behavior (resume) for a
+   * caller that will not read the result of a job resumed after a restart.
    */
   async startJob(
     input: StartFileProcessingJobInput,
-    options: Pick<EnqueueOptions, 'parentId'> = {}
+    options: Pick<EnqueueOptions, 'parentId' | 'recovery'> = {}
   ): Promise<JobSnapshot> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
@@ -79,7 +82,10 @@ export class FileProcessingService extends BaseService {
           ? 'file-processing.background-local'
           : 'file-processing.background'
     const jobManager = application.get('JobManager')
-    const handle = jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
+    const handle = jobManager.enqueue(type, payload, {
+      ...(options.parentId ? { parentId: options.parentId } : {}),
+      recovery: options.recovery
+    })
 
     logger.debug('Enqueued file processing job', {
       jobId: handle.id,

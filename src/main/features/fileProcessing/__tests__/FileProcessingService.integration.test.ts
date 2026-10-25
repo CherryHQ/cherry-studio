@@ -309,7 +309,7 @@ describe('FileProcessingService.startJob — routing', () => {
     )
   })
 
-  it('passes parent job linkage to JobManager enqueue options', async () => {
+  it('passes parent job linkage and restart recovery to JobManager enqueue options', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
       capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
@@ -322,13 +322,13 @@ describe('FileProcessingService.startJob — routing', () => {
         file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
         processorId: 'tesseract'
       },
-      { parentId: 'parent-job-1' }
+      { parentId: 'parent-job-1', recovery: 'abandon' }
     )
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background-local',
       entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
-      { parentId: 'parent-job-1' }
+      { parentId: 'parent-job-1', recovery: 'abandon' }
     )
   })
 

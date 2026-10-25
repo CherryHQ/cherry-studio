@@ -99,6 +99,11 @@ processors run one file at a time, so a large batch can wait much longer than th
 output's relative path is recorded via `updateIndexedRelativePath`, then
 `index-documents` is scheduled.
 
+Knowledge starts these FileProcessing jobs with `recovery: 'abandon'`. Boot recovery fails an
+interrupted item (`recoverInterruptedItems`), so its conversion is cancelled at startup instead of
+resuming into a result nothing reads, and cannot later overwrite the markdown of a same-named
+replacement.
+
 ## Mutation And Crash Semantics
 
 Same-base Knowledge mutations must go through the per-base mutation lock (`KeyedMutex.runExclusive`). Main SQLite writes still use a synchronous write transaction (`DbService.withWriteTx`, or an equivalent `db.transaction()`); the mutation lock is not a replacement for that write transaction.

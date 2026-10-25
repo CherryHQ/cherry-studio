@@ -454,7 +454,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           processorId
         },
         {
-          parentId: parentJobId ?? undefined
+          parentId: parentJobId ?? undefined,
+          // Boot recovery fails an interrupted item, so a conversion resumed after a restart would
+          // only spend processor quota on a result nothing reads.
+          recovery: 'abandon'
         }
       )
       try {

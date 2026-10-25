@@ -1178,7 +1178,8 @@ describe('KnowledgeService', () => {
         processorId: 'doc2x'
       },
       {
-        parentId: undefined
+        parentId: undefined,
+        recovery: 'abandon'
       }
     )
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1613,7 +1614,8 @@ describe('KnowledgeService', () => {
         processorId: 'doc2x'
       },
       {
-        parentId: 'reindex-job'
+        parentId: 'reindex-job',
+        recovery: 'abandon'
       }
     )
     expect(enqueueMock).toHaveBeenCalledWith(
