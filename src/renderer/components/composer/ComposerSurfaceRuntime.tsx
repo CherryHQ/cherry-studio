@@ -194,6 +194,9 @@ function EditingReasoningSection({ reasoning }: { reasoning: ComposerSurfaceEdit
           <textarea
             value={reasoning.value}
             onChange={(event) => reasoning.onChange(event.target.value)}
+            onDragEnter={(event) => event.stopPropagation()}
+            onDragOver={(event) => event.stopPropagation()}
+            onDrop={(event) => event.stopPropagation()}
             placeholder={reasoning.placeholder}
             aria-label={reasoning.label}
             disabled={reasoning.disabled}
