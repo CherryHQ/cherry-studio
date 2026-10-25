@@ -1734,6 +1734,7 @@
   "import.claude.success": "นำเข้า {{topics}} การสนทนาด้วย {{messages}} ข้อความสำเร็จ",
   "import.claude.title": "นำเข้าการสนทนา Claude",
   "import.claude.untitled_conversation": "การสนทนาที่ไม่มีชื่อ",
+  "import.error.invalid_format": "รูปแบบ {{name}} ไม่ถูกต้อง",
   "knowledge.add.group": "กลุ่ม",
   "knowledge.add.submit": "สร้าง",
   "knowledge.add.title": "ฐานความรู้ใหม่",

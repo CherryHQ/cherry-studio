@@ -1734,6 +1734,7 @@
   "import.claude.success": "Επιτυχής εισαγωγή {{topics}} συζητήσεων με {{messages}} μηνύματα",
   "import.claude.title": "Εισαγωγή Συζητήσεων Claude",
   "import.claude.untitled_conversation": "Συνομιλία χωρίς τίτλο",
+  "import.error.invalid_format": "Μη έγκυρη μορφή {{name}}",
   "knowledge.add.group": "Ομάδα",
   "knowledge.add.submit": "Δημιουργία",
   "knowledge.add.title": "Νέα Βάση Γνώσης",

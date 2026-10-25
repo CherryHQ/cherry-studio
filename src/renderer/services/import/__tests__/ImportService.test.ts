@@ -258,14 +258,25 @@ describe('importService.importConversations', () => {
 
     expect(response).toMatchObject({ success: false, topicsCount: 0, messagesCount: 0 })
     // The assistant row was created before persistence started, so the failure
-    // path must archive it (topics cascade) and hard-delete it.
-    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.assistant.archive', {
+    // path must hard-delete it together with the partial topics (a plain
+    // archive would strand the topics ownerless in the recycle bin).
+    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.assistant.delete_permanently', {
       assistantId: 'asst_rollback',
       deleteTopics: true
     })
-    expect(vi.mocked(dataApiService.delete)).toHaveBeenCalledWith('/assistants/asst_rollback', {
-      query: { permanent: true }
-    })
+  })
+
+  it('reports a parse failure without creating or rolling back an assistant', async () => {
+    const { ipcApi } = await import('@renderer/ipc')
+    // Passes validate (has title/create_time/mapping) but no conversation
+    // converts, so parse throws after validation and before any persistence.
+    const brokenExport = JSON.stringify([{ title: 'broken', create_time: 1, mapping: null }])
+
+    const response = await importService.importConversations(brokenExport, 'chatgpt')
+
+    expect(response).toMatchObject({ success: false, topicsCount: 0, messagesCount: 0 })
+    expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()
+    expect(vi.mocked(ipcApi.request)).not.toHaveBeenCalled()
   })
 
   it('reports the create-assistant failure without attempting a rollback', async () => {

@@ -1734,6 +1734,7 @@
   "import.claude.success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
   "import.claude.title": "导入 Claude 对话",
   "import.claude.untitled_conversation": "未命名对话",
+  "import.error.invalid_format": "无效的 {{name}} 格式",
   "knowledge.add.group": "分组",
   "knowledge.add.submit": "创建",
   "knowledge.add.title": "新建知识库",

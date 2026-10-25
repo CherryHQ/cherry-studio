@@ -107,6 +107,7 @@ class ImportService {
           topicsCount: 0,
           messagesCount: 0,
           error: i18n.t('import.error.invalid_format', {
+            name: importer.name,
             defaultValue: `Invalid ${importer.name} format`
           })
         }
@@ -158,15 +159,15 @@ class ImportService {
   }
 
   /**
-   * A failure after the assistant row exists must not leave it behind: archive
-   * it (recycle bin; partial topics cascade) and hard-delete it, so a failed
-   * import is side-effect free. Rollback errors are logged, never mask the
-   * original import failure.
+   * A failure after the assistant row exists must not leave it behind. The
+   * partial topics are hard-deleted along with it (`deleteTopics: true`) —
+   * archiving alone would strand them ownerless in the recycle bin, because
+   * permanently deleting the assistant row only nulls topic ownership. Rollback
+   * errors are logged, never mask the original import failure.
    */
   private async rollbackCreatedAssistant(assistantId: string, cause: unknown): Promise<void> {
     try {
-      await ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-      await dataApiService.delete(`/assistants/${assistantId}`, { query: { permanent: true } })
+      await ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
       logger.info('Rolled back the assistant after a failed import', { assistantId, cause: String(cause) })
     } catch (rollbackError) {
       logger.error('Failed to roll back the assistant after a failed import', rollbackError as Error, {

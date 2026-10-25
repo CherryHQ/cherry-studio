@@ -1734,6 +1734,7 @@
   "import.claude.success": "Importate cu succes {{topics}} conversații cu {{messages}} mesaje",
   "import.claude.title": "Importă conversațiile Claude",
   "import.claude.untitled_conversation": "Conversație fără titlu",
+  "import.error.invalid_format": "Format {{name}} invalid",
   "knowledge.add.group": "Grup",
   "knowledge.add.submit": "Creează",
   "knowledge.add.title": "Bază de cunoștințe nouă",
