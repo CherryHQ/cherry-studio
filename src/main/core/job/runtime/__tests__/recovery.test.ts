@@ -230,3 +230,50 @@ describe('runStartupRecovery — in-flight exclusion', () => {
     expect(orphan?.status).toBe('cancelled')
   })
 })
+
+describe('runStartupRecovery — per-job recovery', () => {
+  setupTestDatabase()
+
+  beforeEach(() => {
+    const dbSvc = MockMainDbServiceExport.dbService
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
+      if (name === 'DbService') return dbSvc
+      throw new Error(`Unexpected application.get('${name}')`)
+    })
+  })
+
+  it.each([
+    { handlerRecovery: 'retry', jobRecovery: 'abandon', expected: { own: 'cancelled', handlers: 'pending' } },
+    { handlerRecovery: 'abandon', jobRecovery: 'retry', expected: { own: 'pending', handlers: 'cancelled' } }
+  ] as const)(
+    'recovers a job enqueued with $jobRecovery that way, while its $handlerRecovery siblings follow the handler',
+    async ({ handlerRecovery, jobRecovery, expected }) => {
+      const type = `task.${handlerRecovery}.unit.override`
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const row = {
+        type,
+        status: 'running',
+        queue: type,
+        scheduledAt: now - 1000,
+        startedAt: now - 800,
+        attempt: 0,
+        maxAttempts: 1,
+        cancelRequested: false,
+        metadata: {}
+      }
+      const [own, handlers] = await dbh
+        .insert(jobTable)
+        .values([
+          { ...row, input: { marker: 'own' }, recovery: jobRecovery },
+          { ...row, input: { marker: 'handlers' } }
+        ])
+        .returning()
+
+      runStartupRecovery(handlersOf(type, handlerRecovery), () => false)
+
+      expect(jobService.getById(own.id)?.status).toBe(expected.own)
+      expect(jobService.getById(handlers.id)?.status).toBe(expected.handlers)
+    }
+  )
+})

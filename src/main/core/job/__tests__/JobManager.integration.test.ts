@@ -229,6 +229,27 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('recovers a job the way it was enqueued, over its handler, on the next launch', async () => {
+      const handlers: Array<[string, JobHandler]> = [['override.task', makeSlowHandler('retry') as JobHandler]]
+      const first = await bootstrapManager({ handlers })
+      const later = Date.now() + 10 * 60_000
+      const abandoned = first.jobManager.enqueue('override.task' as never, { message: 'a' } as never, {
+        scheduledAt: later,
+        recovery: 'abandon'
+      })
+      const resumed = first.jobManager.enqueue('override.task' as never, { message: 'b' } as never, {
+        scheduledAt: later
+      })
+      await teardownManager(first.scheduler, first.jobManager)
+
+      const second = await bootstrapManager({ handlers })
+
+      expect(jobService.getById(abandoned.id)?.status).toBe('cancelled')
+      expect(jobService.getById(resumed.id)?.status).toBe('delayed')
+
+      await teardownManager(second.scheduler, second.jobManager)
+    })
+
     it('cancelRequested: settles the leftover without disturbing a newer finished run in the projection', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
 

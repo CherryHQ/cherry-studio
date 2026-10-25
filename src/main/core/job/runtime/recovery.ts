@@ -1,9 +1,10 @@
+import type { JobRow } from '@data/db/schemas/job'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobError } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
-import type { JobHandler } from '../types'
+import type { JobHandler, RecoveryStrategy } from '../types'
 
 const logger = loggerService.withContext('JobRecovery')
 
@@ -16,8 +17,9 @@ export interface RecoveryStats {
 
 /**
  * Per-processor declarative recovery. Walks the registered handlers, applies
- * each type's `recovery` strategy to its non-terminal jobs, then handles
- * orphan running jobs whose handler is no longer registered.
+ * each type's `recovery` strategy to its non-terminal jobs (a job enqueued with
+ * its own `recovery` uses that instead), then handles orphan running jobs whose
+ * handler is no longer registered.
  *
  * In-flight exclusion: rows the CURRENT process is still executing (reported
  * via `isJobInFlight`, backed by `JobManager.inFlightExecuted`) are filtered
@@ -84,17 +86,21 @@ export function runStartupRecovery(
     const cancelRequestedSet = new Set(cancelRequestedIds)
     const remaining = active.filter((r) => !cancelRequestedSet.has(r.id))
 
-    // 2. Apply strategy to the rest.
-    if (handler.recovery === 'abandon') {
-      const ids = remaining.map((r) => r.id)
-      if (ids.length) {
-        jobService.cancelByIds(ids, cancelledByRecovery)
-        stats.cancelled += ids.length
-        logger.info('Abandon recovery: cancelled non-terminal', { type, count: ids.length })
-      }
-    } else if (handler.recovery === 'retry') {
-      const runningIds = remaining.filter((r) => r.status === 'running').map((r) => r.id)
-      const delayedCount = remaining.filter((r) => r.status === 'delayed').length
+    // 2. Apply each row's strategy to the rest: the job's own override, else its handler's.
+    const strategyOf = (row: JobRow): RecoveryStrategy => row.recovery ?? handler.recovery
+    const abandoned = remaining.filter((r) => strategyOf(r) === 'abandon')
+    const retried = remaining.filter((r) => strategyOf(r) === 'retry')
+    const singletons = remaining.filter((r) => strategyOf(r) === 'singleton')
+
+    if (abandoned.length) {
+      const ids = abandoned.map((r) => r.id)
+      jobService.cancelByIds(ids, cancelledByRecovery)
+      stats.cancelled += ids.length
+      logger.info('Abandon recovery: cancelled non-terminal', { type, count: ids.length })
+    }
+    if (retried.length) {
+      const runningIds = retried.filter((r) => r.status === 'running').map((r) => r.id)
+      const delayedCount = retried.filter((r) => r.status === 'delayed').length
       if (runningIds.length) {
         jobService.resetToPendingByIds(runningIds)
         stats.pendingReset += runningIds.length
@@ -103,16 +109,16 @@ export function runStartupRecovery(
       if (runningIds.length || delayedCount) {
         logger.info('Retry recovery', { type, reset: runningIds.length, delayedKept: delayedCount })
       }
-    } else if (handler.recovery === 'singleton') {
-      if (remaining.length === 0) continue
-      // remaining is already sorted by createdAt DESC (jobService contract).
-      const keep = remaining[0]
+    }
+    if (singletons.length) {
+      // singletons keep the createdAt DESC order of the jobService read.
+      const keep = singletons[0]
       if (keep.status === 'running') {
         jobService.resetToPendingByIds([keep.id])
         stats.pendingReset += 1
       }
       stats.singletonKept += 1
-      const toCancelIds = remaining.slice(1).map((r) => r.id)
+      const toCancelIds = singletons.slice(1).map((r) => r.id)
       if (toCancelIds.length) {
         jobService.cancelByIds(toCancelIds, cancelledByRecovery)
         stats.cancelled += toCancelIds.length

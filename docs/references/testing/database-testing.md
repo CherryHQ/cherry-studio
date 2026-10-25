@@ -109,6 +109,15 @@ import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSee
 setupTestDatabase({ seeders: [new PresetProviderSeeder()] })
 ```
 
+## Testing a Schema Migration on Populated Rows
+
+To check that a shipped migration keeps existing rows, populate the tables,
+then call `replayMigration(dbh, '<tag>')`. It re-runs that one migration
+through `applyMigrations`, as an upgrade would. A migration that is not
+re-runnable needs its own schema change reverted first (see
+`knowledgeOrderMigration.test.ts`). The migrations after it are not re-run,
+so the test keeps passing when a later `ALTER TABLE ... ADD` lands.
+
 ## Migration Recipes
 
 ### Removing a legacy `vi.mock('@application', ...)` override

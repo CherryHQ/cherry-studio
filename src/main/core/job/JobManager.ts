@@ -922,7 +922,8 @@ export class JobManager extends BaseService {
       parentId: opts.parentId ?? null,
       cancelRequested: false,
       metadata: opts.metadata ?? {},
-      timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null
+      timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null,
+      recovery: opts.recovery ?? null
     }
 
     return { handler, queueName, insertRow }
