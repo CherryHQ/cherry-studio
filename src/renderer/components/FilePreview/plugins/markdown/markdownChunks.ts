@@ -2677,7 +2677,23 @@ export function splitMarkdownChunks(
       // the definition's paragraphs across it, and `>` alone would start a quote block of its own.
       definitions.push(isBlankLine(carried) ? '' : carried)
       definitionLines += 1
-      if (!isBlankLine(carried)) footnoteParagraphOpen = continuesFootnoteParagraph(carried)
+      // The note's lines are block content the parser reads inside it, so a definition one of them
+      // opens defines its label for the whole document — the carried copy renders in every chunk,
+      // and only the scan's own label lookup needs it here. The line is read four columns into the
+      // note, the way the carried text parses there: deeper indent is code, a lazy line and a line
+      // the note's open paragraph spans are prose, and a footnote-shaped one belongs to the note.
+      let nestedDefinition = false
+      if (indentedContinuation && !isBlankLine(carried) && !footnoteParagraphOpen) {
+        const held = afterColumns(4, carried)
+        const nested = FOOTNOTE_DEFINITION_START.test(held) ? null : linkDefinition([held], 0)
+        if (nested) {
+          definedLabels.add(normalizeReferenceLabel(nested.label))
+          nestedDefinition = true
+        }
+      }
+      // A definition is complete where it stands, so the line below it opens a block of its own
+      // rather than continuing a paragraph — the state the next line's own definition reads.
+      if (!isBlankLine(carried)) footnoteParagraphOpen = nestedDefinition ? false : continuesFootnoteParagraph(carried)
       continue
     }
     // A footnote definition cannot interrupt a paragraph either, and the container in front of it

@@ -3519,6 +3519,38 @@ describe('a heading whose text a character reference spells', () => {
   })
 })
 
+describe('a definition a footnote’s content holds', () => {
+  it('discovers a label the note’s continuation defines before numbering headings', () => {
+    // The parser reads the note’s indented lines as block content inside it, so `[x]: /url`
+    // there is a definition the whole document resolves against: `# [hello][x]` renders `hello`
+    // and the plain `# hello` below it takes `hello-1`. The scan carried the line but never
+    // registered the label, keyed the heading `hellox`, and `[jump](#hello-1)` lost its target.
+    const content = `[^note]:\n    [x]: /url\n# [hello][x]\n\n${'filler\n\n'.repeat(3072)}# hello\n\n[jump](#hello-1)\n`
+
+    const chunks = chunksOf(content)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(headingIds(content)).toEqual(['doc--hello', 'doc--hello-1'])
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
+
+  it('leaves a definition the note’s paragraph spans undiscovered, as the parser does', () => {
+    // A definition cannot interrupt a paragraph, so `[x]` under the note’s own prose is that
+    // paragraph’s text and `hellox` is the base both headings number from.
+    const content = [
+      '[^note]:',
+      '    text',
+      '    [x]: /url',
+      '# [hello][x]',
+      '',
+      ...Array(3).fill(['filler', '', 'filler', '', 'filler', '', 'filler', ''].join('\n')),
+      '# hello'
+    ].join('\n')
+
+    expect(headingIds(content)).toEqual(['doc--hellox', 'doc--hello'])
+    expect(chunkedHeadingIds(content, 1)).toEqual(headingIds(content))
+  })
+})
+
 describe('a document written with bare CR line endings', () => {
   it('counts a bare CR as a line terminator, as the parser does', () => {
     // CommonMark ends a line at a bare CR. Splitting on `\n` alone left the whole document as one
