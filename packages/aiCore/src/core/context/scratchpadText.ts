@@ -1205,31 +1205,62 @@ function maskIndentedCodeBlocks(text: string): {
       // open indented code, and the list structure it belongs to stays open
       // (cherry-pr-review: lazy-list-continuation).
       if (!paragraphOpen || explicitQuoteDepth(line) > 0 || isLeafBlockBoundaryLine(line, paragraphOpen)) {
-        // Equal numeric quote depth does not imply equal container ownership:
-        // for a quote-owned list level, a line that opens a deeper quote
+        // Equal numeric quote depth does not imply equal container ownership.
+        // Check the stack outside-in: the first level whose container this
+        // line does not reach ends here, and every level inside it ends with
+        // it. For a quote-owned list level, a line that opens a deeper quote
         // container reaches the item's content only when the deeper marker
         // begins at or past the item's column; a marker starting before it
         // opens a NEW container outside the item, so the item (and the
         // paragraph it carried) ends here (cherry-pr-review round-14
-        // quote-container-ownership).
+        // quote-container-ownership). A top-level list ends the same way
+        // when the line's first marker starts before its content column,
+        // and a level whose owning quote segment the line never enters is
+        // stale even when its numeric depth matches the previous quote
+        // (cherry-pr-review round-16 quote-list-code-deleted).
         const markers = depth > 0 ? quoteMarkerPositions(line) : null
-        while (listColumnStack.length) {
-          const top = listColumnStack[listColumnStack.length - 1]
-          if (markers && top.quoteDepth > 0 && top.quoteDepth < markers.markerStarts.length) {
-            const markerColumn = markers.markerStarts[top.quoteDepth] - markers.markerEnds[top.quoteDepth - 1]
-            if (markerColumn < top.column) listColumnStack.pop()
-            else break
-          } else if (top.column > columns) {
+        if (markers) {
+          const markerCount = markers.markerStarts.length
+          for (let k = 0; k < listColumnStack.length; k++) {
+            const level = listColumnStack[k]
+            let reached: boolean
+            if (level.quoteDepth > markerCount) {
+              reached = false
+            } else if (level.quoteDepth === 0) {
+              reached = markers.markerStarts[0] >= level.column
+            } else if (level.quoteDepth < markerCount) {
+              reached =
+                markers.markerStarts[level.quoteDepth] - markers.markerEnds[level.quoteDepth - 1] >= level.column
+            } else {
+              reached = level.column <= columns
+            }
+            if (!reached) {
+              listColumnStack.length = k
+              break
+            }
+          }
+        } else {
+          while (listColumnStack.length && listColumnStack[listColumnStack.length - 1].column > columns) {
             listColumnStack.pop()
-          } else break
+          }
         }
         inheritedListColumns = listColumnStack[listColumnStack.length - 1]?.column ?? 0
         enclosingListStack = [...listColumnStack]
       }
     }
     // A new explicit quote container cannot inherit an outer paragraph.
-    // Unmarked lazy continuation lines keep their paragraph's container.
-    if ((depth > 0 && depth !== quoteDepth) || isListItemStart(line) || previousListColumns !== inheritedListColumns)
+    // Unmarked lazy continuation lines keep their paragraph's container. A
+    // marked line with FEWER quote markers than the paragraph's depth also
+    // continues that paragraph lazily - indented code cannot interrupt a
+    // paragraph (CommonMark 0.31.2 §4.4, §5.1) - so the missing deeper
+    // markers must not re-open code classification (cherry-pr-review
+    // round-16 lazy-quote-analysis-retained).
+    const lazyDepthDecrease = paragraphOpen && depth > 0 && depth < quoteDepth
+    if (
+      (depth > 0 && depth !== quoteDepth && !lazyDepthDecrease) ||
+      isListItemStart(line) ||
+      previousListColumns !== inheritedListColumns
+    )
       paragraphOpen = false
     if (depth > 0) quoteDepth = depth
     if (line.trim() === '' || isContainerOnlyLine(line)) {

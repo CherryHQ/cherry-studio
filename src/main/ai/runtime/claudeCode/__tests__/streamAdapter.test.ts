@@ -2851,6 +2851,29 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).toBe('<thinking')
     })
 
+    it('preserves literal code in a new top-level quote after a quoted list (cherry-pr-review round-16 quote-list-code-deleted)', () => {
+      const { adapter, parts } = createAdapter()
+      const literal = '- A\n  > - B\n>     <thinking>literal</thinking>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: literal } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      // The last line's content is indented code inside a NEW top-level
+      // quote (the enclosing list ended), so the literal thinking example
+      // is ordinary assistant text and must survive snapshot normalization.
+      expect(text).toBe(literal)
+    })
+
     it('suppresses scratchpad wrappers whose opening tag has a slash inside a quoted attribute', () => {
       const { adapter, parts } = createAdapter()
       const leakedThinking = '<thinking data="notes/path">internal reasoning about the session</thinking>'

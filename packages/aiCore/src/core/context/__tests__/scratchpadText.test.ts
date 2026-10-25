@@ -1220,6 +1220,27 @@ describe('cherry-pr-review round-9', () => {
   })
 })
 
+describe('cherry-pr-review round-16', () => {
+  it('keeps lazy quote continuation as paragraph text when quote depth decreases (lazy-quote-analysis-retained)', () => {
+    const input = '> > A\n>     <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
+    // The second line lazily continues the inner quote's paragraph; it is
+    // not indented code (markdown-it 14.1.1 agrees), so the analysis is
+    // private scratchpad and must strip, matching the round-14
+    // lazy-quote-analysis contract.
+    expect(stripModelScratchpadBlocks(input)).toBe('> > A\n>     \n\n<summary>Public</summary>')
+  })
+
+  it('clears list ownership when a new quote opens outside the enclosing list (quote-list-code-deleted)', () => {
+    const input = '- A\n  > - B\n>     <thinking>literal</thinking>'
+    // The last line starts a new top-level blockquote (its marker begins
+    // before the list's content column) and its content is indented code,
+    // so the literal thinking example must survive (markdown-it 14.1.1
+    // agrees).
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+})
+
 describe('cherry-pr-review round-14', () => {
   it('treats an unmarked indented line in a quoted list as lazy continuation (lazy-quote-analysis)', () => {
     const input = '> - Parent\n    <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
