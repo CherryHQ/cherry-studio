@@ -69,7 +69,19 @@ describe('VoiceExpressiveService', () => {
   it('rejects punctuation and prose tokens that are not faces', async () => {
     const service = await startService()
 
-    for (const match of ['.', 'C++', '1.2.3', '1.2', '(a+b)']) {
+    for (const match of [
+      '.',
+      'C++',
+      '1.2.3',
+      '1.2',
+      '(a+b)',
+      '@',
+      '^',
+      'foo@bar.com',
+      'user@example.com',
+      '@foo@',
+      '(a@b)'
+    ]) {
       await expect(service.set({ kind: 'kaomoji', match, zh: '点', en: 'dot' })).rejects.toThrow(
         'kaomoji must look like a face'
       )
@@ -81,6 +93,9 @@ describe('VoiceExpressiveService', () => {
 
     await expect(service.set({ kind: 'kaomoji', match: '(╥﹏╥)', zh: '大哭', en: 'crying' })).resolves.toBeTruthy()
     await expect(service.set({ kind: 'kaomoji', match: '¯\\_(ツ)_/¯', zh: '摊手', en: 'shrug' })).resolves.toBeTruthy()
+    await expect(service.set({ kind: 'kaomoji', match: '@_@', zh: '晕', en: 'dizzy' })).resolves.toBeTruthy()
+    await expect(service.set({ kind: 'kaomoji', match: '*^_^*', zh: '开心', en: 'happy' })).resolves.toBeTruthy()
+    await expect(service.set({ kind: 'kaomoji', match: 'ಠ益ಠ', zh: '生气', en: 'angry' })).resolves.toBeTruthy()
     await expect(service.set({ kind: 'emoji', match: '🇺🇸', zh: '美国', en: 'United States' })).resolves.toBeTruthy()
   })
 
@@ -99,7 +114,9 @@ describe('VoiceExpressiveService', () => {
       path.join(directory, 'voice-expressive.json'),
       JSON.stringify([
         { id: 'a', kind: 'emoji', match: '😄', zh: '开心', en: 'happy', source: 'manual', createdAt: 1 },
-        { id: 'b', kind: 'emoji', match: 'plain', zh: '普通', en: 'plain', source: 'manual', createdAt: 1 }
+        { id: 'b', kind: 'emoji', match: 'plain', zh: '普通', en: 'plain', source: 'manual', createdAt: 1 },
+        { id: 'c', kind: 'kaomoji', match: '@', zh: '困惑', en: 'confused', source: 'manual', createdAt: 1 },
+        { id: 'd', kind: 'kaomoji', match: 'foo@bar.com', zh: '邮件', en: 'email', source: 'manual', createdAt: 1 }
       ])
     )
 

@@ -43,12 +43,14 @@ const BRACKETED_KAOMOJI = /^[(（[［{｛<＜]([\s\S]*)[)）\]］}｝>＞][?？!
 const EYE_MOUTH_EYE = /^[oO0xX^><:;'\-TtUuVv][_\-~.^,][oO0xX^><:;'\-TtUuVv]$/u
 const MOUTH_MARK = /[_\-~.^,]/
 /**
- * Glyphs that appear in faces but not in ordinary prose. Plain punctuation such
- * as `.`, `+` or `#` is deliberately absent, so a rule for it cannot rewrite
- * every sentence.
+ * Glyphs that appear in faces but not in ordinary prose. ASCII marks such as
+ * `@`, `^` and `*` are deliberately absent: on their own they are ordinary
+ * punctuation (and an `@` can sit inside an email address), so they only count
+ * as part of a mirrored or eye-mouth-eye face.
  */
-const KAOMOJI_GLYPHS = '＾^▽￣︶・°□¬＠@´｀๑و✧づツᴗง︵┻━益εू༎ຶ⁍⁌ಠಥ⌒ω○●◕◔ヽノﾉヾゞ٩۶♪♡ʖᴥ﹏ﾟ｡･◡‿¯'
-const KAOMOJI_MARK = /[\p{P}\p{S}]/u
+const KAOMOJI_GLYPHS = '＾▽￣︶・°□¬＠´｀๑و✧づツᴗง︵┻━益εू༎ຶ⁍⁌ಠಥ⌒ω○●◕◔ヽノﾉヾゞ٩۶♪♡ʖᴥ﹏ﾟ｡･◡‿¯'
+/** ASCII eye marks that can frame a mirrored face such as `@_@` or `*^_^*`. */
+const MIRRORED_EYES = /[oO0xX^><:;'\-@*]/
 
 function hasKaomojiGlyph(value: string): boolean {
   for (const char of value) if (KAOMOJI_GLYPHS.includes(char)) return true
@@ -63,13 +65,28 @@ function faceCore(core: string): boolean {
   return chars.length === 3 && chars[0] === chars[2] && MOUTH_MARK.test(chars[1])
 }
 
+/**
+ * Unbracketed faces must mirror their outer mark (`@_@`, `ಠ益ಠ`,
+ * `¯\_(ツ)_/¯`). A bare mark, an email address or another ordinary token does
+ * not, so it cannot become a persistent global substitution.
+ */
+function isMirroredFace(match: string): boolean {
+  const chars = [...match]
+  if (chars.length < 3) return false
+  const first = chars[0]
+  if (first !== chars[chars.length - 1]) return false
+  if (!hasKaomojiGlyph(first) && !MIRRORED_EYES.test(first)) return false
+  const inner = chars.slice(1, -1)
+  if (inner.length === 1) return hasKaomojiGlyph(first) || MOUTH_MARK.test(inner[0])
+  return inner.some((char) => MOUTH_MARK.test(char))
+}
+
 /** Rejects punctuation and prose tokens that only look like a kaomoji. */
 function looksLikeKaomoji(match: string): boolean {
   const bracketed = BRACKETED_KAOMOJI.exec(match)
   if (bracketed) return faceCore(bracketed[1])
   if (EYE_MOUTH_EYE.test(match)) return true
-  // Asymmetric faces such as `¯\_(ツ)_/¯` need a face glyph and a mark.
-  return hasKaomojiGlyph(match) && KAOMOJI_MARK.test(match)
+  return isMirroredFace(match)
 }
 
 function normalizeLabel(value: string, field: 'zh' | 'en'): string {
@@ -89,8 +106,9 @@ function normalizeMatch(input: SetExpressiveRuleInput): string {
 
   if (input.kind === 'emoji') {
     if (!EMOJI_PATTERN.test(match)) throw new Error('match must contain an emoji')
-  } else if (/^[\p{L}\p{N}]+$/u.test(match)) {
-    // A plain word would rewrite ordinary prose, not a face.
+  } else if (/^[\p{L}\p{N}]+$/u.test(match) && !hasKaomojiGlyph(match)) {
+    // A plain word would rewrite ordinary prose, not a face. Letter-only faces
+    // such as `ಠ益ಠ` still carry a face glyph and fall through to the shape check.
     throw new Error('kaomoji must contain at least one symbol')
   } else if (!looksLikeKaomoji(match)) {
     throw new Error('kaomoji must look like a face, not ordinary text')
