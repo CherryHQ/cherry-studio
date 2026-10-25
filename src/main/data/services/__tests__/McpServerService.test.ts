@@ -323,7 +323,10 @@ describe('McpServerService', () => {
       expect(agent.disabledTools).toEqual([
         'mcp__oldServer__run_4f7413c24ae4',
         'mcp__newServer__run_4f7413c24ae4',
-        'mcp__New_server__run_4f7413c24ae4'
+        'mcp__New_server__run_4f7413c24ae4',
+        // The tail can also be a plain literal tool name, so the complete literal destination
+        // (Pi's camelized-tool alias) rides along with the hashed copies.
+        'mcp__newServer__run4f7413c24ae4'
       ])
     })
 

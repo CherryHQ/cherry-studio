@@ -17,6 +17,7 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME, TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { migrateAgentDisabledToolsForServerRename } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const mocks = vi.hoisted(() => ({
@@ -128,6 +129,26 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     })
 
     expect(snapshot.isDisabled('mcp__Docs_MCP__run')).toBe(true)
+  })
+
+  it('keeps a literal denial whose tail parses as a hash blocking through the rename migration', async () => {
+    // Production rename composes McpServerService's migration with this gate: the migrated rules
+    // are persisted, rebuilt into `disallowed`, and matched by exact name — the SDK hard-block
+    // list and the live hook share this derivation. A literal tool name can end in `_12hex`, and
+    // the pinned SDK serves the full 64-character identity (38 `a`s), so the migrated rules must
+    // carry the complete literal destination; the truncated hashed copy (37 `a`s) matches no
+    // runtime name and re-enables the explicitly disabled tool under Full Access.
+    const tool = `${'a'.repeat(38)}_123456789abc`
+    const serverId = '11111111-2222-3333-4444-555555555555'
+    const migrated = migrateAgentDisabledToolsForServerRename([`mcp__docs__${tool}`], {
+      mountedServers: [{ mcpId: serverId, name: 'docs' }],
+      renamedServerId: serverId,
+      toName: 'github',
+      reservedKeys: []
+    })
+
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(migrated ?? []))
+    expect(snapshot.isDisabled(`mcp__github__${tool}`)).toBe(true)
   })
 
   it('refreshes the server-key mapping on update so a renamed server keeps catching later denials', async () => {

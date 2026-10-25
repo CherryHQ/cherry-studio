@@ -660,6 +660,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       'mcp__oldServer__run_4f7413c24ae4',
       'mcp__newServer__run_4f7413c24ae4',
       'mcp__New_server__run_4f7413c24ae4',
+      // The tail can also be a plain literal tool name, so the complete literal destination
+      // (Pi's camelized-tool alias) rides along with the hashed copies.
+      'mcp__newServer__run4f7413c24ae4',
       'mcp__New_server__other',
       'mcp__newServer__other'
     ])
@@ -680,7 +683,10 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     ).toEqual([
       entry,
       `mcp__newServer__${longTool.slice(0, 34)}_4f7413c24ae4`,
-      `mcp__New_server__${longTool.slice(0, 33)}_4f7413c24ae4`
+      `mcp__New_server__${longTool.slice(0, 33)}_4f7413c24ae4`,
+      // The literal interpretation keeps the fragment whole on both key forms.
+      `mcp__New_server__${longTool.slice(0, 34)}_4f7413c24ae4`,
+      `mcp__newServer__${longTool.slice(0, 34)}4f7413c24ae4`
     ])
   })
 
@@ -741,7 +747,37 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual([entry, `mcp__github__${'a'.repeat(37)}_4f7413c24ae4`])
+    ).toEqual([
+      entry,
+      `mcp__github__${'a'.repeat(37)}_4f7413c24ae4`,
+      // The literal interpretation keeps all 39 `a`s on the raw and camelized-tool forms.
+      `mcp__github__${'a'.repeat(39)}_4f7413c24ae4`,
+      `mcp__github__${'a'.repeat(39)}4f7413c24ae4`
+    ])
+  })
+
+  it('keeps a literal tool name whose tail parses as a hash intact on the renamed key', () => {
+    // A literal tool name can end in `_12hex` (here 38 `a`s + `_123456789abc`; the renamed key
+    // makes the full identity exactly 64 characters, which the pinned SDK serves in full). The
+    // suffix test alone cannot tell it from a legacy hashed identity, so the migration must keep
+    // the complete literal destination alongside the truncated hashed copies — truncating the
+    // fragment to the 50-char base drops the 38th `a`, and neither persisted rule matches the
+    // runtime name, re-enabling the explicitly disabled tool.
+    const tool = `${'a'.repeat(38)}_123456789abc`
+    const entry = `mcp__docs__${tool}`
+    expect(
+      migrateAgentDisabledToolsForServerRename([entry], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
+        renamedServerId: 'srv-1',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toEqual([
+      entry,
+      `mcp__github__${'a'.repeat(37)}_123456789abc`,
+      `mcp__github__${tool}`,
+      `mcp__github__${'a'.repeat(38)}123456789abc`
+    ])
   })
 
   it('rewrites a displaced sibling hashed entry onto the sibling stripped base', () => {
@@ -760,7 +796,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual([entry, 'mcp__srvB__run_4f7413c24ae4', 'mcp__srv-b__run_4f7413c24ae4'])
+    ).toEqual([entry, 'mcp__srvB__run_4f7413c24ae4', 'mcp__srv-b__run_4f7413c24ae4', 'mcp__srv-b__run4f7413c24ae4'])
   })
 
   it('copies lossy-hashed entries onto both raw and camelized forms of a wire-safe destination', () => {
@@ -779,7 +815,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     ).toEqual([
       'mcp__oldServer__getTime_4f7413c24ae4',
       'mcp__github__getTime_4f7413c24ae4',
-      'mcp__GitHub__getTime_4f7413c24ae4'
+      'mcp__GitHub__getTime_4f7413c24ae4',
+      // The literal interpretation also carries Pi's camelized-tool alias.
+      'mcp__github__gettime4f7413c24ae4'
     ])
   })
 

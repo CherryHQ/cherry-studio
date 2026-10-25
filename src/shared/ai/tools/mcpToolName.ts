@@ -475,7 +475,10 @@ interface AgentKeyRewrite {
  * exactly (`mcp__<camelized new key>__<fragment>` truncated to 50, tail re-attached): the
  * runtime's stripped-base lookup resolves it once the tail is stripped again. The original is
  * kept — it can simultaneously be another mounted server's exact denial. Plain entries move
- * verbatim onto the new key.
+ * verbatim onto the new key. The same suffix can also be a plain literal tool name, so each
+ * hashed rewrite additionally carries the complete literal destination (raw, camelized-tool and
+ * SDK-segment forms) — the truncated copies alone would clip a long literal past the 50-char
+ * base while the runtime serves the full name.
  */
 export function migrateAgentDisabledToolsForServerRename(
   disabledTools: readonly string[],
@@ -647,11 +650,15 @@ function collectDisplayNameSegments(names: ReadonlyArray<string | undefined>): S
  * including collision names carrying a raw tool fragment) and the camelized key (lossy
  * registrations are built from the camelized form, and mixed-case destinations register plain
  * names the camelized fragment can never key). The original is kept — it can simultaneously
- * be another server's exact denial. Plain entries move verbatim onto the new key (plus the
- * camelized alias a `camelToKey` rewrite carries), except an id-keyed original stays: Pi
- * registers servers under their id and matches `mcp__<id>__tool` verbatim at any tool length,
- * so that form is the one denial Pi still matches after every reallocation — including when
- * the entry's segment doubles as another server's old configured-name key.
+ * be another server's exact denial. A literal tool name can spell the same `_12hex` suffix, so
+ * the hashed copies are emitted alongside the complete literal destination (the same raw,
+ * camelized-tool and SDK-segment forms the plain branch emits): the truncated copy alone names
+ * a string no runtime registered when the tail was never a hash. Plain entries move verbatim
+ * onto the new key (plus the camelized alias a `camelToKey` rewrite carries), except an
+ * id-keyed original stays: Pi registers servers under their id and matches `mcp__<id>__tool`
+ * verbatim at any tool length, so that form is the one denial Pi still matches after every
+ * reallocation — including when the entry's segment doubles as another server's old
+ * configured-name key.
  *
  * A truncated DSH identity (`mcp__<50 fused chars>_<12hex>` — a long server key pushes the
  * `__` delimiter and the tool fragment past the retention cap, so no delimiter survives) is
@@ -670,6 +677,20 @@ function applyAgentKeyRewrites(
     const tail = toolPart.slice(toolPart.length - 13)
     const fragment = toolPart.slice(0, toolPart.length - 13)
     return [...targets].map((target) => `mcp__${target}__${fragment}`.slice(0, 50) + tail)
+  }
+
+  // A `_12hex` tail is also the shape a plain literal tool name can spell (`a`*38 +
+  // `_123456789abc`), indistinguishable from a legacy hashed identity by its suffix alone. The
+  // literal interpretation moves the COMPLETE tool segment onto the new key's namespace — the
+  // raw form the SDK serves, Pi's camelized-tool alias (`buildFunctionCallToolName`), and the
+  // SDK-normalized key segment. Emitting only the truncated hashed copies would clip a long
+  // literal past the 50-char base (37 of 38 `a`s) while the runtime serves the full name, so
+  // neither persisted rule matches and the explicitly disabled tool executes.
+  const literalInterpretations = (rewrite: AgentKeyRewrite, toolPart: string): string[] => {
+    const targets = new Set<string>([`mcp__${rewrite.toKey}__${toolPart}`])
+    targets.add(`mcp__${rewrite.camelToKey ?? rewrite.toKey}__${toCamelCase(toolPart)}`)
+    targets.add(`mcp__${toSdkMcpServerSegment(rewrite.toKey)}__${toolPart}`)
+    return [...targets]
   }
 
   const planned = disabledTools.map((entry) => {
@@ -691,7 +712,7 @@ function applyAgentKeyRewrites(
           ? undefined
           : rewrites.find(({ fromKey: key }) => serverPart === toCamelCase(key) && toCamelCase(key) !== key)
         if (matched && /_[0-9a-f]{12}$/.test(toolPart)) {
-          replacements = rewriteHashed(toolPart, matched.toKey)
+          replacements = [...rewriteHashed(toolPart, matched.toKey), ...literalInterpretations(matched, toolPart)]
           keepOriginal = true
         } else if (matched) {
           // Pi resolves denials through `buildFunctionCallToolName`, which camelizes BOTH
@@ -721,7 +742,10 @@ function applyAgentKeyRewrites(
           // carry only the camelized tool fragment, which cannot regenerate the alias.
           keepOriginal = matched.fromIsId === true || idSegments.has(serverPart) || displaySegments.has(serverPart)
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
-          replacements = rewriteHashed(toolPart, lossyMatched.toKey)
+          replacements = [
+            ...rewriteHashed(toolPart, lossyMatched.toKey),
+            ...literalInterpretations(lossyMatched, toolPart)
+          ]
           keepOriginal = true
         }
       } else if (/_[0-9a-f]{12}$/.test(rest) && rest.length > 13) {
