@@ -13,6 +13,21 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it.each([
+    '12. Heading\n    =======\n        <thinking>literal</thinking>\n\nDone.',
+    '12. Example:\n    ```xml\n    <thinking>literal</thinking>'
+  ])('preserves literal code at a wide list content column', (input) => {
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+  it('ends inner unfinished fences at outer scratchpad boundaries (inv_927de58150a57af8)', () => {
+    expect(
+      stripModelScratchpadBlocks(
+        '<analysis>Use <thinking> for reasoning.\n```text\nSECRET\n</analysis>\n<summary>Public</summary>'
+      )
+    ).toBe('Public')
+  })
+
   it('ignores opaque closers while bounding unfinished scratchpad fences (inv_3fd1bf2ede509a71)', () => {
     const input = '<analysis>Private\n```xml\n<!-- </analysis> -->\nSECRET\n</analysis>\n<summary>Public</summary>'
     expect(stripModelScratchpadBlocks(input)).toBe('Public')

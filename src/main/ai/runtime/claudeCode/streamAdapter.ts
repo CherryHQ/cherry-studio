@@ -1239,13 +1239,13 @@ export class ClaudeCodeStreamAdapter {
       // non-ASCII text. Keep its bounded context for a following setext line.
       const previousEnd = Math.max(0, lineStart - 1)
       const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
-      const previous = accumulatedText.slice(previousStart, previousEnd)
+      const previous = accumulatedText.slice(previousStart, previousEnd).replace(/\r$/, '')
       // A completed fence marker cannot become a synthetic new opener.
       if (/^ {0,3}(?:`{3,}|~{3,})/.test(previous)) return ''
       if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(previous)) && previousStart > 0) {
         const paragraphEnd = previousStart - 1
         const paragraphStart = accumulatedText.lastIndexOf('\n', paragraphEnd - 1) + 1
-        const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd)
+        const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd).replace(/\r$/, '')
         if (paragraph.trim() !== '') return paragraph.slice(0, 128) + '\n' + previous + '\n'
       }
       if (previous.trim() !== '') return previous.slice(0, 128) + '\n'
@@ -1254,17 +1254,17 @@ export class ClaudeCodeStreamAdapter {
     // A partial setext underline needs the preceding paragraph too; the
     // underline can arrive one marker at a time across delta boundaries.
     if (
-      (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(openLine)) ||
+      (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(openLine).replace(/\r$/, '')) ||
         /^ {0,3}(?:> ?)+[ \t]*$/.test(openLine)) &&
       lineStart > 0
     ) {
       const previousEnd = lineStart - 1
       const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
-      const previous = accumulatedText.slice(previousStart, previousEnd)
+      const previous = accumulatedText.slice(previousStart, previousEnd).replace(/\r$/, '')
       if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(previous)) && previousStart > 0) {
         const paragraphEnd = previousStart - 1
         const paragraphStart = accumulatedText.lastIndexOf('\n', paragraphEnd - 1) + 1
-        const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd)
+        const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd).replace(/\r$/, '')
         if (paragraph.trim() !== '') return paragraph.slice(0, 128) + '\n' + previous + '\n' + openLine
       }
       if (previous.trim() !== '') return previous.slice(0, 128) + '\n' + openLine

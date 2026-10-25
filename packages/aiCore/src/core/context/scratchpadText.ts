@@ -806,7 +806,8 @@ function maskIndentedCodeBlocks(text: string): {
   // (CommonMark 0.31.2 §4.4; cherry-pr-review inv_0847c277aaa83851). A setext
   // underline only closes an OPEN paragraph; on its own it is paragraph text.
   const isLeafBlockBoundaryLine = (line: string, paragraphWasOpen: boolean): boolean => {
-    const content = stripMarkdownContainerMarkers(line)
+    const stripped = stripMarkdownContainerMarkers(line)
+    const content = stripped === line && inheritedListColumns > 0 ? stripped.slice(inheritedListColumns) : stripped
     if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
     if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
     if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
@@ -1022,12 +1023,25 @@ function maskCodeFences(text: string): {
       break
     }
     const markerStart = pos + rel
-    if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
+    const markerLineStart = lineStartBefore(text, markerStart)
+    const markerPrefix = text.slice(markerLineStart, markerStart)
+    const inheritedMarkerPrefix = inheritedPrefix(markerLineStart, markerPrefix)
+    const inheritedContainer = parseFenceContainerSegments(inheritedMarkerPrefix)
+    const inheritedColumns = inheritedContainer.reduce(
+      (sum, segment) => sum + (segment.type === 'list' ? segment.contentCol : 0),
+      0
+    )
+    const listContinuationFence =
+      inheritedColumns > 0 &&
+      /^ +$/.test(markerPrefix) &&
+      markerPrefix.length >= inheritedColumns &&
+      markerPrefix.length - inheritedColumns <= 3
+    if (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence) {
       out += text.slice(pos, markerStart + 1)
       pos = markerStart + 1
       continue
     }
-    const fenceStart = fenceLinePrefixStart(text, markerStart)
+    const fenceStart = listContinuationFence ? markerLineStart : fenceLinePrefixStart(text, markerStart)
     out += text.slice(pos, fenceStart)
     const openMatch = text.slice(markerStart).match(/^([`~])\1{2,}/)
     if (!openMatch) {
@@ -1064,7 +1078,7 @@ function maskCodeFences(text: string): {
     if (enclosing) {
       let inMarkup: ((index: number) => boolean) | undefined
       const findBlockClose = (from: number): number => {
-        const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
+        const closer = new RegExp(`</(?:${scratchpadScan.stack.join('|')})\\s*>`, 'gi')
         closer.lastIndex = from
         let match: RegExpExecArray | null
         while ((match = closer.exec(text)) !== null) {
