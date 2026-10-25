@@ -16,7 +16,6 @@ import {
   CustomAdblockRuleStore,
   hostnameMatchesDomain,
   type NewCustomAdblockRule,
-  scopeNetworkRule,
   splitSelectors
 } from './customRules'
 import { setAdblockGate } from './gate'
@@ -55,6 +54,27 @@ interface CosmeticFilterUpdate {
 const STANDALONE_BROWSER_PARTITIONS = ['persist:default', 'private'] as const
 
 /**
+ * Page that issued a request. `referrer` is empty under
+ * `Referrer-Policy: no-referrer`, so the initiator origin or frame URL stands in.
+ */
+function requestSource(details: Electron.OnBeforeRequestListenerDetails): string | undefined {
+  if (details.referrer) return details.referrer
+  const origin = details.initiatorOrigin
+  if (origin) return origin === 'null' ? undefined : `${origin}/`
+  try {
+    return details.frame?.url || undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** `a.b.example.com` → itself and every parent, so a rule saved for `example.com` still applies. */
+function domainCandidates(hostname: string): string[] {
+  const labels = hostname.split('.')
+  return labels.map((_, index) => labels.slice(index).join('.'))
+}
+
+/**
  * Ad blocking for the built-in browser.
  *
  * Two layers, each with its own switch:
@@ -68,14 +88,20 @@ const STANDALONE_BROWSER_PARTITIONS = ['persist:default', 'private'] as const
  *   through the browser tool are a separate stylesheet, so each can be updated
  *   or removed without rebuilding the engine.
  *
- * AI-written network rules live in their own small `FiltersEngine`: dropping one
- * rule only costs a re-parse of that short list, not of the 98k-rule bundle.
+ * AI-written network rules live in one small `FiltersEngine` per saved domain:
+ * dropping a rule only re-parses that domain's short list, not the 98k bundle,
+ * and the engine consulted for a request is itself the scope boundary.
  */
 @Injectable('AdblockService')
 @ServicePhase(Phase.WhenReady)
 export class AdblockService extends BaseService {
   private engine?: FiltersEngine
-  private customEngine?: FiltersEngine
+  /**
+   * One engine per saved domain. Scope comes from which engine is consulted for
+   * a request's source, never from text appended to the filter, so a rule can
+   * not escape its domain no matter what its option tail looks like.
+   */
+  private customEngines = new Map<string, FiltersEngine>()
   private readonly rules = new CustomAdblockRuleStore(application.getPath('feature.adblock.rules_file'))
   private enabled = false
   private hideSearchAds = false
@@ -94,7 +120,7 @@ export class AdblockService extends BaseService {
     this.hideSearchAds = preferences.get(PREF.searchAds)
 
     await Promise.all([this.loadEngine(), this.rules.load()])
-    this.rebuildCustomEngine()
+    this.rebuildCustomEngines()
     logger.info('Custom adblock rules loaded', {
       count: this.rules.list().length,
       enabled: this.rules.list().filter((rule) => rule.enabled).length
@@ -135,7 +161,7 @@ export class AdblockService extends BaseService {
 
   async addCustomRule(input: NewCustomAdblockRule): Promise<{ rule: CustomAdblockRule; existing: boolean }> {
     const result = await this.rules.add(input)
-    this.rebuildCustomEngine()
+    this.rebuildCustomEngines()
     this.refreshOpenPages()
     logger.info('Custom adblock rule saved', {
       domain: result.rule.domain,
@@ -148,7 +174,7 @@ export class AdblockService extends BaseService {
   async removeCustomRule(id: string): Promise<boolean> {
     const removed = await this.rules.remove(id)
     if (removed) {
-      this.rebuildCustomEngine()
+      this.rebuildCustomEngines()
       this.refreshOpenPages()
     }
     return removed
@@ -157,7 +183,7 @@ export class AdblockService extends BaseService {
   async setCustomRuleEnabled(id: string, enabled: boolean): Promise<CustomAdblockRule | undefined> {
     const rule = await this.rules.setEnabled(id, enabled)
     if (rule) {
-      this.rebuildCustomEngine()
+      this.rebuildCustomEngines()
       this.refreshOpenPages()
     }
     return rule
@@ -171,15 +197,15 @@ export class AdblockService extends BaseService {
   private readonly shouldBlock = (details: Electron.OnBeforeRequestListenerDetails): boolean => {
     if (!this.isActive() || details.resourceType === 'mainFrame') return false
     try {
+      const source = requestSource(details)
       const request = Request.fromRawDetails({
         requestId: `${details.id}`,
         url: details.url,
         type: details.resourceType,
-        sourceUrl: details.referrer,
+        sourceUrl: source,
         tabId: details.webContentsId
       })
-      const custom = this.customEngine?.match(request)
-      if (custom?.match) {
+      if (source && this.matchesCustomRules(request, source)) {
         this.blockedRequests++
         return true
       }
@@ -190,6 +216,23 @@ export class AdblockService extends BaseService {
       logger.debug('Adblock match failed', { error, url: details.url })
       return false
     }
+  }
+
+  /** True when a rule saved for the request's own domain (or a parent) matches. */
+  private matchesCustomRules(request: Request, source: string): boolean {
+    if (this.customEngines.size === 0) return false
+    let hostname: string
+    try {
+      hostname = new URL(source).hostname.toLowerCase()
+    } catch {
+      return false
+    }
+    if (!hostname) return false
+    for (const candidate of domainCandidates(hostname)) {
+      const engine = this.customEngines.get(candidate)
+      if (engine?.match(request).match) return true
+    }
+    return false
   }
 
   private async loadEngine(): Promise<void> {
@@ -208,33 +251,37 @@ export class AdblockService extends BaseService {
   }
 
   /**
-   * Compiles the enabled custom network rules into a small standalone engine.
-   * Cosmetic rules never enter the engine: they are injected as a stylesheet so
-   * a rule can be removed from an open page without a reload.
+   * Compiles the enabled custom network rules into one small engine per saved
+   * domain. Cosmetic rules never enter an engine: they are injected as CSS so a
+   * rule can be removed from an open page without a reload.
    */
-  private rebuildCustomEngine(): void {
-    const filters = this.rules
-      .list()
-      .filter((rule) => rule.enabled && rule.kind === 'network')
-      .map((rule) => scopeNetworkRule(rule.value, rule.domain))
-      .filter((filter): filter is string => filter !== undefined)
-    if (filters.length === 0) {
-      this.customEngine = undefined
-      return
+  private rebuildCustomEngines(): void {
+    const byDomain = new Map<string, string[]>()
+    for (const rule of this.rules.list()) {
+      if (!rule.enabled || rule.kind !== 'network') continue
+      const filters = byDomain.get(rule.domain)
+      if (filters) filters.push(rule.value)
+      else byDomain.set(rule.domain, [rule.value])
     }
-    try {
-      this.customEngine = FiltersEngine.parse(filters.join('\n'), {
-        loadNetworkFilters: true,
-        loadCosmeticFilters: false,
-        loadExceptionFilters: true,
-        loadCSPFilters: false,
-        enableMutationObserver: false,
-        guessRequestTypeFromUrl: true
-      })
-    } catch (error) {
-      logger.warn('Failed to compile custom adblock rules', { error })
-      this.customEngine = undefined
+    const engines = new Map<string, FiltersEngine>()
+    for (const [domain, filters] of byDomain) {
+      try {
+        engines.set(
+          domain,
+          FiltersEngine.parse(filters.join('\n'), {
+            loadNetworkFilters: true,
+            loadCosmeticFilters: false,
+            loadExceptionFilters: true,
+            loadCSPFilters: false,
+            enableMutationObserver: false,
+            guessRequestTypeFromUrl: true
+          })
+        )
+      } catch (error) {
+        logger.warn('Failed to compile custom adblock rules', { domain, error })
+      }
     }
+    this.customEngines = engines
   }
 
   /**

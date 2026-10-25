@@ -8,7 +8,6 @@ import {
   CustomAdblockRuleStore,
   isAllowedScope,
   normalizeDomain,
-  scopeNetworkRule,
   splitSelectors,
   validateRuleInput
 } from '../customRules'
@@ -81,24 +80,16 @@ describe('rule validation', () => {
     }
   })
 
-  it('scopes a network rule to the saved domain and refuses to compile a conflicting one', () => {
-    expect(scopeNetworkRule('||cdn.example.invalid^', 'example.com')).toBe('||cdn.example.invalid^$domain=example.com')
-    expect(scopeNetworkRule('||cdn.example.invalid^$third-party', 'example.com')).toBe(
-      '||cdn.example.invalid^$third-party,domain=example.com'
-    )
-    expect(scopeNetworkRule('||cdn.example.invalid^$domain=other.com', 'example.com')).toBeUndefined()
-    expect(scopeNetworkRule('||cdn.example.invalid^$from=other.com', 'example.com')).toBeUndefined()
-  })
-
   it('finds the option boundary the engine uses, not an escaped dollar', () => {
     const value = '||cdn.example.invalid^$domain=other.com|foo\\$bar'
     expect(() => validateRuleInput({ domain: 'example.com', kind: 'network', value })).toThrow('domain')
-    expect(scopeNetworkRule(value, 'example.com')).toBeUndefined()
   })
 
-  it('appends the scope after the regex delimiter instead of inside the pattern', () => {
-    expect(scopeNetworkRule('/pixel$/', 'example.com')).toBe('/pixel$/$domain=example.com')
-    expect(scopeNetworkRule('/pixel/$third-party', 'example.com')).toBe('/pixel/$third-party,domain=example.com')
+  it('keeps a regex filter intact: its anchor is not an option separator', () => {
+    expect(validateRuleInput({ domain: 'example.com', kind: 'network', value: '/pixel$/' }).value).toBe('/pixel$/')
+    expect(validateRuleInput({ domain: 'example.com', kind: 'network', value: '/pixel/$third-party' }).value).toBe(
+      '/pixel/$third-party'
+    )
   })
 
   it('only allows the page host or its registrable domain as a scope', () => {
@@ -139,6 +130,15 @@ describe('CustomAdblockRuleStore', () => {
     await reopened.load()
     expect(reopened.list()).toHaveLength(1)
     expect(reopened.list()[0].value).toBe('.ad-banner')
+  })
+
+  it('keeps the saved note when the rule is added again without one', async () => {
+    await store.add({ domain: 'example.com', kind: 'cosmetic', value: '.ad', note: 'newsletter overlay' })
+    const again = await store.add({ domain: 'example.com', kind: 'cosmetic', value: '.ad' })
+
+    expect(again.existing).toBe(true)
+    expect(again.rule.note).toBe('newsletter overlay')
+    expect(store.list()[0].note).toBe('newsletter overlay')
   })
 
   it('removes and disables rules', async () => {

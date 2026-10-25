@@ -160,6 +160,46 @@ describe('AdblockService', () => {
     await (service as unknown as { onStop: () => Promise<void> }).onStop()
   })
 
+  it('keeps a rule whose option tail ends in an escape inside its saved domain', async () => {
+    const service = await startService()
+    await service.addCustomRule({
+      domain: 'zzz-escape.com',
+      kind: 'network',
+      value: '||tracker.zzz-test.com^$redirect=noopjs\\',
+      source: 'ai'
+    })
+
+    expect(
+      isBlockedByAdblock(request('https://tracker.zzz-test.com/pixel.js', 'script', 'https://www.zzz-escape.com/page'))
+    ).toBe(true)
+    expect(
+      isBlockedByAdblock(request('https://tracker.zzz-test.com/pixel.js', 'script', 'https://www.other.com/page'))
+    ).toBe(false)
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+  })
+
+  it('falls back to the initiator origin when the page sends no referrer', async () => {
+    const service = await startService()
+    await service.addCustomRule({
+      domain: 'zzz-test.com',
+      kind: 'network',
+      value: '||tracker.zzz-test.com^',
+      source: 'ai'
+    })
+    const noReferrer = (initiatorOrigin: string) =>
+      ({
+        url: 'https://tracker.zzz-test.com/pixel.js',
+        resourceType: 'script',
+        referrer: '',
+        initiatorOrigin,
+        method: 'GET'
+      }) as Electron.OnBeforeRequestListenerDetails
+
+    expect(isBlockedByAdblock(noReferrer('https://www.zzz-test.com'))).toBe(true)
+    expect(isBlockedByAdblock(noReferrer('https://www.other.com'))).toBe(false)
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+  })
+
   it('rejects a network rule that tries to pick its own scope', async () => {
     const service = await startService()
 

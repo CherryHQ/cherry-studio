@@ -92,9 +92,10 @@ function optionBoundary(rule: string): number {
 }
 
 /**
- * The stored rule is always scoped to its saved `domain`. A rule that carries
- * its own scope option (`domain`, `from`, `to`, including negated forms) would
- * apply wherever that option points, so it is rejected instead of rewritten.
+ * The stored rule is scoped by being compiled into its domain's own engine, so
+ * filter text can never widen it. A rule that carries its own scope option
+ * (`domain`, `from`, `to`, including negated forms) is still rejected: it would
+ * encode an intent the user did not ask for and could never match as intended.
  */
 function hasScopeOption(rule: string): boolean {
   const optionStart = optionBoundary(rule)
@@ -103,16 +104,6 @@ function hasScopeOption(rule: string): boolean {
     .slice(optionStart + 1)
     .split(',')
     .some((option) => SCOPE_OPTION_PATTERN.test(option))
-}
-
-/**
- * Pins a network rule to the domain it was saved under. Returns `undefined` for
- * a rule that carries a scope option: validation rejects those, and compiling
- * one would let the filter escape its stored scope.
- */
-export function scopeNetworkRule(value: string, domain: string): string | undefined {
-  if (hasScopeOption(value)) return undefined
-  return optionBoundary(value) === -1 ? `${value}$domain=${domain}` : `${value},domain=${domain}`
 }
 
 /**
@@ -230,7 +221,9 @@ export function validateRuleInput(input: NewCustomAdblockRule): NewCustomAdblock
     ...input,
     domain: normalizeDomain(input.domain),
     value: input.kind === 'cosmetic' ? validateCosmeticSelector(input.value) : validateNetworkRule(input.value),
-    note: (input.note ?? '').trim().slice(0, MAX_NOTE_LENGTH),
+    // Keep omission distinct from an explicit empty note: re-adding a rule
+    // without one must not erase what the user wrote the first time.
+    note: input.note === undefined ? undefined : input.note.trim().slice(0, MAX_NOTE_LENGTH),
     source: input.source ?? 'manual'
   }
 }
