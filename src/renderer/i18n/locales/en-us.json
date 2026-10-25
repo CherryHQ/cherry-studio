@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "Failed to fetch the model",
   "paintings.req_error_no_balance": "Please check the validity of the token",
   "paintings.req_error_token": "Please check the validity of the token",
+  "paintings.request_timeout": "Request timeout (seconds)",
+  "paintings.request_timeout_tip": "Maximum wait for one image-generation request. Leave empty to use the default (10 minutes).",
   "paintings.revealing": "Revealing generated image",
   "paintings.safety_tolerance": "Safety Tolerance",
   "paintings.safety_tolerance_tip": "Higher = more permissive filter; 0 is strictest, 6 is most permissive",

@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "Không thể tải mô hình",
   "paintings.req_error_no_balance": "Vui lòng kiểm tra tính hợp lệ của mã thông báo",
   "paintings.req_error_token": "Vui lòng kiểm tra tính hợp lệ của mã thông báo",
+  "paintings.request_timeout": "Thời gian chờ yêu cầu (giây)",
+  "paintings.request_timeout_tip": "Thời gian chờ tối đa cho một yêu cầu tạo ảnh. Để trống để dùng giá trị mặc định (10 phút).",
   "paintings.revealing": "Tiết lộ hình ảnh đã tạo",
   "paintings.safety_tolerance": "Dung sai an toàn",
   "paintings.safety_tolerance_tip": "Cao hơn = bộ lọc dễ dãi hơn; 0 là nghiêm ngặt nhất, 6 là dễ dãi nhất",

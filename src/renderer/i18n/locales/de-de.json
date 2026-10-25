@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "Modell abrufen fehlgeschlagen",
   "paintings.req_error_no_balance": "Bitte Token-Gültigkeit überprüfen",
   "paintings.req_error_token": "Bitte Token-Gültigkeit überprüfen",
+  "paintings.request_timeout": "Anfrage-Timeout (Sekunden)",
+  "paintings.request_timeout_tip": "Maximale Wartezeit für eine Bildgenerierungsanfrage. Leer lassen, um den Standardwert (10 Minuten) zu verwenden.",
   "paintings.revealing": "Enthüllung des generierten Bildes",
   "paintings.safety_tolerance": "Sicherheitstoleranz",
   "paintings.safety_tolerance_tip": "Höher = permissiverer Filter; 0 ist am strengsten, 6 ist am permissivsten",

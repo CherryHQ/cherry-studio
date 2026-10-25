@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "Model alınamadı",
   "paintings.req_error_no_balance": "Lütfen tokenin geçerliliğini kontrol edin",
   "paintings.req_error_token": "Lütfen tokenin geçerliliğini kontrol edin",
+  "paintings.request_timeout": "İstek zaman aşımı (saniye)",
+  "paintings.request_timeout_tip": "Tek bir görsel oluşturma isteği için en fazla bekleme süresi. Varsayılan değeri (10 dakika) kullanmak için boş bırakın.",
   "paintings.revealing": "Oluşturulan görsel gösteriliyor",
   "paintings.safety_tolerance": "Güvenlik Toleransı",
   "paintings.safety_tolerance_tip": "Daha yüksek = daha toleranslı filtre; 0 en katı, 6 en toleranslı düzeydir",

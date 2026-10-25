@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "Échec de la récupération du modèle",
   "paintings.req_error_no_balance": "Veuillez vérifier la validité du jeton",
   "paintings.req_error_token": "Veuillez vérifier la validité du jeton",
+  "paintings.request_timeout": "Délai d'expiration (secondes)",
+  "paintings.request_timeout_tip": "Durée d'attente maximale pour une requête de génération d'image. Laisser vide pour utiliser la valeur par défaut (10 minutes).",
   "paintings.revealing": "Révélation de l'image générée",
   "paintings.safety_tolerance": "Tolérance de sécurité",
   "paintings.safety_tolerance_tip": "Plus élevé = filtre plus permissif ; 0 est le plus strict, 6 est le plus permissif",

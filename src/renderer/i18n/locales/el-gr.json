@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "Αποτυχία λήψης μοντέλου",
   "paintings.req_error_no_balance": "Ελέγξτε την εγκυρότητα του token",
   "paintings.req_error_token": "Ελέγξτε την εγκυρότητα του token",
+  "paintings.request_timeout": "Χρονικό όριο αιτήματος (δευτερόλεπτα)",
+  "paintings.request_timeout_tip": "Μέγιστος χρόνος αναμονής για ένα αίτημα δημιουργίας εικόνας. Αφήστε κενό για την προεπιλεγμένη τιμή (10 λεπτά).",
   "paintings.revealing": "Αποκάλυψη δημιουργημένης εικόνας",
   "paintings.safety_tolerance": "Ανοχή Ασφαλείας",
   "paintings.safety_tolerance_tip": "Υψηλότερο = πιο επιεικής φίλτρο· 0 είναι το πιο αυστηρό, 6 είναι το πιο επιεικές",

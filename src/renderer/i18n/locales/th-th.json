@@ -3071,6 +3071,8 @@
   "paintings.req_error_model": "ไม่สามารถดึงโมเดล",
   "paintings.req_error_no_balance": "กรุณาตรวจสอบความถูกต้องของโทเค็น",
   "paintings.req_error_token": "กรุณาตรวจสอบความถูกต้องของโทเค็น",
+  "paintings.request_timeout": "หมดเวลาคำขอ (วินาที)",
+  "paintings.request_timeout_tip": "เวลารอสูงสุดสำหรับคำขอสร้างภาพหนึ่งครั้ง เว้นว่างเพื่อใช้ค่าเริ่มต้น (10 นาที)",
   "paintings.revealing": "กำลังแสดงรูปภาพที่สร้าง",
   "paintings.safety_tolerance": "ระดับความยืดหยุ่นของตัวกรองความปลอดภัย",
   "paintings.safety_tolerance_tip": "สูงกว่า = ตัวกรองผ่อนปรนมากขึ้น 0 = เข้มงวดที่สุด, 6 = ผ่อนปรนที่สุด",
