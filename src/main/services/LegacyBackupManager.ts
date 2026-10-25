@@ -1801,7 +1801,16 @@ class BackupManager {
     sourcePath: string,
     options: CopyDirOptions
   ): Promise<EffectiveEntryStats | null> {
-    const stats = await fs.lstat(sourcePath)
+    let stats: Stats
+    try {
+      stats = await fs.lstat(sourcePath)
+    } catch (error) {
+      // A writer that stages a file beside its target and renames it can drop that staging entry
+      // between this walk's readdir and its stat. The file is gone, so it cannot belong to the
+      // snapshot: skip it instead of failing the whole backup.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
 
     if (!stats.isSymbolicLink()) {
       return { isSymlink: false, stats }

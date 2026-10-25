@@ -1236,6 +1236,63 @@ describe('backgroundTasks', () => {
       },
       40_000
     )
+
+    // A worker can detach before any scan: the command starts it and exits immediately, so no pulse
+    // ever sees the parent tie and no identity reaches the ledger. Its row is all that is left, and
+    // `ps` prints no environment for it — an absent marker there is not an exit.
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'keeps a worker that detached before it could be observed',
+      async () => {
+        const pidFile = path.join(storageDir, 'immediate.pid')
+        // New session, closed extra descriptors, redirected stdio, empty environment, and a parent
+        // that exits with it: every channel the task could be watched through is gone in the same
+        // instant the worker appears, before a single ownership pulse can run.
+        const command = `python3 -c "import subprocess,sys; p=subprocess.Popen(['/bin/sleep','60'], start_new_session=True, close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={}); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"`
+        const record = await startDetachedBackgroundTask({ storageDir, command, cwd: storageDir })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(isPidAlive(workerPid)).toBe(true)
+            },
+            { timeout: 10_000 }
+          )
+          // Long enough for a task that misread the empty marker as an exit to publish its
+          // completion and its sentinel.
+          await new Promise((resolve) => setTimeout(resolve, 1_500))
+
+          const [settled] = await listDetachedBackgroundTasks(storageDir)
+          expect(settled.status).toBe('running')
+          expect(isPidAlive(workerPid)).toBe(true)
+          await expect(hasLiveTaskEvidence(storageDir, settled)).resolves.toBe(true)
+          expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toEqual([])
+
+          // The worker cannot be named, so a stop may not claim a termination it never verified:
+          // the record stays live instead of handing the survivor to a purge.
+          const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(stopped?.status).toBe('running')
+          expect(stopped?.terminationUnverified).toBe(true)
+          expect(isPidAlive(workerPid)).toBe(true)
+
+          // The survivor leaving is the only thing that ends the task.
+          process.kill(workerPid, 'SIGKILL')
+          await vi.waitFor(
+            async () => {
+              expect((await readdir(storageDir)).some((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toBe(true)
+            },
+            { timeout: 15_000 }
+          )
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+        }
+      },
+      40_000
+    )
   })
 
   // A pgid outlives the group it names: once the task's own members have drained from it the OS

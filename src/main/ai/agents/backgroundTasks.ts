@@ -802,7 +802,16 @@ const start = () => {
         if (!parent) {
           if (jobAdmits(row.pid)) keep.add(row.pid)
         } else if (row.ppid === shellPid) {
-          if (parent.created === stamps.shellCreatedAt || createdBefore(row.created, parent.created)) keep.add(row.pid)
+          if (parent.created === stamps.shellCreatedAt) {
+            // The number names this task's verified shell, so only a row created after it can be
+            // its child. An older row was forked by whoever held the number before the shell — an
+            // unrelated orphan the reuse merely re-parented — and a matching number never adopts it.
+            if (row.created === parent.created || createdBefore(parent.created, row.created)) keep.add(row.pid)
+          } else if (createdBefore(row.created, parent.created)) {
+            // A stranger took the number: a row older than it cannot be the stranger's child, and
+            // only such a row stays attributable to the task's own orphan.
+            keep.add(row.pid)
+          }
         } else if (known.get(row.ppid) === parent.created || createdBefore(row.created, parent.created)) keep.add(row.pid)
       }
     }
@@ -819,7 +828,14 @@ const start = () => {
         // verified: a pid whose occupant now reads a different stamp is a stranger, and its
         // descendants belong to whatever the OS handed that pid to.
         const parent = byPid.get(row.ppid)
-        if (keep.has(row.ppid) && (!parent || known.get(row.ppid) === parent.created)) {
+        // A descendant is only extended through a parent it was created under: a row older than the
+        // verified occupant of its parent's number is an orphan of the previous holder, not its child.
+        if (
+          keep.has(row.ppid) &&
+          (!parent ||
+            (known.get(row.ppid) === parent.created &&
+              (row.created === parent.created || createdBefore(parent.created, row.created))))
+        ) {
           keep.add(row.pid)
           grew = true
         }
@@ -1157,12 +1173,83 @@ interface MarkerHolder {
 type MarkerRead = { status: 'unknown' } | { status: 'observable'; holders: MarkerHolder[] }
 
 /**
+ * Whether the table leaves a process of the task's shape unable to be ruled out. `ps` prints a
+ * process's environment only when it may, so a row with none is either a process with an empty
+ * environment or one this table cannot read. A same-user orphan started after the task began could
+ * be work that daemonized out of every other channel, and the marker's absence on such a row
+ * proves nothing — the probe's own environment being visible says nothing about that row's. A row
+ * whose identity the ledger already holds is accounted for and is not ambiguous.
+ */
+function hasUnreadableEnvironmentCandidate(
+  table: string,
+  run: (args: string[], env: NodeJS.ProcessEnv) => string,
+  scan: NodeJS.ProcessEnv,
+  since: Date,
+  accounted: ReadonlySet<number>
+): boolean {
+  const uid = process.getuid?.()
+  if (uid === undefined) return true
+  let argvTable: string
+  let identityTable: string
+  try {
+    argvTable = run(['ww', '-Ao', 'pid=,command='], scan)
+    identityTable = run(['-axwwo', 'pid=,ppid=,uid=,state=,etime='], scan)
+  } catch {
+    return true
+  }
+  const envs = new Map<number, string>()
+  const argvs = new Map<number, string>()
+  for (const row of table.split('\n')) {
+    const trimmed = row.trim()
+    const pid = Number(trimmed.split(/\s+/)[0])
+    if (Number.isInteger(pid) && pid > 0) envs.set(pid, trimmed)
+  }
+  for (const row of argvTable.split('\n')) {
+    const trimmed = row.trim()
+    const pid = Number(trimmed.split(/\s+/)[0])
+    if (Number.isInteger(pid) && pid > 0) argvs.set(pid, trimmed)
+  }
+  // How old a process may be and still have started after this task did. `etime` is a duration, so
+  // it needs no clock or locale agreement with the wall time the task's start came from.
+  const taskAge = (Date.now() - since.getTime()) / 1_000
+  for (const row of identityTable.split('\n')) {
+    const fields = row.trim().split(/\s+/)
+    // pid, ppid, uid, state, then `etime`.
+    if (fields.length < 5) continue
+    const pid = Number(fields[0])
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid || accounted.has(pid)) continue
+    if (Number(fields[1]) !== 1 || Number(fields[2]) !== uid) continue
+    if (fields[3].startsWith('Z')) continue
+    const age = elapsedSeconds(fields[4])
+    if (age === null || age > taskAge + 2) continue
+    const envRow = envs.get(pid)
+    const argvRow = argvs.get(pid)
+    if (!envRow || !argvRow) continue
+    // The environment section starts after the argv; nothing after it means none was printed.
+    if (envRow === argvRow) return true
+  }
+  return false
+}
+
+/** `ps`'s `etime` — `[[DD-]HH:]MM:SS` — in seconds. */
+function elapsedSeconds(value: string): number | null {
+  const match = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$/.exec(value)
+  if (!match) return null
+  return Number(match[1] ?? 0) * 86_400 + Number(match[2] ?? 0) * 3_600 + Number(match[3]) * 60 + Number(match[4])
+}
+
+/**
  * The app-side twin of `POSIX_MARKER_PROBE_SOURCE`, which the detached supervisor runs in its own
  * process. Both must read ownership the same way: exact environment membership, no answer at all
  * when the table cannot show environments, and never the anchor itself — it carries the marker to
  * pass it on, and it is the observer the stop must not destroy.
  */
-function readMarkerProcesses(taskId: string, anchorPid: number): MarkerRead {
+function readMarkerProcesses(
+  taskId: string,
+  anchorPid: number,
+  since: Date,
+  accounted: ReadonlySet<number>
+): MarkerRead {
   if (process.platform === 'win32') return { status: 'unknown' }
   const marker = `${BACKGROUND_TASK_MARKER_ENV}=${taskId}`
   const nonce = randomUUID()
@@ -1196,6 +1283,9 @@ function readMarkerProcesses(taskId: string, anchorPid: number): MarkerRead {
     if (!lstart) return { status: 'unknown' }
     holders.push({ pid, lstart })
   }
+  // A marker that cannot be read on a row the task could own is no answer at all: a worker that
+  // escaped before any scan and shows no environment would otherwise read as an exit.
+  if (hasUnreadableEnvironmentCandidate(table, run, scan, since, accounted)) return { status: 'unknown' }
   return { status: 'observable', holders }
 }
 
@@ -1205,8 +1295,9 @@ function readMarkerProcesses(taskId: string, anchorPid: number): MarkerRead {
  * into the identity ledger, so its later disappearance from the table still leaves a pid and stamp
  * to re-check. The marker is only ever positive evidence — its absence is not proof of exit.
  */
-async function hasUnsettledWork(storageDir: string, taskId: string, anchorPid: number): Promise<boolean> {
-  const read = readMarkerProcesses(taskId, anchorPid)
+async function hasUnsettledWork(storageDir: string, taskId: string, anchorPid: number, since: Date): Promise<boolean> {
+  const accounted = new Set((await readRecordedMembers(storageDir, taskId)).map((member) => member.pid))
+  const read = readMarkerProcesses(taskId, anchorPid, since, accounted)
   if (read.status !== 'observable') return true
   if (read.holders.length > 0) {
     void recordObservedMembers(storageDir, taskId, read.holders)
@@ -1221,10 +1312,18 @@ async function hasUnsettledWork(storageDir: string, taskId: string, anchorPid: n
  * works after a restart. The task's anchor is excluded: it carries the marker only to pass it on.
  * `unknown` when the table does not establish ownership either way — never a certification.
  */
-async function killMarkerSurvivors(taskId: string, anchorPid: number): Promise<'clear' | 'survivors' | 'unknown'> {
+async function killMarkerSurvivors(
+  storageDir: string,
+  taskId: string,
+  anchorPid: number,
+  since: Date
+): Promise<'clear' | 'survivors' | 'unknown'> {
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
   while (true) {
-    const read = readMarkerProcesses(taskId, anchorPid)
+    // Identities the ledger already holds are accounted for, so their unreadable row is not
+    // ambiguous evidence and must not stop the sweep that is about to signal them.
+    const accounted = new Set((await readRecordedMembers(storageDir, taskId)).map((member) => member.pid))
+    const read = readMarkerProcesses(taskId, anchorPid, since, accounted)
     if (read.status === 'unknown') return 'unknown'
     if (read.holders.length === 0) return 'clear'
     for (const holder of read.holders) {
@@ -1374,7 +1473,7 @@ export async function startDetachedBackgroundTask(
         record.pid > 0 &&
         (groupHasLiveMember(record.pid) ||
           ownedTaskGroups.get(id)?.liveness?.open ||
-          (await hasUnsettledWork(input.storageDir, id, record.pid)))
+          (await hasUnsettledWork(input.storageDir, id, record.pid, new Date(record.startedAt))))
       ) {
         const poll = setTimeout(() => void settleThroughGroupDrain(), LEADERLESS_GROUP_POLL_MS)
         poll.unref?.()
@@ -1464,7 +1563,7 @@ export async function startDetachedBackgroundTask(
             // The group kill cannot reach a worker that left through setsid(), so an empty group
             // alone certifies nothing: the marker sweep, the identities recorded while that worker
             // was attributable, and the liveness pipe must all agree too.
-            if ((await killMarkerSurvivors(id, record.pid)) !== 'clear') {
+            if ((await killMarkerSurvivors(input.storageDir, id, record.pid, new Date(record.startedAt))) !== 'clear') {
               survivor = true
               throw new Error(`background task ${id} still holds marked workers after SIGKILL`)
             }
@@ -1712,7 +1811,7 @@ async function stopDetachedBackgroundTaskUnlocked(
   if (process.platform !== 'win32') {
     // The attributable sweep runs before the pipe wait: a marked worker that left the group can be
     // the very writer holding the pipe open, so waiting first would never reach it.
-    const markers = await killMarkerSurvivors(record.id, record.pid)
+    const markers = await killMarkerSurvivors(storageDir, record.id, record.pid, new Date(record.startedAt))
     if (markers === 'unknown') {
       const unverified: BackgroundTaskRecord = { ...requested, terminationUnverified: true }
       await writeRecord(storageDir, unverified)
@@ -1914,7 +2013,8 @@ export async function hasLiveGroupEvidence(storageDir: string, record: Backgroun
   // The inherited marker names work that left the group and closed its descriptors. A table that
   // cannot show environments is not evidence that the work is gone, and a holder it does name is
   // recorded so its identity outlives the environment the table showed it in.
-  const markers = readMarkerProcesses(record.id, record.pid)
+  const accounted = new Set((await readRecordedMembers(storageDir, record.id)).map((member) => member.pid))
+  const markers = readMarkerProcesses(record.id, record.pid, new Date(record.startedAt), accounted)
   if (markers.status === 'unknown') return true
   if (markers.holders.length > 0) {
     void recordObservedMembers(storageDir, record.id, markers.holders)
@@ -2395,6 +2495,10 @@ async function reconcileDetachedBackgroundTask(
       note: t('background_task.note.stopped_no_event')
     }
   }
+  // A worker that daemonized before any scan left no identity to re-check, so a row this table
+  // cannot read is the only evidence there is. Folding here would give up the status Stop/Kill
+  // accepts while that work goes on.
+  if (process.platform !== 'win32' && (await hasLiveGroupEvidence(storageDir, record))) return record
   return {
     ...record,
     status: 'unknown',

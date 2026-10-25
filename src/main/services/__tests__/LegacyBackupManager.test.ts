@@ -1644,6 +1644,40 @@ describe('BackupManager.copyDirWithProgress', () => {
     )
   })
 
+  it('should skip a staging file that vanished between enumeration and stat', async () => {
+    // A writer that stages beside its target and renames removes the staging name after this walk
+    // may already have enumerated it, so lstat answers ENOENT. The file is gone and cannot belong
+    // to the snapshot: skipping it keeps one rename from aborting the whole backup.
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('task.json'), createDirent('task.pids.4242.tmp')] as never)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      if (String(entryPath).endsWith('.tmp')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return createStats('file', 7) as never
+    })
+
+    const onProgress = vi.fn()
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, { dereferenceSymlinks: true })
+    ).resolves.toBeUndefined()
+
+    expect(fs.copy).toHaveBeenCalledTimes(1)
+    expect(fs.copy).toHaveBeenCalledWith('/src/task.json', '/dest/task.json')
+    expect(onProgress).toHaveBeenCalledWith(7)
+  })
+
+  it('should not fail the size scan when a staging file vanishes', async () => {
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('task.json'), createDirent('task.pids.4242.tmp')] as never)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      if (String(entryPath).endsWith('.tmp')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return createStats('file', 7) as never
+    })
+
+    await expect((backupManager as any).getDirSize('/src', { dereferenceSymlinks: true })).resolves.toBe(7)
+  })
+
   it('should preserve normal file and directory copy behavior', async () => {
     vi.mocked(fs.readdir).mockImplementation(async (dir) => {
       const dirPath = String(dir)

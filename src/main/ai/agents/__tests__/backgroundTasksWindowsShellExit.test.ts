@@ -39,6 +39,8 @@ const TABLE_HEADER = '"ProcessId","ParentProcessId","CreationDate"'
  * 10:00:00 is the ordering hazard this guards: read as text, `9:59:59` sorts after `10:00:00`.
  */
 const SPAWN_STAMP = '639281447900000000' // 2026-10-21 09:59:50 local
+/** Older than the shell: an orphan that already existed when the shell took its number. */
+const BEFORE_SHELL_STAMP = '639281447800000000'
 const ORPHAN_STAMP = '639281447950000000' // 2026-10-21 09:59:55 local
 const REUSED_STAMP = '639281447990000000' // 2026-10-21 09:59:59 local
 const REUSED_CHILD_STAMP = '639281448000000000' // 2026-10-21 10:00:00 local
@@ -455,6 +457,49 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     expect(requested.flat()).not.toContain('300')
     expect(requested.some((args) => args.includes(String(record.pid)))).toBe(true)
     expect(onExit).toHaveBeenCalledTimes(1)
+  }, 20_000)
+
+  it('does not adopt an orphan whose creation predates the shell that reused its parent pid', async () => {
+    // Windows leaves an orphan's parent number untouched when its parent dies, so the number this
+    // task's shell later took can still name the shell on a row that predates it. Such a row was
+    // forked by whoever held the number before the shell: adopting it puts an unrelated process on
+    // the stop's taskkill list.
+    const onExit = vi.fn()
+    const requested: string[][] = []
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(
+      [TABLE_HEADER, `"${shellPid}","4","${SPAWN_STAMP}"`, `"424242","${shellPid}","${BEFORE_SHELL_STAMP}"`].join(
+        '\n'
+      ) + '\n'
+    )
+
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+    // Several polls' worth: a walk that trusts the parent number alone records it by then.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(await readKnownPids()).not.toContain(424_242)
+
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      const called = args[1] as string[]
+      requested.push(called)
+      // The task's own shell is the only thing the stop may reach; once it dies the table drains.
+      writeFileSync(fakeTable, `${TABLE_HEADER}\n`)
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    expect(requested.flat()).not.toContain('424242')
   }, 20_000)
 
   it('adopts a child across an absent parent only while the job holds it', async () => {
