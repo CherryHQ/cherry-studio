@@ -496,15 +496,23 @@ const CodeViewer = ({
   })
   const virtualizer = expanded && scrollParent === null ? windowVirtualizer : elementVirtualizer
 
-  // measure() drops every cached size and mounted rows never re-run measureElement;
-  // rebuild from estimates, then reseed mounted rows with their real heights.
+  // measure() drops every cached size and mounted rows never re-run measureElement, so seed
+  // the rebuild from the DOM. Real deltas apply first; after measure() they are estimate error.
   const remeasureRows = useCallback(() => {
     const scroller = scrollerRef.current
     if (!scroller || capture) return
+    const rows = [...scroller.querySelectorAll<HTMLElement>('[data-index]')].map(
+      (element) => [Number(element.dataset.index), element.offsetHeight] as const
+    )
+    for (const [index, height] of rows) virtualizer.resizeItem(index, height)
     virtualizer.measure()
     virtualizer.getTotalSize()
-    for (const element of scroller.querySelectorAll<HTMLElement>('[data-index]')) {
-      virtualizer.resizeItem(Number(element.dataset.index), element.offsetHeight)
+    const adjustBefore = virtualizer.shouldAdjustScrollPositionOnItemSizeChange
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false
+    try {
+      for (const [index, height] of rows) virtualizer.resizeItem(index, height)
+    } finally {
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = adjustBefore
     }
     // React commits after paint; sync the height now so the reflowed rows cannot
     // flash a scrollbar for a frame.

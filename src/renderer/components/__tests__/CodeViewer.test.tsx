@@ -76,6 +76,35 @@ afterEach(() => {
   }
 })
 
+function stubResizeObserver() {
+  const original = globalThis.ResizeObserver
+  const observers: Array<{ callback: ResizeObserverCallback; targets: Set<Element> }> = []
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      private record: { callback: ResizeObserverCallback; targets: Set<Element> }
+
+      constructor(callback: ResizeObserverCallback) {
+        this.record = { callback, targets: new Set() }
+        observers.push(this.record)
+      }
+
+      observe(target: Element) {
+        this.record.targets.add(target)
+      }
+
+      unobserve(target: Element) {
+        this.record.targets.delete(target)
+      }
+
+      disconnect() {
+        this.record.targets.clear()
+      }
+    }
+  )
+  return { observers, restore: () => vi.stubGlobal('ResizeObserver', original) }
+}
+
 describe('CodeViewer', () => {
   it.each(['data-url', 'blob', 'failure', 'offscreen-highlighted'] as const)(
     'captures every source line and restores virtualization after %s',
@@ -463,31 +492,7 @@ describe('CodeViewer', () => {
   })
 
   it('keeps mounted rows measured when the scroller width changes', () => {
-    const OriginalResizeObserver = globalThis.ResizeObserver
-    const observers: Array<{ callback: ResizeObserverCallback; targets: Set<Element> }> = []
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        private record: { callback: ResizeObserverCallback; targets: Set<Element> }
-
-        constructor(callback: ResizeObserverCallback) {
-          this.record = { callback, targets: new Set() }
-          observers.push(this.record)
-        }
-
-        observe(target: Element) {
-          this.record.targets.add(target)
-        }
-
-        unobserve(target: Element) {
-          this.record.targets.delete(target)
-        }
-
-        disconnect() {
-          this.record.targets.clear()
-        }
-      }
-    )
+    const { observers, restore } = stubResizeObserver()
 
     // Two visual lines as far as layout is concerned, one estimated line at either width.
     const wrappedLine = 'x'.repeat(70)
@@ -527,7 +532,43 @@ describe('CodeViewer', () => {
       })
       expect(list.style.height).toBe('84px')
     } finally {
-      vi.stubGlobal('ResizeObserver', OriginalResizeObserver)
+      restore()
+      clientWidth = 640
+    }
+  })
+
+  it('keeps a scrolled viewer anchored while remeasuring on width changes', () => {
+    const { observers, restore } = stubResizeObserver()
+
+    // 30 short lines: every row measures 63px but estimates a single 21px line at both widths.
+    measuredRowHeight = () => 63
+    try {
+      const { container } = render(
+        <CodeViewer
+          value={Array.from({ length: 30 }, () => 'x'.repeat(10)).join('\n')}
+          language="text"
+          expanded={false}
+          height={300}
+          wrapped
+        />
+      )
+      const scroller = container.querySelector<HTMLElement>('.shiki-scroller')!
+      const probe = container.querySelector<HTMLElement>('[data-width-probe]')!
+      const list = container.querySelector<HTMLElement>('.shiki-list')!
+      scroller.scrollTop = 450
+      fireEvent.scroll(scroller)
+
+      const widthObservers = observers.filter((observer) => observer.targets.has(probe))
+      expect(widthObservers.length).toBeGreaterThan(0)
+      clientWidth = 610
+      act(() => {
+        for (const observer of widthObservers) observer.callback([], {} as ResizeObserver)
+        expect(list.style.height).toBe('1890px')
+      })
+      expect(scroller.scrollTop).toBe(450)
+      expect(list.style.height).toBe('1890px')
+    } finally {
+      restore()
       clientWidth = 640
     }
   })
