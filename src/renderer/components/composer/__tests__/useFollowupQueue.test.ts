@@ -2054,11 +2054,13 @@ describe('useFollowupQueue', () => {
     })
     await act(async () => {})
 
-    const releasesForCopy = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>)
-      .filter((c) => c[0].body.id === heldCopyId && c[0].body.held === false).length
+    const releasesForCopy = (
+      postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+    ).filter((c) => c[0].body.id === heldCopyId && c[0].body.held === false).length
     expect(releasesForCopy).toBe(0)
-    const closesForCopy = (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>)
-      .filter((c) => c[0].params?.id === heldCopyId).length
+    const closesForCopy = (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>).filter(
+      (c) => c[0].params?.id === heldCopyId
+    ).length
     expect(closesForCopy).toBeGreaterThanOrEqual(1)
   })
 
@@ -2114,8 +2116,9 @@ describe('useFollowupQueue', () => {
         await vi.advanceTimersByTimeAsync(60 * 1000)
       })
       expect(postTrigger).toHaveBeenCalledTimes(3)
-      const closesForCopy = (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>)
-        .filter((c) => c[0].params?.id === restoreId).length
+      const closesForCopy = (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>).filter(
+        (c) => c[0].params?.id === restoreId
+      ).length
       expect(closesForCopy).toBeGreaterThanOrEqual(1)
     } finally {
       vi.useRealTimers()
