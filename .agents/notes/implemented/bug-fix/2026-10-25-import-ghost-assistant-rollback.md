@@ -26,7 +26,7 @@ Importing conversations through Settings → Data → 导入外部应用数据 c
 
 ## Consequences
 
-A failed import is side-effect free in every reachable failure path (validate, parse, create-assistant, mid-persist), including concurrent deletes/archives from other windows. The rollback is best-effort: if a cleanup call fails for a non-not-found reason, the leftover is logged (warn/error) instead of being silently dropped, but the import still reports its own failure. Repeated imports of the same file still create one assistant per successful import (no dedup) — unchanged behavior, out of scope here.
+Parse-stage failures write nothing. Persistence-stage failures roll back best-effort: every reachable path attempts full cleanup, including concurrent deletes/archives from other windows, but the rollback itself can fail (a cleanup call erroring for a non-not-found reason leaves that object behind); such leftovers are logged at warn/error and never mask the import's own failure. Repeated imports of the same file still create one assistant per successful import (no dedup) — unchanged behavior, out of scope here.
 
 ## Verification
 
