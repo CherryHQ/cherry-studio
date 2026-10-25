@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "Failed to add data source",
   "knowledge.data_source.add_dialog.title": "Add Data Source",
-  "knowledge.data_source.add_dialog.too_many_sources": "You can add at most {{count}} sources at a time. Reduce your selection and try again.",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Skipped {{count}} unsupported file(s)",
   "knowledge.data_source.add_dialog.url.description": "Enter a webpage URL:",
   "knowledge.data_source.add_dialog.url.help": "Page text will be fetched, chunked, and indexed automatically",

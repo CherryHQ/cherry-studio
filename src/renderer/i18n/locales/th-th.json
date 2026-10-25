@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "ไม่สามารถเพิ่มแหล่งข้อมูล",
   "knowledge.data_source.add_dialog.title": "เพิ่มแหล่งข้อมูล",
-  "knowledge.data_source.add_dialog.too_many_sources": "คุณสามารถเพิ่มได้สูงสุด {{count}} แหล่งข้อมูลในครั้งเดียว ลดการเลือกแล้วลองอีกครั้ง",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "ข้าม {{count}} ไฟล์ที่ไม่รองรับ",
   "knowledge.data_source.add_dialog.url.description": "ป้อน URL หน้าเว็บ:",
   "knowledge.data_source.add_dialog.url.help": "ข้อความในหน้าจะถูกดึงมา แบ่งส่วน และทำดัชนีโดยอัตโนมัติ",

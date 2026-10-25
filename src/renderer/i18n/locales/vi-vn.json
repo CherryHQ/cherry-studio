@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "Không thể thêm nguồn dữ liệu",
   "knowledge.data_source.add_dialog.title": "Thêm Nguồn Dữ Liệu",
-  "knowledge.data_source.add_dialog.too_many_sources": "Bạn chỉ có thể thêm tối đa {{count}} nguồn cùng lúc. Giảm bớt lựa chọn và thử lại.",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Đã bỏ qua {{count}} tệp không được hỗ trợ",
   "knowledge.data_source.add_dialog.url.description": "Nhập URL của trang web:",
   "knowledge.data_source.add_dialog.url.help": "Văn bản trang sẽ được tải, chia nhỏ và lập chỉ mục tự động",
