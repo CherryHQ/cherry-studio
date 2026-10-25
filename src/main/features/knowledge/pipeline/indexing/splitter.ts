@@ -257,24 +257,65 @@ function addLiteralBreaks(
   }
 }
 
+/** A list-item marker (`- `, `* `, `+ `, `1. `, `2) `) usable as a container prefix. */
+const LIST_MARKER = /^(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/
+
+/**
+ * Index of the fence candidate on a container line: skip up to three leading
+ * spaces, then any number of blockquote (`> `) or list (`- `, `1. `) container
+ * prefixes. Parsed by hand rather than with one regex, because a nested
+ * repetition of prefix alternatives backtracks catastrophically on long
+ * non-fence prefix runs (a line of `> > > …` text).
+ *
+ * Container-prefixed fences are valid Markdown — quoted shell snippets in
+ * particular — and missing one lets its literal `$$` open a false display-math
+ * region that swallows the rest of the document.
+ */
+function skipContainerPrefix(line: string): number {
+  let index = 0
+  for (;;) {
+    let spaces = 0
+    while (spaces < 3 && line[index] === ' ') {
+      spaces += 1
+      index += 1
+    }
+    if (line[index] === '>') {
+      index += 1
+      if (line[index] === ' ' || line[index] === '\t') {
+        index += 1
+      }
+      continue
+    }
+    const marker = LIST_MARKER.exec(line.slice(index))
+    if (!marker) {
+      return index
+    }
+    index += marker[0].length
+  }
+}
+
 /** Pair backtick and tilde fences into regions; an unclosed fence extends to end of text. */
 function findCodeFences(text: string): AtomicRegion[] {
   const regions: AtomicRegion[] = []
   let open: { start: number; char: string; length: number } | null = null
+  let offset = 0
 
-  // `^` catches a fence at offset zero; the other alternative catches indented line starts.
-  for (const match of text.matchAll(/(?:^|\n)[ ]{0,3}(`{3,}|~{3,})/g)) {
-    const marker = match[1]
-    const fenceStart = (match.index ?? 0) + match[0].length - marker.length
-    const char = marker[0]
-    const length = marker.length
+  for (const line of text.split('\n')) {
+    const markerIndex = skipContainerPrefix(line)
+    const marker = /^(`{3,}|~{3,})/.exec(line.slice(markerIndex))
+    if (marker) {
+      const fenceStart = offset + markerIndex
+      const char = marker[1][0]
+      const length = marker[1].length
 
-    if (open === null) {
-      open = { start: fenceStart, char, length }
-    } else if (char === open.char && length >= open.length) {
-      regions.push({ start: open.start, end: fenceStart + length, kind: 'code' })
-      open = null
+      if (open === null) {
+        open = { start: fenceStart, char, length }
+      } else if (char === open.char && length >= open.length) {
+        regions.push({ start: open.start, end: fenceStart + length, kind: 'code' })
+        open = null
+      }
     }
+    offset += line.length + 1
   }
   if (open !== null) {
     regions.push({ start: open.start, end: text.length, kind: 'code' })

@@ -439,6 +439,50 @@ describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
     }
   })
 
+  it('masks $$ inside a blockquote-prefixed fence at the start of the document', () => {
+    const text =
+      '> ~~~sh\n> echo $$\n> ~~~\n\n' + 'This is an ordinary sentence about knowledge retrieval. '.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+    // The whole quoted fence stays in one chunk (both markers plus its body),
+    // so the literal `$$` cannot open a display-math region over the prose.
+    const fenceChunk = chunks.find((chunk) => chunk.text.includes('echo $$'))
+    expect(fenceChunk?.text).toContain('> ~~~sh')
+    expect(fenceChunk?.text.match(/~~~/g)).toHaveLength(2)
+  })
+
+  it('masks $$ inside list-prefixed and nested blockquote fences', () => {
+    const fences: Array<[fence: string, opener: string, marker: string]> = [
+      ['- ~~~sh\n  echo $$\n  ~~~\n\n', '- ~~~sh', '~~~'],
+      ['1. ```sh\n   echo $$\n   ```\n\n', '1. ```sh', '```'],
+      ['> > ```sh\n> > echo $$\n> > ```\n\n', '> > ```sh', '```']
+    ]
+
+    for (const [fence, opener, marker] of fences) {
+      const text = fence + 'This is an ordinary sentence about knowledge retrieval. '.repeat(1000)
+      const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+      expect(chunks.length).toBeGreaterThan(5)
+      expectVerbatimSlices(text, chunks)
+      for (const [index, chunk] of chunks.entries()) {
+        expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+        // Prose after the fence must still split on sentence boundaries; a false
+        // display-math region would force mid-sentence hard cuts instead.
+        if (index > 0 && index < chunks.length - 1) {
+          expect(chunk.text.endsWith('.')).toBe(true)
+        }
+      }
+      const fenceChunk = chunks.find((chunk) => chunk.text.includes(opener))
+      expect(fenceChunk?.text).toContain('echo $$')
+      expect(fenceChunk?.text.match(new RegExp(marker, 'g'))).toHaveLength(2)
+    }
+  })
+
   it('masks $$ inside a four-space-indented code block', () => {
     const text =
       'Paragraph.\n\n    echo $$\n\n' + 'This is an ordinary sentence about knowledge retrieval. '.repeat(1000)
