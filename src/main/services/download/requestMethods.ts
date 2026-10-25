@@ -11,10 +11,13 @@ interface Entry {
 interface PendingRequest {
   url: string
   method: string
+  /** Electron session partition that issued the request; request ids are per session. */
+  scope: string
 }
 
 /**
- * Remembers the HTTP method of recent requests in one session.
+ * Remembers the HTTP method of recent requests, scoped to the session that
+ * issued them.
  *
  * Electron's `DownloadItem` exposes the URL but not the request method, and the
  * download manager re-issues every transfer with `session.fetch`. A POST-triggered
@@ -26,11 +29,18 @@ interface PendingRequest {
  * the process. In-flight requests live in a separate map that is never aged out
  * or evicted by the history limit: a long POST can outlive both, and its
  * attachment must still be recognised as non-replayable when it finally arrives.
+ *
+ * Request ids are only unique within an Electron session, and several webview
+ * partitions share this instance (agent browser, dev preview, HTML artifact …),
+ * each counting ids from its own origin. The pending map is therefore keyed by
+ * `(scope, id)` and `methodFor` only consults its own scope: otherwise one
+ * partition's completion would drop another partition's POST attribution, which
+ * is exactly the eviction failure the pending map exists to prevent.
  */
 export class RequestMethods {
   private readonly entries = new Map<string, Entry>()
-  /** Requests that have not completed, keyed by Electron's request id. */
-  private readonly pending = new Map<number, PendingRequest>()
+  /** Requests that have not completed, keyed by `${scope}\0${request id}`. */
+  private readonly pending = new Map<string, PendingRequest>()
 
   constructor(
     private readonly limit = DEFAULT_LIMIT,
@@ -38,11 +48,11 @@ export class RequestMethods {
     private readonly now: () => number = Date.now
   ) {}
 
-  record(url: string, method: string | undefined, requestId?: number): void {
+  record(url: string, method: string | undefined, requestId?: number, scope = ''): void {
     if (!method) return
     const upper = method.toUpperCase()
     const now = this.now()
-    if (requestId !== undefined) this.pending.set(requestId, { url, method: upper })
+    if (requestId !== undefined) this.pending.set(pendingKey(scope, requestId), { url, method: upper, scope })
     const existing = this.entries.get(url)
     if (existing && now - existing.at <= this.ttlMs) {
       existing.at = now
@@ -54,8 +64,15 @@ export class RequestMethods {
   }
 
   /** A request that completed or failed can no longer deliver an attachment. */
-  finish(requestId: number): void {
-    this.pending.delete(requestId)
+  finish(requestId: number, scope = ''): void {
+    this.pending.delete(pendingKey(scope, requestId))
+  }
+
+  /** Drop every outstanding request of a session whose listeners are going away. */
+  forgetScope(scope: string): void {
+    for (const [key, pending] of this.pending) {
+      if (pending.scope === scope) this.pending.delete(key)
+    }
   }
 
   /**
@@ -68,13 +85,13 @@ export class RequestMethods {
    * therefore still belongs to the manager; any other method leaves the URL
    * ambiguous, so a POST attachment stays with Electron.
    *
-   * An outstanding request with a body outranks the history: the POST record may
-   * have expired or been evicted while the response was still on its way, and
-   * replaying that attachment as GET would drop the body.
+   * An outstanding request with a body in the same session outranks the history:
+   * the POST record may have expired or been evicted while the response was
+   * still on its way, and replaying that attachment as GET would drop the body.
    */
-  methodFor(url: string): string | undefined {
+  methodFor(url: string, scope = ''): string | undefined {
     for (const pending of this.pending.values()) {
-      if (pending.url === url && !isReplayableDownload(pending.method)) return undefined
+      if (pending.scope === scope && pending.url === url && !isReplayableDownload(pending.method)) return undefined
     }
     const entry = this.entries.get(url)
     if (!entry) return undefined
@@ -120,4 +137,8 @@ export const browserRequestMethods = new RequestMethods()
  */
 export function isReplayableDownload(method: string | undefined): boolean {
   return method === 'GET' || method === 'HEAD'
+}
+
+function pendingKey(scope: string, requestId: number): string {
+  return `${scope}\0${requestId}`
 }

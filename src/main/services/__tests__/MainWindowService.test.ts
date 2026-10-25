@@ -871,7 +871,12 @@ describe('MainWindowService', () => {
       handler({ url: 'https://example.com/export', resourceType: 'mainFrame', method: 'POST' }, callback)
 
       expect(callback).toHaveBeenCalledWith({ cancel: false })
-      expect(browserRequestMethods.methodFor('https://example.com/export')).toBe('POST')
+      expect(
+        browserRequestMethods.methodFor(
+          'https://example.com/export',
+          getWebviewPartition(WebviewSecurityProfile.AgentBrowser)
+        )
+      ).toBe('POST')
     })
 
     it('stops tracking an outstanding request once Chromium reports its outcome', async () => {
@@ -885,15 +890,16 @@ describe('MainWindowService', () => {
 
       const finish = vi.spyOn(browserRequestMethods, 'finish')
       const record = vi.spyOn(browserRequestMethods, 'record')
+      const partition = getWebviewPartition(WebviewSecurityProfile.AgentBrowser)
       try {
         requestHandler({ url: 'https://example.com/export', resourceType: 'mainFrame', method: 'POST', id: 1 }, vi.fn())
-        expect(record).toHaveBeenCalledWith('https://example.com/export', 'POST', 1)
+        expect(record).toHaveBeenCalledWith('https://example.com/export', 'POST', 1, partition)
 
         completedHandler({ id: 1, url: 'https://example.com/export' })
-        expect(finish).toHaveBeenCalledWith(1)
+        expect(finish).toHaveBeenCalledWith(1, partition)
 
         failedHandler({ id: 2, url: 'https://example.com/export', error: 'net::ERR_ABORTED' })
-        expect(finish).toHaveBeenCalledWith(2)
+        expect(finish).toHaveBeenCalledWith(2, partition)
       } finally {
         finish.mockRestore()
         record.mockRestore()

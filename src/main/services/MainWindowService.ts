@@ -406,7 +406,7 @@ export class MainWindowService extends BaseService {
       // this listener must stay the only one on the session: record here rather
       // than letting another module replace the policy. The request id keeps a
       // long-running POST attributed until its completion or error arrives.
-      browserRequestMethods.record(details.url, details.method, details.id)
+      browserRequestMethods.record(details.url, details.method, details.id, partition)
       try {
         const result = isAllowed(details)
         if (typeof result === 'boolean') {
@@ -424,10 +424,10 @@ export class MainWindowService extends BaseService {
     // Stop tracking outstanding requests once Chromium reports their outcome;
     // otherwise a finished POST would keep blocking manager takeovers forever.
     restrictedSession.webRequest.onCompleted({ urls: ['<all_urls>'] }, (details) => {
-      browserRequestMethods.finish(details.id)
+      browserRequestMethods.finish(details.id, partition)
     })
     restrictedSession.webRequest.onErrorOccurred({ urls: ['<all_urls>'] }, (details) => {
-      browserRequestMethods.finish(details.id)
+      browserRequestMethods.finish(details.id, partition)
     })
 
     this.registerDisposable(() => {
@@ -437,6 +437,10 @@ export class MainWindowService extends BaseService {
       restrictedSession.webRequest.onBeforeRequest(null)
       restrictedSession.webRequest.onCompleted(null)
       restrictedSession.webRequest.onErrorOccurred(null)
+      // No completion event will arrive for requests still in flight once the
+      // listeners are gone; drop them so a recycled request id cannot be taken
+      // for a live POST later.
+      browserRequestMethods.forgetScope(partition)
       clearPolicy?.()
     })
   }

@@ -158,7 +158,7 @@ export class BrowserSessionService extends BaseService {
         const manager = this.downloadManager()
         // No manager in this build: leave the item on Electron's own path.
         if (!manager) return
-        const method = browserRequestMethods.methodFor(url)
+        const method = browserRequestMethods.methodFor(url, partition)
         if (!isReplayableDownload(method)) {
           logger.info('Leaving non-replayable download with Electron', { url, method })
           return

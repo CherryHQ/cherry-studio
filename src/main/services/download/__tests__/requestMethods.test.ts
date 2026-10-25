@@ -87,6 +87,33 @@ describe('RequestMethods', () => {
     expect(methods.methodFor('https://example.com/export')).toBe('POST')
   })
 
+  it('keeps pending attribution per session when numeric request ids collide', () => {
+    let now = 0
+    const methods = new RequestMethods(4, 1000, () => now)
+    // Both webview partitions start counting at 1; the same id must not let one
+    // session's completion release the other session's POST.
+    methods.record('https://example.com/export', 'POST', 1, 'agent-browser')
+    methods.record('https://example.com/file', 'GET', 1, 'agent-dev-preview')
+    methods.finish(1, 'agent-dev-preview')
+
+    now = 60_000
+    // The history entry expired; only the pending POST can keep it non-replayable.
+    expect(methods.methodFor('https://example.com/export', 'agent-browser')).toBeUndefined()
+  })
+
+  it('drops only the disposed session\u2019s outstanding requests', () => {
+    const methods = new RequestMethods(4, 600_000, () => 0)
+    methods.record('https://example.com/a', 'POST', 7, 'agent-browser')
+    methods.record('https://example.com/b', 'POST', 7, 'agent-html-artifact')
+
+    methods.forgetScope('agent-browser')
+
+    // Its pending entry is gone, so the long-lived history entry answers instead.
+    expect(methods.methodFor('https://example.com/a', 'agent-browser')).toBe('POST')
+    // The other session's pending entry is untouched.
+    expect(methods.methodFor('https://example.com/b', 'agent-html-artifact')).toBeUndefined()
+  })
+
   it('does not let an outstanding GET block a takeover', () => {
     const methods = new RequestMethods(4, 60_000, () => 0)
     methods.record('https://example.com/file', 'GET', 1)
