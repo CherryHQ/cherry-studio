@@ -188,6 +188,13 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await malformed.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(malformed).toBeHidden()
 
+    // Sanitizing the unsupported enums also drops the managed mode, so the automatic-edit run has
+    // to restore Accept Edits and confirm it persisted before launching.
+    await setParameters('Accept Edits', 'High')
+    await expect
+      .poll(async () => JSON.parse((await readSettings()).content ?? '{}'))
+      .toMatchObject({ permissions: { defaultMode: 'acceptEdits' } })
+
     const file = join(app.paths.workspace, 'mp97-permissions.txt')
     await writeFile(file, 'original\n')
     await launch()

@@ -5,6 +5,7 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
 import {
+  getKnowledgeItemDisplayTitle,
   KnowledgeBaseSchema,
   KnowledgeItemChunkSchema,
   KnowledgeSearchResultSchema
@@ -110,12 +111,17 @@ export async function knowledgeSourceConflicts(app: RegressionApp, page: Page, t
     await ready(2)
     await expect(rows).toHaveCount(2)
     await screenshot('MP-64 both retained sources')
-    expect
-      .soft(await rows.getByText(filename, { exact: true }).count(), 'Keep All must show two same-name entries')
-      .toBe(2)
     const retained = (await readItems()).items
     expect(retained.some(({ id }) => id === initial.id)).toBe(true)
     expect(new Set(retained.map(({ id }) => id)).size).toBe(2)
+    // Keep All stores the second copy under its own reserved relative path, so the twin shows the
+    // reserved name rather than repeating the original label.
+    const titles = retained.map((item) => getKnowledgeItemDisplayTitle(item)).sort()
+    expect(titles, 'Keep All must retain both copies under distinct display names').toEqual([
+      'sample-chinese.md',
+      'sample-chinese_1.md'
+    ])
+    for (const title of titles) await expect(rows.filter({ hasText: title }), `${title} row`).toHaveCount(1)
     for (let index = 0; index < 2; index += 1) {
       await rows.nth(index).click()
       await expect(panel.getByRole('region')).toContainText('MP64ORIGINAL')
