@@ -216,7 +216,7 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
       const title = basename(matching[0].path, '.md')
       expect([basename(file.path, '.md'), heading]).toContain(title)
       const relativeFolder = dirname(matching[0].path).slice(notesDirectory.length)
-      for (const folder of relativeFolder.split('/').filter(Boolean)) {
+      for (const folder of relativeFolder.split(/[\\/]+/).filter(Boolean)) {
         const row = navigation.getByRole('treeitem').filter({ has: page.getByText(folder, { exact: true }) })
         if ((await row.getAttribute('aria-expanded')) === 'false') await row.click()
       }

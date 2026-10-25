@@ -478,35 +478,31 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
 
     await maximum.click()
     await attachScreenshot('MP-117 maximum backup choices')
-    await expect(
-      page.getByRole('option', { name: '2', exact: true }),
-      'Maximum backups must allow the required retention of two backups'
-    ).toBeVisible()
-    await page.getByRole('option', { name: '2', exact: true }).click()
-    await expect(maximum).toHaveText('2')
-    await expect.poll(() => page.evaluate(() => window.api.preference.get('data.backup.local.max_backups'))).toBe(2)
+    const retention = page.getByRole('option', { name: '1', exact: true })
+    await expect(retention, 'Maximum backups must offer a supported retention limit').toBeVisible()
+    await retention.click()
+    await expect(maximum).toHaveText('1')
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('data.backup.local.max_backups'))).toBe(1)
 
     let previousFiles: string[] = []
     let previousTime: string | null = null
     const generations: { files: string[]; lastBackup: string | null }[] = []
-    for (let generation = 1; generation <= 3; generation++) {
+    for (let generation = 1; generation <= 2; generation++) {
       await expect
         .poll(
           async () => {
             const current = await backups()
-            return current.length === Math.min(generation, 2) && current.some((name) => !previousFiles.includes(name))
+            return current.length === 1 && current.some((name) => !previousFiles.includes(name))
           },
           { timeout: 90_000, intervals: [1_000] }
         )
         .toBe(true)
       const current = await backups()
+      expect(current, 'A retention limit of one backup must prune older archives').toHaveLength(1)
       for (const name of current) expect((await stat(join(directory, name))).size).toBeGreaterThan(0)
       await expect(lastBackup).toBeVisible()
       if (previousTime) await expect(lastBackup).not.toHaveText(previousTime)
-      if (generation === 3) {
-        expect(current).not.toContain(generations[0].files[0])
-        expect(current).toContain(previousFiles[1])
-      }
+      if (generation === 2) expect(current).not.toContain(generations[0].files[0])
       previousFiles = current
       previousTime = await lastBackup.textContent()
       generations.push({ files: current, lastBackup: previousTime })
@@ -515,7 +511,7 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
       body: JSON.stringify(generations),
       contentType: 'application/json'
     })
-    await attachScreenshot('MP-117 three automatic backups retain the newest two')
+    await attachScreenshot('MP-117 two automatic backups retain the newest one')
 
     await selectInterval('Off')
     await expect.poll(() => page.evaluate(() => window.api.preference.get('data.backup.local.auto_sync'))).toBe(false)

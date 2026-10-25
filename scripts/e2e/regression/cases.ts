@@ -752,7 +752,7 @@ export const REGRESSION_CASES = [
   },
   {
     id: 'MP-127',
-    capabilities: [],
+    capabilities: ['externalSelection', 'globalShortcut'],
     phase: '20-system',
     title: 'Selection Assistant (capture, explain, translate, copy)',
     task: '20-system',
@@ -763,7 +763,7 @@ export const REGRESSION_CASES = [
     title: 'Screenshot tool (region, annotate, copy, OCR, add to chat)',
     task: '20-system',
     phase: '20-system',
-    capabilities: ['desktopAutomation']
+    capabilities: ['desktopAutomation', 'screenCapture']
   },
   {
     id: 'MP-129',

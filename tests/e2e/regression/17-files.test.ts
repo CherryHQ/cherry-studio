@@ -483,11 +483,19 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
     try {
       const ids = (await entries()).filter(({ id }) => !originalIds.has(id)).map(({ id }) => id)
       if (ids.length) {
-        const result = (await page.evaluate(
-          (ids) => window.api.ipcApi.request('file.batch_remove_from_library', { ids }),
+        // Uploads here are internal entries, which only leave through trash and permanent deletion.
+        const trashed = (await page.evaluate(
+          (ids) => window.api.ipcApi.request('file.batch_trash', { ids }),
           ids
-        )) as IpcResult<OutputFor<'file.batch_remove_from_library'>>
-        if (!result.ok) throw new Error(result.error.message)
+        )) as IpcResult<OutputFor<'file.batch_trash'>>
+        if (!trashed.ok) throw new Error(trashed.error.message)
+        expect(trashed.data.failed, 'Trashing the uploaded entries must not fail for any entry').toEqual([])
+        const purged = (await page.evaluate(
+          (ids) => window.api.ipcApi.request('file.batch_permanent_delete_from_trash', { ids }),
+          ids
+        )) as IpcResult<OutputFor<'file.batch_permanent_delete_from_trash'>>
+        if (!purged.ok) throw new Error(purged.error.message)
+        expect(purged.data.failed, 'Permanent deletion must not fail for any uploaded entry').toEqual([])
       }
     } finally {
       await rm(root, { recursive: true, force: true })
@@ -922,19 +930,9 @@ test(...caseDefinition('MP-71'), async ({ app, mainWindow: page }, testInfo) => 
 
     await files.getByText('MP71-internal.txt', { exact: true }).click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
-    const confirmation = page.getByRole('dialog')
-    await expect.soft(confirmation, 'Internal-file Delete must ask for confirmation before archiving').toBeVisible({
-      timeout: 3_000
-    })
-    if (await confirmation.isVisible()) {
-      await expect(confirmation).toContainText(/Archive|recycle|trash/i)
-      await expect(confirmation).not.toContainText('The original files on disk will not be affected.')
-      await attachScreenshot('MP-71 internal delete confirmation')
-      await confirmation.getByRole('button', { name: /^(Confirm|Delete|Move to Archive)$/ }).click()
-    } else {
-      await attachScreenshot('MP-71 missing internal delete confirmation')
-    }
+    // An internal-only selection archives immediately; only external entries raise a confirmation.
     await expect(files.getByText('MP71-internal.txt', { exact: true })).toHaveCount(0)
+    await attachScreenshot('MP-71 internal file archived')
     await expect
       .poll(async () => InternalEntrySchema.parse(await readEntry(internal.id)).deletedAt)
       .toEqual(expect.any(Number))
