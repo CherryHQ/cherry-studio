@@ -18,6 +18,7 @@ import { KeyedMutex } from '@shared/utils/async'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
+import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
   KnowledgeConceptContent,
@@ -35,6 +36,8 @@ import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
 import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
 
+const FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS = 5_000
+
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
  * recovery, and delegates every public operation to the module that owns it —
@@ -46,8 +49,13 @@ import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from '
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KeyedMutex()
-  private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
-  private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
+  private readonly fileProcessingWaits = new FileProcessingWaitManager()
+  private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager, this.fileProcessingWaits)
+  private readonly baseAdmin = new KnowledgeBaseAdminService(
+    this.knowledgeLockManager,
+    this.ingestionService,
+    this.fileProcessingWaits
+  )
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
 
@@ -66,11 +74,15 @@ export class KnowledgeService extends BaseService {
       'knowledge.check-file-processing-result',
       createCheckFileProcessingResultJobHandler(this.knowledgeLockManager, this.ingestionService)
     )
-    jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.knowledgeLockManager))
+    jobManager.registerHandler(
+      'knowledge.delete-subtree',
+      createDeleteSubtreeJobHandler(this.knowledgeLockManager, this.fileProcessingWaits)
+    )
     jobManager.registerHandler(
       'knowledge.reindex-subtree',
-      createReindexSubtreeJobHandler(this.knowledgeLockManager, this.ingestionService)
+      createReindexSubtreeJobHandler(this.knowledgeLockManager, this.ingestionService, this.fileProcessingWaits)
     )
+    this.registerInterval(() => this.fileProcessingWaits.mirrorProgress(), FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS)
   }
 
   protected async onAllReady(): Promise<void> {

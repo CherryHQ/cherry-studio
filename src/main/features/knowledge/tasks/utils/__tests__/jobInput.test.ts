@@ -26,7 +26,6 @@ describe('narrowKnowledgeJobInput', () => {
           baseId: 'kb-1',
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
-          pollRound: 2,
           processedRelativePath: 'source.md'
         }
       })
@@ -36,7 +35,6 @@ describe('narrowKnowledgeJobInput', () => {
         baseId: 'kb-1',
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
-        pollRound: 2,
         processedRelativePath: 'source.md'
       }
     })

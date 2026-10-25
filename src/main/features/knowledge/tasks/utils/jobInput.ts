@@ -74,14 +74,12 @@ function narrowFileProcessingCheckJobPayload(
   const basePayload = narrowItemJobPayload(rawInput)
   if (!basePayload) return null
   if (typeof input.fileProcessingJobId !== 'string') return null
-  if (typeof input.pollRound !== 'number') return null
   if (typeof input.processedRelativePath !== 'string') return null
 
   return {
     baseId: basePayload.baseId,
     itemId: basePayload.itemId,
     fileProcessingJobId: input.fileProcessingJobId,
-    pollRound: input.pollRound,
     processedRelativePath: input.processedRelativePath
   }
 }

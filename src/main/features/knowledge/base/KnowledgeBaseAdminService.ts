@@ -14,6 +14,7 @@ import {
 } from '@shared/data/types/knowledge'
 import type { KeyedMutex } from '@shared/utils/async'
 
+import type { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitManager'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { classifyKnowledgeItemRestoreSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
@@ -26,7 +27,8 @@ const logger = loggerService.withContext('Knowledge:BaseAdmin')
 export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KeyedMutex,
-    private readonly ingestionService: KnowledgeIngestionService
+    private readonly ingestionService: KnowledgeIngestionService,
+    private readonly fileProcessingWaits: FileProcessingWaitManager
   ) {}
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -66,7 +68,10 @@ export class KnowledgeBaseAdminService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'proceed' })
+    await cancelActiveKnowledgeJobs(baseId, 'delete-base', {
+      onCancelTimeout: 'proceed',
+      fileProcessingWaits: this.fileProcessingWaits
+    })
 
     await this.knowledgeLockManager.runExclusive(baseId, async () => {
       try {

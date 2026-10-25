@@ -1,8 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { EnqueueOptions } from '@main/core/job/types'
+import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
@@ -50,11 +49,14 @@ export class FileProcessingService extends BaseService {
    *
    * `options.recovery` overrides the handler's restart behavior (resume) for a
    * caller that will not read the result of a job resumed after a restart.
+   *
+   * @returns The job's handle. Its `finished` promise lives in this process only, so it does
+   *   not resolve for a job that a restart resumes.
    */
   async startJob(
     input: StartFileProcessingJobInput,
     options: Pick<EnqueueOptions, 'parentId' | 'recovery'> = {}
-  ): Promise<JobSnapshot> {
+  ): Promise<JobHandle> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
     // path output target. Reject the illegal state here, before enqueueing (and
@@ -96,7 +98,7 @@ export class FileProcessingService extends BaseService {
       output
     })
 
-    return handle.snapshot
+    return handle
   }
 
   /**

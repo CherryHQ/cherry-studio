@@ -248,7 +248,7 @@ describe('FileProcessingService.startJob — routing', () => {
     })
     const svc = makeSvc()
 
-    const result = await svc.startJob({
+    await svc.startJob({
       feature: 'image_to_text',
       file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
       processorId: 'tesseract'
@@ -259,12 +259,6 @@ describe('FileProcessingService.startJob — routing', () => {
       entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
       {}
     )
-    expect(result).toEqual({
-      id: 'job-test-1',
-      type: 'file-processing.background',
-      status: 'pending',
-      input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
-    })
   })
 
   it('routes a background-mode handler on a remote processor to file-processing.background', async () => {
