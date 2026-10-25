@@ -1299,6 +1299,50 @@ After.`
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
   })
 
+  // The remainder after the summary label can leave the stream inside a lexical region it
+  // opened (a `<textarea>`): the body's first nodes continue THAT stream, so forwarding only
+  // the remainder's open count drops the raw-text state — the literal close the textarea holds
+  // resolves as the retained boundary, the real closes land on the artifact path, and the
+  // following prose renders inside the collapsed disclosure.
+  it('carries the summary remainder lexical state into the paired body scan', () => {
+    const source = `<details>
+
+<summary>Outer</summary>
+<div>Introduction</div>
+<details><summary>Inner</summary><textarea>
+
+</details>
+
+</textarea>
+
+Inner body
+
+</details>
+
+Outer tail
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'html', // <details> outer opener
+      'html', // summary node: label + body + inner opener + textarea opener
+      'code', // literal </details> inside the textarea body — artifact path
+      'code', // </textarea> — artifact path
+      'paragraph', // Inner body
+      'html', // inner close — resolves the remainder's retained opener
+      'paragraph', // Outer tail
+      'html', // outer paired close
+      'paragraph' // After.
+    ])
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+    expect((tree.children[5] as { value: string }).value).toBe('</details>')
+    expect((tree.children[7] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
   // An HTML comment between the summary label and the inner opener must not void the opener's
   // bookkeeping: the label split has to look past comments (and whitespace) before deciding the
   // rest of the node holds no disclosure opener, or the inner close lands on the artifact path.

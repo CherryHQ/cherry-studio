@@ -1054,6 +1054,11 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // Disclosures opened in the label node's remainder (see below) owe this body range
         // their closes.
         let remainderOpens = 0
+        // The state the body scan continues from: the opening node's tail state, unless the
+        // summary node's remainder (scanned below) leaves the stream inside a lexical region —
+        // the body's first nodes continue THAT stream, so its state rides along with the
+        // remainder's open count.
+        let bodyEntryState = paired.bodyEntryState
         const firstBody = body[0]
         if (firstBody?.type === 'html' && HTML_SUMMARY_OPEN_REGEX.test(stripLeadingHtmlMetadata(firstBody.value))) {
           const summaryEnd = findSummaryElementEnd(firstBody.value)
@@ -1074,10 +1079,14 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
               bodyStart = 1
               // Body content before any opener (`<div>…`) voids the opener search above, but
               // the remainder can still OPEN disclosures: count them (scratch state only) so
-              // the body range keeps their closes raw.
-              const remainderState: ContainerScanState = { count: 0 }
+              // the body range keeps their closes raw. The scan's LEXICAL state (a raw-text
+              // body, dangling comment/tag or CDATA the remainder opened) must ride along too:
+              // the body's first nodes continue that stream, and a literal close the region
+              // holds must not resolve as a retained boundary.
+              const remainderState: ContainerScanState = { ...paired.bodyEntryState, count: 0 }
               scanContainerBoundaries(rest, remainderState)
               remainderOpens = remainderState.count
+              bodyEntryState = remainderState
             }
           } else {
             // The label's open tag never completed in this node (streaming): keep the whole
@@ -1094,7 +1103,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
           bodyStart,
           body.length,
           Math.max(paired.retainedOpens - 1, 0) + remainderOpens,
-          paired.bodyEntryState
+          bodyEntryState
         )
         children.push(sliceHtmlNode(closeNode, paired.closeStart, paired.closeEnd))
         // At the close the lexical stream is plain: the pairing scan could only resolve a real
