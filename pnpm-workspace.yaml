@@ -124,6 +124,8 @@ patchedDependencies:
   "@aiden0z/pptx-renderer@1.2.2": patches/@aiden0z__pptx-renderer@1.2.2.patch
   # Normalize RTF byte representations before code-page decoding; preserve font resets and binary ranges.
   rtf.js@3.0.9: patches/rtf.js@3.0.9.patch
+  # Emit one paragraph-properties element per rich-text paragraph; remove when upstream fixes genXmlTextBody.
+  pptxgenjs@4.0.1: patches/pptxgenjs@4.0.1.patch
 
 allowBuilds:
   "@google/genai": false

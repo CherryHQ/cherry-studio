@@ -2,11 +2,12 @@ import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOf
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { ipcApi } from '@renderer/ipc'
+import { documentExportFormats, exportDocument, getDocumentExportLabel } from '@renderer/services/documentExport'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -24,6 +25,7 @@ interface UseNotesMenuProps {
   handleStartEdit: (node: NotesTreeNode) => void
   handleAutoRename: (node: NotesTreeNode) => void
   activeNode?: NotesTreeNode | null
+  getCurrentNoteContent?: () => string
 }
 
 export const useNotesMenu = ({
@@ -35,9 +37,11 @@ export const useNotesMenu = ({
   onSelectNode,
   handleStartEdit,
   handleAutoRename,
-  activeNode
+  activeNode,
+  getCurrentNoteContent
 }: UseNotesMenuProps) => {
   const { t } = useTranslation()
+  const [notesPath] = usePreference('feature.notes.path')
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -233,7 +237,25 @@ export const useNotesMenu = ({
           )
         }
         if (exportMenuOptions.markdown) addExport('notes.export.markdown', t('chat.topics.export.md.label'), 'markdown')
-        if (exportMenuOptions.docx) addExport('notes.export.docx', t('chat.topics.export.word'), 'docx')
+        for (const format of documentExportFormats) {
+          if (format === 'docx' && !exportMenuOptions.docx) continue
+          exportChildren.push({
+            type: 'item',
+            id: `notes.export.${format}`,
+            label: getDocumentExportLabel(format),
+            onSelect: () =>
+              void exportDocument({
+                markdown: async () =>
+                  activeNode?.id === node.id && getCurrentNoteContent
+                    ? getCurrentNoteContent()
+                    : window.api.file.readExternal(node.externalPath),
+                defaultName: node.name,
+                sourcePath: node.externalPath,
+                assetRoot: notesPath || undefined,
+                format
+              })
+          })
+        }
         if (exportMenuOptions.notion) addExport('notes.export.notion', t('chat.topics.export.notion'), 'notion')
         if (exportMenuOptions.yuque) addExport('notes.export.yuque', t('chat.topics.export.yuque'), 'yuque')
         if (exportMenuOptions.obsidian) {
@@ -283,6 +305,9 @@ export const useNotesMenu = ({
       renamingNodeIds,
       handleAutoRename,
       exportMenuOptions,
+      notesPath,
+      activeNode?.id,
+      getCurrentNoteContent,
       onCreateNote,
       onCreateFolder,
       runExport

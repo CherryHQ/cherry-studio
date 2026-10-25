@@ -1,0 +1,64 @@
+diff --git a/dist/pptxgen.cjs.js b/dist/pptxgen.cjs.js
+index 55ae0b9eb49b1c87dc2ac2ec9d7c1fa215ddab8d..6bdc398ac4efad81cc6945d2ad292e25d41142e3 100644
+--- a/dist/pptxgen.cjs.js
++++ b/dist/pptxgen.cjs.js
+@@ -6216,12 +6216,11 @@ function genXmlTextBody(slideObj) {
+     });
+     // STEP 6: Loop over each line and create paragraph props, text run, etc.
+     arrLines.forEach(line => {
+-        var _a;
+         let reqsClosingFontSize = false;
+         // A: Start paragraph, add paraProps
+         strSlideXml += '<a:p>';
+-        // NOTE: `rtlMode` is like other opts, its propagated up to each text:options, so just check the 1st one
+-        let paragraphPropXml = `<a:pPr ${((_a = line[0].options) === null || _a === void 0 ? void 0 : _a.rtlMode) ? ' rtl="1" ' : ''}`;
++        // Paragraph properties come from the first run; later runs only add run properties.
++        let paragraphPropXml = '';
+         // B: Start paragraph, loop over lines and add text runs
+         line.forEach((textObj, idx) => {
+             // A: Set line index
+@@ -6237,8 +6236,10 @@ function genXmlTextBody(slideObj) {
+             textObj.options.indentLevel = textObj.options.indentLevel || opts.indentLevel;
+             textObj.options.paraSpaceBefore = textObj.options.paraSpaceBefore || opts.paraSpaceBefore;
+             textObj.options.paraSpaceAfter = textObj.options.paraSpaceAfter || opts.paraSpaceAfter;
+-            paragraphPropXml = genXmlParagraphProperties(textObj, false);
+-            strSlideXml += paragraphPropXml.replace('<a:pPr></a:pPr>', ''); // IMPORTANT: Empty "pPr" blocks will generate needs-repair/corrupt msg
++            if (idx === 0) {
++                paragraphPropXml = genXmlParagraphProperties(textObj, false);
++                strSlideXml += paragraphPropXml.replace('<a:pPr></a:pPr>', ''); // IMPORTANT: Empty "pPr" blocks will generate needs-repair/corrupt msg
++            }
+             // C: Inherit any main options (color, fontSize, etc.)
+             // NOTE: We only pass the text.options to genXmlTextRun (not the Slide.options),
+             // so the run building function cant just fallback to Slide.color, therefore, we need to do that here before passing options below.
+diff --git a/dist/pptxgen.es.js b/dist/pptxgen.es.js
+index cac9ba92a862c3e9e0e52c2319138d78596e5309..ba45971c16ef3fd26b48996657c511ee32a83d79 100644
+--- a/dist/pptxgen.es.js
++++ b/dist/pptxgen.es.js
+@@ -6214,12 +6214,11 @@ function genXmlTextBody(slideObj) {
+     });
+     // STEP 6: Loop over each line and create paragraph props, text run, etc.
+     arrLines.forEach(line => {
+-        var _a;
+         let reqsClosingFontSize = false;
+         // A: Start paragraph, add paraProps
+         strSlideXml += '<a:p>';
+-        // NOTE: `rtlMode` is like other opts, its propagated up to each text:options, so just check the 1st one
+-        let paragraphPropXml = `<a:pPr ${((_a = line[0].options) === null || _a === void 0 ? void 0 : _a.rtlMode) ? ' rtl="1" ' : ''}`;
++        // Paragraph properties come from the first run; later runs only add run properties.
++        let paragraphPropXml = '';
+         // B: Start paragraph, loop over lines and add text runs
+         line.forEach((textObj, idx) => {
+             // A: Set line index
+@@ -6235,8 +6234,10 @@ function genXmlTextBody(slideObj) {
+             textObj.options.indentLevel = textObj.options.indentLevel || opts.indentLevel;
+             textObj.options.paraSpaceBefore = textObj.options.paraSpaceBefore || opts.paraSpaceBefore;
+             textObj.options.paraSpaceAfter = textObj.options.paraSpaceAfter || opts.paraSpaceAfter;
+-            paragraphPropXml = genXmlParagraphProperties(textObj, false);
+-            strSlideXml += paragraphPropXml.replace('<a:pPr></a:pPr>', ''); // IMPORTANT: Empty "pPr" blocks will generate needs-repair/corrupt msg
++            if (idx === 0) {
++                paragraphPropXml = genXmlParagraphProperties(textObj, false);
++                strSlideXml += paragraphPropXml.replace('<a:pPr></a:pPr>', ''); // IMPORTANT: Empty "pPr" blocks will generate needs-repair/corrupt msg
++            }
+             // C: Inherit any main options (color, fontSize, etc.)
+             // NOTE: We only pass the text.options to genXmlTextRun (not the Slide.options),
+             // so the run building function cant just fallback to Slide.color, therefore, we need to do that here before passing options below.

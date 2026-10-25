@@ -44,6 +44,7 @@ describe('validation selection', () => {
     ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
+    ['packages/spreadsheet/src/workbook.ts', ['main', 'preload', 'renderer', 'file-preview']],
     ['packages/web-search/src/providers/tavily.ts', ['web-search', 'shared', 'main', 'preload', 'renderer']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
     ['src/preload/types.d.ts', ['preload', 'main', 'renderer']],

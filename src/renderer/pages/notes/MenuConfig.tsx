@@ -1,7 +1,19 @@
-import { AlignJustify, Copy, FileDown, FileText, MonitorSpeaker, Printer, Settings, Type } from 'lucide-react'
+import {
+  AlignJustify,
+  Copy,
+  FileDown,
+  FileText,
+  MonitorSpeaker,
+  Presentation,
+  Printer,
+  Settings,
+  Sheet,
+  Type
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import type { NotesSettings } from '@renderer/hooks/useNotesSettings'
+import type { DocumentFormat } from '@shared/types/documentConversion'
 
 export interface MenuItem {
   key: string
@@ -13,8 +25,7 @@ export interface MenuItem {
   isActive?: (settings: NotesSettings) => boolean
   component?: (settings: NotesSettings, updateSettings: (newSettings: Partial<NotesSettings>) => void) => ReactNode
   copyAction?: boolean
-  exportToWordAction?: boolean
-  exportToPdfAction?: boolean
+  documentFormat?: DocumentFormat
   printAction?: boolean
   showSettingsPopup?: boolean
 }
@@ -30,13 +41,25 @@ export const menuItems: MenuItem[] = [
     key: 'export-to-word',
     labelKey: 'notes.exportToWord',
     icon: FileText,
-    exportToWordAction: true
+    documentFormat: 'docx'
   },
   {
     key: 'export-to-pdf',
     labelKey: 'notes.exportToPDF',
     icon: FileDown,
-    exportToPdfAction: true
+    documentFormat: 'pdf'
+  },
+  {
+    key: 'export-to-pptx',
+    labelKey: '',
+    icon: Presentation,
+    documentFormat: 'pptx'
+  },
+  {
+    key: 'export-to-xlsx',
+    labelKey: '',
+    icon: Sheet,
+    documentFormat: 'xlsx'
   },
   {
     key: 'print',

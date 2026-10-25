@@ -25,7 +25,7 @@ const REPORT_ARTIFACTS_RUNTIME_NAME = `mcp__cherry-tools__${REPORT_ARTIFACTS_TOO
 
 export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
 
-When you finish producing the file(s) the user asked for, call the \`${REPORT_ARTIFACTS_RUNTIME_NAME}\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.`
+When you finish producing the file(s) the user asked for, call the \`${REPORT_ARTIFACTS_RUNTIME_NAME}\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files. Documents created with \`convert_to_document\` already appear as file cards; do not report them again.`
 
 export interface AgentRuntimePrompt {
   base: AgentPromptBase
