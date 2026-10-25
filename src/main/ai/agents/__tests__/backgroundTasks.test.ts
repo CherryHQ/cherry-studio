@@ -1505,6 +1505,53 @@ describe('backgroundTasks', () => {
       }
     })
 
+    // After a restart nothing in memory ties the record to a process, and a worker that redirected
+    // its stdio and cleared its environment can outlive the supervisor that witnessed it while
+    // keeping its pid and start stamp in `.pids`. The group is then nobody's to signal — its leader
+    // is gone — but the recorded identity is the worker's own proof, and requiring the original
+    // supervisor to authorize the kill leaves it unkillable while the record stays `running`.
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'kills a recorded survivor after a restart though its supervisor is gone',
+      async () => {
+        const pidFile = path.join(storageDir, 'restart-survivor.pid')
+        // New session, closed extra descriptors, redirected stdio, empty environment: the worker is
+        // invisible to the group, to both liveness pipes and to a marker scan, and its parent stays
+        // alive only long enough for the membership pulse to attribute the child and record it.
+        const command = `python3 -c "import subprocess,sys,time; p=subprocess.Popen(['/bin/sh','-c','while :; do sleep 0.2; done'], start_new_session=True, close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={}); open(sys.argv[1],'w').write(str(p.pid)); time.sleep(1.2)" "${pidFile}"`
+        const record = await startDetachedBackgroundTask({ storageDir, command, cwd: storageDir })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(isPidAlive(workerPid)).toBe(true)
+            },
+            { timeout: 10_000 }
+          )
+          // The anchor leaves once its group, both pipes and the marker read empty, while the
+          // recorded worker stays alive and positively identified.
+          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          // A restart forgets every in-memory ownership entry: the ledger is all that is left.
+          forgetDetachedTaskOwnershipForTest(record.id)
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+
+          // Kill must still reach the survivor: its own identity authorizes the signal, and the
+          // record may only say stopped once nothing of the task is left.
+          const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(stopped?.status).toBe('stopped')
+          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+        }
+      },
+      40_000
+    )
+
     // A verified worker can fork a child and exit between two 250-ms pulses. The child stays in
     // the task's group but is reparented, so a parent-chain walk never reaches it — and a stop
     // that can only verify through a live parent returns without signalling while the task still

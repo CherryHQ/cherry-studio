@@ -1,4 +1,6 @@
+import type * as ChildProcessModule from 'node:child_process'
 import { execFileSync } from 'node:child_process'
+import type { ExecFileSyncOptions } from 'node:child_process'
 import type * as NodeFs from 'node:fs'
 import { readFileSync } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -7,12 +9,32 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { writeFileSyncMock } = vi.hoisted(() => ({ writeFileSyncMock: vi.fn() }))
+const { writeFileSyncMock, psSteer } = vi.hoisted(() => ({
+  writeFileSyncMock: vi.fn(),
+  psSteer: { read: null as null | ((args: readonly string[]) => string | null) }
+}))
 
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<{ default: typeof NodeFs }>()).default,
   writeFileSync: writeFileSyncMock
 }))
+
+// The identity evidence a stop reads is the process table, so the readings it gets are steered
+// directly: `null` delegates to the real table and every process around it stays real. That is how
+// a spawn whose first probe fails — leaving the ownership to be seeded from the group table, which
+// is the write that puts the anchor into the ledger — is reproduced without a loaded runner.
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof ChildProcessModule>()
+  return {
+    ...actual,
+    execFileSync: ((file: string, args?: readonly string[], options?: ExecFileSyncOptions) => {
+      const steer = psSteer.read
+      const steered = file === 'ps' && steer ? steer(args ?? []) : null
+      if (steered !== null) return steered
+      return actual.execFileSync(file, args ?? [], options)
+    }) as typeof actual.execFileSync
+  }
+})
 
 import {
   BACKGROUND_TASK_RECORD_EXT,
@@ -554,6 +576,114 @@ describe('a task whose record write fails', () => {
           if (workerPid > 0) realKill(workerPid, 'SIGKILL')
         } catch {
           // already gone
+        }
+      }
+    }
+  )
+
+  it.skipIf(process.platform === 'win32' || !python3Available)(
+    'spares the anchor the cleanup sweep also finds in the identity ledger',
+    async () => {
+      // The ledger is written from the group the supervisor leads, so it names that supervisor as
+      // well as the work. The cleanup sweep signalled every entry in it: killing the anchor destroys
+      // the only witness left for a worker that called setsid(), dropped every extra descriptor and
+      // cleared its environment but still holds the shell's stdout — the pipes then close with the
+      // anchor and the start reports a termination nobody verified.
+      const pidFile = path.join(storageDir, 'anchored-escape.pid')
+      // The spawn's probes fail, so the ownership entry starts empty and the first pulse seeds it
+      // from the leader the group table still shows: that adoption is what persists the ledger.
+      let stampProbeFailed = false
+      let tableProbeFailed = false
+      psSteer.read = (args) => {
+        if (args[0] === '-p') {
+          if (stampProbeFailed) return null
+          stampProbeFailed = true
+          throw Object.assign(new Error('ps: command timed out'), { code: 'ETIMEDOUT' })
+        }
+        if (args[0] !== '-axwwo') return null
+        if (!tableProbeFailed) {
+          tableProbeFailed = true
+          throw Object.assign(new Error('ps: command timed out'), { code: 'ETIMEDOUT' })
+        }
+        // The escaped worker stays invisible to the table, so nothing adopts it and no identity of
+        // its own ever reaches the ledger: the anchor is the evidence it is still running.
+        let escaped = 0
+        try {
+          escaped = Number(readFileSync(pidFile, 'utf8'))
+        } catch {
+          return null
+        }
+        return String(execFileSync('/bin/ps', args, { encoding: 'utf8' }))
+          .split('\n')
+          .filter((row) => {
+            const fields = row.trim().split(/\s+/)
+            return fields[1] !== String(escaped) && fields[2] !== String(escaped)
+          })
+          .join('\n')
+      }
+
+      const real = (await vi.importActual<typeof NodeFs>('node:fs')).writeFileSync
+      let writes = 0
+      writeFileSyncMock.mockImplementation((...args: unknown[]) => {
+        writes += 1
+        if (writes === 1) {
+          // Hold the failing write until the worker has escaped: the cleanup must race it.
+          const deadline = Date.now() + 10_000
+          while (Date.now() < deadline) {
+            try {
+              readFileSync(pidFile)
+              break
+            } catch {
+              execFileSync('sleep', ['0.05'])
+            }
+          }
+          throw new Error('ENOSPC: no space left on device')
+        }
+        return (real as unknown as (...a: unknown[]) => void)(...args)
+      })
+      const realKill = process.kill.bind(process)
+      let workerPid = 0
+      let anchorPid = 0
+      try {
+        const failure = await startDetachedBackgroundTask({
+          storageDir,
+          command: `python3 -c "import subprocess,sys; p=subprocess.Popen(['/bin/sh','-c','while :; do sleep 0.2; done'], start_new_session=True, close_fds=True, env={}); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"`,
+          cwd: storageDir
+        }).then(
+          () => {
+            throw new Error('expected the start to fail')
+          },
+          (error: Error) => error
+        )
+
+        expect(failure.message).toMatch(/is still running/)
+        expect(failure.message).not.toMatch(/was stopped/)
+        anchorPid = Number(/is still running \(pid (\d+)\)/.exec(failure.message)?.[1])
+        workerPid = Number(readFileSync(pidFile, 'utf8'))
+        // The sweep spared the supervisor, which is still holding the escaped worker's output...
+        expect(isPidAlive(anchorPid)).toBe(true)
+        expect(isPidAlive(workerPid)).toBe(true)
+        const record = await readRecoveryRecord()
+        expect(record.status).toBe('running')
+        await expect(hasLiveTaskEvidence(storageDir, record)).resolves.toBe(true)
+        expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toEqual([])
+
+        // ...so its own exit, once the worker is gone, is what publishes the completion.
+        realKill(workerPid, 'SIGKILL')
+        await vi.waitFor(
+          async () => {
+            expect((await readdir(storageDir)).some((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toBe(true)
+          },
+          { timeout: 10_000 }
+        )
+      } finally {
+        psSteer.read = null
+        for (const pid of [workerPid, anchorPid]) {
+          try {
+            if (pid > 0) realKill(pid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
         }
       }
     }

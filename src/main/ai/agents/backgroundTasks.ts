@@ -219,11 +219,24 @@ async function hasLiveRecordedMember(storageDir: string, taskId: string): Promis
   return (await liveRecordedMembers(storageDir, taskId)).length > 0
 }
 
+/**
+ * The recorded identities still running other than the task's anchor. The ledger is written from
+ * the group the supervisor leads, so it names that supervisor too — but it is the task's witness,
+ * not its work, and only its own exit may certify that nothing of the task is left.
+ */
+async function liveRecordedSurvivors(storageDir: string, taskId: string, anchorPid: number): Promise<RecordedMember[]> {
+  return (await liveRecordedMembers(storageDir, taskId)).filter((member) => member.pid !== anchorPid)
+}
+
+async function hasLiveRecordedSurvivor(storageDir: string, taskId: string, anchorPid: number): Promise<boolean> {
+  return (await liveRecordedSurvivors(storageDir, taskId, anchorPid)).length > 0
+}
+
 /** SIGKILL the recorded survivors, re-reading each stamp immediately before the signal. */
-async function killRecordedMembers(storageDir: string, taskId: string): Promise<void> {
+async function killRecordedMembers(storageDir: string, taskId: string, anchorPid: number): Promise<void> {
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
   while (true) {
-    const live = await liveRecordedMembers(storageDir, taskId)
+    const live = await liveRecordedSurvivors(storageDir, taskId, anchorPid)
     if (live.length === 0) return
     for (const member of live) {
       if (getPidStartTime(member.pid) !== member.lstart) continue
@@ -235,6 +248,23 @@ async function killRecordedMembers(storageDir: string, taskId: string): Promise<
     }
     if (Date.now() >= deadline) return
     await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+  }
+}
+
+/** Signals the recorded survivors of a task whose group has no verified leader to address. */
+async function signalRecordedSurvivors(
+  storageDir: string,
+  taskId: string,
+  anchorPid: number,
+  signal: NodeJS.Signals
+): Promise<void> {
+  for (const member of await liveRecordedSurvivors(storageDir, taskId, anchorPid)) {
+    if (getPidStartTime(member.pid) !== member.lstart) continue
+    try {
+      process.kill(member.pid, signal)
+    } catch {
+      // already gone
+    }
   }
 }
 
@@ -1424,8 +1454,8 @@ export async function startDetachedBackgroundTask(
               survivor = true
               throw new Error(`background task ${id} still holds marked workers after SIGKILL`)
             }
-            await killRecordedMembers(input.storageDir, id)
-            if (await hasLiveRecordedMember(input.storageDir, id)) {
+            await killRecordedMembers(input.storageDir, id, record.pid)
+            if (await hasLiveRecordedSurvivor(input.storageDir, id, record.pid)) {
               survivor = true
               throw new Error(`background task ${id} still holds attributed workers after SIGKILL`)
             }
@@ -1570,7 +1600,12 @@ async function stopDetachedBackgroundTaskUnlocked(
   // unresolved, and still stoppable once the group's identity is established — stays as it is.
   // A recycled PID could belong to another application: old records without a start stamp cannot be
   // signalled safely after restart; newly created tasks always capture one on POSIX.
-  if (!isGroupSignalable(record)) {
+  // A group signal needs a verified leader; a recorded survivor does not — its pid and stamp were
+  // captured while an ancestor tied it to the task, so after a restart it is the only identity left.
+  const groupSignalableAtEntry = isGroupSignalable(record)
+  const survivorSignallableAtEntry =
+    process.platform !== 'win32' && (await hasLiveRecordedSurvivor(storageDir, record.id, record.pid))
+  if (!groupSignalableAtEntry && !survivorSignallableAtEntry) {
     logger.warn('Refusing to signal a group holding members this task cannot account for', {
       taskId: record.id,
       pgid: record.pid
@@ -1597,7 +1632,10 @@ async function stopDetachedBackgroundTaskUnlocked(
   // The record lock orders writers, not process identity, so the group is re-established here —
   // against the same evidence as before, and as close to the signal as the language allows. It
   // narrows this window; it does not make the signal atomic against a reuse that starts later.
-  if (!isGroupSignalable(record)) {
+  const groupSignalable = isGroupSignalable(record)
+  const survivorSignallable =
+    process.platform !== 'win32' && (await hasLiveRecordedSurvivor(storageDir, record.id, record.pid))
+  if (!groupSignalable && !survivorSignallable) {
     logger.warn('Refusing to signal a group whose identity changed while the stop was recorded', {
       taskId: record.id,
       pgid: record.pid
@@ -1632,10 +1670,12 @@ async function stopDetachedBackgroundTaskUnlocked(
   try {
     if (process.platform === 'win32') {
       await execTaskkill(['/PID', String(record.pid), '/T', ...(force ? ['/F'] : [])])
-    } else if (force) {
-      await killGroupWork(record.pid, record.id)
+    } else if (groupSignalable) {
+      if (force) await killGroupWork(record.pid, record.id)
+      else process.kill(-record.pid, signal)
     } else {
-      process.kill(-record.pid, signal)
+      // The group is not this task's to signal; the survivors' recorded identities are.
+      await signalRecordedSurvivors(storageDir, record.id, record.pid, signal)
     }
   } catch (error) {
     await writeRecord(storageDir, record)
@@ -1647,7 +1687,9 @@ async function stopDetachedBackgroundTaskUnlocked(
   // authorized noninteractive sudo) fails the credential check and survives while the shell
   // dies. The record may only say `stopped` once no live member remains — reconciliation and
   // the permanent purge trust that word, and a survivor would lose its tracking and controls.
-  if (process.platform !== 'win32' && !(await waitForGroupDrain(record.pid))) {
+  // Only a group this task signalled may hold its termination up: one it cannot attribute is not
+  // its work to wait on, and its members are not evidence about the task either way.
+  if (process.platform !== 'win32' && groupSignalable && !(await waitForGroupDrain(record.pid))) {
     return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
   }
   // A worker that called setsid() is not in the group the kill reaches, so an empty group says
@@ -1666,8 +1708,8 @@ async function stopDetachedBackgroundTaskUnlocked(
     // A recorded identity is proof the marker cannot offer: it was stamped while an ancestor tied
     // the worker to this task, so it is killed and re-read by pid and stamp whether or not the
     // table will show its environment.
-    await killRecordedMembers(storageDir, record.id)
-    if (await hasLiveRecordedMember(storageDir, record.id)) {
+    await killRecordedMembers(storageDir, record.id, record.pid)
+    if (await hasLiveRecordedSurvivor(storageDir, record.id, record.pid)) {
       return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
     }
     // The pipe is the in-process proof; after a restart the inherited marker is. Survivors are the
@@ -1684,7 +1726,7 @@ async function stopDetachedBackgroundTaskUnlocked(
     }
     // The anchor's exit speaks for the channels it watches; a recorded identity still alive is work
     // outside every one of them, and the record must keep that work stoppable.
-    if (await hasLiveRecordedMember(storageDir, record.id)) {
+    if (await hasLiveRecordedSurvivor(storageDir, record.id, record.pid)) {
       return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
     }
   }
