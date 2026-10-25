@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "Çalışma alanı yoluna erişilemiyor: {{path}}",
   "agent.session.workspace_status.missing": "Çalışma alanı yolu mevcut değil: {{path}}",
   "agent.session.workspace_status.not_directory": "Çalışma alanı yolu bir dizin değil: {{path}}",
+  "agent.tools.to_markdown.unsupported_windows_arm64": "Birlikte gelen belge dönüştürücünün bu platform için yerel bir derlemesi olmadığından to_markdown, Windows ARM64 üzerinde desteklenmemektedir. Bağımlılıkları yeniden yüklemek bu sınırlamayı gidermez.",
   "apiGateway.docs.description": "Cherry Studio için OpenAI, Anthropic ve Gemini uyumlu HTTP API'nin yanı sıra Cherry'ye özel uç noktalar (modeller, bilgi tabanları)",
   "apiGateway.docs.language_switcher_label": "Belge dili",
   "apiGateway.docs.operations.chat_completions": "Bir sohbet tamamlama yanıtı oluşturur. İstek ve yanıt gövdeleri OpenAI Chat Completions biçimini izler; artımlı çıktı için `stream: true` ayarlayın.",
