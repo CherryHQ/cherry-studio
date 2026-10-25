@@ -996,6 +996,28 @@ describe('round-4 scanner regressions (cherry-pr-review)', () => {
   })
 })
 
+describe('round-5 scanner regressions (cherry-pr-review)', () => {
+  it('keeps literal content of a fence inside a quoted list item (quoted-list-fence-content-loss)', () => {
+    // CommonMark: the quote content is a list item whose continuation plus
+    // two marker-offset columns precede the fence opener, so the fence is
+    // valid and its content is literal.
+    const input = '> - First\n>\n>     ~~~xml\n>     <thinking>literal</thinking>\n>     ~~~'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it('strips analysis that continues the outer list after an inner quote closes (outer-list-analysis-retained)', () => {
+    // The depth-0 line after the quoted inner list is paragraph content of
+    // the OUTER list item, not top-level indented code.
+    const out = stripModelScratchpadBlocks(
+      '- First\n  > - Second\n  >\n    <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
+    )
+    expect(out).not.toContain('SECRET')
+    expect(out).toContain('Public')
+    expect(out).toContain('- First')
+  })
+})
+
 describe('trailing tool-protocol suffix scan cost (cherry-pr-review: whitespace replay)', () => {
   it('leaves a long whitespace-only tail untouched', () => {
     const text = 'Answer.' + ' '.repeat(8000)

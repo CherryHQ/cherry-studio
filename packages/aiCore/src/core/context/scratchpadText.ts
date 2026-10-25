@@ -918,9 +918,16 @@ function maskIndentedCodeBlocks(text: string): {
     if (/^ {0,3}(?:[-*+]|\d{1,9}[.)]) +/.test(withoutQuote) && withoutQuote !== rawExpanded) listInsideQuote = true
     if (depth === 0 && listInsideQuote && line.trim()) {
       listInsideQuote = false
-      listColumnStack.length = 0
-      enclosingListStack = []
-      inheritedListColumns = 0
+      // Leaving a quote closes only the lists the quote owned; enclosing
+      // outer-list levels survive in their own column space, so a following
+      // indented line is still measured against the outer item instead of
+      // becoming top-level indented code (cherry-pr-review:
+      // outer-list-analysis-retained).
+      for (let k = listColumnStack.length - 1; k >= 0; k--) {
+        if (listColumnStack[k].quoteDepth > 0) listColumnStack.splice(k, 1)
+      }
+      inheritedListColumns = listColumnStack[listColumnStack.length - 1]?.column ?? 0
+      enclosingListStack = [...listColumnStack]
     }
     const expanded = listInsideQuote ? withoutQuote : rawExpanded
     // Nested items begin at their parent's content column, which can exceed
@@ -931,8 +938,15 @@ function maskIndentedCodeBlocks(text: string): {
     if (list) {
       const padding = list[3].length <= 4 ? list[3].length : 1
       const nextColumns = nestedOffset + list[1].length + list[2].length + padding
-      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1].column >= nextColumns) {
-        listColumnStack.pop()
+      while (listColumnStack.length) {
+        const top = listColumnStack[listColumnStack.length - 1]
+        // The new item's column is measured in its own quote segment: only
+        // levels that segment owns compete on columns; outer-segment lists
+        // enclose the quote and survive (cherry-pr-review:
+        // outer-list-analysis-retained).
+        if (top.quoteDepth > depth || (top.quoteDepth === depth && top.column >= nextColumns)) {
+          listColumnStack.pop()
+        } else break
       }
       enclosingListStack = [...listColumnStack]
       listColumnStack.push({ column: nextColumns, quoteDepth: depth })
@@ -1124,11 +1138,13 @@ function maskCodeFences(text: string): {
       (sum, segment) => sum + (segment.type === 'list' ? segment.contentCol : 0),
       0
     )
-    const listContinuationFence =
-      inheritedColumns > 0 &&
-      /^ +$/.test(markerPrefix) &&
-      markerPrefix.length >= inheritedColumns &&
-      markerPrefix.length - inheritedColumns <= 3
+    // The inheritance lookup already validated the opener prefix against the
+    // list's container context (quote markers repeated, content column
+    // reached, at most three marker-offset columns left) through
+    // fenceCloseMatchesContainerContext; an adopted prefix means the fence is
+    // a valid continuation whether or not the markers are bare spaces
+    // (cherry-pr-review: quoted-list-fence-content-loss).
+    const listContinuationFence = inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix
     if (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence) {
       out += text.slice(pos, markerStart + 1)
       pos = markerStart + 1

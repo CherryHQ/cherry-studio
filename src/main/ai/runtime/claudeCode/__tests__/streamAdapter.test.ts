@@ -2938,6 +2938,37 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).toBe('Use `<thinking>literal</thinking>`.')
     })
 
+    it('preserves a quoted-list fence through complete and fragmented delivery (cherry-pr-review: quoted-list-fence-content-loss)', () => {
+      const input = '> - First\n>\n>     ~~~xml\n>     <thinking>literal</thinking>\n>     ~~~'
+      for (const chunk of [null, 1, 5] as const) {
+        const { adapter, parts } = createAdapter()
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+        )
+        if (chunk === null) {
+          adapter.handleMessage(
+            streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: input } })
+          )
+        } else {
+          for (let i = 0; i < input.length; i += chunk) {
+            adapter.handleMessage(
+              streamEvent({
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'text_delta', text: input.slice(i, i + chunk) }
+              })
+            )
+          }
+        }
+        adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+        const text = parts
+          .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+          .map((part) => part.delta)
+          .join('')
+        expect(text).toBe(input)
+      }
+    })
+
     it('emits ordinary comparison text without waiting for block stop (cherry-pr-review: comparison-stream-stall)', () => {
       const { adapter, parts } = createAdapter()
 
