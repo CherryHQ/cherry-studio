@@ -365,22 +365,17 @@ const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\[])+)\]:([ \t]*)([\s\S]*)$
 const MAX_LABEL_SOURCE_CHARS = 999
 
 /**
- * The form a reference label is matched by: backslash escapes resolved, runs of whitespace — which
- * a label that wraps carries a line ending as — collapsed to one space, and case folded. Two labels
+ * The form a reference label is matched by: the source it was written in — an escape stays part of
+ * the label, so `[r\*]` does not match a definition for `[r*]` — with markdown whitespace, which a
+ * label that wraps carries a line ending as, collapsed to one space and the case folded. Two labels
  * in this form are the one the parser resolves a reference against.
  */
 function normalizeReferenceLabel(label: string): string {
-  let resolved = ''
-  for (let index = 0; index < label.length; index += 1) {
-    const character = label[index]
-    if (character === '\\') {
-      index += 1
-      resolved += label[index] ?? ''
-    } else {
-      resolved += character
-    }
-  }
-  return resolved.replace(/\s+/g, ' ').trim().toLowerCase()
+  return label
+    .replace(/[\t\n\r ]+/g, ' ')
+    .replace(/^ | $/g, '')
+    .toLowerCase()
+    .toUpperCase()
 }
 
 /**
@@ -1300,7 +1295,33 @@ const MAX_HEADING_LABEL_CHARS = 64 * 1024
 const HTML_HEADING_CLOSE = /<\/h([1-6])\s*>/gi
 
 /**
- * Opening heading tags, scanned linearly. Each candidate consumes up to the first `>` after it, so
+ * The offset of the `>` that closes the tag at `from`, or -1 when the tag never closes. A quoted
+ * attribute value may hold a `>` that ends nothing, so only one outside a value closes the tag.
+ * Every character is read once, which keeps a block of unterminated tags linear.
+ */
+function tagTerminator(content: string, from: number): number {
+  let quote = ''
+  let pendingValue = false
+  for (let index = from; index < content.length; index += 1) {
+    const character = content[index]
+    if (quote !== '') {
+      if (character === quote) quote = ''
+    } else if (character === '=') {
+      pendingValue = true
+    } else if (pendingValue) {
+      if (character !== ' ' && character !== '\t' && character !== '\n' && character !== '\r' && character !== '\f') {
+        pendingValue = false
+        if (character === '"' || character === "'") quote = character
+      }
+    } else if (character === '>') {
+      return index
+    }
+  }
+  return -1
+}
+
+/**
+ * Opening heading tags, scanned linearly. Each candidate consumes up to its terminating `>`, so
  * a block of unterminated `<h1` opens walks the block once instead of rescanning it per candidate.
  */
 function htmlHeadingOpens(content: string): Array<{ index: number; end: number; level: number }> {
@@ -1320,29 +1341,11 @@ function htmlHeadingOpens(content: string): Array<{ index: number; end: number; 
       continue
     }
     // The tag ends at the first `>` outside an attribute value — a quoted value may hold one, and
-    // ending there read the rest of the value as the heading's text. Each character is read once,
-    // so the scan stays linear.
-    let close = start + 3
-    let quote = ''
-    let pendingValue = false
-    for (; close < content.length; close += 1) {
-      const character = content[close]
-      if (quote !== '') {
-        if (character === quote) quote = ''
-      } else if (character === '=') {
-        pendingValue = true
-      } else if (pendingValue) {
-        if (character !== ' ' && character !== '\t' && character !== '\n' && character !== '\r' && character !== '\f') {
-          pendingValue = false
-          if (character === '"' || character === "'") quote = character
-        }
-      } else if (character === '>') {
-        break
-      }
-    }
+    // ending there read the rest of the value as the heading's text.
+    const close = tagTerminator(content, start + 3)
     // An unterminated value quote leaves the candidate open to the block's end, and nothing after
     // it can be terminated either, so the scan is over.
-    if (close >= content.length) break
+    if (close === -1) break
     opens.push({ index: start, end: close + 1, level: Number(content.charAt(start + 2)) })
     cursor = close + 1
   }
@@ -1387,8 +1390,9 @@ function stripHtmlTags(content: string): string {
   while (cursor < content.length) {
     const open = content.indexOf('<', cursor)
     if (open === -1) break
-    // A tag ends at the first `>`; none behind this `<` means none behind a later one either.
-    const tagEnd = content.indexOf('>', open + 1)
+    // A tag ends at the `>` outside its quoted values; no terminator behind this `<` means none
+    // behind a later one either.
+    const tagEnd = tagTerminator(content, open + 1)
     if (tagEnd === -1) break
     let rawEnd = -1
     for (const name of RAW_TEXT_ELEMENTS) {

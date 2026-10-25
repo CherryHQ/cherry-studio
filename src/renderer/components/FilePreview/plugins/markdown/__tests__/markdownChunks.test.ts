@@ -1,3 +1,4 @@
+import rehypeParse from 'rehype-parse'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
@@ -44,6 +45,41 @@ const renderedHeadingIds = (source: string, slugs?: ReadonlyMap<string, readonly
 /** The ids the chunks hand out in document order, which must read as the unsplit document's ids. */
 const chunkHeadingIds = (content: string, budgetChars?: number): string[] =>
   chunksOf(content, budgetChars).flatMap((chunk) => renderedHeadingIds(chunk.text, chunk.headingSlugs))
+
+/**
+ * The ids a source's headings render with, raw HTML blocks read by the HTML parser the renderer's
+ * raw plugin runs — so a heading a block renders is numbered as the element a `#fragment` resolves
+ * against, and a chunk is handed the same way.
+ */
+const renderedIdsWithHtml = (source: string, slugs?: ReadonlyMap<string, readonly string[]>): string[] => {
+  type Node = { type: string; tagName?: string; depth?: number; value?: string; children?: Node[] }
+  const tree = parsed(source) as unknown as { children: Node[] }
+  const headings: Array<{ type: string; tagName: string; properties: { id?: unknown }; children: unknown[] }> = []
+  const collectHtmlHeadings = (node: Node): void => {
+    if (node.type === 'element' && /^h[1-6]$/.test(node.tagName ?? '')) {
+      headings.push({ type: 'element', tagName: node.tagName as string, properties: {}, children: node.children ?? [] })
+      return
+    }
+    for (const child of node.children ?? []) collectHtmlHeadings(child)
+  }
+  for (const node of tree.children) {
+    if (node.type === 'heading') {
+      headings.push({ type: 'element', tagName: `h${node.depth}`, properties: {}, children: node.children ?? [] })
+    } else if (node.type === 'html') {
+      const fragment = unified()
+        .use(rehypeParse, { fragment: true })
+        .parse(node.value ?? '')
+      collectHtmlHeadings(fragment)
+    }
+  }
+  const root = { type: 'root', children: headings }
+  rehypeHeadingIds({ prefix: 'chunk', slugs: slugs && [...slugs] })(root as never)
+  return root.children.map((element) => String(element.properties.id))
+}
+
+/** The ids the chunks' headings render with, in document order. */
+const chunkRenderedIds = (content: string, budgetChars?: number): string[] =>
+  chunksOf(content, budgetChars).flatMap((chunk) => renderedIdsWithHtml(chunk.text, chunk.headingSlugs))
 
 /**
  * The destinations a source's references render as links to — mdast keeps a reference a
@@ -2355,6 +2391,32 @@ describe('document-wide heading slugs', () => {
 
     expect(chunks[0].headingSlugs).toBeUndefined()
     expect(chunks[1].headingSlugs?.get('title')).toEqual(['title'])
+  })
+
+  it('reads a quoted attribute value whole when it numbers a raw HTML heading', () => {
+    // The `>` inside `title=">"` does not end the tag, so the heading renders `foobarbaz` and the
+    // `# foobarbaz` below it takes `-1` — the target the adjacent jump link names.
+    const content = `<h1>foo<span title=">">bar</span>baz</h1>\n\n${'filler\n\n'.repeat(3100)}# foobarbaz\n\n[jump](#foobarbaz-1)\n`
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(renderedIdsWithHtml(content)).toEqual(['chunk--foobarbaz', 'chunk--foobarbaz-1'])
+    expect(chunkRenderedIds(content)).toEqual(renderedIdsWithHtml(content))
+    expect(chunks.at(-1)?.text).toContain('[jump](#foobarbaz-1)')
+  })
+
+  it('matches a reference label the way the parser does, escapes included', () => {
+    // `[r\*]` is not a reference to the definition for `[r*]` — the parser matches labels on their
+    // source — so the first heading renders its literal text and the second keeps the base slug.
+    const content = `# [Alpha][r\\*] Beta\n\n[r*]: /url\n\n${'filler\n\n'.repeat(3100)}# Alpha Beta\n\n[jump](#alpha-beta)\n`
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(renderedIdsWithHtml(content)).toEqual(['chunk--alphar-beta', 'chunk--alpha-beta'])
+    expect(chunkRenderedIds(content)).toEqual(renderedIdsWithHtml(content))
+    expect(chunks.at(-1)?.text).toContain('[jump](#alpha-beta)')
   })
 })
 
