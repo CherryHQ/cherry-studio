@@ -204,10 +204,10 @@ export class DownloadTask {
         if (done) break
         if (!value?.length) continue
         if (position + value.length > range.end) throw new Error('server sent more bytes than requested')
-        await handle.write(value, 0, value.length, position)
-        position += value.length
-        this.received[range.index] += value.length
-        this.pendingBytes += value.length
+        const written = await this.writeChunk(handle, value, position)
+        position += written
+        this.received[range.index] += written
+        this.pendingBytes += written
         this.maybeFlush()
       }
     } finally {
@@ -242,10 +242,10 @@ export class DownloadTask {
           const { done, value } = await reader.read()
           if (done) break
           if (!value?.length) continue
-          await handle.write(value, 0, value.length, position)
-          position += value.length
+          const written = await this.writeChunk(handle, value, position)
+          position += written
           this.received[0] = position
-          this.pendingBytes += value.length
+          this.pendingBytes += written
           this.maybeFlush()
         }
       } catch (error) {
@@ -274,6 +274,23 @@ export class DownloadTask {
     await fs.rename(task.tempPath, task.filePath)
     store.complete(task.id, task.filePath, position)
     return 'completed'
+  }
+
+  /**
+   * `FileHandle.write` resolves once it has accepted *some* bytes, which can be
+   * fewer than offered (network filesystems, very large chunks). Advancing by the
+   * input length would skip the unwritten tail; because the ranged file is
+   * preallocated, that hole still passes the final size check and is published as
+   * zeros. Keep writing the remainder and report what actually landed.
+   */
+  private async writeChunk(handle: fs.FileHandle, value: Uint8Array, position: number): Promise<number> {
+    let written = 0
+    while (written < value.length) {
+      const { bytesWritten } = await handle.write(value, written, value.length - written, position + written)
+      if (bytesWritten === 0) throw new Error(`write made no progress at offset ${position + written}`)
+      written += bytesWritten
+    }
+    return written
   }
 
   private totalReceived(): number {

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, parse, resolve } from 'node:path'
 
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -61,6 +61,12 @@ describe('uniquifyFileName', () => {
 })
 
 describe('resolveDownloadPath', () => {
+  it('accepts a filesystem root as the download directory', async () => {
+    const root = parse(resolve('/')).root
+
+    await expect(resolveDownloadPath(root, 'root.bin', 'overwrite')).resolves.toBe(resolve(root, 'root.bin'))
+  })
+
   it('returns the plain path when the name is free', async () => {
     await expect(resolveDownloadPath(dir, 'a.txt', 'uniquify')).resolves.toBe(join(dir, 'a.txt'))
   })

@@ -42,8 +42,12 @@ export async function resolveDownloadPath(
   policy: DownloadConflictPolicy
 ): Promise<string> {
   const safeName = sanitizeDownloadFileName(fileName)
-  const target = resolve(dir, safeName)
-  if (!target.startsWith(resolve(dir) + sep)) throw new Error('download path escaped the download directory')
+  const root = resolve(dir)
+  const target = resolve(root, safeName)
+  // A root directory already ends in the separator (`/`, `C:\`, `\\server\share\`);
+  // appending another one would reject every valid child of that root.
+  const prefix = root.endsWith(sep) ? root : `${root}${sep}`
+  if (!target.startsWith(prefix)) throw new Error('download path escaped the download directory')
 
   if (policy === 'overwrite') return target
   const exists = await fs

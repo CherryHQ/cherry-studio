@@ -159,6 +159,107 @@ describe('DownloadTask', () => {
     expect(stored?.task.receivedBytes).toBe(CONTENT.length)
   })
 
+  it('stores the unwritten remainder when the filesystem accepts a partial write', async () => {
+    const { task, segments, filePath } = createTask(2)
+
+    const runner = new DownloadTask({
+      task,
+      segments,
+      probe: { finalUrl: task.url, totalBytes: CONTENT.length, supportsRanges: true, etag: '"v1"' },
+      store,
+      fetchImpl: fetch,
+      retryDelayMs: 0,
+      progressFlushBytes: 1
+    })
+
+    const probeHandle = await fs.open(join(dir, 'partial-write.probe'), 'w')
+    const proto = Object.getPrototypeOf(probeHandle) as {
+      write(
+        buffer: Uint8Array,
+        offset: number,
+        length: number,
+        position: number
+      ): Promise<{ bytesWritten: number; buffer: Uint8Array }>
+    }
+    await probeHandle.close()
+    const realWrite = proto.write
+    const writeSpy = vi.spyOn(proto, 'write').mockImplementation(async function (
+      this: typeof probeHandle,
+      buffer: Uint8Array,
+      offset: number,
+      length: number,
+      position: number
+    ) {
+      return realWrite.call(this, buffer, offset, Math.min(length, 4096), position)
+    })
+
+    try {
+      await expect(runner.run(new AbortController().signal)).resolves.toBe('completed')
+    } finally {
+      writeSpy.mockRestore()
+    }
+
+    expect((await fs.readFile(filePath)).equals(CONTENT)).toBe(true)
+    expect(store.get(task.id)?.task.receivedBytes).toBe(CONTENT.length)
+  })
+
+  it('stores the unwritten remainder of a single-stream chunk', async () => {
+    const fileName = 'partial-single.bin'
+    const filePath = join(dir, fileName)
+    const tempPath = `${filePath}.crdownload`
+    const { task, segments } = store.create({
+      url: `${baseUrl}/partial-single`,
+      finalUrl: `${baseUrl}/partial-single`,
+      fileName,
+      filePath,
+      tempPath,
+      totalBytes: 0,
+      connections: 1,
+      source: 'manual',
+      supportsRanges: false,
+      ranges: [{ index: 0, start: 0, end: 0 }]
+    })
+
+    const runner = new DownloadTask({
+      task,
+      segments,
+      probe: { finalUrl: task.url, totalBytes: 0, supportsRanges: false },
+      store,
+      fetchImpl: async () => new Response(CONTENT, { status: 200 }),
+      progressFlushBytes: 1
+    })
+
+    const probeHandle = await fs.open(join(dir, 'partial-single.probe'), 'w')
+    const proto = Object.getPrototypeOf(probeHandle) as {
+      write(
+        buffer: Uint8Array,
+        offset: number,
+        length: number,
+        position: number
+      ): Promise<{ bytesWritten: number; buffer: Uint8Array }>
+    }
+    await probeHandle.close()
+    const realWrite = proto.write
+    const writeSpy = vi.spyOn(proto, 'write').mockImplementation(async function (
+      this: typeof probeHandle,
+      buffer: Uint8Array,
+      offset: number,
+      length: number,
+      position: number
+    ) {
+      return realWrite.call(this, buffer, offset, Math.min(length, 4096), position)
+    })
+
+    try {
+      await expect(runner.run(new AbortController().signal)).resolves.toBe('completed')
+    } finally {
+      writeSpy.mockRestore()
+    }
+
+    expect((await fs.readFile(filePath)).equals(CONTENT)).toBe(true)
+    expect(store.get(task.id)?.task.receivedBytes).toBe(CONTENT.length)
+  })
+
   it('pauses with progress recorded and resumes from the recorded offsets', async () => {
     const { task, segments, filePath } = createTask(2)
     const probe = { finalUrl: task.url, totalBytes: CONTENT.length, supportsRanges: true, etag: '"v1"' }
