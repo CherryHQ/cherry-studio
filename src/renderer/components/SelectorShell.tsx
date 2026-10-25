@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react'
 import {
+  Activity,
   type ComponentPropsWithoutRef,
   isValidElement,
   type KeyboardEvent,
@@ -417,6 +418,7 @@ export function SelectorShell({
     }
   }, [])
 
+  const isLazyKeptClosed = mountStrategy === 'lazy-keep' && !open
   const shouldRenderContent = mountStrategy === 'lazy-keep' ? open || hasOpened : true
   const shouldForceMount = mountStrategy === 'lazy-keep' || forceMount ? true : undefined
   const resolvedPortalContainer = portalContainer ?? pagePortalContainer ?? localPortalContainer ?? undefined
@@ -432,187 +434,194 @@ export function SelectorShell({
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>{triggerNode}</PopoverTrigger>
         {canRenderContent ? (
-          <PopoverContent
-            side={side}
-            align={align}
-            sideOffset={sideOffset}
-            collisionPadding={collisionPadding}
-            portalContainer={resolvedPortalContainer}
-            forceMount={shouldForceMount}
-            hidden={mountStrategy === 'lazy-keep' && !open ? true : hidden}
-            {...restContentProps}
-            style={{
-              width: toCssSize(width),
-              maxWidth: 'var(--radix-popover-content-available-width)',
-              height: toCssSize(contentHeight),
-              maxHeight: toCssSize(maxContentHeight),
-              ...style
-            }}
-            onInteractOutside={(event) => {
-              const originalTarget = (event.detail?.originalEvent?.target ?? event.target) as Element | null
-              if (originalTarget?.closest?.('[data-entity-context-menu-root]')) {
-                event.preventDefault()
-              }
-              onInteractOutside?.(event)
-            }}
-            onOpenAutoFocus={(event) => {
-              if (search && search.autoFocus !== false) {
-                event.preventDefault()
-                internalSearchInputRef.current?.focus()
-              }
-              onOpenAutoFocus?.(event)
-            }}
-            onKeyDown={onKeyDown}
-            className={cn(
-              'max-h-[var(--radix-popover-content-available-height)] w-90 overflow-visible rounded-none border-0 bg-transparent p-0 shadow-none',
-              SELECTOR_CONTENT_POSITION_CLASS,
-              contentClassName
-            )}
-            data-selector-shell-content="true"
-            ref={setContentElement}
-            data-testid={dataTestId}>
-            <div
-              ref={setPanelElement}
+          // A closed lazy-kept panel must leave Radix's dismiss layer stack or it swallows Escape;
+          // hidden Activity disconnects its effects while keeping the panel state.
+          <Activity mode={isLazyKeptClosed ? 'hidden' : 'visible'}>
+            <PopoverContent
+              side={side}
+              align={align}
+              sideOffset={sideOffset}
+              collisionPadding={collisionPadding}
+              portalContainer={resolvedPortalContainer}
+              forceMount={shouldForceMount}
+              hidden={isLazyKeptClosed ? true : hidden}
+              {...restContentProps}
+              style={{
+                width: toCssSize(width),
+                maxWidth: 'var(--radix-popover-content-available-width)',
+                height: toCssSize(contentHeight),
+                maxHeight: toCssSize(maxContentHeight),
+                ...style
+              }}
+              onInteractOutside={(event) => {
+                const originalTarget = (event.detail?.originalEvent?.target ?? event.target) as Element | null
+                if (originalTarget?.closest?.('[data-entity-context-menu-root]')) {
+                  event.preventDefault()
+                }
+                onInteractOutside?.(event)
+              }}
+              onOpenAutoFocus={(event) => {
+                if (search && search.autoFocus !== false) {
+                  event.preventDefault()
+                  internalSearchInputRef.current?.focus()
+                }
+                onOpenAutoFocus?.(event)
+              }}
+              onKeyDown={onKeyDown}
               className={cn(
-                'flex h-full max-h-[inherit] w-full flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-popover pt-1 shadow-lg',
-                SELECTOR_PANEL_ANIMATION_CLASS
+                'max-h-[var(--radix-popover-content-available-height)] w-90 overflow-visible rounded-none border-0 bg-transparent p-0 shadow-none',
+                SELECTOR_CONTENT_POSITION_CLASS,
+                contentClassName
               )}
-              data-selector-shell-panel="true">
-              {search ? (
-                <div
-                  ref={setSearchElement}
-                  className="flex h-9 items-center gap-2 border-border-subtle border-b px-3"
-                  data-selector-shell-chrome="search">
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 size-3.5 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      ref={setSearchInputElement}
-                      value={search.value}
-                      autoFocus={search.autoFocus ?? true}
-                      spellCheck={search.spellCheck ?? false}
-                      placeholder={search.placeholder}
-                      aria-activedescendant={search.activeDescendant}
-                      aria-controls={search.ariaControls}
-                      className={cn(
-                        'h-7 rounded-none border-0 bg-transparent! py-0 pr-6 pl-5 text-xs leading-7 shadow-none transition-none md:text-xs dark:bg-transparent!',
-                        'focus-visible:border-transparent focus-visible:ring-0',
-                        'placeholder:text-muted-foreground'
-                      )}
-                      data-testid={search.dataTestId}
-                      onChange={(event) => search.onChange(event.target.value)}
-                      onKeyDown={search.onKeyDown}
-                    />
-                    {search.value ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t('common.clear')}
-                        className="-translate-y-1/2 absolute top-1/2 right-0 size-[22px] rounded-md p-0 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          search.onChange('')
-                          internalSearchInputRef.current?.focus()
-                        }}>
-                        <X className="size-2.5" aria-hidden="true" />
-                      </Button>
-                    ) : null}
-                  </div>
-                  {renderMultiSelectAsSearchBadge && multiSelect ? (
-                    <Tooltip content={multiSelect.tooltip} delay={1500}>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={multiSelect.disabled}
-                        aria-pressed={multiSelect.checked}
-                        aria-label={multiSelect.ariaLabel}
-                        data-testid={multiSelect.dataTestId}
+              data-selector-shell-content="true"
+              ref={setContentElement}
+              data-testid={dataTestId}>
+              <div
+                ref={setPanelElement}
+                className={cn(
+                  'flex h-full max-h-[inherit] w-full flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-popover pt-1 shadow-lg',
+                  SELECTOR_PANEL_ANIMATION_CLASS
+                )}
+                data-selector-shell-panel="true">
+                {search ? (
+                  <div
+                    ref={setSearchElement}
+                    className="flex h-9 items-center gap-2 border-border-subtle border-b px-3"
+                    data-selector-shell-chrome="search">
+                    <div className="relative min-w-0 flex-1">
+                      <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 size-3.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        ref={setSearchInputElement}
+                        value={search.value}
+                        autoFocus={search.autoFocus ?? true}
+                        spellCheck={search.spellCheck ?? false}
+                        placeholder={search.placeholder}
+                        aria-activedescendant={search.activeDescendant}
+                        aria-controls={search.ariaControls}
                         className={cn(
-                          'h-6 min-h-6 shrink-0 rounded-md px-2 text-xs',
-                          multiSelect.checked
-                            ? 'bg-accent text-accent-foreground hover:bg-accent'
-                            : 'bg-secondary/60 hover:bg-secondary'
+                          'h-7 rounded-none border-0 bg-transparent! py-0 pr-6 pl-5 text-xs leading-7 shadow-none transition-none md:text-xs dark:bg-transparent!',
+                          'focus-visible:border-transparent focus-visible:ring-0',
+                          'placeholder:text-muted-foreground'
                         )}
-                        onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
-                        {multiSelect.label}
-                      </Button>
-                    </Tooltip>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {hasFilterContent ? (
-                <div
-                  ref={setFilterElement}
-                  className="flex items-center justify-between gap-2 border-border-subtle border-b px-3 py-2"
-                  data-selector-shell-chrome="filter">
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{filterContent}</div>
-                </div>
-              ) : null}
-
-              {renderMultiSelectRow && multiSelect ? (
-                <div
-                  ref={setMultiSelectElement}
-                  className="flex items-center justify-between gap-3 border-border border-b px-3 py-2"
-                  data-selector-shell-chrome="multi-select"
-                  data-testid={multiSelect.rowTestId}>
-                  <div className="flex min-w-0 flex-1 items-center gap-1 text-[10px] text-muted-foreground">
-                    <span className="truncate">{multiSelect.label}</span>
-                    {multiSelect.hint ? (
-                      <span className="truncate text-muted-foreground">{multiSelect.hint}</span>
+                        data-testid={search.dataTestId}
+                        onChange={(event) => search.onChange(event.target.value)}
+                        onKeyDown={search.onKeyDown}
+                      />
+                      {search.value ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t('common.clear')}
+                          className="-translate-y-1/2 absolute top-1/2 right-0 size-[22px] rounded-md p-0 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            search.onChange('')
+                            internalSearchInputRef.current?.focus()
+                          }}>
+                          <X className="size-2.5" aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                    </div>
+                    {renderMultiSelectAsSearchBadge && multiSelect ? (
+                      <Tooltip content={multiSelect.tooltip} delay={1500}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={multiSelect.disabled}
+                          aria-pressed={multiSelect.checked}
+                          aria-label={multiSelect.ariaLabel}
+                          data-testid={multiSelect.dataTestId}
+                          className={cn(
+                            'h-6 min-h-6 shrink-0 rounded-md px-2 text-xs',
+                            multiSelect.checked
+                              ? 'bg-accent text-accent-foreground hover:bg-accent'
+                              : 'bg-secondary/60 hover:bg-secondary'
+                          )}
+                          onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
+                          {multiSelect.label}
+                        </Button>
+                      </Tooltip>
                     ) : null}
                   </div>
-                  <Switch
-                    checked={multiSelect.checked}
-                    disabled={multiSelect.disabled}
-                    size="sm"
-                    data-testid={multiSelect.dataTestId}
-                    onCheckedChange={multiSelect.onCheckedChange}
-                  />
-                </div>
-              ) : null}
+                ) : null}
 
-              <div ref={setListBodyElement} className="min-h-0 flex-1 overflow-hidden" data-selector-shell-body="true">
-                {body}
-              </div>
-              {hasBottomAction ? (
+                {hasFilterContent ? (
+                  <div
+                    ref={setFilterElement}
+                    className="flex items-center justify-between gap-2 border-border-subtle border-b px-3 py-2"
+                    data-selector-shell-chrome="filter">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{filterContent}</div>
+                  </div>
+                ) : null}
+
+                {renderMultiSelectRow && multiSelect ? (
+                  <div
+                    ref={setMultiSelectElement}
+                    className="flex items-center justify-between gap-3 border-border border-b px-3 py-2"
+                    data-selector-shell-chrome="multi-select"
+                    data-testid={multiSelect.rowTestId}>
+                    <div className="flex min-w-0 flex-1 items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="truncate">{multiSelect.label}</span>
+                      {multiSelect.hint ? (
+                        <span className="truncate text-muted-foreground">{multiSelect.hint}</span>
+                      ) : null}
+                    </div>
+                    <Switch
+                      checked={multiSelect.checked}
+                      disabled={multiSelect.disabled}
+                      size="sm"
+                      data-testid={multiSelect.dataTestId}
+                      onCheckedChange={multiSelect.onCheckedChange}
+                    />
+                  </div>
+                ) : null}
+
                 <div
-                  ref={setBottomActionElement}
-                  className="relative z-1 shrink-0 border-border border-t bg-popover"
-                  data-selector-shell-chrome="bottom-action">
-                  {resolvedBottomActions.map((action, index) => {
-                    const selected = action.type === 'selectable' && action.selected
-
-                    return (
-                      <button
-                        key={index}
-                        type="button"
-                        disabled={action.disabled}
-                        aria-pressed={action.type === 'selectable' ? selected : undefined}
-                        onClick={action.onClick}
-                        className={cn(
-                          'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                          selected
-                            ? 'bg-accent/70 text-accent-foreground'
-                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                        )}>
-                        {selected ? (
-                          <span
-                            aria-hidden="true"
-                            className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
-                          />
-                        ) : null}
-                        {action.icon}
-                        <span className="min-w-0 flex-1 truncate">{action.label}</span>
-                      </button>
-                    )
-                  })}
+                  ref={setListBodyElement}
+                  className="min-h-0 flex-1 overflow-hidden"
+                  data-selector-shell-body="true">
+                  {body}
                 </div>
-              ) : null}
-            </div>
-          </PopoverContent>
+                {hasBottomAction ? (
+                  <div
+                    ref={setBottomActionElement}
+                    className="relative z-1 shrink-0 border-border border-t bg-popover"
+                    data-selector-shell-chrome="bottom-action">
+                    {resolvedBottomActions.map((action, index) => {
+                      const selected = action.type === 'selectable' && action.selected
+
+                      return (
+                        <button
+                          key={index}
+                          type="button"
+                          disabled={action.disabled}
+                          aria-pressed={action.type === 'selectable' ? selected : undefined}
+                          onClick={action.onClick}
+                          className={cn(
+                            'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                            selected
+                              ? 'bg-accent/70 text-accent-foreground'
+                              : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                          )}>
+                          {selected ? (
+                            <span
+                              aria-hidden="true"
+                              className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
+                            />
+                          ) : null}
+                          {action.icon}
+                          <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </PopoverContent>
+          </Activity>
         ) : null}
       </Popover>
     </div>
