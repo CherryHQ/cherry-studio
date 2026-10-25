@@ -420,6 +420,7 @@ describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
       const previous = chunks[index - 1]
       const current = chunks[index]
       expect(current.start).toBeLessThan(previous.end)
+      expect(estimateTokenCount(code.slice(current.start, previous.end))).toBeGreaterThanOrEqual(24)
       expect(code[current.start - 1]).toBe('\n')
     }
   })
