@@ -4326,6 +4326,73 @@ describe('persistBlobAttachments', () => {
     expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
   })
 
+  it('holds a claim grant that lands while a peer Pause revalidation is in flight (pause-refresh-dispatch)', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, failTrigger } = wireMutations()
+    let resolveClaim!: (value: unknown) => void
+    claimHeadTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveClaim = resolve
+      })
+    )
+    const onDrain = vi.fn(async () => true)
+    const { result, rerender } = renderHook(
+      ({ status, lastCompletedAt }: { status: 'streaming' | 'done'; lastCompletedAt: number | null }) =>
+        useFollowupQueue(baseProps({ status, lastCompletedAt, onDrain })),
+      { initialProps: { status: 'streaming' as 'streaming' | 'done', lastCompletedAt: null as number | null } }
+    )
+
+    // Fire the completion edge: the drain claims the head; keep the claim in flight.
+    await act(async () => {
+      rerender({ status: 'done', lastCompletedAt: 100 })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+
+    // A peer Pause commits and its notification starts pause-state
+    // revalidation while the claim is pending: the cached state still reads
+    // paused=false but the read is refreshing (cherry-pr-review
+    // pause-refresh-dispatch).
+    mockUseQuery.mockImplementation((path: string) => {
+      if (path === '/followup-queues') {
+        return {
+          data: [row('h', 'head')],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn(),
+          mutate: vi.fn()
+        }
+      }
+      if (path === '/followup-queue-states') {
+        return {
+          data: { scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' },
+          isLoading: false,
+          isRefreshing: true,
+          error: undefined,
+          refetch: vi.fn(),
+          mutate: vi.fn()
+        }
+      }
+      throw new Error(`unexpected query path ${path}`)
+    })
+    await act(async () => {
+      rerender({ status: 'done', lastCompletedAt: 100 })
+    })
+
+    // The grant arrives before the revalidation settles: the stale pause flag
+    // must not authorize an automatic send.
+    await act(async () => {
+      resolveClaim({ claimed: true, id: 'h', alreadySent: false })
+      await Promise.resolve()
+    })
+
+    expect(onDrain).not.toHaveBeenCalled()
+    // Fail closed: the owned claim is released without consuming the
+    // completion edge, so the drain re-runs against the settled state.
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
+  })
+
   it('re-drives the pending completion when Resume lands while the pause release is in flight (inv_b17cab8d94fd1281)', async () => {
     wireQuery([row('h', 'head')])
     const { claimHeadTrigger, failTrigger } = wireMutations()
