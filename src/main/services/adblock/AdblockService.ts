@@ -473,7 +473,10 @@ export class AdblockService extends BaseService {
           await contents.removeInsertedCSS(previous).catch(() => undefined)
           this.injectedCss.delete(id)
         }
-        const key = await contents.insertCSS(css, { cssOrigin: 'user' })
+        // Author origin, not user: on the pinned Electron, removeInsertedCSS()
+        // resolves for a user-origin sheet but its rules stay applied, so a
+        // disabled rule would keep hiding content until the page reloads.
+        const key = await contents.insertCSS(css, { cssOrigin: 'author' })
         if (!contents.isDestroyed()) this.injectedCss.set(id, key)
       })
       .catch((error) => {

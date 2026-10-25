@@ -291,7 +291,9 @@ describe('AdblockService', () => {
       value: '.ad-slot',
       source: 'ai'
     })
-    const insertCSS = vi.fn<(css: string) => Promise<string>>().mockResolvedValue('sheet-1')
+    const insertCSS = vi
+      .fn<(css: string, options?: { cssOrigin?: string }) => Promise<string>>()
+      .mockResolvedValue('sheet-1')
     const removeInsertedCSS = vi.fn<(key: string) => Promise<void>>().mockResolvedValue(undefined)
     const page = {
       id: 42,
@@ -306,6 +308,8 @@ describe('AdblockService', () => {
     await service.setCustomRuleEnabled(rule.id, true)
     await vi.waitFor(() => expect(insertCSS).toHaveBeenCalledTimes(1))
     expect(insertCSS.mock.calls[0][0]).toContain('.ad-slot')
+    // Author origin: user-origin sheets cannot be removed on the pinned Electron.
+    expect(insertCSS.mock.calls[0][1]).toEqual({ cssOrigin: 'author' })
 
     await service.setCustomRuleEnabled(rule.id, false)
     await vi.waitFor(() => expect(removeInsertedCSS).toHaveBeenCalledWith('sheet-1'))
