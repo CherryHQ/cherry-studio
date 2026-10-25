@@ -76,6 +76,24 @@ function opaqueMarkupEnd(text: string, start: number): number | null {
   return close < 0 ? text.length : close + terminator.length
 }
 
+/** HTML elements whose bodies are literal character data (RCDATA/RAWTEXT). */
+const HTML_TEXT_ELEMENT_TAGS = new Set(['textarea', 'title', 'script', 'style'])
+
+/**
+ * End offset just past an HTML text element's body (its matching closing
+ * tag), or text.length when unclosed, or null when the parsed opener is not
+ * such an element: the body is literal character data, so wrapper-shaped
+ * markup inside is text, not a scratchpad block (cherry-pr-review round-8
+ * html-text-content-loss).
+ */
+function htmlTextElementEnd(text: string, parsed: ParsedOpeningTag, openIndex: number): number | null {
+  if (parsed.isSelfClosing || !HTML_TEXT_ELEMENT_TAGS.has(parsed.tagName.toLowerCase())) return null
+  const bodyStart = openIndex + parsed.opener.length
+  const closeRe = new RegExp(`</${parsed.tagName.toLowerCase()}\\s*>`, 'i')
+  const close = closeRe.exec(text.slice(bodyStart))
+  return close ? bodyStart + close.index + close[0].length : text.length
+}
+
 /** HTML opening-tag attributes are opaque to Markdown code-span openers. */
 function htmlOpeningTagLookup(text: string): (index: number) => boolean {
   const ranges: Array<{ start: number; end: number }> = []
@@ -511,11 +529,40 @@ function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: st
 /** Precompute list-container extents once instead of scanning every prefix per fence. */
 function inheritedFencePrefixLookup(text: string): (openerStart: number, prefix: string) => string {
   const lists: Array<{ start: number; end: number; prefix: string }> = []
+  // A container stack across lines: a nested item's marker may sit more than
+  // three columns from the line start, because enclosing items contribute
+  // their content columns first (CommonMark 0.31.2 §5.2; cherry-pr-review
+  // round-8 nested-fence-content-loss). Each entry's prefix is the canonical
+  // virtual composition of the whole stack. Quoted lines keep the per-line
+  // prefix model: quote markers must repeat on every line, so their nesting
+  // never hides in bare indentation.
+  const stack: Array<{ contentCol: number; start: number; index: number }> = []
   for (let start = 0; start < text.length; start = lineEndAfter(text, start)) {
     const line = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
-    const prefix = /^(?:(?: {0,3}> ?)|(?: {0,3}(?:[-*+]|\d{1,9}[.)]) +))+/.exec(line)?.[0]
-    if (prefix && parseFenceContainerSegments(prefix).some((segment) => segment.type === 'list'))
-      lists.push({ start, end: fenceContainerEnd(text, lineEndAfter(text, start), prefix), prefix })
+    // Blank lines may remain inside a list; they do not pop the stack.
+    if (line.trim() === '') continue
+    if (line.includes('>')) {
+      const prefix = /^(?:(?: {0,3}> ?)|(?: {0,3}(?:[-*+]|\d{1,9}[.)]) +))+/.exec(line)?.[0]
+      if (prefix && parseFenceContainerSegments(prefix).some((segment) => segment.type === 'list'))
+        lists.push({ start, end: fenceContainerEnd(text, lineEndAfter(text, start), prefix), prefix })
+      continue
+    }
+    const leading = line.match(/^ */)?.[0].length ?? 0
+    // Sibling or dedented content ends the items it no longer reaches.
+    while (stack.length && stack[stack.length - 1].contentCol > leading) {
+      const ended = stack.pop()
+      if (ended) lists[ended.index].end = start
+    }
+    const parentCol = stack.length ? stack[stack.length - 1].contentCol : 0
+    if (leading - parentCol > 3) continue
+    const marker = /^([-*+]|\d{1,9}[.)])( +|$)/.exec(line.slice(leading))
+    if (!marker) continue
+    const padding = marker[2] === '' ? 1 : Math.min(marker[2].length, 4)
+    const contentCol = leading + marker[1].length + padding
+    const relWidth = contentCol - parentCol
+    const virtual = (stack.length ? lists[stack[stack.length - 1].index].prefix : '') + `-${' '.repeat(relWidth - 1)}`
+    stack.push({ contentCol, start, index: lists.length })
+    lists.push({ start, end: text.length, prefix: virtual })
   }
   return (openerStart, openerPrefix) => {
     if (openerPrefix === '' || parseFenceContainerSegments(openerPrefix).some((segment) => segment.type === 'list'))
@@ -629,6 +676,13 @@ function findScratchpadBlockRanges(text: string): Array<{ start: number; end: nu
       continue
     }
     const parsed = parseOpeningTagAt(text, openIndex)
+    if (parsed) {
+      const textElementEnd = htmlTextElementEnd(text, parsed, openIndex)
+      if (textElementEnd !== null) {
+        searchFrom = textElementEnd
+        continue
+      }
+    }
     if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
       searchFrom = openIndex + 1
       continue
@@ -1144,6 +1198,11 @@ function enclosingScratchpadTag(
       i = lt + 1
       continue
     }
+    const textElementEnd = htmlTextElementEnd(text, parsed, lt)
+    if (textElementEnd !== null) {
+      i = textElementEnd
+      continue
+    }
     i = lt + parsed.opener.length
     const tag = parsed.tagName.toLowerCase()
     if (!MODEL_SCRATCHPAD_TAG_SET.has(tag) || inInlineCode(lt)) continue
@@ -1654,6 +1713,13 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
         tagEnd = lt + parsed.opener.length
         isSelfClosing = parsed.isSelfClosing
         isTargetTag = parsed.tagName.toLowerCase() === lowerTagName
+        if (!isTargetTag) {
+          const textElementEnd = htmlTextElementEnd(text, parsed, lt)
+          if (textElementEnd !== null) {
+            scanPos = textElementEnd
+            continue
+          }
+        }
       }
     }
     if (tagEnd === -1) {
@@ -1724,6 +1790,13 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
         continue
       }
       const parsed = parseOpeningTagAt(out, openIndex)
+      if (parsed) {
+        const textElementEnd = htmlTextElementEnd(out, parsed, openIndex)
+        if (textElementEnd !== null) {
+          searchFrom = textElementEnd
+          continue
+        }
+      }
       if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
         // Parsed ordinary tags own their quoted attributes. Do not rescan
         // attribute text as nested scratchpad markup (inv_ea9aab25c6ad4f7d).

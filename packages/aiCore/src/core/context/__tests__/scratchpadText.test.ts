@@ -1175,3 +1175,20 @@ describe('cherry-review round-7 findings', () => {
     )
   })
 })
+
+describe('cherry-review round-8 findings', () => {
+  it('keeps literal content of a fence inside a third-level nested list (nested-fence-content-loss)', () => {
+    const input = '- A\n  - B\n    - C\n\n        ~~~xml\n        <thinking>literal</thinking>\n        ~~~'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it('treats HTML text-element bodies as literal character data (html-text-content-loss)', () => {
+    const input = '<textarea>Example: <thinking>literal</thinking></textarea>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+    const script = '<script>if (x) { <analysis>literal</analysis> }</script>'
+    expect(stripModelScratchpadBlocks(script)).toBe(script)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(script)).toBe(script)
+  })
+})
