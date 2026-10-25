@@ -1935,11 +1935,10 @@ export class ClaudeCodeStreamAdapter {
    * response id keep it, so a receipt landing mid-response cannot re-tag the response's blocks.
    */
   private observeResponse(messageId: string | undefined, parentToolCallId: string | null | undefined): void {
-    if (!messageId || this.responseResumeMarkers.has(messageId)) return
-    this.responseResumeMarkers.set(
-      messageId,
-      parentToolCallId ? (this.resumeMarkers.get(parentToolCallId) ?? null) : null
-    )
+    // A parentless response never reads a marker back; retaining its null entry only grows the
+    // connection-scoped map.
+    if (!messageId || !parentToolCallId || this.responseResumeMarkers.has(messageId)) return
+    this.responseResumeMarkers.set(messageId, this.resumeMarkers.get(parentToolCallId) ?? null)
   }
 
   private resolveResponseResumeMarker(
