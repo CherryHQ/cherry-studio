@@ -1734,6 +1734,7 @@
   "import.claude.success": "Erfolgreich {{topics}} Konversationen mit {{messages}} Nachrichten importiert",
   "import.claude.title": "Claude-Konversationen importieren",
   "import.claude.untitled_conversation": "Unbenanntes Gespräch",
+  "import.error.invalid_format": "Ungültiges {{name}}-Format",
   "knowledge.add.group": "Gruppe",
   "knowledge.add.submit": "Erstellen",
   "knowledge.add.title": "Neue Wissensdatenbank",

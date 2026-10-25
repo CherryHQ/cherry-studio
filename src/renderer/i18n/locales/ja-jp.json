@@ -1734,6 +1734,7 @@
   "import.claude.success": "{{topics}}件の会話と{{messages}}件のメッセージを正常にインポートしました",
   "import.claude.title": "Claudeの会話をインポート",
   "import.claude.untitled_conversation": "無題の会話",
+  "import.error.invalid_format": "{{name}} の形式が無効です",
   "knowledge.add.group": "グループ",
   "knowledge.add.submit": "作成",
   "knowledge.add.title": "新しいナレッジベース",
