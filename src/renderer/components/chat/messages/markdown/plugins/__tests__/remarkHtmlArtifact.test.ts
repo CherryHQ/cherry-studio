@@ -1211,6 +1211,94 @@ After.`
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
   })
 
+  // `noscript` holds raw text under scripting-enabled HTML parsing (the document context the
+  // pairing decision mirrors), so a literal `</details>` in its fallback body is source text:
+  // without a matching state the scanner selects that occurrence as the disclosure boundary and
+  // shreds the embedded document.
+  it('keeps the document artifact when a noscript fallback hides a close', () => {
+    const source = `Before
+
+<details>
+<summary>Doc</summary>
+
+<html><body><noscript>literal </details> fallback</noscript><p>Card</p></body></html>
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<details>\n<summary>Doc</summary>' })
+    expect(tree.children[2]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: source.split('\n\n')[2]
+    })
+    expect((tree.children[3] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
+  // svg `desc` is an HTML integration point like `foreignObject`: its children parse as HTML,
+  // so the script raw-text algorithm applies inside it and the literal `</details>` in the
+  // script string is source code. Recognizing only `foreignObject` lets that literal hijack
+  // the pairing close and shred the embedded document.
+  it('keeps the document artifact when a script string inside svg desc hides a close', () => {
+    const source = `Before
+
+<details>
+<summary>Doc</summary>
+
+<html><body><svg><desc><script>const t="</details>";</script></desc></svg><p>Card</p></body></html>
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<details>\n<summary>Doc</summary>' })
+    expect(tree.children[2]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: source.split('\n\n')[2]
+    })
+    expect((tree.children[3] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
+  // svg `title` is an HTML integration point too: a script inside it parses as HTML, so its
+  // raw-text body holds the literal `</details>` — but a `<title>` OUTSIDE foreign content
+  // must keep entering its ordinary HTML raw-text body. A same-node `<title>…</title>` pair is
+  // consumed whole by the raw-text token itself; the integration state matters when the end
+  // tag continues in a later html node.
+  it('keeps the document artifact when a script string inside svg title hides a close', () => {
+    const source = `Before
+
+<details>
+<summary>Doc</summary>
+
+<html><body><svg><title><script>const t="</details>";
+</script>
+
+</title></svg><p>Card</p></body></html>
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<details>\n<summary>Doc</summary>' })
+    expect(tree.children[2]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: source.split('\n\n').slice(2, 4).join('\n\n')
+    })
+    expect((tree.children[3] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
   // An HTML comment between the summary label and the inner opener must not void the opener's
   // bookkeeping: the label split has to look past comments (and whitespace) before deciding the
   // rest of the node holds no disclosure opener, or the inner close lands on the artifact path.

@@ -138,12 +138,12 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
       continue
     }
     // A close tag of anything else: its interior holds no boundary, skip past the marker. A
-    // foreign-content namespace close leaves that context; a `foreignObject` close leaves the
-    // HTML integration point.
+    // foreign-content namespace close leaves that context; an integration-point close
+    // (`foreignObject`/`desc`/`title`) leaves the HTML integration point.
     if (value.startsWith('</', lt)) {
       if (/^<\/(?:svg|math)[\s>]/i.test(value.slice(lt))) {
         state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
-      } else if (/^<\/foreignobject[\s>]/i.test(value.slice(lt))) {
+      } else if (/^<\/(?:foreignobject|desc|title)[\s>]/i.test(value.slice(lt))) {
         state.foreignHtmlIntegrationDepth = Math.max((state.foreignHtmlIntegrationDepth ?? 1) - 1, 0)
       }
       position = lt + 2
@@ -203,11 +203,12 @@ function findHtmlDocumentEnd(
   return undefined
 }
 
-// HTML raw-text elements: everything up to the matching end tag is literal text (script/style
-// are raw text, textarea/title RCDATA, iframe/xmp/noembed/noframes use the raw-text algorithm),
-// so a literal `</details>` inside them — script source, textarea fallback, noembed fallback —
-// can never close a disclosure. `plaintext` is special: it has NO end tag at all, its body runs
-// to end-of-input, so nothing after it is ever a boundary.
+// HTML raw-text elements: everything up to the matching end tag is literal text (script/style/
+// noscript are raw text, textarea/title RCDATA, iframe/xmp/noembed/noframes use the raw-text
+// algorithm), so a literal `</details>` inside them — script source, textarea fallback, noembed
+// fallback — can never close a disclosure. `noscript` holds raw text under scripting-enabled
+// parsing — the document context the pairing decision mirrors. `plaintext` is special: it has
+// NO end tag at all, its body runs to end-of-input, so nothing after it is ever a boundary.
 const RAW_TEXT_ELEMENT_NAMES = [
   'script',
   'style',
@@ -217,6 +218,7 @@ const RAW_TEXT_ELEMENT_NAMES = [
   'xmp',
   'noembed',
   'noframes',
+  'noscript',
   'plaintext'
 ]
 // A raw-text body opened in one html node can continue into the following nodes (a blank line
@@ -241,7 +243,7 @@ const SAME_NODE_RAW_TEXT_ELEMENT_NAMES = RAW_TEXT_ELEMENT_NAMES.filter(
 // (`title="</details>"` is legal HTML whose decoy must not reach the depth counter); a generic
 // tag does the same so a quoted `>` never ends the tag early.
 const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
-  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:foreignobject)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
+  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:foreignobject|desc|title)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
   'gi'
 )
 
@@ -336,8 +338,8 @@ interface ContainerScanState {
   /** Foreign-content (SVG/MathML) namespace depth: the raw-text algorithm never applies inside. */
   foreignDepth?: number
   /**
-   * HTML integration point depth (`<foreignObject>` in foreign content): its children parse as
-   * HTML, so the raw-text algorithm applies again inside it.
+   * HTML integration point depth (`foreignObject`, and in foreign content `desc`/`title`): its
+   * children parse as HTML, so the raw-text algorithm applies again inside it.
    */
   foreignHtmlIntegrationDepth?: number
 }
@@ -359,10 +361,11 @@ function isForeignContext(state: ContainerScanState): boolean {
  * Applies a tag that just completed at offset `tagEnd`: a non-self-closing `<svg>` / `<math>`
  * opens a foreign-content namespace, and a raw-text opener recorded in `pendingRawText` enters
  * its raw-text body — never inside foreign content, where the raw-text algorithm does not
- * apply. HTML has no self-closing on non-void elements (the marker is ignored, so `<script/>`
- * still opens a raw-text body); the marker only matters for the namespace openers themselves.
- * `tagName` is undefined for a tag continued from a previous node, whose opener text is not in
- * `value`.
+ * apply. An integration-point opener (`foreignObject`, and in foreign content `desc`/`title`)
+ * records that its children parse as HTML again. HTML has no self-closing on non-void elements
+ * (the marker is ignored, so `<script/>` still opens a raw-text body); the marker only matters
+ * for the namespace openers themselves. `tagName` is undefined for a tag continued from a
+ * previous node, whose opener text is not in `value`.
  */
 function applyCompletedTag(
   value: string,
@@ -376,14 +379,22 @@ function applyCompletedTag(
     if (!isSelfClosingTag(value, tagStart, tagEnd)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
     return
   }
-  // A `foreignObject` inside foreign content is an HTML integration point: its children parse
-  // as HTML (raw text applies again), so track its depth. Inside an existing integration point
-  // it is an ordinary unknown HTML element.
-  if (name === 'foreignobject') {
+  // svg `foreignObject`/`desc`/`title` are HTML integration points: their children parse as
+  // HTML (raw text applies again), so track their depth. Inside an existing integration point
+  // they are ordinary unknown HTML elements.
+  if (name === 'foreignobject' || name === 'desc' || name === 'title') {
     if (isForeignContext(state) && !isSelfClosingTag(value, tagStart, tagEnd)) {
       state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+      // The integration point's children parse as HTML: a pending raw-text transition (a
+      // `title` opener recorded before its tag completed) is voided, and the pending opener
+      // must not linger for the NEXT completed tag.
+      state.pendingRawText = undefined
+      return
     }
-    return
+    // A `title` outside foreign content is an ordinary HTML raw-text element and still enters
+    // its body through the pendingRawText handling below; `desc`/`foreignObject` are then
+    // ordinary unknown elements.
+    if (name !== 'title') return
   }
   if (state.pendingRawText !== undefined) {
     if (!isForeignContext(state)) {
@@ -602,7 +613,9 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
         state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
         continue
       }
-      if (token.startsWith('</foreignobject')) {
+      // An integration-point close (`foreignObject`/`desc`/`title`) leaves the HTML integration
+      // point.
+      if (token.startsWith('</foreignobject') || token.startsWith('</desc') || token.startsWith('</title')) {
         state.foreignHtmlIntegrationDepth = Math.max((state.foreignHtmlIntegrationDepth ?? 1) - 1, 0)
         continue
       }
@@ -611,13 +624,23 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
         if (!isSelfClosingTag(token, 0, token.length)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
         continue
       }
-      // A `foreignObject` in foreign content is an HTML integration point (children parse as
-      // HTML); inside an existing one it is an ordinary unknown HTML element.
+      // svg `foreignObject`/`desc`/`title` are HTML integration points (children parse as
+      // HTML); inside an existing one they are ordinary unknown HTML elements. Their children
+      // parse as HTML, so no raw-text body opens inside them — a `title` outside foreign
+      // content is an ordinary HTML raw-text element and enters its body below.
       if (name === 'foreignobject') {
         if (isForeignContext(state) && !isSelfClosingTag(token, 0, token.length)) {
           state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
         }
         continue
+      }
+      if (name === 'desc' || name === 'title') {
+        if (isForeignContext(state)) {
+          if (!isSelfClosingTag(token, 0, token.length)) {
+            state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+          }
+          continue
+        }
       }
       // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
       if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name) && !isForeignContext(state)) {
@@ -700,7 +723,9 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
         foreignDepth = Math.max(foreignDepth - 1, 0)
         continue
       }
-      if (token.startsWith('</foreignobject')) {
+      // An integration-point close (`foreignObject`/`desc`/`title`) leaves the HTML integration
+      // point.
+      if (token.startsWith('</foreignobject') || token.startsWith('</desc') || token.startsWith('</title')) {
         foreignHtmlIntegrationDepth = Math.max(foreignHtmlIntegrationDepth - 1, 0)
         continue
       }
@@ -709,13 +734,23 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
         if (!isSelfClosingTag(token, 0, token.length)) foreignDepth += 1
         continue
       }
-      // A `foreignObject` in foreign content is an HTML integration point (children parse as
-      // HTML); inside an existing one it is an ordinary unknown HTML element.
+      // svg `foreignObject`/`desc`/`title` are HTML integration points (children parse as
+      // HTML); inside an existing one they are ordinary unknown HTML elements. Their children
+      // parse as HTML, so no raw-text body opens inside them — a `title` outside foreign
+      // content is an ordinary HTML raw-text element and enters its body below.
       if (name === 'foreignobject') {
         if (foreignDepth > 0 && foreignHtmlIntegrationDepth === 0 && !isSelfClosingTag(token, 0, token.length)) {
           foreignHtmlIntegrationDepth += 1
         }
         continue
+      }
+      if (name === 'desc' || name === 'title') {
+        if (foreignDepth > 0 && foreignHtmlIntegrationDepth === 0) {
+          if (!isSelfClosingTag(token, 0, token.length)) {
+            foreignHtmlIntegrationDepth += 1
+          }
+          continue
+        }
       }
       // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
       if (
