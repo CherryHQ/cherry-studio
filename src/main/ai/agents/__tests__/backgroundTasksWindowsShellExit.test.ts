@@ -502,6 +502,53 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     expect(requested.flat()).not.toContain('424242')
   }, 20_000)
 
+  it('spares orphan rows that predate the verified roots force-stop extends ancestry through', async () => {
+    // Windows keeps an orphan's parent number after its original parent exits, and the OS may hand
+    // that number to this task's own shell. The shell then verifies under its stamp while the older
+    // orphan still names its number as parent, and that orphan has since forked a child of its own.
+    // A collector that extends ancestry without checking creation order adopts both and force-kills
+    // unrelated work; the stop may only publish once it has spared them.
+    const onExit = vi.fn()
+    const requested: string[][] = []
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    // `600` was forked by whoever held the shell's number before the shell, and `700` is its child.
+    const liveRows = new Map<string, string>([
+      [String(record.pid), `"${record.pid}","4","${SPAWN_STAMP}"`],
+      [String(shellPid), `"${shellPid}","${record.pid}","${SPAWN_STAMP}"`],
+      ['600', `"600","${shellPid}","${BEFORE_SHELL_STAMP}"`],
+      ['700', `"700","600","${ORPHAN_STAMP}"`]
+    ])
+    const flushTable = (): void => {
+      writeFileSync(fakeTable, `${[TABLE_HEADER, ...liveRows.values()].join('\n')}\n`)
+    }
+    flushTable()
+
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      const called = args[1] as string[]
+      requested.push(called)
+      // Only the pid taskkill was asked for dies; the unrelated rows stay listed, so a walk that
+      // adopted them cannot fall back to an empty table for its verdict.
+      liveRows.delete(called[called.indexOf('/PID') + 1])
+      flushTable()
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    expect(stopped?.status).toBe('stopped')
+    expect(onExit).toHaveBeenCalledTimes(1)
+    // The shell was the task's to kill; the rows that merely name its number are not.
+    expect(requested.some((args) => args.includes(String(shellPid)))).toBe(true)
+    expect(requested.flat()).not.toContain('600')
+    expect(requested.flat()).not.toContain('700')
+  }, 20_000)
+
   it('adopts a child across an absent parent only while the job holds it', async () => {
     // The same shape, but the child is a member of the task's job: membership was recorded before
     // the parent ever existed, so it is evidence the reused number is not. While the job holds the

@@ -2263,11 +2263,17 @@ function createdTicks(created: string): number | undefined {
   return Number.isFinite(ticks) ? ticks : undefined
 }
 
-/** Whether `earlier` provably predates `later`; two unparseable stamps prove nothing. */
-function createdBefore(earlier: string, later: string): boolean {
-  const from = createdTicks(earlier)
-  const to = createdTicks(later)
-  return from !== undefined && to !== undefined && from < to
+/**
+ * Whether a row parented to `occupant` was created under it. A verified occupant is this task's
+ * own process, so only a row created after it can be its child; an unverified one took a recorded
+ * pid over, so only a row older than it was forked by the predecessor this app spawned. Two stamps
+ * that cannot be ordered prove neither, and the row stays unadopted.
+ */
+function createdUnderOccupant(row: WindowsProcessRow, occupant: WindowsProcessRow, verified: boolean): boolean {
+  const created = createdTicks(row.created)
+  const occupantCreated = createdTicks(occupant.created)
+  if (created === undefined || occupantCreated === undefined) return false
+  return verified ? created >= occupantCreated : created < occupantCreated
 }
 
 function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoot[]): Set<number> {
@@ -2281,6 +2287,12 @@ function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoo
     if (row && row.created === root.created) verified.add(row.pid)
   }
   const work = new Set<number>()
+  // The creation stamp each claimed process is measured against when the walk extends through it.
+  const claimed = new Map<number, number>()
+  for (const pid of verified) {
+    const created = createdTicks(byPid.get(pid)!.created)
+    if (created !== undefined) claimed.set(pid, created)
+  }
   for (const row of rows) {
     if (verified.has(row.pid) || !rootPids.has(row.ppid)) continue
     const occupant = byPid.get(row.ppid)
@@ -2288,18 +2300,22 @@ function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoo
     // OS may have reused that number for an unrelated parent that forked this row and exited. Such
     // a row is adopted only when it is itself a root the runner verified under its stamp (already
     // collected above), never on the strength of the parent's number alone.
-    if (!occupant) continue
-    if (!verified.has(occupant.pid) && !createdBefore(row.created, occupant.created)) continue
+    if (!occupant || !createdUnderOccupant(row, occupant, verified.has(occupant.pid))) continue
     work.add(row.pid)
+    claimed.set(row.pid, createdTicks(row.created)!)
   }
   for (let grew = true; grew;) {
     grew = false
     for (const row of rows) {
       if (verified.has(row.pid) || work.has(row.pid)) continue
-      if (work.has(row.ppid) || verified.has(row.ppid)) {
-        work.add(row.pid)
-        grew = true
-      }
+      const parentCreated = claimed.get(row.ppid)
+      const created = createdTicks(row.created)
+      // A row older than the parent it names was forked by an earlier holder of that pid, and
+      // descending through it would adopt whatever the OS has put there since.
+      if (parentCreated === undefined || created === undefined || created < parentCreated) continue
+      work.add(row.pid)
+      claimed.set(row.pid, created)
+      grew = true
     }
   }
   for (const pid of verified) work.add(pid)
