@@ -92,8 +92,10 @@ Registered job types:
 `check-file-processing-result` is a polling job:
 `scheduleFileProcessingCheck` reschedules it at
 `FILE_PROCESSING_CHECK_DELAY_MS = 5_000` intervals until the FileProcessing job
-reaches a terminal state. After `FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000`,
-the remote job is cancelled and the item is marked `failed`. On success the
+reaches a terminal state. Once the FileProcessing job has been running for
+`FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000` (from its `startedAt`), it is
+cancelled and the item is marked `failed`. Time spent queued does not count: local
+processors run one file at a time, so a large batch can wait much longer than that. On success the
 output's relative path is recorded via `updateIndexedRelativePath`, then
 `index-documents` is scheduled.
 

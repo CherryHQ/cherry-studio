@@ -48,7 +48,6 @@ describe('delete-subtree job handler', () => {
           itemId: 'note-1',
           fileProcessingJobId: 'fp-job-1',
           pollRound: 0,
-          firstScheduledAt: 1779811200000,
           processedRelativePath: 'source.md'
         }
       }),

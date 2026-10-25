@@ -36,6 +36,7 @@ function createFileProcessingJobSnapshot(overrides: Partial<ReturnType<typeof cr
   })
   return {
     ...snapshot,
+    startedAt: new Date().toISOString(),
     ...overrides
   }
 }
@@ -48,7 +49,6 @@ function createCheckPayload(
     itemId: FILE_ITEM_ID,
     fileProcessingJobId: 'fp-job-1',
     pollRound: 0,
-    firstScheduledAt: Date.now(),
     processedRelativePath: PROCESSED_RELATIVE_PATH,
     ...overrides
   }
@@ -95,18 +95,11 @@ describe('check-file-processing-result job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
 
-    const firstScheduledAt = Date.now()
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 2,
-        firstScheduledAt
-      })
-    )
+    const ctx = createCtx(createCheckPayload({ pollRound: 2 }))
     await handler.execute(ctx)
 
     expect(ingestionService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
       pollRound: 3,
-      firstScheduledAt,
       parentJobId: 'job-1',
       processedRelativePath: PROCESSED_RELATIVE_PATH
     })
@@ -119,21 +112,10 @@ describe('check-file-processing-result job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
 
-    const firstScheduledAt = Date.now()
-    await handler.execute(
-      createCtx(
-        createCheckPayload({
-          pollRound: 2,
-          firstScheduledAt
-        }),
-        'check-job-2',
-        'reindex-job'
-      )
-    )
+    await handler.execute(createCtx(createCheckPayload({ pollRound: 2 }), 'check-job-2', 'reindex-job'))
 
     expect(ingestionService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
       pollRound: 3,
-      firstScheduledAt,
       parentJobId: 'reindex-job',
       processedRelativePath: PROCESSED_RELATIVE_PATH
     })
@@ -148,13 +130,7 @@ describe('check-file-processing-result job handler', () => {
       detail: { stage: 'polling' }
     })
 
-    const firstScheduledAt = Date.now()
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 2,
-        firstScheduledAt
-      })
-    )
+    const ctx = createCtx(createCheckPayload({ pollRound: 2 }))
     await handler.execute(ctx)
 
     expect(ctx.reportProgress).toHaveBeenCalledWith(42, {
@@ -185,17 +161,17 @@ describe('check-file-processing-result job handler', () => {
     ).toBeUndefined()
   })
 
-  it('marks the item failed when file processing exceeds the wait limit', async () => {
+  it('marks the item failed when file processing has run past the wait limit', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 360,
-        firstScheduledAt: Date.now() - 30 * 60 * 1000
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        status: 'running',
+        startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString()
       })
     )
+
+    const ctx = createCtx(createCheckPayload({ pollRound: 360 }))
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
@@ -204,6 +180,30 @@ describe('check-file-processing-result job handler', () => {
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-timeout')
     expect(ingestionService.scheduleFileProcessingCheck).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
+  })
+
+  // A big batch queues behind processors that run one or two files at a time.
+  it.each([
+    ['still queued', { status: 'pending', startedAt: null }],
+    ['running briefly after a long queue', { status: 'running', startedAt: new Date().toISOString() }]
+  ] as const)('keeps waiting for a file-processing job %s, however long ago it was enqueued', async (_, state) => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    const enqueuedAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({ ...state, createdAt: enqueuedAt, scheduledAt: enqueuedAt })
+    )
+
+    await handler.execute(createCtx(createCheckPayload({ pollRound: 1440 })))
+
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+    expect(cancelMock).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleFileProcessingCheck).toHaveBeenCalledWith(
+      'kb-1',
+      FILE_ITEM_ID,
+      'fp-job-1',
+      expect.objectContaining({ pollRound: 1441 })
+    )
   })
 
   it('stores the processed artifact relative path and schedules indexing on completion', async () => {
@@ -254,17 +254,15 @@ describe('check-file-processing-result job handler', () => {
     // lingering mirror from this run would read as the new run's progress.
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        status: 'running',
+        startedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      })
+    )
     MockMainCacheServiceUtils.setSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`, 42)
 
-    await handler.execute(
-      createCtx(
-        createCheckPayload({
-          pollRound: 360,
-          firstScheduledAt: Date.now() - 30 * 60 * 1000
-        })
-      )
-    )
+    await handler.execute(createCtx(createCheckPayload({ pollRound: 360 })))
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
       error: 'File processing job fp-job-1 did not finish within 30 minutes'

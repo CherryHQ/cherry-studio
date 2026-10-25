@@ -80,7 +80,7 @@ export interface KnowledgeItemScheduler {
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
     fileProcessingJobId: string,
-    options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null; processedRelativePath: string }
+    options: { pollRound: number; parentJobId: string | null; processedRelativePath: string }
   ): Promise<void>
 }
 
@@ -460,7 +460,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       try {
         await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, {
           pollRound: 0,
-          firstScheduledAt: Date.now(),
           // Use the file-processing job as workflow parent when this is a direct add flow,
           // so retries keep a stable index idempotency key across poll rounds.
           parentJobId: parentJobId ?? fileProcessingJob.id,
@@ -487,9 +486,9 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
     fileProcessingJobId: string,
-    options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null; processedRelativePath: string }
+    options: { pollRound: number; parentJobId: string | null; processedRelativePath: string }
   ): Promise<void> {
-    const { pollRound, firstScheduledAt, parentJobId, processedRelativePath } = options
+    const { pollRound, parentJobId, processedRelativePath } = options
     const jobManager = application.get('JobManager')
     jobManager.enqueue(
       'knowledge.check-file-processing-result',
@@ -498,7 +497,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         itemId,
         fileProcessingJobId,
         pollRound,
-        firstScheduledAt,
         processedRelativePath
       },
       {

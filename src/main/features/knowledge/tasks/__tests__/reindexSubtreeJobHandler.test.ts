@@ -691,7 +691,6 @@ describe('reindex-subtree job handler', () => {
           itemId: FILE_ITEM_ID,
           fileProcessingJobId: 'fp-job-1',
           pollRound: 0,
-          firstScheduledAt: 1779811200000,
           processedRelativePath: 'source.md'
         }
       })

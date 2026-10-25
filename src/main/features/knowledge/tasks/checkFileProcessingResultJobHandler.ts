@@ -60,7 +60,6 @@ export function createCheckFileProcessingResultJobHandler(
 
     async execute(ctx) {
       const { baseId, itemId, fileProcessingJobId } = ctx.input
-      const firstScheduledAt = ctx.input.firstScheduledAt
       const workflowParentJobId = ctx.parentId ?? ctx.jobId
       ctx.signal.throwIfAborted()
 
@@ -104,7 +103,9 @@ export function createCheckFileProcessingResultJobHandler(
       }
 
       if (!isTerminalStatus(snapshot.status)) {
-        if (Date.now() - firstScheduledAt >= FILE_PROCESSING_MAX_WAIT_MS) {
+        // Only running time counts: a large batch can wait far longer than this behind a
+        // processor that runs one file at a time.
+        if (snapshot.startedAt !== null && Date.now() - Date.parse(snapshot.startedAt) >= FILE_PROCESSING_MAX_WAIT_MS) {
           await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-timeout')
           markItemFailed(itemId, `File processing job ${fileProcessingJobId} did not finish within 30 minutes`)
           reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
@@ -118,7 +119,6 @@ export function createCheckFileProcessingResultJobHandler(
           fileProcessingJobId,
           {
             pollRound: nextPollRound,
-            firstScheduledAt,
             parentJobId: workflowParentJobId,
             processedRelativePath: ctx.input.processedRelativePath
           }
