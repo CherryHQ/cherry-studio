@@ -4,10 +4,35 @@ import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+import {
+  type BuiltinAssistantAgent,
+  type BuiltinAssistantAgentIdentity,
+  resolveBuiltinAssistantAgent
+} from '../../../scripts/e2e/regression/builtinAgents'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
 import type { RegressionApp } from './RegressionApp'
+
+/**
+ * Resolve the seeded built-in assistant Agent by identity rather than by its
+ * display name: the seeder names it after the system language ("Cherry 小助手"
+ * for Chinese systems) and switching the UI language does not rename the row.
+ */
+export async function builtinAssistantAgent(page: Page): Promise<BuiltinAssistantAgent> {
+  const agents = await page.evaluate(() =>
+    window.api.dataApi.request({
+      id: 'builtin-assistant-agent',
+      method: 'GET',
+      path: '/agents',
+      params: { limit: 500 }
+    })
+  )
+  expect(agents.status).toBe(200)
+  return resolveBuiltinAssistantAgent(
+    agents.data as { page: number; total: number; items: BuiltinAssistantAgentIdentity[] }
+  )
+}
 
 export async function selectAgent(page: Page, name: string): Promise<void> {
   await selectSidebarApp(page, 'Work')

@@ -1,3 +1,5 @@
+import type { Platform } from './types'
+
 export const REGRESSION_CASES = [
   { id: 'S-01', capabilities: [], phase: '01-startup', title: 'Application startup smoke test', task: 'startup-smoke' },
   { id: 'APP-01', capabilities: [], phase: '02-basic-features', title: 'Open a Mini App', task: 'mini-app' },
@@ -184,7 +186,8 @@ export const REGRESSION_CASES = [
     title: 'Advanced parameters and permission modes',
     task: '08-code-tools',
     phase: '08-code-tools',
-    capabilities: []
+    capabilities: [],
+    platforms: ['macos']
   },
   {
     id: 'M-01',
@@ -562,8 +565,22 @@ export const REGRESSION_CASES = [
     phase: '15-settings',
     capabilities: []
   },
-  { id: 'MP-110', title: 'Notification settings', task: '15-settings', phase: '15-settings', capabilities: [] },
-  { id: 'MP-111', capabilities: [], phase: '15-settings', title: 'Startup and tray behavior', task: '15-settings' },
+  {
+    id: 'MP-110',
+    title: 'Notification settings',
+    task: '15-settings',
+    phase: '15-settings',
+    capabilities: ['desktopAutomation'],
+    platforms: ['macos']
+  },
+  {
+    id: 'MP-111',
+    capabilities: ['desktopAutomation'],
+    phase: '15-settings',
+    title: 'Startup and tray behavior',
+    task: '15-settings',
+    platforms: ['macos']
+  },
   {
     id: 'MP-112',
     title: 'Network proxy settings',
@@ -717,7 +734,8 @@ export const REGRESSION_CASES = [
     capabilities: [],
     phase: '20-system',
     title: 'Selection Assistant (capture, explain, translate, copy)',
-    task: '20-system'
+    task: '20-system',
+    platforms: ['macos']
   },
   {
     id: 'MP-128',
@@ -740,14 +758,16 @@ export const REGRESSION_CASES = [
     title: 'System tray menu',
     task: '20-system',
     phase: '20-system',
-    capabilities: []
+    capabilities: [],
+    platforms: ['macos']
   },
   {
     id: 'MP-133',
     title: 'Deep links, single instance, and relaunch',
     task: '20-system',
     phase: '20-system',
-    capabilities: []
+    capabilities: [],
+    platforms: ['macos']
   },
   {
     id: 'MP-140',
@@ -797,4 +817,17 @@ export function caseDefinition(id: CaseId) {
 
 export function missingCapabilities(id: CaseId, capabilities: Record<string, { available: boolean }>): string[] {
   return getCase(id).capabilities.filter((name) => !capabilities[name]?.available)
+}
+
+/**
+ * A case may be implemented for a subset of the platforms the regression
+ * workflow runs on — native notification automation, System Events driven
+ * tray and single-instance checks, and Terminal permission flows only exist on
+ * macOS. Such cases declare `platforms`; runs on the other platform record
+ * them as not applicable instead of executing a macOS-only implementation and
+ * reporting an application failure.
+ */
+export function supportsPlatform(id: CaseId, platform: Platform): boolean {
+  const { platforms } = getCase(id) as { platforms?: readonly Platform[] }
+  return !platforms || platforms.includes(platform)
 }

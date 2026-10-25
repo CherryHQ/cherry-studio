@@ -1,4 +1,6 @@
-import { chmod, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { dirname, join, parse } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
@@ -28,6 +30,14 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
   const nonempty = join(app.paths.fixtures, 'mp119-nonempty')
   const readonly = join(app.paths.fixtures, 'mp119-readonly')
   const backup = join(app.paths.fixtures, 'mp119-backup')
+  // Relocation rewrites the install-scoped boot config and only packaged builds accept it;
+  // branch runs launch unpackaged Electron from the repository.
+  const packaged = app.record.mode === 'tag'
+  const bootConfigPath = packaged
+    ? join(homedir(), '.cherrystudio', 'boot-config.json')
+    : join(app.paths.profiles, app.record.profile, '.cherrystudio', 'boot-config.json')
+  const bootConfigBackup = existsSync(bootConfigPath) ? await readFile(bootConfigPath) : undefined
+  let relocated = false
   for (const directory of [destination, nonempty, readonly, backup]) await mkdir(directory, { recursive: true })
   await writeFile(join(nonempty, 'keep.txt'), 'MP119 existing content')
   await chmod(readonly, 0o555)
@@ -154,11 +164,27 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     await expect(dialog).toContainText('The app may need to restart multiple times to apply the changes')
     await expect(dialog).toContainText('Copying data may take a while, do not force quit app')
     await screenshot('MP-119 migration confirmation and copy warning')
+    if (!packaged) {
+      // Unpackaged builds refuse relocation by design, so no relocation window can appear.
+      // Assert the documented rejection instead of waiting for a window that never opens.
+      const rejection = await page.evaluate(async (target) => {
+        const result = (await window.api.ipcApi.request('app.user_data_relocation.request', {
+          path: target,
+          copy: true
+        })) as IpcResult<unknown>
+        return result.ok ? 'accepted' : result.error.code
+      }, destination)
+      expect(rejection).toBe('USER_DATA_RELOCATION_UNAVAILABLE')
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await screenshot('MP-119 relocation rejected for an unpackaged build')
+      return
+    }
     await dialog.getByRole('button', { name: 'Confirm', exact: true }).click()
     await expect(dialog).toBeHidden()
     await app.disconnect()
     const relocation = await app.window('/userDataRelocation/')
     await expect(relocation.getByRole('button', { name: /Restart/ })).toBeVisible({ timeout: 120_000 })
+    relocated = true
     const migrationImage = await captureMaskedScreenshot(relocation, getSensitiveConfigValues())
     await testInfo.attach('MP-119 migration completed', { body: migrationImage, contentType: 'image/png' })
     page = await app.restart()
@@ -185,6 +211,14 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
   } finally {
     await chmod(readonly, 0o755)
     await server.close()
+    if (relocated) {
+      // Relocation rewrote the install-scoped boot config. Restore it and relaunch so the
+      // profile stays where the run owns it and later cases do not inherit a moved data directory.
+      if (bootConfigBackup) await writeFile(bootConfigPath, bootConfigBackup)
+      else await rm(bootConfigPath, { force: true })
+      page = await app.restart()
+      expect((await readAppInfo()).appDataPath).toBe(original.appDataPath)
+    }
     if (!page.isClosed())
       await page.evaluate(
         async ({ previous, assistantId, providerId }) => {

@@ -991,6 +991,8 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const readShortcut = () => page.evaluate(() => window.api.preference.get('shortcut.topic.create'))
+  // CommandOrControl records as Meta on macOS and Control on Windows.
+  const primary = app.record.platform === 'macos' ? 'Meta' : 'Control'
   const row = page.locator('#setting-shortcut-topic-create')
   const openShortcut = async () => {
     await openSettingsSection(page, 'Keyboard Shortcuts')
@@ -1045,7 +1047,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await showStartingTopic()
     await openShortcut()
     await row.locator('kbd').first().locator('..').click()
-    await row.getByRole('button', { name: 'Press Shortcut', exact: true }).press('Meta+Shift+Y')
+    await row.getByRole('button', { name: 'Press Shortcut', exact: true }).press(`${primary}+Shift+Y`)
     await expect.poll(readShortcut).toEqual(custom)
     await expect(row.locator('kbd').last()).toHaveText('Y')
     await screenshot('MP-109 custom shortcut saved')
@@ -1065,7 +1067,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
       await expect(topics.filter({ hasText: app.resourceName(name) })).toBeVisible()
     }
     let count = await topics.count()
-    await page.keyboard.press('Meta+Shift+Y')
+    await page.keyboard.press(`${primary}+Shift+Y`)
     await expect(topics).toHaveCount(count + 1)
     await expect(chat.getByRole('heading', { name: 'What should we talk about today?', exact: true })).toBeVisible()
     await screenshot('MP-109 custom shortcut creates conversation immediately')
@@ -1073,7 +1075,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
 
     await openShortcut()
     await row.locator('kbd').first().locator('..').click()
-    await row.getByRole('button', { name: 'Press Shortcut', exact: true }).press('Meta+Shift+F')
+    await row.getByRole('button', { name: 'Press Shortcut', exact: true }).press(`${primary}+Shift+F`)
     await expect(row.getByText('Already used by "Search Message"', { exact: true })).toBeVisible()
     await screenshot('MP-109 occupied shortcut rejected')
     expect(await readShortcut()).toEqual(custom)
@@ -1085,7 +1087,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(row.locator('kbd').last()).toHaveText('N')
     await showStartingTopic()
     count = await topics.count()
-    await page.keyboard.press('Meta+N')
+    await page.keyboard.press(`${primary}+N`)
     await expect(topics).toHaveCount(count + 1)
     await screenshot('MP-109 default shortcut restored and working')
     await nameCreatedTopic('Default shortcut conversation')
@@ -1096,7 +1098,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await expect.poll(readShortcut).toEqual({ ...defaults, enabled: false })
     await showStartingTopic()
     count = await topics.count()
-    await page.keyboard.press('Meta+N')
+    await page.keyboard.press(`${primary}+N`)
     await page.waitForTimeout(1_000)
     await expect(topics).toHaveCount(count)
     await expect(topics.filter({ hasText: topicName })).toHaveAttribute('aria-selected', 'true')
@@ -1106,7 +1108,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await row.getByRole('switch').click()
     await expect.poll(readShortcut).toEqual(defaults)
     await showStartingTopic()
-    await page.keyboard.press('Meta+N')
+    await page.keyboard.press(`${primary}+N`)
     await expect(topics).toHaveCount(count + 1)
   } finally {
     await page.evaluate(

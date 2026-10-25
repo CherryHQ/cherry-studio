@@ -46,10 +46,16 @@ export default class RegressionReporter implements Reporter {
         run = updatePhase(run, phase, 'running')
       }
     }
-    writeRun(this.paths.runState, beginCase(run, caseId(test)))
+    const id = caseId(test)
+    // Cases outside the run platform are recorded as not applicable at initialize time.
+    if (run.cases[id].status === 'not_applicable') return
+    writeRun(this.paths.runState, beginCase(run, id))
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
+    const id = caseId(test)
+    const run = readRun(this.paths.runState)
+    if (run.cases[id].status === 'not_applicable') return
     const artifacts = result.attachments.flatMap(({ path }) => (path ? [path] : []))
     const status = result.status === 'passed' ? 'passed' : result.status === 'skipped' ? 'blocked' : 'failed'
     const blocked = result.annotations.find(({ type }) => type === 'skip')?.description
@@ -59,8 +65,7 @@ export default class RegressionReporter implements Reporter {
         : result.status === 'skipped'
           ? `Prerequisites not met: ${blocked ?? 'See phase logs'}`
           : 'End-to-end test failed; see phase logs and the HTML report'
-    const run = completeE2eCase(readRun(this.paths.runState), caseId(test), status, this.redact(summary), artifacts)
-    writeRun(this.paths.runState, run)
+    writeRun(this.paths.runState, completeE2eCase(run, id, status, this.redact(summary), artifacts))
   }
 
   onError(error: TestError): void {

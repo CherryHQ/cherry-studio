@@ -8,7 +8,15 @@ import { runInNewContext } from 'node:vm'
 import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
 import { parse } from 'yaml'
 
-import { getCase, missingCapabilities, PHASE_IDS, REGRESSION_CASES, selectCases, TASK_SELECTIONS } from '../cases'
+import {
+  getCase,
+  missingCapabilities,
+  PHASE_IDS,
+  REGRESSION_CASES,
+  selectCases,
+  supportsPlatform,
+  TASK_SELECTIONS
+} from '../cases'
 
 describe('regression execution plan', () => {
   it('offers every supported task in the workflow dropdown with full regression as the default', () => {
@@ -96,6 +104,18 @@ describe('regression execution plan', () => {
     expect(missingCapabilities('C-02', {})).toEqual(['desktopAutomation'])
     expect(missingCapabilities('C-02', { desktopAutomation: { available: true } })).toEqual([])
     expect(missingCapabilities('N-01', {})).toEqual([])
+  })
+
+  it('keeps macOS-only scenarios out of Windows runs and leaves cross-platform cases applicable', () => {
+    for (const id of ['MP-70', 'MP-97', 'MP-109', 'MP-110', 'MP-111', 'MP-127', 'MP-132', 'MP-133'] as const) {
+      expect(supportsPlatform(id, 'macos')).toBe(true)
+    }
+    for (const id of ['MP-97', 'MP-110', 'MP-111', 'MP-127', 'MP-132', 'MP-133'] as const) {
+      expect(supportsPlatform(id, 'windows'), id).toBe(false)
+    }
+    for (const id of ['MP-70', 'MP-109', 'S-01'] as const) {
+      expect(supportsPlatform(id, 'windows'), id).toBe(true)
+    }
   })
 })
 

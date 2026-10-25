@@ -787,38 +787,47 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     expect(pdfPath).toBeTruthy()
     await files.getByText('sample.pdf', { exact: true }).click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Show in folder', exact: true }).click()
-    let selectedPath: string | undefined
-    const finderSelection = () => {
-      selectedPath = execFileSync(
-        'osascript',
-        [
-          '-e',
+    if (app.record.platform === 'macos') {
+      let selectedPath: string | undefined
+      const finderSelection = () => {
+        selectedPath = execFileSync(
+          'osascript',
           [
-            'tell application "Finder"',
-            'set selectedPaths to {}',
-            'repeat with selectedItem in (get selection)',
-            'set end of selectedPaths to POSIX path of (selectedItem as alias)',
-            'end repeat',
-            'return selectedPaths as text',
-            'end tell'
-          ].join('\n')
-        ],
-        { encoding: 'utf8', timeout: 10_000 }
-      ).trim()
-      return selectedPath
-    }
-    await expect.soft.poll(finderSelection, { timeout: 15_000 }).toBe(pdfPath)
-    if (selectedPath === pdfPath) {
-      const finderDirectory = execFileSync(
-        'osascript',
-        ['-e', 'tell application "Finder" to get POSIX path of (target of front window as alias)'],
-        { encoding: 'utf8', timeout: 10_000 }
-      )
-        .trim()
-        .replace(/\/$/, '')
-      expect(finderDirectory).toBe(dirname(pdfPath!))
-      await testInfo.attach('MP-70 Finder location', {
-        body: JSON.stringify({ selected: finderSelection(), directory: finderDirectory }),
+            '-e',
+            [
+              'tell application "Finder"',
+              'set selectedPaths to {}',
+              'repeat with selectedItem in (get selection)',
+              'set end of selectedPaths to POSIX path of (selectedItem as alias)',
+              'end repeat',
+              'return selectedPaths as text',
+              'end tell'
+            ].join('\n')
+          ],
+          { encoding: 'utf8', timeout: 10_000 }
+        ).trim()
+        return selectedPath
+      }
+      await expect.soft.poll(finderSelection, { timeout: 15_000 }).toBe(pdfPath)
+      if (selectedPath === pdfPath) {
+        const finderDirectory = execFileSync(
+          'osascript',
+          ['-e', 'tell application "Finder" to get POSIX path of (target of front window as alias)'],
+          { encoding: 'utf8', timeout: 10_000 }
+        )
+          .trim()
+          .replace(/\/$/, '')
+        expect(finderDirectory).toBe(dirname(pdfPath!))
+        await testInfo.attach('MP-70 Finder location', {
+          body: JSON.stringify({ selected: finderSelection(), directory: finderDirectory }),
+          contentType: 'application/json'
+        })
+      }
+    } else {
+      // "Show in folder" hands the path to the platform file manager; the selection readback
+      // above is Finder-only, so other platforms record the action without claiming a result.
+      await testInfo.attach('MP-70 file manager location', {
+        body: JSON.stringify({ platform: app.record.platform, expectedPath: pdfPath, selectionVerified: false }),
         contentType: 'application/json'
       })
     }

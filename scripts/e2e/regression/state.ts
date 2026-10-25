@@ -1,6 +1,6 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 
-import { REGRESSION_CASES, selectCases } from './cases'
+import { REGRESSION_CASES, selectCases, supportsPlatform } from './cases'
 import type { CapabilityResult, CaseStatus, RegressionRun, RunMetadata, RunVerdict } from './types'
 
 export function createRun(metadata: RunMetadata): RegressionRun {
@@ -16,15 +16,22 @@ export function createRun(metadata: RunMetadata): RegressionRun {
       ])
     ),
     cases: Object.fromEntries(
-      REGRESSION_CASES.map((testCase) => [
-        testCase.id,
-        {
-          id: testCase.id,
-          status: metadata.task === 'all' || testCase.task === metadata.task ? 'pending' : 'not_applicable',
-          summary:
-            metadata.task !== 'all' && testCase.task !== metadata.task ? `Not selected by task ${metadata.task}` : ''
-        }
-      ])
+      REGRESSION_CASES.map((testCase) => {
+        const selected = metadata.task === 'all' || testCase.task === metadata.task
+        const supported = supportsPlatform(testCase.id, metadata.platform)
+        return [
+          testCase.id,
+          {
+            id: testCase.id,
+            status: selected && supported ? 'pending' : 'not_applicable',
+            summary: !selected
+              ? `Not selected by task ${metadata.task}`
+              : !supported
+                ? `Not supported on ${metadata.platform}`
+                : ''
+          }
+        ]
+      })
     )
   }
 }

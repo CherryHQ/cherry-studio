@@ -18,7 +18,9 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
   expect(record.platform).toBe('macos')
   expect(findListeningPid(record.platform, record.cdpPort)).toBe(record.electronPid)
   const { stdout: cwd } = await exec('lsof', ['-a', '-p', String(record.electronPid), '-d', 'cwd', '-Fn'])
-  expect(cwd.split('\n')).toContain(`n${record.targetRoot}`)
+  // Installer launches run from the executable's directory and record it in `cwd`;
+  // only branch launches start from the repository root.
+  expect(cwd.split('\n')).toContain(`n${record.cwd}`)
   const { stdout: binaries } = await exec('lsof', ['-a', '-p', String(record.electronPid), '-d', 'txt', '-Fn'])
   const executable =
     record.executablePath ??

@@ -55,6 +55,24 @@ describe('Playwright run state', () => {
     expect(getRunVerdict(run)).toBe('development_blocked')
   })
 
+  it('marks platform-scoped cases as not applicable instead of failing a Windows run', () => {
+    const run = createRun({
+      appVersion: 'development',
+      commitSha: 'sha',
+      mode: 'branch',
+      platform: 'windows',
+      ref: 'main',
+      runner: 'windows-2022',
+      task: 'all'
+    })
+
+    expect(run.cases['MP-133']).toMatchObject({
+      status: 'not_applicable',
+      summary: 'Not supported on windows'
+    })
+    expect(run.cases['S-01'].status).toBe('pending')
+  })
+
   it('marks unselected tasks as not applicable', () => {
     const run = createRun({
       appVersion: 'development',
