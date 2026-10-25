@@ -6250,4 +6250,21 @@ describe('cherry-pr-review round-11', () => {
     expect(fragmented).toBe(runWithSnapshot([answer], answer))
     expect(fragmented).toBe(answer)
   })
+
+  it('carries literal-markup context through the buffered flush (buffered-html-flush-context)', () => {
+    const answer = '<textarea>\nExample:\n<thinking>literal</thinking>\n`\n</textarea>'
+    const fragmented = runWithSnapshot(
+      ['<textarea>\nExample:\n', '<thinking>literal</thinking>\n`', '\n</textarea>'],
+      answer
+    )
+    expect(fragmented).toBe(answer)
+  })
+
+  it('does not let repeated closed text elements degrade delivery (html-carry-rescan)', () => {
+    const answer = Array.from({ length: 640 }, (_, i) => `<textarea>ex${i}</textarea> `).join('')
+    const deltas: string[] = []
+    for (let i = 0; i < answer.length; i += 20) deltas.push(answer.slice(i, i + 20))
+    const fragmented = runWithSnapshot(deltas, answer)
+    expect(fragmented).toBe(answer)
+  })
 })

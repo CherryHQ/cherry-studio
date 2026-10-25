@@ -10,7 +10,7 @@ type ParsedOpeningTag = {
 }
 
 /** Deterministic opener scan — avoids catastrophic backtracking from overlapping attribute regexes. */
-function parseOpeningTagAt(text: string, offset: number): ParsedOpeningTag | null {
+export function parseOpeningTagAt(text: string, offset: number): ParsedOpeningTag | null {
   if (text[offset] !== '<') return null
   const start = offset
   let i = offset + 1
@@ -187,20 +187,28 @@ export function unclosedOpaqueMarkupOpener(text: string): '<!--' | '<![CDATA[' |
   let open: '<!--' | '<![CDATA[' | null = null
   while (pos < masked.length) {
     if (open === null) {
-      const commentStart = masked.indexOf('<!--', pos)
-      const cdataStart = masked.indexOf('<![CDATA[', pos)
-      let start = -1
-      let opener: '<!--' | '<![CDATA[' | null = null
-      if (commentStart !== -1 && (cdataStart === -1 || commentStart < cdataStart)) {
-        start = commentStart
-        opener = '<!--'
-      } else if (cdataStart !== -1) {
-        start = cdataStart
-        opener = '<![CDATA['
+      const lt = masked.indexOf('<', pos)
+      if (lt === -1) return null
+      if (masked.startsWith('<!--', lt)) {
+        open = '<!--'
+        pos = lt + 4
+        continue
       }
-      if (opener === null) return null
-      open = opener
-      pos = start + opener.length
+      if (masked.startsWith('<![CDATA[', lt)) {
+        open = '<![CDATA['
+        pos = lt + 9
+        continue
+      }
+      // Tag attributes are opaque to markup: a comment or CDATA opener inside
+      // one is attribute text, not an open section (cherry-pr-review round-12
+      // false-comment-carry).
+      const parsed = isBackslashEscaped(masked, lt) ? null : parseOpeningTagAt(masked, lt)
+      if (parsed) {
+        pos = lt + parsed.opener.length
+        continue
+      }
+      const closeTag = /^<\/[a-zA-Z][a-zA-Z0-9-]*\s*>/.exec(masked.slice(lt))
+      pos = lt + (closeTag ? closeTag[0].length : 1)
       continue
     }
     const terminator = open === '<!--' ? '-->' : ']]>'
@@ -748,9 +756,36 @@ function isBackslashEscaped(text: string, index: number): boolean {
 function findScratchpadBlockRanges(text: string): Array<{ start: number; end: number }> {
   const ranges: Array<{ start: number; end: number }> = []
   let searchFrom = 0
+  let cachedBlockEnd = -1
   while (searchFrom < text.length) {
     const openIndex = text.indexOf('<', searchFrom)
     if (openIndex === -1) break
+    // Literal inline code ahead of the tag: complete spans are text, so a
+    // wrapper-shaped tag inside one is not a boundary (cherry-pr-review
+    // round-12 inline-code-range-discovery).
+    const tick = text.indexOf('`', searchFrom)
+    if (tick !== -1 && tick < openIndex && !isBackslashEscaped(text, tick)) {
+      let run = 0
+      while (text[tick + run] === '`') run++
+      let j = tick + run
+      let closedAt = -1
+      const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
+      while (j < blockEnd) {
+        if (text[j] !== '`') {
+          j++
+          continue
+        }
+        let closeRun = 0
+        while (text[j + closeRun] === '`') closeRun++
+        if (closeRun === run) {
+          closedAt = j + closeRun
+          break
+        }
+        j += closeRun
+      }
+      searchFrom = closedAt === -1 ? tick + run : closedAt
+      continue
+    }
     if (isBackslashEscaped(text, openIndex)) {
       searchFrom = openIndex + 1
       continue

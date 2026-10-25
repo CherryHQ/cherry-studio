@@ -169,6 +169,12 @@ type StreamContext = {
   scratchpadStreamEscapeCarry: boolean
   /** Opener line of a confirmed-open code fence whose content already streamed; pairs mid-fence remainder content. */
   scratchpadStreamFenceCarry: string
+  /** Literal-markup carry (unclosed HTML text element / comment / CDATA), tracked incrementally over emitted text so long answers do not rescan per delta (cherry-pr-review round-12 html-carry-rescan). */
+  scratchpadStreamHtmlCarry: string
+  /** accumulatedText length already classified for the html carry. */
+  scratchpadStreamHtmlCarryScanned: number
+  /** textBlockContextStart the carry scan is based on; a shift resets it. */
+  scratchpadStreamHtmlCarryBase: number
   /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
   toolProtocolStripAccumulator: string
   toolProtocolStripEmittedLength: number
@@ -634,6 +640,9 @@ export class ClaudeCodeStreamAdapter {
       scratchpadStreamRemainder: '',
       scratchpadStreamEscapeCarry: false,
       scratchpadStreamFenceCarry: '',
+      scratchpadStreamHtmlCarry: '',
+      scratchpadStreamHtmlCarryScanned: 0,
+      scratchpadStreamHtmlCarryBase: -1,
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
       toolProtocolStripLastNonWsIndex: -1,
@@ -1162,6 +1171,37 @@ export class ClaudeCodeStreamAdapter {
     return { emit: text.slice(0, lastOpen), buffer: tail }
   }
 
+  /**
+   * Incremental literal-markup carry: classifies only text emitted since the
+   * previous call. Emitted text is always inline-code-closed (unclosed spans
+   * stay buffered in the remainder) and open fences pause tracking, so
+   * scanning each new chunk with its own masking matches a full rescan of the
+   * emitted prefix (cherry-pr-review round-12 html-carry-rescan).
+   */
+  private updateHtmlStreamCarry(ctx: StreamContext): void {
+    if (
+      ctx.scratchpadStreamHtmlCarryBase !== ctx.textBlockContextStart ||
+      ctx.scratchpadStreamHtmlCarryScanned > ctx.accumulatedText.length
+    ) {
+      ctx.scratchpadStreamHtmlCarry = ''
+      ctx.scratchpadStreamHtmlCarryBase = ctx.textBlockContextStart
+      ctx.scratchpadStreamHtmlCarryScanned = ctx.textBlockContextStart
+    }
+    if (ctx.scratchpadStreamFenceCarry !== '') {
+      // Inside an open fence everything is literal: keep the cursor current
+      // so fenced markup is never reconsidered after the close.
+      ctx.scratchpadStreamHtmlCarryScanned = ctx.accumulatedText.length
+      return
+    }
+    while (ctx.scratchpadStreamHtmlCarryScanned < ctx.accumulatedText.length) {
+      const chunk = ctx.accumulatedText.slice(ctx.scratchpadStreamHtmlCarryScanned)
+      const probe = ctx.scratchpadStreamHtmlCarry + chunk
+      if (!/<(textarea|title|script|style)[\s>]|<!--|<!\[CDATA\[/i.test(probe)) break
+      ctx.scratchpadStreamHtmlCarry = unclosedHtmlTextElementOpener(probe) ?? unclosedOpaqueMarkupOpener(probe) ?? ''
+      ctx.scratchpadStreamHtmlCarryScanned = ctx.accumulatedText.length
+    }
+  }
+
   private filterScratchpadFromOngoingDelta(text: string, ctx: StreamContext): string {
     if (!ctx.filterParentlessScratchpadText || !ctx.textPartStarted || ctx.textStartDeferred) {
       return text
@@ -1190,18 +1230,13 @@ export class ClaudeCodeStreamAdapter {
     // stripped as a scratchpad block (cherry-pr-review round-9
     // fragmented-html-content-corruption). Fence carry takes precedence:
     // content inside an open fence is already literal.
-    // Cheap gate first: the full masked scan only runs when a text-element
-    // opener appears in the emitted context at all, so long code answers pay
-    // no per-delta rescan (main-test perf budget, inv_be69014e8d52ce1b).
-    const emittedContext = ctx.accumulatedText.slice(ctx.textBlockContextStart)
     // Literal-markup context the scan cannot see once emitted: an unclosed
     // HTML text element, or an unclosed comment/CDATA section (round-11
-    // opaque-markup-stream-context).
-    const htmlCarry =
-      ctx.scratchpadStreamFenceCarry === '' &&
-      /<(textarea|title|script|style)[\s>]|<!--|<!\[CDATA\[/i.test(emittedContext)
-        ? (unclosedHtmlTextElementOpener(emittedContext) ?? unclosedOpaqueMarkupOpener(emittedContext) ?? '')
-        : ''
+    // opaque-markup-stream-context). Tracked incrementally over newly emitted
+    // text only, so long answers do not rescan the whole accumulator per
+    // delta (round-12 html-carry-rescan).
+    this.updateHtmlStreamCarry(ctx)
+    const htmlCarry = ctx.scratchpadStreamHtmlCarry
     const prefix =
       ctx.scratchpadStreamFenceCarry +
       htmlCarry +
@@ -2992,10 +3027,15 @@ export class ClaudeCodeStreamAdapter {
     // Scan the remainder with the same open-line context the streaming filter
     // carries, or flushed literal code can lose its block classification at
     // the boundary (cherry-pr-review inv_f7b234887ed722ff).
+    // The same literal-markup carry the streaming filter applies: without it
+    // a buffered remainder inside an unclosed element or comment loses its
+    // context at flush (cherry-pr-review round-12 buffered-html-flush-context).
+    this.updateHtmlStreamCarry(ctx)
     const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
     const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
     const prefix =
       fenceCarry +
+      ctx.scratchpadStreamHtmlCarry +
       (openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix)
     const pending = prefix + ctx.scratchpadStreamRemainder
     ctx.scratchpadStreamRemainder = ''
@@ -3028,6 +3068,9 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
     ctx.scratchpadStreamFenceCarry = ''
+    ctx.scratchpadStreamHtmlCarry = ''
+    ctx.scratchpadStreamHtmlCarryScanned = 0
+    ctx.scratchpadStreamHtmlCarryBase = -1
     this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false

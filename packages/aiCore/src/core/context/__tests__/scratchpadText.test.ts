@@ -1204,6 +1204,13 @@ describe('cherry-pr-review round-9', () => {
   })
 })
 
+describe('cherry-pr-review round-12', () => {
+  it('does not treat literal inline-code tags as scratchpad boundaries (inline-code-range-discovery)', () => {
+    const input = 'Use `<thinking>` and `</thinking>`, then `<thinking>` and `</thinking>`.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+})
+
 describe('cherry-pr-review round-11 helpers', () => {
   it('returns the parsed opener rather than masked-offset slices (masked-html-carry)', () => {
     expect(unclosedHtmlTextElementOpener('Before `literal`\n\n<textarea>\n<thinking>')).toBe('<textarea>')
@@ -1219,5 +1226,10 @@ describe('cherry-pr-review round-11 helpers', () => {
     expect(unclosedOpaqueMarkupOpener('<![CDATA[ closed ]]> after')).toBeNull()
     expect(unclosedOpaqueMarkupOpener('`code <!-- still code` text')).toBeNull()
     expect(unclosedOpaqueMarkupOpener('<!-- a --> then <!-- b')).toBe('<!--')
+    // A comment opener inside a tag attribute is text, not markup
+    // (cherry-pr-review round-12 false-comment-carry).
+    expect(unclosedOpaqueMarkupOpener('Example: <div title="<!--">')).toBeNull()
+    expect(unclosedOpaqueMarkupOpener("Example: <div title='<![CDATA['>")).toBeNull()
+    expect(unclosedOpaqueMarkupOpener('<div title="x">real <!-- open')).toBe('<!--')
   })
 })
