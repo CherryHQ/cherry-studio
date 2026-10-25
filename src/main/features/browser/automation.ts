@@ -122,6 +122,9 @@ export async function executeBrowserOperation(
       note: input.note,
       source: 'ai'
     })
+    // The rule is stored either way, but both layers that consume it are gated
+    // by the master switch, so an inactive service means "saved, not yet live".
+    const applied = service.isActive()
     return {
       value: {
         tabId: target.tabId,
@@ -131,8 +134,11 @@ export async function executeBrowserOperation(
         kind: result.rule.kind,
         value: result.rule.value,
         updated: result.existing,
-        applied: true,
-        status: 'completed'
+        applied,
+        status: applied ? 'completed' : 'deferred',
+        ...(applied
+          ? {}
+          : { message: 'Rule saved, but ad blocking is off. Turn it on in Settings → Browser to apply it.' })
       }
     }
   }

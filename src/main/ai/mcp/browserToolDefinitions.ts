@@ -280,7 +280,7 @@ export const BlockAdsSchema = z.object({
 const blockAdsToolDefinition = {
   name: 'block_ads',
   description:
-    'Hide an obvious ad you encounter while browsing, without waiting to be asked. Inspect the element with execute first, then save one rule scoped to the page host. When the page was observed with open or snapshot in a private window or a non-active tab, pass that tabId and privateMode. It applies immediately and can be disabled in Settings → Browser. Skip navigation, consent dialogs and merely promotional content; prefer a selector that matches only the ad. Use urlFilter for ads loaded as a separate request.',
+    'Hide an obvious ad you encounter while browsing, without waiting to be asked. Inspect the element with execute first, then save one rule scoped to the page host. When the page was observed with open or snapshot in a private window or a non-active tab, pass that tabId and privateMode. It applies immediately when ad blocking is on; when that switch is off the rule is saved but returns applied=false with status=deferred. Rules can be disabled in Settings → Browser. Skip navigation, consent dialogs and merely promotional content; prefer a selector that matches only the ad. Use urlFilter for ads loaded as a separate request.',
   inputSchema: BlockAdsSchema
 }
 

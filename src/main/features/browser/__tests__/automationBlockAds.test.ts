@@ -28,7 +28,7 @@ describe('automation blockAds operation', () => {
 
   beforeEach(() => {
     addCustomRule.mockReset()
-    getAdblockService.mockReturnValue({ addCustomRule, isAiRuleWritingEnabled: () => true })
+    getAdblockService.mockReturnValue({ addCustomRule, isAiRuleWritingEnabled: () => true, isActive: () => true })
   })
 
   it('scopes a cosmetic rule to the page the agent is looking at', async () => {
@@ -148,5 +148,33 @@ describe('automation blockAds operation', () => {
       executeBrowserOperation(controllerFor('file:///tmp/preview.html'), 'blockAds', { css: '.promo' }, 'tab-1', signal)
     ).rejects.toMatchObject({ code: 'ADBLOCK_UNAVAILABLE', effect: 'none' })
     expect(addCustomRule).not.toHaveBeenCalled()
+  })
+
+  it('reports a saved rule as deferred while ad blocking is off', async () => {
+    getAdblockService.mockReturnValue({ addCustomRule, isAiRuleWritingEnabled: () => true, isActive: () => false })
+    addCustomRule.mockResolvedValue({
+      existing: false,
+      rule: {
+        id: 'rule-3',
+        domain: 'example.com',
+        kind: 'cosmetic',
+        value: '.promo',
+        note: '',
+        source: 'ai',
+        enabled: true,
+        createdAt: 1
+      }
+    })
+
+    const result = await executeBrowserOperation(
+      controllerFor('https://example.com/'),
+      'blockAds',
+      { css: '.promo' },
+      'tab-1',
+      signal
+    )
+
+    expect(result.value).toMatchObject({ applied: false, status: 'deferred' })
+    expect(String((result.value as { message?: string }).message)).toContain('ad blocking is off')
   })
 })

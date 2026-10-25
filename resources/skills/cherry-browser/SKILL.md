@@ -40,9 +40,10 @@ The runtime emits this same reference on first binding and through `documentatio
 If an obvious ad, sponsored block or sticky promo overlay covers content you need,
 inspect the element and call `tab.blockAds({ css })` with a selector that matches only
 the ad. Use `urlFilter` only for an ad loaded by a separate request. The rule is scoped
-to the current page host (`blockAds` reads it from the page) and applies immediately.
-Skip navigation, consent dialogs and ordinary promotional copy. Rules can be disabled
-in Settings → Browser.
+to the current page host (`blockAds` reads it from the page) and applies immediately
+while ad blocking is on; if the switch in Settings → Browser is off, the rule is saved
+but reported as `deferred`, so do not report the ad as hidden. Skip navigation, consent
+dialogs and ordinary promotional copy. Rules can be disabled in Settings → Browser.
 
 The visible host has one page per session. It does not support new/private tabs,
 closing/resetting the user's page or popup windows. A standalone browser MCP may

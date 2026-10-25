@@ -53,13 +53,20 @@ export async function handleBlockAds(controller: BrowserController, args: unknow
       note: input.note,
       source: 'ai'
     })
+    // The rule is stored either way, but both layers that consume it are gated
+    // by the master switch, so an inactive service means "saved, not yet live".
+    const applied = service.isActive()
     return successResponse(
       JSON.stringify({
         id: result.rule.id,
         domain: result.rule.domain,
         kind: result.rule.kind,
         value: result.rule.value,
-        applied: true,
+        applied,
+        status: applied ? 'completed' : 'deferred',
+        ...(applied
+          ? {}
+          : { message: 'Rule saved, but ad blocking is off. Turn it on in Settings → Browser to apply it.' }),
         updated: result.existing
       })
     )

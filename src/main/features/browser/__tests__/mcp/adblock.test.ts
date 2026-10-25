@@ -31,7 +31,7 @@ describe('block_ads tool', () => {
 
   beforeEach(() => {
     addCustomRule.mockReset()
-    getAdblockService.mockReturnValue({ addCustomRule, isAiRuleWritingEnabled: () => true })
+    getAdblockService.mockReturnValue({ addCustomRule, isAiRuleWritingEnabled: () => true, isActive: () => true })
   })
 
   it('saves a cosmetic rule for the given domain', async () => {
@@ -69,7 +69,34 @@ describe('block_ads tool', () => {
       kind: 'cosmetic',
       value: '.sponsored-card',
       applied: true,
+      status: 'completed',
       updated: false
+    })
+  })
+
+  it('reports a saved rule as deferred while ad blocking is off', async () => {
+    getAdblockService.mockReturnValue({ addCustomRule, isAiRuleWritingEnabled: () => true, isActive: () => false })
+    addCustomRule.mockResolvedValue({
+      existing: false,
+      rule: {
+        id: 'rule-4',
+        domain: 'example.com',
+        kind: 'cosmetic',
+        value: '.ad',
+        note: '',
+        source: 'ai',
+        enabled: true,
+        createdAt: 1
+      }
+    })
+
+    const result = await handleBlockAds(controller, { domain: 'example.com', css: '.ad' })
+
+    expect(result.isError).toBe(false)
+    expect(JSON.parse(textOf(result))).toMatchObject({
+      applied: false,
+      status: 'deferred',
+      message: expect.stringContaining('ad blocking is off')
     })
   })
 
