@@ -1,4 +1,4 @@
-import { type AgentLaunchIndex, resolveResumeReceiptState } from '../shared/agentToolTypes'
+import { AgentToolsType, type AgentLaunchIndex, resolveResumeReceiptState } from '../shared/agentToolTypes'
 import { getPartLaunchToolCallId } from '../toolParentMetadata'
 import type { ToolResponseLike } from '../toolResponse'
 
@@ -22,6 +22,9 @@ export function resolveAgentToolFlowTarget(
 ): string | undefined {
   const callId = toolResponse.toolCallId
   if (!callId) return undefined
+  // Only a SendMessage result is a receipt; an ordinary Agent report can name an agent without
+  // continuing one, so it opens its own flow.
+  if (toolResponse.tool.name !== AgentToolsType.SendMessage) return callId
   const state = resolveResumeReceiptState(
     toolResponse.response,
     getPartLaunchToolCallId(toolResponse),
