@@ -90,6 +90,17 @@ describe('rule validation', () => {
     expect(scopeNetworkRule('||cdn.example.invalid^$from=other.com', 'example.com')).toBeUndefined()
   })
 
+  it('finds the option boundary the engine uses, not an escaped dollar', () => {
+    const value = '||cdn.example.invalid^$domain=other.com|foo\\$bar'
+    expect(() => validateRuleInput({ domain: 'example.com', kind: 'network', value })).toThrow('domain')
+    expect(scopeNetworkRule(value, 'example.com')).toBeUndefined()
+  })
+
+  it('appends the scope after the regex delimiter instead of inside the pattern', () => {
+    expect(scopeNetworkRule('/pixel$/', 'example.com')).toBe('/pixel$/$domain=example.com')
+    expect(scopeNetworkRule('/pixel/$third-party', 'example.com')).toBe('/pixel/$third-party,domain=example.com')
+  })
+
   it('only allows the page host or its registrable domain as a scope', () => {
     expect(isAllowedScope('merchant.co.uk', 'merchant.co.uk')).toBe(true)
     expect(isAllowedScope('www.example.com', 'www.example.com')).toBe(true)
@@ -148,6 +159,24 @@ describe('CustomAdblockRuleStore', () => {
         { domain: 'not a domain', kind: 'cosmetic', value: '.ad', enabled: true, createdAt: 1 }
       ])
     )
+    const reopened = new CustomAdblockRuleStore(path.join(directory, 'rules.json'))
+    await reopened.load()
+    expect(reopened.list()).toHaveLength(1)
+  })
+
+  it('keeps memory unchanged when a mutation cannot be persisted', async () => {
+    const { mkdir } = await import('node:fs/promises')
+    const { rule } = await store.add({ domain: 'example.com', kind: 'cosmetic', value: '#ad' })
+    // A directory at the temp path makes every write fail before the rename.
+    await mkdir(path.join(directory, 'rules.json.tmp'))
+
+    await expect(store.remove(rule.id)).rejects.toThrow()
+    await expect(store.setEnabled(rule.id, false)).rejects.toThrow()
+    await expect(store.add({ domain: 'example.com', kind: 'cosmetic', value: '.promo' })).rejects.toThrow()
+
+    expect(store.list()).toHaveLength(1)
+    expect(store.list()[0].enabled).toBe(true)
+
     const reopened = new CustomAdblockRuleStore(path.join(directory, 'rules.json'))
     await reopened.load()
     expect(reopened.list()).toHaveLength(1)

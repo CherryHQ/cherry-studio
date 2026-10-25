@@ -76,12 +76,28 @@ export function isAllowedScope(hostname: string, domain: string): boolean {
 const SCOPE_OPTION_PATTERN = /^\s*~?(?:domain|from|to)=/i
 
 /**
+ * Index of the `$` that starts a filter's option list, or `-1` when the rule
+ * has no options. Mirrors the bundled engine: the last `$` not preceded by a
+ * backslash, unless the next character is `/`, which makes it a regex anchor
+ * (`/pixel$/`) instead. Using `lastIndexOf('$')` here would read an escaped
+ * `\$` inside the pattern as the boundary and miss the real `domain=` after it.
+ */
+function optionBoundary(rule: string): number {
+  let index = rule.lastIndexOf('$')
+  while (index > 0 && rule.charCodeAt(index - 1) === 92 /* \ */) {
+    index = rule.lastIndexOf('$', index - 1)
+  }
+  if (index !== -1 && rule.charCodeAt(index + 1) === 47 /* / */) return -1
+  return index
+}
+
+/**
  * The stored rule is always scoped to its saved `domain`. A rule that carries
  * its own scope option (`domain`, `from`, `to`, including negated forms) would
  * apply wherever that option points, so it is rejected instead of rewritten.
  */
 function hasScopeOption(rule: string): boolean {
-  const optionStart = rule.lastIndexOf('$')
+  const optionStart = optionBoundary(rule)
   if (optionStart === -1) return false
   return rule
     .slice(optionStart + 1)
@@ -96,7 +112,7 @@ function hasScopeOption(rule: string): boolean {
  */
 export function scopeNetworkRule(value: string, domain: string): string | undefined {
   if (hasScopeOption(value)) return undefined
-  return value.includes('$') ? `${value},domain=${domain}` : `${value}$domain=${domain}`
+  return optionBoundary(value) === -1 ? `${value}$domain=${domain}` : `${value},domain=${domain}`
 }
 
 /**
@@ -279,10 +295,13 @@ export class CustomAdblockRuleStore {
         (rule) => rule.domain === validated.domain && rule.kind === validated.kind && rule.value === validated.value
       )
       if (existing) {
-        existing.enabled = true
-        existing.note = validated.note ?? existing.note
-        await this.persist()
-        return { rule: { ...existing }, existing: true }
+        const updated: CustomAdblockRule = {
+          ...existing,
+          enabled: true,
+          note: validated.note ?? existing.note
+        }
+        await this.commit(this.rules.map((rule) => (rule.id === existing.id ? updated : rule)))
+        return { rule: { ...updated }, existing: true }
       }
       if (this.rules.length >= MAX_RULES) {
         throw new Error(`Rule limit reached (${MAX_RULES}); delete some rules in Settings first`)
@@ -297,18 +316,16 @@ export class CustomAdblockRuleStore {
         enabled: true,
         createdAt: Date.now()
       }
-      this.rules.push(rule)
-      await this.persist()
+      await this.commit([...this.rules, rule])
       return { rule: { ...rule }, existing: false }
     })
   }
 
   async remove(id: string): Promise<boolean> {
     return this.mutations.queue(async () => {
-      const before = this.rules.length
-      this.rules = this.rules.filter((rule) => rule.id !== id)
-      if (this.rules.length === before) return false
-      await this.persist()
+      const next = this.rules.filter((rule) => rule.id !== id)
+      if (next.length === this.rules.length) return false
+      await this.commit(next)
       return true
     })
   }
@@ -317,16 +334,22 @@ export class CustomAdblockRuleStore {
     return this.mutations.queue(async () => {
       const rule = this.rules.find((entry) => entry.id === id)
       if (!rule) return undefined
-      rule.enabled = enabled
-      await this.persist()
-      return { ...rule }
+      const updated: CustomAdblockRule = { ...rule, enabled }
+      await this.commit(this.rules.map((entry) => (entry.id === id ? updated : entry)))
+      return { ...updated }
     })
   }
 
-  private async persist(): Promise<void> {
+  /**
+   * Writes the candidate state first and adopts it only after the write
+   * succeeds. A failed write must not leave memory ahead of the file: callers
+   * treat a rejection as "nothing changed".
+   */
+  private async commit(next: CustomAdblockRule[]): Promise<void> {
     const temp = `${this.filePath}.tmp`
     await fs.mkdir(path.dirname(this.filePath), { recursive: true })
-    await fs.writeFile(temp, `${JSON.stringify(this.rules, null, 2)}\n`, 'utf8')
+    await fs.writeFile(temp, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
     await fs.rename(temp, this.filePath)
+    this.rules = next
   }
 }
