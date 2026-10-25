@@ -1659,9 +1659,13 @@ const AgentComposerInner = ({
     [setFiles]
   )
   const clearCurrentDraft = useCallback(
-    (options?: { preserveCache?: boolean }) => {
+    (options?: { preserveCache?: boolean; submitted?: boolean }) => {
       if (options?.preserveCache) suppressEmptyPersistRef.current = true
-      releaseFollowupEditRef.current()
+      // A send/enqueue that consumed the draft marks the edit-session
+      // retirement 'submitted': a suspended edit-switch closes its captured
+      // recovery copy instead of releasing a duplicate (cherry-pr-review
+      // retired-edit-recovery). Cache-driven clears are not submissions.
+      releaseFollowupEditRef.current(options?.submitted === true ? 'submitted' : 'released')
       setText('')
       setFiles([])
       setSelectedSkills([])
@@ -1926,14 +1930,14 @@ const AgentComposerInner = ({
                 ? stillOwnsCache || activeEditor.isShowing(submitted)
                 : activeEditor.isShowing(submitted)
               if (unchanged && mayClear) {
-                activeEditor.clearSubmitted({ preserveCache: !stillOwnsCache })
+                activeEditor.clearSubmitted({ preserveCache: !stillOwnsCache, submitted: true })
               }
             } else if (
               stillOwnsCache &&
               queueScopeRef.current === enqueueScope &&
               draftEditRevisionRef.current === enqueueRevision
             ) {
-              clearCurrentDraft()
+              clearCurrentDraft({ submitted: true })
             }
           }
         } finally {
@@ -1948,7 +1952,7 @@ const AgentComposerInner = ({
       setIsDirectSending(true)
       try {
         const sent = await sendQueuedPayload(payload)
-        if (sent) clearCurrentDraft()
+        if (sent) clearCurrentDraft({ submitted: true })
       } finally {
         directSendInFlightRef.current = false
         releasePendingSubmission(submissionScope)

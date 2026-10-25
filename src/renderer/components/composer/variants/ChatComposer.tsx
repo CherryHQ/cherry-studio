@@ -587,7 +587,7 @@ const ChatComposerInner = ({
   // silently overwritten (cherry-pr-review).
   const followupTakePendingRef = useRef(false)
   const [followupTakePending, setFollowupTakePending] = useState(false)
-  const releaseFollowupEditRef = useRef<() => void>(() => {})
+  const releaseFollowupEditRef = useRef<(outcome?: 'submitted' | 'released') => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -1600,8 +1600,12 @@ const ChatComposerInner = ({
     },
     [setFiles]
   )
-  const clearCurrentDraft = useCallback(() => {
-    releaseFollowupEditRef.current()
+  const clearCurrentDraft = useCallback((options?: { submitted?: boolean }) => {
+    // A send/enqueue that consumed the draft marks the edit-session
+    // retirement 'submitted': a suspended edit-switch closes its captured
+    // recovery copy instead of releasing a duplicate (cherry-pr-review
+    // retired-edit-recovery). Cache-driven clears are not submissions.
+    releaseFollowupEditRef.current(options?.submitted === true ? 'submitted' : 'released')
     setText('')
     setDraftTokens(undefined)
     setFiles([])
@@ -1961,7 +1965,7 @@ const ChatComposerInner = ({
               savedDraftBeforeEditingRef.current = { ...savedBackup, text: '', draftTokens: [], files: [] }
             }
             if (queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
-              clearCurrentDraft()
+              clearCurrentDraft({ submitted: true })
             }
           }
         } finally {
@@ -1980,7 +1984,7 @@ const ChatComposerInner = ({
         }
 
         const sent = await sendQueuedPayload(payload)
-        if (sent) clearCurrentDraft()
+        if (sent) clearCurrentDraft({ submitted: true })
       } finally {
         directSendInFlightRef.current = false
         releasePendingSubmission(submissionScope)

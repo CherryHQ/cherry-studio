@@ -252,8 +252,10 @@ export interface FollowupQueueController {
     id: string,
     captureOutgoing: (taken: FollowupQueueItem) => Pick<FollowupQueueItem, 'draft' | 'payload'> | null
   ) => Promise<FollowupQueueItem | undefined>
-  /** End the edit session: the composer draft was sent, cleared, or replaced, so the taken item is not returned to the queue. */
-  releaseEdit: () => void
+  /** End the edit session: the composer draft was sent, cleared, or replaced, so the taken item is not returned to the queue.
+   * `submitted` marks retirements where a send/enqueue owns the content: a suspended edit-switch must close its captured
+   * recovery copy instead of releasing it for delivery (cherry-pr-review retired-edit-recovery). */
+  releaseEdit: (outcome?: 'submitted' | 'released') => void
 }
 
 /**
@@ -512,6 +514,10 @@ export function useFollowupQueue({
   // a newer refused switch cancels and replaces the older record.
   type TrackedEditRestore = { restoreId: string; cancelled: boolean; restored: boolean }
   const editRestoreRef = useRef<TrackedEditRestore | null>(null)
+  // Why the live edit session last retired: a submission owns the content
+  // (close redundant recovery copies), anything else returns it to the queue
+  // (cherry-pr-review retired-edit-recovery). Reset when a session opens.
+  const editRetirementRef = useRef<'submitted' | 'released' | null>(null)
   // Single-flight pause writes per scope: rapid Pause/Resume coalesces to the
   // latest request instead of letting concurrent PUTs resolve out of order.
   // Scoped slots, so a pending Resume in one conversation is never overwritten
@@ -848,7 +854,16 @@ export function useFollowupQueue({
         if (!restored) {
           await releaseClaim()
           toast.error(t('message.error.operation_unavailable'))
-          if (!mountedRef.current || scopeKeyRef.current !== scope) {
+          // A submission that retired the session mid-attempt owns the draft
+          // just like the composer cache does after unmount: registering the
+          // restore retry now would attach it to a session nobody ends, and
+          // the landed copy would age back into claimability and duplicate
+          // the submitted content (cherry-pr-review retired-edit-recovery).
+          if (
+            !mountedRef.current ||
+            scopeKeyRef.current !== scope ||
+            (takenEditRef.current !== taken && editRetirementRef.current === 'submitted')
+          ) {
             // The edit session ended (or the scope switched) while the claim
             // release was in flight: its composer cache owns the draft, so
             // registering the restore retry now would attach it to a session
@@ -1085,11 +1100,33 @@ export function useFollowupQueue({
       // copy's recovery hold so it is claimable as ordinary pending content.
       // DELETE atomically parked this copy, so no peer can bypass it while
       // release is retried. Retain retry ownership across scope/unmount.
+      // A submission that retired the session while this switch was suspended
+      // owns the content already: releasing the captured copy would deliver a
+      // duplicate, so close it instead, retaining cleanup ownership until it
+      // is closed or confirmed absent (same obligation as
+      // inv_f89db3564dc86774) (cherry-pr-review retired-edit-recovery).
       if (restoredCopy) {
-        const body = { ...restoredCopy.body, held: false }
-        void enqueueTrigger({ body }).catch((error) => {
-          if (!isAlreadyResolved(error)) scheduleReenqueueRetryRef.current(body)
-        })
+        if (takenEditRef.current === taken || editRetirementRef.current !== 'submitted') {
+          const body = { ...restoredCopy.body, held: false }
+          void enqueueTrigger({ body }).catch((error) => {
+            if (!isAlreadyResolved(error)) scheduleReenqueueRetryRef.current(body)
+          })
+        } else {
+          const copyToClose = restoredCopy
+          void (async () => {
+            let removed = false
+            for (let attempt = 0; attempt < 3 && !removed; attempt++) {
+              try {
+                await removeTrigger({ params: { id: copyToClose.id } })
+                removed = true
+              } catch (error) {
+                // Already gone counts as closed; transient failures retry inline.
+                if (isAlreadyResolved(error)) removed = true
+              }
+            }
+            if (!removed) scheduleResolveRetryRef.current(copyToClose.id, true, '')
+          })()
+        }
       }
       // Capture the predecessor chain against the queue the restore pass
       // left behind: live rows minus the incoming take, with the outgoing
@@ -1122,6 +1159,7 @@ export function useFollowupQueue({
           }
         }
       }
+      editRetirementRef.current = null
       takenEditRef.current = {
         item: restoredItem,
         slot: takenSlot,
@@ -1155,7 +1193,8 @@ export function useFollowupQueue({
     [takeForEditInner]
   )
 
-  const releaseEdit = useCallback(() => {
+  const releaseEdit = useCallback((outcome: 'submitted' | 'released' = 'released') => {
+    editRetirementRef.current = outcome
     takenEditRef.current = null
     cancelTrackedEditRestoreRef.current()
   }, [])
