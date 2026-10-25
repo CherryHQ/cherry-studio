@@ -415,9 +415,14 @@ export function useFollowupQueue({
   // revalidation our own claim broadcast starts before the grant arrives —
   // must not read as "not ready" and release the claim without delivery
   // (cherry-pr-review inv_16b576017347a966). Only Pause/ownership still gate
-  // dispatch here.
+  // dispatch here. The pause-state READINESS stays gated, though: a peer
+  // Pause committing while the claim is in flight starts a state
+  // revalidation, and the grant can arrive while the cached flag still reads
+  // unpaused — dispatching then sends against the committed Pause
+  // (cherry-pr-review pause-refresh-dispatch). Queue-row refreshes stay
+  // exempt: the claim's own broadcast drives those.
   const dispatchBlockedRef = useRef(false)
-  dispatchBlockedRef.current = paused || !pauseKnown
+  dispatchBlockedRef.current = paused || !pauseKnown || stateRefreshing
   // Re-fire the drain when the head arrives after the edge: queue data landing
   // late must not strand an unacknowledged completion.
   const headId = items[0]?.id
