@@ -56,9 +56,12 @@ interface BreakPattern {
 }
 
 /** A `\`\`\``, `$$` or `<table>` region where preferred break points should be ignored. */
+type AtomicRegionKind = 'code' | 'table' | 'math' | 'inline-math' | 'inline-code'
+
 interface AtomicRegion {
   start: number
   end: number
+  kind: AtomicRegionKind
 }
 
 /**
@@ -187,6 +190,7 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
     let nextCursor = endPos - overlapChars
     nextCursor = resolveStartOutsideRegions(nextCursor, cursor, atomicRegions)
     nextCursor = snapToStartBoundary(nextCursor, endPos, breakPoints, atomicRegions)
+    nextCursor = snapCodeStart(text, nextCursor, endPos, atomicRegions)
     cursor = nextCursor > cursor ? nextCursor : endPos
   }
 
@@ -257,16 +261,29 @@ function addLiteralBreaks(
 function findCodeFences(text: string): AtomicRegion[] {
   const regions: AtomicRegion[] = []
   let open: number | null = null
-  for (const match of text.matchAll(/\n```/g)) {
+  // `^` catches a fence at offset zero; the other alternative catches line starts.
+  for (const match of text.matchAll(/(?:^|\n)```/g)) {
+    const fenceStart = match.index + (match[0].startsWith('\n') ? 1 : 0)
     if (open === null) {
-      open = match.index
+      open = fenceStart
     } else {
-      regions.push({ start: open, end: match.index + match[0].length })
+      regions.push({ start: open, end: fenceStart + 3, kind: 'code' })
       open = null
     }
   }
   if (open !== null) {
-    regions.push({ start: open, end: text.length })
+    regions.push({ start: open, end: text.length, kind: 'code' })
+  }
+  return regions
+}
+
+/** Inline code spans are masked from display/inline math detection. */
+function findInlineCodeRegions(text: string): AtomicRegion[] {
+  const regions: AtomicRegion[] = []
+  const pattern = /(`+)([^`\n]*?)\1/g
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index ?? 0
+    regions.push({ start, end: start + match[0].length, kind: 'inline-code' })
   }
   return regions
 }
@@ -274,10 +291,11 @@ function findCodeFences(text: string): AtomicRegion[] {
 /** Code fences, tables, display math, and inline math must never be split. */
 function findAtomicRegions(text: string): AtomicRegion[] {
   const codeFences = findCodeFences(text)
-  const tables = findTableRegions(text, codeFences)
-  const displayMath = findDisplayMathRegions(text, [...codeFences, ...tables])
+  const inlineCode = findInlineCodeRegions(text)
+  const tables = findTableRegions(text, [...codeFences, ...inlineCode])
+  const displayMath = findDisplayMathRegions(text, [...codeFences, ...inlineCode, ...tables])
   const regions = [...codeFences, ...tables, ...displayMath]
-  regions.push(...findInlineMathRegions(text, regions))
+  regions.push(...findInlineMathRegions(text, [...regions, ...inlineCode]))
   return mergeRegions(regions)
 }
 
@@ -298,7 +316,7 @@ function findTableRegions(text: string, existing: AtomicRegion[]): AtomicRegion[
     close.lastIndex = openMatch.index + openMatch[0].length
     const closeMatch = close.exec(text)
     const end = closeMatch ? closeMatch.index + closeMatch[0].length : text.length
-    regions.push({ start: openMatch.index, end })
+    regions.push({ start: openMatch.index, end, kind: 'table' })
     cursor = end
   }
   return regions
@@ -317,10 +335,10 @@ function findDisplayMathRegions(text: string, existing: AtomicRegion[]): AtomicR
     }
     const end = text.indexOf('$$', start + 2)
     if (end === -1) {
-      regions.push({ start, end: text.length })
+      regions.push({ start, end: text.length, kind: 'math' })
       break
     }
-    regions.push({ start, end: end + 2 })
+    regions.push({ start, end: end + 2, kind: 'math' })
     cursor = end + 2
   }
   return regions
@@ -334,7 +352,7 @@ function findInlineMathRegions(text: string, existing: AtomicRegion[]): AtomicRe
     const start = match.index ?? 0
     const end = start + match[0].length
     if (isInsideAtomicRegion(start, existing)) continue
-    regions.push({ start, end })
+    regions.push({ start, end, kind: 'inline-math' })
   }
   return regions
 }
@@ -344,8 +362,10 @@ function mergeRegions(regions: AtomicRegion[]): AtomicRegion[] {
   const merged: AtomicRegion[] = []
   for (const region of sorted) {
     const last = merged.at(-1)
-    if (last && region.start <= last.end) {
+    // Touching regions are independent: `end` is exclusive, so only overlap merges.
+    if (last && region.start < last.end) {
       last.end = Math.max(last.end, region.end)
+      if (region.kind === 'code') last.kind = 'code'
     } else {
       merged.push({ ...region })
     }
@@ -360,11 +380,21 @@ function resolveCutOutsideRegions(pos: number, cursor: number, regions: AtomicRe
   return region.start > cursor ? region.start : region.end
 }
 
-/** Move an overlap start out of an atomic block so the next chunk begins after it. */
+/** Move an overlap start out of a non-code atomic block so the next chunk begins after it. */
 function resolveStartOutsideRegions(pos: number, cursor: number, regions: AtomicRegion[]): number {
   const region = regions.find((candidate) => pos > candidate.start && pos < candidate.end)
   if (!region) return pos
+  // Code blocks may be cut internally to respect the token budget; keep the start.
+  if (region.kind === 'code') return pos
   return region.end > cursor ? region.end : pos
+}
+
+/** Start an overlap inside a code block at the next line boundary when possible. */
+function snapCodeStart(text: string, pos: number, endPos: number, regions: AtomicRegion[]): number {
+  const region = regions.find((candidate) => pos > candidate.start && pos < candidate.end)
+  if (!region || region.kind !== 'code') return pos
+  const newline = text.indexOf('\n', pos)
+  return newline !== -1 && newline + 1 < endPos ? newline + 1 : pos
 }
 
 /**
@@ -382,7 +412,10 @@ function snapToStartBoundary(pos: number, endPos: number, breakPoints: BreakPoin
   }
 
   for (const region of regions) {
-    if (region.end >= pos && region.end < endPos) return region.end
+    if (region.kind === 'code') continue
+    // Only snap to a block end when the start is already inside that block;
+    // otherwise the block would be skipped entirely.
+    if (region.start < pos && region.end >= pos && region.end < endPos) return region.end
   }
 
   return endPos
@@ -435,6 +468,12 @@ function fitEndToTokenBudget(
 
   const region = regions.find((candidate) => best > candidate.start && best < candidate.end)
   if (region) {
+    // A code block that cannot fit is cut at a line boundary; otherwise keep
+    // small blocks and math/table blocks atomic.
+    if (region.kind === 'code') {
+      const lineBreak = text.lastIndexOf('\n', best - 1)
+      return lineBreak > start ? lineBreak + 1 : best
+    }
     return region.start > start ? region.start : region.end
   }
   return best
@@ -502,7 +541,7 @@ function findFallbackCutoff(
   let before = -1
   for (const bp of breakPoints) {
     if (bp.pos > target) break
-    if (bp.pos < minPos || bp.pos <= cursor || !bp.sentence) continue
+    if (bp.pos < minPos || bp.pos <= cursor || (!bp.sentence && bp.score < 20)) continue
     if (isInsideAtomicRegion(bp.pos, regions)) continue
     before = bp.pos
   }
@@ -513,7 +552,7 @@ function findFallbackCutoff(
   for (const bp of breakPoints) {
     if (bp.pos <= target) continue
     if (bp.pos > target + maxOvershoot) break
-    if (!bp.sentence) continue
+    if (!bp.sentence && bp.score < 20) continue
     if (isInsideAtomicRegion(bp.pos, regions)) continue
     return bp.pos
   }

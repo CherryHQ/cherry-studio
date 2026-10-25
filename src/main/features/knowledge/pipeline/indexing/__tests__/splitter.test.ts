@@ -328,4 +328,67 @@ describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
       expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(30)
     }
   })
+
+  it('pairs a code fence at offset zero without swallowing the document', () => {
+    const text = '```sh\necho hi\n```\n' + '普通句子。'.repeat(200)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 64, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(64)
+    }
+    const proseChunks = chunks.filter((chunk) => !chunk.text.includes('```'))
+    expect(proseChunks.length).toBeGreaterThan(5)
+    for (const chunk of proseChunks) {
+      expect(chunk.text.endsWith('。')).toBe(true)
+    }
+  })
+
+  it('does not treat $$ inside inline code as display math', () => {
+    const text = 'Use `echo $$` to print the current process ID. ' + '普通句子。'.repeat(200)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 64, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(64)
+      expect(chunk.text.endsWith('。') || chunk.text.startsWith('Use ')).toBe(true)
+    }
+  })
+
+  it('keeps boundaries between touching tables', () => {
+    const table = '<table><tr><td>1</td></tr></table>'
+    const text = table.repeat(100) + '普通句子。'.repeat(50)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 32, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(32)
+    }
+  })
+
+  it('splits a code block that exceeds the token budget at line boundaries', () => {
+    const code =
+      '```ts\n' + Array.from({ length: 160 }, (_, index) => `const value${index} = ${index};`).join('\n') + '\n```'
+    const text = `说明句。\n\n${code}\n\n结尾句。`
+    const chunks = splitTextWithOffsets(text, { chunkSize: 32, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(32)
+    }
+
+    const covered = new Uint8Array(text.length)
+    for (const chunk of chunks) {
+      for (let index = chunk.start; index < chunk.end; index += 1) covered[index] = 1
+    }
+    for (let index = 0; index < text.length; index += 1) {
+      if (!/\s/.test(text[index])) {
+        expect(covered[index]).toBe(1)
+      }
+    }
+  })
 })
