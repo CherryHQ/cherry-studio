@@ -174,7 +174,7 @@ type ActiveAgentDraftEditor = {
   /** True only while the visible editor holds exactly this submitted document. */
   isShowing: (submitted: SubmittedAgentDraft) => boolean
   /** Clear the submitted document from the editor, keeping an unrelated cached draft untouched. */
-  clearSubmitted: (options: { preserveCache: boolean }) => void
+  clearSubmitted: (options: { preserveCache: boolean; submitted?: boolean }) => void
 }
 
 // The editor actually on screen for each draft-cache key. A queue settlement
@@ -914,7 +914,7 @@ const AgentComposerInner = ({
   // silently overwritten (cherry-pr-review).
   const followupTakePendingRef = useRef(false)
   const [followupTakePending, setFollowupTakePending] = useState(false)
-  const releaseFollowupEditRef = useRef<() => void>(() => {})
+  const releaseFollowupEditRef = useRef<(outcome?: 'submitted' | 'released') => void>(() => {})
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
