@@ -63,6 +63,7 @@ import { FirecrawlIcon } from './firecrawl'
 import { FireworksIcon } from './fireworks'
 import { FlowithIcon } from './flowith'
 import { GensparkIcon } from './genspark'
+import { GisooIcon } from './gisoo'
 import { GiteeAiIcon } from './gitee-ai'
 import { GithubIcon } from './github'
 import { GithubCopilotIcon } from './github-copilot'
@@ -230,6 +231,7 @@ export const PROVIDER_ICON_CATALOG = {
   fireworks: FireworksIcon,
   flowith: FlowithIcon,
   genspark: GensparkIcon,
+  gisoo: GisooIcon,
   'gitee-ai': GiteeAiIcon,
   github: GithubIcon,
   'github-copilot': GithubCopilotIcon,

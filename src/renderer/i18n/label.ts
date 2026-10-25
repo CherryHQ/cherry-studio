@@ -39,6 +39,7 @@ const providerKeyMap = {
   doubao: 'provider.doubao',
   fireworks: 'provider.fireworks',
   gemini: 'provider.gemini',
+  gisoo: 'provider.gisoo',
   'gitee-ai': 'provider.gitee-ai',
   github: 'provider.github',
   gpustack: 'provider.gpustack',
