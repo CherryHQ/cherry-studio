@@ -357,6 +357,17 @@ describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
     }
   })
 
+  it('masks multiline code spans with shorter embedded backtick runs before math detection', () => {
+    const text = 'Use ``echo `short` $$\ncontinued`` in a command. ' + '普通句子。'.repeat(200)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 64, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(64)
+    }
+  })
+
   it('keeps boundaries between touching tables', () => {
     const table = '<table><tr><td>1</td></tr></table>'
     const text = table.repeat(100) + '普通句子。'.repeat(50)
@@ -389,6 +400,27 @@ describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
       if (!/\s/.test(text[index])) {
         expect(covered[index]).toBe(1)
       }
+    }
+  })
+
+  it('keeps overlap on line boundaries inside oversized code blocks', () => {
+    const code =
+      '```ts\n' +
+      Array.from({ length: 400 }, (_, index) => `const value${index} = ${'x'.repeat(24)};`).join('\n') +
+      '\n```'
+    const chunks = splitTextWithOffsets(code, { chunkSize: 128, chunkOverlap: 24 })
+
+    expect(chunks.length).toBeGreaterThan(2)
+    expectVerbatimSlices(code, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(128)
+    }
+
+    for (let index = 1; index < chunks.length; index += 1) {
+      const previous = chunks[index - 1]
+      const current = chunks[index]
+      expect(current.start).toBeLessThan(previous.end)
+      expect(code[current.start - 1]).toBe('\n')
     }
   })
 })

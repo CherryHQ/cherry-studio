@@ -189,8 +189,8 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
     }
     let nextCursor = endPos - overlapChars
     nextCursor = resolveStartOutsideRegions(nextCursor, cursor, atomicRegions)
-    nextCursor = snapToStartBoundary(nextCursor, endPos, breakPoints, atomicRegions)
-    nextCursor = snapCodeStart(text, nextCursor, endPos, atomicRegions)
+    const codeStart = snapCodeStart(text, nextCursor, cursor, endPos, atomicRegions)
+    nextCursor = codeStart ?? snapToStartBoundary(nextCursor, endPos, breakPoints, atomicRegions)
     cursor = nextCursor > cursor ? nextCursor : endPos
   }
 
@@ -278,20 +278,35 @@ function findCodeFences(text: string): AtomicRegion[] {
 }
 
 /** Inline code spans are masked from display/inline math detection. */
-function findInlineCodeRegions(text: string): AtomicRegion[] {
+function findInlineCodeRegions(text: string, codeFences: AtomicRegion[]): AtomicRegion[] {
   const regions: AtomicRegion[] = []
-  const pattern = /(`+)([^`\n]*?)\1/g
-  for (const match of text.matchAll(pattern)) {
+  const opens = new Map<number, number>()
+  let regionIndex = 0
+
+  for (const match of text.matchAll(/`+/g)) {
     const start = match.index ?? 0
-    regions.push({ start, end: start + match[0].length, kind: 'inline-code' })
+    while (codeFences[regionIndex] && codeFences[regionIndex].end <= start) regionIndex += 1
+
+    const fence = codeFences[regionIndex]
+    if (fence && start >= fence.start && start < fence.end) continue
+
+    const length = match[0].length
+    const open = opens.get(length)
+    if (open === undefined) {
+      opens.set(length, start)
+    } else {
+      regions.push({ start: open, end: start + length, kind: 'inline-code' })
+      opens.delete(length)
+    }
   }
+
   return regions
 }
 
 /** Code fences, tables, display math, and inline math must never be split. */
 function findAtomicRegions(text: string): AtomicRegion[] {
   const codeFences = findCodeFences(text)
-  const inlineCode = findInlineCodeRegions(text)
+  const inlineCode = findInlineCodeRegions(text, codeFences)
   const tables = findTableRegions(text, [...codeFences, ...inlineCode])
   const displayMath = findDisplayMathRegions(text, [...codeFences, ...inlineCode, ...tables])
   const regions = [...codeFences, ...tables, ...displayMath]
@@ -389,12 +404,22 @@ function resolveStartOutsideRegions(pos: number, cursor: number, regions: Atomic
   return region.end > cursor ? region.end : pos
 }
 
-/** Start an overlap inside a code block at the next line boundary when possible. */
-function snapCodeStart(text: string, pos: number, endPos: number, regions: AtomicRegion[]): number {
-  const region = regions.find((candidate) => pos > candidate.start && pos < candidate.end)
-  if (!region || region.kind !== 'code') return pos
-  const newline = text.indexOf('\n', pos)
-  return newline !== -1 && newline + 1 < endPos ? newline + 1 : pos
+/** Start an overlap inside a split code block on the preceding line boundary. */
+function snapCodeStart(
+  text: string,
+  pos: number,
+  cursor: number,
+  endPos: number,
+  regions: AtomicRegion[]
+): number | null {
+  const region = regions.find((candidate) => candidate.kind === 'code' && pos > candidate.start && pos < candidate.end)
+  if (!region) return null
+
+  const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+  if (lineStart === pos) return lineStart > cursor ? lineStart : null
+
+  const previousNewline = lineStart - 1
+  return previousNewline >= cursor && lineStart < endPos ? lineStart : null
 }
 
 /**
