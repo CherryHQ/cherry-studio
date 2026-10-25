@@ -298,7 +298,9 @@ test(...caseDefinition('MP-91'), async ({ mainWindow: page }, testInfo) => {
     // SiliconFlow enhances server-side: the app forwards the prompt as typed and flags
     // the request, so the provider (not the client) produces the expanded wording.
     expect.soft(imageRequests()[1].body.prompt, 'Server-side enhancement receives the prompt as typed').toBe(original)
-    expect.soft(imageRequests()[1].body.prompt_enhancement, 'Enhancement must be requested from the provider').toBe(true)
+    expect
+      .soft(imageRequests()[1].body.prompt_enhancement, 'Enhancement must be requested from the provider')
+      .toBe(true)
     await screenshot('MP-91 enhancement result and prompt')
     await expect.soft(view.getByTestId('artboard-prompt-bar-measure')).toContainText(original, { timeout: 2_000 })
 
