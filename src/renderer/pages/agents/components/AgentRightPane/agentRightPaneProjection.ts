@@ -681,8 +681,8 @@ export function buildAgentToolFlowProjection(
       }
     }
 
-    // A receipt whose round is marker-tagged — or whose flow is still live — takes no positional
-    // advance; only a settled untagged receipt falls back to its walk position.
+    // A receipt whose round is marker-tagged, runtime-stamped, or whose flow is still live takes
+    // no positional advance; only a settled unstamped legacy receipt falls back to its walk position.
     const taggedReceiptCallIds = new Set<string>()
     for (const { parts } of messageEntries) {
       for (const part of parts) {
@@ -774,9 +774,15 @@ export function buildAgentToolFlowProjection(
           marker !== selectedToolCallId &&
           (ownReceiptCallIds.has(marker) || getPartParentToolCallId(part) === selectedToolCallId)
 
+        // A receipt whose round is marker-tagged, runtime-stamped, or whose flow is still live
+        // takes no positional advance; only a settled unstamped legacy receipt falls back.
         if (
           markerOwnsThisFlow ||
-          (isResumeReceipt && toolCallId !== undefined && !taggedReceiptCallIds.has(toolCallId) && flowSettled)
+          (isResumeReceipt &&
+            toolCallId !== undefined &&
+            getPartLaunchToolCallId(part) === undefined &&
+            !taggedReceiptCallIds.has(toolCallId) &&
+            flowSettled)
         ) {
           const rank = receiptRank.get(marker ?? toolCallId ?? '')
           if (rank !== undefined) currentRank = rank

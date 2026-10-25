@@ -1419,6 +1419,16 @@ describe('agent right pane flow rounds', () => {
   }
   const flowTexts = (projection: ReturnType<typeof buildAgentToolFlowProjection>, id: string) =>
     projection.partsByMessageId[id].map((part) => (part as { text?: string }).text).filter(Boolean)
+  // The adapter stamps the launch root onto a receipt it resolved; persisted history carries it on
+  // resultProviderMetadata, so the runtime attribution survives a cold reopen.
+  const stampReceipt = (parts: CherryMessagePart[]) => {
+    const receipt = parts.find((part) => (part as { toolCallId?: string }).toolCallId === 'call_send')
+    if (receipt)
+      (receipt as { resultProviderMetadata?: unknown }).resultProviderMetadata = {
+        cherry: { launchToolCallId: 'call_launch' }
+      }
+    return parts
+  }
 
   // A text-only live interval has no non-terminal tool part; the flow's own task edge is the
   // persisted evidence that the run is still live, so the delivery must not re-file its output.
@@ -1529,6 +1539,102 @@ describe('agent right pane flow rounds', () => {
     )
 
     expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
+  })
+
+  // The adapter stamped this receipt, so runtime attribution exists; settling the stopped child
+  // must not move the original response's output beneath the unanswered follow-up prompt.
+  it('keeps original-round output when a stamped receipt settles', () => {
+    const parts = stampReceipt(liveSendParts({ event: 'notification', status: 'stopped', taskType: 'subagent' }))
+    const messages = [message('m1', parts)]
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual([
+      'First round findings',
+      'More original-run output'
+    ])
+    expect(projection.partsByMessageId['call_launch:agent-flow-resume-1']).toBeDefined()
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toBeUndefined()
+  })
+
+  it('keeps original-round output for a stamped receipt settled from the live cache', () => {
+    const parts = stampReceipt(liveSendParts({ event: 'started', status: 'in_progress', taskType: 'subagent' }))
+    const messages = [message('m1', parts)]
+    const lateTaskEvents = {
+      af5051807ed7aaa30: {
+        event: 'notification',
+        taskId: 'af5051807ed7aaa30',
+        toolUseId: 'call_launch',
+        status: 'completed'
+      }
+    } as const
+
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: parts },
+      'call_launch',
+      undefined,
+      lateTaskEvents,
+      emptyLiveness
+    )
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual([
+      'First round findings',
+      'More original-run output'
+    ])
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toBeUndefined()
+  })
+
+  it('keeps original-round output for a cold-reopened stamped receipt', () => {
+    const parts = stampReceipt(liveSendParts({ event: 'started', status: 'in_progress', taskType: 'subagent' }))
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: parts },
+      'call_launch',
+      undefined,
+      {},
+      emptyLiveness
+    )
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual([
+      'First round findings',
+      'More original-run output'
+    ])
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toBeUndefined()
+  })
+
+  it('still splits marked content behind a stamped receipt', () => {
+    const parts = stampReceipt([
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, LAUNCH_OUTPUT),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        QUEUED_OUTPUT
+      ),
+      textPart('More original-run output', 'call_launch'),
+      {
+        type: 'text',
+        text: 'Second round findings',
+        providerMetadata: {
+          'claude-code': { parentToolCallId: 'call_launch' },
+          cherry: { resumedViaCallId: 'call_send' }
+        }
+      } as unknown as CherryMessagePart
+    ])
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant')).toEqual([
+      'First round findings',
+      'More original-run output'
+    ])
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
   // The live between-tools guard stays: a vouched edge keeps the flow live.
