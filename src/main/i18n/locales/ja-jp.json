@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "Apple シリコン版をインストールしてください",
   "dialog.data_reset.cancel": "キャンセル",
   "dialog.data_reset.confirm": "リセットして再起動",
+  "dialog.data_reset.detached_tasks.message": "バックグラウンドタスクを停止して終了を確認できなかったため、Cherry Studio はデータリセットを実行しませんでした。データは何も削除されていません。バックグラウンドタスクパネルでタスクを停止してから、もう一度データリセットを実行してください。",
+  "dialog.data_reset.detached_tasks.title": "データリセットはキャンセルされました",
   "dialog.data_reset.message": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
   "dialog.data_reset.title": "アプリデータをリセット",
   "dialog.diagnostic_bundle.title": "診断バンドルを保存",

@@ -2,7 +2,7 @@ import type * as ChildProcessModule from 'node:child_process'
 import type { ExecFileSyncOptions } from 'node:child_process'
 import { execFileSync, spawn } from 'node:child_process'
 import type * as FsPromisesModule from 'node:fs/promises'
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -1136,6 +1136,58 @@ describe('backgroundTasks', () => {
           }
         }
       }
+    )
+  })
+
+  // A worker that leaves the group, closes every inherited descriptor and redirects its own stdio
+  // carries nothing the table shows but its environment — and `ps eww` does not show every
+  // process's environment, even in a table where the probe's own nonce is visible. An absent marker
+  // therefore proves nothing, and the identity recorded while the worker's parent still tied it to
+  // the task is the proof that keeps the task open.
+  describe('ownership evidence a hidden environment cannot refute', () => {
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'keeps a scrubbed worker holding its task open after its shell, pipes and marker are gone',
+      async () => {
+        const pidFile = path.join(storageDir, 'scrubbed.pid')
+        // New session, closed extra descriptors, redirected stdio, empty environment: the worker is
+        // invisible to the group, to both liveness pipes and to a marker scan. Its parent stays
+        // alive only long enough for the membership pulse to attribute the child and record its
+        // identity, which is the evidence a hidden environment cannot take away.
+        const command = `python3 -c "import subprocess,sys,time; p=subprocess.Popen(['/bin/sh','-c','while :; do sleep 0.2; done'], start_new_session=True, close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={}); open(sys.argv[1],'w').write(str(p.pid)); time.sleep(1.2)" "${pidFile}"`
+        const record = await startDetachedBackgroundTask({ storageDir, command, cwd: storageDir })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(isPidAlive(workerPid)).toBe(true)
+            },
+            { timeout: 10_000 }
+          )
+          // The anchor leaves once its group, both pipes and the marker read empty — the moment the
+          // worker becomes indistinguishable from a task that finished.
+          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+          await new Promise((resolve) => setTimeout(resolve, 500))
+
+          const [settled] = await listDetachedBackgroundTasks(storageDir)
+          expect(settled.status).toBe('running')
+          expect(isPidAlive(workerPid)).toBe(true)
+          await expect(hasLiveTaskEvidence(storageDir, settled)).resolves.toBe(true)
+          expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toEqual([])
+
+          // Kill still reaches the worker through the identity the task recorded.
+          const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(stopped?.status).toBe('stopped')
+          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+        }
+      },
+      40_000
     )
   })
 

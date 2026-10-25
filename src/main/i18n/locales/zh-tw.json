@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "請安裝 Apple 晶片版",
   "dialog.data_reset.cancel": "取消",
   "dialog.data_reset.confirm": "重設並重新啟動",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio 未執行資料重設：有背景工作無法停止並確認已終止。沒有刪除任何資料。請在背景工作面板中停止該工作，然後重新執行資料重設。",
+  "dialog.data_reset.detached_tasks.title": "資料重設已取消",
   "dialog.data_reset.message": "這會清除對話、助理、知識庫、檔案與設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",
   "dialog.data_reset.title": "重設應用程式資料",
   "dialog.diagnostic_bundle.title": "儲存診斷包",

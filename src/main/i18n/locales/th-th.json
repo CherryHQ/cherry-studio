@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "ติดตั้งเวอร์ชัน Apple Silicon",
   "dialog.data_reset.cancel": "ยกเลิก",
   "dialog.data_reset.confirm": "รีเซ็ตและรีสตาร์ท",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio ไม่ได้ดำเนินการรีเซ็ตข้อมูล เนื่องจากไม่สามารถหยุดและยืนยันการสิ้นสุดของงานเบื้องหลังได้ ไม่มีข้อมูลใดถูกลบ โปรดหยุดงานจากแผงงานเบื้องหลัง แล้วดำเนินการรีเซ็ตข้อมูลอีกครั้ง",
+  "dialog.data_reset.detached_tasks.title": "ยกเลิกการรีเซ็ตข้อมูลแล้ว",
   "dialog.data_reset.message": "การดำเนินการนี้จะลบแชท ผู้ช่วย ฐานความรู้ ไฟล์ และการตั้งค่า จากนั้นรีสตาร์ทแอปฯ การกระทำนี้ไม่สามารถย้อนกลับได้ ดำเนินการต่อหรือไม่?",
   "dialog.data_reset.title": "รีเซ็ตข้อมูลแอปฯ",
   "dialog.diagnostic_bundle.title": "บันทึกชุดข้อมูลวินิจฉัย",

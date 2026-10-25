@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "Installer la version Apple Silicon",
   "dialog.data_reset.cancel": "Annuler",
   "dialog.data_reset.confirm": "Réinitialiser et redémarrer",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio n’a pas exécuté la réinitialisation des données car une tâche d’arrière-plan n’a pas pu être arrêtée et vérifiée. Rien n’a été effacé. Arrêtez la tâche depuis le panneau des tâches d’arrière-plan, puis relancez la réinitialisation des données.",
+  "dialog.data_reset.detached_tasks.title": "Réinitialisation des données annulée",
   "dialog.data_reset.message": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
   "dialog.data_reset.title": "Réinitialiser les données de l’application",
   "dialog.diagnostic_bundle.title": "Enregistrer l'archive de diagnostic",

@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "Apple Silicon sürümünü yükleyin",
   "dialog.data_reset.cancel": "İptal",
   "dialog.data_reset.confirm": "Sıfırla ve Yeniden Başlat",
+  "dialog.data_reset.detached_tasks.message": "Bir arka plan görevi durdurulup sonlandığı doğrulanamadığı için Cherry Studio veri sıfırlamayı çalıştırmadı. Hiçbir şey silinmedi. Görevi arka plan görevleri panelinden durdurun ve veri sıfırlamayı yeniden çalıştırın.",
+  "dialog.data_reset.detached_tasks.title": "Veri Sıfırlama İptal Edildi",
   "dialog.data_reset.message": "Bu işlem sohbetleri, asistanları, bilgi tabanlarını, dosyaları ve ayarları silip uygulamayı yeniden başlatacaktır. Bu işlem geri alınamaz. Devam edilsin mi?",
   "dialog.data_reset.title": "Uygulama Verilerini Sıfırla",
   "dialog.diagnostic_bundle.title": "Tanılama paketini kaydet",

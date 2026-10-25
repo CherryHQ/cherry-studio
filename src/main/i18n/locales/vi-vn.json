@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "Cài đặt phiên bản Apple Silicon",
   "dialog.data_reset.cancel": "Hủy",
   "dialog.data_reset.confirm": "Đặt lại và khởi động lại",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio không thực hiện đặt lại dữ liệu vì không thể dừng và xác minh một tác vụ chạy nền. Không có dữ liệu nào bị xóa. Hãy dừng tác vụ trong bảng tác vụ chạy nền, sau đó chạy lại đặt lại dữ liệu.",
+  "dialog.data_reset.detached_tasks.title": "Đã hủy đặt lại dữ liệu",
   "dialog.data_reset.message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở tri thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
   "dialog.data_reset.title": "Đặt lại dữ liệu ứng dụng",
   "dialog.diagnostic_bundle.title": "Lưu gói chẩn đoán",

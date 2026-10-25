@@ -542,11 +542,7 @@ function showPathMismatchWarning(): void {
 }
 
 function showDetachedTasksBusyWarning(): void {
-  dialog.showErrorBox(
-    'Data Reset Cancelled',
-    'Cherry Studio did not run Data Reset because a background task could not be stopped and verified.\n\n' +
-      'Nothing was erased. Stop the task from the background-task panel and run Data Reset again.'
-  )
+  dialog.showErrorBox(t('dialog.data_reset.detached_tasks.title'), t('dialog.data_reset.detached_tasks.message'))
 }
 
 function showIncompleteResetWarning(): void {

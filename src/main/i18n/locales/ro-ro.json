@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "Instalează versiunea Apple Silicon",
   "dialog.data_reset.cancel": "Anulează",
   "dialog.data_reset.confirm": "Resetează și repornește",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio nu a executat resetarea datelor deoarece o sarcină din fundal nu a putut fi oprită și verificată. Nu s-a șters nimic. Opriți sarcina din panoul de sarcini din fundal, apoi rulați din nou resetarea datelor.",
+  "dialog.data_reset.detached_tasks.title": "Resetarea datelor anulată",
   "dialog.data_reset.message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
   "dialog.data_reset.title": "Resetarea datelor aplicației",
   "dialog.diagnostic_bundle.title": "Salvează pachetul de diagnosticare",

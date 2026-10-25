@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "Installa la versione per Apple Silicon",
   "dialog.data_reset.cancel": "Annulla",
   "dialog.data_reset.confirm": "Reimposta e riavvia",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio non ha eseguito la reimpostazione dei dati perché non è stato possibile arrestare e verificare un'attività in background. Non è stato cancellato nulla. Arresta l'attività dal pannello delle attività in background, quindi esegui di nuovo la reimpostazione dei dati.",
+  "dialog.data_reset.detached_tasks.title": "Reimpostazione dei dati annullata",
   "dialog.data_reset.message": "Questa operazione cancellerà chat, assistenti, basi di conoscenza, file e impostazioni, quindi riavvierà l'app. L'operazione non può essere annullata. Continuare?",
   "dialog.data_reset.title": "Reimposta i dati dell'app",
   "dialog.diagnostic_bundle.title": "Salva pacchetto diagnostico",

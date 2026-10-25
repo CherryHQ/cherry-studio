@@ -319,7 +319,9 @@ describe('a task whose record write fails', () => {
       const onExit = vi.fn()
       const realKill = process.kill.bind(process)
       const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
-        if (pid < 0) return true
+        // The per-member kill now fails the credential check, the way a privileged worker does:
+        // the signal is "delivered" and nothing dies.
+        if (signal === 'SIGKILL') throw Object.assign(new Error('not permitted'), { code: 'EPERM' })
         return realKill(pid, signal)
       })
       const workerCommand = `${nodeBin} -e "process.stdout.write(String(process.pid)); setInterval(() => {}, 60_000)" &`
@@ -410,6 +412,73 @@ describe('a task whose record write fails', () => {
           process.kill(-pid, 'SIGKILL')
         } catch {
           // already reaped
+        }
+      }
+    }
+  )
+
+  it.skipIf(process.platform === 'win32' || !python3Available)(
+    'does not report the cleanup stopped while an escaped worker still holds the anchor pipes',
+    async () => {
+      // `setsid()` and `close_fds` put the worker outside the group and both liveness pipes, and an
+      // empty environment leaves the marker scan nothing to find — but it still inherits the
+      // shell's stdout, which is the anchor's only remaining witness. A group SIGKILL destroys that
+      // anchor, and the pipes it held closing with it read as a termination nobody verified.
+      const pidFile = path.join(storageDir, 'escaped-pipes.pid')
+      const real = (await vi.importActual<typeof NodeFs>('node:fs')).writeFileSync
+      let writes = 0
+      writeFileSyncMock.mockImplementation((...args: unknown[]) => {
+        writes += 1
+        if (writes === 1) {
+          // Hold the failing write until the escape happened: the cleanup must race a real worker.
+          const deadline = Date.now() + 10_000
+          while (Date.now() < deadline) {
+            try {
+              readFileSync(pidFile)
+              break
+            } catch {
+              execFileSync('sleep', ['0.05'])
+            }
+          }
+          throw new Error('ENOSPC: no space left on device')
+        }
+        return (real as unknown as (...a: unknown[]) => void)(...args)
+      })
+      const realKill = process.kill.bind(process)
+      let workerPid = 0
+      try {
+        const failure = await startDetachedBackgroundTask({
+          storageDir,
+          command: `python3 -c "import subprocess,sys; p=subprocess.Popen(['/bin/sleep','60'], start_new_session=True, close_fds=True, env={}); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"`,
+          cwd: storageDir
+        }).then(
+          () => {
+            throw new Error('expected the start to fail')
+          },
+          (error: Error) => error
+        )
+
+        expect(failure.message).toMatch(/is still running/)
+        expect(failure.message).not.toMatch(/was stopped/)
+        workerPid = Number(readFileSync(pidFile, 'utf8'))
+        expect(isPidAlive(workerPid)).toBe(true)
+        const record = await readRecoveryRecord()
+        expect(record.status).toBe('running')
+        await expect(hasLiveTaskEvidence(storageDir, record)).resolves.toBe(true)
+
+        // The anchor is still holding the worker's output, so its own exit is the completion.
+        realKill(workerPid, 'SIGKILL')
+        await vi.waitFor(
+          async () => {
+            expect((await readdir(storageDir)).some((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toBe(true)
+          },
+          { timeout: 10_000 }
+        )
+      } finally {
+        try {
+          if (workerPid > 0) realKill(workerPid, 'SIGKILL')
+        } catch {
+          // already gone
         }
       }
     }

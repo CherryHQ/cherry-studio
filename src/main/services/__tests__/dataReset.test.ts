@@ -983,7 +983,10 @@ describe('requestDataReset', () => {
     expect(defaultSession.clearData).not.toHaveBeenCalled()
     expect(applicationMock.shutdown).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
-    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.stringContaining('background task'))
+    expect(showErrorBoxMock).toHaveBeenCalledWith(
+      'dialog.data_reset.detached_tasks.title',
+      'dialog.data_reset.detached_tasks.message'
+    )
   })
 })
 

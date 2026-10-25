@@ -56,13 +56,21 @@ interface OwnedGroup {
 function trackVerifiedMembers(taskId: string, storageDir?: string): void {
   const owned = ownedTaskGroups.get(taskId)
   if (!owned) return
-  const live = readGroupMembers(owned.pgid)
-  if (!live) return
+  const table = readProcessTable()
+  if (!table) return
+  const live = groupMembersOf(table, owned.pgid)
   const adopted = adoptGroupLeader(owned, live)
   verifyMembers(owned, live)
+  // A fork child is still this task's after setsid(), and its parent is the only thing that says
+  // so: while that tie exists, its identity is written down, because a worker that then closes
+  // every descriptor leaves no channel for the table's environment to name it.
+  const adoptedDescendant = adoptDescendants(owned, table)
   // Persist what the spawn could not capture, so a later restart can re-identify the leader from
   // the record alone and a permanent purge can still discover and stop the task.
   if (adopted && storageDir) void persistPidStartTime(taskId, storageDir, owned)
+  if ((adopted || adoptedDescendant) && storageDir && process.platform !== 'win32') {
+    void persistMemberIdentities(storageDir, taskId, liveMemberIdentities(owned, table))
+  }
 }
 
 /**
@@ -106,6 +114,127 @@ async function persistPidStartTime(taskId: string, storageDir: string, owned: Ow
     })
   } catch (error) {
     logger.warn('Failed to persist the recovered background task identity', { taskId, error })
+  }
+}
+
+/** A process identity captured while its descent tied it to the task: pid plus the stamp it ran under. */
+interface RecordedMember {
+  pid: number
+  lstart: string
+}
+
+/**
+ * Adds every process the table shows descending from a verified member, whatever group it joined.
+ * A worker calling setsid() leaves the group the kill and the pgid probe reach, but it cannot leave
+ * the parent that forked it — and while that parent is still verified, the child is provably the
+ * task's own. Adding it here is what lets its identity be recorded before it drops every pipe.
+ */
+function adoptDescendants(owned: OwnedGroup, table: ProcessRow[]): boolean {
+  const byPid = new Map(table.map((row) => [row.pid, row]))
+  let added = false
+  for (let expanded = true; expanded;) {
+    expanded = false
+    for (const row of table) {
+      if (row.zombie || owned.members.has(row.pid)) continue
+      const parentStamp = owned.members.get(row.ppid)
+      const parent = byPid.get(row.ppid)
+      if (parentStamp === undefined || parent?.lstart !== parentStamp || parent.zombie) continue
+      owned.members.set(row.pid, row.lstart)
+      expanded = added = true
+    }
+  }
+  return added
+}
+
+/** The verified identities still live in `table` — what a restart can re-check without an environment. */
+function liveMemberIdentities(owned: OwnedGroup, table: ProcessRow[]): RecordedMember[] {
+  return table
+    .filter((row) => !row.zombie && owned.members.get(row.pid) === row.lstart)
+    .map((row) => ({ pid: row.pid, lstart: row.lstart }))
+}
+
+function memberIdentitiesPath(storageDir: string, taskId: string): string {
+  return path.join(storageDir, `${taskId}${BACKGROUND_TASK_EVIDENCE_EXT}`)
+}
+
+/**
+ * The identities this task was seen owning, written to the task's `.pids` evidence. Windows writes
+ * its own shape there from the runner; on POSIX this is the app's ledger, and it is the only proof
+ * that survives an environment the process table does not show for a given process.
+ */
+async function readRecordedMembers(storageDir: string, taskId: string): Promise<RecordedMember[]> {
+  if (process.platform === 'win32') return []
+  try {
+    const raw = JSON.parse(await readFile(memberIdentitiesPath(storageDir, taskId), 'utf8')) as {
+      members?: unknown
+    }
+    return Array.isArray(raw.members)
+      ? raw.members.filter(
+          (member): member is RecordedMember =>
+            Number.isInteger((member as RecordedMember)?.pid) && typeof (member as RecordedMember)?.lstart === 'string'
+        )
+      : []
+  } catch {
+    // No ledger yet, or one a restart cannot read: it proves nothing either way, and every other
+    // channel still stands.
+    return []
+  }
+}
+
+async function persistMemberIdentities(storageDir: string, taskId: string, members: RecordedMember[]): Promise<void> {
+  const target = memberIdentitiesPath(storageDir, taskId)
+  const staging = `${target}.${process.pid}.tmp`
+  try {
+    await writeFile(staging, JSON.stringify({ members }), { mode: 0o600 })
+    await rename(staging, target)
+  } catch (error) {
+    await rm(staging, { force: true })
+    logger.warn('Failed to persist detached background task member identities', { taskId, error })
+  }
+}
+
+/** Records holders a marker read named, so a later read that cannot show their environment still sees them. */
+async function recordObservedMembers(storageDir: string, taskId: string, holders: RecordedMember[]): Promise<void> {
+  if (process.platform === 'win32' || holders.length === 0) return
+  const recorded = await readRecordedMembers(storageDir, taskId)
+  const known = new Set(recorded.map((member) => `${member.pid}:${member.lstart}`))
+  const missing = holders.filter((holder) => !known.has(`${holder.pid}:${holder.lstart}`))
+  if (missing.length === 0) return
+  await persistMemberIdentities(storageDir, taskId, [...recorded, ...missing])
+}
+
+/** The recorded identities still running under the stamp they were captured with. */
+async function liveRecordedMembers(storageDir: string, taskId: string): Promise<RecordedMember[]> {
+  const recorded = await readRecordedMembers(storageDir, taskId)
+  if (recorded.length === 0) return []
+  const table = readProcessTable()
+  // An unreadable table establishes nothing, so the recorded identities stand unrefuted.
+  if (!table) return recorded
+  const byPid = new Map(table.filter((row) => !row.zombie).map((row) => [row.pid, row]))
+  return recorded.filter((member) => byPid.get(member.pid)?.lstart === member.lstart)
+}
+
+/** Positive ownership proof that needs no environment: a recorded process is still running. */
+async function hasLiveRecordedMember(storageDir: string, taskId: string): Promise<boolean> {
+  return (await liveRecordedMembers(storageDir, taskId)).length > 0
+}
+
+/** SIGKILL the recorded survivors, re-reading each stamp immediately before the signal. */
+async function killRecordedMembers(storageDir: string, taskId: string): Promise<void> {
+  const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  while (true) {
+    const live = await liveRecordedMembers(storageDir, taskId)
+    if (live.length === 0) return
+    for (const member of live) {
+      if (getPidStartTime(member.pid) !== member.lstart) continue
+      try {
+        process.kill(member.pid, 'SIGKILL')
+      } catch {
+        // already gone
+      }
+    }
+    if (Date.now() >= deadline) return
+    await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
   }
 }
 
@@ -1030,12 +1159,19 @@ function readMarkerProcesses(taskId: string, anchorPid: number): MarkerRead {
 }
 
 /**
- * Whether the table does not prove the task has no live marker holder. `unknown` counts: a table
- * that cannot show environments is not evidence that the work is gone, so nothing may settle.
+ * Whether the task still has work this app can point at without inferring anything from a missing
+ * marker. A table that cannot show environments proves nothing; a holder it does name is written
+ * into the identity ledger, so its later disappearance from the table still leaves a pid and stamp
+ * to re-check. The marker is only ever positive evidence — its absence is not proof of exit.
  */
-function hasUnverifiedMarkerWork(taskId: string, anchorPid: number): boolean {
+async function hasUnsettledWork(storageDir: string, taskId: string, anchorPid: number): Promise<boolean> {
   const read = readMarkerProcesses(taskId, anchorPid)
-  return read.status !== 'observable' || read.holders.length > 0
+  if (read.status !== 'observable') return true
+  if (read.holders.length > 0) {
+    void recordObservedMembers(storageDir, taskId, read.holders)
+    return true
+  }
+  return hasLiveRecordedMember(storageDir, taskId)
 }
 
 /**
@@ -1194,7 +1330,7 @@ export async function startDetachedBackgroundTask(
         record.pid > 0 &&
         (groupHasLiveMember(record.pid) ||
           ownedTaskGroups.get(id)?.liveness?.open ||
-          hasUnverifiedMarkerWork(id, record.pid))
+          (await hasUnsettledWork(input.storageDir, id, record.pid)))
       ) {
         const poll = setTimeout(() => void settleThroughGroupDrain(), LEADERLESS_GROUP_POLL_MS)
         poll.unref?.()
@@ -1259,8 +1395,6 @@ export async function startDetachedBackgroundTask(
       writeRecordSync(input.storageDir, record)
     } catch (error) {
       settled = true
-      if (taking) clearInterval(taking)
-      ownedTaskGroups.delete(id)
       let cleaned = record.pid <= 0
       // A group member that survived the cleanup kill — a privileged worker failing the credential
       // check while the shell died. It outranks the leader's own exit in the message below.
@@ -1270,34 +1404,40 @@ export async function startDetachedBackgroundTask(
           if (process.platform === 'win32') {
             await execTaskkill(['/PID', String(record.pid), '/T', '/F'])
           } else {
-            try {
-              process.kill(-record.pid, 'SIGKILL')
-            } catch (killError) {
-              // macOS answers EPERM for a process group holding only exited-but-unreaped
-              // children — proof the group has nothing left to signal — but also when every
-              // live member fails the credential check (a setuid `sudo` the task exec'd), so
-              // the errno alone cannot tell an exit from a refusal: no live member can.
-              if ((killError as NodeJS.ErrnoException).code !== 'EPERM' || groupHasLiveMember(record.pid)) {
-                throw killError
-              }
-            }
-            // A delivered group SIGKILL still proves nothing per member, so the forced-stop path
+            // The anchor is spared, exactly as in a forced stop: it is the only witness left for a
+            // worker that escaped the group and dropped every descriptor. A group SIGKILL destroys
+            // the inherited pipes that still show the worker is running and would read as a clean
+            // termination the moment they close with it.
+            await killGroupWork(record.pid, id)
+            // A delivered SIGKILL still proves nothing per member, so the forced-stop path
             // verifies the drain too: a privileged worker survives while the shell dies, and this
-            // path has already disabled ownership and finalization — a survivor read as cleaned
-            // would run on with nothing tracking it and nothing able to stop it.
+            // path has already disabled finalization — a survivor read as cleaned would run on with
+            // nothing tracking it and nothing able to stop it.
             if (!(await waitForGroupDrain(record.pid))) {
               survivor = true
               throw new Error(`process group ${record.pid} still holds live members after SIGKILL`)
             }
             // The group kill cannot reach a worker that left through setsid(), so an empty group
-            // alone certifies nothing: the marker sweep and the liveness pipe must agree too.
+            // alone certifies nothing: the marker sweep, the identities recorded while that worker
+            // was attributable, and the liveness pipe must all agree too.
             if ((await killMarkerSurvivors(id, record.pid)) !== 'clear') {
               survivor = true
               throw new Error(`background task ${id} still holds marked workers after SIGKILL`)
             }
-            if (liveness && (await waitForLivenessClose(liveness)) !== 'closed') {
+            await killRecordedMembers(input.storageDir, id)
+            if (await hasLiveRecordedMember(input.storageDir, id)) {
+              survivor = true
+              throw new Error(`background task ${id} still holds attributed workers after SIGKILL`)
+            }
+            // A close already observed proves the anchor left; otherwise only its own exit states
+            // that every channel it watches agreed nothing of the task is left.
+            if (!observedCompletion && liveness && (await waitForLivenessClose(liveness)) !== 'closed') {
               survivor = true
               throw new Error(`background task ${id} still holds a live liveness writer after SIGKILL`)
+            }
+            if (!observedCompletion && !(await waitForLeaderExit(record))) {
+              survivor = true
+              throw new Error(`background task ${id} still holds its anchor after SIGKILL`)
             }
           }
           cleaned = true
@@ -1334,6 +1474,11 @@ export async function startDetachedBackgroundTask(
             recordError
           })
         }
+      } finally {
+        // The pulse stays up through the kill: its verification is what lets `killGroupWork` tell
+        // the task's members from whoever else the table shows.
+        if (taking) clearInterval(taking)
+        if (cleaned) ownedTaskGroups.delete(id)
       }
       // A plain "start failed" here invites a retry that duplicates work that is in fact still
       // running, so the task may only be described as still running while that holds. Both of the
@@ -1518,6 +1663,13 @@ async function stopDetachedBackgroundTaskUnlocked(
       return unverified
     }
     if (markers === 'survivors') return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+    // A recorded identity is proof the marker cannot offer: it was stamped while an ancestor tied
+    // the worker to this task, so it is killed and re-read by pid and stamp whether or not the
+    // table will show its environment.
+    await killRecordedMembers(storageDir, record.id)
+    if (await hasLiveRecordedMember(storageDir, record.id)) {
+      return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+    }
     // The pipe is the in-process proof; after a restart the inherited marker is. Survivors are the
     // task's own, so the kill may reach them even though the group could not, and only their
     // absence certifies the termination.
@@ -1528,6 +1680,11 @@ async function stopDetachedBackgroundTaskUnlocked(
     // there is holding a survivor's evidence, and the kill did not establish termination.
     if (!(await waitForLeaderExit(record))) {
       logger.warn('Force kill left the task anchor holding live output', { taskId: record.id, pgid: record.pid })
+      return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+    }
+    // The anchor's exit speaks for the channels it watches; a recorded identity still alive is work
+    // outside every one of them, and the record must keep that work stoppable.
+    if (await hasLiveRecordedMember(storageDir, record.id)) {
       return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
     }
   }
@@ -1623,35 +1780,54 @@ interface GroupMember {
   lstart: string
 }
 
+/** A row of the process table: where it sits, who forked it, and the stamp identifying it. */
+interface ProcessRow extends GroupMember {
+  pgid: number
+  zombie: boolean
+}
+
 /**
- * All the members of `pgid` the OS still schedules, each with the parent and start stamp that
- * identify it — the evidence a member descends from one this app verified rather than from a pid
- * the OS handed to someone else. `null` when the table cannot be read, which is never evidence of
- * anything.
+ * Every process the OS still schedules, with the group, parent and start stamp that identify it.
+ * `null` when the table cannot be read, which is never evidence of anything.
  */
-function readGroupMembers(pgid: number): GroupMember[] | null {
+function readProcessTable(): ProcessRow[] | null {
   try {
     const table = execFileSync('ps', ['-axwwo', 'pgid=,pid=,ppid=,state=,lstart='], {
       encoding: 'utf8',
       maxBuffer: 8 * 1024 * 1024,
       timeout: 5_000
     })
-    const members: GroupMember[] = []
+    const rows: ProcessRow[] = []
     for (const row of table.split('\n')) {
       const fields = row.trim().split(/\s+/)
-      if (fields.length < 9 || Number(fields[0]) !== pgid) continue
+      if (fields.length < 9) continue
       const state = fields[3]
-      if (!state || state.startsWith('Z')) continue
-      members.push({
+      if (!state) continue
+      rows.push({
+        pgid: Number(fields[0]),
         pid: Number(fields[1]),
         ppid: Number(fields[2]),
+        zombie: state.startsWith('Z'),
         lstart: normalizeLstart(fields.slice(-5).join(' '))
       })
     }
-    return members
+    return rows
   } catch {
     return null
   }
+}
+
+function groupMembersOf(table: ProcessRow[], pgid: number): GroupMember[] {
+  return table.filter((row) => row.pgid === pgid && !row.zombie).map(({ pid, ppid, lstart }) => ({ pid, ppid, lstart }))
+}
+
+/**
+ * All the members of `pgid` the OS still schedules — the evidence a member descends from one this
+ * app verified rather than from a pid the OS handed to someone else.
+ */
+function readGroupMembers(pgid: number): GroupMember[] | null {
+  const table = readProcessTable()
+  return table && groupMembersOf(table, pgid)
 }
 
 /**
@@ -1672,19 +1848,22 @@ function readGroupMembers(pgid: number): GroupMember[] | null {
  */
 export async function hasLiveTaskEvidence(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
   if (record.pid <= 0) return false
-  if (process.platform !== 'win32') return hasLiveGroupEvidence(record)
+  if (process.platform !== 'win32') return hasLiveGroupEvidence(storageDir, record)
   if (!isPidAlive(record.pid)) return false
   return !(await hasReplacedWindowsRunner(storageDir, record, readWindowsProcessTable))
 }
 
-export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
+export async function hasLiveGroupEvidence(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
   if (record.pid <= 0) return false
-  // The inherited marker names work that left the group and closed its descriptors, and it is the
-  // only evidence a restart can still read. A table that cannot show environments is not evidence
-  // that the work is gone.
+  // The inherited marker names work that left the group and closed its descriptors. A table that
+  // cannot show environments is not evidence that the work is gone, and a holder it does name is
+  // recorded so its identity outlives the environment the table showed it in.
   const markers = readMarkerProcesses(record.id, record.pid)
   if (markers.status === 'unknown') return true
-  if (markers.holders.length > 0) return true
+  if (markers.holders.length > 0) {
+    void recordObservedMembers(storageDir, record.id, markers.holders)
+    return true
+  }
   // Work that left the group (setsid) is live even when the leader and the group are gone: the
   // pipe still has a writer. Destructive cleanup must not read this task as finished.
   if (ownedTaskGroups.get(record.id)?.liveness?.open) return true
@@ -1692,6 +1871,9 @@ export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   // finished while the app was closed leaves its pid free for an unrelated occupant. Group
   // members stay conservative — unreadable or unattributed evidence still counts as live.
   if (isPidAlive(record.pid) && !isRecycledPid(record)) return true
+  // The identity ledger is the positive proof an environment-hidden worker leaves behind: it was
+  // stamped while its parent still tied it to the task, so a live entry is the task's own work.
+  if (await hasLiveRecordedMember(storageDir, record.id)) return true
   if (process.platform === 'win32') return false
   return groupHasLiveMember(record.pid)
 }
@@ -1724,10 +1906,13 @@ async function waitForGroupDrain(pgid: number): Promise<boolean> {
 async function killGroupWork(pgid: number, taskId: string): Promise<void> {
   const verified = ownedTaskGroups.get(taskId)
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  // A member forked just before the read can be missing from it, so one empty table is not the end:
+  // the loop keeps looking for a full membership-pulse window before it lets go.
+  const stableReadings = Math.ceil(LEADERLESS_GROUP_POLL_MS / STOP_DRAIN_POLL_MS)
+  let emptyReadings = 0
   while (true) {
     const members = readGroupMembers(pgid)
     if (!members) return
-    let killed = 0
     let pending = 0
     for (const member of members) {
       if (member.pid === pgid) continue
@@ -1740,12 +1925,12 @@ async function killGroupWork(pgid: number, taskId: string): Promise<void> {
       }
       try {
         process.kill(member.pid, 'SIGKILL')
-        killed++
       } catch {
         // already gone
       }
     }
-    if (Date.now() >= deadline || (killed === 0 && pending === 0)) return
+    emptyReadings = members.length <= 1 && pending === 0 ? emptyReadings + 1 : 0
+    if (Date.now() >= deadline || emptyReadings >= stableReadings) return
     await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
   }
 }
@@ -2099,7 +2284,7 @@ async function reconcileDetachedBackgroundTask(
   // A kill that could not be verified stays unresolved until the inherited marker shows nothing is
   // left: then the kill did land, and the record may settle instead of blocking cleanup forever.
   if (record.terminationUnverified) {
-    if (hasLiveGroupEvidence(record)) return record
+    if (await hasLiveGroupEvidence(storageDir, record)) return record
     return {
       ...record,
       terminationUnverified: undefined,
@@ -2113,6 +2298,10 @@ async function reconcileDetachedBackgroundTask(
     const recycled = isRecycledPid(record) || (await hasReplacedWindowsRunner(storageDir, record, readTable))
     return recycled ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') } : record
   }
+  // The anchor is gone, but an identity recorded while it was still attributable reads live: a
+  // worker that dropped every pipe is still this task's, and folding it to `unknown` here would
+  // take away the one status Stop/Kill accepts while the work goes on.
+  if (process.platform !== 'win32' && (await hasLiveRecordedMember(storageDir, record.id))) return record
   // The leader is gone but the liveness pipe still has a writer: a member that left the group
   // (setsid) is alive, and the record must stay unresolved rather than fold into a status no
   // control path can act on.

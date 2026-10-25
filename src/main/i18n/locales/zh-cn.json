@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "请安装 Apple 芯片版",
   "dialog.data_reset.cancel": "取消",
   "dialog.data_reset.confirm": "重置并重启",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio 未执行数据重置：有后台任务无法停止并确认已终止。没有删除任何数据。请在后台任务面板中停止该任务，然后重新执行数据重置。",
+  "dialog.data_reset.detached_tasks.title": "数据重置已取消",
   "dialog.data_reset.message": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
   "dialog.data_reset.title": "重置应用数据",
   "dialog.diagnostic_bundle.title": "保存诊断包",

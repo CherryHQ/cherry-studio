@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "Install the Apple Silicon version",
   "dialog.data_reset.cancel": "Cancel",
   "dialog.data_reset.confirm": "Reset and Restart",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio did not run Data Reset because a background task could not be stopped and verified. Nothing was erased. Stop the task from the background-task panel, then run Data Reset again.",
+  "dialog.data_reset.detached_tasks.title": "Data Reset Cancelled",
   "dialog.data_reset.message": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
   "dialog.data_reset.title": "Reset App Data",
   "dialog.diagnostic_bundle.title": "Save diagnostic bundle",

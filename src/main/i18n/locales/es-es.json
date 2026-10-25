@@ -125,6 +125,8 @@
   "dialog.architecture_mismatch.title": "Instala la versión para Apple Silicon",
   "dialog.data_reset.cancel": "Cancelar",
   "dialog.data_reset.confirm": "Restablecer y reiniciar",
+  "dialog.data_reset.detached_tasks.message": "Cherry Studio no ejecutó el restablecimiento de datos porque no se pudo detener y verificar una tarea en segundo plano. No se borró nada. Detenga la tarea desde el panel de tareas en segundo plano y vuelva a ejecutar el restablecimiento de datos.",
+  "dialog.data_reset.detached_tasks.title": "Restablecimiento de datos cancelado",
   "dialog.data_reset.message": "Se borrarán los chats, asistentes, bases de conocimiento, archivos y ajustes, y luego se reiniciará la aplicación. Esta acción no se puede deshacer. ¿Desea continuar?",
   "dialog.data_reset.title": "Restablecer datos de la aplicación",
   "dialog.diagnostic_bundle.title": "Guardar paquete de diagnóstico",
