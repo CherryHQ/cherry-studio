@@ -561,7 +561,7 @@ const ChatComposerInner = ({
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
-  const releaseFollowupEditRef = useRef<() => void>(() => {})
+  const releaseFollowupEditRef = useRef<(outcome?: 'submitted' | 'released') => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -1539,7 +1539,10 @@ const ChatComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
-    releaseFollowupEditRef.current()
+    // Send/enqueue consumed the draft: mark the edit-session retirement so a
+    // suspended edit-switch closes its captured recovery copy instead of
+    // releasing a duplicate (cherry-pr-review retired-edit-recovery).
+    releaseFollowupEditRef.current('submitted')
     setText('')
     setDraftTokens(undefined)
     setFiles([])

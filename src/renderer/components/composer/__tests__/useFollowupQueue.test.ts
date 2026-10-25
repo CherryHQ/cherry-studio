@@ -2007,6 +2007,121 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('closes the recovery copy when the edit session is submitted during a suspended switch (cherry-pr-review retired-edit-recovery)', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, deleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+    // A's take delete resolves; B's take delete stays in flight until the
+    // test releases it, so A's held recovery write is committed but the
+    // switch has not released it yet.
+    let resolveDelete!: (value: unknown) => void
+    takeDeleteTrigger.mockResolvedValueOnce(undefined).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps({ scopeKey: SCOPE })))
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    let switchPromise!: Promise<unknown>
+    act(() => {
+      switchPromise = result.current.takeForEdit('b', captureOutgoing)
+    })
+    // Flush until B's take-delete is in flight: A's recovery copy is committed.
+    await act(async () => {})
+    await act(async () => {})
+    expect(takeDeleteTrigger.mock.calls.length).toBe(2)
+    expect(postTrigger).toHaveBeenCalled()
+    const heldCopyId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0]?.[0].body.id
+
+    // The user Sends the edited draft while the switch is suspended: the
+    // submission retires A's session.
+    await act(async () => {
+      result.current.releaseEdit('submitted')
+    })
+
+    // B's delete acknowledges: the continuation must not release A's captured
+    // recovery copy for delivery - the submission already owns its content,
+    // so a released copy would deliver a duplicate. It closes the redundant
+    // copy instead (cherry-pr-review retired-edit-recovery).
+    await act(async () => {
+      resolveDelete(undefined)
+      await switchPromise
+    })
+    await act(async () => {})
+
+    const releasesForCopy = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>)
+      .filter((c) => c[0].body.id === heldCopyId && c[0].body.held === false).length
+    expect(releasesForCopy).toBe(0)
+    const closesForCopy = (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>)
+      .filter((c) => c[0].params?.id === heldCopyId).length
+    expect(closesForCopy).toBeGreaterThanOrEqual(1)
+  })
+
+  it('registers no restore retry when the session is submitted while restore attempts are in flight (cherry-pr-review retired-edit-recovery)', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      const rejections: Array<(error: Error) => void> = []
+      postTrigger.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejections.push(reject)
+          })
+      )
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let switchPromise!: Promise<unknown>
+      act(() => {
+        switchPromise = result.current.takeForEdit('b', captureOutgoing)
+      })
+      await act(async () => {})
+      await act(async () => {})
+      expect(rejections.length).toBe(1)
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+
+      // The submission retires the session while the first restore attempt is
+      // still in flight (cherry-pr-review retired-edit-recovery).
+      await act(async () => {
+        result.current.releaseEdit('submitted')
+      })
+      // All three restore attempts fail now.
+      for (let i = 0; i < 3; i++) {
+        await act(async () => {
+          rejections[i]?.(new Error('queue full'))
+          await Promise.resolve()
+        })
+      }
+      let taken: unknown = 'unset'
+      await act(async () => {
+        taken = await switchPromise
+      })
+      expect(taken).toBeUndefined()
+
+      // No retry registration after retirement: advancing time inserts
+      // nothing, and a copy a failed attempt may have committed is closed.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60 * 1000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+      const closesForCopy = (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>)
+        .filter((c) => c[0].params?.id === restoreId).length
+      expect(closesForCopy).toBeGreaterThanOrEqual(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('closes a recovery copy whose registration lands after unmount cleanup (inv_b47d9657e7639e5b)', async () => {
     vi.useFakeTimers()
     try {

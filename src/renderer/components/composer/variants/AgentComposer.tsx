@@ -861,7 +861,7 @@ const AgentComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
-  const releaseFollowupEditRef = useRef<() => void>(() => {})
+  const releaseFollowupEditRef = useRef<(outcome?: 'submitted' | 'released') => void>(() => {})
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
@@ -1552,7 +1552,10 @@ const AgentComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
-    releaseFollowupEditRef.current()
+    // Send/enqueue consumed the draft: mark the edit-session retirement so a
+    // suspended edit-switch closes its captured recovery copy instead of
+    // releasing a duplicate (cherry-pr-review retired-edit-recovery).
+    releaseFollowupEditRef.current('submitted')
     setText('')
     setFiles([])
     setSelectedSkills([])
