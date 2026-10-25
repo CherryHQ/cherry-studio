@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-25-sentence-aware-chunking.md
+2026-10-25-sentence-aware-chunking.md: 374ebc78d52c559a0e6bc2b68f7ffe1bcafa6dff
+2026-10-25-sentence-aware-chunking.zh.md: 2d71f3a8b3dd9f4769d89c41982ecb43416b5952
