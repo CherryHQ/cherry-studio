@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addNote } from '@renderer/services/NotesService'
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     sessionIsDirty: false,
     sessionIsSaving: false,
     sessionSaveError: undefined as Error | undefined,
+    sessionConflict: false,
     sessionDraft: 'saved content',
     currentContent: 'saved content',
     richEditorContent: 'edited rich content',
@@ -34,6 +35,7 @@ const mocks = vi.hoisted(() => {
     discardSession: vi.fn(),
     flushSession: vi.fn().mockResolvedValue(undefined),
     reloadSession: vi.fn().mockResolvedValue(undefined),
+    keepDraftSession: vi.fn().mockResolvedValue(undefined),
     notifyExternalChange: vi.fn(),
     ipcRequest: vi.fn(),
     commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
@@ -138,7 +140,15 @@ vi.mock('@cherrystudio/ui', async () => {
             React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
             React.createElement(
               'button',
-              { type: 'button', disabled: confirmLoading, onClick: () => onConfirm?.() },
+              {
+                type: 'button',
+                disabled: confirmLoading,
+                // Mirrors the real ConfirmDialog: close after onConfirm unless it returns false.
+                onClick: () =>
+                  Promise.resolve(onConfirm?.()).then((result) => {
+                    if (result !== false) onOpenChange?.(false)
+                  })
+              },
               confirmText
             )
           )
@@ -224,17 +234,22 @@ vi.mock('@renderer/hooks/useNote', () => ({
 vi.mock('@renderer/hooks/useFileEditSession', () => ({
   useFileEditSession: () => ({
     status: mocks.sessionStatus,
+    sessionId: mocks.activeFilePath,
+    documentEpoch: 1,
+    readOnly: false,
+    prepareMutation: vi.fn(async () => ({ finish: vi.fn(async () => {}) })),
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
     draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
     isDirty: mocks.sessionIsDirty,
     isSaving: mocks.sessionIsSaving,
-    conflict: false,
+    conflict: mocks.sessionConflict,
     saveError: mocks.sessionSaveError,
     metadataRecoveryPending: false,
     unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
     setDraft: mocks.setDraft,
     discard: mocks.discardSession,
     reload: mocks.reloadSession,
+    keepDraft: mocks.keepDraftSession,
     flush: mocks.flushSession,
     notifyExternalChange: mocks.notifyExternalChange
   })
@@ -360,6 +375,7 @@ describe('NotesPage print payloads', () => {
     mocks.sessionIsDirty = false
     mocks.sessionIsSaving = false
     mocks.sessionSaveError = undefined
+    mocks.sessionConflict = false
     mocks.sessionDraft = 'saved content'
     mocks.currentContent = 'saved content'
     mocks.richEditorContent = 'edited rich content'
@@ -474,6 +490,7 @@ describe('NotesPage print payloads', () => {
     const { rerender } = await renderReadyNotesPage()
 
     mocks.sessionDraft = ''
+    mocks.richEditorContent = ''
     rerender(<NotesPage />)
     await waitFor(() => expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', ''))
 
@@ -591,6 +608,50 @@ describe('NotesPage print payloads', () => {
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/note.md')
   })
 
+  it('keeps the draft when the conflict dialog is dismissed without reloading', async () => {
+    mocks.sessionConflict = true
+
+    await renderReadyNotesPage()
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.conflict.title')
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.conflict.keep_draft' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.keepDraftSession).toHaveBeenCalledOnce()
+    expect(mocks.reloadSession).not.toHaveBeenCalled()
+  })
+
+  it('reopens the conflict dialog when keeping the draft fails', async () => {
+    mocks.sessionConflict = true
+    const failure = new Error('baseline read failed')
+    mocks.keepDraftSession.mockImplementationOnce(() => {
+      // The manager publishes the failure on the session snapshot.
+      mocks.sessionSaveError = failure
+      return Promise.reject(failure)
+    })
+
+    await renderReadyNotesPage()
+    fireEvent.click(screen.getByRole('button', { name: 'notes.conflict.keep_draft' }))
+    expect(mocks.keepDraftSession).toHaveBeenCalledOnce()
+
+    // The failure rerender still reports the conflict, which re-opens the dialog.
+    await act(async () => {})
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.conflict.title')
+  })
+
+  it('reloads the disk version without keeping the draft when reload is chosen', async () => {
+    mocks.sessionConflict = true
+
+    await renderReadyNotesPage()
+    fireEvent.click(screen.getByRole('button', { name: 'notes.conflict.reload' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.reloadSession).toHaveBeenCalledOnce()
+    // Flush the microtask that would run a stray keepDraft if the guard regressed.
+    await act(async () => {})
+    expect(mocks.keepDraftSession).not.toHaveBeenCalled()
+  })
+
   it('waits for an in-flight note save before allowing discard and navigation', async () => {
     mocks.sessionIsDirty = true
     mocks.sessionIsSaving = true
@@ -605,8 +666,9 @@ describe('NotesPage print payloads', () => {
 
     mocks.sessionIsSaving = false
     rerender(<NotesPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
+    })
     expect(mocks.discardSession).toHaveBeenCalledOnce()
     expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
   })
@@ -618,8 +680,9 @@ describe('NotesPage print payloads', () => {
 
     await renderReadyNotesPage()
     fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
-    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
-
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
+    })
     expect(mocks.discardSession).toHaveBeenCalledOnce()
     expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
     expect(mocks.discardSession.mock.invocationCallOrder[0]).toBeLessThan(

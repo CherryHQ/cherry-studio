@@ -37,8 +37,8 @@ vi.mock('@pierre/diffs/react', async () => {
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
-    activeShikiTheme: 'github-light',
-    isShikiThemeDark: false
+    activeCodeTheme: 'github-light',
+    isCodeThemeDark: false
   })
 }))
 

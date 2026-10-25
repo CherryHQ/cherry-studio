@@ -170,7 +170,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
   },
   feishu: {
     required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
-    optional: ['allowed_chat_ids'],
+    optional: ['allowed_chat_ids', 'mention_only'],
     description:
       'Feishu/Lark bot. Set auth_mode to "qr" to register interactively without config. For credential setup, provide all required fields and set domain to "feishu" or "lark".'
   },

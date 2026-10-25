@@ -82,7 +82,7 @@ function SidebarEntryIcon({
       aria-hidden="true"
       className="flex shrink-0 items-center justify-center"
       style={{ width: presentation.slotSize, height: presentation.slotSize }}>
-      {entry.renderIcon(presentation)}
+      {entry.renderIcon({ ...presentation, active: !entry.disabled && entry.isActive })}
     </span>
   )
 }

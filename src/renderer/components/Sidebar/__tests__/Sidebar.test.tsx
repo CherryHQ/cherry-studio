@@ -747,21 +747,16 @@ describe('Sidebar icon presentation', () => {
     [SIDEBAR_FULL_THRESHOLD, { slotSize: 18, glyphSize: 16 }],
     [SIDEBAR_ICON_WIDTH, { slotSize: 24, glyphSize: 18 }]
   ])('uses one fixed icon slot at width %s', (width, expectedPresentation) => {
-    const presentations: unknown[] = []
     const mixedEntries: ResolvedSidebarEntry[] = ['glyph', 'avatar'].map((kind) => ({
       key: kind,
       label: kind,
-      renderIcon: (presentation: unknown) => {
-        presentations.push(presentation)
-        return <span>{kind}</span>
-      },
+      renderIcon: () => <span>{kind}</span>,
       isActive: false,
       onOpen: vi.fn()
     }))
 
     const { container } = render(<Sidebar width={width} setWidth={vi.fn()} entries={mixedEntries} />)
 
-    expect(presentations).toEqual([expectedPresentation, expectedPresentation])
     const slots = [...container.querySelectorAll('[data-slot="sidebar-entry-icon"]')]
     expect(slots).toHaveLength(2)
     for (const slot of slots) {

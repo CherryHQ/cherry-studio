@@ -6,8 +6,6 @@ import { getCmThemeByName } from '@cherrystudio/ui'
 import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { useCmTheme, useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
-import { shikiStreamService } from '@renderer/services/ShikiStreamService'
-import { getShiki } from '@renderer/utils/shiki'
 
 // Override the global lightweight '@cherrystudio/ui' stand-in with the real theme
 // utils — this test locks the provider + theme-resolution behavior end-to-end.
@@ -31,36 +29,13 @@ vi.mock('@renderer/hooks/useMermaid', () => ({
   useMermaid: () => {}
 }))
 
-vi.mock('@renderer/services/ShikiStreamService', () => ({
-  shikiStreamService: {
-    dispose: vi.fn(),
-    highlightCodeChunk: vi.fn(),
-    highlightCodeToHtml: vi.fn(),
-    highlightStreamingCode: vi.fn(),
-    cleanupTokenizers: vi.fn(),
-    getShikiPreProperties: vi.fn()
-  }
-}))
-
-vi.mock('@renderer/utils/shiki', () => ({
-  getShiki: vi.fn(async () => ({
-    bundledThemesInfo: [
-      { id: 'one-light', displayName: 'One Light', type: 'light' },
-      { id: 'nord', displayName: 'Nord', type: 'dark' }
-    ]
-  })),
-  getHighlighter: vi.fn(),
-  getMarkdownIt: vi.fn(),
-  loadLanguageAndThemeIfNeeded: vi.fn()
-}))
-
 const Probe = () => {
-  const { highlightCode, activeShikiTheme } = useCodeStyle()
+  const { highlightCode, activeCodeTheme } = useCodeStyle()
   const { loadThemeNames, themeNames } = useCodeStyleThemeCatalog()
   return (
     <>
       <span data-testid="has-dracula">{String(themeNames.includes('dracula'))}</span>
-      <span data-testid="shiki-theme">{activeShikiTheme}</span>
+      <span data-testid="shiki-theme">{activeCodeTheme}</span>
       <button type="button" onClick={() => void loadThemeNames()}>
         Load themes
       </button>
@@ -194,46 +169,17 @@ describe('CodeStyleProvider', () => {
     await waitFor(() => expect(vi.mocked(getCmThemeByName)).toHaveBeenCalledWith('githubDark'))
   })
 
-  it('does not load shiki until its theme catalog is requested', async () => {
+  it('keeps the viewer catalog separate from CodeMirror and preserves saved themes', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
-
-    renderProvider()
-
-    expect(vi.mocked(getShiki)).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Load themes' }))
-    await waitFor(() => expect(vi.mocked(getShiki)).toHaveBeenCalledOnce())
-  })
-
-  // AgentFileDiffRenderer reads activeShikiTheme synchronously and hands it to a resolver that
-  // throws on an unknown id, without ever asking the provider to load its catalog.
-  it('never hands a stale shiki id to consumers that do not load the catalog themselves', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'theme-deleted-upstream')
-
-    renderProvider()
-
-    expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
-    await waitFor(() => expect(vi.mocked(getShiki)).toHaveBeenCalled())
-    expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
-  })
-
-  it('activates a stored shiki theme once the catalog confirms it', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'nord')
-
     renderProvider()
-
-    expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
-    await waitFor(() => expect(screen.getByTestId('shiki-theme').textContent).toBe('nord'))
+    expect(screen.getByTestId('has-dracula').textContent).toBe('true')
+    expect(screen.getByTestId('shiki-theme').textContent).toBe('nord')
   })
 
-  it('routes one-shot highlights through the stream service instead of the main thread', async () => {
-    vi.mocked(shikiStreamService.highlightCodeToHtml).mockResolvedValue('<pre>value</pre>')
-
+  it('falls back for removed themes before any consumer requests highlighting', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'theme-deleted-upstream')
     renderProvider()
-    fireEvent.click(screen.getByRole('button', { name: 'Highlight code' }))
-
-    await waitFor(() =>
-      expect(shikiStreamService.highlightCodeToHtml).toHaveBeenCalledWith('value', 'missing-language', 'one-light')
-    )
+    expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
   })
 })
