@@ -19,7 +19,7 @@ Status: implemented
 - 增加 `。！？；…` 和 `.!?` 句末断点，切点在标点之后，并保留收尾引号。
 - 把 `$$...$$`、行内 `$...$` 和 `<table>...</table>` 视为原子块。内部的断点被忽略；落在块内的切点移到块前；落在块内的 overlap 起点移到非代码块之后，或移到此代码块内的下一行。
 - 按行首配对代码围栏，包括偏移 0。能放进预算的围栏保持原子；超过预算的围栏按行边界切分，以执行 token 限制。
-- 把行内代码从展示公式和行内公式检测中排除；相邻但独立的原子区域不合并，因此相邻表格仍保留切分边界。
+- 把行内代码从展示公式和行内公式检测中排除：按相同长度的反引号序列配对，保留跨行内容和较短的内嵌反引号。
 - 22% 窗口内没有断点时，回退到最近的句子或结构边界，并允许小幅向前越界到下一个句末。
 - 每个选中的 chunk 用 `estimateTokenCount` 检查；超预算时二分出最大可容纳前缀，并优先取该前缀内的句子或结构边界。
 - overlap 起点向前吸附到最近的句子或结构边界；切点前没有边界时放弃这段 overlap。
@@ -39,19 +39,18 @@ Status: implemented
 
 - 只要句子能放进预算，chunk 的首尾都会落在句子或结构边界上。单句超过 `chunkSize` 时仍然需要硬切。
 - 小型代码块、公式和表格保持完整。超过预算的代码块按行边界切分；单行代码超过预算时硬切。公式或表格本身超过预算时仍保持原子，这是已知例外。
-- 落在已切分代码块内的 overlap 起点会吸附到下一行，既保持覆盖，也不会从行中间开始。
+- overlap 起点若位于切分后的代码块中，会吸附到当前行行首（前提是仍在上一块起点之后），保留代码上下文并避免从行中间开始。没有合适边界时 overlap 会缩小或消失，且仍完整覆盖非空白内容。
 - token 校正使用 `tokenx`。本地 embedding 的 tokenizer 可能不同，`refineChunksByTokenLimit` 仍是本地模型的最终保护。
-- 找不到边界时 overlap 可能变小甚至消失，非空白内容覆盖保持不变。
 - 已有索引需要 reindex 才会使用新的边界。
 - `structured` 是 MinerU 和学术 Markdown 的推荐策略；`delimiter` 保持原来的原子行为。
 - 独立评估使用 12 个查询和 `structured-1024-200`、`structured-512-100`、`structured-300-50` 三组配置，全部配置的 Hit@5 都是 12/12。`512/100` 最均衡（Hit@3 12/12），`1024/200` 的 Hit@1 和 MRR 最高（11/12，0.933），`300/50` 在多事实问题上排名下降。
 
 ## 验证
 
-- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/splitter.test.ts`：26 个测试通过，覆盖句末标点和收尾引号、`$$`、行内公式、表格、overlap 起点、token 校正、偏移 0 的围栏、行内代码中的 `$$`、相邻表格、超大代码块和 verbatim fuzz 不变量。
-- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/chunk.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/tokenLimit.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/localEmbeddingTokenLimit.test.ts src/main/features/knowledge/pipeline/vectorstore/indexStore/__tests__/KnowledgeIndexStore.integration.test.ts`：10 个测试通过，加上 splitter 共 36 个。
-- Regression — `pnpm test:main src/main/features/knowledge`：604 passed，18 个原有路径 mock 失败与更换 splitter 前的基线一致，1 skipped。
+- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/splitter.test.ts`：28 个测试通过，覆盖句末标点和收尾引号、`$$`、行内公式、表格、overlap 起点、token 校正、偏移 0 的围栏、包含内嵌反引号的单行/多行行内代码、相邻表格、超大代码块、代码块按行对齐的 overlap 和 verbatim fuzz 不变量。
+- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/chunk.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/tokenLimit.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/localEmbeddingTokenLimit.test.ts src/main/features/knowledge/pipeline/vectorstore/indexStore/__tests__/KnowledgeIndexStore.integration.test.ts`：10 个测试通过，加上 splitter 共 38 个。
+- Regression — `pnpm test:main src/main/features/knowledge`：606 passed，18 个原有路径 mock 失败与原始 splitter 基线一致，1 skipped。
 - Regression — 改动文件的 `oxfmt --check`、`oxlint --deny-warnings` 和 `eslint` 通过。
-- Regression — 评审场景的探针（`chunkSize=1024`、`chunkOverlap=200`）：文档开头围栏最大 1020 token；`echo $$` 行内代码最大 1020；100 个相邻表格最大 1023；160 行、12.5k 字符的代码块切成 3 块，最大 1020 token。所有探针的非空白缺失字符为 0。
+- Regression — 评审场景探针（`chunkSize=1024`、`chunkOverlap=200`）：文档开头围栏最大 1020 token；含多行 `echo $$` 的行内代码最大 1020；100 个相邻表格最大 1023；160 行、12.5k 字符的代码块切成 3 块，最大 1020 token。400 行代码块的 200-token overlap 在每个边界都保留并按行对齐。所有探针的非空白缺失字符均为 0。
 - Regression — MinerU 文档的非空白覆盖：缺失字符为 0；`structured` 模式下没有 `$$` 或 `<table>` 不平衡的 chunk。
 - Regression — 真实 embedding（`voyageai/voyage-multimodal-3.5`，2048 维）和 12 个查询：三组配置的答案都在 top-5；上面的排名差异可以复现。
