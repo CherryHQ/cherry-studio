@@ -71,7 +71,28 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   const providerId = `mp150-${Date.now()}`
   let assistantId: string | undefined
   let inspectorUrl: string | undefined
-  const importedIds: string[] = []
+  const entries = async () => {
+    const items: { id: string }[] = []
+    let cursor: string | undefined
+    do {
+      const response = await page.evaluate(
+        (cursor) =>
+          window.api.dataApi.request({
+            id: 'mp150-read-files',
+            method: 'GET',
+            path: '/files/entries',
+            params: { limit: 100, cursor }
+          }),
+        cursor
+      )
+      expect(response.status).toBe(200)
+      const data = response.data as { items: typeof items; nextCursor?: string }
+      items.push(...data.items)
+      cursor = data.nextCursor
+    } while (cursor)
+    return items
+  }
+  const originalIds = new Set((await entries()).map(({ id }) => id))
   try {
     await test.step('1. Upload simple.rtf through Files and assert formatted read-only content', async () => {
       await selectSidebarApp(page, 'Files')
@@ -277,7 +298,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
         `(() => { if (globalThis.__mp150) { process.mainModule.require('electron').shell.openExternal = globalThis.__mp150.original; delete globalThis.__mp150 } })()`
       )
     await page.evaluate(
-      async ({ preferences, assistantId, providerId, importedIds }) => {
+      async ({ preferences, assistantId, providerId }) => {
         await window.api.preference.setMultiple({
           'ui.theme_mode': preferences.theme,
           'topic.naming.enabled': preferences.naming
@@ -291,10 +312,25 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
           method: 'DELETE',
           path: `/providers/${providerId}`
         })
-        if (importedIds.length) await window.api.ipcApi.request('file.batch_remove_from_library', { ids: importedIds })
       },
-      { preferences, assistantId, providerId, importedIds }
+      { preferences, assistantId, providerId }
     )
+    // Files-page uploads are internal entries, so automatic cleanup never removes them.
+    const owned = (await entries()).filter(({ id }) => !originalIds.has(id)).map(({ id }) => id)
+    if (owned.length) {
+      const trashed = (await page.evaluate(
+        (ids) => window.api.ipcApi.request('file.batch_trash', { ids }),
+        owned
+      )) as IpcResult<OutputFor<'file.batch_trash'>>
+      if (!trashed.ok) throw new Error(trashed.error.message)
+      expect(trashed.data.failed, 'Trashing the uploaded RTF entries must not fail').toEqual([])
+      const purged = (await page.evaluate(
+        (ids) => window.api.ipcApi.request('file.batch_permanent_delete_from_trash', { ids }),
+        owned
+      )) as IpcResult<OutputFor<'file.batch_permanent_delete_from_trash'>>
+      if (!purged.ok) throw new Error(purged.error.message)
+      expect(purged.data.failed, 'Permanent deletion must not fail for any uploaded RTF entry').toEqual([])
+    }
   }
 })
 

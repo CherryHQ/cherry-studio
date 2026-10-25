@@ -141,19 +141,27 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
       }
     }
     const dialog = page.getByRole('dialog', { name: 'Data Migration', exact: true })
-    for (const [path, error] of [
-      [parse(destination).root, 'New path cannot be the root path'],
-      [readonly, 'New path does not have write permission'],
-      [nonempty, 'New path is not empty']
-    ]) {
+    // A read-only directory only fails the write check on macOS: Node's Windows libuv accepts
+    // directories regardless of the read-only attribute, so that toast cannot appear there.
+    const rejected: [string, string][] = [[parse(destination).root, 'New path cannot be the root path']]
+    if (app.record.platform === 'macos') rejected.push([readonly, 'New path does not have write permission'])
+    for (const [path, error] of rejected) {
       await selectDirectory(path)
       await expect.soft(page.getByText(error, { exact: true }).first()).toBeVisible({ timeout: 3_000 })
-      await screenshot(
-        `MP-119 invalid directory ${path === nonempty ? 'nonempty' : path === readonly ? 'readonly' : 'root'}`
-      )
+      await screenshot(`MP-119 invalid directory ${path === readonly ? 'readonly' : 'root'}`)
       if (await dialog.isVisible()) await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
       expect((await readAppInfo()).appDataPath).toBe(original.appDataPath)
     }
+    // A nonempty destination stays selectable; only an explicit copy request is refused.
+    await selectDirectory(nonempty)
+    await expect(dialog).toBeVisible()
+    const nonemptySwitch = dialog.getByRole('switch')
+    await expect(nonemptySwitch, 'Copying into a nonempty directory must be off').not.toBeChecked()
+    await expect(nonemptySwitch, 'Copying into a nonempty directory must be unavailable').toBeDisabled()
+    await screenshot('MP-119 nonempty destination without a copy request')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    expect((await readAppInfo()).appDataPath).toBe(original.appDataPath)
     expect(await readFile(join(nonempty, 'keep.txt'), 'utf8')).toBe('MP119 existing content')
     expect(await readdir(destination)).toEqual([])
     await selectDirectory(destination)

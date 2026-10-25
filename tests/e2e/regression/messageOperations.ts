@@ -235,7 +235,14 @@ export async function messageOperations(app: RegressionApp, page: Page, testInfo
       messages.nth(3).getByRole('button', { name: 'Regenerate', exact: true }).click(),
       (async () => {
         const request = await server.nextRequest()
-        const history = request.body.messages.filter((m) => (m as { role: string }).role !== 'system')
+        // The endpoint adapter adds supported fields such as an empty `reasoning_content`,
+        // so compare the role and content the regenerated turn must send.
+        const history = request.body.messages
+          .filter((m) => (m as { role: string }).role !== 'system')
+          .map((m) => {
+            const message = m as { role: string; content: unknown }
+            return { role: message.role, content: message.content }
+          })
         expect(history).toEqual([
           { role: 'user', content: firstPrompt },
           { role: 'assistant', content: firstAnswer },

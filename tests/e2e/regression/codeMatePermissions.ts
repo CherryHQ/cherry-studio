@@ -158,37 +158,35 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     const editor = reopened.locator('.cm-content').first()
     await expect(editor).toBeVisible()
     const validText = (await readSettings()).content!
-    // Valid JSON with an invalid enum must be rejected, not just syntax errors.
-    for (const invalid of [{ permissions: { defaultMode: 'mp97-invalid' } }, { effortLevel: 'mp97-invalid' }]) {
-      const invalidText = JSON.stringify({ ...JSON.parse(validText), ...invalid }, null, 2)
-      await editor.fill(invalidText)
-      await attachScreenshot('MP-97 invalid parameter validation')
-      const save = reopened.getByRole('button', { name: 'Save', exact: true })
-      if (await save.isEnabled()) {
-        await save.click()
-        await expect
-          .poll(async () => !(await reopened.isVisible()) || (await save.isEnabled()), {
-            message: 'Wait for the save attempt to finish'
-          })
-          .toBe(true)
-        await attachScreenshot('MP-97 after invalid save attempt')
-        const saved = JSON.parse((await readSettings()).content ?? '{}')
-        expect(
-          { permission: saved.permissions?.defaultMode, effort: saved.effortLevel },
-          'Rejecting an invalid parameter must preserve the valid CLI parameters'
-        ).toEqual({
-          permission: 'acceptEdits',
-          effort: 'high'
-        })
-        await expect(reopened, 'Invalid CLI parameters must be rejected by the configuration dialog').toBeVisible()
-      }
-      await expect(save, 'Invalid CLI parameter must block Save').toBeDisabled()
-      expect(JSON.parse((await readSettings()).content ?? '{}')).toMatchObject({
-        permissions: { defaultMode: 'acceptEdits' },
-        effortLevel: 'high'
-      })
-    }
-    await reopened.getByRole('button', { name: 'Cancel', exact: true }).click()
+    // Unsupported enum values are sanitized on save instead of blocking it.
+    const unsupported = JSON.stringify(
+      { ...JSON.parse(validText), permissions: { defaultMode: 'mp97-invalid' }, effortLevel: 'mp97-invalid' },
+      null,
+      2
+    )
+    await editor.fill(unsupported)
+    await attachScreenshot('MP-97 unsupported CLI parameter values')
+    const save = reopened.getByRole('button', { name: 'Save', exact: true })
+    await expect(save, 'Unsupported CLI parameter values must not block Save').toBeEnabled()
+    await save.click()
+    await expect(reopened).toBeHidden()
+    const sanitized = JSON.parse((await readSettings()).content ?? '{}')
+    expect(sanitized.permissions?.defaultMode, 'An unsupported approval mode must not persist').not.toBe('mp97-invalid')
+    expect(sanitized.effortLevel, 'An unsupported reasoning effort must not persist').not.toBe('mp97-invalid')
+
+    // Malformed JSON is the rejection path the editor enforces.
+    const malformed = await configure()
+    await malformed.getByRole('button', { name: 'Advanced Settings', exact: true }).click()
+    const malformedEditor = malformed.locator('.cm-content').first()
+    await expect(malformedEditor).toBeVisible()
+    await malformedEditor.fill('{ "permissions": ')
+    await attachScreenshot('MP-97 malformed CLI configuration')
+    await expect(
+      malformed.getByRole('button', { name: 'Save', exact: true }),
+      'Malformed JSON must block Save'
+    ).toBeDisabled()
+    await malformed.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(malformed).toBeHidden()
 
     const file = join(app.paths.workspace, 'mp97-permissions.txt')
     await writeFile(file, 'original\n')
