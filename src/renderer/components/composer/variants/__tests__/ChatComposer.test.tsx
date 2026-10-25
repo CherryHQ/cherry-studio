@@ -2303,6 +2303,85 @@ describe('ChatComposer', () => {
     expect(queueContent.props.items).toHaveLength(1)
   })
 
+  it('does not resurrect the queued document when editing is cancelled after the enqueue succeeds (saved-draft-after-enqueue)', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    // Hold the queue POST open so message editing starts before the enqueue
+    // settles; count POSTs to catch a duplicate minted UUID.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const message = {
+      id: 'edit-target',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={[{ type: 'text', text: 'Old message' }] as any[]} />
+        <ChatComposer topic={topic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    // Submit the composer's current document (A) while streaming: the
+    // enqueue write stays in flight.
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'original draft', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+
+    // Enter message editing before settlement: the pre-edit draft A is saved
+    // aside and the edit revision advances.
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('edit-target'))
+
+    // The enqueue succeeds while the edit session is open.
+    await act(async () => {
+      releaseEnqueue?.()
+      await Promise.allSettled([Promise.resolve(firstSend)])
+    })
+
+    // Cancel editing: the already-queued document must not return to the
+    // input (cherry-pr-review saved-draft-after-enqueue).
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('')
+
+    // Another Send therefore cannot queue a duplicate of A.
+    await act(async () => {
+      mocks.surfaceProps?.onSendDraft({ text: mocks.surfaceProps?.text ?? '', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
   it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)

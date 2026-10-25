@@ -1942,6 +1942,24 @@ const ChatComposerInner = ({
               tokens: draft.tokens,
               files: enqueueFiles
             })
+            // Entering message editing between submit and settlement saves the
+            // submitted document into savedDraftBeforeEditingRef and advances
+            // the revision, so the guard below correctly skips
+            // clearCurrentDraft - but cancelling the edit would then restore
+            // the already-queued document and a second Send would queue a
+            // duplicate (cherry-pr-review saved-draft-after-enqueue). Consume
+            // the matching submitted document fields from the backup while
+            // preserving its selections and any newer content; failed
+            // enqueues never reach here and keep the backup intact.
+            const savedBackup = savedDraftBeforeEditingRef.current
+            if (
+              savedBackup &&
+              savedBackup.text === draft.text &&
+              JSON.stringify(savedBackup.draftTokens) === JSON.stringify(draft.tokens) &&
+              JSON.stringify(savedBackup.files) === JSON.stringify(enqueueFiles)
+            ) {
+              savedDraftBeforeEditingRef.current = { ...savedBackup, text: '', draftTokens: [], files: [] }
+            }
             if (queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
               clearCurrentDraft()
             }
