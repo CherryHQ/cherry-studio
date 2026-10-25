@@ -1,12 +1,21 @@
+import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
+import { assertAgentStoragePath, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { t } from '@main/i18n'
-import { getPathStatus, type PathStatus } from '@main/utils/file'
+import {
+  canonicalizePathForContainment,
+  getPathStatus,
+  isOutsidePath,
+  lstat,
+  type PathStatus,
+  realpath
+} from '@main/utils/file'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('AgentSessionWorkspace')
 const WORKSPACE_PROBE_TIMEOUT_MS = 5_000
@@ -33,7 +42,7 @@ export async function prepareAgentSessionWorkspaceDirectory(session: AgentSessio
     case AGENT_WORKSPACE_TYPE.SYSTEM:
       // System workspaces are app-owned session directories; user workspaces
       // must already exist, so auto-creating them would mask a bad user path.
-      await ensureSystemWorkspaceDirectory(workspace.path)
+      await ensureSystemWorkspaceDirectory(session.id, workspace.path)
       break
     case AGENT_WORKSPACE_TYPE.USER:
       break
@@ -45,30 +54,111 @@ export async function prepareAgentSessionWorkspaceDirectory(session: AgentSessio
   await assertAgentSessionWorkspaceDirectory(session.id, workspace.path)
 }
 
-async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
+async function ensureSystemWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
   const root = path.resolve(application.getPath('feature.agents.system_workspaces'))
   const target = path.resolve(cwd)
-  const relative = path.relative(root, target)
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new AgentSessionWorkspaceError(`System workspace path is outside the managed workspace root: ${cwd}`)
-  }
-  try {
-    await ensureAgentStorageDirectory(root, target)
-  } catch (error) {
-    logger.warn(`Failed to validate or create system workspace directory: ${cwd}`, { error })
-    throw new AgentSessionWorkspaceError(
-      workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }),
-      isRetryableWorkspaceErrorCode((error as NodeJS.ErrnoException)?.code)
+  let canonicalRoot: string | undefined
+  let canonicalTarget: string | undefined
+  let sourceRoot: string | undefined
+  let stage = 'absolute-path'
+  const unconfirmed = () =>
+    new AgentSessionWorkspaceError(
+      workspaceCheckErrorMessage(sessionId, t('agent.session.workspace_status.outside_managed_root', { path: cwd }))
     )
+  try {
+    if (!path.isAbsolute(cwd)) throw unconfirmed()
+    stage = 'prepare-root'
+    await ensureAgentStorageDirectory(root, root)
+    stage = 'canonicalize'
+    canonicalRoot = await canonicalizeExistingPath(root)
+    if (canonicalRoot === undefined) throw unconfirmed()
+    canonicalTarget = await canonicalizePathForContainment(target, { allowMissing: true })
+    stage = 'find-source-root'
+    for (let candidate = path.dirname(target); ; candidate = path.dirname(candidate)) {
+      const canonicalCandidate = await canonicalizeExistingPath(candidate)
+      if (canonicalCandidate === canonicalRoot || (await hasSameDirectoryIdentity(candidate, root))) {
+        sourceRoot = candidate
+      } else if (canonicalCandidate === undefined) {
+        try {
+          await lstat(AbsoluteFilePathSchema.parse(candidate))
+          throw unconfirmed()
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code
+          if (code !== 'ENOENT' && code !== 'ENOTDIR') throw error
+        }
+      }
+      if (path.dirname(candidate) === candidate) break
+    }
+    if (!sourceRoot) throw unconfirmed()
+    const suffix = path.relative(sourceRoot, target)
+    if (!suffix || isOutsidePath(suffix)) throw unconfirmed()
+    stage = 'original-path-guard'
+    await assertAgentStoragePath(sourceRoot, target)
+    const storageTarget = path.join(canonicalRoot, suffix)
+    stage = 'prepare-target'
+    await ensureAgentStorageDirectory(canonicalRoot, storageTarget)
+    stage = 'verify-identity'
+    await assertAgentStoragePath(sourceRoot, target)
+    await assertAgentStoragePath(root, root)
+    if (
+      !(await hasSameDirectoryIdentity(root, sourceRoot)) ||
+      !(await hasSameDirectoryIdentity(storageTarget, target))
+    ) {
+      throw unconfirmed()
+    }
+  } catch (error) {
+    logger.warn('Failed to validate or create system workspace directory', {
+      sessionId,
+      root,
+      target,
+      cwd,
+      canonicalRoot,
+      canonicalTarget,
+      sourceRoot,
+      stage,
+      error
+    })
+    if (isAgentSessionWorkspaceError(error)) throw error
+    const code = (error as NodeJS.ErrnoException)?.code
+    const retryable = isRetryableWorkspaceErrorCode(code)
+    if ((stage === 'find-source-root' || stage === 'verify-identity') && !retryable) throw unconfirmed()
+    throw new AgentSessionWorkspaceError(
+      workspaceCheckErrorMessage(
+        sessionId,
+        workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible', code })
+      ),
+      retryable
+    )
+  }
+}
+
+async function canonicalizeExistingPath(target: string): Promise<string | undefined> {
+  try {
+    return await realpath(AbsoluteFilePathSchema.parse(target))
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return undefined
+    throw error
+  }
+}
+
+async function hasSameDirectoryIdentity(a: string, b: string): Promise<boolean> {
+  try {
+    const [aStat, bStat] = await Promise.all([stat(a, { bigint: true }), stat(b, { bigint: true })])
+    return aStat.dev === bStat.dev && aStat.ino === bStat.ino
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return false
+    throw error
   }
 }
 
 export async function assertAgentSessionWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
   const status = await getWorkspacePathStatus(cwd)
   if (status.ok && status.kind === 'directory') return
-  logger.warn(`Agent session ${sessionId} workspace invalid: ${cwd}`)
+  logger.warn('Agent session workspace invalid', { sessionId, cwd, stage: 'probe', status })
   throw new AgentSessionWorkspaceError(
-    workspacePathErrorMessage(cwd, status),
+    workspaceCheckErrorMessage(sessionId, workspacePathErrorMessage(cwd, status)),
     !status.ok && status.reason === 'inaccessible' && isRetryableWorkspaceErrorCode(status.code)
   )
 }
@@ -108,4 +198,8 @@ function workspacePathErrorMessage(workspacePath: string, status: PathStatus): s
   return status.reason === 'missing'
     ? t('agent.session.workspace_status.missing', { path: workspacePath })
     : t('agent.session.workspace_status.inaccessible', { path: workspacePath })
+}
+
+function workspaceCheckErrorMessage(sessionId: string, detail: string): string {
+  return t('agent.session.workspace_status.check_failed', { sessionId, detail })
 }
