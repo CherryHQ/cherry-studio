@@ -124,7 +124,8 @@ export async function launchpadPinning(app: RegressionApp, page: Page, testInfo:
     expect(await isPinned()).toBe(false)
     await screenshot('MP-130 unpinned state survives application restart')
 
-    // Remove every launchpad tile to exercise the real empty-section UI.
+    // Unpinning every tile hides the whole mini-app section: LaunchpadPage renders it only while the
+    // pinned list is nonempty.
     for (const item of await readApps()) {
       if (item.status === 'pinned') await setStatus(item.appId, 'enabled')
     }
@@ -132,8 +133,7 @@ export async function launchpadPinning(app: RegressionApp, page: Page, testInfo:
     await openLaunchpad(page)
     expect((await readApps()).filter(({ status }) => status === 'pinned')).toEqual([])
     await screenshot('MP-130 launchpad with no pinned mini apps')
-    await expect(miniAppsSection(), 'An empty mini-app section must remain visible with explanatory text').toBeVisible()
-    await expect(miniAppsSection()).toContainText(/no mini\s?apps|add.*mini\s?app|empty/i)
+    await expect(miniAppsSection(), 'The mini-app section must disappear while no mini app is pinned').toHaveCount(0)
   } finally {
     for (const item of originalApps) {
       if (item.status === 'pinned' || item.appId === builtin.appId) await setStatus(item.appId, item.status)

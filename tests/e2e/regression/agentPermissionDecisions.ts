@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
@@ -36,7 +36,10 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
   await selectAgentWorkspace(app, page)
   const output = join(app.paths.workspace, 'qa-permission.txt')
   const content = 'MP51_PERMISSION_ALLOWED'
-  expect(existsSync(output)).toBe(false)
+  // The workspace is shared with every other case in this run directory, so the previous run of this
+  // case can leave its own output behind. Clear it before asserting the pre-write state.
+  await rm(output, { force: true })
+  expect(existsSync(output), 'The workspace must not hold a stale case output before the write').toBe(false)
   const view = page.locator('[data-ui="agent.view"]:visible').first()
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   const preview = view.getByTestId('permission-preview')
@@ -92,5 +95,7 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
     await screenshot('MP-51 allowed tool and verified file')
   } finally {
     if (await pause.isVisible().catch(() => false)) await pause.click()
+    // Leave the shared workspace as this case found it so a repeated phase is reproducible.
+    await rm(output, { force: true })
   }
 }
