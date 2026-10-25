@@ -741,7 +741,12 @@ export class ClaudeCodeStreamAdapter {
   }
 
   /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
-  beginTurn(): void {
+  beginTurn({ userPrompt = false }: { userPrompt?: boolean } = {}): void {
+    if (userPrompt) {
+      this.hasSeenGenuineUserPrompt = true
+      this.assistantAnswerSinceUserPrompt = false
+      this.endCompactionArtifactGrace()
+    }
     this.turnHasActivity = false
     this.ctx = this.createTurnContext()
     this.turnActive = true
@@ -1217,9 +1222,9 @@ export class ClaudeCodeStreamAdapter {
     const lineStart = accumulatedText.lastIndexOf('\n') + 1
     const openLine = accumulatedText.slice(lineStart)
     if (openLine.trim() === '') {
-      // Partial indentation belongs to the current line, not the previous
-      // paragraph; let the indentation carry preserve its leaf-block context.
-      if (openLine !== '') return ''
+      // Preserve the prior block and the current partial indentation together:
+      // a completing delta can finish a list-contained setext heading.
+      if (openLine !== '') return this.emittedOpenLinePrefix(accumulatedText.slice(0, lineStart)) + openLine
       // A newline can follow any paragraph spelling, including formatting or
       // non-ASCII text. Keep its bounded context for a following setext line.
       const previousEnd = Math.max(0, lineStart - 1)

@@ -4157,6 +4157,106 @@ describe('compaction artifact boundary', () => {
     expect(text).not.toContain('Internal review.')
   })
 
+  it('resets answered provenance for each host-submitted prompt (inv_9c155aaf789cb802)', () => {
+    const { adapter, parts } = createAdapter()
+    const summary =
+      '<analysis>Internal review.</analysis>\n' +
+      '<summary>\n' +
+      '1. Task Overview:\n   Maintain the team wiki.\n\n' +
+      '2. Current State:\n   - Drafted three pages\n' +
+      '</summary>'
+
+    // The user asks for the summary BEFORE the runtime compaction runs:
+    // success re-arms the artifact grace after the prompt, and the answer must
+    // still stay visible through result completion.
+    adapter.beginTurn({ userPrompt: true })
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: 'Previous answer.' }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    parts.length = 0
+    adapter.beginTurn({ userPrompt: true })
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_result: 'success'
+    } as any)
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: summary }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toContain('Task Overview')
+    expect(text).toContain('Current State')
+    expect(text).not.toContain('Internal review.')
+  })
+
+  it('records the host prompt without relying on SDK prompt replay (inv_9c155aaf789cb802)', () => {
+    const { adapter, parts } = createAdapter()
+    const summary =
+      '<analysis>Internal review.</analysis>\n' +
+      '<summary>\n' +
+      '1. Task Overview:\n   Maintain the team wiki.\n\n' +
+      '2. Current State:\n   - Drafted three pages\n' +
+      '</summary>'
+
+    // The user asks for the summary BEFORE the runtime compaction runs:
+    // success re-arms the artifact grace after the prompt, and the answer must
+    // still stay visible through result completion.
+    adapter.beginTurn({ userPrompt: true })
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_result: 'success'
+    } as any)
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: summary }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toContain('Task Overview')
+    expect(text).toContain('Current State')
+    expect(text).not.toContain('Internal review.')
+  })
+
   it('preserves a user-requested summary when compaction succeeds after the prompt (inv_63b9c0bbf40500fd)', () => {
     const { adapter, parts } = createAdapter()
     const summary =
@@ -4560,6 +4660,66 @@ describe('compaction artifact boundary', () => {
       .map((part) => part.delta)
       .join('')
     expect(text).toBe(answer)
+  })
+
+  it('keeps list setext context through partial indentation (inv_a2c2ab0a268fe87b)', () => {
+    const answer = '- Heading\n  =====\n      <thinking>literal</thinking>\n\nDone.'
+    for (let split = 1; split < answer.length; split++) {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (const text of [answer.slice(0, split), answer.slice(split)])
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+        )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+      } as any)
+      adapter.handleMessage(successResult())
+      expect(
+        parts
+          .filter((p) => p.type === 'text-delta')
+          .map((p) => (p as any).delta)
+          .join(''),
+        `split ${split}`
+      ).toBe(answer)
+    }
+  })
+
+  it('preserves balanced tool result in streamed and snapshot text (inv_e50b098aa3667988)', () => {
+    const answer = 'The response is <tool_result>ok</tool_result>'
+    for (const streaming of [true, false]) {
+      const { adapter, parts } = createAdapter()
+      if (streaming) {
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+        )
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: answer } })
+        )
+        adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      }
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+      } as any)
+      adapter.handleMessage(successResult())
+      expect(
+        parts
+          .filter((p) => p.type === 'text-delta')
+          .map((p) => (p as any).delta)
+          .join('')
+      ).toBe(answer)
+    }
   })
 
   it('preserves indented code when the indentation itself splits across deltas (inv_91c25cca41ade4f0)', () => {
