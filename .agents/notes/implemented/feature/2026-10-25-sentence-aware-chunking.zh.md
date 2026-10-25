@@ -18,8 +18,9 @@ Status: implemented
 
 - 增加 `。！？；…` 和 `.!?` 句末断点，切点在标点之后，并保留收尾引号。
 - 把 `$$...$$`、行内 `$...$` 和 `<table>...</table>` 视为原子块。内部的断点被忽略；落在块内的切点移到块前；落在块内的 overlap 起点移到非代码块之后，或移到此代码块内的下一行。
-- 按行首配对反引号和波浪线围栏，包括偏移 0。能放进预算的围栏保持原子；超过预算的围栏按行边界切分，以执行 token 限制。
-- 把行内代码从展示公式和行内公式检测中排除：按相同长度的反引号序列配对；打开 span 内不同长度的反引号是内容，不会开启第二个 span。跨行内容和较短的内嵌反引号保留在 span 内。
+- 按行首配对反引号和波浪线围栏，包括偏移 0 和最多三个前导空格。能放进预算的围栏保持原子；超过预算的围栏按行边界切分，以执行 token 限制。
+- 把行内代码从展示公式和行内公式检测中排除：按相同长度的未转义反引号配对；未配对或内嵌的反引号是内容，不会吞掉后续完整 span。跨行内容和较短的内嵌反引号保留在 span 内。
+- 只在代码、表格、展示公式和行内代码之外扫描公式分隔符；先跳过排除区域再消费分隔符，因此代码中的 `$` 不会消耗后续公式的开头。
 - 22% 窗口内没有断点时，回退到最近的句子或结构边界，并允许小幅向前越界到下一个句末。
 - 每个选中的 chunk 用 `estimateTokenCount` 检查；超预算时二分出最大可容纳前缀，并优先取该前缀内的句子或结构边界。
 - overlap 起点向前吸附到最近的句子或结构边界；切点前没有边界时放弃这段 overlap。
@@ -47,10 +48,10 @@ Status: implemented
 
 ## 验证
 
-- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/splitter.test.ts`：30 个测试通过，覆盖句末标点和收尾引号、`$$`、行内公式、表格、overlap 起点、token 校正、偏移 0 的围栏、包含内嵌反引号的单行/多行行内代码、内嵌反引号之后的后续代码 span、包含 `$$` 的波浪线围栏、相邻表格、超大代码块、代码块按行对齐的 overlap 和 verbatim fuzz 不变量。
-- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/chunk.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/tokenLimit.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/localEmbeddingTokenLimit.test.ts src/main/features/knowledge/pipeline/vectorstore/indexStore/__tests__/KnowledgeIndexStore.integration.test.ts`：10 个测试通过，加上 splitter 共 40 个。
-- Regression — `pnpm test:main src/main/features/knowledge`：608 passed，18 个原有路径 mock 失败与原始 splitter 基线一致，1 skipped。
+- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/splitter.test.ts`：33 个测试通过，覆盖句末标点和收尾引号、`$$`、行内公式、表格、overlap 起点、token 校正、偏移 0 的围栏、缩进的波浪线围栏、包含内嵌反引号的单行/多行行内代码、转义和未配对反引号、内嵌反引号之后的后续代码 span、代码中含 `$` 之后的真实公式、相邻表格、超大代码块、代码块按行对齐的 overlap 和 verbatim fuzz 不变量。
+- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/chunk.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/tokenLimit.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/localEmbeddingTokenLimit.test.ts src/main/features/knowledge/pipeline/vectorstore/indexStore/__tests__/KnowledgeIndexStore.integration.test.ts`：10 个测试通过，加上 splitter 共 43 个。
+- Regression — `pnpm test:main src/main/features/knowledge`：611 passed，18 个原有路径 mock 失败与原始 splitter 基线一致，1 skipped。
 - Regression — 改动文件的 `oxfmt --check`、`oxlint --deny-warnings` 和 `eslint` 通过。
-- Regression — 评审场景探针（`chunkSize=1024`、`chunkOverlap=200`）：文档开头围栏最大 1020 token；含多行 `echo $$` 的行内代码最大 1020；内嵌反引号之后的后续 `echo $$` 代码 span 最大 1020；包含 `echo $$` 的波浪线围栏最大 1020；100 个相邻表格最大 1023；160 行、12.5k 字符的代码块切成 3 块，最大 1020 token；400 行代码块的 200-token overlap 在每个边界都保留并按行对齐。所有探针的非空白缺失字符均为 0。
+- Regression — 评审场景探针（`chunkSize=1024`、`chunkOverlap=200`）：文档开头围栏最大 1020 token；含多行 `echo $$` 的行内代码最大 1020；内嵌反引号之后的后续 `echo $$` 代码 span 最大 1020；包含 `echo $$` 的波浪线围栏最大 1020；两个空格缩进的波浪线围栏最大 1019；真实 span 前的转义反引号最大 1015；双反引号 span 前的未配对反引号最大 1016；100 个相邻表格最大 1023；160 行、12.5k 字符的代码块切成 3 块，最大 1020 token；400 行代码块的 200-token overlap 在每个边界都保留并按行对齐。代码中含 `$` 之后的公式在 `64/8` 下仍完整出现在一个 chunk 中。所有探针的非空白缺失字符均为 0。
 - Regression — MinerU 文档的非空白覆盖：缺失字符为 0；`structured` 模式下没有 `$$` 或 `<table>` 不平衡的 chunk。
 - Regression — 真实 embedding（`voyageai/voyage-multimodal-3.5`，2048 维）和 12 个查询：三组配置的答案都在 top-5；上面的排名差异可以复现。
