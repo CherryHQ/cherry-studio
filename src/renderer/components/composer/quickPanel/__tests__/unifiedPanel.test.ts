@@ -456,7 +456,8 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
             id: 'skill:pdf',
             label: 'pdf',
             description: 'Read and analyze PDFs',
-            filterText: 'pdf',
+            filterText: 'pdf Read and analyze PDFs',
+            searchAliases: ['Skills'],
             icon: 'skill'
           }
         ],
@@ -471,9 +472,10 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     const quickPhrases = options.list.find((item) => item.label === '提示词管理')!
     const webSearch = options.list.find((item) => item.label === '网络搜索')!
 
-    // Skills keep their explicit root-panel search field and do not match descriptions.
+    // Skills match both their explicit name and description search fields.
     expect(filterFn(skill, 'pdf', fuzzyRegex, pinyinCache)).toBe(true)
-    expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(false)
+    expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(skill, 'skills', fuzzyRegex, pinyinCache)).toBe(true)
 
     // Chinese row matches by substring, pinyin substring, and pinyin initial substring...
     expect(filterFn(quickPhrases, '提示词', fuzzyRegex, pinyinCache)).toBe(true)

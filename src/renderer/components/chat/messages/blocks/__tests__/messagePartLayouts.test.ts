@@ -50,7 +50,92 @@ function generateImagePart(toolName: string, overrides: Record<string, unknown> 
   }
 }
 
+function entriesWithSpecialParts(): PartEntry[] {
+  return entries([
+    { type: 'text', text: 'First update' },
+    { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+    { type: 'data-code', data: { content: 'answer()', language: 'ts' } },
+    { type: 'data-compact', data: { content: 'Summary' } },
+    { type: 'data-translation', data: { content: 'Translation' } },
+    { type: 'data-conversation-reset', data: {} },
+    { type: 'data-compaction-anchor', data: { phase: 'in-loop' } },
+    { type: 'reasoning', text: 'Checking', state: 'done' },
+    { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+    { type: 'dynamic-tool', toolCallId: 'ask', toolName: 'AskUserQuestion', state: 'output-available' },
+    generateImagePart('generate_image', { output: [{ id: 'file-1', name: 'sunset.png' }] }),
+    {
+      type: 'dynamic-tool',
+      toolCallId: 'channel-auth',
+      toolName: 'mcp__cherry-tools__config',
+      state: 'output-available',
+      input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
+      output: {
+        content: [
+          { type: 'text', text: 'Scan this QR code' },
+          { type: 'image', data: 'BASE64', mimeType: 'image/png' }
+        ],
+        metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+      }
+    },
+    { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+    { type: 'data-video', data: { filePath: '/tmp/result.mp4' } },
+    { type: 'data-error', data: { message: 'Error' } },
+    {
+      type: 'dynamic-tool',
+      toolCallId: 'report',
+      toolName: 'mcp__cherry__report_artifacts',
+      state: 'output-available'
+    },
+    { type: 'text', text: 'Final answer' }
+  ])
+}
+
+function nonTextIndexes(items: readonly PartEntry[]): number[] {
+  return items.filter((entry) => entry.part.type !== 'text').map((entry) => entry.index)
+}
+
 describe('projectLiveMessageParts', () => {
+  it('keeps special parts on their existing side of live process boundaries when enabled', () => {
+    const parts = entriesWithSpecialParts()
+    const before = projectLiveMessageParts(parts)
+    const after = projectLiveMessageParts(parts, { keepIntermediateAssistantText: true })
+    const processIndexes = (items: typeof after) =>
+      nonTextIndexes(items.flatMap((item) => (item.kind === 'process' ? item.entries : [])))
+    const directIndexes = (items: typeof after) =>
+      nonTextIndexes(items.flatMap((item) => (item.kind === 'part' ? [item.entry] : [])))
+
+    expect(processIndexes(after)).toEqual(processIndexes(before))
+    expect(directIndexes(after)).toEqual(directIndexes(before))
+    expect(directIndexes(after)).toContain(9)
+    expect(directIndexes(after)).toContain(10)
+    expect(directIndexes(after)).toContain(11)
+    expect(directIndexes(after)).toContain(15)
+    expect(
+      after.filter((item) => item.kind === 'part' && item.entry.part.type === 'text').map((item) => item.key)
+    ).toEqual([0, 16])
+  })
+
+  it('keeps prose between successive tools in the response lane when enabled', () => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'text', text: 'First update' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Second update' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ]),
+      { keepIntermediateAssistantText: true }
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['part', 0],
+      ['process', 1],
+      ['part', 2],
+      ['part', 4]
+    ])
+    expect(layout[1].kind === 'process' ? indexes(layout[1].entries) : []).toEqual([1, 3])
+  })
+
   it('forms one process history through intermediate text and keys it by the first visible entry', () => {
     const layout = projectLiveMessageParts(
       entries([
@@ -231,6 +316,25 @@ describe('projectLiveMessageParts', () => {
     expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1, 2])
   })
 
+  it('keeps the existing split with the switch off across two tool calls', () => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'text', text: 'First update' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Second update' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ]),
+      { keepIntermediateAssistantText: false }
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['process', 0],
+      ['part', 4]
+    ])
+    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1, 2, 3])
+  })
+
   it('keeps a channel authentication QR result outside the live process', () => {
     const layout = projectLiveMessageParts(
       entries([
@@ -363,6 +467,55 @@ describe('findOpenTextTailIndex', () => {
 })
 
 describe('projectCompletedMessageParts', () => {
+  it('keeps special parts in their existing completed lanes when enabled', () => {
+    const parts = entriesWithSpecialParts()
+    const before = projectCompletedMessageParts(parts)
+    const after = projectCompletedMessageParts(parts, { keepIntermediateAssistantText: true })
+
+    expect(nonTextIndexes(after.historyEntries)).toEqual(nonTextIndexes(before.historyEntries))
+    expect(nonTextIndexes(after.resultEntries)).toEqual(nonTextIndexes(before.resultEntries))
+    expect(indexes(after.reportEntries)).toEqual(indexes(before.reportEntries))
+    expect(indexes(after.historyEntries)).toContain(6)
+    expect(indexes(after.resultEntries)).toContain(10)
+    expect(indexes(after.resultEntries)).toContain(11)
+    expect(indexes(after.reportEntries)).toEqual([15])
+    expect(after.resultEntries.filter((entry) => entry.part.type === 'text').map((entry) => entry.index)).toEqual([
+      0, 16
+    ])
+  })
+
+  it('keeps prose between successive tools in the response lane when enabled', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'text', text: 'First update' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Second update' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ]),
+      { keepIntermediateAssistantText: true }
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([1, 3])
+    expect(indexes(layout.resultEntries)).toEqual([0, 2, 4])
+  })
+
+  it('keeps the existing split with the switch off across two tool calls', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'text', text: 'First update' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Second update' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ]),
+      { keepIntermediateAssistantText: false }
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0, 1, 2, 3])
+    expect(indexes(layout.resultEntries)).toEqual([4])
+  })
+
   it.each([
     [
       [

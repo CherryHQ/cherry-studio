@@ -643,6 +643,8 @@ const RichEditor = ({
     [editor, markdown, setMarkdown, clear]
   )
 
+  if (!editor) return null
+
   return (
     <RichEditorWrapper
       className={`rich-editor-wrapper ${className}`}

@@ -3416,7 +3416,11 @@ describe('AgentComposer', () => {
     expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
     expect(skillsLauncher?.order).toBe(40)
     expect(skillsLauncher?.rootSearchItems).toEqual([
-      expect.objectContaining({ id: 'skill:pdf', suffix: 'plugins.skills' })
+      expect.objectContaining({
+        id: 'skill:pdf',
+        filterText: 'pdf Read and analyze PDFs',
+        suffix: 'plugins.skills'
+      })
     ])
     expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'agent-skills'])
 
@@ -3430,7 +3434,7 @@ describe('AgentComposer', () => {
         id: 'skill:pdf',
         label: 'pdf',
         description: 'Read and analyze PDFs',
-        filterText: 'pdf'
+        filterText: 'pdf Read and analyze PDFs'
       })
     )
     expect(skillItem?.suffix).toBeUndefined()

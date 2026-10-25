@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f5cff893-e464-4fbd-8a08-e1e4764b6b2c",
-  "prevId": "48588181-f234-4284-b0ad-42d77aac81e4",
+  "id": "48588181-f234-4284-b0ad-42d77aac81e4",
+  "prevId": "e7952537-a5dd-47cb-a0e9-8246c1c27187",
   "tables": {
     "agent": {
       "name": "agent",
@@ -3399,7 +3399,7 @@
       "checkConstraints": {
         "followup_queue_status_check": {
           "name": "followup_queue_status_check",
-          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed', 'closed')"
+          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed')"
         }
       }
     },
@@ -4164,7 +4164,7 @@
         },
         "knowledge_item_type_status_check": {
           "name": "knowledge_item_type_status_check",
-          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
+          "value": "\n        (\"knowledge_item\".\"type\" IN ('url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'file' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
         },
         "knowledge_item_status_error_check": {
           "name": "knowledge_item_status_error_check",
