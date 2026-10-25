@@ -92,6 +92,7 @@ export {
   textHasUnclosedInlineCode,
   textHasUnclosedInlineCodeOutsideCodeBlocks,
   textStartsWithModelScratchpadTag,
+  textStartsWithCompleteNonScratchpadMarkup,
   textStartsWithNonScratchpadOpeningTag,
   unclosedHtmlTextElementOpener,
   unclosedOpaqueMarkupOpener

@@ -45,8 +45,8 @@ import {
   textHasUnclosedInlineCodeOutsideCodeBlocks,
   unclosedHtmlTextElementOpener,
   unclosedOpaqueMarkupOpener,
-  textStartsWithModelScratchpadTag,
-  textStartsWithNonScratchpadOpeningTag
+  textStartsWithCompleteNonScratchpadMarkup,
+  textStartsWithModelScratchpadTag
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
@@ -1629,7 +1629,7 @@ export class ClaudeCodeStreamAdapter {
       return { action: 'pending' }
     }
 
-    if (textStartsWithNonScratchpadOpeningTag(trimmed)) {
+    if (textStartsWithCompleteNonScratchpadMarkup(trimmed)) {
       return { action: 'emit', visible: probe }
     }
 
@@ -1658,7 +1658,9 @@ export class ClaudeCodeStreamAdapter {
         const remainder = stripped
         if (
           textStartsWithModelScratchpadTag(remainder) ||
-          (!atBlockEnd && remainder.trimStart().startsWith('<') && !textStartsWithNonScratchpadOpeningTag(remainder))
+          (!atBlockEnd &&
+            remainder.trimStart().startsWith('<') &&
+            !textStartsWithCompleteNonScratchpadMarkup(remainder))
         ) {
           return { action: 'pending', rewriteProbe: remainder }
         }

@@ -1815,6 +1815,34 @@ export function textStartsWithNonScratchpadOpeningTag(text: string): boolean {
   return parsed ? !parsed.isSelfClosing : false
 }
 
+/**
+ * Complete leading markup that cannot open a model scratchpad wrapper: a
+ * non-scratchpad opening tag, a complete self-closing tag, or a complete HTML
+ * comment. Unlike textStartsWithNonScratchpadOpeningTag this also releases
+ * `<br/>` / `<hr />` / `<!-- comment -->` prefixes, which hold a parentless
+ * answer's whole probe pending until block end otherwise (cherry-pr-review
+ * ordinary-markup-stream-stall). An unclosed comment stays unreleased: it may
+ * still swallow later markup.
+ */
+export function textStartsWithCompleteNonScratchpadMarkup(text: string): boolean {
+  const trimmed = text.trimStart()
+  if (!trimmed.startsWith('<') || !trimmed.includes('>')) {
+    return false
+  }
+  if (trimmed.startsWith('<!--')) {
+    // `<!-->` and `<!--->` are complete empty comments (HTML5 abrupt closing).
+    if (trimmed.startsWith('<!-->') || trimmed.startsWith('<!--->')) {
+      return true
+    }
+    return trimmed.indexOf('-->', 4) !== -1
+  }
+  const parsed = parseLeadingOpeningTag(trimmed)
+  if (!parsed) {
+    return false
+  }
+  return !isModelScratchpadTagName(parsed.tagName)
+}
+
 /** Strips known scratchpad wrappers without touching fenced code blocks. */
 export function stripKnownModelScratchpadBlocksPreservingCodeFences(raw: string): string {
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)

@@ -12,6 +12,7 @@ import {
   textHasUnclosedCodeFence,
   shouldDeferScratchpadStripping,
   textStartsWithModelScratchpadTag,
+  textStartsWithCompleteNonScratchpadMarkup,
   textStartsWithNonScratchpadOpeningTag
 } from '../scratchpadText'
 
@@ -417,6 +418,21 @@ describe('scratchpadText', () => {
     expect(textStartsWithNonScratchpadOpeningTag('<p>hello</p>')).toBe(true)
     expect(textStartsWithNonScratchpadOpeningTag('<thinking-note>x</thinking-note>')).toBe(true)
     expect(textStartsWithNonScratchpadOpeningTag('<thinking>hidden</thinking>')).toBe(false)
+  })
+
+  it('detects complete non-scratchpad markup including self-closing tags and comments', () => {
+    expect(textStartsWithCompleteNonScratchpadMarkup('<p>hello</p>')).toBe(true)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<thinking-note>x</thinking-note>')).toBe(true)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<br/> First answer line.')).toBe(true)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<hr /> more')).toBe(true)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<!-- complete comment --> answer')).toBe(true)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<!--> answer')).toBe(true)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<thinking>hidden</thinking>')).toBe(false)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<analysis/>visible')).toBe(false)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<ANALYSIS>hidden</ANALYSIS>')).toBe(false)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<!-- unclosed comment > later')).toBe(false)
+    expect(textStartsWithCompleteNonScratchpadMarkup('<br')).toBe(false)
+    expect(textStartsWithCompleteNonScratchpadMarkup('plain text')).toBe(false)
   })
 
   it('does not treat self-closing scratchpad tags as open blocks (inv_ad4c45e6af29f23f)', () => {

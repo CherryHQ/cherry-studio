@@ -6230,6 +6230,40 @@ describe('cherry-pr-review round-9', () => {
     expect(whole.all).toContain('Done.')
   })
 
+  it('releases complete ordinary markup prefixes incrementally (ordinary-markup-stream-stall)', () => {
+    const run = (deltas: string[]): { early: string; all: string } => {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (const delta of deltas) {
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta } })
+        )
+      }
+      const early = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult())
+      const all = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      return { early, all }
+    }
+    // A parentless answer beginning with complete self-closing markup or a
+    // complete HTML comment cannot open a scratchpad wrapper: the probe must
+    // release and subsequent prose must stream before block end.
+    for (const prefix of ['<br/>', '<hr />', '<!-- complete comment -->']) {
+      const deltas = [prefix, ' First answer line.', ' Second answer line.']
+      const { early, all } = run(deltas)
+      expect(early).toBe(deltas.join(''))
+      expect(all).toBe(deltas.join(''))
+    }
+  })
+
   it('carries the enclosing HTML text-element context across deltas (fragmented-html-content-corruption)', () => {
     const answer = '<textarea>\nExample:\n<thinking>literal</thinking>\n</textarea>'
     const run = (deltas: string[]): string => {
