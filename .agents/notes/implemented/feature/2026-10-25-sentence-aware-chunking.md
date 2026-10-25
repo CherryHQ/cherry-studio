@@ -10,12 +10,16 @@ The knowledge splitter preferred Markdown headings, code fences, paragraphs, lis
 
 On MinerU academic PDFs this produced chunks that ended mid-sentence, split LaTeX formulas or `<table>` blocks, started overlapping chunks in the middle of a sentence or formula, and exceeded the requested budget: a 1024-token target produced a 1718-token chunk. Retrieval evaluation showed the cost in multi-fact questions such as "which system model and which simulation software".
 
+Edge cases in this decision are a code fence at offset zero, `$$` inside inline code, touching tables, and fenced code blocks larger than the token budget.
+
 ## Decision
 
 `src/main/features/knowledge/pipeline/indexing/splitter.ts` now:
 
 - Adds sentence break points for `。！？；…` and `.!?`, cutting after the punctuation and any closing quote.
-- Treats `$$...$$`, inline `$...$`, and `<table>...</table>` as atomic regions. Break points inside are ignored, a cut that lands inside moves before the block, and an overlap start inside moves after it.
+- Treats `$$...$$`, inline `$...$`, and `<table>...</table>` as atomic regions. Break points inside are ignored. A cut that lands inside moves before the block; an overlap start inside moves after a non-code block or to the next line inside code.
+- Pairs code fences at line starts, including offset zero. A fence that fits stays atomic; a fence larger than the budget is cut at line boundaries so the token limit is enforced.
+- Masks inline-code spans from display and inline math detection, and keeps touching independent regions separate so adjacent tables retain a boundary.
 - Falls back to the nearest sentence or structural boundary when the 22% window has none, allowing a small forward overshoot to the next sentence end.
 - Checks each selected chunk with `estimateTokenCount`; when it exceeds the budget, it binary-searches the largest fitting prefix and prefers a sentence or structural boundary within that prefix.
 - Snaps an overlap start forward to the next sentence or structural boundary, dropping the overlap when no boundary fits before the cut.
@@ -28,12 +32,14 @@ On MinerU academic PDFs this produced chunks that ended mid-sentence, split LaTe
 - LangChain `@langchain/textsplitters`: returns strings or documents without a reliable end offset after trimming. Keeping the verbatim offset contract would require a separate forward-cursor mapping, and Markdown/math atomicity would still be custom. Rejected for the production path.
 - `@chonkiejs/core`: exact offsets and a simpler API, but character-based token sizing, no math/table atomic blocks, overlap not sentence-aligned, a pre-1.0 API, and an optional tree-sitter package of about 25 MB. On the same document it produced 9/21 chunks ending mid-prose and 3 chunks with unbalanced display math. Rejected.
 - Punctuation-only rules without atomic blocks or per-chunk token fitting: leaves formula/table splits and the 1718-token overshoot in place. Insufficient.
+- Treating every code fence as indivisible: a code-heavy document produced a 3,361-token chunk at a 1024-token target, which embedding models truncate. Rejected.
 - Keeping token-based overlap: starts chunks mid-sentence when the overlap lands inside a sentence. Rejected.
 
 ## Consequences
 
 - Chunks end and start on sentence or structural boundaries whenever a sentence fits the budget. A single sentence longer than `chunkSize` still requires a hard cut.
-- Formula and table blocks stay intact. An atomic block that starts at the chunk start may exceed the budget; atomicity wins in that case.
+- Small code blocks, formulas, and tables stay intact. A code block larger than the budget is split at line boundaries; a single code line longer than the budget is hard-cut. A formula or table that itself exceeds the budget remains atomic, a known exception.
+- An overlap start inside a split code block snaps to the next line, so coverage is preserved without starting mid-line.
 - Token fitting uses `tokenx`. The local embedding tokenizer may differ, so `refineChunksByTokenLimit` remains the final guard for local models.
 - Overlap may shrink or disappear when no boundary fits. Non-whitespace coverage is preserved.
 - Existing indexes must be reindexed to adopt the new boundaries.
@@ -42,9 +48,10 @@ On MinerU academic PDFs this produced chunks that ended mid-sentence, split LaTe
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/splitter.test.ts`: 22 tests pass, covering sentence punctuation and closing quotes, `$$`, inline math, tables, overlap starts, token fitting, and the verbatim fuzz invariant.
-- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/chunk.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/tokenLimit.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/localEmbeddingTokenLimit.test.ts src/main/features/knowledge/pipeline/vectorstore/indexStore/__tests__/KnowledgeIndexStore.integration.test.ts`: 10 tests pass, 32 with the splitter suite.
-- Regression — `pnpm test:main src/main/features/knowledge`: 600 passed, 18 pre-existing path-mock failures identical to the original splitter baseline, 1 skipped.
+- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/splitter.test.ts`: 26 tests pass, covering sentence punctuation and closing quotes, `$$`, inline math, tables, overlap starts, token fitting, a fence at offset zero, `$$` inside inline code, touching tables, oversized code blocks, and the verbatim fuzz invariant.
+- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/chunk.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/tokenLimit.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/localEmbeddingTokenLimit.test.ts src/main/features/knowledge/pipeline/vectorstore/indexStore/__tests__/KnowledgeIndexStore.integration.test.ts`: 10 tests pass, 36 with the splitter suite.
+- Regression — `pnpm test:main src/main/features/knowledge`: 604 passed, 18 pre-existing path-mock failures identical to the original splitter baseline, 1 skipped.
 - Regression — `oxfmt --check`, `oxlint --deny-warnings`, and `eslint` on the changed files pass.
+- Regression — reviewer-style probes at `chunkSize=1024`, `chunkOverlap=200`: document-start fence max 1020 tokens; `echo $$` inline code max 1020; 100 touching tables max 1023; a 160-line, 12.5k-character code block split into 3 chunks with max 1020 tokens. Non-whitespace coverage was 0 missing in every probe.
 - Regression — non-whitespace coverage on the MinerU document: 0 missing characters; no chunk has unbalanced `$$` or `<table>` in `structured` mode.
 - Regression — real embeddings (`voyageai/voyage-multimodal-3.5`, 2048 dimensions) and 12 queries: all answers are in the top 5 for all three configs; the ranking split above is reproduced.
