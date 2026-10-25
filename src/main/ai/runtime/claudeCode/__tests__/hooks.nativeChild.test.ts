@@ -862,6 +862,65 @@ describe('native Claude child authority across a desktop follow-up', () => {
     expect(decisionOf(await fireGuard({ agent_id: 'after-remote-workflow' })).permissionDecision).toBeUndefined()
   })
 
+  // The pinned SDK reports a Workflow that failed to compile through `PostToolUse` with
+  // `status: 'async_launched'`, `taskType: 'local_workflow'` AND an `error` — no task was
+  // registered, so no completion bookend can ever retire the authority it recorded at the call.
+  // A retained record would bind the follow-up's interactive children headless on this connection.
+  it('drops a workflow’s authority when its launch reported an error', async () => {
+    beginTurn(true)
+    await fireGuard({ tool_name: 'Workflow', tool_input: { script: 'export const meta = { name: "audit" }' } })
+    settleTurn()
+
+    beginTurn(false)
+    await hook('PostToolUse', 2)(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Workflow',
+        tool_use_id: 'tool-use-1',
+        tool_response: {
+          status: 'async_launched',
+          taskType: 'local_workflow',
+          error: 'Compile error: unexpected token at line 3'
+        }
+      } as never,
+      'tool-use-1',
+      { signal: new AbortController().signal }
+    )
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'after-failed-workflow', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'after-failed-workflow' })).permissionDecision).toBeUndefined()
+  })
+
+  // The successful launch keeps it: a registered local run starts its children long after this call.
+  it('keeps a registered local workflow’s authority past its launch result', async () => {
+    beginTurn(true)
+    await fireGuard({ tool_name: 'Workflow', tool_input: { script: 'export const meta = { name: "audit" }' } })
+    settleTurn()
+
+    beginTurn(false)
+    await hook('PostToolUse', 2)(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Workflow',
+        tool_use_id: 'tool-use-1',
+        tool_response: { status: 'async_launched', taskId: 'workflow-1', taskType: 'local_workflow' }
+      } as never,
+      'tool-use-1',
+      { signal: new AbortController().signal }
+    )
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'workflow-child', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'workflow-child' })).permissionDecision).toBe('deny')
+  })
+
   // The inverse: a workflow launched by an interactive turn keeps its children interactive even
   // when a later headless delivery merely owns the session.
   it('keeps an interactively launched workflow’s child interactive under a headless delivery', async () => {

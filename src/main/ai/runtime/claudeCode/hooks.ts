@@ -53,10 +53,13 @@ const WORKFLOW_TOOL_NAME = 'Workflow'
 /**
  * The pinned SDK returns a background agent launch's result BEFORE its `SubagentStart`
  * (`status: 'async_launched'`), so a successful terminal there does not mean "no child is coming".
+ * A launch that failed (a Workflow whose compile produced `error`) reports the same status but
+ * registered no task, so no completion will ever retire its attribution.
  */
 function isAsyncSpawnResult(response: unknown): boolean {
   if (!response || typeof response !== 'object') return false
   const record = response as Record<string, unknown>
+  if (record.error) return false
   return record.status === 'async_launched' || record.isAsync === true
 }
 
