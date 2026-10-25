@@ -390,6 +390,44 @@ describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
     }
   })
 
+  it('masks $$ inside an indented tilde fence', () => {
+    const text = '  ~~~sh\necho $$\n  ~~~\n' + '普通句子。'.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+  })
+
+  it('ignores escaped and unmatched backticks before a real code span', () => {
+    const fixtures = [
+      'Use \\` literally, then `echo $$` to print the PID. ',
+      'Use ` literal, then ``echo $$`` to print the PID. '
+    ]
+
+    for (const prefix of fixtures) {
+      const text = prefix + '普通句子。'.repeat(1000)
+      const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+      expect(chunks.length).toBeGreaterThan(5)
+      expectVerbatimSlices(text, chunks)
+      for (const chunk of chunks) {
+        expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+      }
+    }
+  })
+
+  it('keeps a genuine inline formula after code containing a dollar sign', () => {
+    const formula = '$a+b+c+d+e+f+g+h$'
+    const text = 'word '.repeat(38) + 'Use `cost $5` then the expression ' + formula
+    const chunks = splitTextWithOffsets(text, { chunkSize: 64, chunkOverlap: 8 })
+
+    expectVerbatimSlices(text, chunks)
+    expect(chunks.some((chunk) => chunk.text.includes(formula))).toBe(true)
+  })
+
   it('keeps boundaries between touching tables', () => {
     const table = '<table><tr><td>1</td></tr></table>'
     const text = table.repeat(100) + '普通句子。'.repeat(50)

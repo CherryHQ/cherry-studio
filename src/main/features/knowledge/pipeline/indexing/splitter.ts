@@ -79,7 +79,7 @@ const BREAK_PATTERNS: BreakPattern[] = [
   { pattern: /\n#{4}(?!#)/g, score: 70 }, // h4
   { pattern: /\n#{5}(?!#)/g, score: 60 }, // h5
   { pattern: /\n#{6}(?!#)/g, score: 50 }, // h6
-  { pattern: /\n(?:`{3,}|~{3,})/g, score: 80 }, // code-block boundary
+  { pattern: /\n[ ]{0,3}(?:`{3,}|~{3,})/g, score: 80 }, // code-block boundary
   { pattern: /\n(?:---|\*\*\*|___)\s*\n/g, score: 60 }, // horizontal rule
   { pattern: /<\/table>/gi, score: 45, cutAfter: true, sentence: true }, // table block end
   { pattern: /\$\$/g, score: 45, cutAfter: true, sentence: true }, // display-math block end
@@ -262,10 +262,10 @@ function findCodeFences(text: string): AtomicRegion[] {
   const regions: AtomicRegion[] = []
   let open: { start: number; char: string; length: number } | null = null
 
-  // `^` catches a fence at offset zero; the other alternative catches line starts.
-  for (const match of text.matchAll(/(?:^|\n)(`{3,}|~{3,})/g)) {
+  // `^` catches a fence at offset zero; the other alternative catches indented line starts.
+  for (const match of text.matchAll(/(?:^|\n)[ ]{0,3}(`{3,}|~{3,})/g)) {
     const marker = match[1]
-    const fenceStart = (match.index ?? 0) + (match[0].startsWith('\n') ? 1 : 0)
+    const fenceStart = (match.index ?? 0) + match[0].length - marker.length
     const char = marker[0]
     const length = marker.length
 
@@ -284,24 +284,29 @@ function findCodeFences(text: string): AtomicRegion[] {
 
 /** Inline code spans are masked from display/inline math detection. */
 function findInlineCodeRegions(text: string, codeFences: AtomicRegion[]): AtomicRegion[] {
-  const regions: AtomicRegion[] = []
-  let open: { start: number; length: number } | null = null
-  let regionIndex = 0
-
+  const runs: Array<{ start: number; length: number }> = []
   for (const match of text.matchAll(/`+/g)) {
     const start = match.index ?? 0
-    while (codeFences[regionIndex] && codeFences[regionIndex].end <= start) regionIndex += 1
+    if (isEscaped(text, start)) continue
+    if (isInsideAtomicRegion(start, codeFences)) continue
+    runs.push({ start, length: match[0].length })
+  }
 
-    const fence = codeFences[regionIndex]
-    if (fence && start >= fence.start && start < fence.end) continue
-
-    const length = match[0].length
-    if (open === null) {
-      open = { start, length }
-    } else if (length === open.length) {
-      regions.push({ start: open.start, end: start + length, kind: 'inline-code' })
-      open = null
+  const regions: AtomicRegion[] = []
+  for (let index = 0; index < runs.length; index += 1) {
+    const open = runs[index]
+    let closeIndex = -1
+    for (let candidate = index + 1; candidate < runs.length; candidate += 1) {
+      if (runs[candidate].length === open.length) {
+        closeIndex = candidate
+        break
+      }
     }
+    if (closeIndex === -1) continue
+
+    const close = runs[closeIndex]
+    regions.push({ start: open.start, end: close.start + close.length, kind: 'inline-code' })
+    index = closeIndex
   }
 
   return regions
@@ -363,16 +368,51 @@ function findDisplayMathRegions(text: string, existing: AtomicRegion[]): AtomicR
   return regions
 }
 
+/** True when the character at `pos` is escaped by an odd number of backslashes. */
+function isEscaped(text: string, pos: number): boolean {
+  let backslashes = 0
+  for (let index = pos - 1; index >= 0 && text[index] === '\\'; index -= 1) {
+    backslashes += 1
+  }
+  return backslashes % 2 === 1
+}
+
 /** Pair single `$` delimiters outside code/table/display blocks. */
 function findInlineMathRegions(text: string, existing: AtomicRegion[]): AtomicRegion[] {
   const regions: AtomicRegion[] = []
-  const pattern = /(?<!\\)\$(?!\$)([^$\n]*?)(?<!\\)\$/g
-  for (const match of text.matchAll(pattern)) {
-    const start = match.index ?? 0
-    const end = start + match[0].length
+  let cursor = 0
+
+  while (cursor < text.length) {
+    const start = text.indexOf('$', cursor)
+    if (start === -1) break
+    cursor = start + 1
+
+    if (text[start + 1] === '$' || text[start - 1] === '$') continue
+    if (isEscaped(text, start)) continue
     if (isInsideAtomicRegion(start, existing)) continue
-    regions.push({ start, end, kind: 'inline-math' })
+
+    const lineEnd = text.indexOf('\n', start + 1)
+    const searchEnd = lineEnd === -1 ? text.length : lineEnd
+    let candidate = start + 1
+    let close = -1
+
+    while (candidate < searchEnd) {
+      const next = text.indexOf('$', candidate)
+      if (next === -1 || next >= searchEnd) break
+      candidate = next + 1
+
+      if (text[next + 1] === '$' || text[next - 1] === '$') continue
+      if (isEscaped(text, next)) continue
+      if (isInsideAtomicRegion(next, existing)) continue
+      close = next
+      break
+    }
+
+    if (close === -1) continue
+    regions.push({ start, end: close + 1, kind: 'inline-math' })
+    cursor = close + 1
   }
+
   return regions
 }
 
