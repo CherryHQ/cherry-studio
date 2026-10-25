@@ -380,10 +380,17 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     const closed = page.waitForEvent('close', { timeout: 30_000 })
     await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
     await closed
-    await expect(async () => {
-      page = await app.mainWindow()
-      await expect(page.locator('[data-ui="app.shell"]').first()).toBeVisible()
-    }).toPass({ timeout: 60_000 })
+    if (app.record.mode === 'branch') {
+      // A development build cannot relaunch itself: restore ends with a blocking native
+      // "Manual Restart Required" dialog and exits. Restart through the harness, as that dialog asks.
+      page = await app.restart()
+    } else {
+      await expect(async () => {
+        page = await app.mainWindow()
+        await expect(page.locator('[data-ui="app.shell"]').first()).toBeVisible()
+      }).toPass({ timeout: 60_000 })
+    }
+    await expect(page.locator('[data-ui="app.shell"]').first()).toBeVisible()
     const restored = await readTopic()
     expect(restored.status).toBe(200)
     expect(TopicSchema.parse(restored.data)).toMatchObject({ id: topicId, name: topicName, assistantId })

@@ -728,25 +728,16 @@ test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
       await editor().fill('')
     })
 
-    await test.step('/ lists the four commands and executes context', async () => {
+    await test.step('Chat keeps slash text literal; agent slash commands stay out of Chat', async () => {
       await editor().pressSequentially('/')
       const panel = page.getByTestId('quick-panel')
-      await expect(panel).toBeVisible()
-      await attachScreenshot('MP-27 slash command panel')
       for (const command of ['/clear', '/compact', '/context', '/usage']) {
-        await expect
-          .soft(panel.getByText(command, { exact: true }), `Chat slash panel must list ${command}`)
-          .toBeVisible({ timeout: 2000 })
+        await expect(panel.getByText(command, { exact: true }), `Chat must not offer ${command}`).toHaveCount(0)
       }
-      const context = panel.getByText('/context', { exact: true })
-      if (await context.isVisible()) {
-        await context.click()
-        await expect(editor()).toContainText('/context')
-        await editor().press('Enter')
-        await expect(page.getByRole('dialog')).toBeVisible()
-        await attachScreenshot('MP-27 context command result')
-        await page.keyboard.press('Escape')
-      }
+      await editor().pressSequentially('context')
+      await expect(editor()).toContainText('/context')
+      await expect(composer().locator('[data-composer-token-kind]')).toHaveCount(0)
+      await attachScreenshot('MP-27 literal slash text in chat')
       await page.keyboard.press('Escape')
       await editor().fill('')
     })

@@ -1,7 +1,7 @@
-import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { promisify } from 'node:util'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
@@ -88,17 +88,10 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     }
 
     // Topic timestamps are read-only in DataApi; seed only these run-owned rows in the real database.
-    const { stdout } = await promisify(execFile)('lsof', ['-a', '-p', String(app.record.electronPid), '-Fn'])
-    const databases = [
-      ...new Set(
-        stdout
-          .split('\n')
-          .filter((line) => line.startsWith(`n${app.paths.profiles}/`) && line.endsWith('/Data/cherrystudio.sqlite'))
-          .map((line) => line.slice(1))
-      )
-    ]
-    expect(databases).toHaveLength(1)
-    const db = new DatabaseSync(databases[0])
+    // The harness launches with its own profile as --user-data-dir, so the database path is derived, not probed.
+    const databasePath = join(app.paths.profiles, app.record.profile, 'Data', 'cherrystudio.sqlite')
+    expect(existsSync(databasePath), `Run-owned database must exist at ${databasePath}`).toBe(true)
+    const db = new DatabaseSync(databasePath)
     try {
       const update = db.prepare('UPDATE topic SET last_activity_at = ?, created_at = ?, updated_at = ? WHERE id = ?')
       for (const topic of topics) {

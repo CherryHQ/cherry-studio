@@ -9,9 +9,7 @@ const require = createRequire(import.meta.url)
 
 export async function runPhase(paths: RunPaths, phase: PhaseId): Promise<void> {
   const run = readRun(paths.runState)
-  const selected = selectCases(run.metadata.task, phase).filter(({ id }) =>
-    supportsPlatform(id, run.metadata.platform)
-  )
+  const selected = selectCases(run.metadata.task, phase).filter(({ id }) => supportsPlatform(id, run.metadata.platform))
   if (selected.length === 0) return
   writeRun(paths.runState, updatePhase(run, phase, 'running'))
   const args = ['test', '--config', 'playwright.regression.config.ts', `${phase}.test.ts`]

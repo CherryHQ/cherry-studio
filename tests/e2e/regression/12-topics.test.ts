@@ -756,38 +756,69 @@ test(...caseDefinition('MP-46'), async ({ app, mainWindow }, testInfo) => {
     await selectPair(topics.slice(0, 2))
     await attachScreenshot('MP-46 two conversations selected')
 
-    await test.step('Batch deletion requires confirmation and removes both persisted conversations', async () => {
+    await test.step('Batch archive moves both conversations to the recycle bin and offers undo', async () => {
+      const archived = topics.slice(0, 2)
       await history().getByRole('button', { name: 'Batch Archive (2)', exact: true }).click()
-      const dialog = page.getByRole('dialog').filter({ hasText: /Delete selected conversations|Move to Archive/ })
-      await expect.soft(dialog, 'Batch deletion must require a second confirmation').toBeVisible({ timeout: 5_000 })
-      if (await dialog.isVisible()) {
-        for (const topic of topics.slice(0, 2)) expect((await readTopic(topic.id)).status).toBe(200)
-        await attachScreenshot('MP-46 batch deletion confirmation')
-        await dialog.getByRole('button', { name: /^(Confirm|Archive|Delete)$/ }).click()
-        await expect(dialog).toBeHidden()
-      }
-      for (const topic of topics.slice(0, 2)) {
+      await expect(
+        page.locator('[data-sonner-toast]').getByRole('button', { name: 'Undo', exact: true }).last(),
+        'Archiving must offer an undo action'
+      ).toBeVisible({ timeout: 10_000 })
+      for (const topic of archived) {
         await expect(history().getByRole('checkbox', { name: `Select ${topic.name}`, exact: true })).toHaveCount(0)
         await expect.poll(async () => (await readTopic(topic.id)).status).toBe(404)
       }
       const retained = await page.evaluate(
         (ids) =>
           window.api.dataApi.request({
-            id: 'mp46-deleted-storage',
+            id: 'mp46-archived-storage',
             method: 'GET',
             path: '/topics',
             params: { ids, inTrash: true }
           }),
-        topics.slice(0, 2).map(({ id }) => id)
+        archived.map(({ id }) => id)
       )
       expect(retained.status).toBe(200)
-      expect
-        .soft(
-          (retained.data as { items: unknown[] }).items,
-          'Deleted conversations must be absent from SQLite, including archived rows'
+      expect(
+        (retained.data as { items: Array<{ id: string }> }).items.map(({ id }) => id).sort(),
+        'Archived conversations must stay in the recycle bin until they are purged'
+      ).toEqual(archived.map(({ id }) => id).sort())
+      await attachScreenshot('MP-46 archived conversations in the recycle bin')
+    })
+
+    await test.step('Undo restores the archived conversations', async () => {
+      const archived = topics.slice(0, 2)
+      await page.locator('[data-sonner-toast]').getByRole('button', { name: 'Undo', exact: true }).last().click()
+      for (const topic of archived) await expect.poll(async () => (await readTopic(topic.id)).status).toBe(200)
+      await expect(history().getByRole('checkbox', { name: `Select ${archived[0].name}`, exact: true })).toBeVisible()
+      await attachScreenshot('MP-46 archived conversations restored from undo')
+    })
+
+    await test.step('Emptying the recycle bin removes the archived rows permanently', async () => {
+      const archived = topics.slice(0, 2)
+      await selectPair(archived)
+      await history().getByRole('button', { name: 'Batch Archive (2)', exact: true }).click()
+      for (const topic of archived) await expect.poll(async () => (await readTopic(topic.id)).status).toBe(404)
+      const purge = (await page.evaluate(() => window.api.ipcApi.request('trash.purge_now'))) as { status: string }
+      expect(purge.status, 'Emptying the recycle bin must finish').toBe('completed')
+      await expect
+        .poll(
+          async () => {
+            const rows = await page.evaluate(
+              (ids) =>
+                window.api.dataApi.request({
+                  id: 'mp46-purged-storage',
+                  method: 'GET',
+                  path: '/topics',
+                  params: { ids, inTrash: true }
+                }),
+              archived.map(({ id }) => id)
+            )
+            return (rows.data as { items: unknown[] }).items.length
+          },
+          { message: 'Purging the recycle bin must delete the archived rows' }
         )
-        .toEqual([])
-      await attachScreenshot('MP-46 deletion result')
+        .toBe(0)
+      await attachScreenshot('MP-46 recycle bin emptied')
     })
 
     await test.step('Move two conversations and preserve their full message records across restart', async () => {
