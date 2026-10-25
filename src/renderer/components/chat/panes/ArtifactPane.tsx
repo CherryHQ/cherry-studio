@@ -113,8 +113,7 @@ export interface ArtifactPaneProps {
 
 export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@renderer/hooks/useFileEditSession'
 
-/** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
-const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
+const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = `${ARTIFACT_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MiB`
 const DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES = 25 * 1024 * 1024
 const COPYABLE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx'])
 const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods'])
@@ -285,8 +284,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setSelectionReference(null)
   }, [previewKey])
 
-  // Refreshing the same file remounts the preview plugin without changing previewKey, so the effect above
-  // returns early and the held reference would keep a fileStamp from before the refresh.
+  // The host owns the captured reference. Clear it as soon as refresh starts,
+  // before metadata resolves and the retained plugin receives its new refresh key.
   useEffect(() => {
     setSelectionReference(null)
   }, [contentRefreshToken])
@@ -319,10 +318,15 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setContentRefreshToken((value) => value + 1)
   }, [fileSession?.savedSizeBytes])
 
-  // Surface an external-change conflict (a stale autosave) as the reload dialog.
+  // Surface an unresolved external-change conflict as the reload dialog;
+  // autosave stays paused until it is resolved. saveError changes reopen it.
+  const conflictResolvedRef = useRef(false)
   useEffect(() => {
-    if (fileSession?.conflict) setStaleConflictOpen(true)
-  }, [fileSession?.conflict])
+    if (fileSession?.conflict) {
+      conflictResolvedRef.current = false
+      setStaleConflictOpen(true)
+    }
+  }, [fileSession?.conflict, fileSession?.saveError])
 
   // A file that cannot be edited in place (binary / oversize) can't enter edit
   // mode — toast why and fall back to preview.
@@ -577,6 +581,16 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     }
   }, [fileSession, t])
 
+  const handleKeepDraftAfterConflict = useCallback(async () => {
+    if (!fileSession) return
+    try {
+      await fileSession.keepDraft()
+    } catch (error) {
+      logger.error('Failed to keep the artifact draft after a write conflict', error as Error)
+      toast.error(t('agent.preview_pane.edit.save_failed'))
+    }
+  }, [fileSession, t])
+
   const handleRetryFailedSave = useCallback(async () => {
     if (!fileSessionFlush) return
     try {
@@ -587,8 +601,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     }
   }, [fileSessionFlush])
 
-  const handleDiscardFailedSave = useCallback(() => {
-    fileSessionDiscard?.()
+  const handleDiscardFailedSave = useCallback(async () => {
+    try {
+      await fileSessionDiscard?.()
+    } catch {
+      /* The retained session exposes the failure. */
+    }
   }, [fileSessionDiscard])
 
   const nextEditorMode = editMode === 'preview' ? 'edit' : 'preview'
@@ -776,7 +794,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     props.headerVariant === 'pane' ? (
       <div
         data-testid="artifact-pane-header"
-        className="flex min-h-(--navbar-height) shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
+        className="flex min-h-(--navbar-height) shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]">
         <div className="flex min-w-7 flex-1 items-center gap-0.5">
           {overlaySelection ? (
             <Tooltip content={t('common.back')} delay={800}>
@@ -784,7 +802,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="text-muted-foreground shrink-0 hover:bg-accent hover:text-foreground"
                 aria-label={t('common.back')}
                 onClick={handleClosePreview}>
                 <ArrowLeft size={16} />
@@ -801,7 +819,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               <div
                 data-testid="artifact-pane-header-title"
                 className={cn(
-                  'min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm',
+                  'min-w-0 flex-1 truncate text-sm font-medium text-foreground select-none',
                   overlaySelection && 'cursor-context-menu'
                 )}
                 title={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : undefined}>
@@ -912,8 +930,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         onKeyDown={handleOverlayKeyDown}
         className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         {props.headerVariant === 'pane' ? null : (
-          <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-subtle pr-2 pl-3">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-foreground">
               <CommandContextMenu
                 key={previewKey}
                 location="webcontents.context"
@@ -958,7 +976,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {fileSession?.saveError && (
           <div
             role="alert"
-            className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
+            className="bg-error-subtle text-error-subtle-foreground flex shrink-0 items-center gap-2 border-b border-error-border px-3 py-2 text-xs">
             <AlertCircle className="size-4 shrink-0" />
             <span className="min-w-0 flex-1">
               {t(
@@ -989,10 +1007,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         )}
         {/* The inset pads inside the editor's scroll container (not this wrapper) so the
             editor runs full height under the elevated composer with trailing scroll room. */}
-        <div className="relative min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
+        <div
+          data-file-edit
+          className="relative min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
             <LazyCodeEditor
-              key={previewKey}
+              key={`${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
+              readOnly={fileSession.readOnly}
+              editable={!fileSession.readOnly}
               value={fileSession.draft}
               language={getFileExtension(overlaySelection.filePath)}
               theme={activeCmTheme}
@@ -1040,7 +1062,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           searchClearLabel={t('common.clear')}
           getMenuItems={getFileTreeMenuItems}
           emptyState={
-            <div className="px-2 py-3 text-muted-foreground text-xs">
+            <div className="text-muted-foreground px-2 py-3 text-xs">
               {treeErrorKeys
                 ? t(treeErrorKeys.title)
                 : trimmedFileSearch
@@ -1116,7 +1138,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         <aside className="flex h-full w-full flex-col overflow-hidden">
           <div
             data-artifact-file-tree-scroll-region
-            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--chat-composer-inset,0px)]">
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-[var(--chat-composer-inset,0px)]">
             {fileTreeContent}
           </div>
         </aside>
@@ -1124,13 +1146,23 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </div>
       <ConfirmDialog
         open={staleConflictOpen}
-        onOpenChange={setStaleConflictOpen}
+        onOpenChange={(open) => {
+          setStaleConflictOpen(open)
+          if (open || conflictResolvedRef.current) return
+          void handleKeepDraftAfterConflict()
+        }}
         title={t('agent.preview_pane.edit.conflict.title')}
         description={t('agent.preview_pane.edit.conflict.description')}
         confirmText={t('agent.preview_pane.edit.conflict.reload')}
         cancelText={t('agent.preview_pane.edit.conflict.keep_draft')}
         destructive
-        onConfirm={handleReloadAfterConflict}
+        onConfirm={() => {
+          // Close before the async reload so the dialog's auto-close cannot land
+          // after a failure publish reset the guard.
+          conflictResolvedRef.current = true
+          setStaleConflictOpen(false)
+          void handleReloadAfterConflict()
+        }}
       />
     </div>
   )

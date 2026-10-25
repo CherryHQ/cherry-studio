@@ -6,7 +6,13 @@ import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
-import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import {
+  type KnowledgeFileItemData,
+  resolveFileEntryDataFromFile,
+  resolveKnowledgeFileBatch,
+  resolveKnowledgeFileMetadataEntryData,
+  selectKnowledgeFileBatchOutcome
+} from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
@@ -14,7 +20,7 @@ import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeItemDialogFooter'
 import AddKnowledgeItemDialogHeader from './addKnowledgeItemDialog/AddKnowledgeItemDialogHeader'
 import AddKnowledgeItemDialogSourceTabs from './addKnowledgeItemDialog/AddKnowledgeItemDialogSourceTabs'
-import { DEFAULT_SOURCE_TYPE, KNOWLEDGE_ADD_ITEMS_MAX } from './addKnowledgeItemDialog/constants'
+import { DEFAULT_SOURCE_TYPE } from './addKnowledgeItemDialog/constants'
 import KnowledgeAddConflictDialog from './addKnowledgeItemDialog/KnowledgeAddConflictDialog'
 import type { NoteDraft, NoteItem, NoteSourceMode } from './addKnowledgeItemDialog/types'
 
@@ -41,15 +47,7 @@ const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ex
 
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
 
-const resolveFileEntryDataFromFile = (file: File) => {
-  const filePath = window.api.file.getPathForFile(file)
-
-  if (!filePath) {
-    return Promise.reject(new Error(`Failed to resolve a local path for "${file.name}"`))
-  }
-
-  return resolveKnowledgeFileData(filePath, file.name)
-}
+const describeFileMetadata = (file: { origin_name?: string; name?: string }) => file.origin_name || file.name
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
@@ -152,26 +150,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     return []
   }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedNotes, urlValue])
 
-  // An interactive batch can be huge (the OS picker has no cap), but add_items rejects
-  // oversized batches at the IPC boundary with a generic "Invalid input". Stop them here
-  // with a friendly, source-appropriate hint — a toast for direct-pick (no panel), inline
-  // otherwise. Returns true when the batch is within the limit and may be submitted.
-  const ensureWithinAddLimit = useCallback(
-    (items: KnowledgeAddItemInput[]): boolean => {
-      if (items.length <= KNOWLEDGE_ADD_ITEMS_MAX) {
-        return true
-      }
-      const message = t('knowledge.data_source.add_dialog.too_many_sources', { count: KNOWLEDGE_ADD_ITEMS_MAX })
-      if (directPick) {
-        toast.warning(message)
-      } else {
-        setSubmitErrorMessage(message)
-      }
-      return false
-    },
-    [directPick, t]
-  )
-
   // 'detect' (first pass) surfaces the conflict dialog when same-name collisions
   // exist; 'rename'/'replace' apply the user's choice. Closes the whole dialog
   // once the batch is actually added.
@@ -196,19 +174,33 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setIsResolvingSubmit(true)
 
     void buildPanelSubmitItems()
-      .then((items) => {
-        if (!ensureWithinAddLimit(items)) {
-          return
-        }
-        return submitWithStrategy(items, 'detect')
-      })
+      .then((items) => submitWithStrategy(items, 'detect'))
       .catch((error) => {
         setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
       })
       .finally(() => {
         setIsResolvingSubmit(false)
       })
-  }, [buildPanelSubmitItems, canSubmit, ensureWithinAddLimit, isResolvingSubmit, submitWithStrategy, t])
+  }, [buildPanelSubmitItems, canSubmit, isResolvingSubmit, submitWithStrategy, t])
+
+  const collectResolvedFileInputs = useCallback(
+    async <T,>(
+      files: T[],
+      resolveItem: (item: T) => Promise<KnowledgeFileItemData>,
+      describeItem: (item: T) => string | undefined
+    ): Promise<KnowledgeAddItemInput[]> => {
+      const fileBatch = await resolveKnowledgeFileBatch(files, resolveItem, describeItem)
+      const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
+      if (fileOutcome.fatal !== undefined) {
+        throw fileOutcome.fatal
+      }
+      if (fileOutcome.skipped.length > 0) {
+        toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
+      }
+      return fileOutcome.resolved.map((data) => ({ type: 'file' as const, data }))
+    },
+    [t]
+  )
 
   // Collect file inputs from the OS picker (or page-level pending files, if any) and submit.
   // Returns null when the user cancels the picker so the caller can close the flow.
@@ -219,8 +211,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       if (skippedCount > 0) {
         toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
       }
-      const fileData = await Promise.all(supportedFiles.map(resolveFileEntryDataFromFile))
-      return fileData.map((data) => ({ type: 'file' as const, data }))
+      return collectResolvedFileInputs(supportedFiles, resolveFileEntryDataFromFile, (file) => file.name)
     }
 
     const selected = await window.api.file.select({
@@ -237,9 +228,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     if (skippedCount > 0) {
       toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
     }
-    const fileData = await Promise.all(supportedFiles.map(resolveKnowledgeFileMetadataEntryData))
-    return fileData.map((data) => ({ type: 'file' as const, data }))
-  }, [pendingAddFiles, t])
+    return collectResolvedFileInputs(supportedFiles, resolveKnowledgeFileMetadataEntryData, describeFileMetadata)
+  }, [collectResolvedFileInputs, pendingAddFiles, t])
 
   const collectDirectoryInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
     const directoryPath = await window.api.file.selectFolder()
@@ -269,11 +259,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           handleOpenChange(false)
           return
         }
-        // Over the per-batch limit: the hint is a toast (no panel), so close afterwards.
-        if (!ensureWithinAddLimit(items)) {
-          handleOpenChange(false)
-          return
-        }
         await submitWithStrategy(items, 'detect')
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
@@ -289,7 +274,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     collectDirectoryInputs,
     collectFileInputs,
     directPick,
-    ensureWithinAddLimit,
     handleOpenChange,
     open,
     submitWithStrategy,
