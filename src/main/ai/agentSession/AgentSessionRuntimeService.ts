@@ -2734,53 +2734,19 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private finishBackgroundFlows(entry: AgentSessionRuntimeEntry): Promise<void> {
     if (entry.backgroundFlowFlush) return entry.backgroundFlowFlush
-    const accumulators = [...(entry.backgroundFlowAccumulators?.values() ?? [])]
-    if (accumulators.length === 0) return Promise.resolve()
+    if ((entry.backgroundFlowAccumulators?.size ?? 0) === 0) return Promise.resolve()
 
-    for (const accumulator of accumulators) {
-      if (accumulator.closed) continue
-      accumulator.closed = true
-      try {
-        accumulator.controller.close()
-      } catch {
-        // Already closed by the accumulator reader.
-      }
-    }
-
-    const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
-      .then(() => {
-        const completedMessageIds = new Set<string>()
-        const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
-        for (const accumulator of accumulators) {
-          const parts = accumulator.latest?.parts
-          if (!parts) continue
-          completedMessageIds.add(accumulator.messageId)
-          const saved = agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
-          // The flush refuses terminal error rows; the refused parts must not reach the overlay either.
-          if (saved?.status === 'error') continue
-          completedFlows.push({ messageId: accumulator.messageId, parts })
-        }
-
-        entry.backgroundFlowAccumulators?.clear()
-        for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
-          if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
-        }
-        if (this.isCurrentEntry(entry)) {
-          const cacheService = application.get('CacheService')
-          for (const { messageId, parts } of completedFlows) {
-            cacheService.setShared(
-              AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
-              parts,
-              BACKGROUND_FLOW_HANDOFF_TTL_MS
-            )
-          }
-        }
-      })
+    let failed = false
+    const flush = this.drainBackgroundFlows(entry)
       .catch((error) => {
+        failed = true
         logger.warn('Failed to finalize detached subagent flow parts', { sessionId: entry.sessionId, error })
       })
       .finally(() => {
         if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+        // An acknowledgment landing as the drain settles adds an accumulator after its last snapshot;
+        // nothing else would ever persist it.
+        if (!failed && (entry.backgroundFlowAccumulators?.size ?? 0) > 0) void this.finishBackgroundFlows(entry)
       })
     entry.backgroundFlowFlush = flush
     this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
@@ -2790,6 +2756,57 @@ export class AgentSessionRuntimeService extends BaseService {
       this.syncRuntimeActivity()
     })
     return flush
+  }
+
+  /** Finalize batch by batch: an acknowledgment released mid-flush adds another accumulator that
+   *  still owes its write, so each batch is removed only after it is persisted. */
+  private async drainBackgroundFlows(entry: AgentSessionRuntimeEntry): Promise<void> {
+    while (true) {
+      const accumulators = [...(entry.backgroundFlowAccumulators?.values() ?? [])]
+      if (accumulators.length === 0) return
+
+      for (const accumulator of accumulators) {
+        if (accumulator.closed) continue
+        accumulator.closed = true
+        try {
+          accumulator.controller.close()
+        } catch {
+          // Already closed by the accumulator reader.
+        }
+      }
+
+      await Promise.all(accumulators.map((accumulator) => accumulator.done))
+      const completedMessageIds = new Set<string>()
+      const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
+      for (const accumulator of accumulators) {
+        const parts = accumulator.latest?.parts
+        if (!parts) continue
+        completedMessageIds.add(accumulator.messageId)
+        const saved = agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+        // The flush refuses terminal error rows; the refused parts must not reach the overlay either.
+        if (saved?.status === 'error') continue
+        completedFlows.push({ messageId: accumulator.messageId, parts })
+      }
+
+      const remaining = entry.backgroundFlowAccumulators
+      for (const accumulator of accumulators) {
+        // Only this batch; anything added while it was awaited belongs to the next round.
+        if (remaining?.get(accumulator.messageId) === accumulator) remaining.delete(accumulator.messageId)
+      }
+      for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
+        if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+      }
+      if (this.isCurrentEntry(entry)) {
+        const cacheService = application.get('CacheService')
+        for (const { messageId, parts } of completedFlows) {
+          cacheService.setShared(
+            AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
+            parts,
+            BACKGROUND_FLOW_HANDOFF_TTL_MS
+          )
+        }
+      }
+    }
   }
 
   private waitForBackgroundWorkRelease(

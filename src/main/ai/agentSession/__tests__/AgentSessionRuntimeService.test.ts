@@ -3134,6 +3134,74 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-2', secondParts)
     })
 
+    it('persists a detached flow accumulated while an earlier flush is finalizing', async () => {
+      // A later turn's terminal acknowledgment can land while an older row's flush is still awaiting
+      // its accumulator. The chunks it releases create a second accumulator, which the finalizer
+      // must persist instead of clearing the whole map.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const olderFlow = createDeferred<void>()
+      const olderParts = [{ type: 'text', text: 'Older transcript' }]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: olderFlow.promise,
+            closed: false,
+            latest: { parts: olderParts }
+          }
+        ]
+      ])
+      entry.flowMessageIdsByToolCallId = new Map([['task-late', 'assistant-2']])
+      mocks.getSessionMessage.mockImplementation((_sessionId: string, messageId: string) => ({
+        id: messageId,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [] }
+      }))
+      mocks.replaceMessageParts.mockImplementation((_sessionId: string, messageId: string, parts: unknown) => ({
+        id: messageId,
+        status: 'success',
+        data: { parts }
+      }))
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      for (const chunk of [
+        { type: 'text-start', id: 'late-text', providerMetadata: { cherry: { parentToolCallId: 'task-late' } } },
+        { type: 'text-delta', id: 'late-text', delta: 'Later transcript' },
+        { type: 'text-end', id: 'late-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-late',
+          chunk
+        })
+      }
+      expect(entry.backgroundFlowAccumulators?.has('assistant-2')).toBe(false)
+
+      // The later row's delayed terminal dispatch acknowledges its persistence mid-flush.
+      service.markTurnTerminal('session-1', 'success', 'turn-of-later-row', 'assistant-2')
+      expect(entry.backgroundFlowAccumulators?.has('assistant-2')).toBe(true)
+
+      olderFlow.resolve()
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-2',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Later transcript' })])
+        )
+      })
+      expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', olderParts)
+      expect(mocks.replaceMessageParts.mock.calls.filter(([, messageId]) => messageId === 'assistant-1')).toHaveLength(
+        1
+      )
+      expect(entry.backgroundFlowAccumulators?.size).toBe(0)
+    })
+
     it('retains each latest flow overlay during session close handoff', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
