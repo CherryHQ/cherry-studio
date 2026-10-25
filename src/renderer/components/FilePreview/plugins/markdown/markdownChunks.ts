@@ -1525,18 +1525,22 @@ function headingRenderedText(
     const lastCloseAngle = segment.lastIndexOf('>')
     const lowerSegment = lastCloseAngle === -1 ? '' : segment.toLowerCase()
     // Positions the tag branch reads, built on first use so a segment without tags never pays.
-    let tagPositions: { closeAngles: number[]; rawTextCloses: Array<{ at: number; name: string }> } | null = null
+    let tagPositions: { closeAngles: number[]; rawTextCloses: Map<string, number[]> } | null = null
+    // `index` only moves forward, so a cursor per name stops repeated openers rescanning the
+    // closers already passed. Reset with each segment because `index` is.
+    const rawTextCursor = new Map<string, number>()
     const scanTagPositions = () => {
       if (tagPositions) return tagPositions
       const closeAngles: number[] = []
       for (let at = segment.indexOf('>'); at !== -1; at = segment.indexOf('>', at + 1)) closeAngles.push(at)
-      const rawTextCloses: Array<{ at: number; name: string }> = []
+      const rawTextCloses = new Map<string, number[]>()
       for (const name of ['script', 'style']) {
+        const closes: number[] = []
         for (let at = lowerSegment.indexOf(`</${name}`); at !== -1; at = lowerSegment.indexOf(`</${name}`, at + 1)) {
-          rawTextCloses.push({ at, name })
+          closes.push(at)
         }
+        rawTextCloses.set(name, closes)
       }
-      rawTextCloses.sort((left, right) => left.at - right.at)
       tagPositions = { closeAngles, rawTextCloses }
       return tagPositions
     }
@@ -1632,12 +1636,17 @@ function headingRenderedText(
         if (rawTextOpen) {
           const name = rawTextOpen[1].toLowerCase()
           const { rawTextCloses } = scanTagPositions()
-          const close = rawTextCloses.find((entry) => entry.name === name && entry.at > index + rawTextOpen[0].length)
-          if (close) {
-            const openEnd = firstCloseAngleAtOrAfter(index + rawTextOpen[0].length)
-            if (openEnd !== -1 && openEnd < close.at && openEnd - index <= MAX_TAG_WINDOW) {
-              const closeEnd = firstCloseAngleAtOrAfter(close.at + name.length + 2)
-              if (closeEnd !== -1 && /^[ \t\n\r\f]*$/.test(segment.slice(close.at + name.length + 2, closeEnd))) {
+          const closes = rawTextCloses.get(name) ?? []
+          const afterOpen = index + rawTextOpen[0].length
+          let cursor = rawTextCursor.get(name) ?? 0
+          while (cursor < closes.length && closes[cursor] <= afterOpen) cursor += 1
+          rawTextCursor.set(name, cursor)
+          const closeAt = cursor < closes.length ? closes[cursor] : -1
+          if (closeAt !== -1) {
+            const openEnd = firstCloseAngleAtOrAfter(afterOpen)
+            if (openEnd !== -1 && openEnd < closeAt && openEnd - index <= MAX_TAG_WINDOW) {
+              const closeEnd = firstCloseAngleAtOrAfter(closeAt + name.length + 2)
+              if (closeEnd !== -1 && /^[ \t\n\r\f]*$/.test(segment.slice(closeAt + name.length + 2, closeEnd))) {
                 index = closeEnd + 1
                 continue
               }

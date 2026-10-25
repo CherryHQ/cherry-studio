@@ -338,6 +338,16 @@ describe('splitMarkdownChunks', () => {
     expect(performance.now() - started).toBeLessThan(500)
   })
 
+  it('reads repeated raw-text openers in one pass', () => {
+    // Each opener searched the close list from its head, so a heading of repeated pairs rescanned
+    // every closer already passed: 20,000 pairs took over a second and grew quadratically.
+    const content = '# ' + '<style>x</style>'.repeat(20_000) + '\n' + '\n'.repeat(500)
+
+    const started = performance.now()
+    chunksOf(content)
+    expect(performance.now() - started).toBeLessThan(500)
+  })
+
   it('keeps windowing when a comment inside an HTML block holds a tag', () => {
     // The tags a comment carries are its own — a `<span>` mentioned inside one must not hold an
     // element open, or every later boundary stays off and the document falls to the plain-text
