@@ -23,6 +23,7 @@
   "apiGateway.docs.operations.list_knowledge_bases": "Bu Cherry Studio örneğinde kullanılabilen bilgi tabanlarını listeler.",
   "apiGateway.docs.operations.list_mcp_servers": "Cherry Studio'da etkinleştirilmiş MCP sunucularını, her birine bağlanmak için kullanılacak URL ile birlikte listeler.",
   "apiGateway.docs.operations.list_models": "Bu ağ geçidi üzerinden kullanılabilen modelleri OpenAI model biçiminde listeler.",
+  "apiGateway.docs.operations.manage_knowledge_bases": "Kalıcı Knowledge iş akışı üzerinden bilgi tabanları oluşturur veya siler ve düz metin belgelerini listeler ya da değiştirir.",
   "apiGateway.docs.operations.mcp_proxy": "Bir MCP sunucusu için Model Context Protocol uç noktası (Streamable HTTP). Sunucuyu Cherry Studio üzerinden kullanmak için herhangi bir MCP istemcisini bu URL'ye yönlendirin.",
   "apiGateway.docs.operations.messages": "Bir mesaj oluşturur. İstek ve yanıt gövdeleri Anthropic Messages biçimini izler; artımlı çıktı için `stream: true` ayarlayın.",
   "apiGateway.docs.operations.responses": "Bir yanıt oluşturur. İstek ve yanıt gövdeleri OpenAI Responses biçimini izler.",
