@@ -358,6 +358,39 @@ describe('importService.importConversations', () => {
     })
   })
 
+  it('keeps cleaning up remaining objects when a cleanup call itself fails', async () => {
+    const { ipcApi } = await import('@renderer/ipc')
+    let topicSeq = 0
+    let messageSeq = 0
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { id: 'asst_cleanup_fail', name: 'ChatGPT Import', emoji: '💬' }
+      if (path === '/topics') return { id: `topic_cleanup_${++topicSeq}` }
+      // Both topics exist when the failure hits (see the concurrent test).
+      if (++messageSeq > 2) throw new Error('database unavailable mid-persist')
+      return { id: `message_${messageSeq}` }
+    })
+    // The first topic's cleanup itself errors (not a not-found): the remaining
+    // objects must still be cleaned up, and the caller still sees the ORIGINAL
+    // import failure, not the rollback error.
+    vi.mocked(ipcApi.request).mockImplementation(async (route: string, params: any) => {
+      if (route === 'trash.topic.delete_permanently' && params.topicIds[0] === 'topic_cleanup_1') {
+        throw new IpcError('INTERNAL', 'rollback IPC exploded')
+      }
+      return undefined
+    })
+
+    const response = await importService.importConversations(chatgptExport(), 'chatgpt')
+
+    expect(response).toMatchObject({ success: false, error: 'database unavailable mid-persist' })
+    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.topic.delete_permanently', {
+      topicIds: ['topic_cleanup_2']
+    })
+    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.assistant.delete_permanently', {
+      assistantId: 'asst_cleanup_fail',
+      deleteTopics: false
+    })
+  })
+
   it('reports the create-assistant failure without attempting a rollback', async () => {
     const { ipcApi } = await import('@renderer/ipc')
     vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('database unavailable'))
