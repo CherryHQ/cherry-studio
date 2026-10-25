@@ -1,158 +1,131 @@
 {
-  "generated_at": "2026-10-24T17:00:00Z",
-  "source": "daily-agent-run",
-  "totals": {
-    "open_issues": 1440,
-    "open_prs": 103,
-    "p1_issues": 106,
-    "closed_issues_30d": 452,
-    "v2_open_prs": 0
+  "generated_at": "2026-10-25T17:48:52.208963+00:00",
+  "open_issues": {
+    "total": 1451,
+    "sample_size": 100,
+    "p1_from_label_query": "50+ (first page, more available)",
+    "p2_in_sample": 22,
+    "p3_in_sample": 9,
+    "no_priority_label_in_sample": 14,
+    "no_priority_pct_in_sample": 14.0,
+    "note": "Total from GitHub totalCount; label breakdown from first 100 most-recently-updated issues"
   },
-  "delta_vs_yesterday": {
-    "open_issues": "+18",
-    "p1_issues": "0",
-    "closed_issues_30d": "-7",
-    "open_prs": "+3",
-    "note": "Net +18 open issues (10 new today + backlog). Closed-30d window shrank 7 as older Oct-23 issues aged out. New PRs: #22609 (browser TLS), #22610 (browser-session retention), #22611 (voice dictation fix)."
+  "closed_last_30d": {
+    "total_sampled": 50,
+    "bugs": 29,
+    "features": 17,
+    "duplicates": 10,
+    "no_labels": 1
   },
-  "pr_breakdown": {
-    "to_main": 78,
-    "to_other_branches": 25,
-    "draft": 0,
-    "ready_to_merge": 2,
-    "ready_to_merge_ids": [22089, 22094],
-    "do_not_merge": 0
+  "open_prs": {
+    "sample": 100,
+    "to_main": 84,
+    "to_other_branches": 16
   },
-  "issue_type_distribution": {
-    "bug_pct": 66,
-    "feature_pct": 31,
-    "other_pct": 3,
-    "note": "estimated from top-100 issues by recent activity"
+  "health_sample_100": {
+    "active_le7d": 85,
+    "aging_7_30d": 10,
+    "stale_30_90d": 4,
+    "zombie_gt90d": 1,
+    "note": "Based on updated_at of 100 most recently updated open issues (2026-10-25)"
   },
-  "label_top10_from_sample": {
-    "bug": 66,
-    "agent": 40,
-    "p2": 36,
-    "feature": 32,
-    "models": 31,
-    "p3": 26,
-    "needs-info": 25,
-    "ui-ux": 22,
-    "chat": 21,
-    "needs-review": 19
-  },
-  "no_priority_label_pct": 24.0,
-  "p1_health": {
-    "total": 106,
-    "active_le7d": 33,
-    "aging_8_30d": 15,
-    "stale_31_90d": 56,
-    "zombie_gt90d": 2
-  },
-  "top_p1_active_issues": [
+  "p1_issues_top": [
     {
-      "number": 20941,
-      "title": "Work/Agent terminate with empty no-response error",
-      "labels": ["p1", "v2", "agent", "chat"],
-      "updated_at": "2026-10-24",
-      "comments": 32
-    },
-    {
-      "number": 20940,
-      "title": "Responses API stream TypeValidation abort",
-      "labels": ["p1", "v2", "chat", "models"],
-      "updated_at": "2026-10-24",
-      "comments": 47
-    },
-    {
-      "number": 22121,
-      "title": "Responses reasoning delta reaches consumers without initialized part",
-      "labels": ["p1", "v2", "chat", "models"],
-      "updated_at": "2026-10-24",
-      "comments": 6
+      "number": 21905,
+      "title": "[Bug]: Work-mode Agent turns abort with Autocompact is thrashing and cannot recover on 2.0.14-2.1.6",
+      "updated_at": "2026-10-25T10:09:22Z"
     },
     {
       "number": 20344,
       "title": "Windows Agent startup crashes when PATH contains a null byte",
-      "labels": ["p1", "windows", "agent"],
-      "updated_at": "2026-10-24"
+      "updated_at": "2026-10-25T16:13:35Z"
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "updated_at": "2026-10-25T12:09:01Z"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "updated_at": "2026-10-25T10:09:06Z"
+    },
+    {
+      "number": 22121,
+      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part",
+      "updated_at": "2026-10-24T06:09:26Z"
+    },
+    {
+      "number": 19864,
+      "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
+      "updated_at": "2026-10-25T08:05:52Z"
+    },
+    {
+      "number": 22401,
+      "title": "[Bug]: Orphan sweep deletes the Claude Code transcript of a session that still exists",
+      "updated_at": "2026-10-22T04:14:37Z"
+    },
+    {
+      "number": 22137,
+      "title": "[Bug]: Conversations and two configured agents disappear around an update",
+      "updated_at": "2026-10-21T10:19:58Z"
+    },
+    {
+      "number": 21418,
+      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM)",
+      "updated_at": "2026-10-22T15:36:35Z"
     },
     {
       "number": 20343,
       "title": "Configured OCR fallback fails for image input on non-vision models",
-      "labels": ["p1", "windows", "models", "chat"],
-      "updated_at": "2026-10-24"
-    },
-    {
-      "number": 21905,
-      "title": "Work Agent aborts: Autocompact is thrashing",
-      "labels": ["p1"],
-      "updated_at": "2026-10-23",
-      "assignee": "DeJeune"
+      "updated_at": "2026-10-24T18:06:23Z"
     },
     {
       "number": 19847,
-      "title": "DashScope Qwen agent terminates on server error, no recovery",
-      "labels": ["p1", "agent", "models"],
-      "updated_at": "2026-10-23",
-      "comments": 27,
-      "assignee": "DeJeune"
+      "title": "[Bug]: Agent with DashScope Qwen3.8-Max terminates on a mid-response server error",
+      "updated_at": "2026-10-23T20:04:57Z"
     },
     {
-      "number": 20476,
-      "title": "DeepSeek chat serialized with incomplete hex escape",
-      "labels": ["p1", "windows", "models", "chat"],
-      "updated_at": "2026-10-23",
-      "comments": 3
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "updated_at": "2026-10-25T10:09:06Z"
     },
     {
-      "number": 20021,
-      "title": "Local OCR and embedding fail: onnxruntime_binding.node on Windows",
-      "labels": ["p1", "windows", "rag", "v2", "ocr"],
-      "updated_at": "2026-10-23",
-      "comments": 2
+      "number": 19314,
+      "title": "[Bug]: DeepSeek V4 Pro reasoning can finish without a final answer",
+      "updated_at": "2026-10-25T00:03:27Z"
     },
     {
-      "number": 22401,
-      "title": "Orphan sweep deletes active Claude Code session directory",
-      "labels": ["p1", "agent", "claude-code"],
-      "updated_at": "2026-10-22"
+      "number": 21864,
+      "title": "[QA] e2e regression harness: three defects that block local PR verification",
+      "updated_at": "2026-10-20T20:46:10Z"
     },
     {
-      "number": 21418,
-      "title": "Restore triggers EPERM crash — data cannot be restored (Windows)",
-      "labels": ["p1", "windows", "data", "v2"],
-      "updated_at": "2026-10-22",
-      "assignee": "DeJeune"
+      "number": 19865,
+      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+      "updated_at": "2026-10-15T09:48:10Z"
     },
     {
-      "number": 19929,
-      "title": "Windows Agent sessions fail to start with spawn EPERM",
-      "labels": ["p1", "windows", "v2", "agent"],
-      "updated_at": "2026-10-22",
-      "comments": 4
-    },
-    {
-      "number": 20314,
-      "title": "Agent task model selection overwrites another task's model",
-      "labels": ["p1", "ui-ux", "models", "agent"],
-      "updated_at": "2026-10-22",
-      "comments": 2,
-      "assignee": "404-Page-Found"
-    },
-    {
-      "number": 22137,
-      "title": "Conversations and two agents disappear around an update",
-      "labels": ["p1", "data", "needs-info"],
-      "updated_at": "2026-10-21",
-      "comments": 1
-    },
-    {
-      "number": 22026,
-      "title": "WebDAV data stored before v2.0 cannot be restored",
-      "labels": ["p1", "data", "backup"],
-      "updated_at": "2026-10-20",
-      "comments": 1
+      "number": 20692,
+      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
+      "updated_at": "2026-10-15T08:57:07Z"
     }
-  ]
+  ],
+  "label_distribution_sample": {
+    "bug": 65,
+    "p2": 22,
+    "feature": 18,
+    "p3": 9,
+    "p1": 7,
+    "needs-info": 15,
+    "windows": 12,
+    "agent": 28,
+    "models": 20,
+    "chat": 12,
+    "ui-ux": 10,
+    "duplicate": 8,
+    "needs-review": 7,
+    "ai:assign:coding": 5,
+    "claude-code": 7
+  }
 }

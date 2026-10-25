@@ -1,60 +1,10 @@
 {
-  "generated_at": "2026-10-24T17:00:00Z",
-  "note": "Discussion data estimated from high-engagement issues (GraphQL Discussions API data not available in this run).",
-  "trending_topics": {
-    "streaming_failures": {
-      "description": "Stream end-without-finish-reason, TypeValidation aborts on Responses API, reasoning delta uninitialized — cluster of P1 issues with 40-90 comments",
-      "status": "critical — #20940 and #22121 updated today, #19793 (42 comments) and #20282 (86 comments) still open"
-    },
-    "agent_stability": {
-      "description": "Autocompact thrashing, orphan sweep deletes session, empty no-response, DashScope crash, DeepSeek V4 tool-call no-output",
-      "status": "critical — #20941 updated today, 5+ P1 agent issues active, DeJeune assigned"
-    },
-    "computer_use_onboarding": {
-      "description": "Screen Recording permission granted to wrong app on macOS (#22601), Windows installed-app resolution and secondary clicks missing (#22595)",
-      "status": "emerging — 2 new issues opened today, UX gap in onboarding flow"
-    },
-    "provider_compat": {
-      "description": "Gemini tool-call history serialization missing function name (#22577, new), DeepSeek reasoning_effort with function tools (HTTP 422, #22527), Copilot reasoning_effort rejected (#22463), max_output_tokens overflow (#22504)",
-      "status": "high — #22577 new today (not yet labeled), repeated provider-compatibility failures across P2 issues"
-    },
-    "data_integrity": {
-      "description": "Windows restore EPERM, data directory relocation stale DB paths, conversations disappear on update, WebDAV pre-v2 data lost",
-      "status": "high — 4 P1 data issues still open"
-    },
-    "voice_and_local_models": {
-      "description": "Windows v2.1.7 Kokoro voice crashes on startup when reading Chinese (#22578), FunASR Nano download aborts at 91% on macOS (#22543)",
-      "status": "medium — new issue today (#22578) affects Chinese-language users on Windows"
-    },
-    "mcp_issues": {
-      "description": "MCP start EACCES permission denied on Windows (#22596, p2 regression), MCP env ${env:NAME} expansion request (#22588, p2 feature)",
-      "status": "medium — #22596 is a regression, needs investigation"
-    }
-  },
-  "high_comment_issues": [
-    {"number": 20282, "title": "Chat/Agent streams fail to parse HTTP 200 responses", "comments": 86, "labels": ["p2", "bug", "chat", "agent", "models"]},
-    {"number": 20940, "title": "Responses API TypeValidation abort", "comments": 47, "labels": ["p1", "v2", "chat", "models"]},
-    {"number": 20976, "title": "Cherry adapter rejects mid-conversation system messages", "comments": 43, "labels": ["p2", "bug"]},
-    {"number": 19793, "title": "Chat stream ends without finish reason", "comments": 42, "labels": ["p1", "chat", "models"]},
-    {"number": 20941, "title": "Work/Agent terminate with empty no-response", "comments": 32, "labels": ["p1", "v2", "agent", "chat"]},
-    {"number": 19847, "title": "DashScope Qwen agent terminates on server error", "comments": 27, "labels": ["p1", "agent", "models"]},
-    {"number": 18150, "title": "DeepSeek V4 Flash 回传要求错误", "comments": 27, "labels": ["p1", "models"]},
-    {"number": 18894, "title": "Agent v2 context grows past provider window before compaction", "comments": 27, "labels": ["p2", "assistant"]},
-    {"number": 19321, "title": "DeepSeek reasoning_text dropped on tool continuations", "comments": 19, "labels": ["p1", "agent", "models"]},
-    {"number": 22514, "title": "Archived Chat and Work conversations hard to find and reopen", "comments": 5, "labels": ["p3", "feature", "ui-ux", "agent", "chat"]},
-    {"number": 22582, "title": "Cannot delete note: Failed to move item to trash (Fedora KDE Flatpak)", "comments": 5, "labels": []},
-    {"number": 22583, "title": "Brackets and double quotes can only be typed half at a time", "comments": 3, "labels": []}
-  ],
-  "new_issues_today": [
-    {"number": 22606, "title": "Give 'saved to Notes' toast a way to open the note", "type": "feature", "labels": ["p3", "feature", "ui-ux"]},
-    {"number": 22605, "title": "v2.1.6 knowledge base creation fails", "type": "bug", "labels": ["bug", "rag", "needs-info"]},
-    {"number": 22604, "title": "Restore visible 'Show in Folder' on file links in chat", "type": "feature", "labels": ["p3", "feature", "ui-ux", "chat"]},
-    {"number": 22603, "title": "Batch-remove models whose connectivity check failed", "type": "feature", "labels": ["feature", "duplicate", "models"]},
-    {"number": 22601, "title": "Computer Use grants Screen Recording to wrong app on macOS", "type": "bug", "labels": ["bug", "p2", "macos", "agent"]},
-    {"number": 22596, "title": "MCP start failed EACCES: permission denied on Windows", "type": "bug — regression", "labels": ["bug", "p2", "windows", "mcp", "regression"]},
-    {"number": 22595, "title": "Support installed-app resolution in Computer Use on Windows", "type": "feature", "labels": ["p2", "feature", "windows", "agent"]},
-    {"number": 22592, "title": "Kimi K3.1 Pro not recognised in Chat mode, works in Agent", "type": "bug", "labels": ["bug", "models"]},
-    {"number": 22589, "title": "Let system-imported skill re-sync without losing agent enablement", "type": "feature", "labels": ["p2", "feature", "agent"]},
-    {"number": 22588, "title": "MCP headers/stdio env expand ${env:NAME} or {file:path}", "type": "feature", "labels": ["p2", "feature", "mcp"]}
-  ]
+  "generated_at": "2026-10-25T17:48:52.477795+00:00",
+  "note": "GitHub Discussions require GraphQL API; not available via MCP in this run. Showing placeholder.",
+  "total_discussions": null,
+  "answered": null,
+  "unanswered": null,
+  "answer_rate_pct": null,
+  "by_category": {},
+  "top_unanswered_by_upvotes": []
 }

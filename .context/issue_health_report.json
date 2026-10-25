@@ -1,97 +1,77 @@
 {
-  "generated_at": "2026-10-24T17:00:00Z",
-  "summary": {
-    "total_open": 1440,
-    "closed_last_30d": 452,
-    "p1_total": 106,
-    "p1_active_le7d": 33,
-    "p1_aging_8_30d": 15,
-    "p1_stale_31_90d": 56,
-    "p1_zombie_gt90d": 2,
-    "no_priority_label_pct": 24.0
-  },
-  "delta_vs_yesterday": {
-    "total_open": "+18",
-    "p1_total": "0",
-    "p1_active_le7d": "+1",
-    "note": "5 P1 issues saw new activity today (#20941, #20940, #22121, #20344, #20343). Triage backlog: 13 new issues from Oct 23-24 batch still unlabeled. Computer Use cluster emerging (2 new issues today)."
-  },
-  "health_score_notes": [
-    "106 P1 issues open — 56 stale (31-90d), slow resolution rate on critical bugs persists",
-    "33 P1 issues active in last 7d — streaming and agent issues driving engagement",
-    "5 P1 issues updated today: streaming (#20940, #22121), agent (#20941), Windows OCR/agent (#20343, #20344)",
-    "24% of all issues lack a priority label — triage bandwidth needed",
-    "Top domains: agent (40%), models/providers (31%), ui-ux (22%), chat (21%)",
-    "Duplicate rate ~18% in top-100 — intake deduplication continues to be effective",
-    "452 issues closed in last 30 days — healthy throughput maintained",
-    "New issue cluster: Computer Use (Screen Recording wrong app #22601, Windows resolution #22595)",
-    "New issue: Windows Voice Kokoro crashes with Chinese on startup (#22578, p2)"
-  ],
-  "urgent_clusters": {
-    "streaming_failures": {
-      "issues": [19793, 20940, 22121, 20282],
-      "description": "Chat stream end-without-finish-reason (42 comments), TypeValidation aborts (47 comments), reasoning delta uninitialized, HTTP-200 parse failures (86 comments)",
-      "status": "critical — #20940 and #22121 saw new activity today"
+  "generated_at": "2026-10-25T17:48:52.329315+00:00",
+  "sample_size": 100,
+  "total_open_reported": 1451,
+  "health_buckets": {
+    "Active": {
+      "count": 85,
+      "pct": 85.0,
+      "note": "updated within 7 days"
     },
-    "agent_runtime": {
-      "issues": [20941, 22401, 21905, 18741, 19847],
-      "description": "Empty no-response termination (32 comments, active today), orphan sweep deletes session, autocompact thrashing, DeepSeek V4 tool-call no-output, DashScope crash",
-      "status": "critical — #20941 active today, DeJeune assigned"
+    "Aging": {
+      "count": 10,
+      "pct": 10.0,
+      "note": "updated 7-30 days ago"
     },
-    "data_integrity": {
-      "issues": [18373, 21418, 22137, 22026],
-      "description": "Stale DB paths after relocation, Windows restore EPERM crash, conversations/agents disappear on update, WebDAV pre-v2 data unrestorable",
-      "status": "high — 4 P1 data issues open"
+    "Stale": {
+      "count": 4,
+      "pct": 4.0,
+      "note": "updated 30-90 days ago"
     },
-    "provider_compat": {
-      "issues": [22577, 22527, 22483, 22463, 19321],
-      "description": "Gemini tool-call history serialization missing function name, DeepSeek reasoning_effort with function tools (HTTP 422), Gemini empty history oneof validation, Copilot reasoning_effort rejected, reasoning_text dropped on tool continuations",
-      "status": "high — #22577 (new today, no labels yet), multiple P2 active"
-    },
-    "computer_use": {
-      "issues": [22601, 22595],
-      "description": "Screen Recording permission granted to wrong app on macOS (#22601, p2), Windows installed-app resolution and secondary clicks missing (#22595, p2, feature)",
-      "status": "emerging — 2 new issues today, onboarding UX gap"
-    },
-    "windows_agent_stability": {
-      "issues": [20344, 20343, 21898, 22566],
-      "description": "Agent startup crashes with PATH null byte (today active), OCR fallback fails image input (today active), Claude Code executable missing on fresh install, to_markdown fails on ARM64",
-      "status": "high — 2 P1 issues active today"
+    "Zombie": {
+      "count": 1,
+      "pct": 1.0,
+      "note": "not updated in 90+ days"
     }
   },
-  "p1_active_list": [
-    {"number": 20941, "updated": "2026-10-24", "comments": 32, "labels": ["v2", "agent", "chat"]},
-    {"number": 20940, "updated": "2026-10-24", "comments": 47, "labels": ["v2", "chat", "models"]},
-    {"number": 22121, "updated": "2026-10-24", "comments": 6, "labels": ["v2", "chat", "models"]},
-    {"number": 20344, "updated": "2026-10-24", "labels": ["windows", "agent"]},
-    {"number": 20343, "updated": "2026-10-24", "labels": ["windows", "models", "chat"]},
-    {"number": 21905, "updated": "2026-10-23", "labels": [], "assignee": "DeJeune"},
-    {"number": 19847, "updated": "2026-10-23", "comments": 27, "labels": ["agent", "models"], "assignee": "DeJeune"},
-    {"number": 20476, "updated": "2026-10-23", "comments": 3, "labels": ["windows", "models", "chat"]},
-    {"number": 20021, "updated": "2026-10-23", "comments": 2, "labels": ["windows", "rag", "v2", "ocr"]},
-    {"number": 19793, "updated": "2026-10-23", "comments": 42, "labels": ["chat", "models"]},
-    {"number": 18765, "updated": "2026-10-23", "comments": 8, "labels": ["models", "agent"]},
-    {"number": 18741, "updated": "2026-10-23", "comments": 17, "labels": ["agent", "chat"], "assignee": "DeJeune"},
-    {"number": 18150, "updated": "2026-10-23", "comments": 27, "labels": ["models"], "assignee": "DeJeune"},
-    {"number": 22401, "updated": "2026-10-22", "labels": ["agent", "claude-code"]},
-    {"number": 21418, "updated": "2026-10-22", "labels": ["windows", "data", "v2"], "assignee": "DeJeune"},
-    {"number": 19929, "updated": "2026-10-22", "comments": 4, "labels": ["windows", "v2", "agent"]},
-    {"number": 20314, "updated": "2026-10-22", "comments": 2, "labels": ["ui-ux", "models", "agent"], "assignee": "404-Page-Found"},
-    {"number": 19321, "updated": "2026-10-22", "comments": 19, "labels": ["agent", "models"]},
-    {"number": 19316, "updated": "2026-10-22", "comments": 4, "labels": ["agent", "models"]},
-    {"number": 18373, "updated": "2026-10-22", "comments": 13, "labels": ["windows", "data"]},
-    {"number": 19788, "updated": "2026-10-22", "comments": 3, "labels": ["models"]},
-    {"number": 22137, "updated": "2026-10-21", "comments": 1, "labels": ["data"]},
-    {"number": 21864, "updated": "2026-10-20", "comments": 2, "labels": ["macos", "internal-team"]},
-    {"number": 22026, "updated": "2026-10-20", "comments": 1, "labels": ["data", "backup"]},
-    {"number": 21898, "updated": "2026-10-18", "comments": 1, "labels": ["windows", "claude-code"]},
-    {"number": 15690, "updated": "2026-10-20", "comments": 1, "labels": ["feature", "ui-ux", "internal-team"]},
-    {"number": 20361, "updated": "2026-10-19", "comments": 1, "labels": ["windows", "agent"]},
-    {"number": 21862, "updated": "2026-10-16", "comments": 1, "labels": ["feature", "internal-team"]},
-    {"number": 19989, "updated": "2026-10-16", "comments": 4, "labels": ["windows", "connectivity", "agent"]},
-    {"number": 19124, "updated": "2026-10-16", "comments": 4, "labels": ["models", "agent"]},
-    {"number": 18957, "updated": "2026-10-16", "labels": ["data", "internal-team"]},
-    {"number": 20365, "updated": "2026-10-17", "comments": 2, "labels": ["windows", "models", "performance", "chat"]},
-    {"number": 19441, "updated": "2026-10-22", "comments": 8, "labels": ["feature", "models"]}
+  "p1_stale_or_zombie": [
+    {
+      "number": 20692,
+      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
+      "days_since_update": 40,
+      "bucket": "stale"
+    },
+    {
+      "number": 19865,
+      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+      "days_since_update": 40,
+      "bucket": "stale"
+    }
+  ],
+  "zombie_issues": [
+    {
+      "number": 14198,
+      "title": "[Bug]: Switching model mid-conversation fails with No conversation found with session ID",
+      "created_at": "2026-04-11T15:00:49Z",
+      "days_since_update": 0,
+      "note": "Old issue, still getting comments"
+    }
+  ],
+  "high_comment_p1_issues": [
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation",
+      "comments": 53
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "comments": 46
+    },
+    {
+      "number": 19847,
+      "title": "[Bug]: Agent with DashScope Qwen3.8-Max terminates on a mid-response server error",
+      "comments": 28
+    },
+    {
+      "number": 20343,
+      "title": "Configured OCR fallback fails for image input on non-vision models",
+      "comments": 25
+    },
+    {
+      "number": 22121,
+      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part",
+      "comments": 8
+    }
   ]
 }

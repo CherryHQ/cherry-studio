@@ -1,77 +1,132 @@
 {
-  "generated_at": "2026-10-24T17:00:00Z",
-  "v2_branch_open_prs": 0,
-  "v2_labeled_open_issues": [
-    {"number": 20940, "title": "Responses API TypeValidation abort", "priority": "p1", "comments": 47, "updated": "2026-10-24"},
-    {"number": 20941, "title": "Work/Agent terminate empty no-response", "priority": "p1", "comments": 32, "updated": "2026-10-24"},
-    {"number": 22121, "title": "Responses reasoning delta uninitialized", "priority": "p1", "comments": 6, "updated": "2026-10-24"},
-    {"number": 21418, "title": "Restore EPERM — data cannot be restored (Windows)", "priority": "p1", "updated": "2026-10-22", "assignee": "DeJeune"},
-    {"number": 21667, "title": "Agent blocked: pi-ai image history >20 MiB (Windows)", "priority": "p2", "updated": "2026-10-23"},
-    {"number": 20937, "title": "DSH cannot read under Program Files (EPERM)", "priority": "p1", "updated": "2026-09-22"},
-    {"number": 20021, "title": "Windows OCR/embedding fail: onnxruntime_binding init", "priority": "p1", "updated": "2026-10-23"},
-    {"number": 20791, "title": "Windows 2.1.0 restore fails EPERM Local Storage rename", "priority": "p2", "updated": "2026-10-23"},
-    {"number": 19625, "title": "Windows in-app update leaves old 1.9.x installed", "priority": "p1", "updated": "2026-08-28"},
-    {"number": 17949, "title": "V2 regression: cannot check and manage topic prompt", "priority": "p1", "updated": "2026-08-28"}
-  ],
-  "open_pr_stacks": [
+  "generated_at": "2026-10-25T17:48:52.450669+00:00",
+  "v2_branch": {
+    "open_prs": 0,
+    "status": "v2 branch merged into main; development continues on main",
+    "recent_merged_sample": [
+      {
+        "number": 15371,
+        "title": "refactor(knowledge): knowledge workflow jobs round2",
+        "merged_at": "2026-05-28T12:33:18Z",
+        "track": "knowledge"
+      },
+      {
+        "number": 15363,
+        "title": "feat(file-manager): unified DirectoryTreeBuilder primitive for Notes",
+        "merged_at": "2026-05-28T15:33:49Z",
+        "track": "file-manager"
+      },
+      {
+        "number": 15356,
+        "title": "refactor(file-entry): use file entries for knowledge and processing",
+        "merged_at": "2026-05-27T14:52:07Z",
+        "track": "file-entry"
+      },
+      {
+        "number": 15330,
+        "title": "feat(file): register chat_message FileRefSourceType and backfill file_ref",
+        "merged_at": "2026-05-27T04:23:50Z",
+        "track": "file"
+      },
+      {
+        "number": 15309,
+        "title": "refactor(knowledge): knowledge v2 rfc and implement round 1",
+        "merged_at": "2026-05-27T03:54:26Z",
+        "track": "knowledge"
+      },
+      {
+        "number": 15265,
+        "title": "feat(translate): refresh translate page and shared drawer composition",
+        "merged_at": "2026-05-25T09:45:25Z",
+        "track": "ui"
+      },
+      {
+        "number": 15263,
+        "title": "feat(settings): redesign settings navigation",
+        "merged_at": "2026-05-27T08:53:22Z",
+        "track": "ui"
+      },
+      {
+        "number": 15214,
+        "title": "refactor(file-processing): migrate to JobManager",
+        "merged_at": "2026-05-21T02:54:40Z",
+        "track": "file-processing"
+      },
+      {
+        "number": 15213,
+        "title": "refactor(knowledge): migrate to JobManager",
+        "merged_at": "2026-05-21T02:54:59Z",
+        "track": "knowledge"
+      },
+      {
+        "number": 15186,
+        "title": "refactor(notes): migrate notes UI and data to v2",
+        "merged_at": "2026-05-25T11:52:52Z",
+        "track": "notes"
+      }
+    ]
+  },
+  "main_branch_open_prs": {
+    "total": 84,
+    "recent_5": [
+      {
+        "number": 22662,
+        "title": "fix(knowledge-ingestion): cancel interrupted file conversions at restart"
+      },
+      {
+        "number": 22657,
+        "title": "refactor(knowledge-ingestion): check file-processing results when the worker reports done"
+      },
+      {
+        "number": 22656,
+        "title": "feat(knowledge-data-source): import a folder by drag-and-drop"
+      },
+      {
+        "number": 22654,
+        "title": "fix(notes): bound generated note names and report the real rename outcome"
+      },
+      {
+        "number": 22651,
+        "title": "feat(provider): add Gisoo as a built-in provider"
+      }
+    ]
+  },
+  "active_refactor_tracks": [
     {
-      "name": "web-core-edition",
-      "prs": [22427, 22428, 22429, 22563],
-      "description": "Web Core edition (database layer → chat → Pi agents → harden with CSP)",
-      "status": "4 PRs in stack, foundation spec in #22427"
+      "track": "Data Layer",
+      "status": "in_progress",
+      "replacing": [
+        "Redux",
+        "Dexie",
+        "ElectronStore"
+      ],
+      "adopting": [
+        "Cache",
+        "Preference",
+        "DataApi (SQLite + Drizzle)"
+      ]
     },
     {
-      "name": "browser-session",
-      "prs": [22609, 22610],
-      "description": "Browser self-signed TLS trust for user-configured hosts (#22609), browser session retention marks and freeze retained tabs (#22610)",
-      "status": "2 new PRs opened today, to main"
+      "track": "UI Layer",
+      "status": "in_progress",
+      "replacing": [
+        "antd",
+        "HeroUI",
+        "styled-components"
+      ],
+      "adopting": [
+        "@cherrystudio/ui (Tailwind CSS + Shadcn UI)"
+      ]
     },
     {
-      "name": "agent-runtime-behavior",
-      "prs": [21995, 21996, 22010, 22014, 22107],
-      "description": "Harness-neutral agent behavior package, Pi runtime integration, native contexts",
-      "status": "Active development, feature branches"
+      "track": "Knowledge/File Processing",
+      "status": "active",
+      "notes": "Recent PRs adding JobManager, folder drag-and-drop, file ingestion restart safety"
     },
     {
-      "name": "persist-follow-up-queue",
-      "prs": [22384, 22385, 22386, 22387],
-      "description": "4-part split from #20440: data layer → lifecycle → hook → composer UI",
-      "status": "Sequential split; #22384 targets main"
-    },
-    {
-      "name": "knowledge-ingestion",
-      "prs": [22089, 22090, 22094],
-      "description": "Batch imports beyond 20 files (#22089 ready-to-merge), file preparing state (#22094 ready-to-merge), embedding backfill",
-      "status": "2 PRs ready-to-merge"
-    },
-    {
-      "name": "shared-memory",
-      "prs": [22082, 22088, 22068],
-      "description": "Shared user memory runtime, assistant opt-in, desktop shared memory",
-      "status": "Feature development on codex branches"
+      "track": "Agent Runtime",
+      "status": "active",
+      "notes": "spec PRs open: message-tree, native-contexts, input-correlation"
     }
-  ],
-  "ready_to_merge": [
-    {"number": 22089, "title": "feat(knowledge-ui): allow knowledge batch imports beyond 20 files", "base": "main"},
-    {"number": 22094, "title": "feat(knowledge-ingestion): let file items wait in preparing while copied in", "base": "eurfelux/knowledge-file-preparing-state"}
-  ],
-  "upcoming_features_from_open_prs": [
-    "Web Core browser edition (database, chat, Pi agent tiers)",
-    "Browser session: TLS trust for self-signed certs on user-configured hosts",
-    "Browser session: retention marks and freeze for retained tabs",
-    "Voice dictation: reliable transcription for maximum-length recordings (#22611)",
-    "Shared user memory across assistants",
-    "Knowledge base: batch imports >20 files",
-    "Follow-up queue persistence (4-part implementation)",
-    "Agent behavior harness-neutral package",
-    "Browser download manager with segmented transfers",
-    "MCP Multi Calendar and Multi Mail hosted integrations",
-    "Voice: Kokoro read-aloud by speech duration",
-    "Provider: DotHoosh, Superbot, AI Stupid Level, Desearch, ContextFetch"
-  ],
-  "today_new_prs": [
-    {"number": 22611, "title": "fix(voice): make maximum-length dictation recordings transcribe reliably", "base": "main", "author": "angri450"},
-    {"number": 22610, "title": "feat(browser-session): expose retention marks and freeze retained tabs", "base": "main", "author": "angri450"},
-    {"number": 22609, "title": "feat(browser): trust self-signed certificates for user-configured hosts", "base": "main", "author": "angri450"}
   ]
 }
