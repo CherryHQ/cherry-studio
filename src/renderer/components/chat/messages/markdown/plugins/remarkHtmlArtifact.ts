@@ -242,10 +242,16 @@ const SAME_NODE_RAW_TEXT_ELEMENT_NAMES = RAW_TEXT_ELEMENT_NAMES.filter(
 // attribute — can never close a disclosure. Disclosure tags consume their full attribute list
 // (`title="</details>"` is legal HTML whose decoy must not reach the depth counter); a generic
 // tag does the same so a quoted `>` never ends the tag early.
-const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
-  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:foreignobject|desc|title)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
-  'gi'
-)
+const CONTAINER_LEXICAL_TOKEN_PATTERN = `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:foreignobject|desc|title)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`
+// Anchored: every token alternative starts at a fixed marker, so the candidate positions are
+// found with linear monotone searches and the token is matched AT its own position. A failed
+// anchored attempt never re-scans the input — the unanchored regex retries its attribute-soup
+// backtracking at every later opener, which is quadratic on inputs like `<div>\n<a <a … " >`
+// (no complete token, every position carries an unfinished-tag attempt).
+const CONTAINER_LEXICAL_TOKEN_STICKY_REGEX = new RegExp(CONTAINER_LEXICAL_TOKEN_PATTERN, 'yi')
+// First `</` opening one of the dedicated close-token alternatives — the third candidate class
+// (comments, CDATA and tag openers have their own linear searches).
+const CONTAINER_CLOSE_TOKEN_START_REGEX = /<\/(?:details|foreignobject|desc|title|svg|math)(?=[\s>/])/gi
 
 // Script data tokenizer regions (HTML spec): `<!--` opens the escaped region and a `<script`
 // inside it re-enters double-escaping — there a literal `</script>` only steps back to escaped
@@ -485,6 +491,10 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
   // token iteration pays a full O(n) re-scan (quadratic on token-dense input).
   let commentStart: number | undefined
   let cdataStart: number | undefined
+  // The close-token candidate search and its cursor: same monotone cache, plus a cursor that
+  // survives a skipped candidate (a `</name…` prefix that never completes in this node).
+  let closeStart: number | undefined
+  let closeCursor = 0
   while (position < value.length) {
     // An unterminated comment keeps swallowing content — across later nodes — until its `-->`.
     if (state.inComment) {
@@ -544,61 +554,90 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
       continue
     }
 
-    // Every token alternative ends in `>` (tags, comments, CDATA): with no `>` left the exec
-    // below could only fail — and retrying its unanchored scan at every unterminated opener is
-    // quadratic on streamed attribute soup. Skip straight to the opener/comment handling, which
-    // returns within one iteration.
-    let match: RegExpExecArray | null = null
-    if (value.indexOf('>', position) !== -1) {
-      CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = position
-      match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
-    }
-    // A comment opening before the next token cannot terminate in the remaining input (a
-    // complete comment would have matched as the token itself): it swallows the rest of the
-    // input — across later nodes — so no boundary inside it may be trusted.
+    // Token candidates: every alternative starts at a fixed marker (`<!--`, `<![CDATA[`, a
+    // `</`-close of the dedicated names, or a tag opener `<`+letter), and each marker is found
+    // with a linear monotone search. The EARLIEST candidate wins and its token is matched
+    // ANCHORED at its own position — an unanchored exec here instead retries the attribute-soup
+    // backtracking at every later opener, which is quadratic on `<div>\n<a <a … " >`.
     if (commentStart === undefined || (commentStart !== -1 && commentStart < position)) {
       commentStart = value.indexOf('<!--', position)
     }
     if (cdataStart === undefined || (cdataStart !== -1 && cdataStart < position)) {
       cdataStart = value.indexOf('<![CDATA[', position)
     }
-    // Same detection for a tag opener that precedes the first complete token: the token
-    // alternatives match ANY complete tag at its own position, so an opener earlier than the
-    // first match never completes in this node — its attribute text may hide boundaries.
+    if (closeCursor < position) closeCursor = position
+    if (closeStart === undefined || (closeStart !== -1 && closeStart < closeCursor)) {
+      CONTAINER_CLOSE_TOKEN_START_REGEX.lastIndex = closeCursor
+      const closeCandidate = CONTAINER_CLOSE_TOKEN_START_REGEX.exec(value)
+      closeStart = closeCandidate !== null ? closeCandidate.index : -1
+      closeCursor = closeCandidate !== null ? closeCandidate.index : value.length
+    }
+    // A tag opener that precedes every complete token never completes in this node — its
+    // attribute text may hide boundaries.
     TAG_OPENER_REGEX.lastIndex = position
     const opener = TAG_OPENER_REGEX.exec(value)
     const tagStart = opener?.index
-    const tagFirst =
-      tagStart !== undefined &&
-      (match === null || tagStart < match.index) &&
-      (commentStart === -1 || tagStart < commentStart) &&
-      (cdataStart === -1 || tagStart < cdataStart)
-    if (tagFirst) {
-      state.inTag = true
-      // A raw-text element whose attribute list dangles into later nodes opens its raw-text
-      // body the moment the tag completes — remember the element name for that transition.
-      const tagName = /^<([a-z][a-z0-9-]*)/i.exec(value.slice(tagStart))?.[1]?.toLowerCase()
-      if (tagName !== undefined && RAW_TEXT_CLOSE_REGEXES.has(tagName)) state.pendingRawText = tagName
-      const end = findUnfinishedTagEnd(value, tagStart + 1, state)
-      if (end === undefined) return { closed: false }
-      position = end + 1
-      state.inTag = false
-      applyCompletedTag(value, tagName, tagStart, end + 1, state)
+    // A comment opening before the next token cannot terminate in the remaining input (a
+    // complete comment would have matched as the token itself): it swallows the rest of the
+    // input — across later nodes — so no boundary inside it may be trusted.
+    const commentFirst =
+      commentStart !== -1 &&
+      (cdataStart === -1 || commentStart < cdataStart) &&
+      (closeStart === -1 || commentStart < closeStart) &&
+      (tagStart === undefined || commentStart < tagStart)
+    if (commentFirst) {
+      const end = value.indexOf('-->', commentStart + 4)
+      if (end === -1) {
+        state.inComment = true
+        return { closed: false }
+      }
+      position = end + 3
       continue
     }
     const cdataFirst =
       cdataStart !== -1 &&
-      (match === null || cdataStart < match.index) &&
-      (commentStart === -1 || cdataStart < commentStart)
+      (closeStart === -1 || cdataStart < closeStart) &&
+      (tagStart === undefined || cdataStart < tagStart)
     if (cdataFirst) {
-      state.inCDATA = true
+      const end = value.indexOf(']]>', cdataStart + 9)
+      if (end === -1) {
+        state.inCDATA = true
+        return { closed: false }
+      }
+      position = end + 3
+      continue
+    }
+    let match: RegExpExecArray | null = null
+    if (closeStart !== -1 && (tagStart === undefined || closeStart < tagStart)) {
+      // The dedicated close alternatives are the only ones that can match at a `</name` start.
+      CONTAINER_LEXICAL_TOKEN_STICKY_REGEX.lastIndex = closeStart
+      match = CONTAINER_LEXICAL_TOKEN_STICKY_REGEX.exec(value)
+      if (match === null) {
+        // The close never completes here (lookahead or `>` missing): skip its name and keep
+        // looking — the unanchored scan skipped it the same way.
+        closeCursor = closeStart + 2
+        closeStart = undefined
+        continue
+      }
+    } else if (tagStart !== undefined) {
+      CONTAINER_LEXICAL_TOKEN_STICKY_REGEX.lastIndex = tagStart
+      match = CONTAINER_LEXICAL_TOKEN_STICKY_REGEX.exec(value)
+      if (match === null) {
+        state.inTag = true
+        // A raw-text element whose attribute list dangles into later nodes opens its raw-text
+        // body the moment the tag completes — remember the element name for that transition.
+        const tagName = /^<([a-z][a-z0-9-]*)/i.exec(value.slice(tagStart))?.[1]?.toLowerCase()
+        if (tagName !== undefined && RAW_TEXT_CLOSE_REGEXES.has(tagName)) state.pendingRawText = tagName
+        const end = findUnfinishedTagEnd(value, tagStart + 1, state)
+        if (end === undefined) return { closed: false }
+        position = end + 1
+        state.inTag = false
+        applyCompletedTag(value, tagName, tagStart, end + 1, state)
+        continue
+      }
+    } else {
       return { closed: false }
     }
-    if (commentStart !== -1 && (match === null || commentStart < match.index)) {
-      state.inComment = true
-      return { closed: false }
-    }
-    if (!match) return { closed: false }
     position = match.index + match[0].length
 
     // A same-node raw-text element consumed its whole body including the end tag.
@@ -676,11 +715,12 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
   let rawText: string | undefined
   let foreignDepth = 0
   let foreignHtmlIntegrationDepth = 0
-  // Same monotone-position cache as the pairing scan: an end-of-input miss must not re-scan per
-  // token iteration.
+  // Same monotone-position caches as the pairing scan: an end-of-input miss must not re-scan
+  // per token iteration.
   let commentStart: number | undefined
-  CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = 0
-  let match: RegExpExecArray | null
+  let closeStart: number | undefined
+  let closeCursor = 0
+  let openerCursor = 0
   while (true) {
     // A raw-text body opened earlier in this node keeps swallowing content until its end tag;
     // `<plaintext>` never ends (body to end-of-input) and a script body ends where its
@@ -701,19 +741,58 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
       if (closeEnd === undefined) return undefined
       scanned = closeEnd
       rawText = undefined
-      CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = scanned
       continue
     }
-    // Same `>` pre-check as the pairing scan: every alternative needs one, and letting the
-    // unanchored exec retry at every unterminated opener is quadratic on attribute soup.
-    if (value.indexOf('>', scanned) === -1) return undefined
-    match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
-    if (match === null) return undefined
+    // Earliest candidate wins and its token is matched ANCHORED at its own position (same
+    // reasoning as the pairing scan: the unanchored exec retries its attribute-soup
+    // backtracking at every later opener, which is quadratic on `<div>\n<a <a … " >`).
     if (commentStart === undefined || (commentStart !== -1 && commentStart < scanned)) {
       commentStart = value.indexOf('<!--', scanned)
     }
-    if (commentStart !== -1 && commentStart < match.index) {
-      return undefined // an unfinished comment opens before the boundary and never terminates
+    if (closeCursor < scanned) closeCursor = scanned
+    if (closeStart === undefined || (closeStart !== -1 && closeStart < closeCursor)) {
+      CONTAINER_CLOSE_TOKEN_START_REGEX.lastIndex = closeCursor
+      const closeCandidate = CONTAINER_CLOSE_TOKEN_START_REGEX.exec(value)
+      closeStart = closeCandidate !== null ? closeCandidate.index : -1
+      closeCursor = closeCandidate !== null ? closeCandidate.index : value.length
+    }
+    if (openerCursor < scanned) openerCursor = scanned
+    TAG_OPENER_REGEX.lastIndex = openerCursor
+    const opener = TAG_OPENER_REGEX.exec(value)
+    const tagStart = opener?.index
+    if (tagStart !== undefined) openerCursor = tagStart
+    // An unfinished comment opening before the boundary never terminates: it swallows the rest
+    // of the node, so no boundary inside or after it (within this node) may be trusted.
+    if (
+      commentStart !== -1 &&
+      (closeStart === -1 || commentStart < closeStart) &&
+      (tagStart === undefined || commentStart < tagStart)
+    ) {
+      const end = value.indexOf('-->', commentStart + 4)
+      if (end === -1) return undefined
+      scanned = end + 3
+      continue
+    }
+    let match: RegExpExecArray | null = null
+    if (closeStart !== -1 && (tagStart === undefined || closeStart < tagStart)) {
+      CONTAINER_LEXICAL_TOKEN_STICKY_REGEX.lastIndex = closeStart
+      match = CONTAINER_LEXICAL_TOKEN_STICKY_REGEX.exec(value)
+      if (match === null) {
+        closeCursor = closeStart + 2
+        closeStart = undefined
+        continue
+      }
+    } else if (tagStart !== undefined) {
+      CONTAINER_LEXICAL_TOKEN_STICKY_REGEX.lastIndex = tagStart
+      match = CONTAINER_LEXICAL_TOKEN_STICKY_REGEX.exec(value)
+      if (match === null) {
+        // An opener that never completes in this node is transparent here (its interior is not
+        // consumed): skip it and keep looking, like the unanchored scan did.
+        openerCursor = tagStart + 1
+        continue
+      }
+    } else {
+      return undefined
     }
     scanned = match.index + match[0].length
     if (match[1] !== undefined) continue // a same-node raw-text body holds no real boundary
