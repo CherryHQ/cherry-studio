@@ -1189,9 +1189,13 @@ export class ClaudeCodeStreamAdapter {
     // stripped as a scratchpad block (cherry-pr-review round-9
     // fragmented-html-content-corruption). Fence carry takes precedence:
     // content inside an open fence is already literal.
+    // Cheap gate first: the full masked scan only runs when a text-element
+    // opener appears in the emitted context at all, so long code answers pay
+    // no per-delta rescan (main-test perf budget, inv_be69014e8d52ce1b).
+    const emittedContext = ctx.accumulatedText.slice(ctx.textBlockContextStart)
     const htmlCarry =
-      ctx.scratchpadStreamFenceCarry === ''
-        ? (unclosedHtmlTextElementOpener(ctx.accumulatedText.slice(ctx.textBlockContextStart)) ?? '')
+      ctx.scratchpadStreamFenceCarry === '' && /<(textarea|title|script|style)[\s>]/i.test(emittedContext)
+        ? (unclosedHtmlTextElementOpener(emittedContext) ?? '')
         : ''
     const prefix =
       ctx.scratchpadStreamFenceCarry +
