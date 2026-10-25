@@ -897,7 +897,8 @@ function finiteTokenCount(value: number | undefined): number {
 }
 
 /** Pre-outcome plugin message shape: both cwds are JSON-quoted, so parse back exactly. */
-const LEGACY_CWD_MISMATCH_PATTERN = /^persisted dsh session cwd (.*) does not match (.*)$/s
+const LEGACY_CWD_MISMATCH_PATTERN =
+  /^persisted dsh session cwd ("(?:[^"\\]|\\.)*") does not match ("(?:[^"\\]|\\.)*")$/s
 
 function parseLegacyCwdMismatch(error: unknown): { persistedCwd: string; requestedCwd: string } | undefined {
   const match = error instanceof Error ? LEGACY_CWD_MISMATCH_PATTERN.exec(error.message) : null

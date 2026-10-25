@@ -188,6 +188,25 @@ describe('DshRuntimeConnection session/open cwd recovery', () => {
     )
   })
 
+  it.each([
+    ['C:\\old', 'D:\\work does not match folder'],
+    ['C:\\old does not match folder', 'D:\\work'],
+    ['C:\\old "quoted" does not match folder', 'D:\\new "quoted" does not match folder']
+  ])('recovers legacy mismatches with delimiter-containing paths: %s -> %s', async (persistedCwd, requestedCwd) => {
+    runtimeMocks.bridgeRequest.mockImplementation((method: string) => {
+      if (method === 'session/open')
+        return Promise.reject(
+          new Error(
+            `persisted dsh session cwd ${JSON.stringify(persistedCwd)} does not match ${JSON.stringify(requestedCwd)}`
+          )
+        )
+      return Promise.resolve({})
+    })
+    await expect(new DshRuntimeConnection(connectInput).start()).rejects.toThrow(
+      `persisted cwd ${JSON.stringify(persistedCwd)} does not match requested cwd ${JSON.stringify(requestedCwd)}`
+    )
+  })
+
   it('passes through unrelated session/open failures unchanged', async () => {
     runtimeMocks.bridgeRequest.mockImplementation((method: string) => {
       if (method === 'session/open') return Promise.reject(new Error('dsh bridge exploded'))
