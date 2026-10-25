@@ -109,6 +109,7 @@ describe('regression execution plan', () => {
   it('keeps macOS-only scenarios out of Windows runs and leaves cross-platform cases applicable', () => {
     for (const id of [
       'MP-52',
+      'MP-56',
       'MP-68',
       'MP-70',
       'MP-72',
@@ -122,12 +123,14 @@ describe('regression execution plan', () => {
       'MP-121',
       'MP-127',
       'MP-132',
-      'MP-133'
+      'MP-133',
+      'MP-140'
     ] as const) {
       expect(supportsPlatform(id, 'macos')).toBe(true)
     }
     for (const id of [
       'MP-52',
+      'MP-56',
       'MP-68',
       'MP-72',
       'MP-77',
@@ -140,7 +143,8 @@ describe('regression execution plan', () => {
       'MP-121',
       'MP-127',
       'MP-132',
-      'MP-133'
+      'MP-133',
+      'MP-140'
     ] as const) {
       expect(supportsPlatform(id, 'windows'), id).toBe(false)
     }

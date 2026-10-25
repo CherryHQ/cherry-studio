@@ -302,7 +302,8 @@ export const REGRESSION_CASES = [
     title: 'Interrupt tasks and clean up background processes',
     task: '10-agent-runtimes',
     phase: '10-agent-runtimes',
-    capabilities: []
+    capabilities: [],
+    platforms: ['macos']
   },
   {
     id: 'MP-57',
@@ -794,7 +795,8 @@ export const REGRESSION_CASES = [
     title: 'Computer Use permissions and desktop control toggle',
     task: '20-system',
     phase: '20-system',
-    capabilities: []
+    capabilities: [],
+    platforms: ['macos']
   },
   {
     id: 'MP-141',

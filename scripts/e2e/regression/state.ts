@@ -10,10 +10,13 @@ export function createRun(metadata: RunMetadata): RegressionRun {
     startedAt: new Date().toISOString(),
     capabilities: {},
     phases: Object.fromEntries(
-      [...new Set(selectCases(metadata.task).map(({ phase }) => phase))].map((phase) => [
-        phase,
-        { status: 'pending', errors: [] }
-      ])
+      [
+        ...new Set(
+          selectCases(metadata.task)
+            .filter(({ id }) => supportsPlatform(id, metadata.platform))
+            .map(({ phase }) => phase)
+        )
+      ].map((phase) => [phase, { status: 'pending', errors: [] }])
     ),
     cases: Object.fromEntries(
       REGRESSION_CASES.map((testCase) => {
@@ -114,6 +117,11 @@ export function getRunVerdict(run: RegressionRun): RunVerdict {
   const applicable = Object.values(run.cases).filter(({ status }) => status !== 'not_applicable')
   const prefix = run.metadata.mode === 'tag' ? 'release' : 'development'
   const phases = Object.values(run.phases)
+  // A task whose every case is unsupported on this platform has nothing to execute here;
+  // excluding it is a correct result, not a blocked one.
+  if (selectCases(run.metadata.task).filter(({ id }) => supportsPlatform(id, run.metadata.platform)).length === 0) {
+    return `${prefix}_not_applicable`
+  }
   if (
     phases.some(({ status, errors }) => status === 'failed' || (errors.length > 0 && status !== 'blocked')) ||
     applicable.some(({ status }) => status === 'failed')

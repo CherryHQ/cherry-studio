@@ -26,9 +26,11 @@ const VERDICT_LABELS: Record<RunVerdict, string> = {
   development_pass: '✅ Development tests passed',
   development_failed: '❌ Development tests failed',
   development_blocked: '⛔ Development tests blocked',
+  development_not_applicable: '— No cases apply to this platform (development)',
   release_pass: '✅ Release acceptance passed',
   release_failed: '❌ Release acceptance failed',
-  release_blocked: '⛔ Release acceptance blocked'
+  release_blocked: '⛔ Release acceptance blocked',
+  release_not_applicable: '— No cases apply to this platform (release)'
 }
 
 const PLATFORM_LABELS: Record<Platform, string> = {
@@ -232,6 +234,9 @@ function aggregateVerdict(runs: RegressionRun[], missingPlatforms: Platform[], e
   if (verdicts.some((verdict) => verdict.endsWith('_failed'))) return `${prefix}_failed`
   if (missingPlatforms.length > 0 || verdicts.some((verdict) => verdict.endsWith('_blocked'))) {
     return `${prefix}_blocked`
+  }
+  if (verdicts.length > 0 && verdicts.every((verdict) => verdict.endsWith('_not_applicable'))) {
+    return `${prefix}_not_applicable`
   }
   return `${prefix}_pass`
 }

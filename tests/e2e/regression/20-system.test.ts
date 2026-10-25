@@ -668,10 +668,12 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
       { name: '辅助功能', panel: 'Privacy_Accessibility' },
       { name: '屏幕录制', panel: 'Privacy_ScreenCapture' }
     ] as const
+    const permissionStates = new Map<string, string>()
     for (const { name, panel } of permissions) {
       const row = settings.getByRole('heading', { name, exact: true }).locator('../..')
       await expect(row.locator('p')).toHaveText(/^(已授权|已拒绝|未确认|不可用)$/)
       const state = await row.locator('p').innerText()
+      permissionStates.set(name, state)
       expect(readNativePermission(panel), `${name}: ${state}`).toBe(state === '已授权' ? '1' : '0')
     }
     await screenshot('MP-140 step 2 permission states')
@@ -685,6 +687,12 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
 
     for (const { name } of permissions) {
       const guide = settings.getByRole('button', { name: `管理${name}权限`, exact: true })
+      const state = permissionStates.get(name)
+      if ((await guide.count()) === 0) {
+        // Settings only offer a guide while the permission is still missing.
+        expect(['已授权', '不可用'], `${name}: guide must be hidden only when nothing can be opened`).toContain(state)
+        continue
+      }
       await expect(guide).toHaveText('打开授权引导')
       await guide.click()
       await expect

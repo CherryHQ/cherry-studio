@@ -48,9 +48,11 @@ export type RunVerdict =
   | 'development_pass'
   | 'development_failed'
   | 'development_blocked'
+  | 'development_not_applicable'
   | 'release_pass'
   | 'release_failed'
   | 'release_blocked'
+  | 'release_not_applicable'
 
 export interface AggregateReport {
   verdict: RunVerdict

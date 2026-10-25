@@ -73,6 +73,23 @@ describe('Playwright run state', () => {
     expect(run.cases['S-01'].status).toBe('pending')
   })
 
+  it('reports a task with no applicable case on this platform as not applicable instead of blocked', () => {
+    const run = finalizeRun(
+      createRun({
+        appVersion: 'development',
+        commitSha: 'sha',
+        mode: 'branch',
+        platform: 'windows',
+        ref: 'main',
+        runner: 'windows-2022',
+        task: '08-code-tools'
+      })
+    )
+
+    expect(run.phases).toEqual({})
+    expect(getRunVerdict(run)).toBe('development_not_applicable')
+  })
+
   it('marks unselected tasks as not applicable', () => {
     const run = createRun({
       appVersion: 'development',

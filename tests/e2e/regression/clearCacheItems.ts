@@ -8,7 +8,9 @@ import { type BranchMessagesResponse, MessageSchema } from '@shared/data/types/m
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 
+import { evaluateCdpExpression } from '../../../scripts/e2e/regression/cdpClient'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { assertOwnedProcess, findListeningPid, MAIN_INSPECTOR_PORT } from '../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { sendChatMarker } from './chat'
@@ -27,6 +29,32 @@ export async function clearCacheItems(app: RegressionApp, page: Page, testInfo: 
     namingEnabled: await window.api.preference.get('topic.naming.enabled'),
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
+  // Branch launches divert logs into the run profile while a packaged build logs to the OS directory,
+  // so ask the run-owned application where cleanup will look instead of assuming one layout.
+  const appLogsDirectory = async () => {
+    const record = app.record
+    assertOwnedProcess(record, record.electronPid, 'electron')
+    const inspectArgument = record.args.find((arg) => /^--inspect(?:-brk)?=/.test(arg))
+    const inspectorPort = Number(inspectArgument?.split(':').at(-1)?.split('=').at(-1)) || MAIN_INSPECTOR_PORT
+    if (findListeningPid(record.platform, inspectorPort) !== record.electronPid) {
+      throw new Error('UNCOVERED: the run-owned application main process is unavailable')
+    }
+    const targets = (await (await fetch(`http://127.0.0.1:${inspectorPort}/json/list`)).json()) as {
+      type: string
+      webSocketDebuggerUrl: string
+    }[]
+    const target = targets.find(({ type }) => type === 'node')
+    if (!target) throw new Error('UNCOVERED: the run-owned main-process inspector target is missing')
+    return evaluateCdpExpression<string>(
+      target.webSocketDebuggerUrl,
+      `(async () => {
+        const application = Object.values(process.mainModule.require.cache)
+          .map(module => module.exports?.application).find(candidate => candidate?.getPath)
+        if (!application) throw new Error('UNCOVERED: application path inspection is unavailable')
+        return application.getPath('app.logs')
+      })()`
+    )
+  }
   const server = await startMockChatServer()
   const providerId = `regression-cache-${Date.now()}`
   const topicName = app.resourceName('Cache preservation')
@@ -161,7 +189,7 @@ export async function clearCacheItems(app: RegressionApp, page: Page, testInfo: 
       localStorage.setItem('persist:cherry-studio', JSON.stringify({ mp118: 'legacy fixture' }))
     })
     await openSettingsSection(page, 'Data')
-    const logDirectory = join(app.paths.profiles, app.record.profile, 'logs')
+    const logDirectory = await appLogsDirectory()
     const oldLog = join(logDirectory, 'mp118-history.log')
     await mkdir(logDirectory, { recursive: true })
     await writeFile(oldLog, 'MP118 previous session log\n'.repeat(2048))

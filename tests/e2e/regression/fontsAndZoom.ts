@@ -94,6 +94,21 @@ export async function fontsAndZoom(app: RegressionApp, mainWindow: Page, testInf
     expect(layout.overflow).toBeLessThanOrEqual(1)
   }
   const server = await startMockChatServer()
+  // Font availability differs per platform, so choose from the installed catalog instead of assuming one font exists.
+  const installedFonts = await page.evaluate(async () => {
+    const result = (await window.api.ipcApi.request('system.get_fonts')) as
+      | { ok: true; data: string[] }
+      | { ok: false; error: unknown }
+    if (!result.ok) throw new Error(JSON.stringify(result.error))
+    return result.data
+  })
+  const pickFont = (candidates: RegExp, label: string) => {
+    const font = installedFonts.find((name) => candidates.test(name))
+    if (!font) throw new Error(`UNCOVERED: no ${label} font is installed on this platform`)
+    return font
+  }
+  const bodyFont = pickFont(/^Arial$/i, 'Arial')
+  const codeFont = pickFont(/^(Menlo|Monaco|Consolas|Courier New)$/i, 'monospace')
   const providerId = `mp106-${Date.now()}`
   const assistantName = app.resourceName('Typography assistant')
   const topicName = app.resourceName('Typography code preview')
@@ -181,17 +196,17 @@ export async function fontsAndZoom(app: RegressionApp, mainWindow: Page, testInf
     const baseline = await typography()
     expect(baseline.text.size).toBe('14px')
     await openSettingsSection(page, 'Appearance')
-    await chooseFont('global', 'Arial')
-    await chooseFont('code', 'Menlo')
+    await chooseFont('global', bodyFont)
+    await chooseFont('code', codeFont)
     await setSize(18)
     await screenshot('MP-106 selected fonts and message size')
     await zoom().getByRole('button', { name: 'Zoom In', exact: true }).click()
     await expect(zoom()).toContainText('110%')
     await openTopic()
     const changed = await typography()
-    expect(changed.body.split(',')[0].replaceAll('"', '')).toBe('Arial')
-    expect(changed.text.family.split(',')[0].replaceAll('"', '')).toBe('Arial')
-    expect(changed.code.split(',')[0].replaceAll('"', '')).toBe('Menlo')
+    expect(changed.body.split(',')[0].replaceAll('"', '')).toBe(bodyFont)
+    expect(changed.text.family.split(',')[0].replaceAll('"', '')).toBe(bodyFont)
+    expect(changed.code.split(',')[0].replaceAll('"', '')).toBe(codeFont)
     expect(changed.text.size).toBe('18px')
     expect(changed.text.height).toBeGreaterThan(baseline.text.height)
     expect(changed.dpr / baseline.dpr).toBeCloseTo(1.1, 2)
