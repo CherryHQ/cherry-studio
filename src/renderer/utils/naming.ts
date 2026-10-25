@@ -218,6 +218,7 @@ export function normalizeGeneratedNoteName(text: string): string | null {
       .replace(/\s+/gu, ' ')
       .trim()
       .replace(/(?:\.md)+$/i, '')
+      .replace(/^[.\s]+/u, '')
     if (!usable.test(name)) continue
 
     name = sanitizeFilename(name)

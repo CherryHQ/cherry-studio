@@ -459,6 +459,12 @@ describe('naming', () => {
 describe('normalizeGeneratedNoteName', () => {
   it.each([
     ['Roadmap', 'Roadmap'],
+    ['# .NET Performance', 'NET Performance'],
+    ['## .. Deep dive', 'Deep dive'],
+    ['**.NET Core**', 'NET Core'],
+    ['.NET Performance', 'NET Performance'],
+    ['# .NET Performance\n\nbody paragraph', 'NET Performance'],
+    ['.. hidden', 'hidden'],
     ['# **Roadmap** [Plan](https://example.test/a/b)\n\nLater paragraph', 'Roadmap Plan'],
     ['```markdown\n# Roadmap\n```', 'Roadmap'],
     ['~~~md\n# Roadmap\n~~~', 'Roadmap'],
@@ -492,5 +498,14 @@ describe('normalizeGeneratedNoteName', () => {
     ['###\n...\n# Roadmap', 'Roadmap']
   ])('normalizes %j to %j', (text, expected) => {
     expect(normalizeGeneratedNoteName(text!)).toBe(expected)
+  })
+
+  it('never returns a hidden stem for Markdown-wrapped dot-prefixed titles', () => {
+    const titles = ['# .NET Performance', '## .. Deep dive', '**.NET Core**', '  > .NET Performance', '- .NET Core']
+
+    for (const text of titles) {
+      const name = normalizeGeneratedNoteName(text)
+      expect(name === null || !name.startsWith('.'), `Hidden note stem for ${JSON.stringify(text)}`).toBe(true)
+    }
   })
 })
