@@ -85,6 +85,7 @@ export {
   stripModelScratchpadBlocks,
   stripTrailingToolProtocolClosingFragments,
   summarizeModelMessages,
+  isPlausiblePartialTag,
   shouldDeferScratchpadStripping,
   textEndsWithPartialFenceMarker,
   textHasUnclosedCodeFence,

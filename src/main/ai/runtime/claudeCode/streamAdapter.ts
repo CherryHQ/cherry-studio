@@ -37,6 +37,7 @@ import type {
 
 import {
   confirmedOpenFenceStreamPrefix,
+  isPlausiblePartialTag,
   shouldDeferScratchpadStripping,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripTrailingToolProtocolClosingFragments,
@@ -1122,6 +1123,12 @@ export class ClaudeCodeStreamAdapter {
     }
     const tail = text.slice(lastOpen)
     if (tail.includes('>') || !/^<[a-z/!?]/i.test(tail)) {
+      return { emit: text, buffer: '' }
+    }
+    // A character that cannot appear in a tag prefix (the comma in `a<b, `)
+    // disproves the candidate: emit it as ordinary text instead of buffering
+    // it until block stop (cherry-pr-review: comparison-stream-stall).
+    if (!isPlausiblePartialTag(tail, 0)) {
       return { emit: text, buffer: '' }
     }
     return { emit: text.slice(0, lastOpen), buffer: tail }

@@ -964,6 +964,38 @@ describe('round-3 scanner regressions', () => {
   })
 })
 
+describe('round-4 scanner regressions (cherry-pr-review)', () => {
+  it('keeps nested list content indented four columns as literal code (nested-list-code)', () => {
+    // CommonMark: the nested marker sits two columns inside the parent item,
+    // five spaces of padding are one separator plus four, so the tag line is
+    // indented code and must survive stripping.
+    const input = '- Parent\n    -     <thinking>literal</thinking>\n\nDone.'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it('strips tab-led analysis that continues a list paragraph (tab-analysis-retained)', () => {
+    // The tab expands to four columns, but two are the enclosing list item's
+    // continuation indent: the analysis is list-paragraph content, not code.
+    const out = stripModelScratchpadBlocks('- Parent\n\n\t<analysis>SECRET</analysis>\n\n<summary>Public</summary>')
+    expect(out).not.toContain('SECRET')
+    expect(out).toContain('Public')
+  })
+
+  it('does not treat a comparison operator as unfinished markup (comparison-stream-stall)', () => {
+    expect(shouldDeferScratchpadStripping('For positive integers a<b, ')).toBe(false)
+    expect(shouldDeferScratchpadStripping('For positive integers a<b, and b<c, too.')).toBe(false)
+    // A genuinely truncated tag still defers stripping.
+    expect(shouldDeferScratchpadStripping('Use <th')).toBe(true)
+    expect(shouldDeferScratchpadStripping('Use <')).toBe(true)
+  })
+
+  it('parses quoted summary attributes without corrupting the extracted text (quoted-summary-opener)', () => {
+    expect(stripModelScratchpadBlocks('<summary title="a > b">Keep</summary>')).toBe('Keep')
+    expect(stripModelScratchpadBlocks('<analysis>draft\n<summary title="a > b">Keep</summary>')).toBe('Keep')
+  })
+})
+
 describe('trailing tool-protocol suffix scan cost (cherry-pr-review: whitespace replay)', () => {
   it('leaves a long whitespace-only tail untouched', () => {
     const text = 'Answer.' + ' '.repeat(8000)

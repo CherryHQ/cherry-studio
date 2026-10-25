@@ -2938,6 +2938,41 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).toBe('Use `<thinking>literal</thinking>`.')
     })
 
+    it('emits ordinary comparison text without waiting for block stop (cherry-pr-review: comparison-stream-stall)', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'For positive integers ' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'a<b, ' } })
+      )
+
+      const deltasBeforeStop = () =>
+        parts
+          .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+          .map((part) => part.delta)
+          .join('')
+      expect(deltasBeforeStop()).toBe('For positive integers a<b, ')
+
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'and b comes before c.' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      expect(deltasBeforeStop()).toBe('For positive integers a<b, and b comes before c.')
+    })
+
     it('emits the same inline-code literal for combined delivery and snapshot reconciliation', () => {
       const { adapter, parts } = createAdapter()
       const combined = '<thinking>internal</thinking>Use `<thinking>literal</thinking>`.'

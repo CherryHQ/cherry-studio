@@ -738,35 +738,95 @@ function unmaskInlineCodeSpans(text: string, spans: string[], placeholderBase = 
  * (cherry-pr-review inv_5cfd1b3f92913a5c).
  */
 function stripMarkdownContainerMarkers(line: string): string {
-  return stripMarkdownContainerMarkersDetailed(line).content
+  return stripMarkdownContainerMarkersDetailed(line, []).content
 }
 
 /**
- * Marker stripping with indentation accounting: when a marker itself carries
- * leading spaces (a quote or list marker nested below an outer container),
- * those spaces are the outer container's continuation indentation. Stripping
- * consumes them, so callers must not subtract the inherited list indentation
- * from the remaining content a second time (cherry-pr-review
- * inv_4f2b0c2d3f9c4a0b).
+ * Marker stripping with indentation accounting: enclosing list continuation
+ * columns are consumed level by level BEFORE any nested quote or list marker
+ * (the spaces ahead of a nested marker are the outer list's continuation
+ * indent, never the marker's own leading allowance), so the returned content's
+ * leading columns are already relative to the innermost container
+ * (cherry-pr-review inv_4f2b0c2d3f9c4a0b). Tab expansion alone must not count
+ * as container removal: a tab-led line inside a list item keeps its inherited
+ * indentation accounted through the walk (cherry-pr-review:
+ * tab-analysis-retained). A nested item's own marker can sit at its parent's
+ * content column, beyond the three optional columns measured from the raw
+ * line start; consuming the enclosing continuation first lets the marker
+ * pattern see it (cherry-pr-review: nested-list-code).
  */
-function stripMarkdownContainerMarkersDetailed(line: string): {
+function stripMarkdownContainerMarkersDetailed(
+  line: string,
+  enclosingLists: Array<{ column: number; quoteDepth: number }>
+): {
   content: string
   strippedQuoteDepth: number
   ownListMarkerStripped: boolean
+  markersStripped: boolean
 } {
   let rest = expandFencePrefixTabs(line)
   let strippedQuoteDepth = 0
   let ownListMarkerStripped = false
+  let markersStripped = false
+  let level = 0
+  // Column base of the current quote-depth segment: stacked list columns are
+  // measured within the container that holds the list, so crossing a quote
+  // marker restarts the column space at zero (cherry-pr-review
+  // inv_43213537eba0ef5c).
+  let base = 0
   for (;;) {
+    if (level < enclosingLists.length && enclosingLists[level].quoteDepth === strippedQuoteDepth) {
+      const need = enclosingLists[level].column - base
+      const spaces = /^ */.exec(rest)?.[0].length ?? 0
+      if (spaces >= need) {
+        rest = rest.slice(need)
+        base = enclosingLists[level].column
+        level++
+        continue
+      }
+      if (spaces > 0) {
+        // The line dedents out of this item: its leading spaces belong to
+        // shallower containers, so deeper items cannot continue here.
+        rest = rest.slice(spaces)
+        level = enclosingLists.length
+        continue
+      }
+      base = enclosingLists[level].column
+      level++
+      continue
+    }
     const quote = /^( {0,3})>[ ]?/.exec(rest)
     if (quote) {
       strippedQuoteDepth++
+      markersStripped = true
       rest = rest.slice(quote[0].length)
+      base = 0
+      continue
+    }
+    if (level < enclosingLists.length && enclosingLists[level].quoteDepth > strippedQuoteDepth) {
+      // A lazy continuation line may omit the quote markers between the text
+      // and a list nested inside them; the list continuation still applies.
+      const need = enclosingLists[level].column - base
+      const spaces = /^ */.exec(rest)?.[0].length ?? 0
+      if (spaces >= need) {
+        rest = rest.slice(need)
+        base = enclosingLists[level].column
+        level++
+        continue
+      }
+      if (spaces > 0) {
+        rest = rest.slice(spaces)
+        level = enclosingLists.length
+        continue
+      }
+      base = enclosingLists[level].column
+      level++
       continue
     }
     const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)/.exec(rest)
-    if (!list) return { content: rest, strippedQuoteDepth, ownListMarkerStripped }
+    if (!list) return { content: rest, strippedQuoteDepth, ownListMarkerStripped, markersStripped }
     ownListMarkerStripped = true
+    markersStripped = true
     // CommonMark list content uses one to four padding columns. Five or
     // more means one separator followed by indented code, not wider padding.
     const padding = list[3].length <= 4 ? list[3].length : 1
@@ -805,36 +865,24 @@ function maskIndentedCodeBlocks(text: string): {
   let inheritedListColumns = 0
   let listInsideQuote = false
   // Dedenting from a nested item may return to its outer list, not column zero.
-  const listColumnStack: number[] = []
-  // Quote depth of each stacked list item: a nested quote marker consumes the
-  // inherited indentation of lists OUTSIDE it, while a list inside the
-  // current container still contributes its continuation indent
-  // (cherry-pr-review inv_4f2b0c2d3f9c4a0b).
-  const listQuoteDepthStack: number[] = []
+  // Each entry's column is measured in the container holding the item, and
+  // quoteDepth records which quote segment that container is (cherry-pr-review
+  // inv_43213537eba0ef5c).
+  const listColumnStack: Array<{ column: number; quoteDepth: number }> = []
+  // List items enclosing the line being classified, outside in, captured
+  // after dedent pops but before the line's own item is pushed. The detailed
+  // stripper consumes their continuation columns so classification measures
+  // indentation relative to the innermost container.
+  let enclosingListStack: Array<{ column: number; quoteDepth: number }> = []
   const indentedCodeColumns = (line: string): number => {
-    const { content, strippedQuoteDepth, ownListMarkerStripped } = stripMarkdownContainerMarkersDetailed(line)
+    const { content } = stripMarkdownContainerMarkersDetailed(line, enclosingListStack)
     let columns = 0
     for (let k = 0; k < content.length; k++) {
       if (content[k] === ' ') columns += 1
       else if (content[k] === '\t') columns += 4 - (columns % 4)
       else break
     }
-    if (content !== line) {
-      // The line's own list marker was stripped: the remaining columns are
-      // already relative to that item's content column.
-      // Crossing into a deeper quote container consumes the inherited list
-      // indentation as the nested marker's own leading spaces; subtracting
-      // it again double-counts and exposes literal code inside the nested
-      // container. A list inside the CURRENT container (same quote depth)
-      // still contributes its continuation indent, so container paragraph
-      // text is not mistaken for code (cherry-pr-review
-      // inv_4f2b0c2d3f9c4a0b).
-      const innermostListQuoteDepth = listQuoteDepthStack.length
-        ? listQuoteDepthStack[listQuoteDepthStack.length - 1]
-        : -1
-      if (ownListMarkerStripped || !listInsideQuote || strippedQuoteDepth > innermostListQuoteDepth) return columns
-    }
-    return Math.max(0, columns - inheritedListColumns)
+    return columns
   }
   const isIndentedCodeLine = (line: string): boolean => line.trim() !== '' && indentedCodeColumns(line) >= 4
 
@@ -871,7 +919,7 @@ function maskIndentedCodeBlocks(text: string): {
     if (depth === 0 && listInsideQuote && line.trim()) {
       listInsideQuote = false
       listColumnStack.length = 0
-      listQuoteDepthStack.length = 0
+      enclosingListStack = []
       inheritedListColumns = 0
     }
     const expanded = listInsideQuote ? withoutQuote : rawExpanded
@@ -883,20 +931,19 @@ function maskIndentedCodeBlocks(text: string): {
     if (list) {
       const padding = list[3].length <= 4 ? list[3].length : 1
       const nextColumns = nestedOffset + list[1].length + list[2].length + padding
-      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] >= nextColumns) {
+      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1].column >= nextColumns) {
         listColumnStack.pop()
-        listQuoteDepthStack.pop()
       }
-      listColumnStack.push(nextColumns)
-      listQuoteDepthStack.push(depth)
+      enclosingListStack = [...listColumnStack]
+      listColumnStack.push({ column: nextColumns, quoteDepth: depth })
       inheritedListColumns = nextColumns
     } else if (expanded.trim() !== '') {
       const columns = expanded.length - expanded.trimStart().length
-      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] > columns) {
+      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1].column > columns) {
         listColumnStack.pop()
-        listQuoteDepthStack.pop()
       }
-      inheritedListColumns = listColumnStack[listColumnStack.length - 1] ?? 0
+      inheritedListColumns = listColumnStack[listColumnStack.length - 1]?.column ?? 0
+      enclosingListStack = [...listColumnStack]
     }
     // A new explicit quote container cannot inherit an outer paragraph.
     // Unmarked lazy continuation lines keep their paragraph's container.
@@ -1239,9 +1286,46 @@ export function textHasUnclosedInlineCode(text: string): boolean {
 
 /** Keep the outer tag's quote context before interpreting attribute text.
  * A later '<' or '>' inside an unfinished quoted value is not a new tag. */
+/**
+ * A `<` can only begin markup when what follows can still become a tag: a
+ * name of letters, digits and hyphens, then whitespace, attributes, `/` or
+ * `>`. Any other character right after the name (the comma in `a<b, c`)
+ * disproves the candidate, so buffered ordinary text is released instead of
+ * stalling the stream until block stop (cherry-pr-review:
+ * comparison-stream-stall).
+ */
+export function isPlausiblePartialTag(text: string, start: number): boolean {
+  let i = start + 1
+  if (text[i] === '/') i++
+  if (i >= text.length) return true
+  const char = text[i]
+  if (char === '!' || char === '?') return true
+  if (!/[a-z]/i.test(char)) return false
+  i++
+  while (i < text.length && /[a-z0-9-]/i.test(text[i])) i++
+  let quote = ''
+  for (; i < text.length; i++) {
+    const c = text[i]
+    if (quote) {
+      if (c === quote) quote = ''
+      continue
+    }
+    if (c === '"' || c === "'") {
+      quote = c
+      continue
+    }
+    if (c === '>') return true
+    if (/\s/.test(c) || c === '/' || c === '=') continue
+    if (/[a-z0-9_.:-]/i.test(c)) continue
+    return false
+  }
+  return true
+}
+
 function textHasIncompleteMarkup(text: string): boolean {
   for (let start = 0; start < text.length; start++) {
     if (text[start] !== '<' || isBackslashEscaped(text, start) || !/^<(?:[a-z/!?]|$)/i.test(text.slice(start))) continue
+    if (!isPlausiblePartialTag(text, start)) continue
     let quote = ''
     let end = start + 1
     for (; end < text.length; end++) {
@@ -1571,17 +1655,19 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
 /** Removes model scratchpad scaffolding from compaction output (see {@link MODEL_SCRATCHPAD_TAG_NAMES}). */
 function unwrapWholeSummaryWrapper(text: string): string | null {
   const trimmed = text.trim()
-  const opening = /^<summary\b[^>]*>/i.exec(trimmed)
-  if (!opening) {
+  // Quote-aware opener scan: a `>` inside a quoted attribute value does not
+  // end the tag (cherry-pr-review: quoted-summary-opener).
+  const parsed = parseOpeningTagAt(trimmed, 0)
+  if (!parsed || parsed.tagName.toLowerCase() !== 'summary' || parsed.isSelfClosing) {
     return null
   }
 
   const closing = /<\/summary\s*>$/i.exec(trimmed)
-  if (!closing || closing.index === undefined) {
+  if (!closing || closing.index === undefined || closing.index < parsed.opener.length) {
     return null
   }
 
-  return trimmed.slice(opening[0].length, closing.index)
+  return trimmed.slice(parsed.opener.length, closing.index)
 }
 
 export function stripModelScratchpadBlocks(raw: string): string {
@@ -1593,8 +1679,20 @@ export function stripModelScratchpadBlocks(raw: string): string {
   // A complete summary is usable even if the model forgot the leading
   // scratchpad's closing tag. Code/attribute literals are already masked.
   if (/^\s*<(?:analysis|assessment|thinking)\b/i.test(out)) {
-    const summary = /<summary\b[^>]*>([\s\S]*)<\/summary\s*>\s*$/i.exec(out)
-    if (summary) out = summary[1]
+    const closing = /<\/summary\s*>\s*$/i.exec(out)
+    if (closing && closing.index !== undefined) {
+      // Quote-aware opener scan, same as unwrapWholeSummaryWrapper: a quoted
+      // `>` must not truncate the opener (cherry-pr-review: quoted-summary-opener).
+      const openRe = /<summary\b/gi
+      let candidate: RegExpExecArray | null
+      while ((candidate = openRe.exec(out)) !== null && candidate.index < closing.index) {
+        const parsed = parseOpeningTagAt(out, candidate.index)
+        if (parsed && !parsed.isSelfClosing && candidate.index + parsed.opener.length <= closing.index) {
+          out = out.slice(candidate.index + parsed.opener.length, closing.index)
+          break
+        }
+      }
+    }
   }
   const unwrapped = unwrapWholeSummaryWrapper(out)
   if (unwrapped !== null) {
