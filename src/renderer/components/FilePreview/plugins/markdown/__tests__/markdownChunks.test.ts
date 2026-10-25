@@ -3549,6 +3549,29 @@ describe('a definition a footnote’s content holds', () => {
     expect(headingIds(content)).toEqual(['doc--hellox', 'doc--hello'])
     expect(chunkedHeadingIds(content, 1)).toEqual(headingIds(content))
   })
+
+  it('discovers a definition whose destination sits on the note’s line below', () => {
+    // The label’s own line ends at the colon and the destination is the note’s next content line,
+    // so the definition spans both — the parser accepts it there exactly as it does at the top
+    // level. Reading the label’s line alone left `x` unregistered and `#hello-1` without a target.
+    const content = `[^note]:\n    [x]:\n    /url\n# [hello][x]\n\n${'filler\n\n'.repeat(3072)}# hello\n\n[jump](#hello-1)\n`
+
+    const chunks = chunksOf(content)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(headingIds(content)).toEqual(['doc--hello', 'doc--hello-1'])
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
+
+  it('discovers a definition whose label wraps onto the note’s line below', () => {
+    // A label the parser reads whole may wrap inside the note as it does outside it: `[xx\nyy]`
+    // normalizes to the one label `xx yy`, and the reference spells the same whitespace.
+    const content = `[^note]:\n    [xx\n    yy]: /url\n# [hello][xx yy]\n\n${'filler\n\n'.repeat(3072)}# hello\n\n[jump](#hello-1)\n`
+
+    const chunks = chunksOf(content)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(headingIds(content)).toEqual(['doc--hello', 'doc--hello-1'])
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
 })
 
 describe('a document written with bare CR line endings', () => {

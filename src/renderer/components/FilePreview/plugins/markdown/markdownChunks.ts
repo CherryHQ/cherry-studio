@@ -2370,6 +2370,9 @@ export function splitMarkdownChunks(
   // reads a line the note's four columns fall short of as that paragraph's own, so the line belongs
   // to the definition wherever the reference to it renders.
   let footnoteParagraphOpen = false
+  // The lines still owed to a definition the note's content opened — its label or destination may
+  // wrap onto them — during which no paragraph of the note's own is open.
+  let nestedDefinitionLines = 0
   /**
    * The fenced code block open behind an enclosing container, or null. A fence opened behind quote
    * or list markers (`- ``` `, `> - ``` `) is content that block holds, so its lines reach
@@ -2448,6 +2451,28 @@ export function splitMarkdownChunks(
     recordHtmlHeadings(htmlBlockStart, htmlBlockContent.join('\n'))
     htmlBlockContent = []
     htmlComment.open = false
+  }
+
+  /**
+   * The definition a line of a footnote's content opens, or null when it opens none. The line is
+   * passed as the parser reads it inside the note — already past the note's own columns — and the
+   * lines below join it as far as they stay the note's: a definition's label or destination may
+   * wrap there the way it does at the top level. One that needs a line past that stretch, or past
+   * the window below, fails — the conservative read.
+   */
+  const nestedDefinitionAt = (held: string, from: number): { label: string; lines: number } | null => {
+    if (FOOTNOTE_DEFINITION_START.test(held)) return null
+    const projected = [held]
+    for (let ahead = 1; ahead <= 4 && from + ahead < lines.length; ahead += 1) {
+      const next = activeDefinitionContainer
+        ? stripDefinitionContainer(lines[from + ahead], activeDefinitionContainer)
+        : lines[from + ahead]
+      // A blank, a line outside the note's container, or one that opens a block of its own ends
+      // the stretch a definition may span; anything else continues the note's paragraph lazily.
+      if (next === null || !/\S/.test(next) || endsLazyParagraph(next)) break
+      projected.push(afterColumns(4, next))
+    }
+    return linkDefinition(projected, 0)
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -2679,21 +2704,22 @@ export function splitMarkdownChunks(
       definitionLines += 1
       // The note's lines are block content the parser reads inside it, so a definition one of them
       // opens defines its label for the whole document — the carried copy renders in every chunk,
-      // and only the scan's own label lookup needs it here. The line is read four columns into the
-      // note, the way the carried text parses there: deeper indent is code, a lazy line and a line
-      // the note's open paragraph spans are prose, and a footnote-shaped one belongs to the note.
-      let nestedDefinition = false
-      if (indentedContinuation && !isBlankLine(carried) && !footnoteParagraphOpen) {
-        const held = afterColumns(4, carried)
-        const nested = FOOTNOTE_DEFINITION_START.test(held) ? null : linkDefinition([held], 0)
+      // and only the scan's own label lookup needs it here. A definition the note's open paragraph
+      // spans cannot open at all, and the body lines of one that did leave no paragraph open.
+      let inNestedDefinition = false
+      if (nestedDefinitionLines > 0) {
+        nestedDefinitionLines -= 1
+        inNestedDefinition = true
+      } else if (indentedContinuation && !isBlankLine(carried) && !footnoteParagraphOpen) {
+        const nested = nestedDefinitionAt(afterColumns(4, carried), i)
         if (nested) {
           definedLabels.add(normalizeReferenceLabel(nested.label))
-          nestedDefinition = true
+          inNestedDefinition = true
+          nestedDefinitionLines = nested.lines - 1
         }
       }
-      // A definition is complete where it stands, so the line below it opens a block of its own
-      // rather than continuing a paragraph — the state the next line's own definition reads.
-      if (!isBlankLine(carried)) footnoteParagraphOpen = nestedDefinition ? false : continuesFootnoteParagraph(carried)
+      if (!isBlankLine(carried))
+        footnoteParagraphOpen = inNestedDefinition ? false : continuesFootnoteParagraph(carried)
       continue
     }
     // A footnote definition cannot interrupt a paragraph either, and the container in front of it
