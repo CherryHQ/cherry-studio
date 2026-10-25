@@ -207,6 +207,18 @@ describe('execution failure — SSE frame residue', () => {
     expect(failure.failure.stage).toBe('http')
   })
 
+  it('reads a retry wrapper’s nested status so its 504 stays an HTTP failure', () => {
+    // AI_RetryError carries the provider status on `lastError`, and the retry text repeats the 504
+    // body; without the nested status the runtime wording would claim it.
+    const failure = toExecutionFailure({
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts. Last error: No response from upstream',
+      stack: null,
+      lastError: { statusCode: 504, message: 'No response from upstream' }
+    })
+    expect(failure.failure.stage).toBe('http')
+  })
+
   it('keeps the runtime wording when the failure carries no HTTP status', () => {
     // The same wording without a provider status is still the runtime stopping before answering.
     const failure = toExecutionFailure({ name: 'Error', message: 'No response from upstream', stack: null })

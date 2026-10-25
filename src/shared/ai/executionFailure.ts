@@ -170,7 +170,13 @@ export function toExecutionFailure(
   // scaffolding in the message; unwrap to the provider's own payload first.
   const frame = extractSseErrorFrame(raw)
   const body = frame?.message ?? raw
-  const status = typeof error.statusCode === 'number' ? error.statusCode : (frame?.statusCode ?? extractHttpStatus(raw))
+  // A retry wrapper keeps the provider's status on the nested error, not on itself.
+  const nested = error.lastError as { statusCode?: unknown } | undefined
+  const nestedStatus = typeof nested?.statusCode === 'number' ? nested.statusCode : undefined
+  const status =
+    typeof error.statusCode === 'number'
+      ? error.statusCode
+      : (nestedStatus ?? frame?.statusCode ?? extractHttpStatus(raw))
   const category = isErrorCategory(error.providerErrorCategory)
     ? error.providerErrorCategory
     : isErrorCategory(error.claudeCodeExitCategory)
