@@ -2117,6 +2117,59 @@ describe('backgroundTasks', () => {
     )
   })
 
+  describe.skipIf(process.platform === 'win32')('stop reconciliation after a restart', () => {
+    it('keeps a stop-requested task running while live work remains without a recorded identity', async () => {
+      // A worker that started before any scan could reach it left no pid, ledger or group identity
+      // to re-check: the process table is the only evidence it is still working. A restart leaves
+      // the stop request behind, and reading that as `stopped` clears the last tracking of a task
+      // whose work is still live.
+      const bystander = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)'], { stdio: 'ignore' })
+      bystander.unref()
+      await vi.waitFor(() => expect(isPidAlive(bystander.pid!)).toBe(true), { timeout: 10_000 })
+      // The record's own pid: a worker that exited while the app was closed, so only the table is left.
+      const dead = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore' })
+      await new Promise((resolve) => dead.once('exit', resolve))
+      expect(isPidAlive(dead.pid!)).toBe(false)
+
+      const id = 'bt-stop-requested-unidentified'
+      const command = 'sleep 600'
+      try {
+        psSteer.read = (args) => {
+          // Only the candidate scan sees the orphan row; every other table read stays real.
+          if (args[0] === '-axwwo' && args[1] === 'pid=,ppid=,uid=,state=,etime=') {
+            return `${bystander.pid} 1 ${process.getuid?.()} S 00:00\n`
+          }
+          // A row whose environment is not printed: its command line is what ties it to the task.
+          if (args[0] === 'eww' && args[1] === '-o') return `${bystander.pid} ${command}`
+          if (args[0] === 'ww' && args[1] === '-o') return command
+          return null
+        }
+        await writeFile(
+          path.join(storageDir, `${id}${BACKGROUND_TASK_RECORD_EXT}`),
+          JSON.stringify({
+            id,
+            name: id,
+            command,
+            pid: dead.pid,
+            cwd: storageDir,
+            startedAt: new Date().toISOString(),
+            logFile: path.join(storageDir, `${id}.log`),
+            status: 'running',
+            exitCode: null,
+            signal: null,
+            stopRequestedAt: new Date().toISOString()
+          })
+        )
+
+        const reconciled = await getDetachedBackgroundTask(storageDir, id)
+        expect(reconciled?.status).toBe('running')
+      } finally {
+        psSteer.read = null
+        bystander.kill('SIGKILL')
+      }
+    })
+  })
+
   describe('isPidAlive', () => {
     it('sees the current process as alive', () => {
       expect(isPidAlive(process.pid)).toBe(true)

@@ -2588,6 +2588,9 @@ async function reconcileDetachedBackgroundTask(
     return record
   }
   if (record.stopRequestedAt) {
+    // A stop request is not proof the work ended: a worker that daemonized before any scan left no
+    // identity, so the same live-work evidence the fold below rests on must still be checked.
+    if (process.platform !== 'win32' && (await hasLiveGroupEvidence(storageDir, record, readCandidates))) return record
     return {
       ...record,
       status: 'stopped',
