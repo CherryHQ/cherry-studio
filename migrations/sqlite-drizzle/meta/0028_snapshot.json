@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e7952537-a5dd-47cb-a0e9-8246c1c27187",
+  "id": "48588181-f234-4284-b0ad-42d77aac81e4",
   "prevId": "d7821b2f-98c4-4781-a3fb-0afaea036bdb",
   "tables": {
     "agent": {
@@ -3255,6 +3255,154 @@
         }
       }
     },
+    "followup_queue_state": {
+      "name": "followup_queue_state",
+      "columns": {
+        "scope_key": {
+          "name": "scope_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "paused": {
+          "name": "paused",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "followup_queue": {
+      "name": "followup_queue",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "scope_key": {
+          "name": "scope_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "draft": {
+          "name": "draft",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "claim_token": {
+          "name": "claim_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "followup_queue_scope_key_idx": {
+          "name": "followup_queue_scope_key_idx",
+          "columns": [
+            "scope_key"
+          ],
+          "isUnique": false
+        },
+        "followup_queue_status_idx": {
+          "name": "followup_queue_status_idx",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
+        "followup_queue_scope_key_order_key_idx": {
+          "name": "followup_queue_scope_key_order_key_idx",
+          "columns": [
+            "scope_key",
+            "order_key"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "followup_queue_status_check": {
+          "name": "followup_queue_status_check",
+          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed')"
+        }
+      }
+    },
     "group": {
       "name": "group",
       "columns": {
@@ -4016,7 +4164,7 @@
         },
         "knowledge_item_type_status_check": {
           "name": "knowledge_item_type_status_check",
-          "value": "\n        (\"knowledge_item\".\"type\" IN ('url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'file' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
+          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
         },
         "knowledge_item_status_error_check": {
           "name": "knowledge_item_status_error_check",
