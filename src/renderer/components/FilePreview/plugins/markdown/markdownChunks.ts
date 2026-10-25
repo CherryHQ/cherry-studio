@@ -132,6 +132,20 @@ function openContainerFence(line: string): ContainerFence | null {
 }
 
 /**
+ * How a line stands to the container fence open above it: code the fence holds, the closing fence
+ * that ends it, or a line that leaves the container and so ends it too.
+ */
+function containerFenceStep(line: string, open: ContainerFence): 'code' | 'close' | 'end' {
+  const inside = afterQuoteMarkers(line, open.quotes)
+  if (inside === null) return 'end'
+  const base = columnCount(line.slice(0, line.length - inside.length))
+  const blankish = isBlankLine(inside)
+  if (!blankish && open.contentColumn > base + leadingColumns(inside)) return 'end'
+  const stripped = afterColumns(Math.max(open.contentColumn - base, 0), inside)
+  return !blankish && isClosingFence(stripped, open.fence) ? 'close' : 'code'
+}
+
+/**
  * The raw-HTML blocks a blank line does not close (CommonMark types 1–5); the remaining types end at
  * a blank line, which is already a boundary.
  */
@@ -858,6 +872,9 @@ function isSetextUnderline(line: string): boolean {
  */
 function isCompletedBlock(line: string, container: string | null, paragraphOpen: boolean): boolean {
   const content = container === null ? line : line.slice(container.length)
+  // A quote marker with nothing behind it opens an empty block quote, which interrupts the
+  // paragraph above it — so the line below starts a fresh block, not that paragraph's text.
+  if (container !== null && isBlankLine(pastQuoteMarkers(line).content)) return true
   return ATX_HEADING.test(content) || (paragraphOpen && isSetextUnderline(line)) || THEMATIC_BREAK.test(line)
 }
 
@@ -2313,15 +2330,11 @@ export function splitMarkdownChunks(
       // content column leaves the item — either way the fence ends with the block that held it, and
       // the line is read again below as an ordinary one. Blank lines, and marker lines whose
       // content is blank, stay inside: the code holds them.
-      const inside = afterQuoteMarkers(line, containerFence.quotes)
-      const base = inside === null ? 0 : columnCount(line.slice(0, line.length - inside.length))
-      const short = inside !== null && containerFence.contentColumn > base + leadingColumns(inside)
-      const blankish = inside !== null && isBlankLine(inside)
-      if (inside === null || (!blankish && short)) {
+      const step = containerFenceStep(line, containerFence)
+      if (step === 'end') {
         containerFence = null
       } else {
-        const stripped = afterColumns(Math.max(containerFence.contentColumn - base, 0), inside)
-        if (!blankish && isClosingFence(stripped, containerFence.fence)) containerFence = null
+        if (step === 'close') containerFence = null
         continue
       }
     }
@@ -2667,15 +2680,31 @@ export function splitMarkdownChunks(
     const localFootnoteNumber = (label: string): number | undefined => localFootnotes.get(label.toLowerCase())
     const chunkSlugs = new Map<string, string[]>()
     let inFence: Fence | null = null
+    // A fence behind quote or list markers is code to the parser — and to the walk above, which is
+    // where the headings were recorded — so the references it holds take no number here either.
+    let inContainerFence: ContainerFence | null = null
     for (let i = start; i < end; i++) {
       const line = lines[i]
       if (inFence) {
         if (isClosingFence(line, inFence)) inFence = null
         continue
       }
+      if (inContainerFence) {
+        const step = containerFenceStep(line, inContainerFence)
+        if (step === 'end') inContainerFence = null
+        else {
+          if (step === 'close') inContainerFence = null
+          continue
+        }
+      }
       const opened = parseFence(line)
       if (opened) {
         inFence = opened
+        continue
+      }
+      const containerOpened = openContainerFence(line)
+      if (containerOpened) {
+        inContainerFence = containerOpened
         continue
       }
       // A definition line is hoisted and read with the footnotes, not where it stands; its label is

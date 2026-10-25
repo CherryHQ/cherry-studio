@@ -2728,6 +2728,36 @@ describe('heading ids assigned from the text the renderer reads', () => {
 
     expect(chunkHeadingIds(content, 1)).toEqual(renderedHeadingIds(content))
   })
+
+  it('numbers a heading from the references outside a quoted fence, as the document does', () => {
+    // `[^other]` sits inside a quoted fenced block, so the renderer never reads it as a reference
+    // and both headings print `Title1`. Counting it in the chunk's own pass keyed the later heading
+    // `title2`, so the assignment `title1-1` went unclaimed and `#title1-1` named no target. The
+    // keys are asserted here rather than through `renderedHeadingIds`, whose parser leaves a
+    // footnote reference out of the heading text.
+    const content = [
+      '# Title[^n]',
+      '',
+      '> ```',
+      '> [^other]',
+      '> ```',
+      '# Title[^n]',
+      '',
+      '[jump](#title1-1)',
+      '',
+      '[^n]: note n',
+      '',
+      '[^other]: note other'
+    ].join('\n')
+
+    const chunks = chunksOf(content, 1)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(chunks.flatMap((chunk) => (chunk.headingSlugs ? [...chunk.headingSlugs.keys()] : []))).toEqual([
+      'title1',
+      'title1'
+    ])
+    expect(chunks.flatMap((chunk) => [...(chunk.headingSlugs?.values() ?? [])].flat())).toEqual(['title1', 'title1-1'])
+  })
 })
 
 describe('a list whose fence holds its items together', () => {
@@ -3339,6 +3369,27 @@ describe('pathological footnote and definition input', () => {
     const content = 'paragraph\n123. [x]: /wrong\n\n[x]: /right\n\nsee [x]'
 
     expect(hoistedDefinition(content)).toBe('[x]: /right')
+  })
+})
+
+describe('a definition below a marker-only quote', () => {
+  it('keeps the first definition ahead of a later duplicate when a quote marker line closes the paragraph', () => {
+    // `>` alone opens an empty quote and interrupts the paragraph above it, so the definition below
+    // it is the document's first. Reading the marker as paragraph text left the paragraph open,
+    // skipped that definition and hoisted the duplicate — the preview then linked to
+    // `second.example` where the unsplit document links to `first.example`.
+    const content = [
+      'paragraph',
+      '>',
+      '[guide]: https://first.example',
+      '',
+      '[guide]: https://second.example',
+      '',
+      '[guide]'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://first.example'])
+    expect(resolvedReferenceUrls(joined(chunksOf(content)))).toEqual(resolvedReferenceUrls(content))
   })
 })
 

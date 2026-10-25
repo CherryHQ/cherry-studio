@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MarkdownChunkPreview } from '../MarkdownChunkPreview'
@@ -17,6 +18,12 @@ vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: mocks.useVirtualizer
 // The slug tests assert real rendered heading ids, so the markdown pipeline must be the actual
 // package, not the global text stub. Everything else keeps its global mock.
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
+
+// A fenced block reaches an editor boundary that needs providers this preview test does not mount,
+// and no assertion here reads the code body.
+vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
+  CodeBlockView: ({ children }: { children?: ReactNode }) => <pre>{children}</pre>
+}))
 
 const virtualizerImpl = (options: { count: number }) => ({
   getVirtualItems: () => mocks.range.map((index) => ({ key: String(index), index, start: index * 30, size: 30 })),
@@ -164,6 +171,34 @@ describe('MarkdownChunkPreview', () => {
     const chunks = splitMarkdownChunks(content).chunks
     mocks.range = chunks.map((_, index) => index)
     const { container } = render(<MarkdownChunkPreview chunks={chunks} id="undefined-footnote" />)
+
+    const ids = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
+
+    expect(ids.map((id) => id?.split('--')[1])).toEqual(['title1', 'title1-1'])
+  })
+
+  it('keeps a duplicate heading’s document id when a quoted fence holds a footnote reference', async () => {
+    // The chunk’s own pass read `[^other]` inside the quoted code as a reference, so the later
+    // `# Title[^n]` was keyed `title2` while it renders `Title1`; the assignment went unclaimed,
+    // the heading fell back to the chunk’s own `title1`, and `#title1-1` named nothing even with
+    // both chunks mounted.
+    const content = [
+      '# Title[^n]',
+      '',
+      '> ```',
+      '> [^other]',
+      '> ```',
+      '# Title[^n]',
+      '',
+      '[jump](#title1-1)',
+      '',
+      '[^n]: note n',
+      '',
+      '[^other]: note other'
+    ].join('\n')
+    const chunks = splitMarkdownChunks(content, 1).chunks
+    mocks.range = chunks.map((_, index) => index)
+    const { container } = render(<MarkdownChunkPreview chunks={chunks} id="quoted-fence-footnote" />)
 
     const ids = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
 
