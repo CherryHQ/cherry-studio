@@ -1514,6 +1514,10 @@ export class ClaudeCodeStreamAdapter {
       return probe.trim() ? 'artifact' : 'not-artifact'
     }
     if (!trimmed.startsWith('<')) return 'not-artifact'
+    // Same impossible-tag-prefix gate as classifyScratchpadProbe: a '<' that
+    // cannot begin a tag is ordinary answer text (cherry-pr-review:
+    // impossible-tag-prefix stall).
+    if (!isPlausiblePartialTag(trimmed, 0)) return 'not-artifact'
     if (!trimmed.includes('>')) {
       return atBlockEnd ? 'not-artifact' : 'pending'
     }
@@ -1552,6 +1556,12 @@ export class ClaudeCodeStreamAdapter {
       return atBlockEnd ? { action: 'emit', visible: probe } : { action: 'pending' }
     }
     if (!trimmed.startsWith('<')) {
+      return { action: 'emit', visible: probe }
+    }
+    // A '<' that cannot begin any tag (a comparison, an arrow) is ordinary
+    // text: emit it instead of holding the answer for a '>' that settles
+    // nothing (cherry-pr-review: impossible-tag-prefix stall).
+    if (!isPlausiblePartialTag(trimmed, 0)) {
       return { action: 'emit', visible: probe }
     }
     if (!trimmed.includes('>')) {

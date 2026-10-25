@@ -953,11 +953,18 @@ function maskIndentedCodeBlocks(text: string): {
       inheritedListColumns = nextColumns
     } else if (expanded.trim() !== '') {
       const columns = expanded.length - expanded.trimStart().length
-      while (listColumnStack.length && listColumnStack[listColumnStack.length - 1].column > columns) {
-        listColumnStack.pop()
+      // Lazy paragraph continuation (CommonMark 0.31.2 §5, §4.4): with a
+      // paragraph open, a non-blank line without its own list marker that
+      // does not start a leaf block continues the paragraph - it can never
+      // open indented code, and the list structure it belongs to stays open
+      // (cherry-pr-review: lazy-list-continuation).
+      if (!paragraphOpen || explicitQuoteDepth(line) > 0 || isLeafBlockBoundaryLine(line, paragraphOpen)) {
+        while (listColumnStack.length && listColumnStack[listColumnStack.length - 1].column > columns) {
+          listColumnStack.pop()
+        }
+        inheritedListColumns = listColumnStack[listColumnStack.length - 1]?.column ?? 0
+        enclosingListStack = [...listColumnStack]
       }
-      inheritedListColumns = listColumnStack[listColumnStack.length - 1]?.column ?? 0
-      enclosingListStack = [...listColumnStack]
     }
     // A new explicit quote container cannot inherit an outer paragraph.
     // Unmarked lazy continuation lines keep their paragraph's container.
@@ -966,6 +973,19 @@ function maskIndentedCodeBlocks(text: string): {
     if (depth > 0) quoteDepth = depth
     if (line.trim() === '' || isContainerOnlyLine(line)) {
       paragraphOpen = false
+      // A raw blank line (no quote marker) ends its blockquote: list state
+      // the quote owned dies with it, while list levels outside any quote
+      // survive (blank lines do not end lists). A following quote is a fresh
+      // blockquote, not a continuation (cherry-pr-review:
+      // separate-quote-list-state).
+      if (line.trim() === '') {
+        listInsideQuote = false
+        for (let k = listColumnStack.length - 1; k >= 0; k--) {
+          if (listColumnStack[k].quoteDepth > 0) listColumnStack.splice(k, 1)
+        }
+        inheritedListColumns = listColumnStack[listColumnStack.length - 1]?.column ?? 0
+        enclosingListStack = [...listColumnStack]
+      }
       outLines.push(line + (endings[i] ?? ''))
       i++
       continue
@@ -1516,6 +1536,21 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
       // inv_4f2b0c2d3f9c4a0b).
       const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
       while (j < blockEnd) {
+        if (text[j] === '<') {
+          // A backtick opener may not pair past a scratchpad wrapper open
+          // tag: the unmatched private delimiter would pair into the public
+          // summary, and the crossing span would skip the block's real
+          // closing tag, deleting the public continuation
+          // (cherry-pr-review round-6 public-summary-boundary).
+          const wrapperOpen = parseOpeningTagAt(text, j)
+          if (
+            wrapperOpen &&
+            (isModelScratchpadTagName(wrapperOpen.tagName) || wrapperOpen.tagName.toLowerCase() === 'summary')
+          )
+            break
+          j++
+          continue
+        }
         if (text[j] !== '`') {
           j++
           continue

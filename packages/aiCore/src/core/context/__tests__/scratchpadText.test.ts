@@ -1109,3 +1109,35 @@ describe('confirmedOpenFenceStreamPrefix', () => {
     })
   })
 })
+
+describe('cherry-review round-6 findings', () => {
+  it('does not pair an unmatched private backtick into the public summary (public-summary-boundary)', () => {
+    // The unmatched private backtick must not pair with the public backtick
+    // before `echo`: that crossing span would skip the real `</analysis>`
+    // boundary and delete the public command.
+    const input =
+      '<analysis>Private uses unmatched ` marker.</analysis><summary>Run `echo "</analysis>"`, then deploy.</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Run `echo "</analysis>"`, then deploy.')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(
+      '<summary>Run `echo "</analysis>"`, then deploy.</summary>'
+    )
+  })
+
+  it('resets quote-owned list state at a raw blank line between blockquotes (separate-quote-list-state)', () => {
+    // Two separate blockquotes: the second quote's indented line is literal
+    // code per CommonMark, and the first quote's list columns must not leak
+    // past the raw blank line and unprotect it.
+    const input = '> - Parent\n\n>     <thinking>literal</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it('preserves lazy paragraph continuation when updating list state (lazy-list-analysis-retained)', () => {
+    // CommonMark reads the indented line as a lazy paragraph continuation,
+    // not code, so the analysis block must still strip.
+    const input = '123. Parent\n    <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
+    const expected = '123. Parent\n    \n\n<summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe(expected)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(expected)
+  })
+})

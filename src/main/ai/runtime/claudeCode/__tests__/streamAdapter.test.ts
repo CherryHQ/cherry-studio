@@ -5991,6 +5991,35 @@ describe('whitespace-heavy ordinary output suffix cost (cherry-pr-review)', () =
     ).toBe(answer)
   })
 
+  it('emits an answer that opens with an impossible tag prefix without stalling (cherry-pr-review)', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = '< 5 ms is excellent latency.\n\nThe gateway measures round trips per request and reports them.'
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (let i = 0; i < answer.length; i += 7)
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: answer.slice(i, i + 7) }
+        })
+      )
+    // Before content_block_stop, ordinary text must already be streaming.
+    const early = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(early).toContain('< 5 ms')
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(successResult())
+    const all = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(all).toBe(answer)
+  })
+
   it.each([
     ['whitespace tail after plain prose', 'Answer.' + ' '.repeat(2000)],
     ['strippable fragment then whitespace tail', 'Done</invoke>' + ' '.repeat(200)],
