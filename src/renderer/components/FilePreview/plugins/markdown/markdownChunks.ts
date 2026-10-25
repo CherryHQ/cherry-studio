@@ -1743,16 +1743,12 @@ function headingRenderedText(
         const unresolved =
           label.closed && segment[label.end] !== '(' && !definesLabel(normalizeReferenceLabel(referenceLabel))
         if (unresolved) {
-          // An unresolved reference whose own `[` never closed has no forward endpoint: `follow`
-          // is -1, and assigning it would restart the segment from 0 on the next step, so every
-          // such heading re-read the whole line. Consume the run as text instead.
-          if (follow < label.end) {
-            text += segment.slice(index, label.end)
-            index = label.end
-          } else {
-            text += segment.slice(index, follow)
-            index = follow
-          }
+          // The brackets stay literal text while the content inside them stays inline content the
+          // parser reads as such — `[A &amp; B]` renders with the entity decoded — so the scan
+          // moves one character and reads the run where it stands, the closing bracket and the
+          // reference behind it included as the text they are.
+          text += character
+          index += 1
         } else if (malformed) {
           // The bracket is text the parser left standing; the link a label inside it writes may
           // still be one, so the scan moves one character and reads from the bracket after it.

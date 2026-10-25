@@ -3504,6 +3504,19 @@ describe('a heading whose text a character reference spells', () => {
 
     expect(chunkedHeadingIds(content, 1)).toEqual(headingIds(content))
   })
+
+  it('reads an unresolved reference’s content the way the renderer decodes it', () => {
+    // The document never defines `A &amp; B`, so both headings render the reference as literal
+    // text — brackets included — but the entity inside it still decodes: both read `[A & B]` and
+    // number `a-b` and `a-b-1`. The scanner copied the run unparsed and keyed the base
+    // `a-amp-b`, so neither chunk claimed the assignment and `#a-b-1` named no target.
+    const content = `# [A &amp; B]\n\n${'filler\n\n'.repeat(3072)}# [A &amp; B]\n\n[jump](#a-b-1)\n`
+
+    const chunks = chunksOf(content)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(headingIds(content)).toEqual(['doc--a-b', 'doc--a-b-1'])
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
 })
 
 describe('a document written with bare CR line endings', () => {
