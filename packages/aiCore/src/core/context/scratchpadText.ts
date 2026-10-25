@@ -1062,12 +1062,13 @@ function maskCodeFences(text: string): {
     let blockCloseIdx = -1
     const enclosing = enclosingScratchpadTag(text, fenceStart, inlineRanges, scratchpadScan)
     if (enclosing) {
+      let inMarkup: ((index: number) => boolean) | undefined
       const findBlockClose = (from: number): number => {
         const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
         closer.lastIndex = from
         let match: RegExpExecArray | null
         while ((match = closer.exec(text)) !== null) {
-          if (isBackslashEscaped(text, match.index)) continue
+          if (isBackslashEscaped(text, match.index) || (inMarkup ??= htmlOpeningTagLookup(text))(match.index)) continue
           // A closer mentioned inside a complete inline-code span is literal
           // code content (e.g. Example `</analysis>` in the following
           // summary), never the block boundary (cherry-pr-review

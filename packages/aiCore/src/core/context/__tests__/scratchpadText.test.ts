@@ -13,6 +13,12 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('ignores opaque closers while bounding unfinished scratchpad fences (inv_3fd1bf2ede509a71)', () => {
+    const input = '<analysis>Private\n```xml\n<!-- </analysis> -->\nSECRET\n</analysis>\n<summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Public')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET')
+  })
+
   it('tracks list indentation inside quotes (inv_43213537eba0ef5c)', () => {
     const input = '> - Notes:\n>\n>     <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
     expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')

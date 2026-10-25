@@ -150,6 +150,8 @@ type StreamContext = {
   currentReasoningPartId: string | undefined
   textPartId: string | undefined
   accumulatedText: string
+  /** Snapshot text before this block is not Markdown context for its deltas. */
+  textBlockContextStart: number
   streamedTextLength: number
   usage: LanguageModelV3Usage
   hasReceivedStreamEvents: boolean
@@ -612,6 +614,7 @@ export class ClaudeCodeStreamAdapter {
       currentReasoningPartId: undefined,
       textPartId: undefined,
       accumulatedText: '',
+      textBlockContextStart: 0,
       streamedTextLength: 0,
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
@@ -1033,6 +1036,7 @@ export class ClaudeCodeStreamAdapter {
   ): void {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
+    ctx.textBlockContextStart = ctx.accumulatedText.length
     ctx.textPartId = partId
     ctx.scratchpadTextProbe = ''
     ctx.suppressActiveTextPart = false
@@ -1122,7 +1126,7 @@ export class ClaudeCodeStreamAdapter {
     // indented-code line whose whitespace already emitted would be scanned as
     // column-zero text and lose literal code content (cherry-pr-review
     // inv_b4f675e18911386f).
-    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText)
+    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
     // A delta continues the line the previous chunk left open: carry that
     // line's emitted content so the scanner classifies the combined first
     // line with its real Markdown block context. Without it, a chunk like
@@ -1132,7 +1136,7 @@ export class ClaudeCodeStreamAdapter {
     // normalized with full-block context - appends the mismatched suffix
     // (cherry-pr-review inv_f7b234887ed722ff). The carry holds any trailing
     // backslash literally, subsuming the escape carry.
-    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText)
+    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
     const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
     const combined = prefix + ctx.scratchpadStreamRemainder + text
     ctx.scratchpadStreamRemainder = ''
@@ -2821,8 +2825,8 @@ export class ClaudeCodeStreamAdapter {
     // Scan the remainder with the same open-line context the streaming filter
     // carries, or flushed literal code can lose its block classification at
     // the boundary (cherry-pr-review inv_f7b234887ed722ff).
-    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText)
-    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText)
+    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
+    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
     const prefix = openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix
     const pending = prefix + ctx.scratchpadStreamRemainder
     ctx.scratchpadStreamRemainder = ''

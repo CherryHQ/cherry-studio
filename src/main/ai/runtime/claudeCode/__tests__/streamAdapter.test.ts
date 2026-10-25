@@ -5569,3 +5569,58 @@ it.each([
     expect(visible, `split ${split}`).toContain(_name === 'quoted list' ? 'Public' : 'Use `</analysis>` literally')
   }
 })
+
+it('scopes literal Markdown to the current text block after tools (inv_4308d66b8f8d8ccb)', () => {
+  const answer = '    <thinking>literal</thinking>\n\nExplanation.'
+  for (let split = 1; split < answer.length; split++) {
+    const { adapter, parts } = createAdapter()
+    const snapshot = (text: string) =>
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text }] }
+      } as any)
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Preamble.' } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    snapshot('Preamble.')
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: { type: 'tool_use', id: 'round-tool', name: 'Read', input: {} }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+    adapter.handleMessage({
+      type: 'user',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      parent_tool_use_id: null,
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'round-tool', content: 'ok' }] }
+    } as any)
+    const before = parts.length
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of [answer.slice(0, split), answer.slice(split)])
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    snapshot(answer)
+    adapter.handleMessage(successResult())
+    expect(
+      parts
+        .slice(before)
+        .filter((p) => p.type === 'text-delta')
+        .map((p) => (p as any).delta)
+        .join(''),
+      `split ${split}`
+    ).toBe(answer)
+  }
+})
