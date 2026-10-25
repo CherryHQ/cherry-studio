@@ -909,6 +909,56 @@ describe('runAgentTask', () => {
     )
   })
 
+  // The terminal dispatch awaits persistence before it reaches this fire's sentinel. A native task
+  // completing inside that window wakes and replaces the topic's stream, so a stash created by the
+  // later callback cannot join that wake: the chat keeps the fire's foreground reply and silently
+  // loses the background result. The obligation must exist when the dispatch opens.
+  it('records the wake obligation before the terminal dispatch awaits persistence', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    mockGetAdapter.mockImplementation(((channelId: string) =>
+      channelId === 'ch1'
+        ? {
+            channelId: 'ch1',
+            connected: true,
+            notifyChatIds: ['chat-1'],
+            sendMessage: vi.fn(async () => {}),
+            onTextUpdate: vi.fn(async () => {}),
+            onStreamComplete: vi.fn(async () => false)
+          }
+        : undefined) as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set(['task-a']))
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+
+    // The manager opens the terminal dispatch: `prepareTerminal` runs synchronously on every
+    // listener before the first persistence delivery, i.e. before a wake can replace the stream.
+    for (const listener of captured.listeners) listener.prepareTerminal?.(1)
+
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledWith(
+      expect.any(String),
+      [expect.objectContaining({ id: 'channel:ch1:chat-1:unthreaded' })],
+      new Set(['task-a'])
+    )
+
+    // The task drained inside that window and its wake claimed the recipients. The settle that runs
+    // afterwards must not strip them from the wake it no longer owns.
+    mockHasPendingBackgroundWork.mockReturnValue(false)
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+    expect(mockRemoveListener.mock.calls.map(([, listenerId]) => listenerId)).not.toContain(
+      'channel:ch1:chat-1:unthreaded'
+    )
+  })
+
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
   // once. The channel listener's generic `Error: …` is suppressed for task runs so only
   // the richer `[Task failed]` summary from notifyTaskError is delivered (no double-send).

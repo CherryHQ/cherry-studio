@@ -902,6 +902,13 @@ export class ChannelMessageHandler {
     }
     const sentinel: StreamListener = {
       id: sentinelId,
+      // The terminal dispatch awaits persistence before this sentinel's callback. A task completing
+      // in that window wakes and replaces the stream while the obligation is unrecorded, and a
+      // stash made afterwards cannot join that wake. Record it before the first await.
+      prepareTerminal() {
+        if (abortController.signal.aborted) return
+        retainForWake()
+      },
       onChunk(chunk) {
         // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
         if (chunk.type === 'text-delta') accumulatedText += chunk.delta

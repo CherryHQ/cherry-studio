@@ -359,6 +359,50 @@ describe('ChannelMessageHandler', () => {
     )
   })
 
+  // The terminal dispatch awaits persistence before the sentinel's callback. A background task
+  // completing inside that window wakes and replaces the topic's stream, so a stash written by the
+  // later callback cannot join that wake: the chat gets the foreground reply and loses the result.
+  // The obligation must be recorded when the dispatch opens, before the first await.
+  it('records the wake obligation before the terminal dispatch awaits persistence', async () => {
+    const adapter = createMockAdapter()
+    let sessionId = ''
+    const listenersAtStart: Array<{
+      id: string
+      prepareTerminal?: (attemptId: number) => void
+      onDone?: (r: unknown) => unknown
+    }> = []
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set(['task-inbound-1']))
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners, sessionId: id }: any) => {
+      sessionId = id
+      listenersAtStart.push(...listeners)
+      // The dispatch opens: `prepareTerminal` runs synchronously on every listener before any
+      // persistence delivery, i.e. before a wake can replace the stream.
+      for (const listener of listeners) listener.prepareTerminal?.(1)
+      return { mode: 'started' }
+    })
+
+    const pending = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-race',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'start it in the background'
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    await vi.waitFor(() => expect(listenersAtStart.length).toBeGreaterThan(1))
+
+    // Recorded while the terminal callbacks have not run yet — that is what lets a wake that starts
+    // during the dispatch's persistence await claim the chat.
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledWith(
+      `agent-session:${sessionId}`,
+      [expect.objectContaining({ id: 'channel:channel-1:chat-race:unthreaded' })],
+      new Set(['task-inbound-1'])
+    )
+
+    for (const listener of listenersAtStart) await listener.onDone?.({ status: 'success' })
+    await pending
+  })
+
   // Occupancy and membership are separate facts: the work can still be active while the membership
   // snapshot has already drained to empty. Retaining then records an EMPTY debt, which
   // `stashedWakeRecipientsDischarged` treats as already discharged — so the next wake, whatever work
