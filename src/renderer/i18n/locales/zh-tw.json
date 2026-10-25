@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "程式碼顯示行號",
   "chat.settings.thought_auto_collapse.label": "思考內容自動折疊",
   "chat.settings.thought_auto_collapse.tip": "思考結束後思考內容自動折疊",
+  "chat.stream_replay_truncated": "串流回放已截斷，目前回覆的部分早期內容可能遺失。",
   "chat.topics.auto_rename": "自動重新命名對話",
   "chat.topics.auto_rename_failed": "自動產生對話名稱失敗",
   "chat.topics.clear.title": "清空訊息",

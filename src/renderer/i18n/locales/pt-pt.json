@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "Exibir números de linha no código",
   "chat.settings.thought_auto_collapse.label": "Conteúdo de pensamento colapsado automaticamente",
   "chat.settings.thought_auto_collapse.tip": "O conteúdo de pensamento será colapsado automaticamente após a conclusão do pensamento",
+  "chat.stream_replay_truncated": "A reprodução do fluxo foi truncada. Pode faltar conteúdo anterior da resposta em curso.",
   "chat.topics.auto_rename": "Gerar nome de tópico",
   "chat.topics.auto_rename_failed": "Falha ao gerar nome da conversa automaticamente",
   "chat.topics.clear.title": "Limpar mensagens",

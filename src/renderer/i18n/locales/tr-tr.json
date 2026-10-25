@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "Kodda satır numaralarını göster",
   "chat.settings.thought_auto_collapse.label": "Düşünce İçeriğini Daralt",
   "chat.settings.thought_auto_collapse.tip": "Düşünme sona erdikten sonra düşünce içeriğini otomatik olarak daraltır",
+  "chat.stream_replay_truncated": "Akışın yeniden oynatımı kesildi. Devam eden yanıtın önceki içeriğinin bir kısmı eksik olabilir.",
   "chat.topics.auto_rename": "Konuşma adı oluştur",
   "chat.topics.auto_rename_failed": "Konuşma adı otomatik olarak oluşturulamadı",
   "chat.topics.clear.title": "Mesajları Temizle",

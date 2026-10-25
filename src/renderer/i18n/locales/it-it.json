@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "Mostra numeri di riga nel codice",
   "chat.settings.thought_auto_collapse.label": "Comprimi il ragionamento",
   "chat.settings.thought_auto_collapse.tip": "Comprimi automaticamente il contenuto del ragionamento al termine",
+  "chat.stream_replay_truncated": "La riproduzione del flusso è stata troncata. Potrebbero mancare contenuti precedenti della risposta in corso.",
   "chat.topics.auto_rename": "Genera nome della conversazione",
   "chat.topics.auto_rename_failed": "Impossibile generare automaticamente il nome della conversazione",
   "chat.topics.clear.title": "Cancella messaggi",

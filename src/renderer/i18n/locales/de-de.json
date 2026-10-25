@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "Code mit Zeilennummern anzeigen",
   "chat.settings.thought_auto_collapse.label": "Denkinhalt automatisch einklappen",
   "chat.settings.thought_auto_collapse.tip": "Denkinhalt wird nach Abschluss des Denkens automatisch eingeklappt",
+  "chat.stream_replay_truncated": "Die Stream-Wiedergabe wurde gekürzt. Frühere Inhalte der laufenden Antwort fehlen möglicherweise.",
   "chat.topics.auto_rename": "Themenname generieren",
   "chat.topics.auto_rename_failed": "Fehler beim automatischen Generieren des Gesprächsnamens",
   "chat.topics.clear.title": "Nachrichten leeren",

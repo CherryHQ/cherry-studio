@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "Показать номера строк в коде",
   "chat.settings.thought_auto_collapse.label": "Автоматически сворачивать содержание мыслей",
   "chat.settings.thought_auto_collapse.tip": "Автоматически сворачивать содержание мыслей после завершения размышления",
+  "chat.stream_replay_truncated": "Повторное воспроизведение потока было усечено. Часть раннего содержимого текущего ответа может отсутствовать.",
   "chat.topics.auto_rename": "Автопереименование",
   "chat.topics.auto_rename_failed": "Не удалось автоматически сгенерировать название беседы",
   "chat.topics.clear.title": "Очистить сообщения",

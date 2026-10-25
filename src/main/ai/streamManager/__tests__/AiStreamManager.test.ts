@@ -2036,6 +2036,7 @@ describe('AiStreamManager', () => {
 
       expect(response).toEqual({
         status: 'attached',
+        replayTruncated: false,
         bufferedChunks: [
           {
             topicId: 'a',
@@ -2059,7 +2060,7 @@ describe('AiStreamManager', () => {
       })
     })
 
-    it('ring buffer merges a same-part delta flood on ingest instead of evicting its opener', () => {
+    it('ring buffer merges a same-part delta flood on ingest instead of evicting its opener', async () => {
       // Regression: a long reasoning/text turn used to overflow the ring with
       // raw deltas, evicting the part's start chunk and leaving a replay that
       // `readUIMessageStream` rejects. Merged on ingest, the flood occupies a
@@ -2089,8 +2090,18 @@ describe('AiStreamManager', () => {
       const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.replayTruncated).toBe(false)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta'])
       expect(response.bufferedChunks[1].chunk).toMatchObject({ delta: '01234' })
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream })) message = snapshot
+      expect(message?.parts).toEqual([{ type: 'text', text: '01234', state: 'streaming' }])
     })
 
     it('per-execution ring buffer drops oldest chunk on overflow and tracks droppedChunks', () => {
@@ -2131,6 +2142,7 @@ describe('AiStreamManager', () => {
       const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.replayTruncated).toBe(true)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
         'text-start',
         'text-delta',
@@ -2171,6 +2183,7 @@ describe('AiStreamManager', () => {
       const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.replayTruncated).toBe(true)
 
       const errors: unknown[] = []
       const stream = new ReadableStream<UIMessageChunk>({
@@ -2219,6 +2232,7 @@ describe('AiStreamManager', () => {
       const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.replayTruncated).toBe(true)
       // Attach preserves the same ceiling instead of reassembling the retained
       // segments into one large string.
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta', 'text-delta'])
@@ -2260,6 +2274,7 @@ describe('AiStreamManager', () => {
 
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.replayTruncated).toBe(false)
       // The delta flood merged into one entry on ingest (nothing evicted), and
       // the replay synthesizes the never-sent text-start for the orphaned run.
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
@@ -2316,6 +2331,7 @@ describe('AiStreamManager', () => {
 
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.replayTruncated).toBe(false)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
         'tool-input-available',
         'text-start',
@@ -2337,6 +2353,113 @@ describe('AiStreamManager', () => {
       const after = approvalMgr.inspect('a')!
       expect(after.executions[0].bufferedChunkCount).toBe(4)
       expect(after.executions[0].droppedChunks).toBe(1)
+      expect(approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })).toMatchObject({
+        status: 'attached',
+        replayTruncated: true
+      })
+    })
+
+    it('aggregates sibling loss, preserves it across attaches, and leaves fresh executions clean', async () => {
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      ringMgr.send({
+        topicId: 'a',
+        models: [
+          { modelId: 'provider-a::model-a', request: req('a') },
+          { modelId: 'provider-b::model-b', request: req('a') }
+        ],
+        listeners: [new FakeListener('l:a')]
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p', delta: 'abcdefgh' })
+      ringMgr.onChunk('a', 'provider-b::model-b', { type: 'text-delta', id: 'lost', delta: 'earlier content' })
+      ringMgr.onChunk('a', 'provider-b::model-b', {
+        type: 'tool-input-available',
+        toolCallId: 'call',
+        toolName: 'search',
+        input: { q: 'survives' }
+      })
+      ringMgr.onChunk('a', 'provider-b::model-b', {
+        type: 'tool-output-available',
+        toolCallId: 'call',
+        output: { result: 'found' }
+      })
+      const sender = {
+        id: 1,
+        isDestroyed: () => false,
+        send: vi.fn(),
+        once: vi.fn()
+      } as unknown as Electron.WebContents
+      for (let i = 0; i < 2; i++) {
+        const response = ringMgr.attach(sender, { topicId: 'a' })
+        expect(response.status).toBe('attached')
+        if (response.status !== 'attached') throw new Error('Expected attached')
+        expect(response.replayTruncated).toBe(true)
+        const messages = new Map<string, CherryUIMessage>()
+        for (const executionId of ['provider-a::model-a', 'provider-b::model-b']) {
+          const stream = new ReadableStream<UIMessageChunk>({
+            start(controller) {
+              for (const payload of response.bufferedChunks) {
+                if (payload.executionId === executionId) controller.enqueue(payload.chunk)
+              }
+              controller.close()
+            }
+          })
+          for await (const message of readUIMessageStream<CherryUIMessage>({ stream }))
+            messages.set(executionId, message)
+        }
+        expect(messages.get('provider-a::model-a')?.parts).toEqual([
+          { type: 'text', text: 'abcdefgh', state: 'streaming' }
+        ])
+        expect(messages.get('provider-b::model-b')?.parts).toEqual([
+          expect.objectContaining({
+            type: 'tool-search',
+            toolCallId: 'call',
+            state: 'output-available',
+            input: { q: 'survives' },
+            output: { result: 'found' }
+          })
+        ])
+        expect(JSON.stringify(response.bufferedChunks)).not.toContain('earlier content')
+      }
+      startSingle(ringMgr, { topicId: 'fresh', modelId: 'provider-a::model-a', request: req('fresh'), listeners: [] })
+      ringMgr.onChunk('fresh', 'provider-a::model-a', { type: 'text-delta', id: 'p', delta: 'fresh' })
+      expect(ringMgr.attach(sender, { topicId: 'fresh' })).toMatchObject({ status: 'attached', replayTruncated: false })
+    })
+
+    it('retains pre-approval eviction while approval pins the surviving ring', () => {
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [] })
+      for (const id of ['lost', 'kept', 'latest']) {
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id, delta: id })
+      }
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'call',
+        toolName: 'search',
+        input: {}
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        toolCallId: 'call',
+        approvalId: 'approval'
+      })
+      const sender = {
+        id: 1,
+        isDestroyed: () => false,
+        send: vi.fn(),
+        once: vi.fn()
+      } as unknown as Electron.WebContents
+      for (let i = 0; i < 2; i++) {
+        const response = ringMgr.attach(sender, { topicId: 'a' })
+        expect(response).toMatchObject({ status: 'attached', replayTruncated: true })
+        if (response.status !== 'attached') throw new Error('Expected attached')
+        expect(response.bufferedChunks.map(({ chunk }) => chunk)).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ type: 'tool-input-available', toolCallId: 'call' }),
+            expect.objectContaining({ type: 'tool-approval-request', approvalId: 'approval' })
+          ])
+        )
+        expect(JSON.stringify(response.bufferedChunks)).not.toContain('lost')
+      }
     })
 
     it('stream remains accessible during grace period', async () => {

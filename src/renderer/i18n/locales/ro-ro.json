@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "Afișează numerele liniilor de cod",
   "chat.settings.thought_auto_collapse.label": "Restrânge conținutul gândirii",
   "chat.settings.thought_auto_collapse.tip": "Restrânge automat conținutul gândirii după ce gândirea se termină",
+  "chat.stream_replay_truncated": "Redarea fluxului a fost trunchiată. Este posibil să lipsească o parte din conținutul anterior al răspunsului în curs.",
   "chat.topics.auto_rename": "Redenumire automată",
   "chat.topics.auto_rename_failed": "Nu s-a reușit generarea automată a numelui conversației",
   "chat.topics.clear.title": "Șterge mesajele",

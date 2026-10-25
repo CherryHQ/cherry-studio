@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "Εμφάνιση αριθμού γραμμών στον κώδικα",
   "chat.settings.thought_auto_collapse.label": "Αυτόματη συμπίεση σκέψεων",
   "chat.settings.thought_auto_collapse.tip": "Μετά τη λήξη της σκέψης, η σκέψη αυτόματα συμπιεζεται",
+  "chat.stream_replay_truncated": "Η αναπαραγωγή της ροής περικόπηκε. Ενδέχεται να λείπει προηγούμενο περιεχόμενο από την τρέχουσα απάντηση.",
   "chat.topics.auto_rename": "Δημιουργία θέματος",
   "chat.topics.auto_rename_failed": "Αποτυχία αυτόματης δημιουργίας ονόματος συνομιλίας",
   "chat.topics.clear.title": "Καθαρισμός μηνυμάτων",

@@ -900,6 +900,7 @@
   "chat.settings.show_line_numbers": "แสดงหมายเลขบรรทัดในโค้ด",
   "chat.settings.thought_auto_collapse.label": "ยุบเนื้อหาความคิด",
   "chat.settings.thought_auto_collapse.tip": "ยุบเนื้อหาความคิดโดยอัตโนมัติหลังจากสิ้นสุดการคิด",
+  "chat.stream_replay_truncated": "การเล่นสตรีมซ้ำถูกตัดทอน เนื้อหาช่วงต้นบางส่วนของคำตอบปัจจุบันอาจหายไป",
   "chat.topics.auto_rename": "สร้างชื่อสนทนา",
   "chat.topics.auto_rename_failed": "ไม่สามารถสร้างชื่อสนทนาอัตโนมัติ",
   "chat.topics.clear.title": "ลบข้อความ",
