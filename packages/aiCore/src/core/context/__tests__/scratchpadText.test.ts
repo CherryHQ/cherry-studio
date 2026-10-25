@@ -13,6 +13,19 @@ import {
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
+  it('tracks list indentation inside quotes (inv_43213537eba0ef5c)', () => {
+    const input = '> - Notes:\n>\n>     <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(input)).not.toContain('SECRET')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET')
+  })
+  it('excludes opaque backticks from scratchpad boundary spans (inv_b7c24c0ee551e890)', () => {
+    const input = '<analysis>Use <!-- ` --> SECRET</analysis><summary>Use `</analysis>` literally</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Use `</analysis>` literally')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(
+      '<summary>Use `</analysis>` literally</summary>'
+    )
+  })
+
   it('ignores CDATA backticks during inline matching (inv_51b0729e38ad3e6f)', () => {
     expect(
       stripModelScratchpadBlocks('<summary>Keep<![CDATA[`]]><analysis>SECRET</analysis> public `x`</summary>')

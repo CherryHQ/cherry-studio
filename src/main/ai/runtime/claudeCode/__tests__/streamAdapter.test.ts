@@ -5490,3 +5490,82 @@ describe('compaction artifact boundary', () => {
     expect(text).toContain('Next steps')
   })
 })
+
+it('resumes text and tools when compaction is skipped (inv_27e56a8ba60b1117)', () => {
+  const { adapter, parts } = createAdapter()
+  for (const status of ['compacting', null])
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status
+    } as any)
+  adapter.handleMessage(
+    streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+  )
+  adapter.handleMessage(
+    streamEvent({
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'text_delta', text: 'Answer after skipped compaction' }
+    })
+  )
+  adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+  adapter.handleMessage(
+    streamEvent({
+      type: 'content_block_start',
+      index: 1,
+      content_block: { type: 'tool_use', id: 'skip-tool', name: 'Read', input: {} }
+    })
+  )
+  adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+  adapter.handleMessage(successResult())
+  expect(parts).toContainEqual(
+    expect.objectContaining({ type: 'text-delta', delta: 'Answer after skipped compaction' })
+  )
+  expect(parts.some((p) => p.type === 'tool-input-start')).toBe(true)
+})
+it('streams decisive literal indented code before block stop (inv_779ae69f6e7f2192)', () => {
+  const { adapter, parts } = createAdapter()
+  adapter.handleMessage(
+    streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+  )
+  for (const text of ['    <thinking>literal</thinking>\n\n', 'Explanation arrives now.'])
+    adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+  expect(
+    parts
+      .filter((p) => p.type === 'text-delta')
+      .map((p) => (p as any).delta)
+      .join('')
+  ).toBe('    <thinking>literal</thinking>\n\nExplanation arrives now.')
+})
+
+it.each([
+  ['quoted list', '> - Notes:\n>\n>     <analysis>SECRET</analysis>\n\n<summary>Public</summary>'],
+  ['opaque backtick', '<analysis>Use <!-- ` --> SECRET</analysis><summary>Use `</analysis>` literally</summary>']
+])('strips scratchpads through adapter snapshots: %s', (_name, answer) => {
+  for (let split = 1; split < answer.length; split++) {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of [answer.slice(0, split), answer.slice(split)])
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    const visible = parts
+      .filter((p) => p.type === 'text-delta')
+      .map((p) => (p as any).delta)
+      .join('')
+    expect(visible, `split ${split}`).not.toContain('SECRET')
+    expect(visible, `split ${split}`).toContain(_name === 'quoted list' ? 'Public' : 'Use `</analysis>` literally')
+  }
+})

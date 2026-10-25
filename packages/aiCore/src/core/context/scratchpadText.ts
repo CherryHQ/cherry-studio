@@ -783,6 +783,7 @@ function maskIndentedCodeBlocks(text: string): {
   // spaces, five/eight spaces, or repeated tabs (cherry-pr-review
   // inv_4ab3f6f347edda60, inv_c51149ed55871417).
   let inheritedListColumns = 0
+  let listInsideQuote = false
   // Dedenting from a nested item may return to its outer list, not column zero.
   const listColumnStack: number[] = []
   const indentedCodeColumns = (line: string): number => {
@@ -795,7 +796,7 @@ function maskIndentedCodeBlocks(text: string): {
     }
     // Explicit markers were stripped above; continuation lines still carry
     // the inherited list's content indentation.
-    return content !== line ? columns : Math.max(0, columns - inheritedListColumns)
+    return content !== line && !listInsideQuote ? columns : Math.max(0, columns - inheritedListColumns)
   }
   const isIndentedCodeLine = (line: string): boolean => line.trim() !== '' && indentedCodeColumns(line) >= 4
 
@@ -825,7 +826,15 @@ function maskIndentedCodeBlocks(text: string): {
     const line = lines[i]
     const depth = explicitQuoteDepth(line)
     const previousListColumns = inheritedListColumns
-    const expanded = expandFencePrefixTabs(line)
+    const rawExpanded = expandFencePrefixTabs(line)
+    const withoutQuote = rawExpanded.replace(/^(?: {0,3}> ?)+/, '')
+    if (/^ {0,3}(?:[-*+]|\d{1,9}[.)]) +/.test(withoutQuote) && withoutQuote !== rawExpanded) listInsideQuote = true
+    if (depth === 0 && listInsideQuote && line.trim()) {
+      listInsideQuote = false
+      listColumnStack.length = 0
+      inheritedListColumns = 0
+    }
+    const expanded = listInsideQuote ? withoutQuote : rawExpanded
     // Nested items begin at their parent's content column, which can exceed
     // the three optional columns allowed relative to the current container.
     const nestedOffset =
@@ -837,7 +846,7 @@ function maskIndentedCodeBlocks(text: string): {
       while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] >= nextColumns) listColumnStack.pop()
       listColumnStack.push(nextColumns)
       inheritedListColumns = nextColumns
-    } else if (line.trim() !== '') {
+    } else if (expanded.trim() !== '') {
       const columns = expanded.length - expanded.trimStart().length
       while (listColumnStack.length && listColumnStack[listColumnStack.length - 1] > columns) listColumnStack.pop()
       inheritedListColumns = listColumnStack[listColumnStack.length - 1] ?? 0
@@ -1288,13 +1297,14 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
   let depth = 1
   let end = -1
   const codeSpans: Array<{ start: number; end: number }> = []
+  let inMarkup: ((index: number) => boolean) | undefined
   let spanCursor = afterOpen
   const collectSpansUntil = (limit: number): void => {
     let pos = spanCursor
     while (pos < limit) {
       const tick = text.indexOf('`', pos)
       if (tick === -1 || tick >= limit) break
-      if (isBackslashEscaped(text, tick)) {
+      if (isBackslashEscaped(text, tick) || (inMarkup ??= htmlOpeningTagLookup(text))(tick)) {
         pos = tick + 1
         continue
       }

@@ -1216,6 +1216,12 @@ export class ClaudeCodeStreamAdapter {
    * carry handles those - so only content lines are returned.
    */
   private emittedOpenLinePrefix(accumulatedText: string): string {
+    // A quote-only blank keeps its list container. Retain a bounded quoted
+    // list prefix so continuation indentation is not mistaken for literal code.
+    const quotedList = /(?:^|\n)( {0,3}> ?(?:[-*+]|\d{1,9}[.)])[^\n]*\n(?: {0,3}>[^\n]*\n)*(?: {0,3}>[^\n]*)?)$/.exec(
+      accumulatedText.slice(-2048)
+    )
+    if (quotedList) return quotedList[1]
     // The remainder starts immediately after emitted text, even when it
     // spans several lines. Find context BEFORE it, not after its last newline
     // (inv_8286fc83dcddad15: split '1' + '. ```xml\n').
@@ -1446,6 +1452,12 @@ export class ClaudeCodeStreamAdapter {
     if (textStartsWithNonScratchpadOpeningTag(trimmed)) {
       return { action: 'emit', visible: probe }
     }
+
+    // A complete first line with four-column indentation is literal Markdown
+    // code. Its apparent scratchpad opener must not defer the rest of the answer.
+    const indent = /^[ \t]+/.exec(probe)?.[0] ?? ''
+    const indentColumns = [...indent].reduce((col, char) => col + (char === '\t' ? 4 - (col % 4) : 1), 0)
+    if (indentColumns >= 4 && /[\r\n]/.test(probe)) return { action: 'emit', visible: probe }
 
     if (textStartsWithModelScratchpadTag(probe)) {
       if (!atBlockEnd && (textHasUnclosedCodeFence(probe) || textHasUnclosedInlineCode(probe))) {
@@ -2348,6 +2360,14 @@ export class ClaudeCodeStreamAdapter {
       this.runtimeCompactionActive = true
       this.compactionPreemptsPendingAnswer = this.hasSeenGenuineUserPrompt && !this.assistantAnswerSinceUserPrompt
       this.statusSink.emit({ type: 'compaction-start' })
+      return
+    }
+    // A PreCompact hook may skip compaction: the SDK clears status without
+    // compact_result or a boundary. No summary exchange follows that exit.
+    if (this.runtimeCompactionActive && message.status === null && !message.compact_result && !message.compact_error) {
+      this.runtimeCompactionActive = false
+      this.compactionArtifactGrace = false
+      this.compactionPreemptsPendingAnswer = false
       return
     }
     if (message.compact_result === 'failed' || message.compact_error) {
