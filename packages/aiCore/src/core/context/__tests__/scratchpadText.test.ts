@@ -1204,6 +1204,28 @@ describe('cherry-pr-review round-9', () => {
   })
 })
 
+describe('cherry-pr-review round-13', () => {
+  it('excludes comment-contained fence markers from fence discovery (comment-fence-retains-analysis)', () => {
+    const input = '<analysis>Private <!--\n```xml\n--> SECRET </analysis>\n<summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Public')
+  })
+
+  it('control: textarea-contained fence marker still does not leak analysis', () => {
+    const input = '<analysis>Private <textarea>\n```xml\n</textarea> SECRET </analysis>\n<summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Public')
+  })
+
+  it('control: genuine fenced code stays literal', () => {
+    const input = '<summary>Before\n```xml\n<x/>\n```\nAfter</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Before\n```xml\n<x/>\n```\nAfter')
+  })
+
+  it('control: comment-contained marker outside scratchpad stays literal', () => {
+    const input = 'Note <!--\n```xml\n--> done'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+  })
+})
+
 describe('cherry-pr-review round-12', () => {
   it('does not treat literal inline-code tags as scratchpad boundaries (inline-code-range-discovery)', () => {
     const input = 'Use `<thinking>` and `</thinking>`, then `<thinking>` and `</thinking>`.'

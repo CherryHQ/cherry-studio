@@ -1351,6 +1351,46 @@ function maskCodeFences(text: string): {
   let out = ''
   const inheritedPrefix = inheritedFencePrefixLookup(text)
   let pos = 0
+  // HTML comments and CDATA sections are opaque character data: a fence
+  // marker inside one is literal text, never a Markdown fence
+  // (cherry-pr-review round-13 comment-fence-retains-analysis). The cursor
+  // advances monotonically with `pos`, keeping the scan linear; tag
+  // attributes and closing tags are skipped like in
+  // unclosedOpaqueMarkupOpener (round-12 false-comment-carry).
+  const mayHaveOpaqueMarkup = text.includes('<!--') || text.includes('<![CDATA[')
+  let opaqueScanPos = 0
+  let opaqueUntil = -1
+  const isInsideOpaqueMarkup = (index: number): boolean => {
+    if (!mayHaveOpaqueMarkup) return false
+    for (;;) {
+      if (opaqueUntil !== -1) {
+        if (index < opaqueUntil) return true
+        opaqueUntil = -1
+      }
+      const lt = text.indexOf('<', opaqueScanPos)
+      if (lt === -1) return false
+      if (lt > index) {
+        opaqueScanPos = lt
+        return false
+      }
+      if (text.startsWith('<!--', lt) || text.startsWith('<![CDATA[', lt)) {
+        const end = opaqueMarkupEnd(text, lt)!
+        if (index < end) {
+          opaqueUntil = end
+          return true
+        }
+        opaqueScanPos = end
+        continue
+      }
+      const parsed = isBackslashEscaped(text, lt) ? null : parseOpeningTagAt(text, lt)
+      if (parsed) {
+        opaqueScanPos = lt + parsed.opener.length
+        continue
+      }
+      const closeTag = /^<\/[a-zA-Z][a-zA-Z0-9-]*\s*>/.exec(text.slice(lt))
+      opaqueScanPos = lt + (closeTag ? closeTag[0].length : 1)
+    }
+  }
 
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
@@ -1359,6 +1399,12 @@ function maskCodeFences(text: string): {
       break
     }
     const markerStart = pos + rel
+    if (isInsideOpaqueMarkup(markerStart)) {
+      // Literal character data: emit through the candidate and continue.
+      out += text.slice(pos, markerStart + 1)
+      pos = markerStart + 1
+      continue
+    }
     const markerLineStart = lineStartBefore(text, markerStart)
     const markerPrefix = text.slice(markerLineStart, markerStart)
     const inheritedMarkerPrefix = inheritedPrefix(markerLineStart, markerPrefix)
