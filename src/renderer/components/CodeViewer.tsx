@@ -114,6 +114,7 @@ const CodeViewer = ({
 
   const shikiThemeRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const widthProbeRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const savedSelectionRef = useRef<SavedSelection | null>(null)
   const gestureRef = useRef<{ active: boolean; anchor: SourcePoint | null; focus: SourcePoint | null } | null>(null)
@@ -495,11 +496,29 @@ const CodeViewer = ({
   })
   const virtualizer = expanded && scrollParent === null ? windowVirtualizer : elementVirtualizer
 
+  // measure() drops every cached size and mounted rows never re-run measureElement;
+  // rebuild from estimates, then reseed mounted rows with their real heights.
+  const remeasureRows = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (!scroller || capture) return
+    virtualizer.measure()
+    virtualizer.getTotalSize()
+    for (const element of scroller.querySelectorAll<HTMLElement>('[data-index]')) {
+      virtualizer.resizeItem(Number(element.dataset.index), element.offsetHeight)
+    }
+    // React commits after paint; sync the height now so the reflowed rows cannot
+    // flash a scrollbar for a frame.
+    if (listRef.current) listRef.current.style.height = `${virtualizer.getTotalSize()}px`
+  }, [capture, virtualizer])
+
   const previousRawLinesRef = useRef<string[] | null>(null)
 
+  // Observe a zero-height width probe, never the scroller itself: syncing the list height
+  // inside the callback must not resize the observed element (that trips the RO loop error).
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
-    if (!scroller) return
+    const probe = widthProbeRef.current
+    if (!scroller || !probe) return
 
     let lastWidth = scroller.clientWidth
     const observer = new ResizeObserver(() => {
@@ -507,12 +526,12 @@ const CodeViewer = ({
       if (nextWidth === lastWidth) return
       lastWidth = nextWidth
       if (wrapped) {
-        virtualizer.measure()
+        remeasureRows()
       }
     })
-    observer.observe(scroller)
+    observer.observe(probe)
     return () => observer.disconnect()
-  }, [expanded, virtualizer, wrapped])
+  }, [expanded, remeasureRows, wrapped])
 
   const previousWrapLayoutSignatureRef = useRef<string | null>(null)
 
@@ -521,8 +540,8 @@ const CodeViewer = ({
     const signature = `${lineNumbers}:${gutterDigits}:${fontSize}`
     if (previousWrapLayoutSignatureRef.current === signature) return
     previousWrapLayoutSignatureRef.current = signature
-    virtualizer.measure()
-  }, [expanded, fontSize, gutterDigits, lineNumbers, virtualizer, wrapped])
+    remeasureRows()
+  }, [expanded, fontSize, gutterDigits, lineNumbers, remeasureRows, wrapped])
 
   useLayoutEffect(() => {
     if (!wrapped) {
@@ -689,6 +708,7 @@ const CodeViewer = ({
 
   return (
     <div ref={shikiThemeRef} data-image-capture-content="" style={expanded || capture ? undefined : { height }}>
+      <div ref={widthProbeRef} aria-hidden="true" data-width-probe className="h-0" />
       <div
         ref={scrollerRef}
         className="shiki-scroller selectable relative block [scrollbar-color:auto] overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
