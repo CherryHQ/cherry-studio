@@ -169,9 +169,6 @@ function htmlBlockTerminator(line: string): RegExp | null {
  */
 const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^([^\][\s]+)]:(.*)$/
 
-/** A link reference definition's opening line, which is hoisted rather than read where it stands. */
-const LINK_DEFINITION_LINE = /^ {0,3}\[[^\]]*]:/
-
 /**
  * An ATX heading: up to three columns of indent, one to six `#`, then the heading's text — which
  * may be empty, the bare `#` the parser still reads as a heading.
@@ -1446,6 +1443,55 @@ function htmlHeadingText(content: string): string {
 /** CommonMark's escapable set: the ASCII punctuation a backslash is a valid escape before. */
 const ASCII_PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/
 
+/** How far a backslash-delimited formula's closer is looked for; a lone opener costs this much. */
+const MAX_INLINE_MATH_CHARS = 4_096
+
+/**
+ * The inline formula opening at `index`, with the text it renders as, or null when no formula opens
+ * there. `remark-math` closes a `$` run on a run of its own length; `remarkLatexMath` reads
+ * `\(…\)`, `\[…\]` and an environment the same way. A formula's source is not markdown.
+ */
+function inlineMathSpan(text: string, index: number): { text: string; end: number } | null {
+  if (text[index] === '$') {
+    let opening = 1
+    while (text[index + opening] === '$') opening += 1
+    for (let next = index + opening; next < text.length;) {
+      const at = text.indexOf('$', next)
+      if (at < 0) return null
+      let end = at
+      while (text[end] === '$') end += 1
+      if (end - at === opening) return { text: text.slice(index + opening, at), end }
+      next = end
+    }
+    return null
+  }
+  if (text[index] !== '\\') return null
+  const marker = text[index + 1]
+  const limit = Math.min(text.length, index + MAX_INLINE_MATH_CHARS)
+  if (marker === '(' || marker === '[') {
+    const open = marker
+    const close = marker === '(' ? ')' : ']'
+    let depth = 1
+    for (let at = index + 2; at < limit; at += 1) {
+      if (text[at] !== '\\') continue
+      const next = text[at + 1]
+      if (next === undefined) return null
+      if (next === open) depth += 1
+      else if (next === close && --depth === 0) return { text: text.slice(index + 2, at), end: at + 2 }
+      at += 1
+    }
+    return null
+  }
+  // An environment opens only at a line head, past its indentation, as `remarkLatexMath` reads it.
+  if (index > 3 || (index > 0 && text[index - 1] !== ' ' && text[index - 1] !== '\t')) return null
+  const environment = /^\\begin\{([A-Za-z*]+)\}/.exec(text.slice(index, index + 32))
+  if (!environment) return null
+  const close = `\\end{${environment[1]}}`
+  const end = text.indexOf(close, index + environment[0].length)
+  if (end < 0 || end + close.length > limit) return null
+  return { text: text.slice(index, end + close.length), end: end + close.length }
+}
+
 /**
  * The plain text a heading's inline source renders — the text the renderer numbers the heading's
  * id from. A link renders its label while its destination stays out of the text, an image with a
@@ -1515,7 +1561,12 @@ function headingRenderedText(
     let index = 0
     while (index < segment.length) {
       const character = segment[index]
-      if (character === '\\') {
+      // The renderer prints a formula's own source as text and drops its delimiters.
+      const formula = character === '$' || character === '\\' ? inlineMathSpan(segment, index) : null
+      if (formula) {
+        text += formula.text
+        index = formula.end
+      } else if (character === '\\') {
         const next = segment[index + 1]
         // Markdown preserves a backslash before anything but ASCII punctuation — `C:\Users` renders
         // with the backslash, and the slug the renderer numbers the id from keeps it.
@@ -1743,6 +1794,12 @@ function footnoteReferences(text: string): string[] {
   let index = 0
   while (index < text.length) {
     const character = text[index]
+    // A formula's source is no markdown, so a reference written inside one is not a note.
+    const formula = character === '$' || character === '\\' ? inlineMathSpan(text, index) : null
+    if (formula) {
+      index = formula.end
+      continue
+    }
     if (character === '\\') {
       index += 2
       continue
@@ -2336,6 +2393,9 @@ export function splitMarkdownChunks(
   // number as text and its id can only be keyed once both are known.
   const definedFootnotes = new Set<string>()
   const footnoteOrder: string[] = []
+  // The references each body line carries, as this context-aware walk reads them: a chunk numbers
+  // its notes from these rather than rescanning lines the renderer never reads.
+  const lineFootnoteRefs = new Array<string[] | undefined>(lines.length)
   // A raw HTML block's lines are the tags the renderer parses into elements, so a complete heading
   // tag anywhere in the block numbers the document's ids the same way an ATX heading does — one a
   // single line may hold several of. The block is scanned whole, since its tag, text and closing
@@ -2669,7 +2729,10 @@ export function splitMarkdownChunks(
     // The renderer numbers the document's footnotes in the order the body first references them —
     // a definition's own content is written after the body — so each reference a body line carries
     // is recorded here, and the numbers are handed out once every definition is known.
-    for (const label of footnoteReferences(uncontained)) footnoteOrder.push(label)
+    for (const label of footnoteReferences(uncontained)) {
+      footnoteOrder.push(label)
+      ;(lineFootnoteRefs[i] ??= []).push(label)
+    }
     // Heading ids are numbered over the whole document, so a heading is recorded where it renders:
     // an ATX heading where it stands, a setext one on the paragraph its underline turns into one —
     // which the parser reads whole, line after line.
@@ -2804,42 +2867,13 @@ export function splitMarkdownChunks(
     const localFootnotes = new Map<string, number>()
     const localFootnoteNumber = (label: string): number | undefined => localFootnotes.get(label.toLowerCase())
     const chunkSlugs = new Map<string, string[]>()
-    let inFence: Fence | null = null
-    // A fence behind quote or list markers is code to the parser — and to the walk above, which is
-    // where the headings were recorded — so the references it holds take no number here either.
-    let inContainerFence: ContainerFence | null = null
     for (let i = start; i < end; i++) {
-      const line = lines[i]
-      if (inFence) {
-        if (isClosingFence(line, inFence)) inFence = null
-        continue
-      }
-      if (inContainerFence) {
-        const step = containerFenceStep(line, inContainerFence)
-        if (step === 'end') inContainerFence = null
-        else {
-          if (step === 'close') inContainerFence = null
-          continue
-        }
-      }
-      const opened = parseFence(line)
-      if (opened) {
-        inFence = opened
-        continue
-      }
-      const containerOpened = openContainerFence(line)
-      if (containerOpened) {
-        inContainerFence = containerOpened
-        continue
-      }
-      // A definition line is hoisted and read with the footnotes, not where it stands; its label is
-      // not a reference, and its content takes whatever numbers the notes still ahead receive. A
-      // reference the document never defines stays literal text and takes no number, as it takes
-      // none in the document-wide pass — numbering it here shifted every note behind it.
-      if (!FOOTNOTE_DEFINITION_START.test(line) && !LINK_DEFINITION_LINE.test(line))
-        for (const label of footnoteReferences(line))
-          if (definedFootnotes.has(label) && !localFootnotes.has(label))
-            localFootnotes.set(label, localFootnotes.size + 1)
+      // The walk's own events: it already dropped the lines that are not body text — fenced code,
+      // raw HTML, display math — and a definition's label is no reference there either. A label the
+      // document never defines stays literal text and takes no number, as it takes none above.
+      for (const label of lineFootnoteRefs[i] ?? [])
+        if (definedFootnotes.has(label) && !localFootnotes.has(label))
+          localFootnotes.set(label, localFootnotes.size + 1)
       for (const heading of lineSlugs[i] ?? []) {
         const base = normalizeHeadingText(
           heading.plain ? heading.source : headingRenderedText(heading.source, definesLabel, localFootnoteNumber)

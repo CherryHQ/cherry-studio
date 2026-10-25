@@ -1,10 +1,12 @@
 import rehypeParse from 'rehype-parse'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 
 import { rehypeHeadingIds } from '@cherrystudio/ui'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 import { hasOversizedMarkdownChunk, MARKDOWN_MAX_BLOCK_CHARS, splitMarkdownChunks } from '../markdownChunks'
 
@@ -3616,5 +3618,141 @@ describe('definition shapes inside list items', () => {
       '1. introduction\n2. [guide]: https://example.com/intended\n\n[guide]: https://example.com/other\n\n[open guide][guide]'
 
     expect(hoistedDefinition(content)).toContain('https://example.com/intended')
+  })
+})
+
+interface RendererNode {
+  type: string
+  depth?: number
+  identifier?: string
+  value?: string
+  children?: RendererNode[]
+}
+
+/**
+ * The preview's own remark pipeline: math is read by the plugins the renderer configures, so a
+ * formula's source is the heading text and `[^a]` inside it is no reference.
+ */
+const rendererParsed = (source: string) =>
+  unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkLatexMath)
+    .use(remarkMath, { singleDollarTextMath: true })
+    .parse(source) as unknown as { children: RendererNode[] }
+
+/** Depth-first children of a parsed tree, in document order. */
+function* descendants(node: { children?: RendererNode[] }): Generator<RendererNode> {
+  for (const child of node.children ?? []) {
+    yield child
+    yield* descendants(child)
+  }
+}
+
+const cloneWithFootnoteNumbers = (node: RendererNode, numbers: ReadonlyMap<string, number>): RendererNode => ({
+  ...node,
+  children:
+    node.type === 'footnoteReference' && node.identifier
+      ? [{ type: 'text', value: String(numbers.get(node.identifier.toLowerCase()) ?? '') }]
+      : node.children?.map((child) => cloneWithFootnoteNumbers(child, numbers))
+})
+
+/**
+ * The ids a source's headings render with — through the preview's plugins, with each defined
+ * footnote reference printing the number the renderer gives it. The unsplit document is the oracle.
+ */
+const rendererHeadingIds = (source: string, slugs?: ReadonlyMap<string, readonly string[]>): string[] => {
+  const tree = rendererParsed(source)
+  const defined = new Set<string>()
+  for (const node of descendants(tree)) {
+    if (node.type === 'footnoteDefinition' && node.identifier) defined.add(node.identifier.toLowerCase())
+  }
+  // The renderer numbers a note by the first reference that resolves to it, in document order.
+  const numbers = new Map<string, number>()
+  for (const node of descendants(tree)) {
+    if (node.type !== 'footnoteReference' || !node.identifier) continue
+    const label = node.identifier.toLowerCase()
+    if (defined.has(label) && !numbers.has(label)) numbers.set(label, numbers.size + 1)
+  }
+  const root = {
+    type: 'root',
+    children: tree.children
+      .filter((node) => node.type === 'heading')
+      .map((node) => ({
+        type: 'element',
+        tagName: `h${node.depth}`,
+        properties: {} as { id?: unknown },
+        children: cloneWithFootnoteNumbers(node, numbers).children
+      }))
+  }
+  rehypeHeadingIds({ prefix: 'doc', slugs: slugs && [...slugs] })(root as never)
+  return root.children.map((element) => String(element.properties.id))
+}
+
+/** The ids the chunks render, each numbered from the references its own source carries. */
+const chunkedRendererHeadingIds = (content: string, budgetChars?: number): string[] =>
+  chunksOf(content, budgetChars).flatMap((chunk) => rendererHeadingIds(chunk.text, chunk.headingSlugs))
+
+describe('inline math in a heading', () => {
+  it('numbers a duplicate heading from the formula text the renderer prints', () => {
+    // The heading id plugin runs before KaTeX, so `A$x$B` reads `AxB`: the document numbers `axb`
+    // and `axb-1`. Keying the source instead gave `a-x-b`, missed both assignments, and the
+    // fallback gave the second heading `axb` again — leaving `#axb-1` with no target.
+    const content = `# A$x$B\n\n${'filler\n\n'.repeat(3100)}# A$x$B\n\n[jump](#axb-1)\n`
+
+    const chunks = chunksOf(content)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(rendererHeadingIds(content)).toEqual(['doc--axb', 'doc--axb-1'])
+    expect(chunkedRendererHeadingIds(content)).toEqual(rendererHeadingIds(content))
+  })
+})
+
+describe('footnote syntax the renderer never reads as a reference', () => {
+  const notes = ['[^a]: note a', '', '[^b]: note b'].join('\n')
+
+  it('numbers the heading from the references outside a raw HTML block', () => {
+    // `<div>[^a]</div>` is raw HTML, so `[^a]` is no reference and `[^b]` is the first note: the
+    // heading renders `Title1`. The chunk's own pass counted `[^a]`, keyed the heading `title2`,
+    // and the unclaimed assignment left the renderer's fallback to emit `title1-1`.
+    const content = ['<div>[^a]</div>', '', '# Title[^b]', '', '[jump](#title1)', '', notes].join('\n')
+
+    expect(rendererHeadingIds(content)).toEqual(['doc--title1'])
+    expect(chunkedRendererHeadingIds(content)).toEqual(rendererHeadingIds(content))
+  })
+
+  it('numbers the heading from the references outside display math', () => {
+    const content = ['\\[', '[^a]', '\\]', '', '# Title[^b]', '', '[jump](#title1)', '', notes].join('\n')
+
+    expect(rendererHeadingIds(content)).toEqual(['doc--title1'])
+    expect(chunkedRendererHeadingIds(content)).toEqual(rendererHeadingIds(content))
+  })
+
+  it('numbers the heading from the references outside one-line bracket math', () => {
+    const content = ['\\[[^a]\\]', '', '# Title[^b]', '', '[jump](#title1)', '', notes].join('\n')
+
+    expect(rendererHeadingIds(content)).toEqual(['doc--title1'])
+    expect(chunkedRendererHeadingIds(content)).toEqual(rendererHeadingIds(content))
+    expect(chunksOf(content).flatMap((chunk) => [...(chunk.headingSlugs?.keys() ?? [])])).toEqual(['title1'])
+  })
+
+  it('numbers the heading from the references outside inline dollar math', () => {
+    const content = ['$$[^a]$$', '', '# Title[^b]', '', '[jump](#title1)', '', notes].join('\n')
+
+    expect(rendererHeadingIds(content)).toEqual(['doc--title1'])
+    expect(chunkedRendererHeadingIds(content)).toEqual(rendererHeadingIds(content))
+    expect(chunksOf(content).flatMap((chunk) => [...(chunk.headingSlugs?.keys() ?? [])])).toEqual(['title1'])
+  })
+})
+
+describe('a heading of repeated unclosed math openers', () => {
+  it('reads each opener with a bounded lookahead instead of to the end of the line', () => {
+    const content = `# ${'\\(a'.repeat(32_000)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
   })
 })
