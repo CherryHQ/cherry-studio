@@ -2010,6 +2010,79 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: false })
     })
 
+    // A workflow run's launch authority stands for the whole run, so its end has to be observable:
+    // otherwise a stale headless record makes a later interactive run's children headless.
+    it('reports a workflow run when its terminal bookend arrives', () => {
+      const settled: string[] = []
+      const { adapter } = createAdapter({ onBackgroundTaskSettled: (toolUseId) => settled.push(toolUseId) })
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'workflow-1',
+        tool_use_id: 'workflow-tool-use',
+        description: 'Review the pull request',
+        task_type: 'local_workflow'
+      } as any)
+      expect(settled).toEqual([])
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'workflow-1',
+        tool_use_id: 'workflow-tool-use',
+        status: 'completed',
+        output_file: '/tmp/workflow-1.md',
+        summary: 'Reviewed'
+      } as any)
+
+      expect(settled).toEqual(['workflow-tool-use'])
+    })
+
+    // The bookend may omit the call it belongs to; the started edge already named it.
+    it('identifies a settled run from its started edge when the bookend omits the tool call', () => {
+      const settled: string[] = []
+      const { adapter } = createAdapter({ onBackgroundTaskSettled: (toolUseId) => settled.push(toolUseId) })
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'workflow-2',
+        tool_use_id: 'workflow-tool-use-2',
+        description: 'Review the pull request',
+        task_type: 'local_workflow'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_progress',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'workflow-2',
+        description: 'Review the pull request',
+        usage: { total_tokens: 1, tool_uses: 1, duration_ms: 1 }
+      } as any)
+      expect(settled).toEqual([])
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'workflow-2',
+        status: 'failed',
+        output_file: '/tmp/workflow-2.md',
+        summary: 'Failed'
+      } as any)
+
+      expect(settled).toEqual(['workflow-tool-use-2'])
+    })
+
     it('releases the reply after subagents drain even while a background server remains', () => {
       const { adapter, statusEvents } = createAdapter()
       const server = { task_id: 'server', task_type: 'local_bash', description: 'Development server' }

@@ -68,6 +68,31 @@ const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, a
         return { headless: true, ambiguous: true }
       }
       return { headless: first.headless, ambiguous: false }
+    }),
+    // Same cross-source rule as the real service: a child starting while an announced spawn and a
+    // standing workflow run disagree cannot be attributed, and neither record is consumed.
+    resolveNativeSpawnAttribution: vi.fn(() => {
+      const workflow = state.resolveNativeWorkflowAuthority()
+      const [first] = state.spawnAttempts
+      if (!first) return workflow
+      if (state.spawnAttempts.some((attempt) => attempt.headless !== first.headless)) {
+        return { headless: true, ambiguous: true }
+      }
+      if (workflow === undefined) {
+        state.spawnAttempts.shift()
+        return {
+          headless: first.headless,
+          ambiguous: false,
+          ...(first.parentAgentId ? { parentAgentId: first.parentAgentId } : {})
+        }
+      }
+      if (workflow.ambiguous || workflow.headless !== first.headless) return { headless: true, ambiguous: true }
+      state.spawnAttempts.shift()
+      return {
+        headless: first.headless,
+        ambiguous: false,
+        ...(first.parentAgentId ? { parentAgentId: first.parentAgentId } : {})
+      }
     })
   }
   return {
@@ -223,6 +248,20 @@ async function settleToolCall(toolName: string): Promise<void> {
   await hook('PostToolUse', 2)(
     { hook_event_name: 'PostToolUse', tool_name: toolName, tool_use_id: 'tool-use-1', duration_ms: 1 } as never,
     'tool-use-1',
+    { signal: new AbortController().signal }
+  )
+}
+
+/** A spawn call with its OWN tool_use_id — `fireGuard` reuses one id across unrelated calls. */
+async function fireSpawnCall({ toolUseId, agentId }: { toolUseId: string; agentId?: string }): Promise<HookJSONOutput> {
+  return hook('PreToolUse')(
+    {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Task',
+      tool_input: { description: 'B', prompt: 'go', subagent_type: 'general-purpose' },
+      ...(agentId ? { agent_id: agentId } : {})
+    } as never,
+    toolUseId,
     { signal: new AbortController().signal }
   )
 }
@@ -485,6 +524,39 @@ describe('native Claude child authority across a desktop follow-up', () => {
     expect(stateService.takeNativeSpawnAttempt('session-x')).toBeUndefined()
   })
 
+  // Both launch sources can be live at once: a run's `agent()` starts an unannounced child while
+  // the follow-up's `Task` call waits for its own. `SubagentStart` says nothing about which one it
+  // is, so a disagreement fails closed — and neither record is spent on the guess, or the
+  // follow-up's child would later bind to the run's authority.
+  it('fails closed across both launch sources and spends neither when they disagree', () => {
+    const stateService = new ClaudeCodeSessionStateService()
+    stateService.recordNativeSpawnAttempt('session-z', 'tool-followup', false)
+    stateService.recordNativeWorkflowAuthority('session-z', 'tool-workflow', true)
+
+    expect(stateService.resolveNativeSpawnAttribution('session-z')).toEqual({ headless: true, ambiguous: true })
+    expect(stateService.resolveNativeSpawnAttribution('session-z')).toEqual({ headless: true, ambiguous: true })
+
+    // The run settles; the queued call still owns its child.
+    stateService.clearNativeWorkflowAuthority('session-z', 'tool-workflow')
+    expect(stateService.resolveNativeSpawnAttribution('session-z')).toEqual({ headless: false, ambiguous: false })
+    expect(stateService.resolveNativeSpawnAttribution('session-z')).toBeUndefined()
+  })
+
+  // Agreement has nothing to attribute wrongly, so the announced call keeps the FIFO it always had
+  // and the queue does not grow behind a long-lived run.
+  it('attributes through an agreeing workflow run without leaving the spawn call queued', () => {
+    const stateService = new ClaudeCodeSessionStateService()
+    stateService.recordNativeWorkflowAuthority('session-w', 'tool-workflow', true)
+    stateService.recordNativeSpawnAttempt('session-w', 'tool-headless-spawn', true, 'child-a')
+
+    expect(stateService.resolveNativeSpawnAttribution('session-w')).toEqual({
+      headless: true,
+      ambiguous: false,
+      parentAgentId: 'child-a'
+    })
+    expect(stateService.resolveNativeSpawnAttribution('session-w')).toEqual({ headless: true, ambiguous: false })
+  })
+
   // Unlike a spawn attempt, a workflow run's authority is standing: an unknown number of children
   // start from it, so reading it must not consume it. Concurrent runs that disagree fail closed.
   it('keeps a workflow run’s authority standing for every child it launches', () => {
@@ -701,7 +773,9 @@ describe('native Claude child authority across a desktop follow-up', () => {
     expect(decisionOf(await fireGuard({ agent_id: 'workflow-child-1' })).permissionDecision).toBe('deny')
     expect(decisionOf(await fireGuard({ agent_id: 'workflow-child-2' })).permissionDecision).toBe('deny')
 
-    // The follow-up's own Task child still binds from its own spawn call, not from the workflow.
+    // The run settles, retiring its authority (the driver does this from its completion bookend);
+    // the follow-up's own Task child then binds from its own call, not from the workflow.
+    state.clearNativeWorkflowAuthority(SESSION_ID, 'tool-use-1')
     await fireGuard({
       tool_name: 'Task',
       tool_input: { description: 'B', prompt: 'go', subagent_type: 'general-purpose' }
@@ -711,6 +785,53 @@ describe('native Claude child authority across a desktop follow-up', () => {
       undefined,
       { signal: new AbortController().signal }
     )
+    expect(decisionOf(await fireGuard({ agent_id: 'child-of-desktop' })).permissionDecision).toBeUndefined()
+  })
+
+  // The overlap in the other order: the follow-up's own spawn call is already queued when the
+  // still-running workflow starts a child. `SubagentStart` names only the child, so nothing says
+  // which launch it belongs to — the follow-up's turn must not hand the run's child its authority.
+  it('fails closed when a workflow child starts while the follow-up has a spawn call queued', async () => {
+    beginTurn(true)
+    await fireGuard({ tool_name: 'Workflow', tool_input: { script: 'export const meta = { name: "audit" }' } })
+    settleTurn()
+
+    beginTurn(false)
+    await fireSpawnCall({ toolUseId: 'tool-followup-task' })
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'workflow-child-overlap', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    const child = decisionOf(await fireGuard({ agent_id: 'workflow-child-overlap' }))
+    expect(child.permissionDecision).toBe('deny')
+    expect(child.permissionDecisionReason).toContain('cannot mutate agent configuration')
+  })
+
+  // …and the reverse: the workflow's loose authority must not swallow the follow-up's attribution.
+  // The child above could not be attributed, so the queued call is still owed its own child.
+  it('keeps the queued spawn attribution for the follow-up’s own child', async () => {
+    beginTurn(true)
+    await fireGuard({ tool_name: 'Workflow', tool_input: { script: 'export const meta = { name: "audit" }' } })
+    settleTurn()
+
+    beginTurn(false)
+    await fireSpawnCall({ toolUseId: 'tool-followup-task' })
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'workflow-child-overlap', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    // The run finishes; its standing authority is gone.
+    state.clearNativeWorkflowAuthority(SESSION_ID, 'tool-use-1')
+
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'child-of-desktop', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
     expect(decisionOf(await fireGuard({ agent_id: 'child-of-desktop' })).permissionDecision).toBeUndefined()
   })
 

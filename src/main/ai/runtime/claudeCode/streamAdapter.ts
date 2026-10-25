@@ -187,6 +187,8 @@ export type ClaudeCodeStreamAdapterOptions = {
   sink: StreamSink
   statusSink: StatusSink
   onSessionId?: (sessionId: string) => void
+  /** A background run ended; its launch authority (keyed by the owning call) must be retired. */
+  onBackgroundTaskSettled?: (toolUseId: string) => void
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
 }
 
@@ -495,6 +497,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly statusSink: StatusSink
   private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
   private readonly onSessionId?: (sessionId: string) => void
+  private readonly onBackgroundTaskSettled?: (toolUseId: string) => void
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
   /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
   private turnActive = false
@@ -519,6 +522,7 @@ export class ClaudeCodeStreamAdapter {
     this.statusSink = options.statusSink
     this.streamOptions = options.streamOptions
     this.onSessionId = options.onSessionId
+    this.onBackgroundTaskSettled = options.onBackgroundTaskSettled
     this.mcpToolMetadata = options.mcpToolMetadata ?? {}
     this.ctx = this.createTurnContext()
   }
@@ -1456,6 +1460,18 @@ export class ClaudeCodeStreamAdapter {
    */
   private handleTaskSystemMessage(message: SdkTaskSystemMessage, ctx: StreamContext): void {
     const eventData = this.toTaskEventPartData(message)
+
+    // A settled run owes no launch authority; the bookend may omit the call, so fall back to the
+    // id its started edge reported.
+    const settledStatus =
+      eventData.status === 'completed' ||
+      eventData.status === 'stopped' ||
+      eventData.status === 'killed' ||
+      eventData.status === 'error'
+    if (settledStatus && (eventData.event === 'notification' || eventData.event === 'updated')) {
+      const ownerToolUseId = eventData.toolUseId ?? this.backgroundTaskToolCallIds.get(eventData.taskId)
+      if (ownerToolUseId) this.onBackgroundTaskSettled?.(ownerToolUseId)
+    }
 
     // Membership and liveness remain owned exclusively by `background_tasks_changed`. A native
     // subagent edge may enrich an already-authoritative row with its explicit root tool-use id for

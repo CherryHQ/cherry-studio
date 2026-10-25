@@ -286,10 +286,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // follow-up). The binding lives until the connection resets — SubagentStop is NOT authoritative.
   const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStart') return {}
-    // An announced spawn call wins; otherwise the child may be one of a live workflow's unannounced
-    // launches, which all inherit that run's standing authority without consuming it.
-    const spawn =
-      sessionState().takeNativeSpawnAttempt(sessionId) ?? sessionState().resolveNativeWorkflowAuthority(sessionId)
+    // An announced spawn call and a live workflow run can both be waiting for a child here, so the
+    // state service resolves across both and fails closed when they disagree.
+    const spawn = sessionState().resolveNativeSpawnAttribution(sessionId)
     application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id, spawn)
     return {}
   }

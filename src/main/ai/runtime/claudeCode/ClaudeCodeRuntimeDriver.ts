@@ -77,7 +77,8 @@ import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
-  registerMcpSessionCatalogSync
+  registerMcpSessionCatalogSync,
+  retireNativeWorkflowAuthority
 } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
@@ -823,6 +824,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
       },
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
+      // The run outlives its tool call, so its launch authority stands until this settlement edge.
+      onBackgroundTaskSettled: (toolUseId) => retireNativeWorkflowAuthority(this.input.sessionId, toolUseId),
       mcpToolMetadata: this.mcpToolMetadata
     })
   }

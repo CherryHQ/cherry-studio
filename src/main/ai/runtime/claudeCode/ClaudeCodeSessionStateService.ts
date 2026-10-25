@@ -54,7 +54,8 @@ export interface NativeSpawnAttempt {
 /**
  * One live asynchronous workflow run. `Workflow` starts children through its own `agent()` runner
  * long after the tool call, so unlike a spawn attempt this is STANDING: every child the run starts
- * reads it, and it lives until the run's call fails or the connection resets.
+ * reads it, and it lives until the run settles, its call fails, or the connection resets. A run
+ * that settled but kept this record would make a later run's children unattributable.
  */
 export interface NativeWorkflowAuthority {
   toolUseId: string
@@ -225,9 +226,9 @@ export class ClaudeCodeSessionStateService extends BaseService {
   }
 
   /**
-   * The attribution a starting child inherits. The SDK (0.3.284) gives no session-wide FIFO
-   * guarantee — a foreground skill and a surviving headless child can have spawn calls in flight at
-   * once — so a queue whose entries disagree on authority is unattributable: report it as
+   * The attribution an announced spawn queue hands out. The SDK (0.3.284) gives no session-wide
+   * FIFO guarantee — a foreground skill and a surviving headless child can have spawn calls in
+   * flight at once — so a queue whose entries disagree on authority is unattributable: report it as
    * ambiguous (fail closed) and leave the entries for the tool terminals to clear.
    */
   takeNativeSpawnAttempt(sessionId: string): NativeSpawnAttribution | undefined {
@@ -244,6 +245,26 @@ export class ClaudeCodeSessionStateService extends BaseService {
       ambiguous: false,
       ...(first.parentAgentId ? { parentAgentId: first.parentAgentId } : {})
     }
+  }
+
+  /**
+   * The attribution a starting child inherits, resolved across BOTH launch sources: a spawn call
+   * that announced itself, and a live workflow run whose `agent()` launches children no call
+   * announces. `SubagentStart` names only the child, so while both can still launch and disagree
+   * this child is unattributable: fail closed WITHOUT consuming either record, or the announced
+   * call would lose the child it actually owns. Agreement has nothing to misattribute, so the
+   * announced queue keeps its FIFO.
+   */
+  resolveNativeSpawnAttribution(sessionId: string): NativeSpawnAttribution | undefined {
+    const attempts = this.nativeSpawnAttempts.get(sessionId)
+    const workflow = this.resolveNativeWorkflowAuthority(sessionId)
+    if (!attempts?.length) return workflow
+    const [first] = attempts
+    if (attempts.some((attempt) => attempt.headless !== first.headless)) return { headless: true, ambiguous: true }
+    if (workflow !== undefined && (workflow.ambiguous || workflow.headless !== first.headless)) {
+      return { headless: true, ambiguous: true }
+    }
+    return this.takeNativeSpawnAttempt(sessionId)
   }
 
   /** A spawn call that finished without starting a child (denied, errored) must not claim the next one. */
@@ -266,7 +287,11 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.nativeWorkflowAuthorities.set(sessionId, runs)
   }
 
-  /** A workflow that never ran (denied, errored, remote-only) must not attribute a later child. */
+  /**
+   * A run that never started children (denied, errored, remote-only), or has settled, must not
+   * attribute a later child. Children already bound keep their binding — only the launch authority
+   * is retired.
+   */
   clearNativeWorkflowAuthority(sessionId: string, toolUseId: string): void {
     const runs = this.nativeWorkflowAuthorities.get(sessionId)
     if (!runs) return
