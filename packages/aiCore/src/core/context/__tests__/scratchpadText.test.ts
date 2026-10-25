@@ -142,6 +142,30 @@ describe('scratchpadText', () => {
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
   })
 
+  it('preserves literal code inside a quote nested in a quoted list item (inv_4f2b0c2d3f9c4a0b)', () => {
+    // The nested quote marker's own leading spaces are the outer list's
+    // continuation indentation: marker stripping consumes them, so the
+    // inherited list indentation must not be subtracted a second time.
+    // CommonMark 0.31.2 renders the final line as an indented code block
+    // inside the nested containers.
+    const input = '> - Parent\n>\n>   >     <thinking>literal</thinking>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it('keeps an unmatched analysis backtick from pairing into the public summary (inv_4f2b0c2d3f9c4a0b)', () => {
+    // The unmatched run sits in its own Markdown block (a blank line
+    // follows): it must not pair with the summary's literal mention of the
+    // closing tag, skip the real block boundary, and delete the public
+    // continuation instructions.
+    const input =
+      '<analysis>Private uses unmatched ` marker.\n\n</analysis><summary>Use `</analysis>` literally, then proceed.</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Use `</analysis>` literally, then proceed.')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(
+      '<summary>Use `</analysis>` literally, then proceed.</summary>'
+    )
+  })
+
   it('counts inherited list indentation before code indentation (inv_c5db9091dfd965bf)', () => {
     expect(
       stripModelScratchpadBlocks('- Notes:\n\n    <analysis>SECRET</analysis>\n\n<summary>Public</summary>')

@@ -1399,6 +1399,15 @@ export class ClaudeCodeStreamAdapter {
     atBlockEnd: boolean,
     ctx: StreamContext
   ): 'pending' | 'artifact' | 'not-artifact' {
+    // Compaction provenance is conversation-specific: the watch is armed by
+    // the main conversation's compaction, so a parented child flow's
+    // summary-shaped answer - even with an analysis wrapper and numbered
+    // sections - is that conversation's genuine answer, not a main-agent
+    // artifact. Section shape and a scratchpad wrapper do not establish
+    // provenance; only the main context can hold it (cherry-pr-review
+    // inv_4f2b0c2d3f9c4a0b). Flows still emit verbatim via the
+    // flow-preservation branches at the call sites.
+    if (!ctx.filterParentlessScratchpadText) return 'not-artifact'
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
     // Stripping only removes scratchpad blocks (code fences round-trip), so a
     // length change is provenance that the model wrapped internal blocks

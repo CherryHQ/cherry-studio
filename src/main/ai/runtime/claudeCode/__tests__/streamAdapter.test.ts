@@ -2644,7 +2644,13 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(0)
     })
 
-    it('suppresses subagent-parented artifact text while compaction is active', () => {
+    it('keeps subagent-parented summary-shaped text visible while compaction is active (inv_4f2b0c2d3f9c4a0b)', () => {
+      // Compaction provenance is conversation-specific: a parented child flow
+      // is not the compacting conversation, so its summary-shaped answer -
+      // even with an analysis wrapper and numbered sections - is its own
+      // genuine answer, delivered verbatim like any other flow text. Only
+      // parentless text can be a main-agent compaction artifact
+      // (isCompactionInternalContent applies the same boundary).
       const { adapter, parts } = createAdapter()
       const artifact =
         '<analysis>Flow-scoped scratchpad.</analysis>\n' +
@@ -2694,7 +2700,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
         .map((part) => part.delta)
         .join('')
-      expect(text).not.toContain('Task Overview')
+      expect(text).toContain('Task Overview')
       expect(text).toContain('flow visible reply')
     })
 
@@ -4072,6 +4078,116 @@ describe('scratchpad escape carry across buffered partial tags', () => {
 })
 
 describe('compaction artifact boundary', () => {
+  it('keeps a background child summary answer visible during main-agent compaction (inv_4f2b0c2d3f9c4a0b)', () => {
+    const { adapter, parts } = createAdapter()
+    // A background child asked for a summary genuinely answers with an
+    // analysis preamble and numbered sections; the main conversation's
+    // compaction watch must not classify that independent answer as a
+    // compaction artifact. Provenance is conversation-specific.
+    const childAnswer =
+      '<analysis>Reviewing the collected notes before summarizing.</analysis>\n' +
+      '<summary>\n' +
+      '1. Task Overview:\n   Summarize the release notes.\n\n' +
+      '2. Current State:\n   - Collected every note\n\n' +
+      '3. Next Steps:\n   Publish the digest.\n' +
+      '</summary>'
+    const parented = (event: Record<string, unknown>) =>
+      ({
+        type: 'stream_event',
+        event,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        parent_tool_use_id: 'task-1'
+      }) as any
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_result: 'success'
+    } as any)
+    adapter.handleMessage(
+      parented({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      parented({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: childAnswer } })
+    )
+    adapter.handleMessage(parented({ type: 'content_block_stop', index: 0 }))
+    // The matching snapshot repeats the child answer for its own conversation.
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: 'task-1',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: childAnswer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toContain('Task Overview')
+    expect(text).toContain('Current State')
+    expect(text).toContain('Next Steps')
+    expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(1)
+  })
+
+  it.each(['snapshot-only', 'single-delta', 'character-delta'] as const)(
+    'preserves literal code inside nested Markdown containers: %s (inv_4f2b0c2d3f9c4a0b)',
+    (mode) => {
+      const { adapter, parts } = createAdapter()
+      // CommonMark 0.31.2 renders the final line as an indented code block
+      // inside nested containers: it is literal content, not a scratchpad
+      // block, in every delivery shape.
+      const reply = '> - Parent\n>\n>   >     <thinking>literal</thinking>'
+      const parented = (event: Record<string, unknown>) =>
+        ({
+          type: 'stream_event',
+          event,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          parent_tool_use_id: null
+        }) as any
+
+      if (mode === 'snapshot-only') {
+        adapter.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: reply }] }
+        } as any)
+      } else {
+        adapter.handleMessage(
+          parented({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+        )
+        const deltas = mode === 'single-delta' ? [reply] : [...reply]
+        for (const delta of deltas) {
+          adapter.handleMessage(
+            parented({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta } })
+          )
+        }
+        adapter.handleMessage(parented({ type: 'content_block_stop', index: 0 }))
+      }
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(reply)
+    }
+  )
+
   it('preserves a real answer that follows the summary during the post-compaction grace window', () => {
     const { adapter, parts } = createAdapter()
     const textBlock =

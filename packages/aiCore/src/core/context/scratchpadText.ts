@@ -738,15 +738,33 @@ function unmaskInlineCodeSpans(text: string, spans: string[], placeholderBase = 
  * (cherry-pr-review inv_5cfd1b3f92913a5c).
  */
 function stripMarkdownContainerMarkers(line: string): string {
+  return stripMarkdownContainerMarkersDetailed(line).content
+}
+
+/**
+ * Marker stripping with indentation accounting: when a marker itself carries
+ * leading spaces (a quote or list marker nested below an outer container),
+ * those spaces are the outer container's continuation indentation. Stripping
+ * consumes them, so callers must not subtract the inherited list indentation
+ * from the remaining content a second time (cherry-pr-review
+ * inv_4f2b0c2d3f9c4a0b).
+ */
+function stripMarkdownContainerMarkersDetailed(line: string): {
+  content: string
+  markersConsumedIndent: boolean
+} {
   let rest = expandFencePrefixTabs(line)
+  let markersConsumedIndent = false
   for (;;) {
-    const quote = /^ {0,3}>[ ]?/.exec(rest)
+    const quote = /^( {0,3})>[ ]?/.exec(rest)
     if (quote) {
+      if (quote[1].length > 0) markersConsumedIndent = true
       rest = rest.slice(quote[0].length)
       continue
     }
     const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)/.exec(rest)
-    if (!list) return rest
+    if (!list) return { content: rest, markersConsumedIndent }
+    if (list[1].length > 0) markersConsumedIndent = true
     // CommonMark list content uses one to four padding columns. Five or
     // more means one separator followed by indented code, not wider padding.
     const padding = list[3].length <= 4 ? list[3].length : 1
@@ -787,7 +805,7 @@ function maskIndentedCodeBlocks(text: string): {
   // Dedenting from a nested item may return to its outer list, not column zero.
   const listColumnStack: number[] = []
   const indentedCodeColumns = (line: string): number => {
-    const content = stripMarkdownContainerMarkers(line)
+    const { content, markersConsumedIndent } = stripMarkdownContainerMarkersDetailed(line)
     let columns = 0
     for (let k = 0; k < content.length; k++) {
       if (content[k] === ' ') columns += 1
@@ -795,8 +813,13 @@ function maskIndentedCodeBlocks(text: string): {
       else break
     }
     // Explicit markers were stripped above; continuation lines still carry
-    // the inherited list's content indentation.
-    return content !== line && !listInsideQuote ? columns : Math.max(0, columns - inheritedListColumns)
+    // the inherited list's content indentation - unless a stripped marker
+    // already consumed it (a nested quote/list marker's own leading spaces),
+    // which would subtract the same indentation twice and expose literal
+    // code inside the nested container (cherry-pr-review
+    // inv_4f2b0c2d3f9c4a0b).
+    if (content !== line && (!listInsideQuote || markersConsumedIndent)) return columns
+    return Math.max(0, columns - inheritedListColumns)
   }
   const isIndentedCodeLine = (line: string): boolean => line.trim() !== '' && indentedCodeColumns(line) >= 4
 
@@ -1316,6 +1339,7 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
   let spanCursor = afterOpen
   const collectSpansUntil = (limit: number): void => {
     let pos = spanCursor
+    let cachedBlockEnd = -1
     while (pos < limit) {
       const tick = text.indexOf('`', pos)
       if (tick === -1 || tick >= limit) break
@@ -1327,7 +1351,13 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
       while (tick + run < text.length && text[tick + run] === '`') run++
       let j = tick + run
       let closedAt = -1
-      while (j < text.length) {
+      // Inline code cannot cross a Markdown block boundary: an unmatched
+      // private backtick must not pair with public text past a blank line,
+      // or the span swallows the block's real closing tag and the strip
+      // deletes the public continuation (cherry-pr-review
+      // inv_4f2b0c2d3f9c4a0b).
+      const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
+      while (j < blockEnd) {
         if (text[j] !== '`') {
           j++
           continue
