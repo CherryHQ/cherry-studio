@@ -297,6 +297,65 @@ describe('importService.importConversations', () => {
     expect(vi.mocked(ipcApi.request)).not.toHaveBeenCalled()
   })
 
+  it('keeps rolling back remaining objects when an imported topic was already deleted elsewhere', async () => {
+    const { ipcApi } = await import('@renderer/ipc')
+    let topicSeq = 0
+    let messageSeq = 0
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { id: 'asst_concurrent', name: 'ChatGPT Import', emoji: '💬' }
+      if (path === '/topics') return { id: `topic_concurrent_${++topicSeq}` }
+      // Both topics are created first; the failure then hits the second
+      // conversation's first message, leaving two created topics behind.
+      if (++messageSeq > 2) throw new Error('topic deleted elsewhere mid-import')
+      return { id: `message_${messageSeq}` }
+    })
+    // Another window deleted the first imported topic while the import ran:
+    // the batch-style guard would reject the whole cleanup, so each object is
+    // cleaned up independently and the assistant must still be removed.
+    vi.mocked(ipcApi.request).mockImplementation(async (route: string, params: any) => {
+      if (route === 'trash.topic.delete_permanently' && params.topicIds[0] === 'topic_concurrent_1') {
+        throw new Error('TRASH_TARGET_NOT_FOUND')
+      }
+      return undefined
+    })
+
+    const response = await importService.importConversations(chatgptExport(), 'chatgpt')
+
+    expect(response).toMatchObject({ success: false })
+    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.topic.delete_permanently', {
+      topicIds: ['topic_concurrent_1']
+    })
+    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.topic.delete_permanently', {
+      topicIds: ['topic_concurrent_2']
+    })
+    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.assistant.delete_permanently', {
+      assistantId: 'asst_concurrent',
+      deleteTopics: false
+    })
+  })
+
+  it('treats an already-deleted assistant as a completed rollback', async () => {
+    const { ipcApi } = await import('@renderer/ipc')
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { id: 'asst_gone', name: 'ChatGPT Import', emoji: '💬' }
+      if (path === '/topics') return { id: 'topic_gone' }
+      throw new Error('database unavailable mid-persist')
+    })
+    vi.mocked(ipcApi.request).mockImplementation(async (route: string) => {
+      if (route === 'trash.assistant.delete_permanently') {
+        throw Object.assign(new Error('target not found'), { name: 'IpcError', code: 'TRASH_TARGET_NOT_FOUND' })
+      }
+      return undefined
+    })
+
+    const response = await importService.importConversations(chatgptExport(), 'chatgpt')
+
+    // The original import failure is still what the caller sees; the rollback
+    // must not turn an already-deleted assistant into an extra error.
+    expect(response).toMatchObject({ success: false, error: 'database unavailable mid-persist' })
+    expect(vi.mocked(dataApiService.post)).toHaveBeenCalledTimes(3)
+  })
+
   it('reports the create-assistant failure without attempting a rollback', async () => {
     const { ipcApi } = await import('@renderer/ipc')
     vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('database unavailable'))

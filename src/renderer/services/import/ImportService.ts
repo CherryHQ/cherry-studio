@@ -4,6 +4,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import { isTrashTargetNotFoundError } from '@shared/ipc/errors/trash'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
@@ -168,21 +169,35 @@ class ImportService {
    * data this import created is removed: the created topics are hard-deleted by
    * id first, then the assistant itself — a bulk `deleteTopics: true` would
    * also destroy topics a user moved under the assistant while the import was
-   * still running. Rollback errors are logged, never mask the original failure.
+   * still running. Cleanup is best-effort one object at a time: another window
+   * may have deleted an imported topic mid-import, and one skipped object must
+   * not stop the rest. Rollback errors are logged, never mask the original
+   * import failure.
    */
   private async rollbackCreatedAssistant(
     assistantId: string,
     createdTopicIds: readonly string[],
     cause: unknown
   ): Promise<void> {
-    try {
-      if (createdTopicIds.length > 0) {
-        await ipcApi.request('trash.topic.delete_permanently', { topicIds: [...createdTopicIds] })
+    for (const topicId of createdTopicIds) {
+      try {
+        await ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
+      } catch (error) {
+        logger.warn('Failed to roll back an imported topic', error as Error, {
+          cause: String(cause),
+          topicId
+        })
       }
+    }
+    try {
       await ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: false })
       logger.info('Rolled back the assistant after a failed import', { assistantId, cause: String(cause) })
-    } catch (rollbackError) {
-      logger.error('Failed to roll back the assistant after a failed import', rollbackError as Error, {
+    } catch (error) {
+      if (isTrashTargetNotFoundError(error)) {
+        logger.info('The imported assistant was already gone during rollback', { assistantId })
+        return
+      }
+      logger.error('Failed to roll back the assistant after a failed import', error as Error, {
         assistantId,
         cause: String(cause)
       })
