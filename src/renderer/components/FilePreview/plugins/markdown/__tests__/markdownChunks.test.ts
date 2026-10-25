@@ -357,6 +357,21 @@ describe('splitMarkdownChunks', () => {
     expect(chunks[0].text).toContain('indented body')
   })
 
+  it('windows separate paragraphs indented one to three columns', () => {
+    // A leading column indents a paragraph, it does not continue the block above it: reading any
+    // whitespace as an indented continuation held every boundary and left the document one
+    // oversized chunk, which the preview can only show as source.
+    for (const indent of [' ', '  ', '   ']) {
+      const content = `${indent}A modest paragraph with ordinary prose.\n\n`.repeat(15_000)
+
+      const chunks = chunksOf(content)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(hasOversizedMarkdownChunk(chunks)).toBe(false)
+      expect(joined(chunks).split('A modest paragraph with ordinary prose.')).toHaveLength(15_001)
+    }
+  })
+
   it('does not end a chunk inside a run of blank lines that indented code spans', () => {
     // One indented code block: only the last blank line before unindented text ends it.
     const content = ['opening paragraph', '', '    code one', '', '', '    code two', '', 'after'].join('\n')
@@ -2480,6 +2495,20 @@ describe('a definition shape that is paragraph text', () => {
     }
   })
 
+  it('carries a definition a list marker opens ahead of the quote that holds it', () => {
+    // The item marker opens a block above the quote the paragraph sits in, so the definition
+    // behind it belongs to the document — reading only the marker at the end of the prefix missed
+    // it, and `see [label]` stayed literal text in every chunk.
+    const content = `> paragraph\n- > [label]: /right\n\n${'filler\n\n'.repeat(4000)}see [label]\n`
+
+    expect(resolvedReferenceUrls(content)).toEqual(['/right'])
+
+    const referencing = chunksOf(content).filter((chunk) => chunk.text.includes('see [label]'))
+
+    expect(referencing).toHaveLength(1)
+    expect(resolvedReferenceUrls(referencing[0].text)).toEqual(['/right'])
+  })
+
   it('carries the definition below a completed heading', () => {
     // `# heading` is a leaf block complete where it stands, so the line under it opens freely.
     const content = ['# heading', '[label]: /right', '', 'see [label]'].join('\n')
@@ -3144,6 +3173,17 @@ describe('a heading an inline construct only partly renders', () => {
     expect(chunkedHeadingIds(content, 5)).toEqual(headingIds(content))
     expect(headingIds(content)).toEqual(['doc--foobar', 'doc--foobar-1'])
   })
+
+  it('keeps a malformed inline link in the text a heading renders', () => {
+    // A destination may hold no space, so `[Alpha](not valid)` is no link: the heading renders it
+    // literally and numbers `alphanot-valid`. Reading it as a link reserved `alpha` for it, gave
+    // the later `# Alpha` the id `alpha-1`, and left `[jump](#alpha)` without a target.
+    const filler = 'filler\n\n'.repeat(3072)
+    const content = `# [Alpha](not valid)\n\n${filler}# Alpha\n\n[jump](#alpha)\n`
+
+    expect(headingIds(content)).toEqual(['doc--alphanot-valid', 'doc--alpha'])
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
 })
 
 describe('unequal emphasis runs in a heading', () => {
@@ -3529,6 +3569,21 @@ describe('pathological footnote and definition input', () => {
     const content = 'paragraph\n123. [x]: /wrong\n\n[x]: /right\n\nsee [x]'
 
     expect(hoistedDefinition(content)).toBe('[x]: /right')
+  })
+
+  it('does not invent a footnote definition an ordered marker cannot interrupt', () => {
+    // `2)` cannot interrupt the open paragraph either, so its `[^r]: right` is prose the document
+    // renders literally. Hoisting it printed a superscript and a Footnotes section the unsplit
+    // source does not have.
+    const content = 'paragraph\n2) [^r]: right\n\nsee [^r]'
+
+    expect(JSON.stringify(parsed(content))).not.toContain('footnoteDefinition')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text).toBe(content)
+    expect(JSON.stringify(parsed(chunks[0].text))).not.toContain('footnoteDefinition')
   })
 })
 

@@ -828,29 +828,37 @@ const PARAGRAPH_INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|1[.)])[ \t]+\S/
  */
 const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-+)[ \t]*$/
 
+/** The markers a container prefix is built from, in the order the parser meets them. */
+function containerMarkers(container: string): string[] {
+  return [...container.matchAll(/[ \t]*(>|\d{1,9}[.)]|[-+*])/g)].map((match) => match[1])
+}
+
 /**
  * Whether the container on a definition-shaped line opens a block the paragraph above it does not
  * continue — a deeper quote, or a list marker, which opens a fresh item even at the same depth. A
  * marker that merely repeats the one the paragraph already sits behind does not: `> paragraph`
  * followed by `> [label]: /wrong` is one quoted paragraph, so the definition shape in it is prose.
+ * Every marker in the chain counts, not only the last: `- > [label]: /url` opens an item ahead of
+ * the quote, and that item ends the quoted paragraph above the definition.
  */
 function containerOpensBlock(container: string, previous: string): boolean {
-  const quotes = quoteDepth(container)
-  const previousQuotes = quoteDepth(previous)
-  const marker = /(?:[-+*]|(\d{1,9})([.)]))[ \t]+$/.exec(container)
-  if (quotes !== previousQuotes) {
-    if (quotes > previousQuotes) return true
-    // Leaving a quote is no block of its own, but a list marker there still interrupts the quoted
-    // paragraph above — `> text` then `- [label]: /url` opens a list item that holds a definition.
-    if (!marker) return false
-    return marker[1] === undefined || marker[1] === '1'
+  const markers = containerMarkers(container)
+  const previousMarkers = containerMarkers(previous)
+  for (let index = 0; index < markers.length; index += 1) {
+    const marker = markers[index]
+    const held = previousMarkers[index]
+    if (marker === '>') {
+      // A quote the paragraph above does not sit in opens a block where it stands.
+      if (held !== '>') return true
+      continue
+    }
+    // A list marker opens an item: a sibling of the list the paragraph sits in interrupts at any
+    // number, while a fresh list interrupts only where its own number may start one — `123.` below
+    // a paragraph is prose the parser keeps, so a definition shape inside it is not a definition.
+    if (held !== undefined && held !== '>' && held.slice(-1) === marker.slice(-1)) return true
+    return !/^\d/.test(marker) || Number.parseInt(marker, 10) === 1
   }
-  if (!marker) return false
-  // An ordered item interrupts an open paragraph only when it starts at one — `123.` below a
-  // paragraph is prose the parser keeps, so a definition shape inside it is not a definition. A
-  // sibling item of the list the paragraph already sits in continues that list at any number.
-  if (marker[1] === undefined || marker[1] === '1') return true
-  return new RegExp(`\\d{1,9}\\${marker[2]}[ \\t]+$`).test(previous)
+  return false
 }
 
 /**
@@ -994,6 +1002,19 @@ function pastParenRun(source: string, open: number): number {
     else if (character === ')' && (depth -= 1) === 0) return index + 1
   }
   return -1
+}
+
+/**
+ * Whether the text between an inline link's parentheses is what the parser reads as a destination,
+ * with an optional title behind the whitespace that must separate them. `[a](not valid)` fails on
+ * the space, so micromark renders the whole run as the text it was written as — a heading's id
+ * keys on that text, and reading the run as a link would strip it.
+ */
+function inlineLinkTarget(content: string): boolean {
+  if (/^[ \t]*$/.test(content)) return true
+  const rest = pastDestination(content)
+  if (rest === null) return false
+  return /^[ \t]*$/.test(rest) || (/^[ \t]/.test(rest) && LINK_TITLE.test(rest))
 }
 
 /** A run of emphasis markers — the `*` in `# foo*bar*`, whose open/close class decides the text. */
@@ -1643,6 +1664,14 @@ function headingRenderedText(
           : -1
         labelChars += (follow >= label.end ? follow : segment.length) - label.end
         const nested = label.closed && holdsLink(segment.slice(open + 1, label.end - 1))
+        // An inline link's destination has to be one the parser reads: `[Alpha](not valid)` is no
+        // link at all, so the run stays the literal text the heading renders — reading it as a link
+        // would strip text the renderer keeps and take the id a later heading should get.
+        const malformed =
+          label.closed &&
+          segment[label.end] === '(' &&
+          follow >= label.end &&
+          !inlineLinkTarget(segment.slice(label.end + 1, follow - 1))
         // A reference is a link only where the document defines its label: `[text][ref]`,
         // `[text][]` and `[text]` all degrade to literal text without one, brackets included, and
         // the slug the renderer numbers comes from that literal text. An inline `[text](dest)` is a
@@ -1664,6 +1693,11 @@ function headingRenderedText(
             text += segment.slice(index, follow)
             index = follow
           }
+        } else if (malformed) {
+          // The bracket is text the parser left standing; the link a label inside it writes may
+          // still be one, so the scan moves one character and reads from the bracket after it.
+          text += character
+          index += 1
         } else if (label.closed && !nested && follow >= label.end) {
           // A link renders its label; an image renders none once it has a destination, while one
           // without is the literal text the parser leaves standing. A label cannot hold a link, so
@@ -2139,13 +2173,32 @@ interface ListRun {
   indent: string
   /** The marker that identifies the list: a bullet character or an ordered delimiter. */
   marker: string
+  /** The column the item's content starts at — where a line has to sit to stay inside the item. */
+  content: number
 }
 
-function trackListItem(run: ListRun | null, item: RegExpExecArray): ListRun {
+/**
+ * The column a list item's content starts at: past its marker, its indent and the separator behind
+ * it. A separator wider than the parser allows leaves the content one column past the marker.
+ */
+function itemContentColumn(line: string, item: RegExpExecArray): number {
+  const separator = /^[ \t]*/.exec(line.slice(item[0].length))?.[0] ?? ''
+  const markerEnd = columnCount(line.slice(0, item[0].length))
+  const content = columnCount(line.slice(0, item[0].length + separator.length))
+  return content - markerEnd > 4 ? markerEnd + 1 : content
+}
+
+function trackListItem(run: ListRun | null, item: RegExpExecArray, line: string): ListRun {
   const [, indent, bullet, , delimiter] = item
   // A deeper marker belongs to a nested list, which the run above it already spans.
   if (run && indent.length > run.indent.length) return run
-  return { indent, marker: bullet ?? delimiter }
+  return { indent, marker: bullet ?? delimiter, content: itemContentColumn(line, item) }
+}
+
+/** Whether a line is indented into the item `run` holds open, so a blank line above it spans it. */
+function continuesListItem(line: string, run: ListRun | null): boolean {
+  const columns = leadingColumns(line)
+  return columns > 0 && run !== null && columns >= run.content
 }
 
 /** The windowed document, and from the same pass what windowing cannot fix. */
@@ -2455,7 +2508,7 @@ export function splitMarkdownChunks(
       // An item that opens a fence still numbers its list, so the blank line behind the fence may
       // not split the next item away from it — the same reason an ordinary item keeps the run alive.
       const item = LIST_ITEM.exec(line)
-      if (item) run = trackListItem(run, item)
+      if (item) run = trackListItem(run, item, line)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -2562,7 +2615,14 @@ export function splitMarkdownChunks(
       if (!isBlankLine(carried)) footnoteParagraphOpen = continuesFootnoteParagraph(carried)
       continue
     }
-    const footnoteStart = containerHoldsCode ? null : FOOTNOTE_DEFINITION_START.exec(uncontained)
+    // A footnote definition cannot interrupt a paragraph either, and the container in front of it
+    // only counts where it opens a block: `2) [^r]: right` below a paragraph is that paragraph's
+    // text, so hoisting it would print a note the unsplit document does not have.
+    const opensBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '')
+    const footnoteStart =
+      containerHoldsCode || (container !== null && previousStatus === 'paragraph' && !opensBlock)
+        ? null
+        : FOOTNOTE_DEFINITION_START.exec(uncontained)
     if (footnoteStart) {
       definedFootnotes.add(footnoteStart[1].toLowerCase())
       definitionBlocks.push(definitions.length)
@@ -2579,7 +2639,7 @@ export function splitMarkdownChunks(
       // A definition written as a list item still numbers that list, so the blank line behind it
       // may not end one — the same reason an ordinary item keeps the run alive.
       const item = LIST_ITEM.exec(line)
-      if (item) run = trackListItem(run, item)
+      if (item) run = trackListItem(run, item, line)
       previousStatus = 'block'
       paragraphContainer = null
       continue
@@ -2588,7 +2648,6 @@ export function splitMarkdownChunks(
     // paragraph is paragraph text, and hoisting it would shadow the real definition. A container
     // opener that breaks that paragraph — a deeper quote, or a list marker, which opens a fresh
     // item — leaves the definition standing behind it.
-    const opensBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '')
     const definition =
       (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode ? null : linkDefinition(lines, i)
     if (definition) {
@@ -2601,7 +2660,7 @@ export function splitMarkdownChunks(
       inDefinition = false
       activeDefinitionContainer = null
       const item = LIST_ITEM.exec(line)
-      if (item) run = trackListItem(run, item)
+      if (item) run = trackListItem(run, item, line)
       previousStatus = 'block'
       paragraphContainer = null
       continue
@@ -2657,7 +2716,7 @@ export function splitMarkdownChunks(
     // A thematic break carries an item marker at its head but is a block of its own.
     const item = THEMATIC_BREAK.test(line) ? null : LIST_ITEM.exec(line)
     if (item) {
-      run = trackListItem(run, item)
+      run = trackListItem(run, item, line)
       continue
     }
     if (TOP_LEVEL_BLOCK_START.test(line)) run = null
@@ -2665,7 +2724,12 @@ export function splitMarkdownChunks(
     // A blank line ends the current block, so it is the only place a chunk may safely end.
     if (!blank) continue
     const followedBy = nextContent[i]
-    if (followedBy >= 0 && INDENTED_LINE.test(lines[followedBy])) continue
+    // The blank sits inside the block above it only where the line below continues that block:
+    // four columns of indented code, which the blank line does not end, or a list item's content,
+    // which the line is indented into. A paragraph merely written a column or three in is a block
+    // of its own, and holding the boundary there left a whole document one oversized chunk.
+    if (followedBy >= 0 && (leadingColumns(lines[followedBy]) >= 4 || continuesListItem(lines[followedBy], run)))
+      continue
     // The paragraph the blank follows is the term of a description the next line opens — the
     // renderer reads the two as one construct across the blank, and cut there the description
     // renders the plain paragraph it is only without its term.
