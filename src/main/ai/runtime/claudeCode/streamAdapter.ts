@@ -657,8 +657,16 @@ export class ClaudeCodeStreamAdapter {
     if (!flush) {
       // Whitespace alone is not held: a stripped fragment keeps its leading
       // whitespace consumed, and emitted trailing whitespace must stay emitted.
-      const holdBack = /\s*<\/?[\p{L}\p{N}_|｜-]*$/u.exec(stripped)
-      if (holdBack) emitEnd -= holdBack[0].length
+      // Locate the candidate linearly: the `\s*<...$` regex backtracks
+      // quadratically over a long whitespace-only tail, and this check runs on
+      // every streamed delta (cherry-pr-review). Only one `<` can lead the
+      // held-back suffix, so the last one is the only candidate.
+      const tagStart = stripped.lastIndexOf('<')
+      if (tagStart !== -1 && /^<\/?[\p{L}\p{N}_|｜-]*$/u.test(stripped.slice(tagStart))) {
+        let holdStart = tagStart
+        while (holdStart > 0 && /\s/u.test(stripped[holdStart - 1])) holdStart--
+        emitEnd -= stripped.length - holdStart
+      }
     }
     if (emitEnd <= ctx.toolProtocolStripEmittedLength) return ''
     const emit = stripped.slice(ctx.toolProtocolStripEmittedLength, emitEnd)

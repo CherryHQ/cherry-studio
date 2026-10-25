@@ -1523,11 +1523,32 @@ export function stripModelScratchpadBlocks(raw: string): string {
 const TRAILING_TOOL_PROTOCOL_CLOSE_RE =
   /\s*<\/(?:(?:\uFF5C\uFF5C|\|\|)DSML(?:\uFF5C\uFF5C|\|\|)\s*)?(?:parameter|invoke|tool_calls|tool_result)(?=[\s/>])[^>]*>\s*$/iu
 
+/** Anchored tag body of TRAILING_TOOL_PROTOCOL_CLOSE_RE, for a linearly located suffix candidate. */
+const TRAILING_TOOL_PROTOCOL_CLOSE_TAG_RE =
+  /^<\/(?:(?:\uFF5C\uFF5C|\|\|)DSML(?:\uFF5C\uFF5C|\|\|)\s*)?(?:parameter|invoke|tool_calls|tool_result)(?=[\s/>])[^>]*>$/iu
+
+/**
+ * Linear check for a strippable trailing closing fragment. Testing the full
+ * suffix regex against the accumulator backtracks quadratically over a long
+ * whitespace-only tail, and this guard runs on every streamed delta
+ * (cherry-pr-review). The tag body is `[^>]*`, so any match ends at the last
+ * non-whitespace character (a `>`) and starts at the final `<` that does not
+ * cross another `>`: locate that single candidate directly.
+ */
+function hasTrailingToolProtocolClosingFragment(raw: string): boolean {
+  let end = raw.length
+  while (end > 0 && /\s/u.test(raw[end - 1])) end--
+  if (end === 0 || raw[end - 1] !== '>') return false
+  const open = raw.lastIndexOf('<', end - 2)
+  if (open === -1 || raw.indexOf('>', open) !== end - 1) return false
+  return TRAILING_TOOL_PROTOCOL_CLOSE_TAG_RE.test(raw.slice(open, end))
+}
+
 /** Strips a trailing run of tool-protocol closing tags; does not touch tags in fences or inline code. */
 export function stripTrailingToolProtocolClosingFragments(raw: string): string {
   // No suffix candidate means masking cannot remove anything. Avoid rescanning
   // the entire streamed accumulator for ordinary prose and fenced snippets.
-  if (!raw || !TRAILING_TOOL_PROTOCOL_CLOSE_RE.test(raw)) return raw
+  if (!raw || !hasTrailingToolProtocolClosingFragment(raw)) return raw
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
   const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)

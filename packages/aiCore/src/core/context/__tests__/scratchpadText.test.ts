@@ -884,3 +884,25 @@ describe('round-3 scanner regressions', () => {
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
   })
 })
+
+describe('trailing tool-protocol suffix scan cost (cherry-pr-review: whitespace replay)', () => {
+  it('leaves a long whitespace-only tail untouched', () => {
+    const text = 'Answer.' + ' '.repeat(8000)
+    expect(stripTrailingToolProtocolClosingFragments(text)).toBe(text)
+  })
+
+  it('still strips a real closing fragment surrounded by heavy whitespace', () => {
+    const text = 'Answer. ' + ' '.repeat(4000) + '</invoke>' + ' '.repeat(4000)
+    expect(stripTrailingToolProtocolClosingFragments(text)).toBe('Answer.')
+  })
+
+  it('still strips DSML closing fragments after heavy whitespace', () => {
+    const text = 'Answer.\n' + ' '.repeat(4000) + '</｜｜DSML｜｜parameter>' + ' '.repeat(4000)
+    expect(stripTrailingToolProtocolClosingFragments(text)).toBe('Answer.')
+  })
+
+  it('does not strip a non-protocol closing tag after heavy whitespace', () => {
+    const text = 'Answer. ' + ' '.repeat(4000) + '</div>' + ' '.repeat(4000)
+    expect(stripTrailingToolProtocolClosingFragments(text)).toBe(text)
+  })
+})

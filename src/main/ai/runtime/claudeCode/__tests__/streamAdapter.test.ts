@@ -5655,3 +5655,40 @@ it.each([
     ).toBe(answer)
   }
 })
+
+describe('whitespace-heavy ordinary output suffix cost (cherry-pr-review)', () => {
+  it('replays a long whitespace tail without quadratic suffix scanning', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'Answer.' + ' '.repeat(8000)
+    const start = performance.now()
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (let i = 0; i < answer.length; i += 8)
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: answer.slice(i, i + 8) }
+        })
+      )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    const elapsed = performance.now() - start
+    console.log({ whitespaceTailCharacters: answer.length, elapsed })
+    expect(
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    ).toBe(answer)
+    expect(elapsed).toBeLessThan(1000)
+  })
+})
