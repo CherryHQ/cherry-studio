@@ -260,19 +260,57 @@ function addLiteralBreaks(
 /** A list-item marker (`- `, `* `, `+ `, `1. `, `2) `) usable as a container prefix. */
 const LIST_MARKER = /^(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/
 
+/** Number of leading spaces on a line. */
+function leadingSpaces(line: string): number {
+  let index = 0
+  while (line[index] === ' ') {
+    index += 1
+  }
+  return index
+}
+
 /**
- * Index of the fence candidate on a container line: skip up to three leading
- * spaces, then any number of blockquote (`> `) or list (`- `, `1. `) container
- * prefixes. Parsed by hand rather than with one regex, because a nested
+ * End of the blockquote (`> `) prefix chain on a line, or 0 when the line is
+ * not quoted. Blockquote markers repeat on every line, so list-item indentation
+ * must be measured from this offset rather than from the raw line start.
+ */
+function quotePrefixEnd(line: string): number {
+  let end = 0
+  for (;;) {
+    let probe = end
+    let spaces = 0
+    while (spaces < 3 && line[probe] === ' ') {
+      spaces += 1
+      probe += 1
+    }
+    if (line[probe] !== '>') {
+      return end
+    }
+    probe += 1
+    if (line[probe] === ' ' || line[probe] === '\t') {
+      probe += 1
+    }
+    end = probe
+  }
+}
+
+interface ContainerScan {
+  /** Index of the first non-prefix character on the scanned line. */
+  index: number
+  /** Content column of the last list marker consumed, relative to the scanned line. */
+  listContent: number | null
+}
+
+/**
+ * Skip up to three leading spaces, then any number of list (`- `, `1. `) or
+ * blockquote (`> `) container prefixes, reporting the content column of the
+ * last list marker. Parsed by hand rather than with one regex, because a nested
  * repetition of prefix alternatives backtracks catastrophically on long
  * non-fence prefix runs (a line of `> > > …` text).
- *
- * Container-prefixed fences are valid Markdown — quoted shell snippets in
- * particular — and missing one lets its literal `$$` open a false display-math
- * region that swallows the rest of the document.
  */
-function skipContainerPrefix(line: string): number {
+function scanContainerPrefix(line: string): ContainerScan {
   let index = 0
+  let listContent: number | null = null
   for (;;) {
     let spaces = 0
     while (spaces < 3 && line[index] === ' ') {
@@ -288,23 +326,60 @@ function skipContainerPrefix(line: string): number {
     }
     const marker = LIST_MARKER.exec(line.slice(index))
     if (!marker) {
-      return index
+      return { index, listContent }
     }
     index += marker[0].length
+    listContent = index
   }
 }
 
-/** Pair backtick and tilde fences into regions; an unclosed fence extends to end of text. */
+/**
+ * Pair backtick and tilde fences into regions; an unclosed fence extends to end
+ * of text. A fence may sit inside a blockquote or a list item, either on the
+ * marker line (`- ```sh`) or indented to that item's content column, which
+ * Markdown treats as a continuation of the item. Both are valid fences: missing
+ * one lets its literal `$$` open a false display-math region over the rest of
+ * the document.
+ */
 function findCodeFences(text: string): AtomicRegion[] {
   const regions: AtomicRegion[] = []
   let open: { start: number; char: string; length: number } | null = null
+  /** List items currently enclosing the scan position, innermost last. */
+  const listItems: Array<{ quoteEnd: number; column: number }> = []
   let offset = 0
 
   for (const line of text.split('\n')) {
-    const markerIndex = skipContainerPrefix(line)
-    const marker = /^(`{3,}|~{3,})/.exec(line.slice(markerIndex))
+    const quoteEnd = quotePrefixEnd(line)
+    const rest = line.slice(quoteEnd)
+    const restIndent = leadingSpaces(rest)
+    const isBlank = line.trim() === ''
+
+    // A non-blank line that no longer lines up with an open item leaves it.
+    // Blank lines keep the stack so a fence body may contain empty lines.
+    if (!isBlank) {
+      for (;;) {
+        const top = listItems.at(-1)
+        if (!top || (top.quoteEnd === quoteEnd && restIndent >= top.column)) {
+          break
+        }
+        listItems.pop()
+      }
+    }
+
+    // Shift a continuation line left by its item's content column so the normal
+    // "up to three leading spaces" rule applies relative to the item.
+    const item = listItems.at(-1)
+    const shift = !isBlank && item?.quoteEnd === quoteEnd && restIndent >= item.column ? item.column : 0
+    const scanLine = shift > 0 ? ' '.repeat(restIndent - shift) + rest.slice(restIndent) : rest
+
+    const { index, listContent } = scanContainerPrefix(scanLine)
+    if (listContent !== null) {
+      listItems.push({ quoteEnd, column: listContent + shift })
+    }
+
+    const marker = /^(`{3,}|~{3,})/.exec(scanLine.slice(index))
     if (marker) {
-      const fenceStart = offset + markerIndex
+      const fenceStart = offset + quoteEnd + shift + index
       const char = marker[1][0]
       const length = marker[1].length
 
@@ -412,41 +487,62 @@ function findAtomicRegions(text: string): AtomicRegion[] {
   return mergeRegions(regions)
 }
 
-/** Pair `<table>` with its closing tag; an unclosed table extends to end of text. */
+/**
+ * Pair `<table>` with its matching closing tag, tracking nesting depth so an
+ * outer opener pairs with the outer closer instead of the first inner one.
+ * Pairing on the first `</table>` leaves the outer remainder unprotected, so a
+ * cut can land inside a table that fits the budget, and a dropped overlap then
+ * leaves no chunk holding the complete table. An unclosed table extends to end
+ * of text.
+ */
 function findTableRegions(text: string, existing: AtomicRegion[]): AtomicRegion[] {
   const regions: AtomicRegion[] = []
-  const open = /<table\b[^>]*>/gi
-  const close = /<\/table>/gi
-  let cursor = 0
-  while (cursor < text.length) {
-    open.lastIndex = cursor
-    const openMatch = open.exec(text)
-    if (!openMatch) break
-    if (isInsideAtomicRegion(openMatch.index, existing)) {
-      cursor = openMatch.index + openMatch[0].length
+  let depth = 0
+  let start = 0
+  for (const match of text.matchAll(/<table\b[^>]*>|<\/table>/gi)) {
+    const pos = match.index ?? 0
+    if (isInsideAtomicRegion(pos, existing)) continue
+    const isClose = match[0][1] === '/'
+    if (isClose) {
+      if (depth === 0) continue
+      depth -= 1
+      if (depth === 0) {
+        regions.push({ start, end: pos + match[0].length, kind: 'table' })
+      }
       continue
     }
-    close.lastIndex = openMatch.index + openMatch[0].length
-    const closeMatch = close.exec(text)
-    const end = closeMatch ? closeMatch.index + closeMatch[0].length : text.length
-    regions.push({ start: openMatch.index, end, kind: 'table' })
-    cursor = end
+    if (depth === 0) {
+      start = pos
+    }
+    depth += 1
+  }
+  if (depth > 0) {
+    regions.push({ start, end: text.length, kind: 'table' })
   }
   return regions
 }
 
-/** Pair `$$` delimiters into display-math regions; an unclosed block extends to the end. */
+/**
+ * Pair `$$` delimiters into display-math regions; an unclosed block extends to
+ * the end. `\$$` (a backslash before the first dollar) renders as literal
+ * dollar signs, so escaped delimiters are skipped for both the opener and the
+ * closer — otherwise one escaped `$$` in prose turns the entire rest of the
+ * document into a single atomic formula.
+ */
 function findDisplayMathRegions(text: string, existing: AtomicRegion[]): AtomicRegion[] {
   const regions: AtomicRegion[] = []
   let cursor = 0
   while (cursor < text.length) {
     const start = text.indexOf('$$', cursor)
     if (start === -1) break
-    if (isInsideAtomicRegion(start, existing)) {
+    if (isEscaped(text, start) || isInsideAtomicRegion(start, existing)) {
       cursor = start + 2
       continue
     }
-    const end = text.indexOf('$$', start + 2)
+    let end = text.indexOf('$$', start + 2)
+    while (end !== -1 && (isEscaped(text, end) || isInsideAtomicRegion(end, existing))) {
+      end = text.indexOf('$$', end + 2)
+    }
     if (end === -1) {
       regions.push({ start, end: text.length, kind: 'math' })
       break

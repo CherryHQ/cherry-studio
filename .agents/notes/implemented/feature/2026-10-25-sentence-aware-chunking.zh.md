@@ -10,15 +10,16 @@ Status: implemented
 
 在 MinerU 解析的学术 PDF 上，这会产生句中断尾的 chunk，拆开 LaTeX 公式或 `<table>` 块，让重叠 chunk 从句子或公式中间开始，并超出请求预算：1024 token 的目标切出了 1718 token 的 chunk。检索评估显示，这会影响“采用什么系统模型、在哪个软件仿真”这类多事实问题。
 
-这个决策需要处理的边界情况包括：位于偏移 0 的代码围栏、引用块或列表容器内的代码围栏、行内代码中的 `$$`、相邻表格，以及超过 token 预算的围栏代码块。
+这个决策需要处理的边界情况包括：位于偏移 0 的代码围栏、引用块或列表容器内的代码围栏（写在标记行上，或缩进到该列表项的内容列）、被反斜杠转义的 `$$`、行内代码中的 `$$`、相邻或嵌套的表格，以及超过 token 预算的围栏代码块。
 
 ## 决策
 
 `src/main/features/knowledge/pipeline/indexing/splitter.ts` 现在：
 
 - 增加 `。！？；…` 和 `.!?` 句末断点，切点在标点之后，并保留收尾引号。
-- 把 `$$...$$`、行内 `$...$` 和 `<table>...</table>` 视为原子块。内部的断点被忽略；落在块内的切点移到块前；落在块内的 overlap 起点移到非代码块之后，或移到此代码块内的下一行。
-- 按行首配对反引号和波浪线围栏，包括偏移 0、最多三个前导空格，以及引用块或列表的容器前缀（`> ~~~sh`、`- ```sh`、`1. ```sh`、嵌套 `> >`）；同时遮蔽四个空格或 Tab 缩进的代码块。能放进预算的代码块保持原子；超过预算的代码块按行边界切分。
+- 把 `$$...$$`、行内 `$...$` 和 `<table>...</table>` 视为原子块。内部的断点被忽略；落在块内的切点移到块前；落在块内的 overlap 起点移到非代码块之后，或移到此代码块内的下一行。被反斜杠转义的 `$$`（`\$$`）是字面文本，opener 和 closer 查找都会跳过它，因此一个转义分隔符不会把后续正文变成一个原子公式。
+- 按嵌套深度把 `<table>` 与对应的收尾标签配对，外层 opener 配外层 closer。若只取第一个 `</table>`，外层表格的剩余部分不受保护，overlap 被丢弃时可能没有任何 chunk 包含完整表格。
+- 按行首配对反引号和波浪线围栏，包括偏移 0、最多三个前导空格，以及引用块或列表的容器前缀（`> ~~~sh`、`- ```sh`、`1. ```sh`、嵌套 `> >`）。列表项的续行以该项的内容列为基准，并先剥离引用块标记，因此 `- shell example` 之后缩进四个空格的 `~~~sh` 仍是围栏。同时遮蔽四个空格或 Tab 缩进的代码块。能放进预算的代码块保持原子；超过预算的代码块按行边界切分。
 - 把行内代码从展示公式和行内公式检测中排除：按相同长度配对反引号；反斜杠转义只作用于候选 opener，因此 closing run 可以紧跟在反斜杠之后。未配对或内嵌的 run 不会吞掉后续完整 span；围栏分隔符按 start-inclusive 排除，两个围栏不会跨正文形成假的 inline span。
 - 只在代码、表格、展示公式和行内代码之外扫描公式分隔符；先跳过排除区域再消费分隔符，因此代码中的 `$` 不会消耗后续公式的开头。
 - 22% 窗口内没有断点时，回退到最近的句子或结构边界，并允许小幅向前越界到下一个句末。
@@ -48,11 +49,12 @@ Status: implemented
 
 ## 验证
 
-- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/splitter.test.ts`：39 个测试通过，覆盖句末标点和收尾引号、`$$`、行内公式、表格、overlap 起点、token 校正、偏移 0 的围栏、缩进的反引号/波浪线围栏、引用块和列表前缀围栏及其收尾围栏之后的正文、四空格缩进代码、包含内嵌反引号的单行/多行行内代码、反斜杠后紧跟的 closing backtick、转义和未配对反引号、内嵌反引号之后的后续代码 span、代码中含 `$` 之后的真实公式、两个围栏之间的公式、相邻表格、超大围栏和缩进代码块、代码块按行对齐的 overlap 和 verbatim fuzz 不变量。
-- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/chunk.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/tokenLimit.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/localEmbeddingTokenLimit.test.ts src/main/features/knowledge/pipeline/vectorstore/indexStore/__tests__/KnowledgeIndexStore.integration.test.ts`：10 个测试通过，加上 splitter 共 49 个。
-- Regression — `pnpm test:main src/main/features/knowledge`：651 passed，18 个原有路径 mock 失败与原始 splitter 基线一致，1 skipped。
+- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/splitter.test.ts`：44 个测试通过，覆盖句末标点和收尾引号、`$$`、行内公式、表格、overlap 起点、token 校正、偏移 0 的围栏、缩进的反引号/波浪线围栏、引用块和列表前缀围栏及其收尾围栏之后的正文、写在列表项续行列上的围栏（含引用块内和嵌套列表）、作为 opener 和作为 closer 的转义 `$$`、跨切点扫描的嵌套表格、四空格缩进代码、包含内嵌反引号的单行/多行行内代码、反斜杠后紧跟的 closing backtick、转义和未配对反引号、内嵌反引号之后的后续代码 span、代码中含 `$` 之后的真实公式、两个围栏之间的公式、相邻表格、超大围栏和缩进代码块、代码块按行对齐的 overlap 和 verbatim fuzz 不变量。
+- Regression — `pnpm test:main src/main/features/knowledge/pipeline/indexing/__tests__/chunk.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/tokenLimit.test.ts src/main/features/knowledge/pipeline/indexing/__tests__/localEmbeddingTokenLimit.test.ts src/main/features/knowledge/pipeline/vectorstore/indexStore/__tests__/KnowledgeIndexStore.integration.test.ts`：10 个测试通过，加上 splitter 共 54 个。
+- Regression — `pnpm test:main src/main/features/knowledge`：656 passed，18 个原有路径 mock 失败与原始 splitter 基线一致，1 skipped。
 - Regression — 改动文件的 `oxfmt --check`、`oxlint --deny-warnings` 和 `eslint` 通过。
-- Regression — 评审场景探针（`chunkSize=1024`、`chunkOverlap=200`）：文档开头围栏最大 1019 token；引用块前缀围栏最大 1022；列表前缀围栏最大 1020；有序列表前缀围栏最大 1021；嵌套引用块围栏最大 1014；三个空格缩进的引用块围栏最大 1022；含多行 `echo $$` 的行内代码最大 1020；内嵌反引号之后的后续 `echo $$` 代码 span 最大 1020；包含 `echo $$` 的波浪线围栏最大 1020；两个空格缩进的波浪线围栏最大 1019；真实 span 前的转义反引号最大 1020；双反引号 span 前的未配对反引号最大 1020；反斜杠后 closing backtick 最大 1017；四空格缩进的 `echo $$` 代码块最大 1019；100 个相邻表格最大 1023；160 行、12.5k 字符的代码块切成 3 块，最大 1020 token；400 行代码块的 200-token overlap 在每个边界都保留并按行对齐；200 行缩进代码块在 `32/0` 下最大 32 token。各容器前缀围栏用例均产出 16 个 chunk，除首尾外每个 chunk 都以句末标点结尾，说明围栏内的字面 `$$` 不再让后续正文被当成展示公式。代码中含 `$` 之后的公式和两个围栏之间的公式都完整出现在一个 chunk 中。所有探针的非空白缺失字符均为 0。
+- Regression — 评审场景探针（`chunkSize=1024`、`chunkOverlap=200`）：文档开头围栏最大 1019 token；引用块前缀围栏最大 1022；列表前缀围栏最大 1020；写在列表项续行列上的围栏最大 1014，引用块内和嵌套列表同样如此；正文中被转义的 `$$` 最大 1023，此前 head 会产出 13,008 token 的 chunk；93 字符的嵌套表格在偏移 4900–5000 的每个切点上都完整落在同一个 chunk 内，最大 990 token，此前 head 会切断它并在丢弃 overlap 时不再有任何 chunk 包含完整表格；含多行 `echo $$` 的行内代码最大 1020；内嵌反引号之后的后续 `echo $$` 代码 span 最大 1020；包含 `echo $$` 的波浪线围栏最大 1020；两个空格缩进的波浪线围栏最大 1019；真实 span 前的转义反引号最大 1020；双反引号 span 前的未配对反引号最大 1020；反斜杠后 closing backtick 最大 1017；四空格缩进的 `echo $$` 代码块最大 1019；100 个相邻表格最大 1023；160 行、12.5k 字符的代码块切成 3 块，最大 1020 token；400 行代码块的 200-token overlap 在每个边界都保留并按行对齐；200 行缩进代码块在 `32/0` 下最大 32 token。各容器前缀围栏用例均产出 16 个 chunk，除首尾外每个 chunk 都以句末标点结尾，说明围栏内的字面 `$$` 不再让后续正文被当成展示公式。代码中含 `$` 之后的公式和两个围栏之间的公式都完整出现在一个 chunk 中。所有探针的非空白缺失字符均为 0。
+- Regression — 容器前缀长串保持线性（`chunkSize=64`）：40 个引用块标记重复 400 行耗时 9 ms，40 个无序列表标记 8 ms，40 个有序列表标记 28 ms，混合 `> - ` 前缀 5 ms。
 - Regression — MinerU 文档的非空白覆盖：缺失字符为 0；`structured` 模式下没有 `$$` 或 `<table>` 不平衡的 chunk。
 - Regression — 真实 embedding（`voyageai/voyage-multimodal-3.5`，2048 维）和 12 个查询：三组配置的答案都在 top-5；上面的排名差异可以复现。
 

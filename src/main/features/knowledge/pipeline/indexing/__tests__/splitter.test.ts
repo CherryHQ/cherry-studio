@@ -237,6 +237,84 @@ describe('splitTextWithOffsets — separator and strategy', () => {
   })
 })
 
+describe('splitTextWithOffsets — escaped delimiters', () => {
+  it('does not treat an escaped $$ as a display-math opener', () => {
+    const text =
+      'write \\$$ to show literal dollar signs. ' +
+      'This is an ordinary sentence about knowledge retrieval. '.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+  })
+
+  it('ignores an escaped $$ closer and pairs with the next real delimiter', () => {
+    const text = '公式如下：\n\n$$\na + \\$$ b\n$$\n\n' + '普通句子。'.repeat(2000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 64, chunkOverlap: 0 })
+
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(64)
+    }
+    // The region runs to the real closer, so the whole block stays in one chunk.
+    expect(chunks.some((chunk) => chunk.text.includes('$$\na + \\$$ b\n$$'))).toBe(true)
+  })
+})
+
+describe('splitTextWithOffsets — nested atomic blocks', () => {
+  it('masks $$ inside a fence indented to a list item content column', () => {
+    const text =
+      '- shell example\n    ~~~sh\n      echo $$\n    ~~~\n\n' +
+      'This is an ordinary sentence about knowledge retrieval. '.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+    const fenceChunk = chunks.find((chunk) => chunk.text.includes('echo $$'))
+    expect(fenceChunk?.text.match(/~~~/g)).toHaveLength(2)
+  })
+
+  it('masks $$ inside a fence nested in a list continuation inside a blockquote', () => {
+    const text =
+      '> - shell example\n>     ~~~sh\n>       echo $$\n>     ~~~\n\n' +
+      'This is an ordinary sentence about knowledge retrieval. '.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+    expect(chunks.find((chunk) => chunk.text.includes('echo $$'))?.text.match(/~~~/g)).toHaveLength(2)
+  })
+
+  it('keeps a nested table complete in one chunk', () => {
+    const table = '<table><tr><td><table><tr><td>inner</td></tr></table></td><td>after content</td></tr></table>'
+    const prose = 'word '.repeat(2000)
+
+    // Sweep the table across a chunk boundary: with the outer opener paired to
+    // the inner closer, the unprotected outer remainder was cut and the dropped
+    // overlap left no chunk holding the whole table.
+    for (let offset = 4900; offset <= 5000; offset += 1) {
+      const text = prose.slice(0, offset) + table + prose.slice(0, 2000)
+      const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+      expectVerbatimSlices(text, chunks)
+      expect(chunks.some((chunk) => chunk.text.includes(table))).toBe(true)
+      for (const chunk of chunks) {
+        const opens = (chunk.text.match(/<table\b/g) ?? []).length
+        const closes = (chunk.text.match(/<\/table>/g) ?? []).length
+        expect(opens).toBe(closes)
+      }
+    }
+  })
+})
+
 describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
   it('cuts after CJK sentence punctuation and keeps the closing quote', () => {
     const text = '他说：“第一句。”然后第二句！最后第三句？'
