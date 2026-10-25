@@ -56,9 +56,11 @@ describe('VoiceExpressiveService', () => {
   it('rejects labels that would rewrite ordinary text', async () => {
     const service = await startService()
 
-    await expect(service.set({ kind: 'emoji', match: 'abc', zh: '字母', en: 'letters' })).rejects.toThrow(
-      'must contain an emoji'
-    )
+    for (const match of ['abc', 'abc😄', '😄x']) {
+      await expect(service.set({ kind: 'emoji', match, zh: '字母', en: 'letters' })).rejects.toThrow(
+        'one complete emoji sequence'
+      )
+    }
     await expect(service.set({ kind: 'kaomoji', match: 'word', zh: '词', en: 'word' })).rejects.toThrow(
       'at least one symbol'
     )
@@ -80,7 +82,10 @@ describe('VoiceExpressiveService', () => {
       'foo@bar.com',
       'user@example.com',
       '@foo@',
-      '(a@b)'
+      '(a@b)',
+      '(20°C)',
+      '(100°C)',
+      '(°)'
     ]) {
       await expect(service.set({ kind: 'kaomoji', match, zh: '点', en: 'dot' })).rejects.toThrow(
         'kaomoji must look like a face'
@@ -96,7 +101,9 @@ describe('VoiceExpressiveService', () => {
     await expect(service.set({ kind: 'kaomoji', match: '@_@', zh: '晕', en: 'dizzy' })).resolves.toBeTruthy()
     await expect(service.set({ kind: 'kaomoji', match: '*^_^*', zh: '开心', en: 'happy' })).resolves.toBeTruthy()
     await expect(service.set({ kind: 'kaomoji', match: 'ಠ益ಠ', zh: '生气', en: 'angry' })).resolves.toBeTruthy()
+    await expect(service.set({ kind: 'kaomoji', match: '(°_°)', zh: '无语', en: 'speechless' })).resolves.toBeTruthy()
     await expect(service.set({ kind: 'emoji', match: '🇺🇸', zh: '美国', en: 'United States' })).resolves.toBeTruthy()
+    await expect(service.set({ kind: 'emoji', match: '1️⃣', zh: '一', en: 'one' })).resolves.toBeTruthy()
   })
 
   it('removes a rule and reports a miss', async () => {
@@ -116,7 +123,8 @@ describe('VoiceExpressiveService', () => {
         { id: 'a', kind: 'emoji', match: '😄', zh: '开心', en: 'happy', source: 'manual', createdAt: 1 },
         { id: 'b', kind: 'emoji', match: 'plain', zh: '普通', en: 'plain', source: 'manual', createdAt: 1 },
         { id: 'c', kind: 'kaomoji', match: '@', zh: '困惑', en: 'confused', source: 'manual', createdAt: 1 },
-        { id: 'd', kind: 'kaomoji', match: 'foo@bar.com', zh: '邮件', en: 'email', source: 'manual', createdAt: 1 }
+        { id: 'd', kind: 'kaomoji', match: 'foo@bar.com', zh: '邮件', en: 'email', source: 'manual', createdAt: 1 },
+        { id: 'e', kind: 'kaomoji', match: '(20°C)', zh: '温度', en: 'temperature', source: 'manual', createdAt: 1 }
       ])
     )
 

@@ -16,34 +16,47 @@ let started: Promise<void> | undefined
 export function ensureExpressiveRulesLoaded(): Promise<void> {
   if (started) return started
   started = (async () => {
-    try {
-      const enabled = await preferenceService.get('feature.voice.speech.read_expressive')
-      setExpressiveEnabled(enabled)
-    } catch {
-      // Keep the default (enabled).
-    }
-
-    try {
-      const rules = await ipcApi.request('voice.expressive.list')
-      if (Array.isArray(rules)) setCustomExpressiveRules(rules)
-    } catch {
-      // The built-in table remains usable.
-    }
-
+    // Observe before reading. A change that lands while the initial read is in
+    // flight increments the epoch, so the older read result cannot overwrite it.
+    let preferenceEpoch = 0
     try {
       preferenceService.subscribeChange('feature.voice.speech.read_expressive')(() => {
-        void preferenceService.get('feature.voice.speech.read_expressive').then(setExpressiveEnabled)
+        preferenceEpoch += 1
+        void preferenceService
+          .get('feature.voice.speech.read_expressive')
+          .then(setExpressiveEnabled)
+          .catch(() => {
+            // Keep the last known switch value.
+          })
       })
     } catch {
       // Older hosts or test doubles may not expose subscriptions.
     }
 
+    const preferenceEpochAtRead = preferenceEpoch
+    try {
+      const enabled = await preferenceService.get('feature.voice.speech.read_expressive')
+      if (preferenceEpoch === preferenceEpochAtRead) setExpressiveEnabled(enabled)
+    } catch {
+      // Keep the default (enabled).
+    }
+
+    let rulesEpoch = 0
     try {
       ipcApi.on('voice.expressive.changed', (rules) => {
+        rulesEpoch += 1
         if (Array.isArray(rules)) setCustomExpressiveRules(rules)
       })
     } catch {
       // Change notifications are an enhancement, not a requirement.
+    }
+
+    const rulesEpochAtList = rulesEpoch
+    try {
+      const rules = await ipcApi.request('voice.expressive.list')
+      if (rulesEpoch === rulesEpochAtList && Array.isArray(rules)) setCustomExpressiveRules(rules)
+    } catch {
+      // The built-in table remains usable.
     }
   })()
   return started

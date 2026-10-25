@@ -7,6 +7,8 @@
  * of being spelled out character by character.
  */
 
+import { EMOJI_SEQUENCE_GLOBAL } from '@shared/utils/emojiSequence'
+
 export type SpeechLanguage = 'zh' | 'en'
 
 interface Label {
@@ -158,12 +160,10 @@ const KAOMOJI: Array<{ pattern: RegExp; label: Label }> = [
 ]
 
 /**
- * Default emoji plus ZWJ sequences, with optional variation selectors and skin
- * tones. Regional-indicator pairs (flags) and keycaps are matched as one unit so
- * an exact custom rule such as `🇺🇸` can resolve instead of two broken halves.
+ * Every complete sequence (flags, keycaps, ZWJ, skin tones, tags) is matched as
+ * one unit, so an exact custom rule such as `🇺🇸` resolves instead of two halves.
  */
-const EMOJI_PATTERN =
-  /(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)(?:\uFE0F|\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)|\p{Emoji_Modifier}|[\u{E0020}-\u{E007F}]+)*/gu
+const EMOJI_PATTERN = EMOJI_SEQUENCE_GLOBAL
 
 /** Code spans are wrapped in these private-use markers so they stay verbatim. */
 const SPEECH_CODE_OPEN = '\uE000'

@@ -64,6 +64,12 @@ describe('expressiveToSpeech', () => {
     expect(expressiveToSpeech('第1️⃣名', 'zh')).toBe('第名')
   })
 
+  it('resolves a custom keycap rule as one emoji', () => {
+    setCustomExpressiveRules([{ kind: 'emoji', match: '1️⃣', zh: '一', en: 'one' }])
+
+    expect(expressiveToSpeech('第1️⃣名', 'zh')).toBe('第[一]名')
+  })
+
   it('consumes a tag-sequence flag as one emoji', () => {
     expect(expressiveToSpeech('\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F} 好', 'zh')).toBe('好')
   })

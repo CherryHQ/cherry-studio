@@ -6,6 +6,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { Sequencer } from '@shared/utils/async'
+import { COMPLETE_EMOJI_SEQUENCE } from '@shared/utils/emojiSequence'
 
 const logger = loggerService.withContext('VoiceExpressive')
 
@@ -35,8 +36,6 @@ const MAX_MATCH_LENGTH = 32
 const MAX_LABEL_LENGTH = 40
 const MAX_RULES = 500
 
-const EMOJI_PATTERN = /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u
-
 /** Bracketed faces, optionally followed by a question or exclamation mark. */
 const BRACKETED_KAOMOJI = /^[(（[［{｛<＜]([\s\S]*)[)）\]］}｝>＞][?？!！]*$/u
 /** Western faces read as eye, mouth mark, eye (`T_T`, `o_o`, `>_<`). */
@@ -57,12 +56,22 @@ function hasKaomojiGlyph(value: string): boolean {
   return false
 }
 
+const ASCII_ALNUM = /[A-Za-z0-9]/
+
+function isMirroredCore(core: string): boolean {
+  const chars = [...core]
+  if (chars.length !== 3 || chars[0] !== chars[2] || ASCII_ALNUM.test(chars[0])) return false
+  return MOUTH_MARK.test(chars[1]) || /[oO0]/.test(chars[1])
+}
+
 function faceCore(core: string): boolean {
   const trimmed = core.trim()
-  if (!trimmed) return false
-  if (EYE_MOUTH_EYE.test(trimmed) || hasKaomojiGlyph(trimmed)) return true
-  const chars = [...trimmed]
-  return chars.length === 3 && chars[0] === chars[2] && MOUTH_MARK.test(chars[1])
+  if ([...trimmed].length < 2) return false
+  if (EYE_MOUTH_EYE.test(trimmed) || isMirroredCore(trimmed)) return true
+  // One glyph inside otherwise ordinary text is not a face: `(20°C)` contains
+  // `°` but must not become a persistent substitution for temperatures.
+  if (ASCII_ALNUM.test(trimmed)) return false
+  return hasKaomojiGlyph(trimmed)
 }
 
 /**
@@ -105,7 +114,7 @@ function normalizeMatch(input: SetExpressiveRuleInput): string {
   if (/\s/.test(match)) throw new Error('match must not contain whitespace')
 
   if (input.kind === 'emoji') {
-    if (!EMOJI_PATTERN.test(match)) throw new Error('match must contain an emoji')
+    if (!COMPLETE_EMOJI_SEQUENCE.test(match)) throw new Error('match must be one complete emoji sequence')
   } else if (/^[\p{L}\p{N}]+$/u.test(match) && !hasKaomojiGlyph(match)) {
     // A plain word would rewrite ordinary prose, not a face. Letter-only faces
     // such as `ಠ益ಠ` still carry a face glyph and fall through to the shape check.
