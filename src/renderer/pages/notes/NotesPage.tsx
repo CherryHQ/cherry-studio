@@ -35,7 +35,7 @@ import {
   updateTreeNode
 } from '@renderer/services/NotesTreeService'
 import { toast } from '@renderer/services/toast'
-import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { NoteRenameResult, NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type DirectoryTreeOptions } from '@shared/utils/file'
@@ -663,14 +663,22 @@ const NotesPage: FC = () => {
 
   // 重命名节点
   const handleRenameNode = useCallback(
-    async (nodeId: string, newName: string) => {
+    async (nodeId: string, newName: string): Promise<NoteRenameResult> => {
+      let result: NoteRenameResult = { ok: false, reason: 'failed' }
+      let failureReported = false
+      let changed = false
       let prepared: PreparedFileMutation | undefined
       try {
         isRenamingRef.current = true
 
         const node = findNode(notesTree, nodeId)
-        if (!node || node.name === newName) {
-          return
+        if (!node) {
+          toast.error(t('notes.rename_failed'))
+          failureReported = true
+          return result
+        }
+        if (node.name === newName) {
+          return { ok: true, name: node.name }
         }
 
         const oldPath = node.externalPath
@@ -712,7 +720,8 @@ const NotesPage: FC = () => {
           () => rollbackFileMove(renamed.path, oldPath, node.type)
         )
         if (!metadataSynced) {
-          return
+          failureReported = true
+          return result
         }
 
         await prepared.finish()
@@ -722,21 +731,27 @@ const NotesPage: FC = () => {
         }
 
         await refreshTree()
-        // Success: flag stays true until the watcher reports the renamed
-        // node and the [activeNode] effect above clears it.
+        changed = true
+        result = { ok: true, name: renamed.name }
       } catch (error) {
-        // Rename failed → clear the flag now so subsequent tree updates
-        // aren't suppressed.
-        isRenamingRef.current = false
         logger.error('Failed to rename node:', error as Error)
-        toast.error(
-          error instanceof Error && error.message.startsWith('Target name already exists')
-            ? t('notes.target_name_exists')
-            : t('notes.rename_failed')
-        )
+        const exists = error instanceof Error && error.message.startsWith('Target name already exists')
+        result = { ok: false, reason: exists ? 'exists' : 'failed' }
+        toast.error(exists ? t('notes.target_name_exists') : t('notes.rename_failed'))
+        failureReported = true
       } finally {
-        await prepared?.finish()
+        try {
+          await prepared?.finish()
+        } catch (error) {
+          logger.error('Failed to finish note rename:', error as Error)
+          if (!failureReported) {
+            toast.error(t('notes.rename_failed'))
+            result = { ok: false, reason: 'failed' }
+          }
+        }
+        if (!changed || !result.ok) isRenamingRef.current = false
       }
+      return result
     },
     [
       activeFilePath,
