@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -139,6 +139,76 @@ export function sendSystemHotkey(platform: Platform, keys: string[]): void {
   }
   if (platform === 'macos') runMacHotkey(keys)
   else runWindowsHotkey(keys)
+}
+
+function runAsync(file: string, args: string[], timeout: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { timeout }, (error) => (error ? reject(error) : resolve()))
+  })
+}
+
+/**
+ * Acknowledge a native message box raised by the main process itself. The process is
+ * blocked inside the modal call, so nothing inside the page can dismiss it: click the
+ * box's default button from the desktop instead. Resolves once the box is gone.
+ */
+export function dismissNativeMessageBox(platform: Platform, paths: RunPaths, title: string): Promise<void> {
+  const electronPid = readAppRecord(paths).electronPid
+  if (platform === 'macos') {
+    const script = [
+      'on run argv',
+      'set targetPid to item 2 of argv as integer',
+      'tell application "System Events"',
+      'repeat 240 times',
+      'if exists (first application process whose unix id is targetPid) then',
+      'tell (first application process whose unix id is targetPid)',
+      'repeat with w in windows',
+      'if exists button "OK" of w then',
+      'click button "OK" of w',
+      'return "window"',
+      'end if',
+      'if (count of sheets of w) > 0 then',
+      'repeat with s in sheets of w',
+      'if exists button "OK" of s then',
+      'click button "OK" of s',
+      'return "sheet"',
+      'end if',
+      'end repeat',
+      'end if',
+      'end repeat',
+      'end tell',
+      'end if',
+      'delay 0.25',
+      'end repeat',
+      'error "Native message box was not found"',
+      'end tell',
+      'end run'
+    ].join('\n')
+    return runAsync('osascript', ['-e', script, '--', title, String(electronPid)], 90_000)
+  }
+  const script = [
+    'Set-StrictMode -Version Latest',
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+    `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
+    '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
+    '$dialog = $null',
+    'do {',
+    '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+    '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
+    '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
+    '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
+    'if (-not $dialog) { throw "Native message box was not found" }',
+    '$buttonCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "OK")',
+    '$button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
+    'if (-not $button) { throw "Native message box OK button was not found" }',
+    '$invoke = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)',
+    '$invoke.Invoke()',
+    'Start-Sleep -Milliseconds 500'
+  ].join('\n')
+  return runAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], 90_000)
 }
 
 export function openExternalText(platform: Platform, paths: RunPaths, candidatePath: string): string {

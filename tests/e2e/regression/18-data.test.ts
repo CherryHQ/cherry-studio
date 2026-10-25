@@ -12,6 +12,7 @@ import { TopicSchema } from '@shared/data/types/topic'
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
+import { dismissNativeMessageBox } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { applicationDataMigration } from './applicationDataMigration'
 import { sendChatMarker } from './chat'
@@ -378,11 +379,16 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       observer.observe(document.body, { subtree: true, childList: true, characterData: true })
     })
     const closed = page.waitForEvent('close', { timeout: 30_000 })
+    // A development build ends the restore with a blocking native dialog before it exits,
+    // so the box has to be acknowledged from the desktop while the click is still in flight.
+    const acknowledged =
+      app.record.mode === 'branch'
+        ? dismissNativeMessageBox(app.record.platform, app.paths, 'Manual Restart Required')
+        : undefined
     await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
-    await closed
+    await Promise.all([closed, acknowledged])
     if (app.record.mode === 'branch') {
-      // A development build cannot relaunch itself: restore ends with a blocking native
-      // "Manual Restart Required" dialog and exits. Restart through the harness, as that dialog asks.
+      // The exit was the restart the dialog asks for; bring the application back through the harness.
       page = await app.restart()
     } else {
       await expect(async () => {

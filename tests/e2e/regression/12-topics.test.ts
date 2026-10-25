@@ -798,8 +798,12 @@ test(...caseDefinition('MP-46'), async ({ app, mainWindow }, testInfo) => {
       await selectPair(archived)
       await history().getByRole('button', { name: 'Batch Archive (2)', exact: true }).click()
       for (const topic of archived) await expect.poll(async () => (await readTopic(topic.id)).status).toBe(404)
-      const purge = (await page.evaluate(() => window.api.ipcApi.request('trash.purge_now'))) as { status: string }
-      expect(purge.status, 'Emptying the recycle bin must finish').toBe('completed')
+      const purge = (await page.evaluate(() => window.api.ipcApi.request('trash.purge_now'))) as {
+        ok: boolean
+        data: { status: string }
+      }
+      expect(purge.ok, 'Emptying the recycle bin must succeed').toBe(true)
+      expect(purge.data.status, 'Emptying the recycle bin must finish').toBe('completed')
       await expect
         .poll(
           async () => {

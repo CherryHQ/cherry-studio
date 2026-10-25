@@ -4,7 +4,11 @@ import { dirname } from 'node:path'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
-import { KnowledgeBaseSchema, KnowledgeItemChunkSchema } from '@shared/data/types/knowledge'
+import {
+  KnowledgeBaseSchema,
+  KnowledgeItemChunkSchema,
+  KnowledgeSearchResultSchema
+} from '@shared/data/types/knowledge'
 
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
@@ -68,6 +72,14 @@ export async function knowledgeSourceConflicts(app: RegressionApp, page: Page, t
       expect(response).toMatchObject({ ok: true })
       return KnowledgeItemChunkSchema.array().parse((response as { data: unknown }).data)
     }
+    const search = async (query: string) => {
+      const response = await page.evaluate(
+        ({ baseId, query }) => window.api.ipcApi.request('knowledge.search', { baseId, query }),
+        { baseId: base.id, query }
+      )
+      expect(response).toMatchObject({ ok: true })
+      return KnowledgeSearchResultSchema.array().parse((response as { data: unknown }).data)
+    }
     await ready(1)
     const initial = (await readItems()).items[0]
     expect(JSON.stringify(await chunks(initial.id))).toContain('MP64ORIGINAL')
@@ -128,22 +140,37 @@ export async function knowledgeSourceConflicts(app: RegressionApp, page: Page, t
     await expect(rows.getByText('Ready', { exact: true })).toHaveCount((await readItems()).total)
     await screenshot('MP-64 sources after replacement')
     const after = await readItems()
-    expect.soft(after.total, 'Replace must leave one source').toBe(1)
-    await expect.soft(rows, 'Replace must leave one visible row').toHaveCount(1, { timeout: 2_000 })
+    // Keep All stored the second copy under its own relative path, so Replace swaps only the
+    // copy whose name matches the incoming file and leaves the renamed one alone.
+    const renamedCopy = retained.find((item) => item.id !== initial.id)!
+    expect.soft(after.total, 'Replace must keep the renamed copy next to the replacement').toBe(2)
+    await expect
+      .soft(rows, 'Replace must leave the renamed copy and the replacement visible')
+      .toHaveCount(2, { timeout: 2_000 })
+    expect(
+      after.items.some(({ id }) => id === renamedCopy.id),
+      'Replace must preserve the renamed copy'
+    ).toBe(true)
+    expect(
+      after.items.some(({ id }) => id === initial.id),
+      'Replace must drop the source it replaced'
+    ).toBe(false)
     const current = after.items.find((item) => !retained.some(({ id }) => id === item.id))!
-    expect(Date.parse(current.updatedAt)).toBeGreaterThan(
-      Math.max(...retained.map((item) => Date.parse(item.updatedAt)))
-    )
+    expect(Date.parse(current.updatedAt)).toBeGreaterThan(Math.max(Date.parse(initial.updatedAt)))
     expect(JSON.stringify(await chunks(current.id))).toContain('MP64REPLACEMENT')
-    for (const item of retained) {
-      expect
-        .soft(
-          after.items.some(({ id }) => id === item.id),
-          'Old source must be replaced'
-        )
-        .toBe(false)
-      expect.soft(await chunks(item.id), 'Old source index must be removed').toEqual([])
-    }
+    expect(JSON.stringify(await chunks(renamedCopy.id))).toContain('MP64ORIGINAL')
+    const replacementHits = await search('MP64REPLACEMENT')
+    expect(replacementHits.length, 'The replacement must be searchable').toBeGreaterThan(0)
+    expect(
+      replacementHits.every(({ itemId }) => itemId === current.id),
+      'Search results must not point at the replaced source'
+    ).toBe(true)
+    const originalHits = await search('MP64ORIGINAL')
+    expect(originalHits.some(({ itemId }) => itemId === renamedCopy.id)).toBe(true)
+    expect(
+      originalHits.some(({ itemId }) => itemId === initial.id),
+      'The replaced source must leave no index entries behind'
+    ).toBe(false)
     await expect(page.getByRole('alert')).toHaveCount(0)
     await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0)
   } finally {

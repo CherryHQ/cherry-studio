@@ -924,15 +924,22 @@ test(...caseDefinition('MP-141'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(connectionAddress()).toContainText(selectedAddress)
     const oldQr = await qr().innerHTML()
     await page.getByRole('button', { name: 'Refresh addresses', exact: true }).click()
-    await expect.poll(async () => qr().innerHTML()).not.toBe(oldQr)
     const unavailable = settings().getByText('The selected address is no longer available. Choose another address.', {
       exact: true
     })
+    // Refreshing can drop the address in use: the code then disappears and the alert replaces it.
+    await expect(qr().or(unavailable).first()).toBeVisible({ timeout: 30_000 })
     if (await unavailable.isVisible()) {
       await connectionAddress().click()
-      await page.getByRole('option').filter({ hasNotText: selectedAddress }).last().click()
+      await page.getByRole('option', { name: 'Automatic', exact: true }).click()
       await expect(unavailable).toHaveCount(0)
+      await expect(qr()).toBeVisible()
+      await expect.poll(async () => qr().innerHTML()).not.toBe(oldQr)
+      await screenshot('MP-141 address recovered after refresh')
+    } else {
+      await expect.poll(async () => qr().innerHTML()).not.toBe(oldQr)
     }
+    await expect(qr()).toBeVisible()
     await connectionAddress().click()
     expect(await options.count()).toBeGreaterThan(1)
     await page.keyboard.press('Escape')

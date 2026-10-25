@@ -675,7 +675,7 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
       clipboardData.setData('text/plain', text)
       element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }))
     }, '文'.repeat(600))
-    const attachment = composer.locator('[data-token-kind="file"]')
+    const attachment = composer.locator('[data-composer-token-kind="file"]')
     await expect(attachment).toHaveCount(1)
     await expect(attachment).toContainText('Pasted text.txt')
     await expect(editor).not.toContainText('文'.repeat(600))

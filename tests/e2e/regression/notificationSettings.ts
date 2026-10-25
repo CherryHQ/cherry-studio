@@ -47,6 +47,27 @@ function nativeNotification(text: string, click = false): boolean {
   )
 }
 
+// A failure after the case hides the application must not leave it hidden for the cases that follow.
+function restoreAppVisibility(pid: number): void {
+  for (const action of ['set visible to true', 'set frontmost to true']) {
+    try {
+      execFileSync(
+        'osascript',
+        [
+          '-e',
+          `tell application "System Events" to tell (first application process whose unix id is ${pid}) to ${action}`
+        ],
+        {
+          timeout: 10_000,
+          stdio: 'ignore'
+        }
+      )
+    } catch {
+      // The application may already be gone; nothing is left to restore.
+    }
+  }
+}
+
 export async function notificationSettings(app: RegressionApp, initialPage: Page, testInfo: TestInfo): Promise<void> {
   expect(process.platform, 'Native notification automation requires macOS').toBe('darwin')
   let page = initialPage
@@ -262,6 +283,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     }
   } finally {
     await server.close()
+    restoreAppVisibility(app.record.electronPid)
     await page.evaluate(
       async ({ keys, original, namingEnabled, assistantId, providerId }) => {
         for (const [index, key] of keys.entries()) await window.api.preference.set(key, original[index])
