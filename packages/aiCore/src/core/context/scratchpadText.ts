@@ -261,6 +261,11 @@ function isListItemStart(line: string): boolean {
   return /^(?: {0,3}> ?)* {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/.test(line)
 }
 
+/** An ordered list can interrupt a paragraph only when its start number is 1. */
+function isInterruptingListItemStart(line: string): boolean {
+  return /^(?: {0,3}> ?)* {0,3}(?:[-*+]|0*1[.)])(?:[ \t]+|$)/.test(line)
+}
+
 function explicitQuoteDepth(line: string): number {
   let rest = line
   let depth = 0
@@ -275,6 +280,7 @@ function explicitQuoteDepth(line: string): number {
 function inlineBlockStart(text: string, index: number): number {
   let start = 0
   let quoteDepth = 0
+  let inList = false
   for (let pos = 0; pos <= index;) {
     const end = lineEndAfter(text, pos)
     const line = text.slice(pos, lineContentEnd(text, pos))
@@ -284,8 +290,12 @@ function inlineBlockStart(text: string, index: number): number {
     if (isInlineBlockBoundary(line)) {
       start = end
       quoteDepth = 0
+      inList = false
     } else {
-      if (isListItemStart(line)) start = pos
+      if (isInterruptingListItemStart(line) || (inList && isListItemStart(line))) {
+        start = pos
+        inList = true
+      }
       if (depth > 0) quoteDepth = depth
     }
     if (end <= pos) break
@@ -299,11 +309,18 @@ function inlineBlockEnd(text: string, from: number): number {
   const currentEnd = lineEndAfter(text, from)
   // A heading is its own leaf, including when its code span is unfinished.
   if (isInlineBlockBoundary(text.slice(currentStart, lineContentEnd(text, currentStart)))) return currentEnd
+  const inList = isListItemStart(text.slice(currentStart, lineContentEnd(text, currentStart)))
   let quoteDepth = explicitQuoteDepth(text.slice(currentStart, lineContentEnd(text, currentStart)))
   for (let start = currentEnd; start < text.length; start = lineEndAfter(text, start)) {
     const line = text.slice(start, lineContentEnd(text, start))
     const depth = explicitQuoteDepth(line)
-    if (isInlineBlockBoundary(line) || isListItemStart(line) || (depth > 0 && depth !== quoteDepth)) return start
+    if (
+      isInlineBlockBoundary(line) ||
+      isInterruptingListItemStart(line) ||
+      (inList && isListItemStart(line)) ||
+      (depth > 0 && depth !== quoteDepth)
+    )
+      return start
     if (depth > 0) quoteDepth = depth
   }
   return text.length

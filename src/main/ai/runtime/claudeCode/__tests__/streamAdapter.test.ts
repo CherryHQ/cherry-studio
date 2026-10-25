@@ -4662,6 +4662,36 @@ describe('compaction artifact boundary', () => {
     expect(text).toBe(answer)
   })
 
+  it('preserves inline spans across non-interrupting ordered markers (inv_efe376c40347676d)', () => {
+    const answer = 'Use `line\n2. <analysis>literal</analysis>\nend`.'
+    for (let split = 0; split < answer.length; split++) {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (const text of [answer.slice(0, split), answer.slice(split)])
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+        )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+      } as any)
+      adapter.handleMessage(successResult())
+      expect(
+        parts
+          .filter((p) => p.type === 'text-delta')
+          .map((p) => (p as any).delta)
+          .join(''),
+        `split ${split}`
+      ).toBe(answer)
+    }
+  })
+
   it('keeps list setext context through partial indentation (inv_a2c2ab0a268fe87b)', () => {
     const answer = '- Heading\n  =====\n      <thinking>literal</thinking>\n\nDone.'
     for (let split = 1; split < answer.length; split++) {

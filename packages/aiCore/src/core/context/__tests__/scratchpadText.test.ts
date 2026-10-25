@@ -694,6 +694,20 @@ Example:
     expect(performance.now() - started).toBeLessThan(200)
   })
 
+  it.each(['2.', '42)', '0002.'])(
+    'keeps inline spans across non-interrupting ordered markers %s (inv_efe376c40347676d)',
+    (marker) => {
+      const answer = 'Use `line\n' + marker + ' <analysis>literal</analysis>\nend`.'
+      expect(stripKnownModelScratchpadBlocksPreservingCodeFences(answer)).toBe(answer)
+      expect(stripModelScratchpadBlocks(answer)).toBe(answer)
+    }
+  )
+
+  it('does not pair inline delimiters across ordered list siblings', () => {
+    const input = '1. `unfinished\n2. <analysis>SECRET</analysis> closing`'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).not.toContain('SECRET')
+  })
+
   it('preserves balanced protocol elements while removing unmatched suffixes (inv_e50b098aa3667988)', () => {
     for (const tag of ['tool_result', 'parameter', 'invoke', 'tool_calls']) {
       const balanced = `The response is <${tag}>ok</${tag}>`
