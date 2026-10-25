@@ -2409,6 +2409,17 @@ export class ClaudeCodeStreamAdapter {
    * row stays running forever.
    */
   private handleTaskSystemMessage(message: SdkTaskSystemMessage, ctx: StreamContext): void {
+    // A transcript-visible task notification posts a background result the
+    // assistant still owes an answer for: an earlier acknowledgement that the
+    // work is running is not that answer. Leaving the prompt marked answered
+    // would arm compaction-artifact grace against the requested follow-up and
+    // suppress it (cherry-pr-review round-7 background-followup-suppression).
+    // skip_transcript tasks (watchers, live updates) post no result and owe
+    // no answer, so they leave provenance untouched.
+    if (message.subtype === 'task_notification' && message.skip_transcript !== true) {
+      this.assistantAnswerSinceUserPrompt = false
+      this.endCompactionArtifactGrace()
+    }
     const eventData = this.toTaskEventPartData(message)
 
     // Membership and liveness remain owned exclusively by `background_tasks_changed`. A native

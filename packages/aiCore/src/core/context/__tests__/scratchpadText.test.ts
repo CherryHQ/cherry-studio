@@ -1141,3 +1141,37 @@ describe('cherry-review round-6 findings', () => {
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(expected)
   })
 })
+
+describe('cherry-review round-7 findings', () => {
+  it('keeps literal content of a fenced block inside a nested list item (nested-fence-content-loss)', () => {
+    const input = '- Parent\n\n    - ~~~xml\n      <thinking>literal</thinking>\n      ~~~'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it('keeps a complete inline-code span holding literal wrapper markup (inline-wrapper-boundary)', () => {
+    // The span `<summary></analysis>` is legitimate inline code: the wrapper
+    // opener precedes the block's closing tag inside the span, so the span
+    // protects the literal closer and the block ends at its real boundary.
+    const input = '<analysis>Use `<summary></analysis>` SECRET</analysis><summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Public')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe('<summary>Public</summary>')
+  })
+
+  it('skips summary openers inside comments and attributes during missing-closer recovery (opaque-summary-recovery)', () => {
+    const input = '<analysis><!-- <summary data=x> --> SECRET<summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Public')
+    // The unclosed scratchpad block stays visible in transcript filtering.
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+    const attributed = '<analysis><div title="<summary data=y>"></div> SECRET<summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(attributed)).toBe('Public')
+  })
+
+  it('rejects ordered-list markers with more than nine digits in fence prefixes (overlong-list-phantom-fence)', () => {
+    const input = '1234567890. ```xml\n\n<analysis>SECRET</analysis>\n\n<summary>Public</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('1234567890. ```xml\n\n<summary>Public</summary>')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(
+      '1234567890. ```xml\n\n\n\n<summary>Public</summary>'
+    )
+  })
+})

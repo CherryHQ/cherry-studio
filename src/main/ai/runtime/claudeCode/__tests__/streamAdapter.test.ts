@@ -4457,6 +4457,76 @@ describe('compaction artifact boundary', () => {
     expect(text).not.toContain('Internal review.')
   })
 
+  it('does not let an acknowledgement arm artifact grace against a pending background result (round-7 background-followup-suppression)', () => {
+    const { adapter, parts } = createAdapter()
+    const report =
+      '<analysis>Internal review.</analysis>\n' +
+      '<summary>\n' +
+      '1. Task Overview:\n   Audit the billing service.\n\n' +
+      '2. Next Steps:\n   - Ship it\n' +
+      '</summary>'
+
+    // The user asks for a background audit and a final report; the first
+    // turn only acknowledges that the work is running.
+    adapter.beginTurn({ userPrompt: true })
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: 'Running the audit in the background.' }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    parts.length = 0
+
+    // Autonomous follow-up turn: compaction succeeds, then the background
+    // task's transcript-visible completion notification precedes the
+    // requested report. The earlier acknowledgement is not the answer to the
+    // background result, so grace must not suppress the report.
+    adapter.beginTurn()
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      status: 'compacting'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      compact_result: 'success'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_notification',
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      task_id: 'task-1',
+      status: 'completed',
+      output_file: '/tmp/audit.out',
+      summary: 'Background audit',
+      usage: { total_tokens: 120, tool_uses: 3, duration_ms: 4500 }
+    } as any)
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: report }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toContain('Task Overview')
+    expect(text).toContain('Next Steps')
+    expect(text).not.toContain('Internal review.')
+  })
+
   it('resets answered provenance for each host-submitted prompt (inv_9c155aaf789cb802)', () => {
     const { adapter, parts } = createAdapter()
     const summary =

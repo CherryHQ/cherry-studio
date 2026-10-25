@@ -157,7 +157,16 @@ function isValidFenceLinePrefix(prefix: string): boolean {
       continue
     }
     if (prefix[i] >= '0' && prefix[i] <= '9') {
-      while (i < prefix.length && prefix[i] >= '0' && prefix[i] <= '9') i++
+      // Ordered-list markers allow at most nine digits (CommonMark 0.31.2
+      // §5.2): more means no list item, so the fence opener that follows is
+      // paragraph text, not a fence (cherry-pr-review round-7
+      // overlong-list-phantom-fence).
+      let digits = 0
+      while (i < prefix.length && prefix[i] >= '0' && prefix[i] <= '9') {
+        i++
+        digits++
+      }
+      if (digits > 9) return false
       if (i + 1 < prefix.length && (prefix[i] === '.' || prefix[i] === ')') && prefix[i + 1] === ' ') {
         i += 2
         continue
@@ -514,8 +523,29 @@ function inheritedFencePrefixLookup(text: string): (openerStart: number, prefix:
     let inherited = openerPrefix
     for (const list of lists) {
       if (list.start >= openerStart) break
-      if (list.end > openerStart && fenceCloseMatchesContainerContext(openerPrefix, list.prefix))
+      if (list.end <= openerStart) continue
+      if (fenceCloseMatchesContainerContext(openerPrefix, list.prefix)) {
         inherited = list.prefix
+        continue
+      }
+      // Nested-item openers: the line may reach the enclosing item's content
+      // column and then open its own nested container(s) before the fence
+      // marker (cherry-pr-review round-7 nested-fence-content-loss). Adopt
+      // the enclosing list prefix with the nested segments appended, as a
+      // canonical virtual prefix carrying the full container columns.
+      const segments = parseFenceContainerSegments(list.prefix)
+      const contentCol = segments.reduce((sum, segment) => sum + (segment.type === 'list' ? segment.contentCol : 0), 0)
+      const expanded = expandFencePrefixTabs(openerPrefix)
+      const leading = expanded.match(/^ */)?.[0].length ?? 0
+      if (contentCol === 0 || leading < contentCol) continue
+      const remainder = expanded.slice(contentCol)
+      if (parseFenceContainerSegments(remainder).length === 0) continue
+      if (!/^(?:(?: {0,3}> ?)|(?: {0,3}(?:[-*+]|\d{1,9}[.)]) +))* {0,3}$/.test(remainder)) continue
+      const virtual =
+        segments
+          .map((segment) => (segment.type === 'quote' ? '> ' : `-${' '.repeat(segment.contentCol - 1)}`))
+          .join('') + remainder
+      inherited = virtual
     }
     return inherited
   }
@@ -1535,15 +1565,25 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
       // deletes the public continuation (cherry-pr-review
       // inv_4f2b0c2d3f9c4a0b).
       const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
+      // A complete span may hold literal wrapper markup (opener, then the
+      // block's own closing tag, then the pair backtick): it is legitimate
+      // inline code (cherry-pr-review round-7 inline-wrapper-boundary). But
+      // an opener that scans PAST its block's closing tag and only then
+      // meets another wrapper's opener is unmatched: pairing it would skip
+      // the block's real boundary and either delete the public continuation
+      // (round-6 public-summary-boundary) or retain the private suffix.
+      let passedBlockCloser = false
       while (j < blockEnd) {
         if (text[j] === '<') {
-          // A backtick opener may not pair past a scratchpad wrapper open
-          // tag: the unmatched private delimiter would pair into the public
-          // summary, and the crossing span would skip the block's real
-          // closing tag, deleting the public continuation
-          // (cherry-pr-review round-6 public-summary-boundary).
+          if (text.startsWith('</', j)) {
+            const closeMatch = /^<\/([a-zA-Z][a-zA-Z0-9-]*)\s*>/.exec(text.slice(j))
+            if (closeMatch && closeMatch[1].toLowerCase() === lowerTagName) passedBlockCloser = true
+            j++
+            continue
+          }
           const wrapperOpen = parseOpeningTagAt(text, j)
           if (
+            passedBlockCloser &&
             wrapperOpen &&
             (isModelScratchpadTagName(wrapperOpen.tagName) || wrapperOpen.tagName.toLowerCase() === 'summary')
           )
@@ -1732,16 +1772,38 @@ export function stripModelScratchpadBlocks(raw: string): string {
   if (/^\s*<(?:analysis|assessment|thinking)\b/i.test(out)) {
     const closing = /<\/summary\s*>\s*$/i.exec(out)
     if (closing && closing.index !== undefined) {
-      // Quote-aware opener scan, same as unwrapWholeSummaryWrapper: a quoted
-      // `>` must not truncate the opener (cherry-pr-review: quoted-summary-opener).
-      const openRe = /<summary\b/gi
-      let candidate: RegExpExecArray | null
-      while ((candidate = openRe.exec(out)) !== null && candidate.index < closing.index) {
-        const parsed = parseOpeningTagAt(out, candidate.index)
-        if (parsed && !parsed.isSelfClosing && candidate.index + parsed.opener.length <= closing.index) {
-          out = out.slice(candidate.index + parsed.opener.length, closing.index)
-          break
+      // Context-aware opener scan: candidates inside comments, CDATA,
+      // quoted attribute values, or another tag's extent are literals, not
+      // boundaries (cherry-pr-review round-7 opaque-summary-recovery);
+      // a quoted `>` must not truncate the opener (cherry-pr-review:
+      // quoted-summary-opener).
+      let scan = 0
+      while (scan < closing.index) {
+        const lt = out.indexOf('<', scan)
+        if (lt === -1 || lt >= closing.index) break
+        if (isBackslashEscaped(out, lt)) {
+          scan = lt + 1
+          continue
         }
+        const opaqueEnd = opaqueMarkupEnd(out, lt)
+        if (opaqueEnd !== null) {
+          scan = opaqueEnd
+          continue
+        }
+        const parsed = parseOpeningTagAt(out, lt)
+        if (parsed) {
+          if (
+            parsed.tagName.toLowerCase() === 'summary' &&
+            !parsed.isSelfClosing &&
+            lt + parsed.opener.length <= closing.index
+          ) {
+            out = out.slice(lt + parsed.opener.length, closing.index)
+            break
+          }
+          scan = lt + parsed.opener.length
+          continue
+        }
+        scan = lt + 1
       }
     }
   }
