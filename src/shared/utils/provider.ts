@@ -310,8 +310,8 @@ function isBuiltinServerToolAvailable(
   ) {
     return true
   }
-<<<<<<< HEAD
-
+  // Bailian's responses-only SKUs stay gated by main's wire-accurate table; the final
+  // delegation is this branch's endpoint-aware eligibility (declaration × endpoint pairing).
   if (matchesPreset(provider, 'dashscope')) {
     const rawId = getRawModelId(model)
     const responsesOnly = DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS.find(
@@ -330,10 +330,7 @@ function isBuiltinServerToolAvailable(
     return !isNonChatModel(model)
   }
 
-  return isServerToolModelEligible(model, provider, SERVER_TOOL.WEB_SEARCH)
-=======
   return isServerToolModelEligible(model, provider, toolId, endpoint)
->>>>>>> 5f3e8d8 (fix(provider): make server-tool eligibility endpoint-aware)
 }
 
 export type WebToolRoute = 'client' | 'server' | 'none'
