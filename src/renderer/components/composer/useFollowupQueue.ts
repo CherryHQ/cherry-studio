@@ -87,8 +87,9 @@ export function useFollowupQueue({
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
   // The turn whose completion admits the next queued send: a finished stream, or a foreground turn
-  // that settled while detached background work keeps the stream live.
-  const settledAt = status === 'done' ? lastCompletedAt : (turnSettledAt ?? null)
+  // that settled while detached background work keeps the stream live. An absent status means the
+  // composer cannot send at all, so there is no turn to admit one.
+  const settledAt = status === undefined ? null : status === 'done' ? lastCompletedAt : (turnSettledAt ?? null)
   const readState = useCallback(
     () => ({
       scopeKey,
