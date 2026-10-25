@@ -39,6 +39,36 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: vi.fn(async (route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') {
+        return undefined
+      }
+      const path = handle?.path
+      if (!path || path.includes('missing')) {
+        return null
+      }
+      if (path.includes('directory')) {
+        return {
+          kind: 'directory',
+          size: 0,
+          createdAt: 0,
+          modifiedAt: 0
+        }
+      }
+      return {
+        kind: 'file',
+        type: 'document',
+        mime: 'application/pdf',
+        size: 1024,
+        createdAt: 0,
+        modifiedAt: 0
+      }
+    })
+  }
+}))
+
 // The note picker's real data layer (useNotesSettings → NotesService → @renderer/utils)
 // pulls in the i18n bootstrap at module load, which throws under the react-i18next mock.
 // Stub the three note modules so the dialog graph stays bootstrap-free and the note list
@@ -245,8 +275,8 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.sources.url': '链接',
       'knowledge.data_source.add_dialog.submit.error': '添加数据源失败',
       'knowledge.data_source.add_dialog.title': '添加数据源',
-      'knowledge.data_source.add_dialog.too_many_sources': `单次最多添加 ${options?.count ?? 0} 个数据源，请减少选择后重试`,
       'knowledge.data_source.add_dialog.unsupported_files_skipped': `已跳过 ${options?.count ?? 0} 个不支持的文件`,
+      'chat.save.knowledge.error.file_partial_failed': `${options?.count ?? 0} file(s) could not be saved`,
       'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
       'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
       'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com'
@@ -349,6 +379,42 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
+    it('submits remaining files when one picked file is missing', async () => {
+      mockFileSelect.mockResolvedValueOnce([
+        createSelectedFile('alpha.pdf', '/docs/alpha.pdf'),
+        createSelectedFile('gone.pdf', '/docs/missing.pdf')
+      ])
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/docs/alpha.pdf', path: '/docs/alpha.pdf' } }],
+          'detect'
+        )
+      })
+      expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+      expect(toast.error).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(onOpenChange).toHaveBeenCalledWith(false)
+      })
+    })
+
+    it('closes without submitting when every picked file is missing', async () => {
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('gone.pdf', '/docs/missing.pdf')])
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => {
+        expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+      })
+      await waitFor(() => {
+        expect(onOpenChange).toHaveBeenCalledWith(false)
+      })
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
     it('submits page-level pending files without opening the picker', async () => {
       setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('external.exe', 1024)])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
@@ -363,30 +429,34 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
-    it('warns and skips submit when the pick exceeds the per-batch limit', async () => {
-      const tooMany = Array.from({ length: 21 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
-      mockFileSelect.mockResolvedValueOnce(tooMany)
+    it('submits remaining pending files when one local file is missing', async () => {
+      setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('missing.pdf', 1024)])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/external/external.pdf', path: '/external/external.pdf' } }],
+          'detect'
+        )
+      })
+      expect(mockFileSelect).not.toHaveBeenCalled()
+      expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+    })
+
+    it('submits a large pick as one detect call so conflicts cover the whole selection', async () => {
+      const picked = Array.from({ length: 150 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
+      mockFileSelect.mockResolvedValueOnce(picked)
       const onOpenChange = vi.fn()
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
       await waitFor(() => {
-        expect(toast.warning).toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
-      })
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
-      await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
       })
-    })
-
-    it('submits a batch sitting exactly at the per-batch limit', async () => {
-      const atLimit = Array.from({ length: 20 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
-      mockFileSelect.mockResolvedValueOnce(atLimit)
-      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
-
-      await waitFor(() => {
-        expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
-      })
-      expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toHaveLength(20)
+      expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+      const [items, strategy] = mockSubmitKnowledgeItems.mock.calls[0]
+      expect(strategy).toBe('detect')
+      expect(items).toHaveLength(150)
+      expect(items[149]).toEqual({ type: 'file', data: { source: '/picked/doc-149.pdf', path: '/picked/doc-149.pdf' } })
       expect(toast.warning).not.toHaveBeenCalled()
     })
 
@@ -498,19 +568,23 @@ describe('AddKnowledgeItemDialog', () => {
       expect(mockReadExternal).toHaveBeenCalledWith('/notes/Meeting notes.md')
     })
 
-    it('shows an inline error and skips submit when more notes than the limit are selected', async () => {
+    it('submits every selected note in one call when more than 20 are selected', async () => {
       setPendingAddSource('note')
       mockReadExternal.mockResolvedValue('body')
-      const notes = Array.from({ length: 21 }, (_, index) => createNoteNode(`Note ${index}`, `/notes/Note ${index}.md`))
+      const notes = Array.from({ length: 25 }, (_, index) => createNoteNode(`Note ${index}`, `/notes/Note ${index}.md`))
       mockProjectNotesTree.mockReturnValue(notes)
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
       fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
-      const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent('单次最多添加 20 个数据源，请减少选择后重试')
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+      })
+      const [items, strategy] = mockSubmitKnowledgeItems.mock.calls[0]
+      expect(strategy).toBe('detect')
+      expect(items).toHaveLength(25)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
     it('surfaces a note tree load error instead of the empty state', () => {

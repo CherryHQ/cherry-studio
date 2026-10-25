@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-25-conflict-dialog-resolution.md
+2026-10-25-conflict-dialog-resolution.md: e12ef35e8a100cfa68ee4f814ced9e4149bfe166
+2026-10-25-conflict-dialog-resolution.zh.md: a1829b47af8ef5d364a8072cd8258b1114ca8db2

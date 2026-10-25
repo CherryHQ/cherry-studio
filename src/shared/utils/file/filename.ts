@@ -32,6 +32,8 @@
  * shared logging surface lands.
  */
 
+import { clampSurrogateBoundary } from '@shared/utils/text'
+
 export type ValidateFileNameResult = { valid: true } | { valid: false; error: string }
 
 /**
@@ -170,6 +172,9 @@ export function validateFileName(
   }
 
   if (platform === 'win32') {
+    if (WINDOWS_CONTROL_CHARS.test(fileName)) {
+      return { valid: false, error: 'File name cannot contain ASCII control characters.' }
+    }
     if (WINDOWS_INVALID_CHARS.test(fileName)) {
       return { valid: false, error: 'File name contains characters not supported by Windows: < > : " / \\ | ? *' }
     }
@@ -218,8 +223,10 @@ export function sanitizeFilename(fileName: string, replacement = '_'): string {
     // oxlint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, replacement)
     .replace(WINDOWS_RESERVED_NAMES, `${replacement}$2`)
-    .substring(0, FILE_NAME_MAX_LENGTH)
-    .replace(/[\s.]+$/, '')
+
+  // 255 is a UTF-16 budget; cutting between a surrogate pair would leave a lone
+  // half that Node writes as U+FFFD, so the on-disk name stops matching.
+  sanitized = sanitized.slice(0, clampSurrogateBoundary(sanitized, FILE_NAME_MAX_LENGTH)).replace(/[\s.]+$/, '')
 
   if (!sanitized) {
     sanitized = 'untitled'

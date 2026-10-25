@@ -490,3 +490,67 @@ test(...caseDefinition('SET-01'), async ({ mainWindow: page }) => {
       .first()
   ).toBeVisible()
 })
+
+test(...caseDefinition('SET-02'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await openSettingsSection(page, 'Appearance')
+
+  const switchFor = (target: typeof page) =>
+    target.locator('#setting-appearance-code-wrappable').getByRole('switch').first()
+
+  const toggle = switchFor(page)
+  await toggle.scrollIntoViewIfNeeded()
+  await expect(toggle).toBeVisible()
+  const before = await toggle.isChecked()
+
+  await toggle.click()
+  await expect(toggle).toBeChecked({ checked: !before })
+
+  // A saved setting must survive an app restart, not just re-render in the open panel.
+  page = await app.restart('authenticated')
+  await openSettingsSection(page, 'Appearance')
+  const restored = switchFor(page)
+  await restored.scrollIntoViewIfNeeded()
+  await expect(restored).toBeChecked({ checked: !before })
+
+  // Put the value back so later cases start from the shipped default.
+  await restored.click()
+  await expect(restored).toBeChecked({ checked: before })
+})
+
+test(...caseDefinition('SET-03'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await openSettingsSection(page, 'Appearance')
+
+  const row = () => page.locator('#setting-appearance-newline-shortcuts')
+  const trigger = () => row().getByRole('combobox').first()
+  await row().scrollIntoViewIfNeeded()
+  const before = (await trigger().innerText()).trim()
+
+  await trigger().click()
+  const options = page.getByRole('option')
+  const count = await options.count()
+  let picked = ''
+  for (let index = 0; index < count; index++) {
+    const label = (await options.nth(index).innerText()).trim()
+    // Pick any binding other than the current one; the list excludes the send shortcut already.
+    if (label && label !== before) {
+      picked = label
+      await options.nth(index).click()
+      break
+    }
+  }
+  expect(picked).not.toBe('')
+  await expect(trigger()).toHaveText(picked)
+
+  // The shortcut is a persisted preference: it must come back after a restart.
+  page = await app.restart('authenticated')
+  await openSettingsSection(page, 'Appearance')
+  await row().scrollIntoViewIfNeeded()
+  await expect(trigger()).toHaveText(picked)
+
+  // Restore the shipped default so later cases keep the documented Enter/Shift+Enter behavior.
+  await trigger().click()
+  await page.getByRole('option').filter({ hasText: before }).first().click()
+  await expect(trigger()).toHaveText(before)
+})

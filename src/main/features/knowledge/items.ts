@@ -70,6 +70,10 @@ export async function classifyKnowledgeItemRestoreSource(
     return toSourceState(await probeKnowledgeSourcePath(item.data.source))
   }
   if (item.type === 'file') {
+    // A `preparing` file's bytes are not in this base yet; restore copies its original instead.
+    if (item.status === 'preparing') {
+      return toSourceState(await probeKnowledgeSourcePath(item.data.source))
+    }
     return toSourceState(await probeKnowledgeFile(baseId, toMaterialRelativePath(item)))
   }
   return 'rebuildable'

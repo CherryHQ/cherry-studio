@@ -16,6 +16,57 @@ const loader = new RegistryLoader({
 })
 
 describe('OpenAI catalog', () => {
+  it.each(['gpt-image-2-5-flare', 'gpt-image-2-5-sunburst'])(
+    'offers only generate quality and size for %s within the API limits',
+    (id) => {
+      const support = loader.findModel(id)?.imageGeneration
+      expect(support).toBeDefined()
+      if (!support) throw new Error('Expected image generation support')
+      expect(Object.keys(support.modes)).toEqual(['generate'])
+      const supports = support.modes.generate?.supports
+      if (!supports) throw new Error('Expected generate support')
+      expect(Object.keys(supports).sort()).toEqual(['quality', 'size'])
+      expect(supports.quality).toEqual({ type: 'enum', options: ['auto', 'low', 'medium', 'high'] })
+      expect(supports.size).toEqual({
+        type: 'enum',
+        render: 'chips',
+        default: '1024x1024',
+        options: [
+          'auto',
+          '1024x1024',
+          '1536x1024',
+          '1024x1536',
+          '1536x864',
+          '864x1536',
+          '1536x960',
+          '3840x2160',
+          '2160x3840'
+        ]
+      })
+      if (supports.quality?.type !== 'enum' || supports.size?.type !== 'enum') {
+        throw new Error('Expected quality and size presets')
+      }
+      const schema = buildParamsSchema(support, 'generate')
+      for (const quality of supports.quality.options) {
+        expect(schema.parse({ quality }).quality).toBe(quality)
+      }
+      for (const size of supports.size.options) {
+        expect(schema.parse({ size }).size).toBe(size)
+        if (size === 'auto') continue
+        const [width, height] = size.split('x').map(Number)
+        expect(width % 16).toBe(0)
+        expect(height % 16).toBe(0)
+        expect(Math.max(width, height)).toBeLessThanOrEqual(3840)
+        expect(width / height).toBeGreaterThanOrEqual(1 / 3)
+        expect(width / height).toBeLessThanOrEqual(3)
+        expect(width * height).toBeGreaterThanOrEqual(655360)
+        expect(width * height).toBeLessThanOrEqual(8294400)
+      }
+      expect(schema.parse({ quality: 'hd' }).quality).toBeUndefined()
+      expect(schema.parse({ size: '512x512' }).size).toBeUndefined()
+    }
+  )
+
   it('offers widescreen, portrait, 16:10, and 4K GPT-Image-2 sizes within the API limits', () => {
     const support = loader.findModel('gpt-image-2')?.imageGeneration
     const size = support?.modes.generate?.supports.size
