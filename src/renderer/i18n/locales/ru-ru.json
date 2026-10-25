@@ -1734,6 +1734,7 @@
   "import.claude.success": "Успешно импортировано {{topics}} бесед с {{messages}} сообщениями",
   "import.claude.title": "Импорт бесед Claude",
   "import.claude.untitled_conversation": "Безымянный разговор",
+  "import.error.invalid_format": "Недопустимый формат {{name}}",
   "knowledge.add.group": "Группа",
   "knowledge.add.submit": "Создать",
   "knowledge.add.title": "Новая база знаний",

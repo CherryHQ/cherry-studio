@@ -1734,6 +1734,7 @@
   "import.claude.success": "{{topics}} konuşma, {{messages}} mesajla başarıyla içe aktarıldı",
   "import.claude.title": "Claude Konuşmalarını İçe Aktar",
   "import.claude.untitled_conversation": "Başlıksız Konuşma",
+  "import.error.invalid_format": "Geçersiz {{name}} biçimi",
   "knowledge.add.group": "Grup",
   "knowledge.add.submit": "Oluştur",
   "knowledge.add.title": "Yeni Bilgi Tabanı",

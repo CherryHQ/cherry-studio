@@ -1734,6 +1734,7 @@
   "import.claude.success": "Đã nhập thành công {{topics}} cuộc hội thoại với {{messages}} tin nhắn",
   "import.claude.title": "Nhập các cuộc trò chuyện Claude",
   "import.claude.untitled_conversation": "Cuộc trò chuyện chưa đặt tên",
+  "import.error.invalid_format": "Định dạng {{name}} không hợp lệ",
   "knowledge.add.group": "Nhóm",
   "knowledge.add.submit": "Tạo",
   "knowledge.add.title": "Cơ sở tri thức mới",

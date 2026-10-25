@@ -1734,6 +1734,7 @@
   "import.claude.success": "Importadas con éxito {{topics}} conversaciones con {{messages}} mensajes",
   "import.claude.title": "Importar Conversaciones de Claude",
   "import.claude.untitled_conversation": "Conversación sin título",
+  "import.error.invalid_format": "Formato de {{name}} no válido",
   "knowledge.add.group": "Grupo",
   "knowledge.add.submit": "Crear",
   "knowledge.add.title": "Nueva Base de Conocimientos",
