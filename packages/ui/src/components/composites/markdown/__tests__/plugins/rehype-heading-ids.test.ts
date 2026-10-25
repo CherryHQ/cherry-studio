@@ -12,7 +12,7 @@ const heading = (text: string): Element => ({
 
 const idsOf = (headings: string[], slugs?: ReadonlyMap<string, readonly string[]>): string[] => {
   const root: Root = { type: 'root', children: headings.map(heading) }
-  rehypeHeadingIds({ prefix: 'chunk', slugs })(root)
+  rehypeHeadingIds({ prefix: 'chunk', slugs: slugs && [...slugs] })(root)
   return (root.children as Element[]).map((element) => String(element.properties.id))
 }
 

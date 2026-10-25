@@ -49,6 +49,27 @@ describe('Markdown (static)', () => {
     expect(second.container.querySelector('h1')?.getAttribute('id')).toBe('heading-c--title-1')
   })
 
+  it('uses a changed assignment for the same id instead of a cached processor', () => {
+    // Streamdown keys its processor cache on `JSON.stringify` of the plugin options, and a `Map`
+    // serializes to `{}` — so a remount under the same id (a preview refreshing its chunks) reused
+    // the processor built for the first assignment, and a heading whose slug moved from `title-1`
+    // to `title-2` kept rendering `title-1`.
+    const first = render(
+      <Markdown id="refresh" headingSlugs={new Map([['title', ['title-1']]])}>
+        {'# Title'}
+      </Markdown>
+    )
+    expect(first.container.querySelector('h1')?.getAttribute('id')).toBe('heading-refresh--title-1')
+    first.unmount()
+
+    const second = render(
+      <Markdown id="refresh" headingSlugs={new Map([['title', ['title-2']]])}>
+        {'# Title'}
+      </Markdown>
+    )
+    expect(second.container.querySelector('h1')?.getAttribute('id')).toBe('heading-refresh--title-2')
+  })
+
   it('preserves an id-only HTML anchor as an in-page target', () => {
     const { container } = render(
       <Markdown id="custom-anchor">{'[Jump](#custom-anchor)\n\n<a id="custom-anchor"></a>Target'}</Markdown>

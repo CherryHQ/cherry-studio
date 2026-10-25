@@ -16,11 +16,15 @@ export interface HeadingSlugger {
 export interface RehypeHeadingIdsOptions {
   prefix?: string
   /**
-   * Heading slugs already assigned at the document level, keyed by normalized heading text and
-   * listed in document order. A windowed preview passes each piece its own headings' slugs so
-   * duplicates keep the ids the unsplit document would give them.
+   * Heading slugs already assigned at the document level, as entries of normalized heading text to
+   * the slugs that text takes in document order. A windowed preview passes each piece its own
+   * headings' slugs so duplicates keep the ids the unsplit document would give them.
+   *
+   * Entries rather than a `Map` because Streamdown keys its processor cache on `JSON.stringify` of
+   * the plugin options, and every `Map` serializes to `{}`: two assignments then share one cached
+   * processor, and a remount under the same prefix keeps the ids the first assignment gave out.
    */
-  slugs?: ReadonlyMap<string, readonly string[]>
+  slugs?: readonly (readonly [string, readonly string[]])[]
 }
 
 /** The slug form of a heading's text — the key shared assignments are looked up by. */

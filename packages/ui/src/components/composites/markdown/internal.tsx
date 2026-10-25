@@ -202,7 +202,9 @@ export function MarkdownCore({
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
       ...(preserveRelativeImageSrcs ? ([relativeImages.restore] as Pluggable[]) : []),
       ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
-      [rehypeHeadingIds, { prefix: `heading-${id}`, slugs: headingSlugs }] as Pluggable
+      // Entries, not the map: Streamdown serializes these options for its processor cache, and a
+      // `Map` serializes to `{}`, which reuses the previous assignment's cached processor.
+      [rehypeHeadingIds, { prefix: `heading-${id}`, slugs: headingSlugs && [...headingSlugs] }] as Pluggable
     )
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result

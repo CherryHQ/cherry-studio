@@ -37,7 +37,7 @@ const renderedHeadingIds = (source: string, slugs?: ReadonlyMap<string, readonly
         children: node.children
       }))
   }
-  rehypeHeadingIds({ prefix: 'chunk', slugs })(root as never)
+  rehypeHeadingIds({ prefix: 'chunk', slugs: slugs && [...slugs] })(root as never)
   return root.children.map((element) => String(element.properties.id))
 }
 
@@ -2340,6 +2340,27 @@ describe('a definition shape that is paragraph text', () => {
     }
   })
 
+  it('does not carry a title that has no separator before it', () => {
+    // micromark reads a title only behind whitespace or a line ending, so with none between the
+    // destination and `"title"` the line is a paragraph. Carrying it hoisted the same paragraph to
+    // the front of every chunk on top of the body line, and a single-chunk document showed it
+    // twice where the unsplit source shows it once. A tab is a separator, and the line is carried.
+    const source = '[x]: <https://example.com>"title"'
+    const content = [source, '', 'body'].join('\n')
+
+    const chunks = chunksOf(content, 4_096)
+
+    expect((parsed(content).children[0] as { type: string }).type).toBe('paragraph')
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text).toBe(content)
+    expect(joined(chunks).split(source)).toHaveLength(2)
+    expect(
+      chunksOf(['[y]: <https://example.com>\t"title"', '', 'body'].join('\n'), 4_096)[0].text.startsWith(
+        '[y]: <https://example.com>\t"title"\n\n'
+      )
+    ).toBe(true)
+  })
+
   it('carries a definition a deeper quote marker does open', () => {
     const content = ['> paragraph', '> > [label]: /right', '', 'see [label]'].join('\n')
 
@@ -2914,6 +2935,25 @@ describe('a malformed tag that never closes', () => {
     expect(elapsed).toBeLessThan(1_000)
   })
 
+  it('reads a heading of unclosed raw-text elements once', () => {
+    // Every unmatched `<script>` opener rescanned the rest of the heading for its closing tag, so
+    // the 1.15 MB heading cost its length squared: 18.4 s, against ~294 ms for the whole document.
+    // The trailing blank lines keep the average line length under the pathological guard, so the
+    // heading scan runs and the scan itself has to be linear.
+    const content = `<h1>${'<script>'.repeat(128_000)}x</h1>\n\n${'\n'.repeat(128_000)}`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.longLines).toBe(false)
+    expect(window.chunks.length).toBeGreaterThan(0)
+    // The unmatched openers are tags the parser strips, so the heading's text is the `x` behind
+    // them and its id the unsplit document's `x` slug.
+    expect(window.chunks[0].headingSlugs?.get('x')).toEqual(['x'])
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
   it('reads a block of unterminated heading openers once', () => {
     // Each `<h1` candidate was matched with `[^>]*>` in one regex, so a block that never closes
     // rescanned the rest of it per candidate: 256 KB took ~5.7s before the fallback was chosen.
@@ -2959,7 +2999,7 @@ const headingIds = (source: string, slugs?: ReadonlyMap<string, readonly string[
         children: node.children
       }))
   }
-  rehypeHeadingIds({ prefix: 'doc', slugs })(root as never)
+  rehypeHeadingIds({ prefix: 'doc', slugs: slugs && [...slugs] })(root as never)
   return root.children.map((element) => String((element as { properties: { id?: unknown } }).properties.id))
 }
 

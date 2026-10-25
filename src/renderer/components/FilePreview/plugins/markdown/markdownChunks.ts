@@ -1345,19 +1345,73 @@ function htmlHeadingOpens(content: string): Array<{ index: number; end: number; 
   return opens
 }
 
+/** The elements the sanitizer strips whole, content included. */
+const RAW_TEXT_ELEMENTS = ['script', 'style'] as const
+
+/** Whether the character at `index` leaves the tag name whole, as a word boundary requires. */
+function endsTagName(lower: string, index: number): boolean {
+  return !/\w/.test(lower.charAt(index))
+}
+
+/**
+ * The offset past the first `</name\s*>` at or after `from`, or -1 when the block holds none.
+ */
+function rawTextCloseEnd(lower: string, name: string, from: number): number {
+  const needle = `</${name}`
+  for (let at = lower.indexOf(needle, from); at !== -1; at = lower.indexOf(needle, at + 1)) {
+    let end = at + needle.length
+    while (end < lower.length && /\s/.test(lower.charAt(end))) end += 1
+    if (lower.charAt(end) === '>') return end + 1
+  }
+  return -1
+}
+
+/**
+ * `content` with every tag stripped and a raw-text element (`script`, `style`) removed whole. One
+ * pass over the block: the regex pair this replaced rescanned the rest of it for every unmatched
+ * opener — 128,000 of them cost 18 s on a 1.15 MB heading — while each offset here is visited
+ * once. An opener no closer follows loses only its own tag, and once no closer is left behind an
+ * opener none can appear for a later one either.
+ */
+function stripHtmlTags(content: string): string {
+  const lower = content.toLowerCase()
+  // The offset past which each element's openers are known to have no closer behind them.
+  const missingFrom = new Map<string, number>()
+  let text = ''
+  let copied = 0
+  let cursor = 0
+  while (cursor < content.length) {
+    const open = content.indexOf('<', cursor)
+    if (open === -1) break
+    // A tag ends at the first `>`; none behind this `<` means none behind a later one either.
+    const tagEnd = content.indexOf('>', open + 1)
+    if (tagEnd === -1) break
+    let rawEnd = -1
+    for (const name of RAW_TEXT_ELEMENTS) {
+      if (!lower.startsWith(`<${name}`, open) || !endsTagName(lower, open + name.length + 1)) continue
+      const missing = missingFrom.get(name)
+      if (missing !== undefined && missing <= tagEnd + 1) continue
+      rawEnd = rawTextCloseEnd(lower, name, tagEnd + 1)
+      if (rawEnd === -1) missingFrom.set(name, tagEnd + 1)
+      break
+    }
+    text += content.slice(copied, open)
+    copied = rawEnd === -1 ? tagEnd + 1 : rawEnd
+    cursor = copied
+  }
+  return text + content.slice(copied)
+}
+
 /**
  * The text an HTML heading renders — its content with its own tags stripped and entities read. A
  * raw-text element the sanitizer strips (`script`, `style`) takes its content with it, so the text
  * it holds is no part of the id the renderer numbers.
  */
 function htmlHeadingText(content: string): string {
-  return content
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(
-      /&(#(?:\d{1,7}|x[\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/g,
-      (entity, value: string) => decodeEntity(value) ?? entity
-    )
+  return stripHtmlTags(content).replace(
+    /&(#(?:\d{1,7}|x[\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/g,
+    (entity, value: string) => decodeEntity(value) ?? entity
+  )
 }
 
 /** CommonMark's escapable set: the ASCII punctuation a backslash is a valid escape before. */
@@ -1880,7 +1934,9 @@ function linkDefinition(lines: string[], index: number): { text: string; label: 
       body.push(below)
       span += 1
     }
-  } else if (LINK_TITLE.test(tail) || LINK_TITLE_OPEN.test(tail)) {
+  } else if (/^[ \t]/.test(tail) && (LINK_TITLE.test(tail) || LINK_TITLE_OPEN.test(tail))) {
+    // The parser reads a title on the destination's own line only behind whitespace; without one
+    // the whole line is a paragraph, and a title shape taken here hoisted that paragraph.
     titleClose = titleClosingDelimiter(tail)
     titleClosed = LINK_TITLE.test(tail)
   } else {
