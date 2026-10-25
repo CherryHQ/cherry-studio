@@ -46,6 +46,34 @@ describe('chat stream lifecycle topic snapshot', () => {
     expect(lastSnapshot()).toMatchObject({ status: 'streaming', turnSettledAt: expect.any(Number) })
   })
 
+  // A held stream has already resolved its executions to `done`. Publishing that would report the
+  // topic complete while the detached work still runs, so its completion read-receipt fires early.
+  it('publishes a held topic as live, not as a completion', () => {
+    const lifecycle = createChatStreamLifecycle(30_000, vi.fn())
+    const active = stream({ status: 'done' })
+    lifecycle.onCreated(active)
+
+    lifecycle.onTurnSettled(active)
+
+    expect(lastSnapshot().status).toBe('streaming')
+    expect(lastSnapshot().lastCompletedAt).toBeUndefined()
+    expect(lastSnapshot().turnSettledAt).toEqual(expect.any(Number))
+  })
+
+  // …and the completion stays reserved for the actual termination of the held topic.
+  it('publishes completion when the held topic terminates', () => {
+    const lifecycle = createChatStreamLifecycle(30_000, vi.fn())
+    const active = stream({ status: 'done' })
+    lifecycle.onCreated(active)
+    lifecycle.onTurnSettled(active)
+
+    lifecycle.onTerminal(active)
+
+    expect(lastSnapshot().status).toBe('done')
+    expect(lastSnapshot().lastCompletedAt).toEqual(expect.any(Number))
+    expect(lastSnapshot().turnSettledAt).toBeUndefined()
+  })
+
   it('keeps the marker on the snapshots a held stream broadcasts later', () => {
     const lifecycle = createChatStreamLifecycle(30_000, vi.fn())
     const active = stream()

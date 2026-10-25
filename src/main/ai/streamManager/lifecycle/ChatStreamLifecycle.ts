@@ -75,7 +75,9 @@ export function createChatStreamLifecycle(
       // cross-window consumers the foreground turn is over. Stored on the stream: every later
       // broadcast of the same held turn must keep carrying it.
       stream.turnSettledAt = Date.now()
-      broadcast(stream, stream.status)
+      // The held stream already resolved its executions to `done`; publishing that status would
+      // report the topic complete before the detach drains. Only its termination publishes it.
+      broadcast(stream, 'streaming')
     },
     onTerminal(stream) {
       const completedAt = broadcast(stream, stream.status)
