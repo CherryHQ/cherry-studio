@@ -34,6 +34,22 @@ function contentLength(response: Response): number | undefined {
   return Number.isSafeInteger(value) && value > 0 ? value : undefined
 }
 
+/** `W/"…"` is not usable for `If-Range`; RFC 9110 §13.1.5 requires a strong comparison. */
+function isWeakEtag(value: string): boolean {
+  return /^\s*W\//i.test(value)
+}
+
+/**
+ * A weak ETag cannot validate a range: an unchanged resource answers the
+ * `If-Range` request with HTTP 200, which the runner reports as a changed file.
+ * When there is no Last-Modified to fall back to, transfer the body as one stream.
+ */
+function requireRangeValidator(probe: DownloadProbe): DownloadProbe {
+  if (!probe.supportsRanges || probe.totalBytes <= 0) return probe
+  if (!probe.etag || !isWeakEtag(probe.etag) || probe.lastModified) return probe
+  return { ...probe, supportsRanges: false }
+}
+
 /** `bytes 0-0/1234` → 1234; `bytes 0-0/*` → undefined. */
 function totalFromContentRange(value: string | undefined): number | undefined {
   if (!value) return undefined
@@ -113,7 +129,7 @@ export async function probeDownload(url: string, fetchImpl: FetchLike, signal?: 
         if (signal?.aborted) throw error
         return { totalBytes: length, supportsRanges: false }
       })
-      return {
+      return requireRangeValidator({
         ...result,
         ...confirmed,
         // A failed or partial confirmation reports 0; HEAD's length still holds.
@@ -121,26 +137,26 @@ export async function probeDownload(url: string, fetchImpl: FetchLike, signal?: 
         finalUrl: result.finalUrl,
         etag: confirmed.etag ?? result.etag,
         lastModified: confirmed.lastModified ?? result.lastModified
-      }
+      })
     }
   }
 
   const ranged = await probeRange(url, fetchImpl, signal)
   const response = await fetchImpl(url, { method: 'HEAD', redirect: 'follow', signal }).catch(() => undefined)
-  return {
+  return requireRangeValidator({
     finalUrl: response?.url || url,
     totalBytes: ranged.totalBytes,
     supportsRanges: ranged.supportsRanges,
     etag: ranged.etag,
     lastModified: ranged.lastModified,
     mime: response ? header(response, 'content-type') : undefined
-  }
+  })
 }
 
 /** Builds the `Range` + `If-Range` headers for one segment attempt. */
 export function segmentHeaders(range: ByteRange, offset: number, probe: DownloadProbe): Record<string, string> {
   const headers: Record<string, string> = { Range: `bytes=${offset}-${range.end - 1}` }
-  if (probe.etag) headers['If-Range'] = probe.etag
+  if (probe.etag && !isWeakEtag(probe.etag)) headers['If-Range'] = probe.etag
   else if (probe.lastModified) headers['If-Range'] = probe.lastModified
   return headers
 }

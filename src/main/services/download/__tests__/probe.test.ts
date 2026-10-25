@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { probeDownload } from '../probe'
+import { probeDownload, segmentHeaders } from '../probe'
 
 const CONTENT = Buffer.alloc(64 * 1024, 7)
 
@@ -65,6 +65,28 @@ beforeAll(async () => {
       }
       response.writeHead(206, {
         'content-range': 'bytes 0-0/*',
+        'content-length': '1'
+      })
+      response.end(CONTENT.subarray(0, 1))
+      return
+    }
+
+    if (mode === 'weak' || mode === 'weak-dated') {
+      const headers: Record<string, string> = {
+        'content-type': 'application/octet-stream',
+        'content-length': String(CONTENT.length),
+        'accept-ranges': 'bytes',
+        etag: 'W/"weak"'
+      }
+      if (mode === 'weak-dated') headers['last-modified'] = 'Mon, 19 Oct 2026 00:00:00 GMT'
+      if (request.method === 'HEAD') {
+        response.writeHead(200, headers)
+        response.end()
+        return
+      }
+      response.writeHead(206, {
+        ...headers,
+        'content-range': `bytes 0-0/${CONTENT.length}`,
         'content-length': '1'
       })
       response.end(CONTENT.subarray(0, 1))
@@ -147,5 +169,34 @@ describe('probeDownload', () => {
 
     expect(probe.supportsRanges).toBe(false)
     expect(probe.totalBytes).toBe(CONTENT.length)
+  })
+
+  it('uses a single stream when the only validator is a weak ETag', async () => {
+    const probe = await probeDownload(`${baseUrl}/weak`, fetch)
+
+    expect(probe.totalBytes).toBe(CONTENT.length)
+    // A weak If-Range fails strong comparison on an unchanged resource, so the
+    // runner would see HTTP 200 and report a false "file changed" failure.
+    expect(probe.supportsRanges).toBe(false)
+  })
+
+  it('falls back to Last-Modified for ranges when the ETag is weak', async () => {
+    const probe = await probeDownload(`${baseUrl}/weak-dated`, fetch)
+
+    expect(probe.supportsRanges).toBe(true)
+    expect(segmentHeaders({ index: 0, start: 0, end: 1024 }, 0, probe)['If-Range']).toBe(
+      'Mon, 19 Oct 2026 00:00:00 GMT'
+    )
+  })
+
+  it('never sends a weak ETag in If-Range', () => {
+    const headers = segmentHeaders({ index: 0, start: 0, end: 10 }, 0, {
+      finalUrl: 'https://example.com/file',
+      totalBytes: 11,
+      supportsRanges: true,
+      etag: 'W/"v1"'
+    })
+
+    expect(headers['If-Range']).toBeUndefined()
   })
 })
