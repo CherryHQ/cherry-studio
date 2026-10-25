@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: vi.fn().mockResolvedValue(undefined) }
+}))
+
 // i18n is only used for display strings (assistant name, error text); return
 // the defaultValue so assertions stay independent of the translation catalog.
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -234,13 +238,38 @@ describe('importService.importConversations', () => {
   it('returns a failure response without creating an assistant for invalid or empty exports', async () => {
     const unsupportedResponse = await importService.importConversations('definitely not json')
     const emptyClaudeResponse = await importService.importConversations('[]', 'claude')
+    const emptyChatgptResponse = await importService.importConversations('[]', 'chatgpt')
 
     expect(unsupportedResponse.success).toBe(false)
     expect(emptyClaudeResponse.success).toBe(false)
+    expect(emptyChatgptResponse.success).toBe(false)
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()
   })
 
-  it('returns the persistence error without reporting partial counts', async () => {
+  it('rolls back the created assistant when persistence fails mid-import', async () => {
+    const { ipcApi } = await import('@renderer/ipc')
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { id: 'asst_rollback', name: 'ChatGPT Import', emoji: '💬' }
+      if (path === '/topics') return { id: 'topic_rollback' }
+      throw new Error('database unavailable mid-persist')
+    })
+
+    const response = await importService.importConversations(chatgptExport(), 'chatgpt')
+
+    expect(response).toMatchObject({ success: false, topicsCount: 0, messagesCount: 0 })
+    // The assistant row was created before persistence started, so the failure
+    // path must archive it (topics cascade) and hard-delete it.
+    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.assistant.archive', {
+      assistantId: 'asst_rollback',
+      deleteTopics: true
+    })
+    expect(vi.mocked(dataApiService.delete)).toHaveBeenCalledWith('/assistants/asst_rollback', {
+      query: { permanent: true }
+    })
+  })
+
+  it('reports the create-assistant failure without attempting a rollback', async () => {
+    const { ipcApi } = await import('@renderer/ipc')
     vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('database unavailable'))
 
     const response = await importService.importConversations(chatgptExport())
@@ -252,5 +281,6 @@ describe('importService.importConversations', () => {
       error: 'database unavailable'
     })
     expect(vi.mocked(dataApiService.post)).toHaveBeenCalledOnce()
+    expect(vi.mocked(ipcApi.request)).not.toHaveBeenCalled()
   })
 })

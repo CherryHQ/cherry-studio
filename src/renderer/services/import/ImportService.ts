@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 
@@ -112,6 +113,10 @@ class ImportService {
       }
       onProgress?.(5)
 
+      // Parse before creating anything: a failed import must be side-effect free.
+      const result = await importer.parse(fileContent)
+      onProgress?.(10)
+
       const importerKey = `import.${importer.name.toLowerCase()}.assistant_name`
       const dto: CreateAssistantDto = {
         name: i18n.t(importerKey, {
@@ -120,20 +125,25 @@ class ImportService {
         emoji: importer.emoji
       }
       const assistant = await dataApiService.post('/assistants', { body: dto })
-      onProgress?.(10)
-
-      const result = await importer.parse(fileContent)
       onProgress?.(20)
-      const messagesCount = await this.persistImport(result, assistant, onProgress)
-      onProgress?.(100)
 
-      logger.info(`Import completed: ${result.conversations.length} conversations, ${messagesCount} messages imported`)
+      try {
+        const messagesCount = await this.persistImport(result, assistant, onProgress)
+        onProgress?.(100)
 
-      return {
-        success: true,
-        assistant,
-        topicsCount: result.conversations.length,
-        messagesCount
+        logger.info(
+          `Import completed: ${result.conversations.length} conversations, ${messagesCount} messages imported`
+        )
+
+        return {
+          success: true,
+          assistant,
+          topicsCount: result.conversations.length,
+          messagesCount
+        }
+      } catch (persistError) {
+        await this.rollbackCreatedAssistant(assistant.id, persistError)
+        throw persistError
       }
     } catch (error) {
       logger.error('Import failed:', error as Error)
@@ -144,6 +154,25 @@ class ImportService {
         error:
           error instanceof Error ? error.message : i18n.t('import.error.unknown', { defaultValue: 'Unknown error' })
       }
+    }
+  }
+
+  /**
+   * A failure after the assistant row exists must not leave it behind: archive
+   * it (recycle bin; partial topics cascade) and hard-delete it, so a failed
+   * import is side-effect free. Rollback errors are logged, never mask the
+   * original import failure.
+   */
+  private async rollbackCreatedAssistant(assistantId: string, cause: unknown): Promise<void> {
+    try {
+      await ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
+      await dataApiService.delete(`/assistants/${assistantId}`, { query: { permanent: true } })
+      logger.info('Rolled back the assistant after a failed import', { assistantId, cause: String(cause) })
+    } catch (rollbackError) {
+      logger.error('Failed to roll back the assistant after a failed import', rollbackError as Error, {
+        assistantId,
+        cause: String(cause)
+      })
     }
   }
 
