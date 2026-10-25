@@ -45,8 +45,10 @@ export {
   textEndsWithPartialFenceMarker,
   textHasUnclosedCodeFence,
   textHasUnclosedInlineCode,
+  textHasUnclosedInlineCodeOutsideCodeBlocks,
   textStartsWithModelScratchpadTag,
-  textStartsWithNonScratchpadOpeningTag
+  textStartsWithNonScratchpadOpeningTag,
+  unclosedHtmlTextElementOpener
 } from './scratchpadText'
 export { getContextTokens } from './usage'
 export { type EntityToolOutputCodec, type TruncateOptions, truncateToolResults } from './truncator'

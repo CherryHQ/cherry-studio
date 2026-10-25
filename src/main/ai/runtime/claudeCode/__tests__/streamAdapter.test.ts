@@ -6119,3 +6119,83 @@ describe('whitespace-heavy ordinary output suffix cost (cherry-pr-review)', () =
     expect(run(8)).toBe(run(payload.length))
   })
 })
+
+describe('cherry-pr-review round-9', () => {
+  it('streams public code while the fence stays open after a closed scratchpad block (initial-probe-stalls-code-stream)', () => {
+    const run = (deltas: string[]): { early: string; all: string } => {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      let early: string | undefined
+      for (const delta of deltas) {
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta } })
+        )
+        if (early === undefined && delta.includes('const answer = 42')) {
+          // The public code line has fully arrived while the fence is still open:
+          // it must already be streaming.
+          early = parts
+            .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+            .map((part) => part.delta)
+            .join('')
+        }
+      }
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult())
+      const all = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      return { early: early ?? '', all }
+    }
+    const deltas = [
+      '<analysis>Plan.</analysis>\n\n',
+      '```ts\n',
+      'const answer = 42\n',
+      'const b = 1\n',
+      '```\n',
+      'Done.'
+    ]
+    const chunked = run(deltas)
+    const whole = run([deltas.join('')])
+    // The closed scratchpad block is classified separately from the open fence:
+    // public code lines stream before the fence closes...
+    expect(chunked.early).toContain('const answer = 42')
+    // ...and incremental delivery matches whole delivery.
+    expect(chunked.all).toBe(whole.all)
+    expect(whole.all).toContain('Done.')
+  })
+
+  it('carries the enclosing HTML text-element context across deltas (fragmented-html-content-corruption)', () => {
+    const answer = '<textarea>\nExample:\n<thinking>literal</thinking>\n</textarea>'
+    const run = (deltas: string[]): string => {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (const delta of deltas) {
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta } })
+        )
+      }
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+      } as any)
+      adapter.handleMessage(successResult())
+      return parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    }
+    // The <thinking> block inside the unclosed <textarea> is literal text-element
+    // content, not a scratchpad block: fragmented delivery must equal combined.
+    expect(run(['<textarea>\nExample:\n', '<thinking>literal</thinking>\n', '</textarea>'])).toBe(run([answer]))
+    expect(run([answer])).toBe(answer)
+  })
+})

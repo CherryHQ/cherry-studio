@@ -90,8 +90,10 @@ export {
   textEndsWithPartialFenceMarker,
   textHasUnclosedCodeFence,
   textHasUnclosedInlineCode,
+  textHasUnclosedInlineCodeOutsideCodeBlocks,
   textStartsWithModelScratchpadTag,
-  textStartsWithNonScratchpadOpeningTag
+  textStartsWithNonScratchpadOpeningTag,
+  unclosedHtmlTextElementOpener
 } from './core/context'
 
 // ==================== 错误处理 ====================

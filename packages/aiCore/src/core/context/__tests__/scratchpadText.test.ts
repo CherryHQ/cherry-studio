@@ -1192,3 +1192,12 @@ describe('cherry-review round-8 findings', () => {
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(script)).toBe(script)
   })
 })
+
+describe('cherry-pr-review round-9', () => {
+  it('does not let an unclosed HTML text element inside a scratchpad block hide the block boundary (html-opener-hides-scratchpad-close)', () => {
+    for (const tag of ['script', 'textarea', 'style', 'title']) {
+      const input = `<analysis>Need a <${tag}> element. SECRET</analysis>Public`
+      expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe('Public')
+    }
+  })
+})

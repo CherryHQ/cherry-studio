@@ -127,6 +127,46 @@ function htmlOpeningTagLookup(text: string): (index: number) => boolean {
   }
 }
 
+/**
+ * Opener tag of the HTML text element (script/style/textarea/title) left
+ * unclosed at the end of `text`, outside code, or null. Incremental streaming
+ * scans each delta with only a small carried prefix: once the element's
+ * opener has been emitted, later deltas would scan its literal body as
+ * ordinary markup and strip wrapper-shaped text inside it (cherry-pr-review
+ * round-9 fragmented-html-content-corruption). The caller prepends the
+ * returned opener to the next scan as context.
+ */
+export function unclosedHtmlTextElementOpener(text: string): string | null {
+  const { text: fenceMasked } = maskCodeFences(text)
+  const { text: indentedMasked } = maskIndentedCodeBlocks(fenceMasked)
+  const { text: masked } = maskInlineCodeSpans(indentedMasked)
+  let pos = 0
+  while (pos < masked.length) {
+    const start = masked.indexOf('<', pos)
+    if (start === -1) return null
+    const opaqueEnd = opaqueMarkupEnd(masked, start)
+    if (opaqueEnd !== null) {
+      pos = opaqueEnd
+      continue
+    }
+    const parsed = isBackslashEscaped(masked, start) ? null : parseOpeningTagAt(masked, start)
+    if (!parsed) {
+      pos = start + 1
+      continue
+    }
+    if (parsed.isSelfClosing || !HTML_TEXT_ELEMENT_TAGS.has(parsed.tagName.toLowerCase())) {
+      pos = start + parsed.opener.length
+      continue
+    }
+    const bodyStart = start + parsed.opener.length
+    const closeRe = new RegExp(`</${parsed.tagName.toLowerCase()}\\s*>`, 'i')
+    const close = closeRe.exec(masked.slice(bodyStart))
+    if (!close) return text.slice(start, bodyStart)
+    pos = bodyStart + close.index + close[0].length
+  }
+  return null
+}
+
 function parseLeadingOpeningTag(text: string): ParsedOpeningTag | null {
   const leadingWhitespace = text.match(/^\s*/)?.[0].length ?? 0
   const parsed = parseOpeningTagAt(text, leadingWhitespace)
@@ -1530,6 +1570,20 @@ export function textHasUnclosedCodeFence(text: string): boolean {
 }
 
 /**
+ * textHasUnclosedInlineCode restricted to inline contexts: fenced and indented
+ * code blocks are masked first, so a fence opener's own backticks do not read
+ * as an unclosed inline span. A genuinely unmatched inline backtick can still
+ * pair forward with later streamed text and reclassify a scratchpad boundary,
+ * so callers hold the probe while this is true (cherry-pr-review round-9
+ * initial-probe-stalls-code-stream).
+ */
+export function textHasUnclosedInlineCodeOutsideCodeBlocks(text: string): boolean {
+  const { text: fenceMasked } = maskCodeFences(text)
+  const { text: indentedMasked } = maskIndentedCodeBlocks(fenceMasked)
+  return textHasUnclosedInlineCode(indentedMasked)
+}
+
+/**
  * Confirmed-open code fence for incremental streaming: the opener line is
  * complete (the info string can no longer change), the fence is still open
  * at the end of `text`, and it sits outside any scratchpad block. The
@@ -1715,7 +1769,11 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
         isTargetTag = parsed.tagName.toLowerCase() === lowerTagName
         if (!isTargetTag) {
           const textElementEnd = htmlTextElementEnd(text, parsed, lt)
-          if (textElementEnd !== null) {
+          // An unmatched text-element opener inside scratchpad content must
+          // not hide the enclosing block's boundary: skip the literal body
+          // only when its matching close exists (cherry-pr-review round-9
+          // html-opener-hides-scratchpad-close).
+          if (textElementEnd !== null && textElementEnd < text.length) {
             scanPos = textElementEnd
             continue
           }

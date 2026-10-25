@@ -42,7 +42,8 @@ import {
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripTrailingToolProtocolClosingFragments,
   textHasUnclosedCodeFence,
-  textHasUnclosedInlineCode,
+  textHasUnclosedInlineCodeOutsideCodeBlocks,
+  unclosedHtmlTextElementOpener,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from '@cherrystudio/ai-core'
@@ -1182,8 +1183,19 @@ export class ClaudeCodeStreamAdapter {
     // (cherry-pr-review inv_f7b234887ed722ff). The carry holds any trailing
     // backslash literally, subsuming the escape carry.
     const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
+    // An HTML text element (script/style/textarea/title) left unclosed by the
+    // emitted prefix makes wrapper-shaped markup in later deltas literal
+    // character data: carry its opener into the scan so the body is not
+    // stripped as a scratchpad block (cherry-pr-review round-9
+    // fragmented-html-content-corruption). Fence carry takes precedence:
+    // content inside an open fence is already literal.
+    const htmlCarry =
+      ctx.scratchpadStreamFenceCarry === ''
+        ? (unclosedHtmlTextElementOpener(ctx.accumulatedText.slice(ctx.textBlockContextStart)) ?? '')
+        : ''
     const prefix =
       ctx.scratchpadStreamFenceCarry +
+      htmlCarry +
       (openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix)
     const combined = prefix + ctx.scratchpadStreamRemainder + text
     ctx.scratchpadStreamRemainder = ''
@@ -1198,7 +1210,9 @@ export class ClaudeCodeStreamAdapter {
       // (cherry-pr-review inv_4f2b0c2d3f9c4a0b). Only the trailing partial
       // line can still become the closing marker, so it stays buffered; the
       // carried opener line keeps fence context for the next scan.
-      const openFence = confirmedOpenFenceStreamPrefix(combined)
+      // Inside a carried text element the body is literal: a fence-shaped line
+      // there must not arm the fence carry for later real content.
+      const openFence = htmlCarry === '' ? confirmedOpenFenceStreamPrefix(combined) : null
       const stableText =
         openFence && openFence.stableEnd > prefix.length ? combined.slice(prefix.length, openFence.stableEnd) : ''
       // Never emit unreviewed text verbatim: if stripping the stable region
@@ -1582,10 +1596,20 @@ export class ClaudeCodeStreamAdapter {
     if (indentColumns >= 4 && /[\r\n]/.test(probe)) return { action: 'emit', visible: probe }
 
     if (textStartsWithModelScratchpadTag(probe)) {
-      if (!atBlockEnd && (textHasUnclosedCodeFence(probe) || textHasUnclosedInlineCode(probe))) {
+      const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
+      // An unclosed inline span can still pair forward with a later backtick and
+      // reclassify the block boundary, so hold while one is open. An unclosed
+      // fence only matters when the scratchpad block's own closure depends on
+      // it; when the block closed before the fence opened, the fence content is
+      // stable public code and can stream incrementally (cherry-pr-review
+      // round-9 initial-probe-stalls-code-stream).
+      if (
+        !atBlockEnd &&
+        (textHasUnclosedInlineCodeOutsideCodeBlocks(probe) ||
+          (textHasUnclosedCodeFence(probe) && stripped.length === probe.length))
+      ) {
         return { action: 'pending' }
       }
-      const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
       if (stripped.length < probe.length) {
         const remainder = stripped
         if (
