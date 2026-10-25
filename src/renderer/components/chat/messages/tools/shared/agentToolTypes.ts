@@ -616,12 +616,15 @@ export const TERMINAL_TASK_STATUSES: ReadonlySet<NonNullable<AgentTaskEventPartD
  * pre-completion edge can apply after the completion did. A live-cache edge is the runtime's
  * current belief instead — it revives on any nonterminal status, because the cache keeps only the
  * latest edge per task and the start that justified the revival may already be gone; staleness is
- * settled downstream, where a nonterminal edge is only trusted while the task is live.
+ * settled downstream, where a nonterminal edge is only trusted while the task is live. An
+ * unvouched cache edge is just another stale edge, including a cached `started`; a transcript
+ * `started` is a new run and remains trusted without liveness.
  */
 export function resolveTaskStatusAfter(
   existing: AgentTaskEventPartData['status'] | undefined,
   data: AgentTaskEventPartData,
-  liveEdge = false
+  liveEdge = false,
+  cacheEdge = false
 ): NonNullable<AgentTaskEventPartData['status']> {
   const incoming = data.status ?? existing ?? 'pending'
   if (
@@ -629,7 +632,7 @@ export function resolveTaskStatusAfter(
     existing &&
     TERMINAL_TASK_STATUSES.has(existing) &&
     !TERMINAL_TASK_STATUSES.has(incoming) &&
-    data.event !== 'started'
+    (cacheEdge || data.event !== 'started')
   ) {
     return existing
   }

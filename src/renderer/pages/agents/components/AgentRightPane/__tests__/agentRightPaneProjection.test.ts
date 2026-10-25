@@ -900,8 +900,8 @@ describe('agent right pane projections', () => {
     expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'completed' })])
   })
 
-  // A resume starts a new run under the same task: its started edge must revive the settled row,
-  // or the pane would show the child completed while it runs again.
+  // A resume starts a new run under the same task: its cached started edge revives the settled row
+  // only while the runtime vouches the task is live.
   it('revives a settled task on a new run start', () => {
     const parts = [
       {
@@ -926,8 +926,62 @@ describe('agent right pane projections', () => {
       { m1: parts },
       {
         'bg-1': { event: 'started', taskId: 'bg-1', status: 'in_progress', description: 'Fetch latest' }
-      }
+      },
+      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set(['bg-1']) }
     )
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'in_progress' })])
+  })
+
+  // A cached start is the same stale-edge risk as cached progress: without a liveness voucher the
+  // terminal outcome survives, whichever terminal state history recorded.
+  it.each(['completed', 'stopped', 'error'] as const)(
+    'keeps a %s task when an unvouched cached start is stale',
+    (terminalStatus) => {
+      const parts = [
+        {
+          type: 'data-agent-task-event',
+          data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest', taskType: 'subagent' }
+        },
+        {
+          type: 'data-agent-task-event',
+          data: { event: 'notification', taskId: 'bg-1', status: terminalStatus, summary: 'done' }
+        }
+      ] as unknown as CherryMessagePart[]
+      const messages = [message('m1', parts)]
+
+      const status = buildAgentRightPaneStatus(
+        messages,
+        { m1: parts },
+        {
+          'bg-1': { event: 'started', taskId: 'bg-1', status: 'in_progress', description: 'Fetch latest' }
+        },
+        { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set() }
+      )
+
+      expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: terminalStatus })])
+    }
+  )
+
+  // A start written into the transcript is a new run, not a cache guess: it revives without liveness.
+  it('revives a settled task from a trusted transcript start', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest', taskType: 'subagent' }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'bg-1', status: 'completed', summary: 'done' }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest', taskType: 'subagent' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
     expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'in_progress' })])
   })

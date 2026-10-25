@@ -625,11 +625,11 @@ export function buildAgentToolFlowProjection(
     }
     for (const edge of Object.values(lateTaskEvents ?? {})) {
       if (!edge.status || !flowTaskIds.has(edge.taskId)) continue
-      // A cache edge is the runtime's current belief: it may revive a settled task only while the
-      // task is vouched live, mirroring the status projection's fold.
+      // A cache edge is the runtime's current belief only while the task is vouched live; an
+      // unvouched cached start must not un-settle a terminal row, mirroring the status projection.
       latestTaskStatusByTaskId.set(
         edge.taskId,
-        resolveTaskStatusAfter(latestTaskStatusByTaskId.get(edge.taskId), edge, isTaskVouched(edge.taskId))
+        resolveTaskStatusAfter(latestTaskStatusByTaskId.get(edge.taskId), edge, isTaskVouched(edge.taskId), true)
       )
     }
     // Without runtime liveness a nonterminal edge is trusted; with it, only a vouched edge keeps
