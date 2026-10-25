@@ -4084,7 +4084,7 @@ describe('incremental fenced-code streaming (inv_4f2b0c2d3f9c4a0b)', () => {
       .map((part) => part.delta)
       .join('')
 
-  const streamPieces = (adapter: ClaudeCodeStreamAdapter, pieces: string[]) => {
+  const streamPieces = (adapter: InstanceType<typeof ClaudeCodeStreamAdapter>, pieces: string[]) => {
     adapter.handleMessage(
       streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
     )

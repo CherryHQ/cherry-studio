@@ -1171,7 +1171,7 @@ export class ClaudeCodeStreamAdapter {
       // Never emit unreviewed text verbatim: if stripping the stable region
       // would change it (e.g. a scratchpad block ahead of the fence), keep
       // buffering everything.
-      if (stableText && stripKnownModelScratchpadBlocksPreservingCodeFences(stableText) === stableText) {
+      if (openFence && stableText && stripKnownModelScratchpadBlocksPreservingCodeFences(stableText) === stableText) {
         ctx.scratchpadStreamRemainder = combined.slice(openFence.stableEnd)
         ctx.scratchpadStreamFenceCarry = openFence.openerLine
         // The cut sits at a line boundary: no adjacent backslash run carries.
