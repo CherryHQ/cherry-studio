@@ -1189,6 +1189,53 @@ describe('backgroundTasks', () => {
       },
       40_000
     )
+
+    // A worker belongs to the group only until it calls setsid(), and the pulse that verifies it
+    // as a member is the only moment its identity can be written down. A worker that gives up
+    // every descriptor and its environment before leaving the group carries nothing else: no pipe
+    // and no marker survives it, so an identity the pulse verified but never recorded leaves the
+    // task looking finished while its work goes on.
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'keeps the identity of a worker the pulse verified inside the group',
+      async () => {
+        const pidFile = path.join(storageDir, 'in-group.pid')
+        // The worker stays in the group long enough for a pulse to verify it, then leaves it and
+        // drops every channel the task can otherwise be watched through.
+        const command = `python3 -c "import subprocess,sys; p=subprocess.Popen(['python3','-c','import os,time;time.sleep(0.9);os.setsid();time.sleep(60)'], close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={}); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"`
+        const record = await startDetachedBackgroundTask({ storageDir, command, cwd: storageDir })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(isPidAlive(workerPid)).toBe(true)
+            },
+            { timeout: 10_000 }
+          )
+          // The anchor lets go once the group, both liveness pipes and the marker read empty.
+          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+          await new Promise((resolve) => setTimeout(resolve, 500))
+
+          const [settled] = await listDetachedBackgroundTasks(storageDir)
+          expect(settled.status).toBe('running')
+          expect(isPidAlive(workerPid)).toBe(true)
+          await expect(hasLiveTaskEvidence(storageDir, settled)).resolves.toBe(true)
+          expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toEqual([])
+
+          // Kill reaches the worker through the identity the pulse recorded.
+          const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(stopped?.status).toBe('stopped')
+          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+        }
+      },
+      40_000
+    )
   })
 
   // A pgid outlives the group it names: once the task's own members have drained from it the OS
@@ -1550,6 +1597,80 @@ describe('backgroundTasks', () => {
         }
       },
       40_000
+    )
+
+    // The supervisor's number survives the supervisor: once it exits the OS can hand its pid to
+    // anything, while a worker it witnessed stays positively identified in `.pids`. Folding the
+    // record to `unknown` on that replacement takes away the one status Stop/Kill accepts and
+    // leaves the worker unstoppable while a cleanup waits on it.
+    it.skipIf(process.platform === 'win32')(
+      'keeps a recorded survivor controllable when the supervisor pid was reused',
+      async () => {
+        // A real occupant of the old number and a real survivor of the task's work.
+        const occupant = spawn(nodeBin.replace(/^"|"$/g, ''), ['-e', 'setInterval(() => {}, 60_000)'], {
+          stdio: 'ignore'
+        })
+        const worker = spawn(nodeBin.replace(/^"|"$/g, ''), ['-e', 'setInterval(() => {}, 60_000)'], {
+          stdio: 'ignore'
+        })
+        occupant.unref()
+        worker.unref()
+        const replacementPid = occupant.pid ?? 0
+        const workerPid = worker.pid ?? 0
+        const startStamp = (pid: number): string =>
+          String(execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' }))
+            .trim()
+            .replace(/\s+/g, ' ')
+        const id = `bt-reused-anchor-${Date.now()}`
+        try {
+          await vi.waitFor(
+            () => {
+              expect(isPidAlive(replacementPid)).toBe(true)
+              expect(isPidAlive(workerPid)).toBe(true)
+            },
+            { timeout: 10_000 }
+          )
+          // The state a restart finds: the record names the supervisor's old number, whose current
+          // occupant runs under another stamp, while the ledger names the worker it witnessed.
+          await writeFile(
+            path.join(storageDir, `${id}${BACKGROUND_TASK_RECORD_EXT}`),
+            JSON.stringify({
+              id,
+              name: 'reused-anchor',
+              command: 'sleep 60',
+              pid: replacementPid,
+              pidStartTime: 'Mon Jan  1 00:00:00 2001',
+              cwd: storageDir,
+              startedAt: new Date().toISOString(),
+              logFile: path.join(storageDir, `${id}.log`),
+              status: 'running',
+              exitCode: null,
+              signal: null
+            } satisfies BackgroundTaskRecord)
+          )
+          await writeFile(
+            path.join(storageDir, `${id}${BACKGROUND_TASK_EVIDENCE_EXT}`),
+            JSON.stringify({ members: [{ pid: workerPid, lstart: startStamp(workerPid) }] })
+          )
+
+          const listed = await listDetachedBackgroundTasks(storageDir)
+          expect(listed.find((candidate) => candidate.id === id)?.status).toBe('running')
+
+          const stopped = await stopDetachedBackgroundTask(storageDir, id, true)
+          expect(stopped?.status).toBe('stopped')
+          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+          // The occupant of the old number was never this task's to signal.
+          expect(isPidAlive(replacementPid)).toBe(true)
+        } finally {
+          for (const pid of [workerPid, replacementPid]) {
+            try {
+              if (pid > 0) process.kill(pid, 'SIGKILL')
+            } catch {
+              // already gone
+            }
+          }
+        }
+      }
     )
 
     // A verified worker can fork a child and exit between two 250-ms pulses. The child stays in

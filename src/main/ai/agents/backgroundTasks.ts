@@ -50,6 +50,8 @@ interface OwnedGroup {
    * left the group through setsid is invisible to the pgid probe and visible only here.
    */
   liveness?: { open: boolean }
+  /** The identity write still in flight; completion may not settle before it lands. */
+  persisting?: Promise<void>
 }
 
 /** Accounts for the group's live members that can be verified as this task's own work. */
@@ -60,7 +62,7 @@ function trackVerifiedMembers(taskId: string, storageDir?: string): void {
   if (!table) return
   const live = groupMembersOf(table, owned.pgid)
   const adopted = adoptGroupLeader(owned, live)
-  verifyMembers(owned, live)
+  const verified = verifyMembers(owned, live)
   // A fork child is still this task's after setsid(), and its parent is the only thing that says
   // so: while that tie exists, its identity is written down, because a worker that then closes
   // every descriptor leaves no channel for the table's environment to name it.
@@ -68,8 +70,10 @@ function trackVerifiedMembers(taskId: string, storageDir?: string): void {
   // Persist what the spawn could not capture, so a later restart can re-identify the leader from
   // the record alone and a permanent purge can still discover and stop the task.
   if (adopted && storageDir) void persistPidStartTime(taskId, storageDir, owned)
-  if ((adopted || adoptedDescendant) && storageDir && process.platform !== 'win32') {
-    void persistMemberIdentities(storageDir, taskId, liveMemberIdentities(owned, table))
+  // A member verified while it is still in the group is written down at that moment: it may leave
+  // the group before the next pulse, and then only its recorded identity says it is live work.
+  if ((adopted || verified || adoptedDescendant) && storageDir && process.platform !== 'win32') {
+    owned.persisting = persistMemberIdentities(storageDir, taskId, liveMemberIdentities(owned, table))
   }
 }
 
@@ -275,14 +279,20 @@ async function signalRecordedSurvivors(
  * one forked by a worker that has since exited, which no parent-chain walk could reach. Once it is
  * gone the group is empty, so the only members left to account for belong to a group that took the
  * drained pgid: nothing in it traces back to anything this app verified, and it is refused.
+ * Returns whether it established an identity that was not verified before.
  */
-function verifyMembers(owned: OwnedGroup, live: Array<GroupMember>): void {
+function verifyMembers(owned: OwnedGroup, live: Array<GroupMember>): boolean {
   const byPid = new Map(live.map((member) => [member.pid, member]))
   const leader = byPid.get(owned.pgid)
   if (leader && owned.members.get(leader.pid) === leader.lstart) {
-    for (const member of live) owned.members.set(member.pid, member.lstart)
-    return
+    let added = false
+    for (const member of live) {
+      if (owned.members.get(member.pid) !== member.lstart) added = true
+      owned.members.set(member.pid, member.lstart)
+    }
+    return added
   }
+  let added = false
   for (let expanded = true; expanded;) {
     expanded = false
     for (const member of live) {
@@ -290,10 +300,11 @@ function verifyMembers(owned: OwnedGroup, live: Array<GroupMember>): void {
       const parent = byPid.get(member.ppid)
       if (parent && owned.members.get(parent.pid) === parent.lstart) {
         owned.members.set(member.pid, member.lstart)
-        expanded = true
+        expanded = added = true
       }
     }
   }
+  return added
 }
 
 /**
@@ -1355,6 +1366,9 @@ export async function startDetachedBackgroundTask(
     // a worker that called setsid() may still be running, so nothing may be published or owned away.
     // The inherited marker names that worker once it has dropped every pipe.
     const settleThroughGroupDrain = async (): Promise<void> => {
+      // An identity write still in flight is not in the ledger the checks below read yet: settling
+      // now would let this task finish and give up an ownership the worker outlives.
+      await ownedTaskGroups.get(id)?.persisting
       if (
         process.platform !== 'win32' &&
         record.pid > 0 &&
@@ -2338,7 +2352,14 @@ async function reconcileDetachedBackgroundTask(
   }
   if (record.pid > 0 && isPidAlive(record.pid)) {
     const recycled = isRecycledPid(record) || (await hasReplacedWindowsRunner(storageDir, record, readTable))
-    return recycled ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') } : record
+    if (!recycled) return record
+    // The occupant of the freed number is not this task's, but the ledger may still name work that
+    // is: folding to `unknown` here would take away the one status Stop/Kill accepts and leave that
+    // worker unstoppable while a cleanup waits on it. Every signal path skips the anchor's pid.
+    if (process.platform !== 'win32' && (await hasLiveRecordedSurvivor(storageDir, record.id, record.pid))) {
+      return record
+    }
+    return { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') }
   }
   // The anchor is gone, but an identity recorded while it was still attributable reads live: a
   // worker that dropped every pipe is still this task's, and folding it to `unknown` here would
