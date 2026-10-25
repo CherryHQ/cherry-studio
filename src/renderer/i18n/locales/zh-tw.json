@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "連結",
   "knowledge.data_source.add_dialog.submit.error": "新增資料來源失敗",
   "knowledge.data_source.add_dialog.title": "新增資料來源",
-  "knowledge.data_source.add_dialog.too_many_sources": "單次最多新增 {{count}} 個資料來源，請減少選擇後重試",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "已跳過 {{count}} 個不支援的檔案",
   "knowledge.data_source.add_dialog.url.description": "輸入網頁連結：",
   "knowledge.data_source.add_dialog.url.help": "系統會自動擷取網頁文字、分段並建立索引",

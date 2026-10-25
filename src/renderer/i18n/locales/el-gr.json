@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "Αποτυχία προσθήκης πηγής δεδομένων",
   "knowledge.data_source.add_dialog.title": "Προσθήκη Πηγής Δεδομένων",
-  "knowledge.data_source.add_dialog.too_many_sources": "Μπορείτε να προσθέσετε το πολύ {{count}} πηγές τη φορά. Μειώστε την επιλογή σας και δοκιμάστε ξανά.",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Παραλείφθηκαν {{count}} μη υποστηριζόμενα αρχεία",
   "knowledge.data_source.add_dialog.url.description": "Εισάγετε διεύθυνση ιστοσελίδας:",
   "knowledge.data_source.add_dialog.url.help": "Το κείμενο της σελίδας θα ανακτηθεί, θα τεμαχιστεί και θα ευρετηριαστεί αυτόματα",

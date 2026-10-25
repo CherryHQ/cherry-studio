@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "Échec de l'ajout de la source de données",
   "knowledge.data_source.add_dialog.title": "Ajouter une source de données",
-  "knowledge.data_source.add_dialog.too_many_sources": "Vous ne pouvez ajouter au plus que {{count}} sources à la fois. Réduisez votre sélection et réessayez.",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "{{count}} fichier(s) non pris en charge ignoré(s)",
   "knowledge.data_source.add_dialog.url.description": "Entrez une URL de page web :",
   "knowledge.data_source.add_dialog.url.help": "Le texte de la page sera récupéré, segmenté et indexé automatiquement",

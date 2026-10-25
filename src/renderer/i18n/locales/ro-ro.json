@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "Nu s-a reușit adăugarea sursei de date",
   "knowledge.data_source.add_dialog.title": "Adăugare sursă de date",
-  "knowledge.data_source.add_dialog.too_many_sources": "Poți adăuga cel mult {{count}} surse deodată. Reduce selecția și încearcă din nou.",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "S-au omis {{count}} fișier(e) neacceptate",
   "knowledge.data_source.add_dialog.url.description": "Introdu URL-ul unei pagini web:",
   "knowledge.data_source.add_dialog.url.help": "Textul paginii va fi preluat, împărțit în fragmente și indexat automat",
