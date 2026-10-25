@@ -61,6 +61,7 @@ import {
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
   deriveConnectionConfig,
+  resolveAgentMcpServerKeys,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
@@ -580,6 +581,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (needsRebuild) {
           await this.toolPolicySnapshot?.update(snapshotAgent, {
             preserveDenied: baseline.live.toolPolicy.disabledTools,
+            // The CURRENT keys ride along: the snapshot can only translate a fresh denial onto
+            // the frozen connect-time identities when it resolves it against today's allocation.
+            // Without them the stale in-snapshot mapping compares equal to the baseline and a
+            // disable that postdates the rename never reaches the identities this connection
+            // still serves.
+            serverNameById: resolveAgentMcpServerKeys(agent),
             // Same-connection semantics: the frozen allocation still serves its connect-time
             // keys, so a denial that postdates the rename must also block those identities.
             baselineServerNameById: this.connectMcpServerAllocation

@@ -167,6 +167,7 @@ const mocks = vi.hoisted(() => ({
   materializeNativeFilePart: vi.fn(),
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
+  resolveKeys: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -186,6 +187,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 vi.mock('../agentSessionWarmup', () => ({
   buildClaudeCodeQueryRequestForAgentSession: mocks.buildRequest,
   deriveConnectionConfig: mocks.deriveConfig,
+  resolveAgentMcpServerKeys: mocks.resolveKeys,
   // Mirror the real implementation (sorted-array JSON compare) — importing the actual module would
   // drag the unmocked data-service graph into this test file.
   toolPolicyFactsEqual: (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -521,6 +523,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1' })
     mocks.getModelByKey.mockReturnValue({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
+    // Agents in these tests mount nothing: the reconcile-time allocation re-derivation returns
+    // the empty mapping unless a test overrides it.
+    mocks.resolveKeys.mockReturnValue(new Map())
     mocks.deriveConfig.mockResolvedValue({
       ok: true,
       config: {
@@ -3420,9 +3425,61 @@ describe('ClaudeCodeRuntimeDriver', () => {
       await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
 
       // The connect-time allocation rides along: a denial added after the rename must also
-      // block the pre-rename identity the frozen allocation still serves.
+      // block the pre-rename identity the frozen allocation still serves. The CURRENT keys ride
+      // along too — the snapshot can only translate between baseline and current when it holds
+      // both mappings.
       expect(snapshot.update).toHaveBeenCalledWith(updatedAgent, {
         preserveDenied: ['mcp__docs__run'],
+        serverNameById: new Map(),
+        baselineServerNameById: new Map([['srv', 'docs']])
+      })
+
+      void connection.close()
+    })
+
+    it('forwards the current allocation with the frozen baseline so a post-rename denial reaches the active connection', async () => {
+      // Rename `docs` to `github` during an active Full Access turn, then disable
+      // `mcp__github__run` before the deferred rebuild. The update supplies the frozen
+      // connect-time allocation (`srv` → `docs`) and the CURRENT resolved keys (`srv` →
+      // `github`): the snapshot translates the new-form denial back onto `mcp__docs__run`,
+      // the identity the still-active connection actually serves. Without the current mapping
+      // the snapshot compares `docs` against `docs` and projects nothing.
+      const snapshot = makeSnapshot('default')
+      const updatedAgent = { id: 'agent-1', mcps: ['srv'], disabledTools: ['mcp__github__run'], configuration: {} }
+      mocks.getAgent.mockReturnValue(updatedAgent)
+      mocks.resolveKeys.mockReturnValue(new Map([['srv', 'github']]))
+      mocks.buildRequest.mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: ['srv'] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot, mcpServerAllocation: { srv: 'docs' } },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      const queryQueue = createAsyncQueue<any>()
+      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode: vi.fn() }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+
+      mocks.deriveConfig.mockResolvedValue({
+        ok: true,
+        config: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: ['mcp__github__run'], mcps: ['srv'] } }
+        }
+      })
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      expect(snapshot.update).toHaveBeenCalledWith(updatedAgent, {
+        preserveDenied: [],
+        serverNameById: new Map([['srv', 'github']]),
         baselineServerNameById: new Map([['srv', 'docs']])
       })
 

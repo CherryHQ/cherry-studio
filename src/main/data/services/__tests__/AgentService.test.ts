@@ -938,6 +938,36 @@ describe('AgentService', () => {
       expect(reloaded?.disabledTools).toEqual(['mcp__id-a__run'])
     })
 
+    it('reserves a mounted browser id so a server named after it keeps its own id key across the mount change', async () => {
+      // The runtime reserves every mounted id BEFORE skipping the in-memory browser, so
+      // mounting the browser displaces a server named after the browser's id onto its own id.
+      // The migration compared browser-filtered sets on both sides: the browser's id was never
+      // reserved, the displacement was invisible, and the denial stayed keyed by the browser's
+      // id — an identity the runtime never registers — re-enabling the tool after reconnect.
+      await dbh.db.insert(mcpServerTable).values({
+        id: 'id-browser',
+        name: '@cherry/browser',
+        type: 'inMemory',
+        sortOrder: 0,
+        isActive: false
+      })
+      await insertMcpServer('srv-s', 'id-browser')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Browser Id Reserve',
+        model: TEST_MODEL_ID,
+        mcps: ['srv-s'],
+        disabledTools: ['mcp__id-browser__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['id-browser', 'srv-s'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      // Mounting the browser reserves `id-browser`, so `srv-s` moves onto its own id and the
+      // denial follows onto the identity the runtime actually registers.
+      expect(reloaded?.disabledTools).toEqual(['mcp__srv-s__run'])
+    })
+
     it('keeps the persisted mount order equal to the submitted order so migration matches runtime allocation', async () => {
       // A and B are both named `docs`; B mounts second, so its denial lives under its id key.
       // Reordering the mounts to [B, A] hands `docs` to B — but only if the junction rows carry

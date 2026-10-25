@@ -211,14 +211,18 @@ export class McpServerService {
           // Pre-rename mount list with configured names: allocation order decides who owns a
           // duplicated name, mirroring resolveMountedAgentMcpServers. Ties break by mcpServerId
           // — the same total order the runtime readers apply, since rows replaced in one
-          // statement can share a createdAt millisecond.
+          // statement can share a createdAt millisecond. The browser stays out of the
+          // allocation candidates (the runtime never registers it), but its id joins the
+          // reservations: the runtime reserves every mounted id BEFORE skipping the browser,
+          // so a configured name equal to the browser's id falls back to the server's own id
+          // there, and this allocation must predict the same key.
           const mountedServers = tx
             .select({ mcpServerId: agentMcpServerTable.mcpServerId })
             .from(agentMcpServerTable)
             .where(eq(agentMcpServerTable.agentId, agent.id))
             .orderBy(asc(agentMcpServerTable.createdAt), asc(agentMcpServerTable.mcpServerId))
             .all()
-            .flatMap(({ mcpServerId }) => {
+            .flatMap(({ mcpServerId }): { mcpId: string; name?: string; browser?: boolean } => {
               const [mountedRow] = tx
                 .select({ name: mcpServerTable.name, type: mcpServerTable.type })
                 .from(mcpServerTable)
@@ -229,11 +233,11 @@ export class McpServerService {
               // it must not claim an allocation key here either — counting it displaces a
               // server NAMED after its folded segment onto a UUID the runtime never registers.
               if (mountedRow && mountedRow.type === 'inMemory' && mountedRow.name === BuiltinMcpServerNames.browser)
-                return []
-              return mountedRow ? [{ mcpId: mcpServerId, name: mountedRow.name }] : [{ mcpId: mcpServerId }]
+                return { mcpId: mcpServerId, name: mountedRow.name, browser: true }
+              return mountedRow ? { mcpId: mcpServerId, name: mountedRow.name } : { mcpId: mcpServerId }
             })
           const migrated = migrateAgentDisabledToolsForServerRename(agent.disabledTools ?? [], {
-            mountedServers,
+            mountedServers: mountedServers.flatMap(({ browser, ...ref }) => (browser ? [] : [ref])),
             renamedServerId: id,
             toName: name,
             reservedKeys: [

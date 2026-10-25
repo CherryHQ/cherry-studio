@@ -537,6 +537,14 @@ export interface AgentAllocationChangeInput {
   newMountedServers: ReadonlyArray<MountedServerRef>
   /** Keys no user server may claim (built-in server names; mounted ids are reserved per set). */
   reservedKeys: readonly string[]
+  /**
+   * Mounted ids reserved per set WITHOUT becoming allocation candidates: the runtime reserves
+   * every mounted id before skipping servers it never registers (the in-memory browser), so a
+   * configured name equal to such an id holds the id before the change and falls back to its
+   * own id after — exactly as {@link resolveMountedAgentMcpServers} allocates it. Each id is
+   * reserved only in the sets it is mounted in, and it never claims a configured name.
+   */
+  nonCandidateIds?: ReadonlySet<string>
 }
 
 /**
@@ -554,8 +562,9 @@ export function migrateAgentDisabledToolsForAllocationChange(
   disabledTools: readonly string[],
   input: AgentAllocationChangeInput
 ): string[] | undefined {
+  const skipCandidates = input.nonCandidateIds
   const allocation = (servers: ReadonlyArray<MountedServerRef>) =>
-    allocateMountedServerKeys(servers, [
+    allocateMountedServerKeys(skipCandidates ? servers.filter(({ mcpId }) => !skipCandidates.has(mcpId)) : servers, [
       ...input.reservedKeys,
       ...servers.map(({ mcpId }) => sanitizeAgentServerKey(mcpId))
     ])

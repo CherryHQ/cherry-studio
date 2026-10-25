@@ -271,6 +271,37 @@ describe('McpServerService', () => {
       expect(agent.disabledTools).toEqual(['mcp__docs__run'])
     })
 
+    it('reserves a mounted browser id so renaming a server onto that id keeps its own id key', async () => {
+      // The runtime reserves every mounted id BEFORE skipping the in-memory browser
+      // (resolveMountedAgentMcpServers), so a server renamed onto the browser's id falls back
+      // to its own id there. The migration derived its reservations from the browser-filtered
+      // mount list: the renamed server claimed the browser's id and the denial moved onto
+      // `mcp__srv-browser__run` — an identity no runtime ever registers — re-enabling the
+      // explicitly disabled tool after reconnect.
+      await seedServer({ id: 'srv-browser', name: '@cherry/browser', type: 'inMemory' })
+      await seedServer({ id: 'srv-s', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'renamed-onto-browser-id',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-browser' },
+        { agentId: 'agent-1', mcpServerId: 'srv-s' }
+      ])
+
+      mcpServerService.update('srv-s', { name: 'srv-browser' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The browser's id is reserved in the post-rename allocation, so the server keeps its own
+      // id key and the denial follows onto the identity the runtime actually registers.
+      expect(agent.disabledTools).toEqual(['mcp__srv-s__run'])
+    })
+
     it('copies lossy-hashed rules onto the new lossy base when a normalized name is renamed', async () => {
       // `Old server` registers lossy (`mcp__oldServer__run_<hash>`); the hash binds the old
       // name, so the rename copies the entry onto the new lossy base and keeps the original.

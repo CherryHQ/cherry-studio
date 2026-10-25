@@ -972,6 +972,26 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
     ).toBeUndefined()
   })
 
+  it('reserves a non-candidate id per set so a server named after it is displaced like the runtime does', () => {
+    // The runtime reserves the in-memory browser's id BEFORE skipping the browser
+    // (resolveMountedAgentMcpServers): a server named after that id holds the id before the
+    // change and falls back to its own id once the browser mounts. The migration must see the
+    // same displacement — the browser never becomes a candidate (it registers nothing), but its
+    // id joins the new set's reservations. Without it the allocation reads stable and the saved
+    // denial stays keyed by an identity no runtime registers.
+    expect(
+      migrateAgentDisabledToolsForAllocationChange([`mcp__${idB}__run`], {
+        oldMountedServers: [{ mcpId: idA, name: idB }],
+        newMountedServers: [
+          { mcpId: idB, name: '@cherry/browser' },
+          { mcpId: idA, name: idB }
+        ],
+        reservedKeys: RESERVED,
+        nonCandidateIds: new Set([idB])
+      })
+    ).toEqual([`mcp__${idA}__run`])
+  })
+
   it('keeps the UUID denial and emits the camelized alias when unmounting promotes an id-keyed server to a mixed-case key', () => {
     // A and B are both named `GitHub`; B mounts second so its denial was saved under the raw id
     // form (`mcp__<idB>__run`). Unmounting A frees the name and B's allocation moves onto it.

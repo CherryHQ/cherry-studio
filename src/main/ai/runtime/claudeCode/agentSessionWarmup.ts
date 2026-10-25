@@ -15,6 +15,7 @@ import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
+  resolveAgentMcpServerKeys,
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
@@ -279,6 +280,12 @@ export interface ConnectionConfig {
 }
 
 export type DeriveConnectionConfigResult = { ok: true; config: ConnectionConfig } | { ok: false; reason: 'unroutable' }
+
+// Re-exported for the driver's reconcile-time denial projection: projecting a post-rename denial
+// onto the still-active connection needs the CURRENT id → record-key allocation next to the frozen
+// connect-time one, and routing it through this module keeps the heavy agentMcpServers bridge
+// graph out of the driver's direct imports.
+export { resolveAgentMcpServerKeys }
 
 /**
  * Pure facts extractor for connection staleness — NOT a builder inversion. Reads the same inputs

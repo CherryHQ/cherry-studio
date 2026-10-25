@@ -808,18 +808,21 @@ export class AgentService {
             // policy would let the disabled tool execute, while the displaced key resolves onto
             // the newcomer). Migrate the stored rules onto the post-change allocation; a PATCH
             // that submits `disabledTools` owns the list and skips migration.
+            // The runtime never mounts the in-memory browser; it must not claim an allocation
+            // key in the migration either. It stays in the list so its id joins the per-set
+            // reservations via `nonCandidateIds` — the runtime reserves every mounted id
+            // BEFORE skipping the browser, and a configured name equal to that id must be
+            // predicted to fall back to its own id here exactly as the runtime allocates it.
             const mountSnapshot = (mcpIds: readonly string[]) =>
-              mcpIds.flatMap((mcpId) => {
+              mcpIds.flatMap((mcpId): { mcpId: string; name?: string; browser?: boolean } => {
                 const [mountedRow] = tx
                   .select({ name: mcpServerTable.name, type: mcpServerTable.type })
                   .from(mcpServerTable)
                   .where(eq(mcpServerTable.id, mcpId))
                   .limit(1)
                   .all()
-                // The runtime never mounts the in-memory browser; it must not claim an
-                // allocation key in the migration either.
                 if (mountedRow && mountedRow.type === 'inMemory' && mountedRow.name === BuiltinMcpServerNames.browser)
-                  return []
+                  return { mcpId, name: mountedRow.name, browser: true }
                 return mountedRow ? { mcpId, name: mountedRow.name } : { mcpId }
               })
             const oldMountedServers = tx
@@ -830,13 +833,18 @@ export class AgentService {
               .all()
               .map(({ mcpServerId }) => mcpServerId)
             if (updates.disabledTools === undefined && oldMountedServers.length > 0) {
+              const oldMountedRefs = mountSnapshot(oldMountedServers)
+              const newMountedRefs = mountSnapshot(newMcps)
               const migrated = migrateAgentDisabledToolsForAllocationChange(current.disabledTools ?? [], {
-                oldMountedServers: mountSnapshot(oldMountedServers),
+                oldMountedServers: oldMountedRefs,
                 // The submitted array is the persisted order: the insert below writes each row
                 // with an explicit ascending `createdAt`, so both the migration here and the
                 // runtime readers resolve duplicate-name claims from the exact order below.
-                newMountedServers: mountSnapshot(newMcps),
-                reservedKeys: [...Object.values(CHERRY_MCP_SERVER)]
+                newMountedServers: newMountedRefs,
+                reservedKeys: [...Object.values(CHERRY_MCP_SERVER)],
+                nonCandidateIds: new Set(
+                  [...oldMountedRefs, ...newMountedRefs].flatMap(({ browser, mcpId }) => (browser ? [mcpId] : []))
+                )
               })
               if (migrated) updateData.disabledTools = migrated
             }
