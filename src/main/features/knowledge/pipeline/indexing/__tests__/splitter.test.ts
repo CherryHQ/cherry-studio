@@ -1,3 +1,4 @@
+import { estimateTokenCount } from 'tokenx'
 import { describe, expect, it } from 'vitest'
 
 import { splitTextWithOffsets, type TextChunk } from '../splitter'
@@ -172,36 +173,29 @@ describe('splitTextWithOffsets — separator and strategy', () => {
     expect(withDefault).toEqual(withStructured)
   })
 
-  // The migrated/default base runs structured mode with chunkSeparator='\n\n' (the column
-  // default), not "no separator". That adds a paragraph-level break (score 30) just after
-  // each '\n\n', so the default is an *active* break, not a no-op: it keeps the chunk count
-  // but shifts some interior cut offsets versus a no-separator run, while staying verbatim.
-  // This is why "reproduces the previous behavior" only holds for already-indexed content
-  // (chunking affects newly-added content only), not byte-for-byte under re-chunking.
-  it('treats the migrated "\\n\\n" default as an active paragraph-level break in structured mode', () => {
-    const text = [
-      '# Title',
-      'First paragraph with several words to fill up some space here for chunking.',
-      'Second paragraph that also carries a fair amount of words for the splitter.',
-      'Third paragraph continuing the document with yet more filler content inside.',
-      'Fourth and final paragraph wrapping up this example body of text quite nicely.'
-    ].join('\n\n')
+  // The default '\n\n' break sits in whitespace, so trimming can make two cuts
+  // indistinguishable in the emitted chunks. Use a visible separator to verify
+  // that structured mode still honors the configured separator.
+  it('uses the configured separator as a structured break', () => {
+    const text = 'alpha beta gamma||delta epsilon zeta||eta theta iota kappa lambda'
+    const separatorEnd = text.indexOf('||') + 2
+    const charsPerToken = text.length / estimateTokenCount(text)
+    const chunkSize = Math.max(1, Math.ceil((separatorEnd * 1.1) / charsPerToken))
 
-    const withDefaultSeparator = splitTextWithOffsets(text, {
-      chunkSize: 12,
-      chunkOverlap: 4,
-      separator: '\\n\\n',
+    const withSeparator = splitTextWithOffsets(text, {
+      chunkSize,
+      chunkOverlap: 0,
+      separator: '||',
       strategy: 'structured'
     })
     const withoutSeparator = splitTextWithOffsets(text, {
-      chunkSize: 12,
-      chunkOverlap: 4,
+      chunkSize,
+      chunkOverlap: 0,
       strategy: 'structured'
     })
 
-    expect(withDefaultSeparator).not.toEqual(withoutSeparator)
-    expect(withDefaultSeparator.length).toBe(withoutSeparator.length)
-    expectVerbatimSlices(text, withDefaultSeparator)
+    expect(withSeparator).not.toEqual(withoutSeparator)
+    expectVerbatimSlices(text, withSeparator)
     expectVerbatimSlices(text, withoutSeparator)
   })
 
@@ -239,6 +233,99 @@ describe('splitTextWithOffsets — separator and strategy', () => {
       const strategy = strategies[Math.floor(rand() * strategies.length)]
       const chunks = splitTextWithOffsets(text, { chunkSize, chunkOverlap, separator, strategy })
       expectVerbatimSlices(text, chunks)
+    }
+  })
+})
+
+describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
+  it('cuts after CJK sentence punctuation and keeps the closing quote', () => {
+    const text = '他说：“第一句。”然后第二句！最后第三句？'
+    const chunks = splitTextWithOffsets(text, { chunkSize: 10, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks.slice(0, -1)) {
+      expect(chunk.text).toMatch(/[。！？][”’]?$/)
+    }
+  })
+
+  it('cuts after Latin sentence punctuation', () => {
+    const text = 'First sentence. Second sentence! Third sentence?'
+    const chunks = splitTextWithOffsets(text, { chunkSize: 6, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks.slice(0, -1)) {
+      expect(chunk.text).toMatch(/[.!?]$/)
+    }
+  })
+
+  it('never splits a display-math block', () => {
+    const text = '公式如下：\n\n$$\na + b = c\n$$\n\n然后继续。'
+    const chunks = splitTextWithOffsets(text, { chunkSize: 6, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect((chunk.text.match(/\$\$/g) ?? []).length % 2).toBe(0)
+    }
+  })
+
+  it('never splits an inline-math expression', () => {
+    const text = '设 $a+b$ 为和。下一句。'
+    const chunks = splitTextWithOffsets(text, { chunkSize: 5, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect((chunk.text.match(/\$/g) ?? []).length % 2).toBe(0)
+    }
+  })
+
+  it('never splits a table block', () => {
+    const text = '前文。\n\n<table><tr><td>1</td></tr></table>\n\n后文。'
+    const chunks = splitTextWithOffsets(text, { chunkSize: 6, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      const opens = (chunk.text.match(/<table\b/g) ?? []).length
+      const closes = (chunk.text.match(/<\/table>/g) ?? []).length
+      expect(opens).toBe(closes)
+    }
+  })
+
+  it('starts overlapping chunks at a sentence boundary', () => {
+    const text = '第一句。第二句。第三句。第四句。第五句。第六句。'
+    const chunks = splitTextWithOffsets(text, { chunkSize: 5, chunkOverlap: 4 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks.slice(1)) {
+      const before = text.slice(0, chunk.start).trimEnd()
+      expect(before.endsWith('。')).toBe(true)
+    }
+  })
+
+  it('does not start an overlapping chunk inside a display-math block', () => {
+    const text = '前文说明。\n\n$$\na + b = c\n$$\n\n后文说明。'
+    const chunks = splitTextWithOffsets(text, { chunkSize: 5, chunkOverlap: 4 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect((chunk.text.match(/\$\$/g) ?? []).length % 2).toBe(0)
+    }
+  })
+
+  it('fits each chunk to the token budget when sentence boundaries are available', () => {
+    const text = `${'A'.repeat(400)}。${'这是中文句子。'.repeat(30)}`
+    const chunks = splitTextWithOffsets(text, { chunkSize: 30, chunkOverlap: 0 })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(30)
     }
   })
 })

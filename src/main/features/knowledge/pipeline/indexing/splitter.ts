@@ -42,10 +42,21 @@ export interface SplitOptions {
 interface BreakPoint {
   pos: number
   score: number
+  /** A sentence or block end that may be used outside the normal look-back window. */
+  sentence?: boolean
 }
 
-/** A `\`\`\`` … `\`\`\`` region where preferred break points should be ignored. */
-interface CodeFenceRegion {
+interface BreakPattern {
+  pattern: RegExp
+  score: number
+  /** Cut at the end of the match (sentence punctuation) instead of its start. */
+  cutAfter?: boolean
+  /** A clean sentence/block end, eligible for the fallback search. */
+  sentence?: boolean
+}
+
+/** A `\`\`\``, `$$` or `<table>` region where preferred break points should be ignored. */
+interface AtomicRegion {
   start: number
   end: number
 }
@@ -58,7 +69,7 @@ interface CodeFenceRegion {
  * yield far more coherent retrieval units than fixed-size windows, while still
  * cutting at exact source offsets. Each pattern's match index is the cut point.
  */
-const BREAK_PATTERNS: Array<{ pattern: RegExp; score: number }> = [
+const BREAK_PATTERNS: BreakPattern[] = [
   { pattern: /\n#{1}(?!#)/g, score: 100 }, // h1
   { pattern: /\n#{2}(?!#)/g, score: 90 }, // h2
   { pattern: /\n#{3}(?!#)/g, score: 80 }, // h3
@@ -67,6 +78,12 @@ const BREAK_PATTERNS: Array<{ pattern: RegExp; score: number }> = [
   { pattern: /\n#{6}(?!#)/g, score: 50 }, // h6
   { pattern: /\n```/g, score: 80 }, // code-block boundary
   { pattern: /\n(?:---|\*\*\*|___)\s*\n/g, score: 60 }, // horizontal rule
+  { pattern: /<\/table>/gi, score: 45, cutAfter: true, sentence: true }, // table block end
+  { pattern: /\$\$/g, score: 45, cutAfter: true, sentence: true }, // display-math block end
+  { pattern: /[。！？]+[”’」』】）》]?/g, score: 35, cutAfter: true, sentence: true }, // CJK sentence end
+  { pattern: /[…]+[”’」』】）》]?/g, score: 30, cutAfter: true, sentence: true }, // ellipsis
+  { pattern: /[；;]+[”’」』】）》]?/g, score: 28, cutAfter: true, sentence: true }, // clause end
+  { pattern: /[.!?]+["')\]]?(?=\s|$)/g, score: 30, cutAfter: true, sentence: true }, // Latin sentence end
   { pattern: /\n\n+/g, score: 20 }, // paragraph boundary
   { pattern: /\n[-*]\s/g, score: 5 }, // unordered list item
   { pattern: /\n\d+\.\s/g, score: 5 }, // ordered list item
@@ -91,11 +108,17 @@ const DELIMITER_SEPARATOR_SCORE = 100
  * when the user separator leaves an oversized segment (paragraph, line,
  * CJK/Latin sentence, word) before the hard character cut.
  */
-const DELIMITER_FALLBACKS: ReadonlyArray<{ separator: string; score: number }> = [
+const DELIMITER_FALLBACKS: ReadonlyArray<{ separator: string; score: number; sentence?: boolean }> = [
   { separator: '\n\n', score: 20 },
   { separator: '\n', score: 12 },
-  { separator: '。', score: 10 },
-  { separator: '. ', score: 8 },
+  { separator: '。', score: 10, sentence: true },
+  { separator: '！', score: 10, sentence: true },
+  { separator: '？', score: 10, sentence: true },
+  { separator: '；', score: 9, sentence: true },
+  { separator: '. ', score: 8, sentence: true },
+  { separator: '! ', score: 8, sentence: true },
+  { separator: '? ', score: 8, sentence: true },
+  { separator: '; ', score: 7, sentence: true },
   { separator: ' ', score: 3 }
 ]
 
@@ -137,18 +160,21 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
   const windowChars = Math.max(1, Math.round(maxChars * WINDOW_RATIO))
 
   const breakPoints = scanBreakPoints(text, { strategy, separator })
-  const codeFences = strategy === 'structured' ? findCodeFences(text) : []
+  const atomicRegions = strategy === 'structured' ? findAtomicRegions(text) : []
 
   const chunks: TextChunk[] = []
   let cursor = 0
   while (cursor < text.length) {
     let endPos = Math.min(cursor + maxChars, text.length)
     if (endPos < text.length) {
-      const cutoff = findBestCutoff(breakPoints, endPos, windowChars, codeFences)
-      if (cutoff > cursor && cutoff <= endPos) {
-        endPos = cutoff
+      const cutoff = findBestCutoff(breakPoints, endPos, cursor, windowChars, atomicRegions)
+      // The fallback may overshoot the target slightly to reach a sentence end.
+      if (cutoff > cursor) {
+        endPos = Math.min(cutoff, text.length)
       }
     }
+    endPos = resolveCutOutsideRegions(endPos, cursor, atomicRegions)
+    endPos = fitEndToTokenBudget(text, cursor, endPos, chunkSize, breakPoints, atomicRegions)
 
     const chunk = trimToChunk(text, cursor, endPos)
     if (chunk) {
@@ -158,7 +184,9 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
     if (endPos >= text.length) {
       break
     }
-    const nextCursor = endPos - overlapChars
+    let nextCursor = endPos - overlapChars
+    nextCursor = resolveStartOutsideRegions(nextCursor, cursor, atomicRegions)
+    nextCursor = snapToStartBoundary(nextCursor, endPos, breakPoints, atomicRegions)
     cursor = nextCursor > cursor ? nextCursor : endPos
   }
 
@@ -173,29 +201,34 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
  * delimiter chain so oversized segments still split before the hard cut.
  */
 function scanBreakPoints(text: string, options: { strategy: KnowledgeChunkStrategy; separator: string }): BreakPoint[] {
-  const best = new Map<number, number>()
-  const consider = (pos: number, score: number) => {
+  const best = new Map<number, { score: number; sentence: boolean }>()
+  const consider = (pos: number, score: number, sentence = false) => {
     const existing = best.get(pos)
-    if (existing === undefined || score > existing) {
-      best.set(pos, score)
+    if (existing === undefined || score > existing.score) {
+      best.set(pos, { score, sentence })
+    } else if (sentence) {
+      existing.sentence = true
     }
   }
 
   if (options.strategy === 'structured') {
-    for (const { pattern, score } of BREAK_PATTERNS) {
+    for (const { pattern, score, cutAfter, sentence } of BREAK_PATTERNS) {
       for (const match of text.matchAll(pattern)) {
-        consider(match.index, score)
+        const index = match.index ?? 0
+        consider(cutAfter ? index + match[0].length : index, score, sentence)
       }
     }
     addLiteralBreaks(text, options.separator, STRUCTURED_SEPARATOR_SCORE, consider)
   } else {
     addLiteralBreaks(text, options.separator, DELIMITER_SEPARATOR_SCORE, consider)
-    for (const { separator, score } of DELIMITER_FALLBACKS) {
-      addLiteralBreaks(text, separator, score, consider)
+    for (const { separator, score, sentence } of DELIMITER_FALLBACKS) {
+      addLiteralBreaks(text, separator, score, consider, sentence)
     }
   }
 
-  return [...best.entries()].map(([pos, score]) => ({ pos, score })).sort((a, b) => a.pos - b.pos)
+  return [...best.entries()]
+    .map(([pos, value]) => ({ pos, score: value.score, sentence: value.sentence }))
+    .sort((a, b) => a.pos - b.pos)
 }
 
 /**
@@ -207,21 +240,22 @@ function addLiteralBreaks(
   text: string,
   separator: string,
   score: number,
-  consider: (pos: number, score: number) => void
+  consider: (pos: number, score: number, sentence?: boolean) => void,
+  sentence = false
 ): void {
   if (!separator) {
     return
   }
   let index = text.indexOf(separator)
   while (index !== -1) {
-    consider(index + separator.length, score)
+    consider(index + separator.length, score, sentence)
     index = text.indexOf(separator, index + separator.length)
   }
 }
 
 /** Pair up `\`\`\`` fences into regions; an unclosed fence extends to end of text. */
-function findCodeFences(text: string): CodeFenceRegion[] {
-  const regions: CodeFenceRegion[] = []
+function findCodeFences(text: string): AtomicRegion[] {
+  const regions: AtomicRegion[] = []
   let open: number | null = null
   for (const match of text.matchAll(/\n```/g)) {
     if (open === null) {
@@ -237,37 +271,254 @@ function findCodeFences(text: string): CodeFenceRegion[] {
   return regions
 }
 
-function isInsideCodeFence(pos: number, fences: CodeFenceRegion[]): boolean {
-  return fences.some((fence) => pos > fence.start && pos < fence.end)
+/** Code fences, tables, display math, and inline math must never be split. */
+function findAtomicRegions(text: string): AtomicRegion[] {
+  const codeFences = findCodeFences(text)
+  const tables = findTableRegions(text, codeFences)
+  const displayMath = findDisplayMathRegions(text, [...codeFences, ...tables])
+  const regions = [...codeFences, ...tables, ...displayMath]
+  regions.push(...findInlineMathRegions(text, regions))
+  return mergeRegions(regions)
+}
+
+/** Pair `<table>` with its closing tag; an unclosed table extends to end of text. */
+function findTableRegions(text: string, existing: AtomicRegion[]): AtomicRegion[] {
+  const regions: AtomicRegion[] = []
+  const open = /<table\b[^>]*>/gi
+  const close = /<\/table>/gi
+  let cursor = 0
+  while (cursor < text.length) {
+    open.lastIndex = cursor
+    const openMatch = open.exec(text)
+    if (!openMatch) break
+    if (isInsideAtomicRegion(openMatch.index, existing)) {
+      cursor = openMatch.index + openMatch[0].length
+      continue
+    }
+    close.lastIndex = openMatch.index + openMatch[0].length
+    const closeMatch = close.exec(text)
+    const end = closeMatch ? closeMatch.index + closeMatch[0].length : text.length
+    regions.push({ start: openMatch.index, end })
+    cursor = end
+  }
+  return regions
+}
+
+/** Pair `$$` delimiters into display-math regions; an unclosed block extends to the end. */
+function findDisplayMathRegions(text: string, existing: AtomicRegion[]): AtomicRegion[] {
+  const regions: AtomicRegion[] = []
+  let cursor = 0
+  while (cursor < text.length) {
+    const start = text.indexOf('$$', cursor)
+    if (start === -1) break
+    if (isInsideAtomicRegion(start, existing)) {
+      cursor = start + 2
+      continue
+    }
+    const end = text.indexOf('$$', start + 2)
+    if (end === -1) {
+      regions.push({ start, end: text.length })
+      break
+    }
+    regions.push({ start, end: end + 2 })
+    cursor = end + 2
+  }
+  return regions
+}
+
+/** Pair single `$` delimiters outside code/table/display blocks. */
+function findInlineMathRegions(text: string, existing: AtomicRegion[]): AtomicRegion[] {
+  const regions: AtomicRegion[] = []
+  const pattern = /(?<!\\)\$(?!\$)([^$\n]*?)(?<!\\)\$/g
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index ?? 0
+    const end = start + match[0].length
+    if (isInsideAtomicRegion(start, existing)) continue
+    regions.push({ start, end })
+  }
+  return regions
+}
+
+function mergeRegions(regions: AtomicRegion[]): AtomicRegion[] {
+  const sorted = [...regions].sort((left, right) => left.start - right.start)
+  const merged: AtomicRegion[] = []
+  for (const region of sorted) {
+    const last = merged.at(-1)
+    if (last && region.start <= last.end) {
+      last.end = Math.max(last.end, region.end)
+    } else {
+      merged.push({ ...region })
+    }
+  }
+  return merged
+}
+
+/** Move a cut out of an atomic block: before it when possible, otherwise after it. */
+function resolveCutOutsideRegions(pos: number, cursor: number, regions: AtomicRegion[]): number {
+  const region = regions.find((candidate) => pos > candidate.start && pos < candidate.end)
+  if (!region) return pos
+  return region.start > cursor ? region.start : region.end
+}
+
+/** Move an overlap start out of an atomic block so the next chunk begins after it. */
+function resolveStartOutsideRegions(pos: number, cursor: number, regions: AtomicRegion[]): number {
+  const region = regions.find((candidate) => pos > candidate.start && pos < candidate.end)
+  if (!region) return pos
+  return region.end > cursor ? region.end : pos
+}
+
+/**
+ * Snap an overlap start forward to the next sentence/structural boundary. The
+ * first chunk of the overlap stays whole; when no boundary fits before the cut,
+ * the next chunk starts at the cut and overlap is dropped.
+ */
+function snapToStartBoundary(pos: number, endPos: number, breakPoints: BreakPoint[], regions: AtomicRegion[]): number {
+  for (const bp of breakPoints) {
+    if (bp.pos < pos) continue
+    if (bp.pos >= endPos) break
+    if (!bp.sentence && bp.score < 20) continue
+    if (isInsideAtomicRegion(bp.pos, regions)) continue
+    return bp.pos
+  }
+
+  for (const region of regions) {
+    if (region.end >= pos && region.end < endPos) return region.end
+  }
+
+  return endPos
+}
+
+/**
+ * The global chars-per-token ratio is inaccurate for formula-heavy text. When
+ * the selected chunk exceeds the token budget, shrink it to the largest prefix
+ * that fits and prefer the nearest sentence/structural boundary within it.
+ */
+function fitEndToTokenBudget(
+  text: string,
+  start: number,
+  end: number,
+  maxTokens: number,
+  breakPoints: BreakPoint[],
+  regions: AtomicRegion[]
+): number {
+  if (end <= start + 1) {
+    return end
+  }
+  if (estimateTokenCount(text.slice(start, end)) <= maxTokens) {
+    return end
+  }
+
+  let low = start + 1
+  let high = end
+  let best = start + 1
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (estimateTokenCount(text.slice(start, mid)) <= maxTokens) {
+      best = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+
+  let boundary = -1
+  for (const bp of breakPoints) {
+    if (bp.pos > best) break
+    if (bp.pos <= start) continue
+    if (!bp.sentence && bp.score < 20) continue
+    if (isInsideAtomicRegion(bp.pos, regions)) continue
+    boundary = bp.pos
+  }
+  if (boundary > start) {
+    return boundary
+  }
+
+  const region = regions.find((candidate) => best > candidate.start && best < candidate.end)
+  if (region) {
+    return region.start > start ? region.start : region.end
+  }
+  return best
+}
+
+function isInsideAtomicRegion(pos: number, regions: AtomicRegion[]): boolean {
+  return regions.some((region) => pos > region.start && pos < region.end)
 }
 
 /**
  * Pick the cut position: the break with the highest distance-decayed score in
- * `[target - windowChars, target]`, skipping any inside a code fence. Returns
- * `target` unchanged when no break qualifies (the caller then hard-cuts there).
+ * `[target - windowChars, target]`, skipping any inside an atomic block. When
+ * the window has no break, fall back to the nearest sentence/block end so a
+ * punctuation boundary is not skipped just because it sits farther back.
  */
 function findBestCutoff(
   breakPoints: BreakPoint[],
   target: number,
+  cursor: number,
   windowChars: number,
-  codeFences: CodeFenceRegion[]
+  regions: AtomicRegion[]
 ): number {
   const windowStart = target - windowChars
   let bestScore = -1
   let bestPos = target
+  let found = false
   for (const bp of breakPoints) {
     if (bp.pos < windowStart) continue
     if (bp.pos > target) break // sorted by position
-    if (isInsideCodeFence(bp.pos, codeFences)) continue
+    if (isInsideAtomicRegion(bp.pos, regions)) continue
 
     const normalizedDistance = (target - bp.pos) / windowChars
     const score = bp.score * (1 - normalizedDistance * normalizedDistance * DECAY_FACTOR)
     if (score > bestScore) {
       bestScore = score
       bestPos = bp.pos
+      found = true
     }
   }
-  return bestPos
+  return found
+    ? bestPos
+    : findFallbackCutoff(
+        breakPoints,
+        target,
+        cursor,
+        Math.max(cursor, target - Math.round((windowChars / WINDOW_RATIO) * 0.5)),
+        Math.max(16, windowChars),
+        regions
+      )
+}
+
+/**
+ * The 22% window can miss a sentence end that sits just before the target.
+ * Prefer the nearest sentence/block end at or before the target, then allow a
+ * small overshoot to the next one; otherwise the caller hard-cuts at the target.
+ */
+function findFallbackCutoff(
+  breakPoints: BreakPoint[],
+  target: number,
+  cursor: number,
+  minPos: number,
+  maxOvershoot: number,
+  regions: AtomicRegion[]
+): number {
+  let before = -1
+  for (const bp of breakPoints) {
+    if (bp.pos > target) break
+    if (bp.pos < minPos || bp.pos <= cursor || !bp.sentence) continue
+    if (isInsideAtomicRegion(bp.pos, regions)) continue
+    before = bp.pos
+  }
+  if (before > cursor) {
+    return before
+  }
+
+  for (const bp of breakPoints) {
+    if (bp.pos <= target) continue
+    if (bp.pos > target + maxOvershoot) break
+    if (!bp.sentence) continue
+    if (isInsideAtomicRegion(bp.pos, regions)) continue
+    return bp.pos
+  }
+
+  return target
 }
 
 /**
