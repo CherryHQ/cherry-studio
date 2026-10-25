@@ -4483,7 +4483,7 @@ describe('persistBlobAttachments', () => {
       })
     )
     const onDrain = vi.fn(async () => true)
-    const { result, rerender } = renderHook(
+    const { rerender } = renderHook(
       ({ status, lastCompletedAt }: { status: 'streaming' | 'done'; lastCompletedAt: number | null }) =>
         useFollowupQueue(baseProps({ status, lastCompletedAt, onDrain })),
       { initialProps: { status: 'streaming' as 'streaming' | 'done', lastCompletedAt: null as number | null } }
