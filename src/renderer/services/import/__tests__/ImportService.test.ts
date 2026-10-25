@@ -246,11 +246,22 @@ describe('importService.importConversations', () => {
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()
   })
 
-  it('rolls back the created assistant when persistence fails mid-import', async () => {
+  it('rejects an empty export at validate stage in both importers, keeping the entry points symmetric', async () => {
+    const { ChatgptImporter } = await import('../importers/ChatgptImporter')
+    const { AnthropicImporter } = await import('../importers/AnthropicImporter')
+
+    expect(new ChatgptImporter().validate('[]')).toBe(false)
+    expect(new AnthropicImporter().validate('[]')).toBe(false)
+    // Auto-detection must not pick either importer for an empty export.
+    expect(importService.detectImporter('[]')).toBeNull()
+  })
+
+  it('rolls back only the created topics and the assistant when persistence fails mid-import', async () => {
     const { ipcApi } = await import('@renderer/ipc')
+    let topicSeq = 0
     vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
       if (path === '/assistants') return { id: 'asst_rollback', name: 'ChatGPT Import', emoji: '💬' }
-      if (path === '/topics') return { id: 'topic_rollback' }
+      if (path === '/topics') return { id: `topic_rollback_${++topicSeq}` }
       throw new Error('database unavailable mid-persist')
     })
 
@@ -258,11 +269,18 @@ describe('importService.importConversations', () => {
 
     expect(response).toMatchObject({ success: false, topicsCount: 0, messagesCount: 0 })
     // The assistant row was created before persistence started, so the failure
-    // path must hard-delete it together with the partial topics (a plain
-    // archive would strand the topics ownerless in the recycle bin).
+    // path must remove what the import created. Only the topics this import
+    // created may be hard-deleted (a user can move existing topics under the
+    // new assistant while the import is still running), and the assistant is
+    // deleted with deleteTopics: false for the same reason.
+    // Only the first conversation's topic was created before the message POST
+    // failed — the second topic never existed, so it must not be rolled back.
+    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.topic.delete_permanently', {
+      topicIds: ['topic_rollback_1']
+    })
     expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.assistant.delete_permanently', {
       assistantId: 'asst_rollback',
-      deleteTopics: true
+      deleteTopics: false
     })
   })
 

@@ -128,8 +128,13 @@ class ImportService {
       const assistant = await dataApiService.post('/assistants', { body: dto })
       onProgress?.(20)
 
+      // Tracks exactly what this import created, so the failure path can roll
+      // back its own data without touching anything else that may have been
+      // moved under the assistant while it was running.
+      const createdTopicIds: string[] = []
+
       try {
-        const messagesCount = await this.persistImport(result, assistant, onProgress)
+        const messagesCount = await this.persistImport(result, assistant, onProgress, createdTopicIds)
         onProgress?.(100)
 
         logger.info(
@@ -143,7 +148,7 @@ class ImportService {
           messagesCount
         }
       } catch (persistError) {
-        await this.rollbackCreatedAssistant(assistant.id, persistError)
+        await this.rollbackCreatedAssistant(assistant.id, createdTopicIds, persistError)
         throw persistError
       }
     } catch (error) {
@@ -159,15 +164,22 @@ class ImportService {
   }
 
   /**
-   * A failure after the assistant row exists must not leave it behind. The
-   * partial topics are hard-deleted along with it (`deleteTopics: true`) —
-   * archiving alone would strand them ownerless in the recycle bin, because
-   * permanently deleting the assistant row only nulls topic ownership. Rollback
-   * errors are logged, never mask the original import failure.
+   * A failure after the assistant row exists must not leave it behind. Only
+   * data this import created is removed: the created topics are hard-deleted by
+   * id first, then the assistant itself — a bulk `deleteTopics: true` would
+   * also destroy topics a user moved under the assistant while the import was
+   * still running. Rollback errors are logged, never mask the original failure.
    */
-  private async rollbackCreatedAssistant(assistantId: string, cause: unknown): Promise<void> {
+  private async rollbackCreatedAssistant(
+    assistantId: string,
+    createdTopicIds: readonly string[],
+    cause: unknown
+  ): Promise<void> {
     try {
-      await ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+      if (createdTopicIds.length > 0) {
+        await ipcApi.request('trash.topic.delete_permanently', { topicIds: [...createdTopicIds] })
+      }
+      await ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: false })
       logger.info('Rolled back the assistant after a failed import', { assistantId, cause: String(cause) })
     } catch (rollbackError) {
       logger.error('Failed to roll back the assistant after a failed import', rollbackError as Error, {
@@ -229,7 +241,8 @@ class ImportService {
   private async persistImport(
     result: ImportResult,
     assistant: { id: string; name: string; emoji: string },
-    onProgress?: ImportProgressCallback
+    onProgress?: ImportProgressCallback,
+    createdTopicIds?: string[]
   ): Promise<number> {
     const { conversations } = result
     const totalSteps = conversations.reduce((count, conversation) => {
@@ -246,6 +259,7 @@ class ImportService {
       const createdTopic = await dataApiService.post('/topics', {
         body: { name: conversation.name, assistantId: assistant.id }
       })
+      createdTopicIds?.push(createdTopic.id)
       completeStep()
 
       const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
