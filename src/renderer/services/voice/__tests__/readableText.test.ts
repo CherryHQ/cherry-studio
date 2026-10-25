@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
+import { setCustomExpressiveRules } from '../expressiveText'
 import {
   READABLE_TEXT_CHUNK_LIMIT,
   READABLE_TEXT_CONFIRMATION_THRESHOLD,
@@ -59,6 +60,10 @@ Read [Cherry Studio](https://example.com/private-path) today. ![Architecture dia
     expect(normalizeReadableText('Use `😄` literally.')).toBe('Use 😄 literally.')
     expect(normalizeReadableText('代码 `(T_T)` 保持原样。')).toBe('代码 (T_T) 保持原样。')
     expect(normalizeReadableText('HTML <code>😄</code> 也保持原样。')).toBe('HTML 😄 也保持原样。')
+  })
+
+  it('protects the whole code element when one child is already marked', () => {
+    expect(normalizeReadableText('Use <code>😄 `x` 😄</code> now.')).toBe('Use 😄 x 😄 now.')
   })
 
   it('leaves emoji and kaomoji inside fenced code literal', () => {
@@ -252,6 +257,8 @@ describe('planReadableText', () => {
 })
 
 describe('expression labels in readable text', () => {
+  afterEach(() => setCustomExpressiveRules([]))
+
   it('rewrites emoji and kaomoji before the text reaches speech', () => {
     expect(normalizeReadableText('完成了 😄 (＾▽＾)')).toBe('完成了 [开心] [开心]')
   })
@@ -266,6 +273,21 @@ describe('expression labels in readable text', () => {
 
   it('leaves ordinary parentheses and inline code alone', () => {
     expect(normalizeReadableText('调用 `f(x)` 计算 (a+b)')).toBe('调用 f(x) 计算 (a+b)')
+  })
+
+  it('keeps a face intact through Markdown extraction before labeling it', () => {
+    expect(normalizeReadableText('他 ¯\\_(ツ)_/¯ 走了')).toBe('他 [摊手] 走了')
+  })
+
+  it('keeps the delimiters of a custom face', () => {
+    setCustomExpressiveRules([{ kind: 'kaomoji', match: '*^_^*', zh: '开心', en: 'happy' }])
+
+    expect(normalizeReadableText('完成 *^_^* 了')).toBe('完成 [开心] 了')
+    expect(normalizeReadableText('done *^_^*', { language: 'en' })).toBe('done [happy]')
+  })
+
+  it('leaves a face inside a code fence untouched', () => {
+    expect(normalizeReadableText('```\n¯\\_(ツ)_/¯ *^_^*\n```')).toBe('¯\\_(ツ)_/¯ *^_^*')
   })
 
   it('carries the language into the plan', () => {

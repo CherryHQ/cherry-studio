@@ -175,9 +175,28 @@ export function protectCodeForSpeech(value: string): string {
   return `${SPEECH_CODE_OPEN}${value}${SPEECH_CODE_CLOSE}`
 }
 
-/** True when a value already carries code markers. */
-export function isProtectedCode(value: string): boolean {
+function isProtectedCode(value: string): boolean {
   return value.includes(SPEECH_CODE_OPEN)
+}
+
+/**
+ * Marks every run that is not already inside a code marker. A `<code>` element
+ * can mix marked and unmarked children, and the unmarked ones must still be
+ * protected without disturbing the boundaries that are already there.
+ */
+export function protectCodeSegments(value: string): string {
+  if (!isProtectedCode(value)) return protectCodeForSpeech(value)
+
+  let result = ''
+  let last = 0
+  for (const span of value.matchAll(SPEECH_CODE_SPAN)) {
+    const start = span.index ?? 0
+    if (start > last) result += protectCodeForSpeech(value.slice(last, start))
+    result += span[0]
+    last = start + span[0].length
+  }
+  if (last < value.length) result += protectCodeForSpeech(value.slice(last))
+  return result
 }
 
 export function speechLanguageFromLocale(locale: string | undefined): SpeechLanguage {
@@ -240,6 +259,72 @@ function rewriteProseOnly(text: string, language: SpeechLanguage): string {
 
 function stripCodeProtection(text: string): string {
   return text.replace(SPEECH_CODE_SPAN, '$1')
+}
+
+/** Private-use range reserved for kaomoji placeholders in raw Markdown. */
+const EXPRESSION_OPEN = '\uE010'
+const EXPRESSION_CLOSE = '\uE011'
+const EXPRESSION_PLACEHOLDER = /\uE010(\d+)\uE011/g
+
+interface ExpressionSpan {
+  start: number
+  end: number
+}
+
+function collectKaomojiSpans(text: string): ExpressionSpan[] {
+  const spans: ExpressionSpan[] = []
+  for (const { match } of customKaomoji) {
+    let index = text.indexOf(match)
+    while (index !== -1) {
+      spans.push({ start: index, end: index + match.length })
+      index = text.indexOf(match, index + match.length)
+    }
+  }
+  for (const { pattern } of KAOMOJI) {
+    for (const match of text.matchAll(pattern)) {
+      const start = match.index ?? 0
+      spans.push({ start, end: start + match[0].length })
+    }
+  }
+  return spans
+}
+
+/** Keeps the longest face when two patterns claim overlapping characters. */
+function mergeSpans(spans: readonly ExpressionSpan[]): ExpressionSpan[] {
+  const sorted = [...spans].sort((left, right) => left.start - right.start || right.end - left.end)
+  const merged: ExpressionSpan[] = []
+  let end = 0
+  for (const span of sorted) {
+    if (span.start < end) continue
+    merged.push(span)
+    end = span.end
+  }
+  return merged
+}
+
+/**
+ * Hides kaomoji behind placeholders before Markdown parsing. Extraction drops
+ * the `*`, `_` and `\` that make a face, so `*^_^*` would reach the rewrite as
+ * `^_^` and `¯\_(ツ)_/¯` would lose its backslash. Restoring is exact, so a face
+ * inside a code span comes back byte-for-byte.
+ */
+export function protectKaomojiForMarkdown(input: string): { text: string; restore: (value: string) => string } {
+  const spans = mergeSpans(collectKaomojiSpans(input))
+  if (spans.length === 0) return { text: input, restore: (value) => value }
+
+  const literals: string[] = []
+  let text = ''
+  let last = 0
+  for (const span of spans) {
+    text += input.slice(last, span.start) + `${EXPRESSION_OPEN}${literals.length}${EXPRESSION_CLOSE}`
+    literals.push(input.slice(span.start, span.end))
+    last = span.end
+  }
+
+  return {
+    text: text + input.slice(last),
+    restore: (value) => value.replace(EXPRESSION_PLACEHOLDER, (_match, index: string) => literals[Number(index)] ?? '')
+  }
 }
 
 /**

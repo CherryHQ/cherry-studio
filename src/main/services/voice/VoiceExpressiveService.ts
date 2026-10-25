@@ -158,11 +158,10 @@ export class VoiceExpressiveService extends BaseService {
     return this.mutations.queue(async () => {
       const existing = this.rules.find((rule) => rule.kind === kind && rule.match === match)
       if (existing) {
-        existing.zh = zh
-        existing.en = en
-        await this.persist()
-        this.broadcast()
-        return { rule: { ...existing }, updated: true }
+        const updated = { ...existing, zh, en }
+        const candidate = this.rules.map((rule) => (rule === existing ? updated : rule))
+        await this.commit(candidate)
+        return { rule: { ...updated }, updated: true }
       }
       if (this.rules.length >= MAX_RULES) {
         throw new Error(`Rule limit reached (${MAX_RULES}); remove some rules first`)
@@ -176,20 +175,16 @@ export class VoiceExpressiveService extends BaseService {
         source: input.source ?? 'manual',
         createdAt: Date.now()
       }
-      this.rules.push(rule)
-      await this.persist()
-      this.broadcast()
+      await this.commit([...this.rules, rule])
       return { rule: { ...rule }, updated: false }
     })
   }
 
   async remove(id: string): Promise<boolean> {
     return this.mutations.queue(async () => {
-      const before = this.rules.length
-      this.rules = this.rules.filter((rule) => rule.id !== id)
-      if (this.rules.length === before) return false
-      await this.persist()
-      this.broadcast()
+      const candidate = this.rules.filter((rule) => rule.id !== id)
+      if (candidate.length === this.rules.length) return false
+      await this.commit(candidate)
       return true
     })
   }
@@ -227,10 +222,20 @@ export class VoiceExpressiveService extends BaseService {
     }
   }
 
-  private async persist(): Promise<void> {
+  /**
+   * Writes the candidate first and adopts it only on success: a rejected
+   * mutation must not linger in memory and ride along with the next save.
+   */
+  private async commit(candidate: ExpressiveRule[]): Promise<void> {
+    await this.persist(candidate)
+    this.rules = candidate
+    this.broadcast()
+  }
+
+  private async persist(rules: readonly ExpressiveRule[]): Promise<void> {
     const temp = `${this.filePath}.tmp`
     await fs.mkdir(path.dirname(this.filePath), { recursive: true })
-    await fs.writeFile(temp, `${JSON.stringify(this.rules, null, 2)}\n`, 'utf8')
+    await fs.writeFile(temp, `${JSON.stringify(rules, null, 2)}\n`, 'utf8')
     await fs.rename(temp, this.filePath)
   }
 

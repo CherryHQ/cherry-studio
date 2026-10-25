@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -113,6 +113,31 @@ describe('VoiceExpressiveService', () => {
     expect(await service.remove(rule.id)).toBe(true)
     expect(service.list()).toEqual([])
     expect(await service.remove('missing')).toBe(false)
+  })
+
+  it('keeps live rules unchanged when the write fails', async () => {
+    const service = await startService()
+    const { rule } = await service.set({ kind: 'emoji', match: '😄', zh: '开心', en: 'happy' })
+    const file = path.join(directory, 'voice-expressive.json')
+
+    // A directory at the target path makes the final rename fail, after the
+    // candidate has already been written to the temporary file.
+    await rm(file)
+    await mkdir(file)
+
+    await expect(service.set({ kind: 'emoji', match: '🫥', zh: '躲藏', en: 'hiding' })).rejects.toThrow()
+    await expect(service.set({ kind: 'emoji', match: '😄', zh: '更改', en: 'changed' })).rejects.toThrow()
+    await expect(service.remove(rule.id)).rejects.toThrow()
+
+    expect(service.list()).toEqual([rule])
+
+    // The next successful save must not carry a rejected change along.
+    await rm(file, { recursive: true })
+    await service.set({ kind: 'emoji', match: '🎉', zh: '庆祝', en: 'celebration' })
+
+    const saved = JSON.parse(await readFile(file, 'utf8'))
+    expect(saved.map((entry: { match: string }) => entry.match)).toEqual(['😄', '🎉'])
+    expect(saved[0].zh).toBe('开心')
   })
 
   it('drops an invalid row when reloading', async () => {

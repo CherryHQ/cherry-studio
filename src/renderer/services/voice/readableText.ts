@@ -8,7 +8,13 @@ import { unified } from 'unified'
 
 import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
-import { expressiveToSpeech, isProtectedCode, protectCodeForSpeech, type SpeechLanguage } from './expressiveText'
+import {
+  expressiveToSpeech,
+  protectCodeForSpeech,
+  protectCodeSegments,
+  protectKaomojiForMarkdown,
+  type SpeechLanguage
+} from './expressiveText'
 
 export const READABLE_TEXT_CONFIRMATION_THRESHOLD = 5_000
 export const SPEECH_ADAPTER_TEXT_LIMIT = 10_000
@@ -122,15 +128,14 @@ function escapeHtml(value: string): string {
 
 /**
  * Raw HTML can carry its own `<code>` spans, including ones split across mdast
- * inline nodes. Mark their text so the rewrite skips it; spans that already
- * carry a marker (generated code blocks) are left alone.
+ * inline nodes. Mark their text so the rewrite skips it, keeping the boundaries
+ * of spans that already carry a marker (generated code blocks).
  */
 function protectHtmlCode(html: string): string {
   return html.replace(
     /<code(\s[^>]*)?>([\s\S]*?)<\/code>/gi,
-    (match, attributes: string | undefined, inner: string) => {
-      if (isProtectedCode(inner)) return match
-      return `<code${attributes ?? ''}>${protectCodeForSpeech(inner)}</code>`
+    (_match, attributes: string | undefined, inner: string) => {
+      return `<code${attributes ?? ''}>${protectCodeSegments(inner)}</code>`
     }
   )
 }
@@ -248,10 +253,12 @@ export function normalizeReadableText(input: string, options: ReadableTextOption
     return expressiveToSpeech(normalizeWhitespace(stripCitationMarkers(input)), language)
   }
 
-  const tree = markdownParser.runSync(markdownParser.parse(input), input)
+  // Substitution must see whole faces; Markdown would strip `*`, `_` and `\` first.
+  const source = protectKaomojiForMarkdown(input)
+  const tree = markdownParser.runSync(markdownParser.parse(source.text), source.text)
   const html = protectHtmlCode(blocksToHtml(tree.children))
-  const text = normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(html)))
-  return expressiveToSpeech(text, language)
+  const text = source.restore(stripCitationMarkers(toReadableHtmlText(html)))
+  return expressiveToSpeech(normalizeWhitespace(text), language)
 }
 
 function safeSliceEnd(text: string, start: number, maximumEnd: number): number {
