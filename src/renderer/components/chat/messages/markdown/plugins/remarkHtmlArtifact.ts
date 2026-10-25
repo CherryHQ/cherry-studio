@@ -484,8 +484,16 @@ function findUnfinishedTagEnd(value: string, from: number, state: ContainerScanS
 // from the previous nodes; resolves to closed when a closing boundary brings the depth back to
 // zero. With `trackDepth` false the disclosure tokens are ignored for depth: the scan only
 // advances the lexical state (comments, raw-text bodies, dangling tags, CDATA), which is what
-// a pairing search needs to know about the nodes preceding its own start.
-function scanContainerBoundaries(value: string, state: ContainerScanState, trackDepth = true): ContainerScanResult {
+// a pairing search needs to know about the nodes preceding its own start. `countMinOut`, when
+// provided, receives the LOWEST depth value observed during this node's scan — the suffix
+// memo needs the within-node dip, not just the node's net delta, to know which entry counts
+// could resolve inside the node.
+function scanContainerBoundaries(
+  value: string,
+  state: ContainerScanState,
+  trackDepth = true,
+  countMinOut?: { value: number }
+): ContainerScanResult {
   let position = 0
   // Both searches scan to end-of-input on miss while position only grows: cache them, or every
   // token iteration pays a full O(n) re-scan (quadratic on token-dense input).
@@ -495,6 +503,11 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
   // survives a skipped candidate (a `</name…` prefix that never completes in this node).
   let closeStart: number | undefined
   let closeCursor = 0
+  // The tag-opener candidate search joins the same monotone cache: an end-of-input miss must
+  // not re-scan the remaining input per token iteration (quadratic on a close-dense tail with
+  // no opener ahead, e.g. repeated `</svg>` closes).
+  let openerStart: number | undefined
+  let openerCursor = 0
   while (position < value.length) {
     // An unterminated comment keeps swallowing content — across later nodes — until its `-->`.
     if (state.inComment) {
@@ -573,10 +586,17 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
       closeCursor = closeCandidate !== null ? closeCandidate.index : value.length
     }
     // A tag opener that precedes every complete token never completes in this node — its
-    // attribute text may hide boundaries.
-    TAG_OPENER_REGEX.lastIndex = position
-    const opener = TAG_OPENER_REGEX.exec(value)
-    const tagStart = opener?.index
+    // attribute text may hide boundaries. The search is cached like the other candidates: a
+    // miss is remembered until end-of-input (a later position can never resurrect it), and a
+    // hit is remembered until the cursor advances past it.
+    if (openerCursor < position) openerCursor = position
+    if (openerStart === undefined || (openerStart !== -1 && openerStart < position)) {
+      TAG_OPENER_REGEX.lastIndex = openerCursor
+      const opener = TAG_OPENER_REGEX.exec(value)
+      openerStart = opener !== null ? opener.index : -1
+      openerCursor = opener !== null ? opener.index : value.length
+    }
+    const tagStart = openerStart !== -1 ? openerStart : undefined
     // A comment opening before the next token cannot terminate in the remaining input (a
     // complete comment would have matched as the token itself): it swallows the rest of the
     // input — across later nodes — so no boundary inside it may be trusted.
@@ -690,6 +710,7 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
     if (token[1] === '/') {
       if (!trackDepth) continue
       state.count -= 1
+      if (countMinOut !== undefined && state.count < countMinOut.value) countMinOut.value = state.count
       if (state.count === 0) {
         // The token consumed the complete end tag, quotes included.
         return { closed: true, closeStart: match.index, closeEnd: match.index + match[0].length }
@@ -720,6 +741,9 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
   let commentStart: number | undefined
   let closeStart: number | undefined
   let closeCursor = 0
+  // Same monotone opener cache as the pairing scan: an end-of-input miss must not re-scan per
+  // token iteration.
+  let openerStart: number | undefined
   let openerCursor = 0
   while (true) {
     // A raw-text body opened earlier in this node keeps swallowing content until its end tag;
@@ -757,10 +781,13 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
       closeCursor = closeCandidate !== null ? closeCandidate.index : value.length
     }
     if (openerCursor < scanned) openerCursor = scanned
-    TAG_OPENER_REGEX.lastIndex = openerCursor
-    const opener = TAG_OPENER_REGEX.exec(value)
-    const tagStart = opener?.index
-    if (tagStart !== undefined) openerCursor = tagStart
+    if (openerStart === undefined || (openerStart !== -1 && openerStart < scanned)) {
+      TAG_OPENER_REGEX.lastIndex = openerCursor
+      const opener = TAG_OPENER_REGEX.exec(value)
+      openerStart = opener !== null ? opener.index : -1
+      openerCursor = opener !== null ? opener.index : value.length
+    }
+    const tagStart = openerStart !== -1 ? openerStart : undefined
     // An unfinished comment opening before the boundary never terminates: it swallows the rest
     // of the node, so no boundary inside or after it (within this node) may be trusted.
     if (
@@ -789,6 +816,7 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
         // An opener that never completes in this node is transparent here (its interior is not
         // consumed): skip it and keep looking, like the unanchored scan did.
         openerCursor = tagStart + 1
+        openerStart = undefined
         continue
       }
     } else {
@@ -891,10 +919,104 @@ interface PairedContainerClose {
   bodyEntryState: ContainerScanState
 }
 
+// Copies the lexical scan fields (everything except the disclosure depth): `{...spread}` is
+// not enough here because a field merely ASSIGNED undefined in one state must clear the same
+// field when it still holds a value in the target.
+function copyScanLexicalState(target: ContainerScanState, source: ContainerScanState): void {
+  target.rawText = source.rawText
+  target.inComment = source.inComment
+  target.inTag = source.inTag
+  target.pendingQuote = source.pendingQuote
+  target.inCDATA = source.inCDATA
+  target.pendingRawText = source.pendingRawText
+  target.scriptEscaped = source.scriptEscaped
+  target.scriptDoubleEscaped = source.scriptDoubleEscaped
+  target.foreignDepth = source.foreignDepth
+  target.foreignHtmlIntegrationDepth = source.foreignHtmlIntegrationDepth
+}
+
+function sameScanLexicalState(a: ContainerScanState, b: ContainerScanState): boolean {
+  return (
+    a.rawText === b.rawText &&
+    a.inComment === b.inComment &&
+    a.inTag === b.inTag &&
+    a.pendingQuote === b.pendingQuote &&
+    a.inCDATA === b.inCDATA &&
+    a.pendingRawText === b.pendingRawText &&
+    a.scriptEscaped === b.scriptEscaped &&
+    a.scriptDoubleEscaped === b.scriptDoubleEscaped &&
+    a.foreignDepth === b.foreignDepth &&
+    a.foreignHtmlIntegrationDepth === b.foreignHtmlIntegrationDepth
+  )
+}
+
+/**
+ * Close-free suffix memo for the pairing search: every unmatched opener re-walks the same
+ * suffix of html nodes hunting a `</details>` that never comes (quadratic on documents made of
+ * unclosed disclosures). After ONE full forward walk, each visited node records the window it
+ * scanned to, the window's net depth delta, and the window's minimum cumulative delta — the
+ * latter decides which entry counts could possibly resolve inside: a walk carrying count `c`
+ * can only resolve where the cumulative delta reaches `-c`, so with
+ * `count > -suffixMin` the whole window is skippable in one step. The entry must match the
+ * recorded LEXICAL state (lexical regions suppress disclosure tokens, so the delta timeline
+ * differs otherwise).
+ */
+interface CloseScanMemoEntry {
+  /** Exclusive node index the recorded walk reached. */
+  end: number
+  /** Minimum cumulative depth delta across the window, relative to the window's start. */
+  suffixMin: number
+  /** Net depth delta across the window. */
+  suffixTotal: number
+  entryState: ContainerScanState
+  exitState: ContainerScanState
+}
+
+type CloseScanMemo = Map<number, CloseScanMemoEntry>
+
+// Records every visited node of a completed walk (or its fully-scanned prefix before a
+// resolving node) as a close-free window. suffixMin/suffixTotal accumulate in reverse so each
+// node's window spans from itself to the walk's end.
+function recordCloseScanMemo(
+  memo: CloseScanMemo,
+  visited: Array<{
+    index: number
+    entryState: ContainerScanState
+    exitState: ContainerScanState
+    delta: number
+    minDelta: number
+  }>,
+  windowEnd: number
+): void {
+  let suffixMin = 0
+  let suffixTotal = 0
+  for (let k = visited.length - 1; k >= 0; k -= 1) {
+    const node = visited[k]
+    suffixMin = Math.min(node.minDelta, node.delta + suffixMin)
+    suffixTotal += node.delta
+    memo.set(node.index, {
+      end: windowEnd,
+      suffixMin,
+      suffixTotal,
+      entryState: node.entryState,
+      exitState: node.exitState
+    })
+  }
+}
+
+// A splice replaces the node at `position` (1:1 — indices survive, contents do not): every
+// memo window that spans the position is stale and must go.
+function invalidateCloseScanMemo(memo: CloseScanMemo, position: number): void {
+  for (const [index, entry] of memo) {
+    if (index <= position && position < entry.end) memo.delete(index)
+  }
+}
+
 function findPairedContainerClose(
   children: readonly RootContent[],
   startIndex: number,
-  end = children.length
+  end = children.length,
+  closeScanMemo?: CloseScanMemo
 ): PairedContainerClose | undefined {
   const open = children[startIndex]
   if (open?.type !== 'html' || !HTML_CONTAINER_OPEN_REGEX.test(stripLeadingHtmlMetadata(open.value))) {
@@ -911,11 +1033,56 @@ function findPairedContainerClose(
   // raw-text body (or dangling comment/tag/CDATA) opened beside the retained openings holds
   // the body's own literals, so the body scan must resume inside it, not start fresh.
   const bodyEntryState: ContainerScanState = { ...state }
+  // Visited-node log of the current walk, fed to the close-free suffix memo when the walk
+  // completes (or when it resolves: the fully-scanned prefix is still a close-free window).
+  const visited: Array<{
+    index: number
+    entryState: ContainerScanState
+    exitState: ContainerScanState
+    delta: number
+    minDelta: number
+  }> = []
   for (let index = startIndex + 1; index < end; index += 1) {
     const child = children[index]
     if (child?.type !== 'html') continue
-    const scan = scanContainerBoundaries(child.value, state)
+    const memoEntry = closeScanMemo?.get(index)
+    if (
+      memoEntry !== undefined &&
+      memoEntry.end <= end &&
+      sameScanLexicalState(state, memoEntry.entryState) &&
+      // A walk carrying `count` resolves only where the cumulative delta reaches `-count`;
+      // with the window's minimum delta above that, nothing inside can resolve — skip whole.
+      state.count > -memoEntry.suffixMin
+    ) {
+      // The skipped span joins the visited log as one synthetic node, so a later reverse
+      // recording (this walk may still resolve further down) folds the span's exact delta
+      // minimum into its recorded windows instead of skipping over it.
+      const entryState: ContainerScanState = { ...state }
+      const newCount = state.count + memoEntry.suffixTotal
+      copyScanLexicalState(state, memoEntry.exitState)
+      state.count = newCount
+      visited.push({
+        index,
+        entryState,
+        exitState: { ...state },
+        delta: memoEntry.suffixTotal,
+        minDelta: memoEntry.suffixMin
+      })
+      index = memoEntry.end - 1 // the loop increment lands on the window's end
+      continue
+    }
+    const entryState: ContainerScanState = { ...state }
+    const countMin: { value: number } = { value: state.count }
+    const scan = scanContainerBoundaries(child.value, state, true, countMin)
+    visited.push({
+      index,
+      entryState,
+      exitState: { ...state },
+      delta: state.count - entryState.count,
+      minDelta: countMin.value - entryState.count
+    })
     if (scan.closed) {
+      if (closeScanMemo !== undefined) recordCloseScanMemo(closeScanMemo, visited, index)
       return {
         index,
         closeNode: child,
@@ -926,6 +1093,7 @@ function findPairedContainerClose(
       }
     }
   }
+  if (closeScanMemo !== undefined) recordCloseScanMemo(closeScanMemo, visited, end)
   return undefined
 }
 
@@ -1075,6 +1243,11 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
     // opener and consume the next disclosure's close. Only the lexical fields matter here;
     // disclosure depth is tracked by the pairing/pending scans themselves.
     const streamState: ContainerScanState = entryState ? { ...entryState, count: 0 } : { count: 0 }
+    // Close-free windows for THIS range's array instance: pairing searches from successive
+    // unmatched openers share their fruitless suffix walks through it. Indices are stable —
+    // every splice below replaces one node 1:1 — and each splice invalidates the windows that
+    // span the replaced position.
+    const closeScanMemo: CloseScanMemo = new Map()
     for (let index = from; index < to; index += 1) {
       const insideLiteralRegion = isInsideLexicalRegion(streamState)
       const documentEnd = insideLiteralRegion ? undefined : findHtmlDocumentEnd(items, index, to)
@@ -1095,6 +1268,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
             if (htmlEnd < last.value.length && findUnmatchedDetailsClose(tail) !== undefined) {
               documentNodes = [...items.slice(index, documentEndIndex), sliceHtmlNode(last, 0, htmlEnd)]
               items.splice(documentEndIndex, 1, sliceHtmlNode(last, htmlEnd, last.value.length))
+              invalidateCloseScanMemo(closeScanMemo, documentEndIndex)
               resumeIndex = documentEndIndex - 1 // the loop increment lands on the tail node
             }
           }
@@ -1114,7 +1288,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         continue
       }
 
-      const paired = insideLiteralRegion ? undefined : findPairedContainerClose(items, index, to)
+      const paired = insideLiteralRegion ? undefined : findPairedContainerClose(items, index, to, closeScanMemo)
       if (paired !== undefined) {
         // Exempt only the matched boundaries; the body re-enters normal processing so nested
         // disclosures pair and inner artifacts/documents keep their existing paths.
@@ -1196,6 +1370,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
           const rest = closeNode.value.slice(paired.closeEnd)
           const remainderStart = paired.closeEnd + (rest.length - rest.trimStart().length)
           items.splice(paired.index, 1, sliceHtmlNode(closeNode, remainderStart, closeNode.value.length))
+          invalidateCloseScanMemo(closeScanMemo, paired.index)
           index = paired.index - 1 // the loop increment lands on the remainder
         } else {
           index = paired.index
@@ -1239,6 +1414,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
             const rest = child.value.slice(close.end)
             const remainderStart = close.end + (rest.length - rest.trimStart().length)
             items.splice(index, 1, sliceHtmlNode(child, remainderStart, child.value.length))
+            invalidateCloseScanMemo(closeScanMemo, index)
             index -= 1 // the loop increment lands on the remainder
           }
           continue
