@@ -4142,6 +4142,45 @@ describe('compaction artifact boundary', () => {
   })
 
   it.each(['snapshot-only', 'single-delta', 'character-delta'] as const)(
+    'terminates on a rejected mixed fence marker in a container: %s (inv_4f2b0c2d3f9c4a0b)',
+    { timeout: 10000 },
+    (mode) => {
+      // The six-character string below froze the synchronous fence parser:
+      // the mixed-marker candidate matched, the homogeneous opener check
+      // rejected it, and the retry position reset before the marker.
+      const { adapter, parts } = createAdapter()
+      const reply = '- `~~~`'
+      if (mode === 'snapshot-only') {
+        adapter.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: reply }] }
+        } as any)
+      } else {
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+        )
+        const deltas = mode === 'single-delta' ? [reply] : [...reply]
+        for (const delta of deltas) {
+          adapter.handleMessage(
+            streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta } })
+          )
+        }
+        adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      }
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(reply)
+    }
+  )
+
+  it.each(['snapshot-only', 'single-delta', 'character-delta'] as const)(
     'preserves literal code inside nested Markdown containers: %s (inv_4f2b0c2d3f9c4a0b)',
     (mode) => {
       const { adapter, parts } = createAdapter()

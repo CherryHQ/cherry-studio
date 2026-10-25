@@ -1068,8 +1068,14 @@ function maskCodeFences(text: string): {
     out += text.slice(pos, fenceStart)
     const openMatch = text.slice(markerStart).match(/^([`~])\1{2,}/)
     if (!openMatch) {
-      out += text[fenceStart]
-      pos = fenceStart + 1
+      // A mixed backtick/tilde run is no fence opener. Emit through the
+      // candidate marker and continue AFTER it: resetting to fenceStart + 1
+      // lands before the marker when a container prefix (e.g. '- ') makes
+      // fenceStart < markerStart, re-selecting the same candidate forever
+      // and freezing the main process (cherry-pr-review
+      // inv_4f2b0c2d3f9c4a0b).
+      out += text.slice(fenceStart, markerStart + 1)
+      pos = markerStart + 1
       continue
     }
 
@@ -1595,12 +1601,62 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
     // Only unmatched protocol closers are debris. Balanced elements in ordinary
     // answer prose are literal markup, not evidence of a tool call.
     const name = /^<\/([^\s/>]+)/u.exec(out.slice(tagIndex))?.[1].toLowerCase()
+    if (!name) break
     let balance = 0
-    const tagPattern = /<(\/?)([^\s/>]+)(?=[\s/>])[^>]*>/gu
-    for (const match of out.slice(0, tagIndex).matchAll(tagPattern)) {
-      if (match[2].toLowerCase() !== name || isBackslashEscaped(out, match.index) || /\/\s*>$/.test(match[0])) continue
-      if (match[1]) balance = Math.max(0, balance - 1)
-      else balance += 1
+    // Comment- and quote-aware balance scan: a closer inside an HTML
+    // comment or a quoted attribute value is literal text, not real
+    // markup - counting it makes the actual closing tag look like
+    // unmatched debris and deletes it from balanced literal markup
+    // (cherry-pr-review inv_4f2b0c2d3f9c4a0b).
+    const prefix = out.slice(0, tagIndex)
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const sameTagClose = new RegExp(`^</${escapedName}(?=[\\s/>])`, 'iu')
+    const sameTagOpen = new RegExp(`^<${escapedName}(?=[\\s/>])`, 'iu')
+    // Quote-aware skip from just after `<name` to one past the tag's `>`.
+    const skipTagTail = (from: number): number => {
+      let i = from
+      while (i < prefix.length) {
+        const ch = prefix[i]
+        if (ch === '>') return i + 1
+        if (ch === '"' || ch === "'") {
+          i++
+          while (i < prefix.length && prefix[i] !== ch) i++
+        }
+        i++
+      }
+      return prefix.length
+    }
+    let scan = 0
+    while (scan < prefix.length) {
+      const lt = prefix.indexOf('<', scan)
+      if (lt === -1) break
+      if (isBackslashEscaped(prefix, lt)) {
+        scan = lt + 1
+        continue
+      }
+      const opaqueEnd = opaqueMarkupEnd(prefix, lt)
+      if (opaqueEnd !== null) {
+        scan = opaqueEnd
+        continue
+      }
+      const rest = prefix.slice(lt)
+      const closeMatch = sameTagClose.exec(rest)
+      if (closeMatch) {
+        const end = skipTagTail(lt + closeMatch[0].length)
+        if (prefix[end - 1] === '>') balance = Math.max(0, balance - 1)
+        scan = end
+        continue
+      }
+      const openMatch = sameTagOpen.exec(rest)
+      if (openMatch) {
+        const end = skipTagTail(lt + openMatch[0].length)
+        if (prefix[end - 1] === '>' && !/\/\s*>$/.test(prefix.slice(lt, end))) balance += 1
+        scan = end
+        continue
+      }
+      // Some other tag: skip it quote-aware so its attributes stay opaque.
+      const parsed = parseOpeningTagAt(prefix, lt)
+      scan = parsed ? lt + parsed.opener.length : lt + 1
     }
     if (balance > 0) break
     out = out.slice(0, trailing.index)

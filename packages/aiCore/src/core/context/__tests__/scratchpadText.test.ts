@@ -166,6 +166,36 @@ describe('scratchpadText', () => {
     )
   })
 
+  it('advances past a rejected mixed fence marker without hanging (inv_4f2b0c2d3f9c4a0b)', { timeout: 5000 }, () => {
+    // A container prefix makes fenceStart < markerStart: resetting the scan
+    // to fenceStart + 1 re-selects the same mixed backtick/tilde
+    // candidate forever. The line is ordinary Markdown, preserved whole.
+    const input = '- `~~~`'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+    expect(stripTrailingToolProtocolClosingFragments(input)).toBe(input)
+  })
+
+  it.each([
+    '<parameter><!-- > </parameter> -->Public</parameter>',
+    '<parameter title="a > </parameter>">Public</parameter>',
+    '<\uFF5C\uFF5CDSML\uFF5C\uFF5Cparameter name="a">value</\uFF5C\uFF5CDSML\uFF5C\uFF5Cparameter>'
+  ])('keeps balanced literal markup through comment- and quote-aware scanning: %s', (input) => {
+    // A closer inside an HTML comment or a quoted attribute value is literal
+    // text, not real markup: counting it makes the real closing tag look
+    // like unmatched protocol debris and deletes it.
+    expect(stripTrailingToolProtocolClosingFragments(input)).toBe(input)
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+  })
+
+  it('still strips genuinely unmatched trailing protocol closers (inv_4f2b0c2d3f9c4a0b)', () => {
+    expect(stripTrailingToolProtocolClosingFragments('Visible answer.</parameter>')).toBe('Visible answer.')
+    expect(stripTrailingToolProtocolClosingFragments('Visible answer.</\uFF5C\uFF5CDSML\uFF5C\uFF5Cparameter>')).toBe(
+      'Visible answer.'
+    )
+    expect(stripTrailingToolProtocolClosingFragments('Visible answer.</||DSML||parameter>')).toBe('Visible answer.')
+  })
+
   it('counts inherited list indentation before code indentation (inv_c5db9091dfd965bf)', () => {
     expect(
       stripModelScratchpadBlocks('- Notes:\n\n    <analysis>SECRET</analysis>\n\n<summary>Public</summary>')
@@ -928,5 +958,41 @@ describe('trailing tool-protocol suffix scan cost (cherry-pr-review: whitespace 
   it('does not strip a non-protocol closing tag after heavy whitespace', () => {
     const text = 'Answer. ' + ' '.repeat(4000) + '</div>' + ' '.repeat(4000)
     expect(stripTrailingToolProtocolClosingFragments(text)).toBe(text)
+  })
+
+  describe('parser progress and preservation invariants (inv_4f2b0c2d3f9c4a0b)', { timeout: 30000 }, () => {
+    // Bounded convergence check over generated mixed delimiter, container,
+    // and opaque-markup inputs: every entry point must terminate, never
+    // grow the text, and reach a fixpoint. The timeout is the termination
+    // guard: a scan regression (e.g. resetting before a rejected marker)
+    // fails here instead of freezing the main process.
+    const fns = {
+      strip: stripModelScratchpadBlocks,
+      preserve: stripKnownModelScratchpadBlocksPreservingCodeFences,
+      trailing: stripTrailingToolProtocolClosingFragments
+    }
+    const cases: string[] = []
+    for (const prefix of ['', '- ', '> ', '> - '])
+      for (const marker of ['```', '~~~', '`~~~', '~~`', '`~~`', '``~~``'])
+        for (const payload of [
+          'plain text',
+          '<thinking>literal</thinking>',
+          '<!-- > </parameter> -->Public</parameter>',
+          '<parameter title="a > </parameter>">Public</parameter>'
+        ])
+          for (const closer of ['', '</parameter>', '</invoke>', '</tool_result>'])
+            cases.push(prefix + marker + '\n' + payload + closer)
+    for (const prefix of ['', '- ', '> ', '> - ', '1. ', '- `x` '])
+      for (const run of ['`~~~`', '~~`', '`~~', '``~~``', '`~`~`', '~~~```', '```~~~'])
+        for (const tail of ['', ' text', ' </parameter>', ' <thinking>x</thinking>', ' title="a>b"'])
+          for (const sep of ['', '\n']) cases.push(prefix + run + sep + tail)
+
+    it.each(cases)('terminates, stays bounded, and reaches a fixpoint: %#', (input) => {
+      for (const fn of Object.values(fns)) {
+        const out = fn(input)
+        expect(out.length).toBeLessThanOrEqual(input.length)
+        expect(fn(out)).toBe(out)
+      }
+    })
   })
 })
