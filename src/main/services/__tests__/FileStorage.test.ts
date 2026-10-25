@@ -5,9 +5,20 @@ import * as path from 'path'
 import { dialog, shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const documentParserMocks = vi.hoisted(() => ({
+  extractWord: vi.fn(),
+  parseOfficeAsync: vi.fn()
+}))
+
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
 // dialog title it produces is irrelevant to these contracts, so stub it to the key.
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+vi.mock('officeparser', () => ({ default: { parseOfficeAsync: documentParserMocks.parseOfficeAsync } }))
+vi.mock('word-extractor', () => ({
+  default: class {
+    extract = documentParserMocks.extractWord
+  }
+}))
 
 import { fileStorage } from '../FileStorage'
 
@@ -176,6 +187,37 @@ describe('FileStorage', () => {
     it('returns utf-8 file content verbatim (auto-encoding branch)', async () => {
       await expect(fileStorage.readExternalFile(event, tmpFile, true)).resolves.toBe('Hello 世界\nsecond line')
     })
+
+    it('extracts document content from an uppercase DOCX extension', async () => {
+      const documentPath = path.join(os.tmpdir(), `filestorage-read-test-${uniqueId()}.DOCX`)
+      fs.writeFileSync(documentPath, 'not plain text')
+      documentParserMocks.parseOfficeAsync.mockResolvedValueOnce('extracted document text')
+
+      try {
+        await expect(fileStorage.readExternalFile(event, documentPath, true)).resolves.toBe('extracted document text')
+      } finally {
+        fs.rmSync(documentPath, { force: true })
+      }
+    })
+
+    it('extracts document content from an uppercase DOC extension', async () => {
+      const documentPath = path.join(os.tmpdir(), `filestorage-read-test-${uniqueId()}.DOC`)
+      fs.writeFileSync(documentPath, 'not plain text')
+      documentParserMocks.extractWord.mockResolvedValueOnce({
+        getBody: () => 'extracted legacy document text',
+        getTextboxes: () => '',
+        getFootnotes: () => '',
+        getEndnotes: () => ''
+      })
+
+      try {
+        await expect(fileStorage.readExternalFile(event, documentPath, true)).resolves.toBe(
+          'extracted legacy document text'
+        )
+      } finally {
+        fs.rmSync(documentPath, { force: true })
+      }
+    })
   })
 
   // Catches an inverted canceled/filePath check (cancel writing a file, confirm
@@ -233,6 +275,20 @@ describe('FileStorage', () => {
       const result = await fileStorage.fileNameGuard(event, tmpDir, 'folder', false)
       expect(result.exists).toBe(true)
       expect(result.safeName).toBe('folder1')
+    })
+  })
+
+  describe('stored file ids', () => {
+    it('rejects an id that escapes the storage directory', async () => {
+      await expect(fileStorage.binaryImage(event, '../../../../etc/passwd')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.base64File(event, '../secrets.txt')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.deleteFile(event, '../database.sqlite')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.deleteDir(event, '')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.deleteDir(event, '.')).rejects.toThrow(/Invalid stored file id/)
+    })
+
+    it('accepts a plain file name', async () => {
+      await expect(fileStorage.deleteFile(event, `${uniqueId()}.png`)).resolves.toBeUndefined()
     })
   })
 })

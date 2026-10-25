@@ -3,7 +3,9 @@ import { useEffect } from 'react'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -42,19 +44,22 @@ function SubWindowApp(): React.ReactElement {
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
       <ThemeProvider>
         <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                <SubWindowAppShell />
-                <SubWindowRuntime />
-                <ConversationNotificationRuntime />
-                <McpInteractionHost />
-                <PopupHost />
-                <ToastHost />
-                <VoicePlaybackHost />
-              </TabsProvider>
-            </CommandProvider>
-          </CommandContextKeyProvider>
+          <FileEditSessionProvider>
+            <CommandContextKeyProvider>
+              <CommandProvider>
+                <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+                  <SubWindowAppShell />
+                  <SubWindowRuntime />
+                  <ConversationNotificationRuntime />
+                  <McpInteractionHost />
+                  <PopupHost />
+                  <ToastHost />
+                  <DictationShortcutHost />
+                  <VoicePlaybackHost />
+                </TabsProvider>
+              </CommandProvider>
+            </CommandContextKeyProvider>
+          </FileEditSessionProvider>
         </CodeStyleProvider>
       </ThemeProvider>
     </ErrorBoundary>

@@ -141,6 +141,11 @@ Discovery is only a hint. Each candidate is rechecked inside its own synchronous
 5. delete the row.
 
 The shared write transaction serializes the ref-count check and deletion. After commit,
+Each candidate takes its entry content lock and then the shared path mutation mutex before the
+synchronous database transaction and filesystem cleanup. This serializes cleanup against accepted
+content writes without awaiting inside a database transaction. Editing leases retain automatic
+internal entries while open.
+
 `cleanupDeletedEntry()` invalidates caches and best-effort removes an internal blob. An unlink
 failure does not restore the row; the later filesystem orphan sweep can reclaim the leftover blob.
 
