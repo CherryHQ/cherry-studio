@@ -19,7 +19,7 @@ const snapshot = (text: string, enabled = true, attemptId = 1) => ({
   } as CherryUIMessage
 })
 
-function harness(streaming = true) {
+function harness(streaming = true, options: { loadExpressiveRules?: () => Promise<void> } = {}) {
   const starts: SpeechPlaybackStartInput[] = []
   const spoken: string[] = []
   const drained = Promise.withResolvers<void>()
@@ -27,6 +27,7 @@ function harness(streaming = true) {
   const service = new AutoReadService({
     supportsStreaming: async () => streaming,
     reportError,
+    ...options,
     playback: {
       start: async (input) => {
         starts.push(input)
@@ -139,5 +140,18 @@ describe('incremental automatic reading', () => {
     h.service.update(snapshot('Retry. ', true, 2))
     await vi.waitFor(() => expect(h.spoken).toEqual(['Retry.']))
     h.service.cancelScope('topic')
+  })
+
+  it('does not start after auto-read is disabled while hydration is pending', async () => {
+    const hydrated = Promise.withResolvers<void>()
+    const h = harness(true, { loadExpressiveRules: () => hydrated.promise })
+
+    await h.service.setEnabled(true)
+    h.service.update(snapshot('streaming answer', true, 1))
+    await h.service.setEnabled(false)
+    hydrated.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(h.starts).toHaveLength(0)
   })
 })

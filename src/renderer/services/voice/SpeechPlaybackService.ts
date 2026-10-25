@@ -228,9 +228,21 @@ export class SpeechPlaybackService {
 
   async start(input: SpeechPlaybackStartInput): Promise<SpeechPlaybackStartResult> {
     if (input.signal?.aborted) throw new VoiceDomainError('aborted')
+    // Capture the cancellation epochs before the hydration wait: a stop or
+    // interruption during that wait must still invalidate this start.
+    const generation = this.lifecycleGeneration
+    const interruptionGeneration = this.interruptionGeneration
+    const autoReadGeneration = this.autoReadGeneration
     // The first read of a fresh renderer has no rules yet; plan only after they arrive.
     await this.loadExpressiveRules()
-    if (input.signal?.aborted) throw new VoiceDomainError('aborted')
+    if (
+      input.signal?.aborted ||
+      generation !== this.lifecycleGeneration ||
+      interruptionGeneration !== this.interruptionGeneration ||
+      (input.trigger === 'auto_read' && autoReadGeneration !== this.autoReadGeneration)
+    ) {
+      throw new VoiceDomainError('aborted')
+    }
     const plan = this.planText(input.text, {
       trigger: input.trigger,
       mode: input.textInput ? 'selection' : input.mode,
@@ -249,9 +261,6 @@ export class SpeechPlaybackService {
       throw new VoiceDomainError('invalid_request')
     }
 
-    const generation = this.lifecycleGeneration
-    const interruptionGeneration = this.interruptionGeneration
-    const autoReadGeneration = this.autoReadGeneration
     let startedRun: PlaybackRun | undefined = undefined
     const abort = (): void => {
       if (startedRun) void this.terminate(startedRun, true).catch(() => undefined)

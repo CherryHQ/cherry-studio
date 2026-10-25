@@ -220,6 +220,21 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(planText).toHaveBeenCalledOnce()
   })
 
+  it('rejects an auto-read start cancelled while expressive rules load', async () => {
+    const hydrated = Promise.withResolvers<void>()
+    const planText = vi.fn(() => ({ status: 'ready' as const, normalizedLength: 5, chunks: ['hello'] }))
+    const { service, voice } = createHarness({ planText, loadExpressiveRules: () => hydrated.promise })
+
+    const starting = service.start({ ...baseInput, trigger: 'auto_read' })
+    const aborted = expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+    await service.stopAutoRead()
+    hydrated.resolve()
+
+    await aborted
+    expect(planText).not.toHaveBeenCalled()
+    expect(voice.generateSpeech).not.toHaveBeenCalled()
+  })
+
   it.each(['readSpeechPreferenceInput', 'initialize'] as const)(
     'cancels pending auto-read during %s when the preference is turned off',
     async (boundary) => {

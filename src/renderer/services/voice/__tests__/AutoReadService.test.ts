@@ -17,13 +17,13 @@ const message = (id: string, text = 'natural answer'): CherryUIMessage =>
     ]
   }) as CherryUIMessage
 
-function createHarness() {
+function createHarness(options: { loadExpressiveRules?: () => Promise<void> } = {}) {
   const playback = {
     start: vi.fn(async (): Promise<SpeechPlaybackStartResult> => ({ status: 'started' })),
     stopAutoRead: vi.fn(async () => true)
   }
   const reportError = vi.fn()
-  const coordinator = new AutoReadService({ playback, reportError })
+  const coordinator = new AutoReadService({ playback, reportError, ...options })
   return { coordinator, playback, reportError }
 }
 
@@ -203,6 +203,25 @@ describe('AutoReadService', () => {
         isError: false
       })
     ).resolves.toMatchObject({ status: 'skipped', reason: 'disabled' })
+    expect(playback.start).not.toHaveBeenCalled()
+  })
+
+  it('does not start when auto-read is disabled while hydration is pending', async () => {
+    const hydrated = Promise.withResolvers<void>()
+    const { coordinator, playback } = createHarness({ loadExpressiveRules: () => hydrated.promise })
+
+    await coordinator.setEnabled(true)
+    const consuming = coordinator.consume({
+      enabled: true,
+      message: message('hydration-disable'),
+      attemptId: 1,
+      isAbort: false,
+      isError: false
+    })
+    await coordinator.setEnabled(false)
+    hydrated.resolve()
+
+    await expect(consuming).resolves.toMatchObject({ status: 'skipped', reason: 'disabled' })
     expect(playback.start).not.toHaveBeenCalled()
   })
 })

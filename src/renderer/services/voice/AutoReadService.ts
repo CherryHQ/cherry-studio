@@ -41,6 +41,7 @@ interface AutoReadServiceOptions {
   supportsStreaming?: () => Promise<boolean>
   playback?: AutoReadPlayback
   reportError?: (reason: AutoReadFailure) => void
+  loadExpressiveRules?: () => Promise<void>
 }
 
 const errorTranslationKeys: Partial<Record<AutoReadFailure, string>> = {
@@ -94,11 +95,13 @@ export class AutoReadService {
   #enabled: boolean | undefined
   readonly #streams = new Map<string, StreamingRead>()
   readonly #supportsStreaming: () => Promise<boolean>
+  readonly #loadExpressiveRules: () => Promise<void>
 
   constructor(options: AutoReadServiceOptions = {}) {
     this.#supportsStreaming = options.supportsStreaming ?? supportsTextStreaming
     this.#playback = options.playback ?? speechPlaybackService
     this.#reportError = options.reportError ?? reportAutoReadError
+    this.#loadExpressiveRules = options.loadExpressiveRules ?? ensureExpressiveRulesLoaded
   }
 
   async setEnabled(enabled: boolean): Promise<void> {
@@ -178,7 +181,10 @@ export class AutoReadService {
     if (record.draining || record.fallback) return
     record.draining = (async () => {
       // Incremental parsing rewrites labels too; hydrate before the first chunk.
-      await ensureExpressiveRulesLoaded()
+      await this.#loadExpressiveRules()
+      // The user may have disabled auto-read while hydration was pending, which
+      // aborts and removes the record; a detached record must not start speech.
+      if (record.controller.signal.aborted || this.#streams.get(record.key) !== record) return
       if (!record.checked) {
         record.fallback = !(await this.#supportsStreaming())
         record.checked = true
@@ -267,8 +273,11 @@ export class AutoReadService {
 
     const text = getTextFromParts(input.message.parts ?? [])
     try {
-      await ensureExpressiveRulesLoaded()
+      await this.#loadExpressiveRules()
       if (input.isAbort) return { status: 'skipped', key, reason: 'aborted' }
+      // A stale completion must not start speech after auto-read was turned off
+      // while hydration was pending: setEnabled(false) already stopped playback.
+      if (!input.enabled || this.#isAutoReadDisabled()) return { status: 'skipped', key, reason: 'disabled' }
       if (!normalizeReadableText(text, { language: speechLanguageFromLocale(i18n.language) })) {
         return { status: 'skipped', key, reason: 'empty' }
       }
@@ -289,6 +298,10 @@ export class AutoReadService {
       this.#reportError(reason)
       return { status: 'failed', key, reason }
     }
+  }
+
+  #isAutoReadDisabled(): boolean {
+    return this.#enabled === false
   }
 
   #claim(key: string): void {
