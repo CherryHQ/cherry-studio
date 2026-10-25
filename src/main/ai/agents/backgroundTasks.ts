@@ -1206,46 +1206,74 @@ function sameDirectory(left: string, right: string): boolean {
   }
 }
 
+/** One read of every process's identity and age; a listing shares it across the records it reconciles. */
+type CandidateTableReader = () => string | null
+
+function readCandidateTable(): string | null {
+  try {
+    return String(
+      execFileSync('ps', ['-axwwo', 'pid=,ppid=,uid=,state=,etime='], {
+        encoding: 'utf8',
+        timeout: 5_000,
+        maxBuffer: 16 * 1024 * 1024,
+        env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
+      })
+    )
+  } catch {
+    return null
+  }
+}
+
+/** A process's command line with its environment section appended when `ps` may print it. */
+function commandAndEnvironment(pid: number): string | null {
+  try {
+    const output = String(
+      execFileSync('ps', ['eww', '-o', 'pid=,command=', '-p', String(pid)], {
+        encoding: 'utf8',
+        timeout: 5_000,
+        maxBuffer: 16 * 1024 * 1024,
+        env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
+      })
+    ).trim()
+    return output ? output.slice(String(pid).length).trimStart() : null
+  } catch {
+    return null
+  }
+}
+
+function commandLine(pid: number): string | null {
+  try {
+    const output = String(
+      execFileSync('ps', ['ww', '-o', 'command=', '-p', String(pid)], {
+        encoding: 'utf8',
+        timeout: 5_000,
+        maxBuffer: 16 * 1024 * 1024,
+        env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
+      })
+    ).trim()
+    return output || null
+  } catch {
+    return null
+  }
+}
+
 /**
- * Whether the table leaves a process of the task's shape unable to be ruled out. `ps` prints a
- * process's environment only when it may, so a row with none could be work that daemonized out of
- * every other channel. Only a row tied to what this task ran counts: its command line carries the
- * command itself, or it works in the task's own directory, which every descendant inherits. An
- * unrelated daemon has neither, and must not keep the task open.
+ * Whether a row this table cannot read could still be the task's work. An absent environment on a
+ * same-user orphan created after the task says nothing unless something ties the row to the task:
+ * its command line carries the command, or it works in the task's own directory, which every
+ * descendant inherits. The cheap identity scan runs first; only a row it leaves pays for its own
+ * command line and, if that shows no environment, one `lsof`.
  */
-function hasUnreadableEnvironmentCandidate(
-  table: string,
-  run: (args: string[], env: NodeJS.ProcessEnv) => string,
-  scan: NodeJS.ProcessEnv,
-  context: MarkerReadContext
-): boolean {
+function hasUnreadableEnvironmentCandidate(readTable: CandidateTableReader, context: MarkerReadContext): boolean {
   const uid = process.getuid?.()
   if (uid === undefined) return true
-  let argvTable: string
-  let identityTable: string
-  try {
-    argvTable = run(['ww', '-Ao', 'pid=,command='], scan)
-    identityTable = run(['-axwwo', 'pid=,ppid=,uid=,state=,etime='], scan)
-  } catch {
-    return true
-  }
-  const envs = new Map<number, string>()
-  const argvs = new Map<number, string>()
-  for (const row of table.split('\n')) {
-    const trimmed = row.trim()
-    const pid = Number(trimmed.split(/\s+/)[0])
-    if (Number.isInteger(pid) && pid > 0) envs.set(pid, trimmed)
-  }
-  for (const row of argvTable.split('\n')) {
-    const trimmed = row.trim()
-    const pid = Number(trimmed.split(/\s+/)[0])
-    if (Number.isInteger(pid) && pid > 0) argvs.set(pid, trimmed)
-  }
+  const table = readTable()
+  if (table === null) return true
   // How old a process may be and still have started after this task did. `etime` is a duration, so
   // it needs no clock or locale agreement with the wall time the task's start came from.
   const taskAge = (Date.now() - context.since.getTime()) / 1_000
   const command = context.command.replace(/\s+/g, ' ').trim()
-  for (const row of identityTable.split('\n')) {
+  for (const row of table.split('\n')) {
     const fields = row.trim().split(/\s+/)
     // pid, ppid, uid, state, then `etime`.
     if (fields.length < 5) continue
@@ -1255,13 +1283,15 @@ function hasUnreadableEnvironmentCandidate(
     if (fields[3].startsWith('Z')) continue
     const age = elapsedSeconds(fields[4])
     if (age === null || age > taskAge + 2) continue
-    const envRow = envs.get(pid)
-    const argvRow = argvs.get(pid)
-    if (!envRow || !argvRow) continue
+    // A row that left between the scan and this read holds nothing open.
+    if (!isPidAlive(pid)) continue
+    const withEnvironment = commandAndEnvironment(pid)
+    const argv = commandLine(pid)
+    if (withEnvironment === null || argv === null) return true
     // The environment section starts after the argv; nothing after it means none was printed.
-    if (envRow !== argvRow) continue
-    const commandLine = argvRow.slice(String(pid).length).trimStart().replace(/\s+/g, ' ')
-    if (command && commandLine.includes(command)) return true
+    if (withEnvironment !== argv) continue
+    const commandLineText = argv.replace(/\s+/g, ' ')
+    if (command && commandLineText.includes(command)) return true
     const cwd = processWorkingDirectory(pid)
     if (cwd !== null && sameDirectory(cwd, context.cwd)) return true
   }
@@ -1281,7 +1311,7 @@ function elapsedSeconds(value: string): number | null {
  * when the table cannot show environments, and never the anchor itself — it carries the marker to
  * pass it on, and it is the observer the stop must not destroy.
  */
-function readMarkerProcesses(taskId: string, anchorPid: number, context: MarkerReadContext): MarkerRead {
+function readMarkerProcesses(taskId: string, anchorPid: number): MarkerRead {
   if (process.platform === 'win32') return { status: 'unknown' }
   const marker = `${BACKGROUND_TASK_MARKER_ENV}=${taskId}`
   const nonce = randomUUID()
@@ -1315,9 +1345,6 @@ function readMarkerProcesses(taskId: string, anchorPid: number, context: MarkerR
     if (!lstart) return { status: 'unknown' }
     holders.push({ pid, lstart })
   }
-  // A marker that cannot be read on a row the task could own is no answer at all: a worker that
-  // escaped before any scan and shows no environment would otherwise read as an exit.
-  if (hasUnreadableEnvironmentCandidate(table, run, scan, context)) return { status: 'unknown' }
   return { status: 'observable', holders }
 }
 
@@ -1333,13 +1360,16 @@ async function markerReadContext(storageDir: string, record: BackgroundTaskRecor
 }
 
 async function hasUnsettledWork(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
-  const read = readMarkerProcesses(record.id, record.pid, await markerReadContext(storageDir, record))
+  const read = readMarkerProcesses(record.id, record.pid)
   if (read.status !== 'observable') return true
   if (read.holders.length > 0) {
     void recordObservedMembers(storageDir, record.id, read.holders)
     return true
   }
-  return hasLiveRecordedMember(storageDir, record.id)
+  if (await hasLiveRecordedMember(storageDir, record.id)) return true
+  // Every other channel is empty and the ledger names nothing: only now is an unreadable row able
+  // to change the answer, and only now is its cost worth paying.
+  return hasUnreadableEnvironmentCandidate(readCandidateTable, await markerReadContext(storageDir, record))
 }
 
 /**
@@ -1354,9 +1384,17 @@ async function killMarkerSurvivors(
 ): Promise<'clear' | 'survivors' | 'unknown'> {
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
   while (true) {
-    const read = readMarkerProcesses(record.id, record.pid, await markerReadContext(storageDir, record))
+    const read = readMarkerProcesses(record.id, record.pid)
     if (read.status === 'unknown') return 'unknown'
-    if (read.holders.length === 0) return 'clear'
+    if (read.holders.length === 0) {
+      // About to certify that nothing is left: the sweep is only conclusive if the environment
+      // channel can rule out a row of the task's shape.
+      const unresolved = hasUnreadableEnvironmentCandidate(
+        readCandidateTable,
+        await markerReadContext(storageDir, record)
+      )
+      return unresolved ? 'unknown' : 'clear'
+    }
     for (const holder of read.holders) {
       // The pid is only a number: the OS may have handed it to someone else since the read.
       if (getPidStartTime(holder.pid) !== holder.lstart) continue
@@ -2039,12 +2077,16 @@ export async function hasLiveTaskEvidence(storageDir: string, record: Background
   return !(await hasReplacedWindowsRunner(storageDir, record, readWindowsProcessTable))
 }
 
-export async function hasLiveGroupEvidence(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
+export async function hasLiveGroupEvidence(
+  storageDir: string,
+  record: BackgroundTaskRecord,
+  readCandidates: CandidateTableReader = readCandidateTable
+): Promise<boolean> {
   if (record.pid <= 0) return false
   // The inherited marker names work that left the group and closed its descriptors. A table that
   // cannot show environments is not evidence that the work is gone, and a holder it does name is
   // recorded so its identity outlives the environment the table showed it in.
-  const markers = readMarkerProcesses(record.id, record.pid, await markerReadContext(storageDir, record))
+  const markers = readMarkerProcesses(record.id, record.pid)
   if (markers.status === 'unknown') return true
   if (markers.holders.length > 0) {
     void recordObservedMembers(storageDir, record.id, markers.holders)
@@ -2061,7 +2103,9 @@ export async function hasLiveGroupEvidence(storageDir: string, record: Backgroun
   // stamped while its parent still tied it to the task, so a live entry is the task's own work.
   if (await hasLiveRecordedMember(storageDir, record.id)) return true
   if (process.platform === 'win32') return false
-  return groupHasLiveMember(record.pid)
+  if (groupHasLiveMember(record.pid)) return true
+  // Nothing else is left, so only a row this table cannot read could still be the task's work.
+  return hasUnreadableEnvironmentCandidate(readCandidates, await markerReadContext(storageDir, record))
 }
 
 /**
@@ -2425,11 +2469,15 @@ export async function listDetachedBackgroundTasks(storageDir: string): Promise<B
   )
   let table: Promise<WindowsProcessRow[] | null> | undefined
   const readTable: TableReader = () => (table ??= readWindowsProcessTable())
+  // One candidate scan serves every record this listing reconciles.
+  let candidateTable: string | null | undefined
+  const readCandidates: CandidateTableReader = () =>
+    candidateTable === undefined ? (candidateTable = readCandidateTable()) : candidateTable
   return (
     await Promise.all(
       records
         .filter((record): record is BackgroundTaskRecord => record !== undefined)
-        .map((record) => reconcileDetachedBackgroundTask(storageDir, record, readTable))
+        .map((record) => reconcileDetachedBackgroundTask(storageDir, record, readTable, readCandidates))
     )
   ).sort((left, right) => right.startedAt.localeCompare(left.startedAt))
 }
@@ -2460,7 +2508,8 @@ type TableReader = () => Promise<WindowsProcessRow[] | null>
 async function reconcileDetachedBackgroundTask(
   storageDir: string,
   record: BackgroundTaskRecord,
-  readTable: TableReader = readWindowsProcessTable
+  readTable: TableReader = readWindowsProcessTable,
+  readCandidates: CandidateTableReader = readCandidateTable
 ): Promise<BackgroundTaskRecord> {
   if (record.status !== 'running') return record
   const completion = await readSentinel(storageDir, record.id)
@@ -2528,7 +2577,7 @@ async function reconcileDetachedBackgroundTask(
   // A worker that daemonized before any scan left no identity to re-check, so a row this table
   // cannot read is the only evidence there is. Folding here would give up the status Stop/Kill
   // accepts while that work goes on.
-  if (process.platform !== 'win32' && (await hasLiveGroupEvidence(storageDir, record))) return record
+  if (process.platform !== 'win32' && (await hasLiveGroupEvidence(storageDir, record, readCandidates))) return record
   return {
     ...record,
     status: 'unknown',
