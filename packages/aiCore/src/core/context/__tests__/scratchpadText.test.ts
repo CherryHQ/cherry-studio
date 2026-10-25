@@ -1204,6 +1204,29 @@ describe('cherry-pr-review round-9', () => {
   })
 })
 
+describe('cherry-pr-review round-14', () => {
+  it('treats an unmarked indented line in a quoted list as lazy continuation (lazy-quote-analysis)', () => {
+    const input = '> - Parent\n    <analysis>SECRET</analysis>\n\n<summary>Public</summary>'
+    // The analysis is private scratchpad and must strip even though the
+    // unmarked line lazily continues the quoted-list paragraph. The
+    // surrounding quote and summary wrapper stay, matching the landed
+    // lazy-list-analysis-retained contract.
+    expect(stripModelScratchpadBlocks(input)).toBe('> - Parent\n    \n\n<summary>Public</summary>')
+  })
+
+  it('keeps quoted HTML attributes opaque to boundary discovery (attribute-phantom-boundary)', () => {
+    const input = 'Example <span title="<thinking>">Use `</thinking><thinking>literal</thinking>`</span>'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+
+  it('resets paragraph state when quote container ownership changes at equal depth (quote-container-ownership)', () => {
+    const input = '> - A\n>   > B\n> >     <thinking>x</thinking>\n\nDone.'
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+  })
+})
+
 describe('cherry-pr-review round-13', () => {
   it('excludes comment-contained fence markers from fence discovery (comment-fence-retains-analysis)', () => {
     const input = '<analysis>Private <!--\n```xml\n--> SECRET </analysis>\n<summary>Public</summary>'

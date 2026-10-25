@@ -1721,6 +1721,22 @@ export class ClaudeCodeStreamAdapter {
       }
     }
 
+    if (!ctx.filterParentlessScratchpadText) {
+      // The flow-context exemption does not depend on the artifact watch
+      // (cherry-pr-review round-14 deferred-child-corruption).
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        providerMetadata: this.textStartProviderMetadata(ctx)
+      })
+      ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: pending })
+      ctx.textPartStarted = true
+      ctx.textStreamedViaContentBlock = true
+      ctx.accumulatedText += pending
+      ctx.streamedTextLength += pending.length
+      return
+    }
+
     const classified = this.classifyScratchpadProbe(pending, true)
     if (classified.action === 'pending') {
       if (classified.rewriteProbe !== undefined) {
@@ -1831,27 +1847,44 @@ export class ClaudeCodeStreamAdapter {
         }
       }
       if (!watchEmittedProbe) {
-        const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
-        if (classified.action === 'pending') {
-          if (classified.rewriteProbe !== undefined) {
-            ctx.scratchpadTextProbe = classified.rewriteProbe
-          }
-          return
-        }
-        if (classified.action === 'suppress') {
+        if (!ctx.filterParentlessScratchpadText) {
+          // Flow-context text is exempt from parentless scratchpad
+          // classification regardless of the artifact watch's state: a child
+          // block deferred while the watch was active must not be classified
+          // after the watch clears (cherry-pr-review round-14
+          // deferred-child-corruption).
+          ctx.textStartDeferred = false
+          text = ctx.scratchpadTextProbe
           ctx.scratchpadTextProbe = ''
-          return
+          ctx.sink.enqueue({
+            type: 'text-start',
+            id: ctx.textPartId,
+            providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
+          })
+          ctx.textPartStarted = true
+        } else {
+          const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
+          if (classified.action === 'pending') {
+            if (classified.rewriteProbe !== undefined) {
+              ctx.scratchpadTextProbe = classified.rewriteProbe
+            }
+            return
+          }
+          if (classified.action === 'suppress') {
+            ctx.scratchpadTextProbe = ''
+            return
+          }
+          ctx.textStartDeferred = false
+          ctx.sink.enqueue({
+            type: 'text-start',
+            id: ctx.textPartId,
+            providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
+          })
+          ctx.textPartStarted = true
+          this.endCompactionArtifactGrace()
+          text = classified.visible
+          ctx.scratchpadTextProbe = ''
         }
-        ctx.textStartDeferred = false
-        ctx.sink.enqueue({
-          type: 'text-start',
-          id: ctx.textPartId,
-          providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
-        })
-        ctx.textPartStarted = true
-        this.endCompactionArtifactGrace()
-        text = classified.visible
-        ctx.scratchpadTextProbe = ''
       }
     }
 

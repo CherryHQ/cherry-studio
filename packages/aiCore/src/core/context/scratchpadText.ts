@@ -803,8 +803,16 @@ function findScratchpadBlockRanges(text: string): Array<{ start: number; end: nu
         continue
       }
     }
-    if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
+    if (!parsed) {
       searchFrom = openIndex + 1
+      continue
+    }
+    if (parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
+      // Consume the complete valid opening tag: its quoted attributes are
+      // opaque to boundary discovery, so an attribute value like
+      // title="<thinking>" cannot open a phantom block (cherry-pr-review
+      // round-14 attribute-phantom-boundary).
+      searchFrom = openIndex + parsed.opener.length
       continue
     }
     const end = findScratchpadBlockEnd(text, openIndex, parsed.tagName, parsed.opener.length)
@@ -1043,6 +1051,30 @@ function isContainerOnlyLine(line: string): boolean {
   return line.includes('>') && stripMarkdownContainerMarkers(line).trim() === ''
 }
 
+function quoteMarkerPositions(line: string): { markerStarts: number[]; markerEnds: number[] } {
+  const markerStarts: number[] = []
+  const markerEnds: number[] = []
+  let col = 0
+  for (;;) {
+    let spaces = 0
+    while (line[col + spaces] === ' ') spaces++
+    let matched = -1
+    for (let k = Math.min(spaces, 3); k >= 0; k--) {
+      if (line[col + k] === '>') {
+        matched = k
+        break
+      }
+    }
+    if (matched === -1) break
+    markerStarts.push(col + matched)
+    let end = col + matched + 1
+    if (line[end] === ' ') end++
+    markerEnds.push(end)
+    col = end
+  }
+  return { markerStarts, markerEnds }
+}
+
 function maskIndentedCodeBlocks(text: string): {
   text: string
   blocks: string[]
@@ -1120,7 +1152,17 @@ function maskIndentedCodeBlocks(text: string): {
     const rawExpanded = expandFencePrefixTabs(line)
     const withoutQuote = rawExpanded.replace(/^(?: {0,3}> ?)+/, '')
     if (/^ {0,3}(?:[-*+]|\d{1,9}[.)]) +/.test(withoutQuote) && withoutQuote !== rawExpanded) listInsideQuote = true
-    if (depth === 0 && listInsideQuote && line.trim()) {
+    if (
+      depth === 0 &&
+      listInsideQuote &&
+      line.trim() &&
+      // An unmarked non-blank line can continue the open paragraph lazily
+      // (CommonMark 0.31.2 §4.8): the quote - and the list state it owns -
+      // ends only when the paragraph does not continue, so a lazy line keeps
+      // the paragraph's ownership instead of being re-measured as top-level
+      // indented code (cherry-pr-review round-14 lazy-quote-analysis).
+      (!paragraphOpen || isLeafBlockBoundaryLine(line, paragraphOpen))
+    ) {
       listInsideQuote = false
       // Leaving a quote closes only the lists the quote owned; enclosing
       // outer-list levels survive in their own column space, so a following
@@ -1163,8 +1205,23 @@ function maskIndentedCodeBlocks(text: string): {
       // open indented code, and the list structure it belongs to stays open
       // (cherry-pr-review: lazy-list-continuation).
       if (!paragraphOpen || explicitQuoteDepth(line) > 0 || isLeafBlockBoundaryLine(line, paragraphOpen)) {
-        while (listColumnStack.length && listColumnStack[listColumnStack.length - 1].column > columns) {
-          listColumnStack.pop()
+        // Equal numeric quote depth does not imply equal container ownership:
+        // for a quote-owned list level, a line that opens a deeper quote
+        // container reaches the item's content only when the deeper marker
+        // begins at or past the item's column; a marker starting before it
+        // opens a NEW container outside the item, so the item (and the
+        // paragraph it carried) ends here (cherry-pr-review round-14
+        // quote-container-ownership).
+        const markers = depth > 0 ? quoteMarkerPositions(line) : null
+        while (listColumnStack.length) {
+          const top = listColumnStack[listColumnStack.length - 1]
+          if (markers && top.quoteDepth > 0 && top.quoteDepth < markers.markerStarts.length) {
+            const markerColumn = markers.markerStarts[top.quoteDepth] - markers.markerEnds[top.quoteDepth - 1]
+            if (markerColumn < top.column) listColumnStack.pop()
+            else break
+          } else if (top.column > columns) {
+            listColumnStack.pop()
+          } else break
         }
         inheritedListColumns = listColumnStack[listColumnStack.length - 1]?.column ?? 0
         enclosingListStack = [...listColumnStack]

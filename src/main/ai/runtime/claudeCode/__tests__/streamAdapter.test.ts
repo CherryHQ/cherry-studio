@@ -2160,6 +2160,69 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: false })
     })
 
+    it('keeps deferred child output exempt from scratchpad classification after compaction completes (cherry-pr-review round-14 deferred-child-corruption)', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'user', content: [{ type: 'text', text: 'run the workflow' }] }
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      // A parented child text block opens during compaction, before its first delta.
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'wf-1',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }
+      } as any)
+      // Compaction succeeds first; the preempted pending answer leaves the watch inactive.
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      const childText = '<analysis>Literal child example</analysis> Required output'
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'wf-1',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: childText } }
+      } as any)
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'wf-1',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: { type: 'content_block_stop', index: 0 }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'wf-1',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: childText }] }
+      } as any)
+
+      const emitted = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(emitted).toBe(childText)
+    })
+
     it('reports compaction through the status sink, including a boundary anchor', () => {
       const { adapter, statusEvents } = createAdapter()
 
