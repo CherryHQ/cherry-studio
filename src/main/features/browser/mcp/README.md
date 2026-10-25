@@ -52,7 +52,7 @@ parallel work; operations on a single tab run serially.
 
 | Tool | Additional input | Behavior |
 |---|---|---|
-| `open` | `url`, `format?`, `selector?`, `maxChars?`, `timeout?`, `newTab?`, `showWindow?` | Existing navigation/content formats preserved; use `newTab` for independent pages |
+| `open` | `url`, `format?`, `selector?`, `maxChars?`, `timeout?`, `newTab?`, `showWindow?` | Existing navigation/content formats preserved; use `newTab` for independent pages; a `file://` URL to a local HTML file opens in an isolated artifact tab with per-file directory authorization and no popups |
 | `execute` | `code`, `timeout?` | JavaScript escape hatch; existing value output preserved; prefer dedicated input tools |
 | `screenshot` | `ref?`, `fullPage?`, `cursor?`, `format?`, `quality?` | Viewport/target image, or bounded full-page image tiles |
 | `snapshot` | `full?`, `scope?`, `maxChars?` | Diff by default; `scope` is a ref, replacing the old CSS selector; cap 256–40,000 characters |

@@ -205,6 +205,11 @@ const controller = () => {
   return c
 }
 
+type MockView = Electron.BrowserView & { options: Electron.BrowserViewConstructorOptions }
+
+const addedViews = (win: BrowserWindow): MockView[] =>
+  (win.addBrowserView as unknown as { mock: { calls: Array<[MockView]> } }).mock.calls.map(([view]) => view)
+
 describe('MCP browser on shared sessions', () => {
   it('does not create a replacement page when execute cannot resolve its explicit target', async () => {
     const c = controller()
@@ -339,6 +344,54 @@ describe('MCP browser on shared sessions', () => {
       expect(options.webPreferences?.autoplayPolicy).toBe('user-gesture-required')
     }
   )
+
+  it('opens local HTML files in an isolated artifact tab', async () => {
+    const c = controller()
+    const result = await c.open('file:///C:/work/page.html', 5000, false, false, false)
+
+    expect(result.currentUrl).toBe('file:///C:/work/page.html')
+    const win = [...windows.values()].at(-1)!
+    const artifactViews = addedViews(win).filter(
+      (view) => view.options.webPreferences?.partition === 'agent-html-artifact'
+    )
+    expect(artifactViews).toHaveLength(1)
+    expect(artifactViews[0].options.webPreferences?.sandbox).toBe(true)
+  })
+
+  it('gives each file open a fresh artifact guest', async () => {
+    const c = controller()
+    const first = await c.open('file:///C:/work/one.html', 5000, false, false, false)
+    const second = await c.open('file:///C:/work/two.html', 5000, false, false, false)
+
+    expect(first.tabId).not.toBe(second.tabId)
+    const win = [...windows.values()].at(-1)!
+    const artifactViews = addedViews(win).filter(
+      (view) => view.options.webPreferences?.partition === 'agent-html-artifact'
+    )
+    expect(artifactViews).toHaveLength(2)
+  })
+
+  it('rejects file entries that are not local HTML files', async () => {
+    const c = controller()
+    await expect(c.open('file:///C:/work/data.json')).rejects.toThrow('Invalid artifact url')
+    await expect(c.open('file://server/share/page.html')).rejects.toThrow('Invalid artifact url')
+    expect([...windows.values()].at(-1)?.addBrowserView).toBeUndefined()
+  })
+
+  it('blocks popups from artifact tabs', async () => {
+    const c = controller()
+    await c.open('file:///C:/work/page.html', 5000, false, false, false)
+    const win = [...windows.values()].at(-1)!
+    const artifactView = addedViews(win).find(
+      (view) => view.options.webPreferences?.partition === 'agent-html-artifact'
+    )
+    expect(artifactView).toBeDefined()
+
+    const registered = vi.mocked(artifactView!.webContents.setWindowOpenHandler).mock.calls.at(0)
+    if (!registered?.[0]) throw new Error('window open handler was not registered')
+    const details = { url: 'https://evil.example' } as Electron.HandlerDetails
+    expect(registered[0](details)).toEqual({ action: 'deny' })
+  })
 
   it('mutes hidden opens before navigation and restores audio for explicitly visible opens', async () => {
     const c = controller()

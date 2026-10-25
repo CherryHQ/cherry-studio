@@ -7,7 +7,9 @@ import { application } from '@application'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
+import { isAllowedAgentHtmlArtifactEntryUrl } from '@main/utils/agentWebviewRequest'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
@@ -468,11 +470,19 @@ export class CdpBrowserController extends BrowserPageController {
       throw new BrowserSessionError('debugger_unavailable')
   }
 
-  private async createTabInWindow(windowInfo: WindowInfo): Promise<{ tabId: string; view: BrowserView }> {
+  private async createTabInWindow(
+    windowInfo: WindowInfo,
+    options?: { artifact?: boolean }
+  ): Promise<{ tabId: string; view: BrowserView }> {
     this.assertWindowActive(windowInfo)
     const privateMode = windowInfo.privateMode
     const tabId = randomUUID()
-    const partition = this.getPartition(privateMode)
+    // Artifact tabs carry their own in-memory session: the AgentHtmlArtifact request
+    // policy authorizes the opened file's directory per webContents and rejects escapes.
+    const partition = options?.artifact
+      ? getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact)
+      : this.getPartition(privateMode)
+    const artifact = options?.artifact === true
 
     const view = new BrowserView({
       webPreferences: {
@@ -515,6 +525,12 @@ export class CdpBrowserController extends BrowserPageController {
     })
 
     view.webContents.setWindowOpenHandler(({ url }) => {
+      if (artifact) {
+        // A popup would be a fresh webContents and re-run the artifact root
+        // authorization for an unvetted file; artifact pages get no popups.
+        logger.warn('Blocked popup from artifact tab', { windowKey, tabId, url })
+        return { action: 'deny' }
+      }
       let safeUrl: string
       try {
         safeUrl = sanitizeRemoteUrl(url)
@@ -674,11 +690,33 @@ export class CdpBrowserController extends BrowserPageController {
     showWindow = false,
     signal?: AbortSignal
   ) {
+    // file:// entries load in the isolated artifact partition. Each open creates a
+    // fresh guest so the per-webContents directory authorization starts from the
+    // opened file; the artifact request policy rejects escapes and symlinks.
+    if (url.startsWith('file:')) {
+      if (!isAllowedAgentHtmlArtifactEntryUrl(url))
+        throw new Error('Invalid artifact url: only local HTML files can be opened')
+      const windowInfo = await this.getOrCreateWindow(privateMode, showWindow)
+      const { tabId: artifactTabId } = await this.createTabInWindow(windowInfo, { artifact: true })
+      const tab = windowInfo.tabs.get(artifactTabId)
+      if (!tab) throw new Error(`Tab ${artifactTabId} was created but not found - it may have been closed`)
+      return this.navigateOpenTab(tab, url, timeout, signal, windowInfo)
+    }
+
     url = this.validateUrl(url)
 
-    const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
-    const webContents = tab.view.webContents
+    const { tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
     const windowInfo = this.windows.get(this.getWindowKey(privateMode))
+    return this.navigateOpenTab(tab, url, timeout, signal, windowInfo)
+  }
+
+  private async navigateOpenTab(
+    tab: TabInfo,
+    url: string,
+    timeout: number,
+    signal: AbortSignal | undefined,
+    windowInfo?: WindowInfo
+  ) {
     if (windowInfo) this.syncAudioState(windowInfo)
     await tab.session.run(async () => {
       const { settleAction } = await import('../actions/settle')
@@ -692,14 +730,14 @@ export class CdpBrowserController extends BrowserPageController {
       )
     })
 
-    const currentUrl = webContents.getURL()
-    const title = webContents.getTitle()
+    const currentUrl = tab.view.webContents.getURL()
+    const title = tab.view.webContents.getTitle()
 
     // Update tab info
     tab.url = currentUrl
     tab.title = title
 
-    return { currentUrl, title, tabId: actualTabId }
+    return { currentUrl, title, tabId: tab.id }
   }
 
   /**
