@@ -79,7 +79,7 @@ const BREAK_PATTERNS: BreakPattern[] = [
   { pattern: /\n#{4}(?!#)/g, score: 70 }, // h4
   { pattern: /\n#{5}(?!#)/g, score: 60 }, // h5
   { pattern: /\n#{6}(?!#)/g, score: 50 }, // h6
-  { pattern: /\n```/g, score: 80 }, // code-block boundary
+  { pattern: /\n(?:`{3,}|~{3,})/g, score: 80 }, // code-block boundary
   { pattern: /\n(?:---|\*\*\*|___)\s*\n/g, score: 60 }, // horizontal rule
   { pattern: /<\/table>/gi, score: 45, cutAfter: true, sentence: true }, // table block end
   { pattern: /\$\$/g, score: 45, cutAfter: true, sentence: true }, // display-math block end
@@ -257,22 +257,27 @@ function addLiteralBreaks(
   }
 }
 
-/** Pair up `\`\`\`` fences into regions; an unclosed fence extends to end of text. */
+/** Pair backtick and tilde fences into regions; an unclosed fence extends to end of text. */
 function findCodeFences(text: string): AtomicRegion[] {
   const regions: AtomicRegion[] = []
-  let open: number | null = null
+  let open: { start: number; char: string; length: number } | null = null
+
   // `^` catches a fence at offset zero; the other alternative catches line starts.
-  for (const match of text.matchAll(/(?:^|\n)```/g)) {
-    const fenceStart = match.index + (match[0].startsWith('\n') ? 1 : 0)
+  for (const match of text.matchAll(/(?:^|\n)(`{3,}|~{3,})/g)) {
+    const marker = match[1]
+    const fenceStart = (match.index ?? 0) + (match[0].startsWith('\n') ? 1 : 0)
+    const char = marker[0]
+    const length = marker.length
+
     if (open === null) {
-      open = fenceStart
-    } else {
-      regions.push({ start: open, end: fenceStart + 3, kind: 'code' })
+      open = { start: fenceStart, char, length }
+    } else if (char === open.char && length >= open.length) {
+      regions.push({ start: open.start, end: fenceStart + length, kind: 'code' })
       open = null
     }
   }
   if (open !== null) {
-    regions.push({ start: open, end: text.length, kind: 'code' })
+    regions.push({ start: open.start, end: text.length, kind: 'code' })
   }
   return regions
 }
@@ -280,7 +285,7 @@ function findCodeFences(text: string): AtomicRegion[] {
 /** Inline code spans are masked from display/inline math detection. */
 function findInlineCodeRegions(text: string, codeFences: AtomicRegion[]): AtomicRegion[] {
   const regions: AtomicRegion[] = []
-  const opens = new Map<number, number>()
+  let open: { start: number; length: number } | null = null
   let regionIndex = 0
 
   for (const match of text.matchAll(/`+/g)) {
@@ -291,12 +296,11 @@ function findInlineCodeRegions(text: string, codeFences: AtomicRegion[]): Atomic
     if (fence && start >= fence.start && start < fence.end) continue
 
     const length = match[0].length
-    const open = opens.get(length)
-    if (open === undefined) {
-      opens.set(length, start)
-    } else {
-      regions.push({ start: open, end: start + length, kind: 'inline-code' })
-      opens.delete(length)
+    if (open === null) {
+      open = { start, length }
+    } else if (length === open.length) {
+      regions.push({ start: open.start, end: start + length, kind: 'inline-code' })
+      open = null
     }
   }
 

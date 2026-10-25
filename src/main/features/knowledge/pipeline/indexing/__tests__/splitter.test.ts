@@ -368,6 +368,28 @@ describe('splitTextWithOffsets — sentence and atomic boundaries', () => {
     }
   })
 
+  it('does not let an embedded backtick consume a later code span opener', () => {
+    const text = 'Use ``a ` b`` and then `echo $$` to print the PID. ' + '普通句子。'.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+  })
+
+  it('masks $$ inside a tilde fence before math detection', () => {
+    const text = '~~~sh\necho $$\n~~~\n' + '普通句子。'.repeat(1000)
+    const chunks = splitTextWithOffsets(text, { chunkSize: 1024, chunkOverlap: 200 })
+
+    expect(chunks.length).toBeGreaterThan(5)
+    expectVerbatimSlices(text, chunks)
+    for (const chunk of chunks) {
+      expect(estimateTokenCount(chunk.text)).toBeLessThanOrEqual(1024)
+    }
+  })
+
   it('keeps boundaries between touching tables', () => {
     const table = '<table><tr><td>1</td></tr></table>'
     const text = table.repeat(100) + '普通句子。'.repeat(50)
