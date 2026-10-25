@@ -48,7 +48,8 @@ export {
   textHasUnclosedInlineCodeOutsideCodeBlocks,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag,
-  unclosedHtmlTextElementOpener
+  unclosedHtmlTextElementOpener,
+  unclosedOpaqueMarkupOpener
 } from './scratchpadText'
 export { getContextTokens } from './usage'
 export { type EntityToolOutputCodec, type TruncateOptions, truncateToolResults } from './truncator'

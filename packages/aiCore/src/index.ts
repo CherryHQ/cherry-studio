@@ -93,7 +93,8 @@ export {
   textHasUnclosedInlineCodeOutsideCodeBlocks,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag,
-  unclosedHtmlTextElementOpener
+  unclosedHtmlTextElementOpener,
+  unclosedOpaqueMarkupOpener
 } from './core/context'
 
 // ==================== 错误处理 ====================

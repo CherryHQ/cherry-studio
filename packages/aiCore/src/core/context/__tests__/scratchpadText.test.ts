@@ -4,6 +4,8 @@ import {
   confirmedOpenFenceStreamPrefix,
   stripKnownModelScratchpadBlocks,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
+  unclosedHtmlTextElementOpener,
+  unclosedOpaqueMarkupOpener,
   stripTrailingToolProtocolClosingFragments,
   stripModelScratchpadBlocks,
   textHasUnclosedInlineCode,
@@ -1199,5 +1201,23 @@ describe('cherry-pr-review round-9', () => {
       const input = `<analysis>Need a <${tag}> element. SECRET</analysis>Public`
       expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe('Public')
     }
+  })
+})
+
+describe('cherry-pr-review round-11 helpers', () => {
+  it('returns the parsed opener rather than masked-offset slices (masked-html-carry)', () => {
+    expect(unclosedHtmlTextElementOpener('Before `literal`\n\n<textarea>\n<thinking>')).toBe('<textarea>')
+    expect(unclosedHtmlTextElementOpener('<textarea>body</textarea>after')).toBeNull()
+    expect(unclosedHtmlTextElementOpener('`code <textarea> still code` text')).toBeNull()
+    expect(unclosedHtmlTextElementOpener('```\n<textarea>\n```\nafter')).toBeNull()
+  })
+
+  it('tracks comment and CDATA open state across the emitted prefix', () => {
+    expect(unclosedOpaqueMarkupOpener('Text\n<!-- example\n<analysis>')).toBe('<!--')
+    expect(unclosedOpaqueMarkupOpener('Text\n<![CDATA[ example\n<analysis>')).toBe('<![CDATA[')
+    expect(unclosedOpaqueMarkupOpener('<!-- closed --> after')).toBeNull()
+    expect(unclosedOpaqueMarkupOpener('<![CDATA[ closed ]]> after')).toBeNull()
+    expect(unclosedOpaqueMarkupOpener('`code <!-- still code` text')).toBeNull()
+    expect(unclosedOpaqueMarkupOpener('<!-- a --> then <!-- b')).toBe('<!--')
   })
 })

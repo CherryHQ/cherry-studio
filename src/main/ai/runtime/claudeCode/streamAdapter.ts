@@ -44,6 +44,7 @@ import {
   textHasUnclosedCodeFence,
   textHasUnclosedInlineCodeOutsideCodeBlocks,
   unclosedHtmlTextElementOpener,
+  unclosedOpaqueMarkupOpener,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from '@cherrystudio/ai-core'
@@ -1193,9 +1194,13 @@ export class ClaudeCodeStreamAdapter {
     // opener appears in the emitted context at all, so long code answers pay
     // no per-delta rescan (main-test perf budget, inv_be69014e8d52ce1b).
     const emittedContext = ctx.accumulatedText.slice(ctx.textBlockContextStart)
+    // Literal-markup context the scan cannot see once emitted: an unclosed
+    // HTML text element, or an unclosed comment/CDATA section (round-11
+    // opaque-markup-stream-context).
     const htmlCarry =
-      ctx.scratchpadStreamFenceCarry === '' && /<(textarea|title|script|style)[\s>]/i.test(emittedContext)
-        ? (unclosedHtmlTextElementOpener(emittedContext) ?? '')
+      ctx.scratchpadStreamFenceCarry === '' &&
+      /<(textarea|title|script|style)[\s>]|<!--|<!\[CDATA\[/i.test(emittedContext)
+        ? (unclosedHtmlTextElementOpener(emittedContext) ?? unclosedOpaqueMarkupOpener(emittedContext) ?? '')
         : ''
     const prefix =
       ctx.scratchpadStreamFenceCarry +

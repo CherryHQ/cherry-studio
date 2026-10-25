@@ -161,8 +161,53 @@ export function unclosedHtmlTextElementOpener(text: string): string | null {
     const bodyStart = start + parsed.opener.length
     const closeRe = new RegExp(`</${parsed.tagName.toLowerCase()}\\s*>`, 'i')
     const close = closeRe.exec(masked.slice(bodyStart))
-    if (!close) return text.slice(start, bodyStart)
+    // `start`/`bodyStart` index the MASKED text, whose placeholders differ in
+    // length from the original code regions: slicing `text` with them returns
+    // a shifted fragment (cherry-pr-review round-11 masked-html-carry). The
+    // opener itself is outside code, so the masked scan saw it verbatim.
+    if (!close) return parsed.opener
     pos = bodyStart + close.index + close[0].length
+  }
+  return null
+}
+
+/**
+ * Opaque markup opener (HTML comment or CDATA section) left unclosed at the
+ * end of `text`, outside code, or null. Same streaming-carry rationale as
+ * unclosedHtmlTextElementOpener: once `<!--` or `<![CDATA[` has been emitted,
+ * later deltas would scan its literal body as ordinary markup and strip
+ * wrapper-shaped text inside it (cherry-pr-review round-11
+ * opaque-markup-stream-context).
+ */
+export function unclosedOpaqueMarkupOpener(text: string): '<!--' | '<![CDATA[' | null {
+  const { text: fenceMasked } = maskCodeFences(text)
+  const { text: indentedMasked } = maskIndentedCodeBlocks(fenceMasked)
+  const { text: masked } = maskInlineCodeSpans(indentedMasked)
+  let pos = 0
+  let open: '<!--' | '<![CDATA[' | null = null
+  while (pos < masked.length) {
+    if (open === null) {
+      const commentStart = masked.indexOf('<!--', pos)
+      const cdataStart = masked.indexOf('<![CDATA[', pos)
+      let start = -1
+      let opener: '<!--' | '<![CDATA[' | null = null
+      if (commentStart !== -1 && (cdataStart === -1 || commentStart < cdataStart)) {
+        start = commentStart
+        opener = '<!--'
+      } else if (cdataStart !== -1) {
+        start = cdataStart
+        opener = '<![CDATA['
+      }
+      if (opener === null) return null
+      open = opener
+      pos = start + opener.length
+      continue
+    }
+    const terminator = open === '<!--' ? '-->' : ']]>'
+    const close = masked.indexOf(terminator, pos)
+    if (close === -1) return open
+    open = null
+    pos = close + terminator.length
   }
   return null
 }

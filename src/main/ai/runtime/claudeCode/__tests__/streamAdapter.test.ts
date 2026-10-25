@@ -6199,3 +6199,55 @@ describe('cherry-pr-review round-9', () => {
     expect(run([answer])).toBe(answer)
   })
 })
+
+describe('cherry-pr-review round-11', () => {
+  const runWithSnapshot = (deltas: string[], answer: string): string => {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const delta of deltas) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta } })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+    return parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+  }
+
+  it('returns the real text-element opener when inline code shifts masked offsets (masked-html-carry)', () => {
+    const answer = 'Before `literal`\n\n<textarea>\n<thinking>literal</thinking>\n</textarea>'
+    const fragmented = runWithSnapshot(
+      ['Before `literal`\n\n<textarea>\n<thinking>', 'literal</thinking>\n</textarea>'],
+      answer
+    )
+    expect(fragmented).toBe(runWithSnapshot([answer], answer))
+    expect(fragmented).toBe(answer)
+  })
+
+  it.each([
+    ['comment', 'Text\n<!-- example\n<analysis>literal</analysis>\n-->\nDone.'],
+    ['CDATA', 'Text\n<![CDATA[ example\n<analysis>literal</analysis>\n]]>\nDone.']
+  ])('carries enclosing %s context across deltas (opaque-markup-stream-context)', (_label, answer) => {
+    const marker = _label === 'comment' ? ['<!-- example\n', '-->'] : ['<![CDATA[ example\n', ']]>']
+    void marker
+    const deltas =
+      _label === 'comment'
+        ? ['Text\n<!-- example\n<analysis>', 'literal</analysis>\n-->\nDone.']
+        : ['Text\n<![CDATA[ example\n<analysis>', 'literal</analysis>\n]]>\nDone.']
+    const fragmented = runWithSnapshot(deltas, answer)
+    expect(fragmented).toBe(runWithSnapshot([answer], answer))
+    expect(fragmented).toBe(answer)
+  })
+})
