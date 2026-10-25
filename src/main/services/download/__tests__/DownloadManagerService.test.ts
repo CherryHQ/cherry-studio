@@ -196,6 +196,30 @@ describe('DownloadManagerService recovery', () => {
     expect(next).toBe(join(dir, 'payload (1).bin'))
   })
 
+  it('does not let a failed history row steal a resumable destination on restart', async () => {
+    const { task: resumable, filePath, tempPath } = createTask('shared-path.bin')
+    store.setState(resumable.id, 'paused')
+    const { task: failed } = store.create({
+      url: 'http://127.0.0.1/other',
+      fileName: 'shared-path.bin',
+      filePath,
+      tempPath,
+      totalBytes: 0,
+      connections: 1,
+      source: 'manual',
+      ranges: [{ index: 0, start: 0, end: 0 }]
+    })
+    store.setState(failed.id, 'failed', 'probe failed')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const view = internals(service)
+
+    // Cancelling the paused task releases the path only if it still owns it.
+    service.cancel(resumable.id)
+    expect(await view.reservePath(dir, 'shared-path.bin', 'uniquify')).toBe(filePath)
+  })
+
   it('drops a paused queued task from the pending queue', async () => {
     const { task } = createTask()
     store.setState(task.id, 'queued')
@@ -345,6 +369,53 @@ describe('DownloadManagerService recovery', () => {
     } finally {
       setStateSpy.mockRestore()
     }
+  })
+
+  it('rejects Resume for a cancelled task whose paths a newer download owns', async () => {
+    const cancelled = createTask('stale-resume.bin')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const view = internals(service)
+
+    service.cancel(cancelled.task.id)
+    // A newer download reuses the released destination.
+    expect(await view.reservePath(dir, 'stale-resume.bin', 'uniquify', 'new-task')).toBe(cancelled.filePath)
+
+    service.resume(cancelled.task.id)
+
+    expect(store.get(cancelled.task.id)?.task.state).toBe('cancelled')
+    expect(view.queue).not.toContain(cancelled.task.id)
+  })
+
+  it('keeps a completed task completed when a stale pause arrives', async () => {
+    const { task, filePath } = createTask('late-pause.bin')
+    store.complete(task.id, filePath, CONTENT.length)
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+
+    service.pause(task.id)
+
+    const stored = store.get(task.id)!
+    expect(stored.task.state).toBe('completed')
+    expect(stored.task.tempPath).toBe('')
+  })
+
+  it('records a failed task when the destination cannot be created', async () => {
+    const blocked = join(dir, 'blocked-dir')
+    writeFileSync(blocked, 'not a directory')
+    await application.get('PreferenceService').set('app.browser.downloads.dir', blocked)
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    vi.spyOn(internals(service), 'fetchFor').mockReturnValue(async () => new Response(null, { status: 404 }))
+
+    const task = await service.start({ url: 'http://127.0.0.1/file' })
+
+    expect(task.state).toBe('failed')
+    expect(task.error).toBeTruthy()
+    expect(store.get(task.id)?.task.state).toBe('failed')
   })
 
   /** Serves HEAD and byte ranges from CONTENT; `gate` holds every HEAD response. */

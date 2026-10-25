@@ -116,7 +116,9 @@ export class DownloadManagerService extends BaseService {
       if (task.filePath) this.claim(task.filePath, task.id)
     }
     for (const task of this.store.listFailed()) {
-      if (task.filePath) this.claim(task.filePath, task.id)
+      // A failed row shares another task's path only when its reservation lost the
+      // race before the failure was recorded; never let history steal live ownership.
+      if (task.filePath && !this.isReserved(task.filePath)) this.claim(task.filePath, task.id)
     }
     if (!application.get('PreferenceService').get(PREF.autoResume)) return
     for (const task of this.store.listResumable()) {
@@ -210,16 +212,20 @@ export class DownloadManagerService extends BaseService {
       fileName = basename(picked.filePath)
     }
 
-    await fs.mkdir(dir, { recursive: true })
     // Allocate the id before the path so the reservation already names its
     // owner; a later cleanup can then tell this task's paths from a newer one's.
     const taskId = uuidv7()
-    const filePath = await this.reservePath(dir, fileName, policy, taskId)
-    const tempPath = `${filePath}.crdownload`
     const partition = input.partition ?? ''
     const fetchImpl = this.fetchFor(partition)
+    // Best effort until the reservation succeeds; the failure row below still
+    // needs a path so the error is visible in Settings and to agents.
+    let filePath = join(dir, fileName)
+    let tempPath = `${filePath}.crdownload`
 
     try {
+      await fs.mkdir(dir, { recursive: true })
+      filePath = await this.reservePath(dir, fileName, policy, taskId)
+      tempPath = `${filePath}.crdownload`
       const probe = await probeDownload(input.url, fetchImpl)
       const ranges =
         probe.supportsRanges && probe.totalBytes > 0
@@ -247,6 +253,9 @@ export class DownloadManagerService extends BaseService {
       return task
     } catch (error) {
       const message = errorMessage(error)
+      // A failed row owns its recorded destination when it is still free, so a
+      // later Retry cannot collide with a path another task has taken.
+      if (!this.isReserved(filePath)) this.claim(filePath, taskId)
       const { task } = this.store.create({
         id: taskId,
         url: input.url,
@@ -262,7 +271,8 @@ export class DownloadManagerService extends BaseService {
         ranges: []
       })
       this.store.setState(task.id, 'failed', message)
-      return task
+      // Re-read so the caller sees the recorded failure, not the queued snapshot.
+      return this.store.get(task.id)?.task ?? task
     }
   }
 
@@ -358,6 +368,11 @@ export class DownloadManagerService extends BaseService {
       controller.abort()
       return
     }
+    const entry = this.store.get(taskId)
+    // Settings polls every second, so a stale Pause click can arrive after the
+    // row completed. Completed rows have no temporary file left; overwriting
+    // their state with `paused` loses the completed status and Open File.
+    if (!entry || (entry.task.state !== 'queued' && entry.task.state !== 'paused')) return
     // A paused entry must leave the queue, otherwise the next pump starts it
     // while the persisted state still says paused.
     this.dequeue(taskId)
@@ -366,7 +381,13 @@ export class DownloadManagerService extends BaseService {
 
   resume(taskId: string): void {
     const entry = this.store.get(taskId)
-    if (!entry || entry.task.state === 'completed') return
+    if (!entry) return
+    const { state, filePath } = entry.task
+    // Only paused/queued rows may restart. A cancelled task already released its
+    // paths, so resuming it after a newer same-name task claimed them would make
+    // both workers write one temporary file. Completed rows have no temp file.
+    if (state !== 'paused' && state !== 'queued') return
+    if (!this.owns(filePath, taskId)) return
     this.store.setState(taskId, 'queued')
     this.enqueue(taskId)
     this.pump()
