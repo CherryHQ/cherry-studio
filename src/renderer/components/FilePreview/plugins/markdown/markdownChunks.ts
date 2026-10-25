@@ -2738,11 +2738,20 @@ export function splitMarkdownChunks(
       inDefinition = true
       footnoteDefinition = true
       sawBlankInDefinition = false
-      footnoteParagraphOpen = continuesFootnoteParagraph(footnoteStart[2])
       // The definition keeps the container it was written behind: its continuation lines must
       // lose that container the same way the opening line did, or the carried prefix holds only
       // the first line and a truncated copy shadows the complete definition.
       activeDefinitionContainer = container ? containerParams(container[0]) : null
+      // The note's own first line holds content too, read the way its carried text parses: a
+      // definition written behind the label defines its label for the whole document the same way.
+      const opening = nestedDefinitionAt(footnoteStart[2].replace(/^[ \t]+/, ''), i)
+      if (opening) {
+        definedLabels.add(normalizeReferenceLabel(opening.label))
+        nestedDefinitionLines = opening.lines - 1
+        footnoteParagraphOpen = false
+      } else {
+        footnoteParagraphOpen = continuesFootnoteParagraph(footnoteStart[2])
+      }
       // A definition written as a list item still numbers that list, so the blank line behind it
       // may not end one — the same reason an ordinary item keeps the run alive.
       const item = LIST_ITEM.exec(line)

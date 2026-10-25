@@ -3572,6 +3572,18 @@ describe('a definition a footnote’s content holds', () => {
     expect(headingIds(content)).toEqual(['doc--hello', 'doc--hello-1'])
     expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
   })
+
+  it('discovers a definition written on the note’s opening line', () => {
+    // The text behind the note’s colon is content the parser reads inside it, so a definition
+    // written there defines its label for the whole document the same way — the note’s own first
+    // line is not only a label.
+    const content = `[^note]: [x]: /url\n# [hello][x]\n\n${'filler\n\n'.repeat(3072)}# hello\n\n[jump](#hello-1)\n`
+
+    const chunks = chunksOf(content)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(headingIds(content)).toEqual(['doc--hello', 'doc--hello-1'])
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
 })
 
 describe('a document written with bare CR line endings', () => {
