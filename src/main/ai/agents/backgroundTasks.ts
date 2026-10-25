@@ -807,12 +807,17 @@ const start = () => {
             // its child. An older row was forked by whoever held the number before the shell — an
             // unrelated orphan the reuse merely re-parented — and a matching number never adopts it.
             if (row.created === parent.created || createdBefore(parent.created, row.created)) keep.add(row.pid)
-          } else if (createdBefore(row.created, parent.created)) {
-            // A stranger took the number: a row older than it cannot be the stranger's child, and
-            // only such a row stays attributable to the task's own orphan.
+          } else if (createdBefore(row.created, parent.created) && jobAdmits(row.pid)) {
+            // A stranger took the number: a row older than it cannot be the stranger's child, but
+            // chronology cannot tell the task's own orphan from one forked by an earlier unrelated
+            // holder of that number. Only the job, held since before either existed, can.
             keep.add(row.pid)
           }
-        } else if (known.get(row.ppid) === parent.created || createdBefore(row.created, parent.created)) keep.add(row.pid)
+        } else if (
+          known.get(row.ppid) === parent.created ||
+          (createdBefore(row.created, parent.created) && jobAdmits(row.pid))
+        )
+          keep.add(row.pid)
       }
     }
     let grew = true
@@ -2249,9 +2254,11 @@ async function readWindowsProcessTable(): Promise<WindowsProcessRow[] | null> {
  * after that parent has exited, so this walk crosses the dead link that `taskkill /T`, which
  * follows live parents only, cannot. A recorded pid is only a number, so a root is verified only
  * under the creation stamp it was captured with: a live occupant reading a different stamp — or
- * a root this app holds no stamp for — is a stranger, refused outright together with everything
- * it has since forked; the rows it parents count as this task's orphans only when they were
- * created before the replacement took over.
+ * a root this app holds no stamp for — is a stranger, and the rows it parents are never adopted.
+ * Chronology alone cannot establish that membership: after a root exits, an unrelated process can
+ * take its number, fork a worker and exit, handing the number on again, and that worker predates
+ * the current occupant exactly as the task's own orphan would. Only a membership the runner
+ * verified — carried in the evidence's `known` entries, which are roots here — may cross it.
  */
 /**
  * A creation stamp as a chronology. The identity queries project `CreationDate` as FILETIME ticks
@@ -2264,16 +2271,15 @@ function createdTicks(created: string): number | undefined {
 }
 
 /**
- * Whether a row parented to `occupant` was created under it. A verified occupant is this task's
- * own process, so only a row created after it can be its child; an unverified one took a recorded
- * pid over, so only a row older than it was forked by the predecessor this app spawned. Two stamps
- * that cannot be ordered prove neither, and the row stays unadopted.
+ * Whether a row parented to a verified `occupant` was created under it. Only a verified occupant is
+ * this task's own process, so only a row created after it can be its child. Two stamps that cannot
+ * be ordered prove nothing, and the row stays unadopted.
  */
-function createdUnderOccupant(row: WindowsProcessRow, occupant: WindowsProcessRow, verified: boolean): boolean {
+function createdUnderOccupant(row: WindowsProcessRow, occupant: WindowsProcessRow): boolean {
   const created = createdTicks(row.created)
   const occupantCreated = createdTicks(occupant.created)
   if (created === undefined || occupantCreated === undefined) return false
-  return verified ? created >= occupantCreated : created < occupantCreated
+  return created >= occupantCreated
 }
 
 function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoot[]): Set<number> {
@@ -2296,11 +2302,11 @@ function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoo
   for (const row of rows) {
     if (verified.has(row.pid) || !rootPids.has(row.ppid)) continue
     const occupant = byPid.get(row.ppid)
-    // With the parent absent from the snapshot only its number links the row to the task, and the
-    // OS may have reused that number for an unrelated parent that forked this row and exited. Such
-    // a row is adopted only when it is itself a root the runner verified under its stamp (already
-    // collected above), never on the strength of the parent's number alone.
-    if (!occupant || !createdUnderOccupant(row, occupant, verified.has(occupant.pid))) continue
+    // Only a verified root occupant authorizes descent: an absent or replaced one links the row by
+    // its number alone, and the OS may have handed that number to an unrelated parent, which can
+    // fork, exit and hand it on. Such a row is adopted only when the runner verified it itself
+    // (already collected above), never on the strength of the parent's number or chronology.
+    if (!occupant || !verified.has(occupant.pid) || !createdUnderOccupant(row, occupant)) continue
     work.add(row.pid)
     claimed.set(row.pid, createdTicks(row.created)!)
   }

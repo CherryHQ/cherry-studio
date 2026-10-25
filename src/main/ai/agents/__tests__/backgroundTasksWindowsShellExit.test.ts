@@ -329,12 +329,13 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
 
   it('refuses to force-kill a recorded pid an unrelated process has taken over', async () => {
     // The shell exited and Windows handed its pid to a stranger, which has since forked a child
-    // of its own; the task's real orphan worker was created before the takeover. A closure that
-    // trusts the recorded pid alone force-kills the stranger's tree, so the sweep must verify
-    // each recorded root's creation stamp and spare everything the replacement brought along.
+    // of its own; the task's real orphan worker was created before the takeover and is a member of
+    // the task's job, which is what still ties it to the task. A closure that trusts the recorded
+    // pid alone force-kills the stranger's tree, so the sweep must verify each recorded root's
+    // creation stamp, spare everything the replacement brought along, and still reach the member.
     const onExit = vi.fn()
     const requested: string[][] = []
-    await useFakeProbe(TABLE_HEADER)
+    await useFakeProbe(TABLE_HEADER, { members: '[999999]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setTimeout(() => process.exit(0), 200)"`,
@@ -352,6 +353,21 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
       ].join('\n') + '\n'
     )
 
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+    // Only job membership crosses the replaced root: the replacement's subtree is never recorded.
+    await vi.waitFor(
+      async () => {
+        expect(await readKnownPids()).toContain(999_999)
+      },
+      { timeout: 10_000, interval: 200 }
+    )
+    expect(await readKnownPids()).not.toContain(8_888)
+
     taskkillMock.mockImplementation((...args: unknown[]) => {
       const called = args[1] as string[]
       requested.push(called)
@@ -366,6 +382,37 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     expect(requested.some((args) => args.includes('999999'))).toBe(true)
     expect(requested.flat()).not.toContain(String(shellPid))
     expect(requested.flat()).not.toContain('8888')
+    expect(onExit).toHaveBeenCalledTimes(1)
+  }, 20_000)
+
+  it('spares an unrelated worker that only predates the replacement occupant', async () => {
+    // After the shell exited, an unrelated process took its pid, forked a worker and exited, so
+    // the number went to another occupant. That worker predates the current occupant and every
+    // chronology comparison admits it, yet nothing ties it to this task: it was never a job member
+    // and no probe ever saw it. Only verified membership may cross a replaced root.
+    const onExit = vi.fn()
+    const requested: string[][] = []
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 200)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(
+      [TABLE_HEADER, `"${shellPid}","4","${REUSED_STAMP}"`, `"500","${shellPid}","${ORPHAN_STAMP}"`].join('\n') + '\n'
+    )
+
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      const called = args[1] as string[]
+      requested.push(called)
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    expect(requested.flat()).not.toContain('500')
+    expect(stopped?.status).toBe('stopped')
     expect(onExit).toHaveBeenCalledTimes(1)
   }, 20_000)
 
@@ -598,9 +645,9 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
   it('does not adopt a stranger subtree when the shell stamp was never captured', async () => {
     // A short-lived shell can exit before the startup identity query stamps it, and the OS then
     // hands its number to a stranger while the task's own worker lives on. A live occupant this
-    // app holds no stamp for proves nothing about the children it has forked: only a row created
-    // before that occupant existed cannot be its child, so only those stay attributable.
-    await useFakeProbe(TABLE_HEADER, { withStamps: false })
+    // app holds no stamp for proves nothing about the children it has forked: only a row the job
+    // still holds stays attributable, never one the reused number merely predates.
+    await useFakeProbe(TABLE_HEADER, { withStamps: false, members: '[999999]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
@@ -701,12 +748,13 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
 
   it('spares a replacement whose recorded root carries no identity stamp', async () => {
     // The startup identity query failed, so the evidence holds the shell pid and no stamps. A
-    // replacement then takes that pid, forks a child of its own, and the task's orphan — created
-    // before the takeover — still runs beside them. A sweep that trusts the bare pid force-kills
-    // the stranger's tree; without a stamp a live root authorizes no termination at all, and a
-    // live root this app cannot account for keeps the task unresolved instead of reading stopped.
+    // replacement then takes that pid, forks a child of its own, and the task's orphan — a member
+    // of the task's job, created before the takeover — still runs beside them. A sweep that trusts
+    // the bare pid force-kills the stranger's tree; without a stamp a live root authorizes no
+    // termination at all, and a live root this app cannot account for keeps the task unresolved
+    // instead of reading stopped.
     const onExit = vi.fn()
-    await useFakeProbe(TABLE_HEADER, { withStamps: false })
+    await useFakeProbe(TABLE_HEADER, { withStamps: false, members: '[999999]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
@@ -721,6 +769,20 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
       `"8888","${shellPid}","${REUSED_CHILD_STAMP}"`
     ]
     await writeFakeRows(`${[...replacementRows, `"999999","${shellPid}","${ORPHAN_STAMP}"`].join('\n')}\n`)
+    // The member is attributable only once a poll has recorded it: that observation is what the
+    // app's walk re-seeds from after the kill takes the runner's memory down.
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+    await vi.waitFor(
+      async () => {
+        expect(await readKnownPids()).toContain(999_999)
+      },
+      { timeout: 10_000, interval: 200 }
+    )
 
     const requested: string[][] = []
     taskkillMock.mockImplementation((...args: unknown[]) => {

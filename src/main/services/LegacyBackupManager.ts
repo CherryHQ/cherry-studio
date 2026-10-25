@@ -1589,7 +1589,12 @@ class BackupManager {
               this.logSkippedSymlink(fullPath, error)
             }
           } else {
-            size += await this.getDirSize(fullPath, copyOptions, activeDirectoryRealPaths)
+            try {
+              size += await this.getDirSize(fullPath, copyOptions, activeDirectoryRealPaths)
+            } catch (error) {
+              // A staging directory renamed away between the walk's stat and the descent.
+              if (!(await this.isVanishedSourceEntry(fullPath, error))) throw error
+            }
           }
         } else if (entry.stats.isFile()) {
           size += entry.stats.size
@@ -1732,7 +1737,9 @@ class BackupManager {
               await copyDir(sourcePath, destPath)
             } catch (error) {
               if (!entry.isSymlink) {
-                throw error
+                if (!(await this.isVanishedSourceEntry(sourcePath, error))) throw error
+                await fs.remove(destPath).catch(() => {})
+                continue
               }
               await fs.remove(destPath).catch(() => {})
               this.logSkippedSymlink(sourcePath, error)
@@ -1750,6 +1757,9 @@ class BackupManager {
                 } catch {
                   throw error
                 }
+                if (await this.isVanishedSourceEntry(sourcePath, error)) {
+                  continue
+                }
                 if (isSkippableLevelDbLockError(sourcePath, error)) {
                   logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
                   continue
@@ -1757,11 +1767,22 @@ class BackupManager {
                 throw error
               }
             } else if (entry.isSymlink) {
-              await fs.copy(sourcePath, destPath, { dereference: true })
+              try {
+                await fs.copy(sourcePath, destPath, { dereference: true })
+              } catch (error) {
+                if (!(await this.isVanishedSourceEntry(sourcePath, error))) throw error
+                await fs.remove(destPath).catch(() => {})
+                continue
+              }
             } else {
               try {
                 await fs.copy(sourcePath, destPath)
               } catch (copyError) {
+                // A staging entry the walk statted can be renamed away before the copy opens it.
+                if (await this.isVanishedSourceEntry(sourcePath, copyError)) {
+                  await fs.remove(destPath).catch(() => {})
+                  continue
+                }
                 // Skip files that are locked by another process (e.g., LevelDB LOCK file
                 // in Local Storage held by the renderer). These files are not needed for
                 // backup integrity and will be recreated on restore if needed.
@@ -1795,6 +1816,17 @@ class BackupManager {
 
     activeDirectoryRealPaths.add(realPath)
     return realPath
+  }
+
+  /**
+   * Whether a read failed because the entry is already gone: a writer stages a file beside its
+   * target and renames it away, which can land between the walk's stat and the copy's open.
+   */
+  private async isVanishedSourceEntry(sourcePath: string, error: unknown): Promise<boolean> {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') return false
+    const gone = !(await fs.pathExists(sourcePath))
+    if (gone) logger.debug('[BackupManager] Skipping entry that vanished during capture', { path: sourcePath })
+    return gone
   }
 
   private async getEffectiveEntryStats(

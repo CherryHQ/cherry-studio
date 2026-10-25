@@ -1,4 +1,6 @@
 import type * as CryptoModule from 'node:crypto'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { Readable, Writable } from 'node:stream'
 import type * as PathModule from 'path'
 
@@ -1977,6 +1979,117 @@ describe('BackupManager.copyDirWithProgress', () => {
       expect.objectContaining({ path: '/src/self-link', realPath: '/src' })
     )
   })
+})
+
+describe('BackupManager captures a task directory whose staging entry vanishes', () => {
+  let backupManager: BackupManager
+
+  /**
+   * The mocked `fs-extra` is replaced by the real module for the duration of a test: the race under
+   * test is a filesystem window, so only a real tree can open it.
+   */
+  const delegateToRealFilesystem = async () => {
+    const real = await vi.importActual<typeof fs>('fs-extra')
+    for (const method of [
+      'lstat',
+      'stat',
+      'realpath',
+      'readdir',
+      'ensureDir',
+      'copy',
+      'remove',
+      'chmod',
+      'pathExists',
+      'createReadStream',
+      'createWriteStream'
+    ] as const) {
+      vi.mocked(fs[method]).mockImplementation(real[method] as never)
+    }
+    return real
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    backupManager = new BackupManager()
+  })
+
+  it('skips a staging file that vanishes between the walk statting it and the copy opening it', async () => {
+    const real = await delegateToRealFilesystem()
+    const root = await real.mkdtemp(path.join(tmpdir(), 'cherry-backup-staging-'))
+    const source = path.join(root, 'Data')
+    const destination = path.join(root, 'capture')
+    const agents = path.join(source, 'Agents')
+    await real.ensureDir(agents)
+    const staging = path.join(agents, 'task.pids.4242.tmp')
+    const stagingTree = path.join(agents, 'task.staging')
+    await real.writeFile(staging, 'in flight')
+    await real.ensureDir(stagingTree)
+    await real.writeFile(path.join(stagingTree, 'blob'), 'in flight')
+    await real.writeFile(path.join(agents, 'task.json'), '{"id":"task"}')
+    // The writer renames its staging entries away after the walk has statted them: the stat
+    // succeeds, the open and the descent the copy then performs do not.
+    vi.mocked(fs.lstat).mockImplementation((async (entryPath: string) => {
+      const stats = await real.lstat(entryPath)
+      if (String(entryPath) === staging) await real.remove(staging)
+      if (String(entryPath) === stagingTree) await real.remove(stagingTree)
+      return stats
+    }) as never)
+
+    await expect(
+      (backupManager as any).copyDirWithProgress(source, destination, () => {}, { dereferenceSymlinks: false })
+    ).resolves.toBeUndefined()
+
+    await expect(real.readFile(path.join(destination, 'Agents', 'task.json'), 'utf8')).resolves.toBe('{"id":"task"}')
+    await expect(real.pathExists(path.join(destination, 'Agents', 'task.pids.4242.tmp'))).resolves.toBe(false)
+    await expect(real.pathExists(path.join(destination, 'Agents', 'task.staging'))).resolves.toBe(false)
+  }, 20_000)
+
+  it('skips the vanished staging file on the streaming copy path as well', async () => {
+    const real = await delegateToRealFilesystem()
+    const root = await real.mkdtemp(path.join(tmpdir(), 'cherry-backup-staging-'))
+    const source = path.join(root, 'Data')
+    const destination = path.join(root, 'capture')
+    const agents = path.join(source, 'Agents')
+    await real.ensureDir(agents)
+    const staging = path.join(agents, 'task.pids.4343.tmp')
+    await real.writeFile(staging, 'in flight')
+    await real.writeFile(path.join(agents, 'task.json'), '{"id":"task"}')
+    vi.mocked(fs.lstat).mockImplementation((async (entryPath: string) => {
+      const stats = await real.lstat(entryPath)
+      if (String(entryPath) === staging) await real.remove(staging)
+      return stats
+    }) as never)
+
+    await expect(
+      (backupManager as any).copyDirWithProgress(source, destination, () => {}, {
+        dereferenceSymlinks: false,
+        signal: new AbortController().signal
+      })
+    ).resolves.toBeUndefined()
+
+    await expect(real.readFile(path.join(destination, 'Agents', 'task.json'), 'utf8')).resolves.toBe('{"id":"task"}')
+    await expect(real.pathExists(path.join(destination, 'Agents', 'task.pids.4343.tmp'))).resolves.toBe(false)
+  }, 20_000)
+
+  it('skips a staging directory that vanishes while the size scan descends into it', async () => {
+    const real = await delegateToRealFilesystem()
+    const root = await real.mkdtemp(path.join(tmpdir(), 'cherry-backup-staging-'))
+    const source = path.join(root, 'Data')
+    const agents = path.join(source, 'Agents')
+    const stagingTree = path.join(agents, 'task.staging')
+    await real.ensureDir(stagingTree)
+    await real.writeFile(path.join(stagingTree, 'blob'), 'in flight')
+    await real.writeFile(path.join(agents, 'task.json'), '{"id":"task"}')
+    vi.mocked(fs.lstat).mockImplementation((async (entryPath: string) => {
+      const stats = await real.lstat(entryPath)
+      if (String(entryPath) === stagingTree) await real.remove(stagingTree)
+      return stats
+    }) as never)
+
+    await expect((backupManager as any).getDirSize(source, { dereferenceSymlinks: false })).resolves.toBe(
+      Buffer.byteLength('{"id":"task"}')
+    )
+  }, 20_000)
 })
 
 describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
