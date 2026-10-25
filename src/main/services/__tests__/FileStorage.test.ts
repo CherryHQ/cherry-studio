@@ -277,6 +277,20 @@ describe('FileStorage', () => {
       expect(result.safeName).toBe('folder1')
     })
   })
+
+  describe('stored file ids', () => {
+    it('rejects an id that escapes the storage directory', async () => {
+      await expect(fileStorage.binaryImage(event, '../../../../etc/passwd')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.base64File(event, '../secrets.txt')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.deleteFile(event, '../database.sqlite')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.deleteDir(event, '')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.deleteDir(event, '.')).rejects.toThrow(/Invalid stored file id/)
+    })
+
+    it('accepts a plain file name', async () => {
+      await expect(fileStorage.deleteFile(event, `${uniqueId()}.png`)).resolves.toBeUndefined()
+    })
+  })
 })
 
 function uniqueId(): string {
