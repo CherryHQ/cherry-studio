@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import { isTrashTargetNotFoundError } from '@shared/ipc/errors/trash'
@@ -169,10 +170,14 @@ class ImportService {
    * data this import created is removed: the created topics are hard-deleted by
    * id first, then the assistant itself — a bulk `deleteTopics: true` would
    * also destroy topics a user moved under the assistant while the import was
-   * still running. Cleanup is best-effort one object at a time: another window
-   * may have deleted an imported topic mid-import, and one skipped object must
-   * not stop the rest. Rollback errors are logged, never mask the original
-   * import failure.
+   * still running.
+   *
+   * Cleanup is best-effort, one object at a time, across both lifecycle states:
+   * another window can delete (archive) an imported object mid-import, which
+   * makes the active-state hard-delete report the target as not found — the
+   * recycle-bin row is then purged through the permanent DataApi delete before
+   * the object counts as gone. A skipped object is logged and never masks the
+   * original import failure.
    */
   private async rollbackCreatedAssistant(
     assistantId: string,
@@ -182,25 +187,55 @@ class ImportService {
     for (const topicId of createdTopicIds) {
       try {
         await ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
-      } catch (error) {
-        logger.warn('Failed to roll back an imported topic', error as Error, {
-          cause: String(cause),
-          topicId
-        })
+      } catch (activeError) {
+        if (!isTrashTargetNotFoundError(activeError)) {
+          logger.warn('Failed to roll back an imported topic', activeError as Error, {
+            cause: String(cause),
+            topicId
+          })
+          continue
+        }
+        await this.purgeTrashedTopic(topicId, cause)
       }
     }
     try {
       await ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: false })
-      logger.info('Rolled back the assistant after a failed import', { assistantId, cause: String(cause) })
-    } catch (error) {
-      if (isTrashTargetNotFoundError(error)) {
-        logger.info('The imported assistant was already gone during rollback', { assistantId })
+    } catch (activeError) {
+      if (!isTrashTargetNotFoundError(activeError)) {
+        logger.error('Failed to roll back the assistant after a failed import', activeError as Error, {
+          assistantId,
+          cause: String(cause)
+        })
         return
       }
-      logger.error('Failed to roll back the assistant after a failed import', error as Error, {
-        assistantId,
-        cause: String(cause)
-      })
+      try {
+        await dataApiService.delete(`/assistants/${assistantId}`, { query: { permanent: true } })
+      } catch (trashedError) {
+        if (!isDataApiNotFoundError(trashedError)) {
+          logger.error('Failed to purge the archived assistant after a failed import', trashedError as Error, {
+            assistantId,
+            cause: String(cause)
+          })
+        }
+      }
+    }
+    logger.info('Rolled back the assistant after a failed import', { assistantId, cause: String(cause) })
+  }
+
+  /**
+   * The topic is not active anymore — it was archived by another window (or is
+   * already gone). Purge the archived row when it still exists.
+   */
+  private async purgeTrashedTopic(topicId: string, cause: unknown): Promise<void> {
+    try {
+      await dataApiService.delete(`/topics/${topicId}`, { query: { permanent: true } })
+    } catch (error) {
+      if (!isDataApiNotFoundError(error)) {
+        logger.warn('Failed to purge an archived imported topic', error as Error, {
+          cause: String(cause),
+          topicId
+        })
+      }
     }
   }
 

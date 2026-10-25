@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn().mockResolvedValue(undefined) }
@@ -309,12 +310,12 @@ describe('importService.importConversations', () => {
       if (++messageSeq > 2) throw new Error('topic deleted elsewhere mid-import')
       return { id: `message_${messageSeq}` }
     })
-    // Another window deleted the first imported topic while the import ran:
-    // the batch-style guard would reject the whole cleanup, so each object is
-    // cleaned up independently and the assistant must still be removed.
+    // Another window removed the first imported topic while the import ran —
+    // its active-state hard-delete reports not-found, so the recycle-bin
+    // fallback purges it, and the remaining objects are still cleaned up.
     vi.mocked(ipcApi.request).mockImplementation(async (route: string, params: any) => {
       if (route === 'trash.topic.delete_permanently' && params.topicIds[0] === 'topic_concurrent_1') {
-        throw new Error('TRASH_TARGET_NOT_FOUND')
+        throw new IpcError('TRASH_TARGET_NOT_FOUND')
       }
       return undefined
     })
@@ -322,8 +323,8 @@ describe('importService.importConversations', () => {
     const response = await importService.importConversations(chatgptExport(), 'chatgpt')
 
     expect(response).toMatchObject({ success: false })
-    expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.topic.delete_permanently', {
-      topicIds: ['topic_concurrent_1']
+    expect(vi.mocked(dataApiService.delete)).toHaveBeenCalledWith('/topics/topic_concurrent_1', {
+      query: { permanent: true }
     })
     expect(vi.mocked(ipcApi.request)).toHaveBeenCalledWith('trash.topic.delete_permanently', {
       topicIds: ['topic_concurrent_2']
@@ -334,26 +335,27 @@ describe('importService.importConversations', () => {
     })
   })
 
-  it('treats an already-deleted assistant as a completed rollback', async () => {
+  it('purges archived leftovers when the user trashed the imported assistant mid-import', async () => {
     const { ipcApi } = await import('@renderer/ipc')
     vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
-      if (path === '/assistants') return { id: 'asst_gone', name: 'ChatGPT Import', emoji: '💬' }
-      if (path === '/topics') return { id: 'topic_gone' }
+      if (path === '/assistants') return { id: 'asst_trashed', name: 'ChatGPT Import', emoji: '💬' }
+      if (path === '/topics') return { id: 'topic_trashed' }
       throw new Error('database unavailable mid-persist')
     })
-    vi.mocked(ipcApi.request).mockImplementation(async (route: string) => {
-      if (route === 'trash.assistant.delete_permanently') {
-        throw Object.assign(new Error('target not found'), { name: 'IpcError', code: 'TRASH_TARGET_NOT_FOUND' })
-      }
-      return undefined
-    })
+    // The user archived the assistant (a plain UI delete) while the import
+    // ran — active-state hard-deletes report not-found, and the recycle-bin
+    // rows must be purged so the failed import leaves nothing behind.
+    vi.mocked(ipcApi.request).mockRejectedValue(new IpcError('TRASH_TARGET_NOT_FOUND'))
 
     const response = await importService.importConversations(chatgptExport(), 'chatgpt')
 
-    // The original import failure is still what the caller sees; the rollback
-    // must not turn an already-deleted assistant into an extra error.
     expect(response).toMatchObject({ success: false, error: 'database unavailable mid-persist' })
-    expect(vi.mocked(dataApiService.post)).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(dataApiService.delete)).toHaveBeenCalledWith('/topics/topic_trashed', {
+      query: { permanent: true }
+    })
+    expect(vi.mocked(dataApiService.delete)).toHaveBeenCalledWith('/assistants/asst_trashed', {
+      query: { permanent: true }
+    })
   })
 
   it('reports the create-assistant failure without attempting a rollback', async () => {
