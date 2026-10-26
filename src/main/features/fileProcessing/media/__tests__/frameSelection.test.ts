@@ -280,6 +280,31 @@ describe('planAnalysisFrameTimestamps', () => {
     ).toEqual([0, 5_000, 11_990, 23_980, 30_000, 35_970, 47_960, 50_000, 59_950])
   })
 
+  it('keeps the opening frame when a cut lands one scan sample after it', () => {
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 6_000,
+        maxFrames: 24,
+        targetIntervalMs: 4_000,
+        sceneChanges: [{ timestampMs: 125, score: 1 }]
+      })
+    ).toEqual([0, 125, 5_950])
+  })
+
+  it.each([
+    { maxFrames: 24, targetIntervalMs: 4_000 },
+    { maxFrames: 8, targetIntervalMs: 10_000 }
+  ])('samples a closing cut at its own timestamp inside the end seek margin (%o)', (budget) => {
+    const timestamps = planAnalysisFrameTimestamps({
+      durationMs: 3_010,
+      ...budget,
+      sceneChanges: [{ timestampMs: 3_000, score: 1 }]
+    })
+
+    expect(timestamps).toContain(3_000)
+    expect(timestamps[0]).toBe(0)
+  })
+
   it('covers a long clip from start to end inside a strict frame budget', () => {
     const durationMs = 30 * 60 * 1000
     const timestamps = planAnalysisFrameTimestamps({
