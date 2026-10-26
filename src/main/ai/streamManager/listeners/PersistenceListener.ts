@@ -61,6 +61,19 @@ export class PersistenceListener implements StreamListener {
     // Message timing is captured by the runtime collector, not inferred from chunks here.
   }
 
+  onCheckpoint(message: CherryUIMessage, modelId: UniqueModelId): void {
+    if (!this.owns(modelId) || !this.opts.backend.checkpoint) return
+    try {
+      this.opts.backend.checkpoint(dropEmptyContentParts(stripTransientStatusParts(message.parts)))
+    } catch (err) {
+      logger.warn('Failed to checkpoint streaming assistant message', {
+        backend: this.opts.backend.kind,
+        topicId: this.opts.topicId,
+        err
+      })
+    }
+  }
+
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming, result)

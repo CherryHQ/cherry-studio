@@ -1474,6 +1474,7 @@
   "error.render.block": "此内容块渲染失败",
   "error.render.description": "消息内容渲染失败，请检查消息内容格式是否正确",
   "error.render.title": "渲染错误",
+  "error.reply_interrupted": "应用关闭导致这条回复中断，请重新生成以获得完整回答。",
   "error.requestBody": "请求内容",
   "error.requestBodyValues": "请求体",
   "error.requestUrl": "请求路径",

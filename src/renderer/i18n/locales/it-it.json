@@ -1474,6 +1474,7 @@
   "error.render.block": "Impossibile visualizzare questo blocco di contenuto",
   "error.render.description": "Impossibile visualizzare il contenuto del messaggio. Verifica che il formato sia corretto",
   "error.render.title": "Errore di visualizzazione",
+  "error.reply_interrupted": "Questa risposta è stata interrotta dalla chiusura dell'app. Rigenerala per ottenere una risposta completa.",
   "error.requestBody": "Corpo della richiesta",
   "error.requestBodyValues": "Valori del corpo della richiesta",
   "error.requestUrl": "URL della richiesta",

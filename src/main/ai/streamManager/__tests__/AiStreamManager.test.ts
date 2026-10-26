@@ -3171,6 +3171,35 @@ describe('AiStreamManager', () => {
   // and `runExecutionLoop` routes it through `onExecutionError` with the
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
+  describe('checkpoints', () => {
+    it('hands listeners the partial reply while it streams and stops once the turn ends', async () => {
+      vi.useRealTimers()
+      mgr = createManager({ checkpointIntervalMs: 10 })
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+      const checkpoints: string[] = []
+      const listener = Object.assign(new FakeListener('l:a'), {
+        onCheckpoint: (message: CherryUIMessage) =>
+          checkpoints.push(message.parts.map((part) => (part.type === 'text' ? part.text : '')).join(''))
+      })
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'text-start', id: 'p1' })
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'so far' })
+      await vi.waitFor(() => expect(checkpoints.at(-1)).toBe('so far'))
+
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: ', more' })
+      controlled.enqueue({ type: 'text-end', id: 'p1' })
+      controlled.enqueue({ type: 'finish' })
+      controlled.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+      const afterDone = checkpoints.length
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      expect(checkpoints).toHaveLength(afterDone)
+    })
+  })
+
   describe('stream errors', () => {
     it.each(['clean', 'provider-error', 'source-error', 'abort'] as const)(
       'retains partial content after an accumulation failure and selects the correct terminal outcome (%s)',

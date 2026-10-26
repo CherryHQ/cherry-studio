@@ -79,7 +79,7 @@ import type {
   AgentSessionUsageCapture
 } from '../runtime/types'
 import {
-  finalizeInterruptedParts,
+  interruptedReplyParts,
   PersistenceListener,
   type StreamErrorResult,
   type StreamListener,
@@ -519,13 +519,14 @@ export class AgentSessionRuntimeService extends BaseService {
         count: stale.length,
         sessionCount: sessionIds.length
       })
-      // Terminalize the interrupted turn's live parts (streaming tools, in-progress subagent
-      // tasks, unanswerable approval requests) so history renders settled, and discard the
-      // affected sessions' resume tokens so prewarm/next turn opens a fresh runtime connection.
+      // Keep the partial reply the last checkpoint saved, terminalize its live parts (streaming
+      // tools, in-progress subagent tasks, unanswerable approval requests) so history renders
+      // settled, and discard the affected sessions' resume tokens so prewarm/next turn opens a
+      // fresh runtime connection.
       agentSessionMessageService.resolveCrashOrphanedMessages(
-        stale.map(({ id, data }) => ({
+        stale.map(({ id, data: { streamCheckpoint, ...data } }) => ({
           id,
-          data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], 'error') }
+          data: { ...data, parts: interruptedReplyParts(streamCheckpoint ?? data.parts ?? []) }
         })),
         sessionIds
       )
