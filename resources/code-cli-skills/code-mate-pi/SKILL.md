@@ -1,6 +1,6 @@
 ---
 name: code-mate-pi
-description: Runs Pi non-interactively and parses its JSON event stream for repository tasks. Use when the user asks to delegate a bounded analysis or implementation task to Pi.
+description: Run Pi non-interactively for repository tasks. Use when the user asks to delegate analysis or implementation to Pi.
 ---
 
 # Pi

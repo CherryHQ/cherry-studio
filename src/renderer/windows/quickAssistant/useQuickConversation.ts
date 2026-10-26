@@ -1,6 +1,7 @@
 import { useChat } from '@ai-sdk/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -8,6 +9,7 @@ import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { autoReadService } from '@renderer/services/voice'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
@@ -101,11 +103,19 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
   })
 
   const { activeExecutions, isPending } = useTopicStreamStatus(chatId)
+  const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
+  // One model per turn and no branches here, so every execution is the answer on screen.
   const {
     liveAssistants,
     reset: resetExecutionMessages,
     clear: clearExecutionMessages
-  } = useExecutionOverlay(chatId, activeExecutions, EMPTY_UI_MESSAGES)
+  } = useExecutionOverlay(chatId, activeExecutions, EMPTY_UI_MESSAGES, {
+    onUpdate: (_executionId, event) =>
+      autoReadService.update({ ...event, enabled: autoReadEnabled, scope: chatId, eligible: true }),
+    onLeave: () => autoReadService.cancelScope(chatId),
+    onFinish: (_executionId, { attemptId, message, isAbort, isError }) =>
+      void autoReadService.consume({ enabled: autoReadEnabled, message, attemptId, isAbort, isError, eligible: true })
+  })
   /** One entry per finished turn, holding every execution that turn produced — a
    *  multi-model send answers one user message with several assistant messages. */
   const [completedRounds, setCompletedRounds] = useState<CherryUIMessage[][]>([])

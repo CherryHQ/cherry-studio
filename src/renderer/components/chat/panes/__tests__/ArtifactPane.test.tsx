@@ -9,7 +9,9 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
-import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import type * as LazyCodeEditorModule from '@renderer/components/LazyCodeEditor'
+import { FileEditSessionContext, useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -21,7 +23,7 @@ import ArtifactPane, {
   getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
-import { ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+import { type ArtifactFileTreeModel, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 /** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
 function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
@@ -80,7 +82,7 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
     editMode === 'edit' && selectedFile
       ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
       : undefined
-  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined)
+  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined, 'artifact')
 
   return (
     <ArtifactPaneView
@@ -103,10 +105,13 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
 
 // A fresh SWR cache per render so file content never bleeds across tests.
 function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
+  const [manager] = useState(() => new FileEditSessionManager())
   return (
-    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
-      <EditablePaneInner workspacePath={workspacePath} />
-    </SWRConfig>
+    <FileEditSessionContext value={manager}>
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <EditablePaneInner workspacePath={workspacePath} />
+      </SWRConfig>
+    </FileEditSessionContext>
   )
 }
 
@@ -146,10 +151,6 @@ function SelectionPaneHarness({
     <ArtifactPaneView {...shared} />
   )
 }
-
-it('watches an allowed missing workspace with a bounded discovery depth', () => {
-  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ maxDepth: 1, watchMissingRoot: true })
-})
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
@@ -193,8 +194,10 @@ const mocks = vi.hoisted(() => ({
   nextTreeId: 0,
   useRealCodeEditor: false,
   codeEditorRef: null as null | {
-    getContent?: () => string
-    insertText?: (text: string) => boolean
+    current: null | {
+      getContent?: () => string
+      insertText?: (text: string) => boolean
+    }
   }
 }))
 
@@ -299,9 +302,34 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCmTheme: () => 'light'
 }))
 
+vi.mock('@renderer/components/LazyCodeEditor', async (importOriginal) => {
+  const actual = await importOriginal<typeof LazyCodeEditorModule>()
+
+  return {
+    LazyCodeEditor: (props: React.ComponentProps<typeof actual.LazyCodeEditor>) => {
+      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>['current']>(null)
+      useEffect(() => {
+        mocks.codeEditorRef = ref
+      })
+
+      if (mocks.useRealCodeEditor) return <actual.LazyCodeEditor {...props} ref={ref} />
+
+      return (
+        <textarea
+          data-testid="code-editor"
+          data-font-size={props.fontSize}
+          data-wrapped={String(props.wrapped)}
+          readOnly={props.editable === false}
+          value={props.value}
+          onChange={(event) => props.onChange?.(event.currentTarget.value)}
+        />
+      )
+    }
+  }
+})
+
 vi.mock('@cherrystudio/ui', async (importActual) => {
-  const actual = await importActual<typeof CherryStudioUi>()
-  const RealCodeEditor = actual.CodeEditor
+  await importActual<typeof CherryStudioUi>()
 
   return {
     Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
@@ -316,25 +344,6 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
       const domProps = { ...props }
       delete domProps.attached
       return <div {...domProps}>{children}</div>
-    },
-    CodeEditor: (props: React.ComponentProps<typeof RealCodeEditor>) => {
-      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>>(null)
-      useEffect(() => {
-        mocks.codeEditorRef = ref.current
-      })
-
-      if (mocks.useRealCodeEditor) return <RealCodeEditor {...props} ref={ref} />
-
-      return (
-        <textarea
-          data-testid="code-editor"
-          data-font-size={props.fontSize}
-          data-wrapped={String(props.wrapped)}
-          readOnly={props.editable === false}
-          value={props.value}
-          onChange={(event) => props.onChange?.(event.currentTarget.value)}
-        />
-      )
     },
     ConfirmDialog: ({
       cancelText,
@@ -702,22 +711,26 @@ vi.mock('@renderer/components/command', () => ({
   }
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
-    // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
-    // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
-    // The `file.tree.*` routes fan out to the per-operation tree mocks the tests drive directly.
-    request: (route: string, input: { rootPath?: string; options?: unknown; treeId?: string; revision?: number }) => {
-      if (route === 'file.get_metadata') return mocks.getMetadata(input)
-      if (route === 'file.tree.create') return mocks.treeCreate(input.rootPath, input.options)
-      if (route === 'file.tree.activate') return mocks.treeActivate(input.treeId, input.revision)
-      if (route === 'file.tree.dispose') return mocks.treeDispose(input.treeId)
-      return mocks.ipcRequest(route, input)
-    },
-    on: (_event: string, callback: unknown) => mocks.treeOnMutation(callback)
+vi.mock('@renderer/ipc', async () => {
+  const { createEditTransport } = await import('../../../../../../tests/helpers/file/editTransport')
+  const edit = createEditTransport((route, input) => mocks.ipcRequest(route, input))
+  return {
+    ipcApi: {
+      // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
+      // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
+      // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
+      // The `file.tree.*` routes fan out to the per-operation tree mocks the tests drive directly.
+      request: (route: string, input: { rootPath?: string; options?: unknown; treeId?: string; revision?: number }) => {
+        if (route === 'file.get_metadata') return mocks.getMetadata(input)
+        if (route === 'file.tree.create') return mocks.treeCreate(input.rootPath, input.options)
+        if (route === 'file.tree.activate') return mocks.treeActivate(input.treeId, input.revision)
+        if (route === 'file.tree.dispose') return mocks.treeDispose(input.treeId)
+        return edit(route, input)
+      },
+      on: (_event: string, callback: unknown) => mocks.treeOnMutation(callback)
+    }
   }
-}))
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -863,8 +876,8 @@ describe('ArtifactPane', () => {
   })
 
   it('drops the quote chip when the same file is refreshed', async () => {
-    // Refreshing remounts the preview plugin, so the held reference describes content that is no
-    // longer on screen and carries a fileStamp from before the refresh.
+    // The host clears its captured reference even when the plugin stays mounted
+    // and does not emit a null callback during refresh.
     mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
     const onInsert = vi.fn()
 
@@ -1085,6 +1098,108 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
   })
 
+  const BS = String.fromCharCode(0x5c)
+
+  function titleModel(): ArtifactFileTreeModel {
+    return {
+      filteredTree: [],
+      effectiveExpandedIds: new Set(),
+      nodeById: new Map(),
+      isLoading: false,
+      hasLoaded: true,
+      refresh: vi.fn(),
+      reloadExpandedDirectories: vi.fn(),
+      setExpandedIds: vi.fn()
+    }
+  }
+
+  function renderPaneTitle(selection: React.ComponentProps<typeof ArtifactPane>['previewFileSelection']) {
+    return render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath={selection?.workspacePath}
+        previewFileSelection={selection}
+        model={titleModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+      />
+    )
+  }
+
+  // The managed copy is entry-1.mp4; the visible name is the attachment the user sent.
+  it('shows an attachment displayName on both title surfaces', async () => {
+    const displayName = `clip${BS}part.mp4`
+    const selection = {
+      workspacePath: '/managed/message-files',
+      filePath: 'entry-1.mp4',
+      displayName,
+      previewType: 'file' as const,
+      readOnly: true as const
+    }
+
+    const overlayRender = render(<ArtifactPane previewFileSelection={selection} />)
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(overlay.querySelector('.truncate')?.textContent).toBe(displayName)
+    overlayRender.unmount()
+
+    renderPaneTitle(selection)
+    expect(screen.getByTestId('artifact-pane-header-title').textContent).toBe(displayName)
+  })
+
+  // Splitting a POSIX filename on `\` shows part.mp4 for the file clip\part.mp4.
+  it('keeps a literal backslash in a POSIX filename when displayName is absent', async () => {
+    const fileName = `clip${BS}part.mp4`
+    const selection = { workspacePath: '/fixtures', filePath: fileName }
+
+    const overlayRender = render(<ArtifactPane previewFileSelection={selection} />)
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(overlay.querySelector('.truncate')?.textContent).toBe(fileName)
+    overlayRender.unmount()
+
+    renderPaneTitle(selection)
+    expect(screen.getByTestId('artifact-pane-header-title').textContent).toBe(fileName)
+  })
+
+  // trim() drops a trailing space that is part of the filename.
+  it('keeps significant filename whitespace on both title surfaces', async () => {
+    const displayName = 'clip.mp4 '
+    const named = {
+      workspacePath: '/managed/message-files',
+      filePath: 'entry-1.mp4',
+      displayName,
+      previewType: 'file' as const,
+      readOnly: true as const
+    }
+    const overlayRender = render(<ArtifactPane previewFileSelection={named} />)
+    expect((await screen.findByTestId('artifact-file-preview-overlay')).querySelector('.truncate')?.textContent).toBe(
+      displayName
+    )
+    overlayRender.unmount()
+
+    const spaced = { workspacePath: '/fixtures', filePath: 'report.md ' }
+    renderPaneTitle(spaced)
+    expect(screen.getByTestId('artifact-pane-header-title').textContent).toBe('report.md ')
+  })
+
+  it('uses the drive, UNC, and nested basename when displayName is absent', async () => {
+    const cases = [
+      { workspacePath: 'C:/work', filePath: 'C:\\work\\notes\\report.md', title: 'report.md' },
+      { workspacePath: '/fixtures', filePath: '\\\\server\\share\\docs\\clip.mp4', title: 'clip.mp4' },
+      { workspacePath: '/tmp/workspace', filePath: 'src/notes.md', title: 'notes.md' }
+    ] as const
+
+    for (const item of cases) {
+      const view = render(<ArtifactPane previewFileSelection={item} />)
+      const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+      expect(overlay.querySelector('.truncate')?.textContent).toBe(item.title)
+      view.unmount()
+    }
+  })
+
   it('loads deeper directory children when folders are expanded', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mocks.listDirectoryEntries
@@ -1230,6 +1345,20 @@ describe('ArtifactPane', () => {
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
+  })
+
+  it('preserves the restricted file policy when delegating an HTML attachment to the preview renderer', async () => {
+    render(
+      <ArtifactPane
+        previewFileSelection={{
+          workspacePath: '/managed',
+          filePath: 'untrusted.html',
+          previewType: 'file',
+          readOnly: true
+        }}
+      />
+    )
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-preview-type', 'file')
   })
 
   it('renders an external preview selection even when no workspace tree is available', async () => {
@@ -1899,25 +2028,25 @@ describe('ArtifactPane', () => {
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
-    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    await waitFor(() => expect(mocks.codeEditorRef?.current).toBeTruthy())
     act(() => {
-      expect(mocks.codeEditorRef?.insertText?.(oversizedDraft)).toBe(true)
+      expect(mocks.codeEditorRef?.current?.insertText?.(oversizedDraft)).toBe(true)
     })
 
     // The debounced autosave persists the large draft; the size cap only blocks
     // loading an already-oversized file into the editor.
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.edit.write', expect.anything()), {
       timeout: 3000
     })
-    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
-    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.edit.write')
+    if (!writeCall) throw new Error('Expected a file.edit.write request')
     expect((writeCall[1] as { data: Uint8Array }).data.byteLength).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
 
     // The active session stays editable even though the saved file is now too
     // large to reopen. Switching to Preview delegates the saved file back to
     // FilePreview while the edit-size metadata refresh is still pending.
     await waitFor(() => expect(mocks.getMetadata.mock.calls.length).toBeGreaterThanOrEqual(3))
-    expect(mocks.codeEditorRef).not.toBeNull()
+    expect(mocks.codeEditorRef?.current).toBeTruthy()
     mocks.fsReadText.mockClear()
     fireEvent.click(within(overlay).getByRole('button', { name: 'common.preview' }))
 
@@ -1963,7 +2092,7 @@ describe('ArtifactPane', () => {
       resolveRetry({ mtime: 2, size: 7 })
     })
     await waitFor(() =>
-      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')).toHaveLength(3)
+      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toHaveLength(3)
     )
   })
 
@@ -2003,27 +2132,26 @@ describe('ArtifactPane', () => {
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
 
-    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    await waitFor(() => expect(mocks.codeEditorRef?.current).toBeTruthy())
     expect(document.querySelector('.code-editor')).toHaveStyle({ fontSize: '14px' })
-    expect(mocks.codeEditorRef?.getContent?.()).toBe('first\nsecond\n')
+    expect(mocks.codeEditorRef?.current?.getContent?.()).toBe('first\nsecond\n')
 
     act(() => {
-      expect(mocks.codeEditorRef?.insertText?.('changed\ncontent\n')).toBe(true)
+      expect(mocks.codeEditorRef?.current?.insertText?.('changed\ncontent\n')).toBe(true)
     })
 
     // Autosave (debounced) writes without a manual save button.
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.edit.write', expect.anything()), {
       timeout: 3000
     })
-    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
-    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.edit.write')
+    if (!writeCall) throw new Error('Expected a file.edit.write request')
     const writeInput = writeCall[1] as {
       data: Uint8Array
-      expectedVersion: { mtime: number; size: number }
+      expected: { version: { mtime: number; size: number } }
       handle: { kind: 'path'; path: string }
     }
-    expect(writeInput.handle).toEqual({ kind: 'path', path: '/tmp/workspace/notes.txt' })
-    expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
+    expect(writeInput.expected.version).toEqual({ mtime: 1, size: source.byteLength })
     const written = writeInput.data
     expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
     const writtenText = new TextDecoder().decode(written.slice(3))
@@ -2066,6 +2194,10 @@ describe('ArtifactPane', () => {
       // First read verifies the stale write really diverged; second serves the reload.
       .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
       .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      // Unused unless a stray keepDraft fires after the reload — it would then
+      // re-save the abandoned draft, and these make that write observable.
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      .mockResolvedValueOnce({ mtime: 3, size: 9 })
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
@@ -2082,6 +2214,108 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('external\n'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // Flush the microtask that would run a stray keepDraft if the guard regressed;
+    // it would consume an extra baseline read even though its save is a no-op.
+    await act(async () => {})
+    const editCalls = mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.read')
+    expect(editCalls).toHaveLength(3)
+    // The abandoned draft must not be written back once the reload settles.
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toHaveLength(1)
+  })
+
+  it('keeps the draft on the new baseline when the conflict dialog is dismissed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      // First read verifies the stale write really diverged; second serves the keep-draft baseline read.
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      // The re-save of the kept draft lands on the external baseline.
+      .mockResolvedValueOnce({ mtime: 2, size: 9 })
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+
+    // Autosave hits the stale-version guard and opens the reload dialog.
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    expect(conflictDialog).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.keep_draft' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // The draft survives and is re-saved on top of the external baseline.
+    expect(screen.getByTestId('code-editor')).toHaveValue('draft\n')
+    await waitFor(() => {
+      const writes = mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')
+      expect(writes).toHaveLength(2)
+      const reSaved = new TextDecoder().decode((writes[1][1] as { data: Uint8Array }).data)
+      expect(reSaved).toContain('draft')
+    })
+  })
+
+  it('reopens the conflict dialog when keeping the draft fails its baseline read', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      // keepDraft's baseline read fails — the session must stay resolvable.
+      .mockRejectedValueOnce(new Error('baseline read failed'))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.keep_draft' }))
+
+    // The keep failed, so the dialog must come back instead of stranding the conflict.
+    const reopened = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    expect(reopened).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    expect(screen.getByTestId('code-editor')).toHaveValue('draft\n')
+  })
+
+  it('reopens the conflict dialog when a reload cannot read the fresh baseline', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      // The reload's baseline read fails — the user's reload choice must not
+      // degrade into keepDraft, and the conflict must stay resolvable.
+      .mockRejectedValueOnce(new Error('reload read failed'))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.reload' }))
+
+    const reopened = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    expect(reopened).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    // The reload choice must not fall back to keeping (and re-saving) the draft.
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toHaveLength(1)
+    // Three reads: initial, divergence check, failed reload. A stray keepDraft
+    // would issue a fourth.
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.read')).toHaveLength(3)
+    expect(screen.getByTestId('code-editor')).toHaveValue('draft\n')
   })
 
   it('clears the preview overlay when the watcher reports the file was removed', async () => {

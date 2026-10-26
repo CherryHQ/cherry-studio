@@ -1,6 +1,8 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { UseExecutionOverlayOptions } from '@renderer/hooks/useExecutionOverlay'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
@@ -41,19 +43,71 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ activeExecutions: [], isPending: streamStatus.isPending })
 }))
 
+const overlay = vi.hoisted(() => ({ options: {} as UseExecutionOverlayOptions }))
+
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    liveAssistants: [],
-    reset: vi.fn(),
-    clear: vi.fn()
-  })
+  useExecutionOverlay: (_topicId: string, _executions: unknown, _messages: unknown, options = {}) => {
+    overlay.options = options
+    return { liveAssistants: [], reset: vi.fn(), clear: vi.fn() }
+  }
 }))
+
+// A real coordinator with fake playback, so the assertion is what gets spoken.
+const voice = vi.hoisted(() => ({ spoken: [] as string[] }))
+
+vi.mock('@renderer/services/voice', async () => {
+  const { AutoReadService } = await import('@renderer/services/voice/AutoReadService')
+  return {
+    autoReadService: new AutoReadService({
+      supportsStreaming: async () => false,
+      playback: {
+        start: async (input: { text: string }) => {
+          voice.spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      } as never
+    })
+  }
+})
 
 describe('finalizeLiveMessages', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     streamStatus.isPending = false
     lease.topicId = 'temp-topic'
+    voice.spoken = []
+    MockUsePreferenceUtils.resetMocks()
+  })
+
+  const finishTurn = (attemptId: number, text: string) =>
+    act(async () => {
+      overlay.options.onFinish?.('provider::model', {
+        attemptId,
+        message: { id: `answer-${attemptId}`, role: 'assistant', parts: [{ type: 'text', text }] },
+        isAbort: false,
+        isError: false
+      } as never)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+  it('reads a finished answer aloud when auto-read is on', async () => {
+    // The legacy quick assistant read replies aloud; the composer rebuild must keep doing so.
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.auto_read.enabled', true)
+    renderHook(() => useQuickConversation({}))
+
+    await finishTurn(1, 'Final answer.')
+
+    expect(voice.spoken).toEqual(['Final answer.'])
+  })
+
+  it('stays silent when auto-read is off', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.auto_read.enabled', false)
+    renderHook(() => useQuickConversation({}))
+
+    await finishTurn(2, 'Final answer.')
+
+    expect(voice.spoken).toEqual([])
   })
 
   it('refuses to send while a save is in flight, and sends again once that save fails', async () => {

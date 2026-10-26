@@ -63,7 +63,19 @@ describe('composer tool visibility', () => {
       } as any
     })
 
-    expect(tools.map((tool) => tool.key)).toEqual(expect.arrayContaining(['generate_image', 'knowledge_base']))
+    expect(tools.map((tool) => tool.key)).toEqual(
+      expect.arrayContaining(['web_search', 'generate_image', 'knowledge_base'])
+    )
+  })
+
+  it('keeps dictation available without mounting assistant tools in an unlinked chat with a default model', () => {
+    const tools = getToolsForScope(TopicType.Chat, {
+      model: { id: 'default-model', providerId: 'provider-1', name: 'Default model' } as any
+    }).map((tool) => tool.key)
+
+    expect(tools).toContain('dictation')
+    expect(tools).not.toContain('web_search')
+    expect(tools).not.toContain('generate_image')
   })
 
   it('inherits chat tools and toolbar manifests in the quick assistant scope', () => {
@@ -72,7 +84,9 @@ describe('composer tool visibility', () => {
       providerId: 'provider-1',
       name: 'Text only'
     } as any
-    const quickAssistantToolKeys = getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)
+    // The quick assistant always runs with an assistant, which web search requires.
+    const assistant = { id: 'assistant-1', settings: {} } as any
+    const quickAssistantToolKeys = getToolsForScope('quick-assistant', { model, assistant }).map((tool) => tool.key)
     const quickAssistantToolbarIds = getComposerToolbarManifestsForScope(
       'quick-assistant',
       ((key: string) => key) as any
@@ -90,5 +104,15 @@ describe('composer tool visibility', () => {
     })
 
     expect(tools.map((tool) => tool.key)).toContain('knowledge_base')
+  })
+
+  it('exposes shared dictation in the Chat, Agent Session, Painting, and quick-assistant composers', () => {
+    const model = { id: 'model', providerId: 'provider', name: 'Model' } as any
+
+    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope('painting', { model }).map((tool) => tool.key)).toContain('dictation')
+    // The quick assistant is a chat composer now; its legacy input had dictation, so it must keep it.
+    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).toContain('dictation')
   })
 })

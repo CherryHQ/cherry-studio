@@ -66,7 +66,7 @@ describe('dashscope (Bailian) endpoint matrix', () => {
 
 describe('deepseek endpoint matrix', () => {
   it('serves the official Responses endpoint through the OpenAI adapter', () => {
-    expect(provider('deepseek').endpointConfigs?.['openai-responses']).toEqual({
+    expect(provider('deepseek').endpointConfigs?.['openai-responses']).toMatchObject({
       adapterFamily: 'openai',
       baseUrl: 'https://api.deepseek.com',
       reasoningFormat: { type: 'openai-responses' }
@@ -95,8 +95,16 @@ describe('deepseek endpoint matrix', () => {
     }
   )
 
+  it.each(['deepseek-v4-flash'])('prefers Responses for %s while keeping Chat Completions selectable', (modelId) => {
+    expect(endpointsOf('deepseek', modelId)).toEqual(['openai-responses', 'openai-chat-completions'])
+  })
+
   it('lists only the current official DeepSeek model IDs', () => {
-    expect(provider('deepseek').overrides?.map(({ modelId }) => modelId)).toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+    expect(provider('deepseek').overrides?.map(({ modelId }) => modelId)).toEqual([
+      'deepseek-flash',
+      'deepseek-v4-flash',
+      'deepseek-v4-pro'
+    ])
   })
 })
 
@@ -202,6 +210,32 @@ describe('new-api single-host endpoints', () => {
    */
   it('declares no per-model overrides', () => {
     expect(provider('new-api').overrides ?? []).toEqual([])
+  })
+})
+
+// Hugging Face documents Chat Completions for general chat and Anthropic Messages for Claude Code.
+// Declaring both lets Agents reach the router directly while keeping Responses selectable (#18676).
+describe('huggingface (router) endpoint matrix', () => {
+  it('preserves the Responses default inherited by existing unpinned models', () => {
+    expect(provider('huggingface').defaultChatEndpoint).toBe('openai-responses')
+  })
+
+  it('configures a base URL for Anthropic Messages so Claude Code Agents can address the router', () => {
+    expect(provider('huggingface').endpointConfigs?.['anthropic-messages']).toEqual({
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://router.huggingface.co/v1/'
+    })
+  })
+
+  it('keeps all three router surfaces on the same host', () => {
+    expect(provider('huggingface').endpointConfigs).toEqual({
+      'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://router.huggingface.co/v1/' },
+      'openai-chat-completions': {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://router.huggingface.co/v1'
+      },
+      'openai-responses': { adapterFamily: 'open-responses', baseUrl: 'https://router.huggingface.co/v1/' }
+    })
   })
 })
 

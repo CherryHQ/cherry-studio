@@ -33,8 +33,9 @@ optional Agent filter is applied before ranking and limiting.
 
 - **`session_create`** creates a new Session for the current Agent and submits its first
   completion request. Use it to isolate a substantial task that should have its own
-  timeline. The new Session inherits the Agent's model and workspace policy; do not try
-  to supply a model. The call returns immediately with the new IDs while the work runs.
+  timeline. The new Session uses the Agent's model; with `target_agent_id` it continues
+  that Agent's own most recent workspace. Do not try to supply a model. The call returns
+  immediately with the new IDs while the work runs.
 - **`session_send`** addresses an existing Session. Use immutable IDs obtained from
   list/search; never guess an ID from a name.
 

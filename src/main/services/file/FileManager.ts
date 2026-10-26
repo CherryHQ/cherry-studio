@@ -119,6 +119,7 @@
  * design. The asymmetry above is the actual contract.
  */
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import type { Readable, Writable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
@@ -130,11 +131,14 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
+import type { FileEditRead } from '@shared/ipc/schemas/fileEdit'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AbsoluteFilePath,
@@ -167,6 +171,7 @@ import {
   batchRemoveFromLibrary as internalBatchRemoveFromLibrary,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
+  deleteInternalTemporaryEntry as internalDeleteInternalTemporaryEntry,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -188,9 +193,11 @@ import {
 } from './internal/orphanSweep'
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
+import { runPathMutationExclusive } from './pathMutationLock'
 import { safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
+import { readEditSnapshot as readEditingSnapshot } from './utils/editSnapshot'
 import { buildPhysicalFileMetadata } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -424,6 +431,15 @@ export class ContentCommittedMetadataPendingError extends Error {
  * otherwise.
  */
 export interface IFileManager {
+  /**
+   * Exclude an automatic internal entry from background cleanup until this reference is disposed.
+   * References are independent, idempotent to dispose, and cleared on stop; explicit deletion still applies.
+   */
+  retainTemporaryEntry(id: FileEntryId): Disposable
+
+  /** Delete a retained automatic internal entry only after its physical content is gone. */
+  deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void>
+
   /** Return active internal entries matching a content hash; consumers choose whether to reuse one. */
   findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]>
 
@@ -542,7 +558,8 @@ export interface IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: ContentHash
+    expectedContentHash?: ContentHash,
+    expectedPath?: AbsoluteFilePath
   ): Promise<FileVersion>
 
   /** Stream write with atomic commit (tmp + rename during `.end()`). Works for both origins. */
@@ -713,6 +730,7 @@ export class FileManager extends BaseService implements IFileManager {
   private readonly _contentWriteLock = new KeyedMutex()
   readonly intakes = new IntakeStore()
   private readonly activeWriteStreams = new Set<AtomicWriteStream>()
+  private readonly temporaryReferences = new Map<FileEntryId, Set<symbol>>()
 
   private readonly deps: FileManagerDeps = {
     fileEntryService,
@@ -762,9 +780,43 @@ export class FileManager extends BaseService implements IFileManager {
     this.registerInterval(() => this.entryCleanupTick(), FileManager.CLEANUP_INTERVAL_MS)
   }
 
+  retainTemporaryEntry(id: FileEntryId): Disposable {
+    const entry = this.deps.fileEntryService.getById(id)
+    if (entry.origin !== 'internal' || entry.cleanupPolicy !== 'delete_when_unreferenced') {
+      throw new Error('Only automatic internal entries support temporary retention')
+    }
+    const references = this.temporaryReferences.get(id) ?? new Set<symbol>()
+    const token = Symbol()
+    references.add(token)
+    this.temporaryReferences.set(id, references)
+    return {
+      dispose: () => {
+        references.delete(token)
+        if (references.size === 0 && this.temporaryReferences.get(id) === references) {
+          this.temporaryReferences.delete(id)
+        }
+      }
+    }
+  }
+
+  async deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void> {
+    if (!this.temporaryReferences.has(id)) throw new Error('Temporary entry must be retained before verified deletion')
+    try {
+      await internalDeleteInternalTemporaryEntry(this.deps, id)
+    } catch (error) {
+      fileManagerLogger.warn('Verified temporary entry deletion failed', {
+        id,
+        operation: 'delete-retained-temporary-entry',
+        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      })
+      throw error
+    }
+    this.notifyReadModelChange([id])
+  }
+
   /** Run one cleanup pass now. Never throws — failures land in the report. */
   async runEntryCleanup(): Promise<EntryCleanupReport> {
-    const report = await internalRunEntryCleanup(this.deps, this.intakes)
+    const report = await internalRunEntryCleanup(this.deps, this.intakes, this.temporaryReferences)
     if (report.outcome === 'completed') {
       this.lastCleanupCompletedAt = Date.now()
     }
@@ -857,6 +909,7 @@ export class FileManager extends BaseService implements IFileManager {
       })
     )
     this.activeWriteStreams.clear()
+    this.temporaryReferences.clear()
   }
 
   /**
@@ -1050,6 +1103,16 @@ export class FileManager extends BaseService implements IFileManager {
     return internalRead(this.deps, id, options as { encoding?: 'text' })
   }
 
+  async readEditSnapshot(id: FileEntryId, expectedPath: AbsoluteFilePath): Promise<FileEditRead> {
+    return this.deps.contentWriteLock.runExclusive(id, () =>
+      runPathMutationExclusive(async () => {
+        const path = AbsoluteFilePathSchema.parse(await realpath(this.getPhysicalPath(id)))
+        if (path !== expectedPath) throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
+        return readEditingSnapshot(path)
+      })
+    )
+  }
+
   async readChunk(id: FileEntryId, offset: number, length: number): Promise<ReadResult<Uint8Array>> {
     return internalReadChunk(this.deps, id, offset, length)
   }
@@ -1172,9 +1235,10 @@ export class FileManager extends BaseService implements IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: ContentHash
+    expectedContentHash?: ContentHash,
+    expectedPath?: AbsoluteFilePath
   ): Promise<FileVersion> {
-    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
+    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash, expectedPath)
   }
 
   async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {

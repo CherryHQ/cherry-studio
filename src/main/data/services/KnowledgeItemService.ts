@@ -23,6 +23,7 @@ import {
 } from '@shared/data/types/knowledge'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
+import { keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
@@ -54,8 +55,40 @@ type KnowledgeItemListCursor = {
   id: string
 }
 
+type SortedKnowledgeItemCursor = {
+  sortBy: NonNullable<ListKnowledgeItemsQuery['sortBy']>
+  sortOrder: 'asc' | 'desc'
+  key: string | number
+  id: string
+}
+
+function decodeSortedKnowledgeItemCursor(
+  raw: string | undefined,
+  sortBy: SortedKnowledgeItemCursor['sortBy'],
+  sortOrder: SortedKnowledgeItemCursor['sortOrder']
+): SortedKnowledgeItemCursor | null {
+  if (!raw) return null
+  try {
+    const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as SortedKnowledgeItemCursor
+    if (
+      value.sortBy !== sortBy ||
+      value.sortOrder !== sortOrder ||
+      !value.id ||
+      typeof value.id !== 'string' ||
+      (sortBy === 'name' ? typeof value.key !== 'string' : typeof value.key !== 'number' || !Number.isFinite(value.key))
+    ) {
+      throw new Error('Invalid knowledge item sort cursor')
+    }
+    return value
+  } catch {
+    logger.warn('Knowledge item sort cursor is unparseable; falling back to the first page', { cursor: raw })
+    return null
+  }
+}
+
 type KnowledgeItemsByBaseOptions = {
   groupId?: string | null
+  includeDeleting?: boolean
 }
 
 type GetSubtreeItemsOptions = {
@@ -84,7 +117,7 @@ function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
   })
 }
 
-function encodeKnowledgeItemListCursor(cursor: KnowledgeItemListCursor): string {
+function encodeKnowledgeItemListCursor(cursor: KnowledgeItemListCursor | SortedKnowledgeItemCursor): string {
   return Buffer.from(JSON.stringify(cursor)).toString('base64url')
 }
 
@@ -115,7 +148,8 @@ export class KnowledgeItemService {
 
   list(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemListResponse {
     knowledgeBaseService.getById(baseId)
-    const { limit, type, groupId } = query
+    const { limit, type, groupId, sortBy } = query
+    const sortOrder = query.sortOrder ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')
 
     const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
 
@@ -133,7 +167,18 @@ export class KnowledgeItemService {
     // pagination cannot surface a later-page directory after an earlier-page file.
     const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
     const conditions = [...filterConditions]
-    const cursor = decodeKnowledgeItemListCursor(query.cursor)
+    const sortColumn =
+      sortBy === 'name'
+        ? sql<string>`knowledge_item_name(${knowledgeItemTable.type}, ${knowledgeItemTable.data})`
+        : sortBy === 'type'
+          ? sql<number>`case ${knowledgeItemTable.type} when 'directory' then 0 when 'file' then 1 when 'note' then 2 else 3 end`
+          : sortBy === 'status'
+            ? sql<number>`case ${knowledgeItemTable.status} when 'idle' then 0 when 'preparing' then 1 when 'processing' then 2 when 'reading' then 3 when 'embedding' then 4 when 'completed' then 5 else 6 end`
+            : knowledgeItemTable.updatedAt
+    const ordering = keysetOrdering(sortColumn, knowledgeItemTable.id, { major: sortOrder, tie: 'asc' })
+    const sortedCursor = sortBy ? decodeSortedKnowledgeItemCursor(query.cursor, sortBy, sortOrder) : null
+    if (sortedCursor) conditions.push(ordering.where(sortedCursor))
+    const cursor = sortBy ? null : decodeKnowledgeItemListCursor(query.cursor)
     if (cursor) {
       conditions.push(
         or(
@@ -149,10 +194,14 @@ export class KnowledgeItemService {
     }
 
     const rows = this.db
-      .select()
+      .select({ item: knowledgeItemTable, sortValue: sortColumn })
       .from(knowledgeItemTable)
       .where(and(...conditions))
-      .orderBy(asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
+      .orderBy(
+        ...(sortBy
+          ? ordering.orderBy
+          : [asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id)])
+      )
       .limit(limit + 1)
       .all()
     const [{ count }] = this.db
@@ -164,15 +213,22 @@ export class KnowledgeItemService {
     const pageRows = rows.slice(0, limit)
 
     return {
-      items: pageRows.map((row) => rowToKnowledgeItem(row)),
+      items: pageRows.map((row) => rowToKnowledgeItem(row.item)),
       total: count,
       nextCursor:
         rows.length > limit
-          ? encodeKnowledgeItemListCursor({
-              directoryRank: pageRows[pageRows.length - 1].type === 'directory' ? 0 : 1,
-              createdAt: pageRows[pageRows.length - 1].createdAt,
-              id: pageRows[pageRows.length - 1].id
-            })
+          ? sortBy
+            ? encodeKnowledgeItemListCursor({
+                sortBy,
+                sortOrder,
+                key: pageRows[pageRows.length - 1].sortValue,
+                id: pageRows[pageRows.length - 1].item.id
+              })
+            : encodeKnowledgeItemListCursor({
+                directoryRank: pageRows[pageRows.length - 1].item.type === 'directory' ? 0 : 1,
+                createdAt: pageRows[pageRows.length - 1].item.createdAt,
+                id: pageRows[pageRows.length - 1].item.id
+              })
           : undefined
     }
   }
@@ -180,7 +236,10 @@ export class KnowledgeItemService {
   getItemsByBaseId(baseId: string, options: KnowledgeItemsByBaseOptions = {}): KnowledgeItem[] {
     knowledgeBaseService.getById(baseId)
 
-    const conditions = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+    const conditions = [eq(knowledgeItemTable.baseId, baseId)]
+    if (!options.includeDeleting) {
+      conditions.push(ne(knowledgeItemTable.status, 'deleting'))
+    }
 
     if (options.groupId !== undefined) {
       conditions.push(
@@ -289,9 +348,15 @@ export class KnowledgeItemService {
     return updatedRows.length
   }
 
-  /** Create an item already in its active status (`preparing` for a directory container, `processing` for a leaf) and reconcile its parent container so an add into an already-completed directory pulls it back into an active status. */
-  createActive(baseId: string, item: CreateKnowledgeItemDto): KnowledgeItem {
-    const status: KnowledgeItemStatus = item.type === 'directory' ? 'preparing' : 'processing'
+  /**
+   * Create an item already in its active status (`preparing` for a directory container or a file
+   * whose bytes are still to be copied in, `processing` for any other leaf) and reconcile its parent
+   * container so an add into an already-completed directory pulls it back into an active status.
+   *
+   * @param options.awaitingCopy - The item's `raw/` bytes land later (`knowledge.copy-sources`).
+   */
+  createActive(baseId: string, item: CreateKnowledgeItemDto, options: { awaitingCopy?: boolean } = {}): KnowledgeItem {
+    const status: KnowledgeItemStatus = item.type === 'directory' || options.awaitingCopy ? 'preparing' : 'processing'
     const dbService = application.get('DbService')
     const row = dbService.withWriteTx((tx) => {
       this.validateGroupOwnerTx(tx, baseId, item.groupId)
@@ -414,6 +479,39 @@ export class KnowledgeItemService {
       return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
     }
     return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
+  }
+
+  /**
+   * Move every `completed` leaf of a base back to `processing` on the caller's transaction and roll
+   * their containers up, so the leaves read as unfinished until each is indexed again.
+   *
+   * @returns The activated leaf ids, oldest first.
+   */
+  activateCompletedLeavesTx(tx: DbOrTx, baseId: string): string[] {
+    const rows = tx
+      .update(knowledgeItemTable)
+      .set({ status: 'processing' })
+      .where(
+        and(
+          eq(knowledgeItemTable.baseId, baseId),
+          ne(knowledgeItemTable.type, 'directory'),
+          eq(knowledgeItemTable.status, 'completed')
+        )
+      )
+      .returning({
+        id: knowledgeItemTable.id,
+        groupId: knowledgeItemTable.groupId,
+        createdAt: knowledgeItemTable.createdAt
+      })
+      .all()
+    this.reconcileContainersTx(
+      tx,
+      baseId,
+      rows.map((row) => row.groupId)
+    )
+    return rows
+      .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
+      .map((row) => row.id)
   }
 
   setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting'): string[] {

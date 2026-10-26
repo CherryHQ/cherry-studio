@@ -10,6 +10,7 @@ import { type CherryCloudEventSchemas, cherryCloudRequestSchemas } from './cherr
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
+import { computerUseRequestSchemas } from './computerUse'
 import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { doctorRequestSchemas } from './doctor'
@@ -42,8 +43,9 @@ import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { toolResultRequestSchemas } from './toolResult'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
 import { trashRequestSchemas } from './trash'
+import { type VoiceEventSchemas, voiceRequestSchemas } from './voice'
 import { webSearchRequestSchemas } from './webSearch'
-import { webviewRequestSchemas } from './webview'
+import { type WebviewEventSchemas, webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
@@ -55,6 +57,7 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  */
 export const ipcRequestSchemas = {
   ...aiRequestSchemas,
+  ...voiceRequestSchemas,
   ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
   ...backupRequestSchemas,
@@ -65,6 +68,7 @@ export const ipcRequestSchemas = {
   ...cherryCloudRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
+  ...computerUseRequestSchemas,
   ...deepSeekHarnessRequestSchemas,
   ...diagnosticsRequestSchemas,
   ...doctorRequestSchemas,
@@ -131,6 +135,8 @@ export type IpcEventSchemas = AiEventSchemas &
   SystemEventSchemas &
   TabEventSchemas &
   TranslateEventSchemas &
+  VoiceEventSchemas &
+  WebviewEventSchemas &
   WindowEventSchemas
 /** Union of all declared event names. */
 export type IpcEventName = keyof IpcEventSchemas

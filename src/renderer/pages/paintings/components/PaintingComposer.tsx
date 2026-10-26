@@ -21,6 +21,7 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS,
   ComposerToolbarControls
 } from '@renderer/components/composer/variants/shared/ComposerControlScaffolding'
+import { ComposerDictationButton } from '@renderer/components/composer/variants/shared/ComposerDictationButton'
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
@@ -38,6 +39,7 @@ import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
 import type { PaintingData } from '../model/types/paintingData'
+import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { PaintingImageAddButton, PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
@@ -159,7 +161,9 @@ const PaintingParamsButton: FC<{
   )
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
-  if (configItems.length === 0) return null
+  // A model without registry fields can still have the timeout control; hiding the entry
+  // point would make that setting unreachable.
+  if (configItems.length === 0 && !supportsImageRequestTimeout(painting.providerId)) return null
 
   return (
     <Popover>
@@ -274,8 +278,9 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
-      {model && <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />}
+      <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />
       <ComposerSurface
+        voiceTarget={{ targetId: `composer:painting:${painting.id}`, sourceEntityId: painting.id }}
         text={text}
         onTextChange={handleTextChange}
         tokens={tokens}
@@ -304,6 +309,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        sendAccessory={(inputAdapter) => <ComposerDictationButton inputAdapter={inputAdapter} />}
         renderLeftControls={(inputAdapter, unifiedPanelControl) => (
           <ComposerToolbarControls
             inputAdapter={inputAdapter}

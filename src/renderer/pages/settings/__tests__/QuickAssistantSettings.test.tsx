@@ -4,14 +4,18 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
+
 import QuickAssistantSettings from '../QuickAssistantSettings'
 
 const requestMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
   const React = await import('react')
 
   return {
+    ...actual,
     Divider: () => React.createElement('hr'),
     InfoTooltip: ({ content }: { content: string }) =>
       React.createElement('button', { 'aria-label': content, type: 'button' }),

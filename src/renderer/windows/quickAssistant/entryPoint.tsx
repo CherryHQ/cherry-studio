@@ -16,7 +16,10 @@ await prepareWindow({
     'chat.default_model_id',
     'chat.input.send_message_shortcut',
     'chat.input.newline_shortcut',
-    'quick_assistant.input.toolbar.pinned_tools'
+    'quick_assistant.input.toolbar.pinned_tools',
+    'feature.voice.dictation.hold_shortcut',
+    'feature.voice.dictation.mouse_hold_enabled',
+    'feature.voice.dictation.toggle_shortcut'
   ]
 })
 

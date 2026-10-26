@@ -1,10 +1,13 @@
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
+import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 
@@ -16,6 +19,7 @@ import QuickAssistantView from './QuickAssistantView'
 // hosts are explicit siblings in the App JSX below.
 function QuickAssistantRuntime(): null {
   useLanguageSync()
+  useAutoReadPreferenceSync()
   useCustomCss()
 
   return null
@@ -50,6 +54,8 @@ function QuickAssistantApp(): React.ReactElement {
           </ErrorBoundary>
           <PopupHost />
           <ToastHost />
+          <DictationShortcutHost />
+          <VoicePlaybackHost />
         </CodeStyleProvider>
       </ThemeProvider>
     </ErrorBoundary>
