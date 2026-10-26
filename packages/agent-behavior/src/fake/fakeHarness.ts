@@ -140,10 +140,10 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
           )
       },
       helpers: {
-        message: (child, input, key) =>
+        message: (child, input, key, reservedRun) =>
           enter(scope, async () => {
             const target = thread(child)
-            const accepted = message(host, target, input, key, scope.signal?.aborted === true)
+            const accepted = message(host, target, input, key, scope.signal?.aborted === true, reservedRun)
             if (accepted.status !== 'queued') return accepted
             // Wait for actual consumption or cancellation, including across normal completion.
             const submission = target.submissions.get(key)!

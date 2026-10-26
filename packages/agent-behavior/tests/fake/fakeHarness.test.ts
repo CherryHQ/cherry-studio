@@ -10,9 +10,12 @@ import {
   holds,
   key,
   latch,
+  markersWith,
+  message,
   noticeTexts,
   read,
   reply,
+  spawnBackground,
   status,
   step,
   toolBase,
@@ -175,6 +178,22 @@ describe('fake harness', () => {
         )
       )
     ).rejects.toThrow()
+  })
+
+  // Catches a reserved number becoming an admission condition or reusing an earlier run identity.
+  it('continues beyond an obsolete reservation without reusing its run number', async () => {
+    const fake = createFakeHarness()
+    const t = await fake.createThread()
+    const child = await spawnBackground(fake, t, 'skip')
+    fake.script(child, [reply('two'), reply('three')])
+    await fake.withCall(t, (p) => p.helpers.message(child, message('two'), key('skip-2'), 2))
+    await fake.settle()
+    await expect(fake.withCall(t, (p) => p.helpers.message(child, message('one'), key('skip-1'), 1))).resolves.toEqual({
+      run: 3,
+      status: 'started'
+    })
+    await fake.settle()
+    expect(markersWith(await read(fake, child), key('skip-1'))).toHaveLength(1)
   })
 
   // Catches real time leaking into fixtures, which would make Stage B's replay comparisons flaky.

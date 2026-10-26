@@ -58,7 +58,7 @@ are named as a verb and an object and carry no harness noun (hook, commit, sessi
 | --- | --------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | H1  | `Ledger`        | `read`, `transact`, `modelContext` | Read a conversation's facts, decide, and commit the writes the decision asks for, together.               |
 | H2  | `Turns`         | `start`, `retract`, `stop`         | Give the agent a turn under a request key, take back one that has not started, stop the current one or only the one a stop names. |
-| H3  | `Helpers`       | `message`, `awaitAnswer`, `stop`   | Message a child, wait for the answer of one of its runs, stop that run if it is still the child's active run; a first input the owning tool call sends after it aborted starts nothing. |
+| H3  | `Helpers`       | `message`, `awaitAnswer`, `stop`   | Message a child, starting a run under the number the package recorded for it (the run's only identity), wait for the answer of one of its runs, stop that run if it is still the child's active run; a first input the owning tool call sends after it aborted starts nothing. |
 | H4  | `Jobs`          | `register`                         | Finish what a call started after it returns, across restarts.                                             |
 | H5  | `Waits`         | `untilIdle`, `untilDone`           | Wait until a conversation has no run, or until an input submitted under a key has run to its end; waiting keeps no state. |
 | H6  | `Memory`        | `remember`                         | Remember an answer from a person or a model so a restart never asks again.                                |
@@ -297,7 +297,10 @@ first run is recorded as stopped by the user.
 `message_subagent` refuses the same way to continue a finished child, and refuses a steer only once the signal aborted.
 
 A finished child continues on the same native Thread and id: `message_subagent` increments its run number,
-starts the next run in the background and reports that run's result once. The completed foreground run's cancellation
+starts the next run in the background and reports that run's result once. The number the package records is the
+run's only identity, and the harness starts the run under it: a recorded run that ended before any input reached it
+(a stop before its first input, or a reopen) keeps its number, which no later run reuses, and the next run starts
+past it. The completed foreground run's cancellation
 ownership ends with it; stopping its parent cannot stop the later background run. `parentToolCallId` records origin
 only, so neither messaging nor stopping redirects to another child with the same tool origin. Explicit `fork` remains
 a separate operation that creates a new child. The shared contract tests continuation history and run identity,
@@ -454,6 +457,10 @@ Beyond `ContractHarness` it offers:
 A compaction keeps the summary `onCompacting` accepted with its entry, across restarts and into forks, and the model
 context (`ledger.modelContext`, each model request, the next `CompactionRequest.messages`) then starts with that
 summary, followed by the entries after it.
+
+A message may reserve a minimum number for a new run, keeping a recorded but never-started run from shifting later
+usage and stops. Skipped numbers count zero usage in `ChildFacts.runUsage`. The reservation never restricts a steer
+to that run: normal completion still carries unconsumed input forward, and `message` returns the actual run.
 
 `restart()` loses what a Durable restart loses (handlers, run loops, running jobs, waiters) and keeps what it keeps
 (entries, submissions, memo, the job table, the final arguments of tool calls). The lost run loops' abort signals fire,

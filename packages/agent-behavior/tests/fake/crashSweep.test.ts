@@ -21,7 +21,7 @@ const reportJob: JobHandler = async (ports, job) => {
   }))
   const child = runRecordOf(await ports.ledger.read(parent), SPAWN)!.sessionId
   const messageKey = keys.subagentMessage(child, 1)
-  const { run } = await ports.helpers.message(child, message('do it'), messageKey)
+  const { run } = await ports.helpers.message(child, message('do it'), messageKey, 1)
   const answer = await ports.helpers.awaitAnswer(child, run, messageKey)
   const length = await ports.memory.remember(keys.verdictMemo(CALL), async () => answer.text.length)
   const end = keys.subagentEnd(child, run)

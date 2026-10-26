@@ -214,7 +214,11 @@ export type HistoryEntry =
 export interface ChildFacts {
   /** Durable: the child's `pi.live.run` exists. */
   readonly running: boolean
-  /** Index `i` is run `i + 1`: the sum of the usage on the child's own entries of that run. */
+  /**
+   * Index `i` is run `i + 1`: the sum of the usage on the child's own entries of that run. A run number the child
+   * skipped (H3: a recorded run that ended before any input reached it) has a zero entry, so the length is the highest
+   * run started and `length >= n` means run `n` or a later one began.
+   */
   readonly runUsage: readonly UsageFact[]
   /** The child's last history entry, usable as an explicit fork point. */
   readonly lastItem: ItemId

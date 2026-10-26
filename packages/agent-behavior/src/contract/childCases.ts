@@ -80,8 +80,8 @@ export const childCases: readonly ContractCase[] = [
           Object.assign(children, { fg, bg })
           h.script(fg, [callTool('hold', { id: 'c11-fg' }), reply('fg done')])
           h.script(bg, [callTool('hold', { id: 'c11-bg' }), reply('bg done')])
-          await ports.helpers.message(fg, message('fg'), key('c11-fg-msg'))
-          await ports.helpers.message(bg, message('bg'), key('c11-bg-msg'))
+          await ports.helpers.message(fg, message('fg'), key('c11-fg-msg'), 1)
+          await ports.helpers.message(bg, message('bg'), key('c11-bg-msg'), 1)
           const answer = await ports.helpers.awaitAnswer(fg, 1, key('c11-fg-msg'))
           return { text: answer.text, isError: false }
         }
@@ -176,7 +176,7 @@ export const childCases: readonly ContractCase[] = [
               callTool('hold', { id: 'continued-child' }),
               reply('second answer')
             ])
-            await ports.helpers.message(child, message('first task'), key('fg-first'))
+            await ports.helpers.message(child, message('first task'), key('fg-first'), 1)
             return { text: (await ports.helpers.awaitAnswer(child, 1, key('fg-first'))).text, isError: false }
           }
         })
@@ -186,7 +186,7 @@ export const childCases: readonly ContractCase[] = [
       await h.sendUser(parent, 'go')
       await hold.started('parent')
       const original = (await read(h, child)).history.map((entry) => entry.id)
-      const send = () => h.withCall(parent, (p) => p.helpers.message(child, message('more'), key('fg-second')))
+      const send = () => h.withCall(parent, (p) => p.helpers.message(child, message('more'), key('fg-second'), 2))
       same(await send(), { run: 2, status: 'started' }, 'continuation must start the next run on the same child')
       await hold.started('continued-child')
       await h.withCall(parent, (p) => p.turns.stop(parent, 'user'))
@@ -225,7 +225,7 @@ export const childCases: readonly ContractCase[] = [
       const t = await h.createThread()
       const child = await spawnBackground(h, t, 'c12')
       h.script(child, [callTool('hold', { id: 'c12' }), reply('answer')])
-      const send = (label: string) => h.withCall(t, (p) => p.helpers.message(child, message(label), key(label)))
+      const send = (label: string) => h.withCall(t, (p) => p.helpers.message(child, message(label), key(label), 1))
       same(await send('c12-first'), { run: 1, status: 'started' }, 'an idle child must start a run')
       same(await send('c12-first'), { run: 1, status: 'started' }, 'the same key must return the original admission')
       await hold.started('c12')
@@ -292,7 +292,7 @@ export const childCases: readonly ContractCase[] = [
       await hold.started('c36')
       const steer = send('c36-steer')
       await h.withCall(t, (p) => p.helpers.stop(child, 1))
-      same(await send('c36-again'), { run: 2, status: 'started' }, 'a message after the run ended must start run 2')
+      same(await send('c36-again', 2), { run: 2, status: 'started' }, 'a message after the run ended must start run 2')
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 2, key('c36-again')))
       // Awaited only now, so a harness that carries the steer into run 2 answers it there and fails here.
       same(await steer, { run: 1, status: 'withdrawn' }, 'an explicit stop must withdraw unconsumed input')
@@ -327,7 +327,7 @@ export const childCases: readonly ContractCase[] = [
       const child = await spawnBackground(h, t, 'c35')
       sent.child = child
       h.script(child, [callTool('hold', { id: 'c35' }), reply('child done')])
-      await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c35-msg')))
+      await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c35-msg'), 1))
       await hold.started('c35')
       h.script(t, [callTool('steerer', {}), reply('never')])
       await h.sendUser(t, 'go')
@@ -351,7 +351,7 @@ export const childCases: readonly ContractCase[] = [
       const t = await h.createThread()
       const child = await spawnBackground(h, t, 'c13')
       h.script(child, [callTool('hold', { id: 'c13' }), reply('never')])
-      const { run } = await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c13-msg')))
+      const { run } = await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c13-msg'), 1))
       await hold.started('c13')
       await h.withCall(t, (p) => p.helpers.stop(child, run + 1))
       check((await read(h, t)).children.get(child)?.running === true, 'stop with a stale run must do nothing')
@@ -376,11 +376,12 @@ export const childCases: readonly ContractCase[] = [
       const child = await spawnBackground(h, t, 'c26')
       const [first, held, second] = [usage(10, 5, 0.25), usage(20, 7, 0.5), usage(3, 2, 0.125)]
       h.script(child, [reply('one', first), callTool('hold', { id: 'c26' }, held), reply('two', second)])
-      const send = (label: string) => h.withCall(t, (p) => p.helpers.message(child, message(label), key(label)))
+      const send = (label: string, run: number) =>
+        h.withCall(t, (p) => p.helpers.message(child, message(label), key(label), run))
       const answer = (run: number, label: string) => h.withCall(t, (p) => p.helpers.awaitAnswer(child, run, key(label)))
-      same(await send('c26-1'), { run: 1, status: 'started' }, 'an idle child must start run 1')
+      same(await send('c26-1', 1), { run: 1, status: 'started' }, 'an idle child must start run 1')
       same(await answer(1, 'c26-1'), { outcome: 'completed', text: 'one' }, 'run 1 must answer the first message')
-      same(await send('c26-2'), { run: 2, status: 'started' }, 'a message after run 1 ended must start run 2')
+      same(await send('c26-2', 2), { run: 2, status: 'started' }, 'a message after run 1 ended must start run 2')
       await hold.started('c26')
       await h.withCall(t, (p) => p.helpers.stop(child, 1))
       check((await read(h, t)).children.get(child)?.running === true, 'stopping an ended run must not stop run 2')
@@ -411,19 +412,81 @@ export const childCases: readonly ContractCase[] = [
         callTool('hold', { id: 'c32-2' }, usage(20, 7, 0.5)),
         reply('two', usage(3, 2, 0.125))
       ])
-      const send = (label: string) => h.withCall(t, (p) => p.helpers.message(child, message(label), key(label)))
-      same(await send('c32-1'), { run: 1, status: 'started' }, 'an idle child must start run 1')
+      const send = (label: string, run: number) =>
+        h.withCall(t, (p) => p.helpers.message(child, message(label), key(label), run))
+      same(await send('c32-1', 1), { run: 1, status: 'started' }, 'an idle child must start run 1')
       await hold.started('c32-1')
       check((await runs()) === 1, 'an active run must have its run usage entry')
       await h.withCall(t, (p) => p.helpers.stop(child, 1))
       const end = await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c32-1')))
       check(end.outcome === 'aborted' && (await runs()) === 1, 'an aborted run must keep its run usage entry')
-      same(await send('c32-2'), { run: 2, status: 'started' }, 'a message after run 1 ended must start run 2')
+      same(await send('c32-2', 2), { run: 2, status: 'started' }, 'a message after run 1 ended must start run 2')
       await hold.started('c32-2')
       check((await runs()) === 2, 'the next active run must add exactly one run usage entry')
       hold.release('c32-2')
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 2, key('c32-2')))
       check((await runs()) === 2, 'two runs started must leave exactly two run usage entries')
+    }
+  },
+  // Catches a harness that numbers a child's runs by its own count (H3): once a recorded run never started, the next
+  // run gets a number the package does not know, so a stop of the recorded run misses the executing child.
+  {
+    name: 'stopping a background child before its first input, then continuing it, keeps run identities aligned',
+    covers: ['ledger.read', 'helpers.message', 'helpers.stop', 'helpers.awaitAnswer'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      const child = await spawnBackground(h, t, 'c40')
+      // The package ends run 1 before its first input: its stop does nothing, and its input is never sent.
+      await h.withCall(t, (p) => p.helpers.stop(child, 1))
+      const own = usage(10, 5, 0.25)
+      h.script(child, [callTool('hold', { id: 'c40' }, own), reply('never')])
+      same(
+        await h.withCall(t, (p) => p.helpers.message(child, message('go on'), key('c40-2'), 2)),
+        { run: 2, status: 'started' },
+        'a first input must start the run under the number it names'
+      )
+      await hold.started('c40')
+      same(
+        (await read(h, t)).children.get(child)?.runUsage,
+        [usage(0, 0, 0), own],
+        'run usage must hold a zero entry for the skipped run 1 and the usage of run 2 after it'
+      )
+      await h.withCall(t, (p) => p.helpers.stop(child, 1))
+      check((await read(h, t)).children.get(child)?.running === true, 'stopping the skipped run 1 must do nothing')
+      await h.withCall(t, (p) => p.helpers.stop(child, 2))
+      const end = await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 2, key('c40-2')))
+      check(end.outcome === 'aborted', 'stopping run 2 must abort the executing run')
+      hold.release('c40')
+      await h.settle()
+      check(!assistantTexts(await read(h, child)).includes('never'), 'the stopped run must not go on')
+    }
+  },
+  // Catches skipped run numbers left out of run usage, or a later run's usage written in their place (H3, R3): usage
+  // would be billed to the wrong run, and `runStarted` would misjudge which recorded runs began.
+  {
+    name: 'run usage gives each run number a child skipped a zero entry',
+    covers: ['ledger.read', 'helpers.message', 'helpers.awaitAnswer'],
+    needs: [],
+    async run(open) {
+      const h = await open(() => {})
+      const t = await h.createThread()
+      const child = await spawnBackground(h, t, 'c41')
+      const [first, fourth] = [usage(10, 5, 0.25), usage(3, 2, 0.125)]
+      h.script(child, [reply('one', first), reply('four', fourth)])
+      const send = (run: number) =>
+        h.withCall(t, (p) => p.helpers.message(child, message(`run ${run}`), key(`c41-${run}`), run))
+      same(await send(1), { run: 1, status: 'started' }, 'an idle child must start run 1')
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c41-1')))
+      same(await send(4), { run: 4, status: 'started' }, 'a first input naming run 4 must start run 4')
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 4, key('c41-4')))
+      same(
+        (await read(h, t)).children.get(child)?.runUsage,
+        [first, usage(0, 0, 0), usage(0, 0, 0), fourth],
+        'each skipped run number must have a zero entry, and run 4 its own usage'
+      )
     }
   },
   // Catches a fork that counts the inherited history as runs of its own, which charges the parent's usage to the child
@@ -468,7 +531,7 @@ export const childCases: readonly ContractCase[] = [
       const own = usage(3, 2, 0.125)
       h.script(child, [reply('child answer', own)])
       same(
-        await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c33-msg'))),
+        await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c33-msg'), 1)),
         { run: 1, status: 'started' },
         "a fork's first message must start its run 1"
       )
@@ -552,7 +615,7 @@ export const childCases: readonly ContractCase[] = [
       await h.settle()
       const child = forked.child!
       h.script(child, [reply('child answer')])
-      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c38-msg')))
+      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c38-msg'), 1))
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c38-msg')))
       const facts = await read(h, child)
       same(
@@ -580,7 +643,7 @@ export const childCases: readonly ContractCase[] = [
       const t = await h.createThread()
       const source = await spawnBackground(h, t, 'c39-source')
       h.script(source, [callTool('hold', { id: 'c39' }), reply('source done')])
-      await h.withCall(t, (p) => p.helpers.message(source, message('work'), key('c39-work')))
+      await h.withCall(t, (p) => p.helpers.message(source, message('work'), key('c39-work'), 1))
       await hold.started('c39')
       // Fork before the source's open call has a result to copy.
       const at = (await read(h, source)).history.findLast((e) => e.kind === 'assistant')!.id
@@ -591,7 +654,7 @@ export const childCases: readonly ContractCase[] = [
       hold.release('c39')
       await h.withCall(t, (p) => p.helpers.awaitAnswer(source, 1, key('c39-work')))
       h.script(fork, [reply('fork answer')])
-      await h.withCall(t, (p) => p.helpers.message(fork, message('go on'), key('c39-msg')))
+      await h.withCall(t, (p) => p.helpers.message(fork, message('go on'), key('c39-msg'), 1))
       await h.withCall(t, (p) => p.helpers.awaitAnswer(fork, 1, key('c39-msg')))
       same(
         answersTo(await read(h, fork), 'hold'),
@@ -622,7 +685,7 @@ export const childCases: readonly ContractCase[] = [
       await h.settle()
       const child = await spawnBackground(h, t, 'c30')
       h.script(child, [callTool('parent_only', {}), reply('child done')])
-      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c30-msg')))
+      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c30-msg'), 1))
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c30-msg')))
       same(callers, [t], 'a parent-only tool must run for the parent and never in a child')
       check(
@@ -642,7 +705,7 @@ export const childCases: readonly ContractCase[] = [
       const t = await h.createThread()
       const child = await spawnBackground(h, t, 'c14')
       h.script(child, [callTool('hold', { id: 'c14' }), reply('answer')])
-      await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c14-msg')))
+      await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c14-msg'), 1))
       await hold.started('c14')
       await h.restart()
       const answer = h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c14-msg')))

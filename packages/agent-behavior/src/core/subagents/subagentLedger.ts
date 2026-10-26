@@ -37,7 +37,10 @@ export function readSubagents(history: readonly HistoryEntry[]): ChildLedger[] {
   return [...ledgers.values()].sort((a, b) => a.touched - b.touched)
 }
 
-/** Run `run` of `child` has begun: the child's facts show at least that many runs. */
+/**
+ * Run `run` of `child`, or a later one, has begun: the child's facts show at least that many runs, a skipped number
+ * counting one (H3). Every run starts under a recorded number, so for the child's latest record it is that run.
+ */
 export const runStarted = (facts: Facts, child: ThreadId, run: number): boolean =>
   (facts.children.get(child)?.runUsage.length ?? 0) >= run
 /** A recorded running run that is still going, or not started yet; one that ended unrecorded is not live. */
