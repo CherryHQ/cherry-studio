@@ -43,6 +43,7 @@ import {
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
   SESSION_READ_TOOL_NAME,
+  SESSION_RENAME_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
@@ -289,6 +290,16 @@ const SessionDeliveriesInputSchema = z.object({
   limit: z.number().optional().describe('Maximum deliveries to return (default 20, max 100).')
 })
 
+const SessionRenameInputSchema = z.strictObject({
+  title: z.string().trim().min(1).max(255).describe('New Session title (1–255 characters).'),
+  session_id: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Session id owned by this Agent. Omit to rename the current Session.')
+})
+
 const SessionCreateInputSchema = z.object({
   message: z.string().describe('First message for the new Session.'),
   title: z.string().max(255).optional().describe('Optional Session title.'),
@@ -370,6 +381,21 @@ function listAgents(): CallToolResult {
     modelConfigured: agent.model !== null
   }))
   return { content: [{ type: 'text', text: JSON.stringify({ agents }) }] }
+}
+
+function renameSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionRenameInputSchema>): CallToolResult {
+  const sessionId = args.session_id ?? ctx.sessionId
+  const session = agentSessionService.getById(sessionId)
+  if (session.agentId !== ctx.agentId) {
+    throw new AgentSessionDeliveryRoutingError(
+      'SESSION_TOOL_FORBIDDEN',
+      'Only Sessions owned by this Agent can be renamed'
+    )
+  }
+  const updated = agentSessionService.update(sessionId, { name: args.title })
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ sessionId: updated.id, sessionName: updated.name }) }]
+  }
 }
 
 function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionSearchInputSchema>): CallToolResult {
@@ -1177,6 +1203,15 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       inputSchema: SessionReadInputSchema
     },
     (args) => runSessionTool(ctx, () => readSession(args))
+  )
+  server.registerTool(
+    SESSION_RENAME_TOOL_NAME,
+    {
+      description:
+        'Rename the current Agent Session, or another Session owned by this Agent. The title is protected from automatic renaming.',
+      inputSchema: SessionRenameInputSchema
+    },
+    (args) => runSessionTool(ctx, () => renameSession(ctx, args))
   )
   server.registerTool(
     SESSION_CREATE_TOOL_NAME,
