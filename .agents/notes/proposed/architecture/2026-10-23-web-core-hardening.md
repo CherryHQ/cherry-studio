@@ -17,7 +17,7 @@ The design document's milestone M5 hardens the Web edition before release: isola
 
 ## Proposal
 
-All changes are in `packages/web-core`; desktop sources are not changed.
+All changes are in `packages/web-core`, apart from one switch on the desktop's first-run page (`enableCherryInLogin`), which the Web edition turns off: CherryIN signs in through a callback on the computer, which a Web page cannot receive.
 
 1. **Content Security Policy.** web-core defines the policy once and serves it as a response header with COOP and COEP from the dev server and `vite preview`; the app build writes the headers to `dist/app/_headers` (the file Cloudflare Pages and Netlify read), and the README explains them for other hosts.
    - `default-src 'self'`; `object-src 'none'`; `form-action 'self'`; `frame-ancestors 'none'`. No `base-uri`: the desktop's HTML previews set `<base href="about:srcdoc">`, and `script-src` already limits where scripts come from.
@@ -42,7 +42,7 @@ All changes are in `packages/web-core`; desktop sources are not changed.
    - **Long chat:** 200 turns in one topic against the mock provider. The time from sending to the reply showing and the memory of the page and its Workers are recorded every 50 turns.
    - **Long agent session:** 50 agent turns that each write and read a file. The same measurements are recorded.
    - The results go into this note when it becomes implemented.
-6. **Capability matrix.** The README gains a table of what the Web edition can do and what stays on the desktop, by user-facing feature (chat, attachments, agent tools, Python, JavaScript, local folders, MCP, knowledge bases, mini apps, backup, and so on), with the browsers each needs. Features the Web edition does not support already answer with `WebUnsupportedError`; the table is where a user or an administrator reads it.
+6. **Capability matrix.** The README gains a table of what the Web edition can do and what stays on the desktop, by user-facing feature (chat, attachments, agent tools, Python, JavaScript, local folders, MCP, knowledge bases, mini apps, backup, and so on), with the browsers each needs. Features the Web edition does not support already answer with `WebUnsupportedError`; the table is where a user or an administrator reads it. The Web app also stops offering the entries that lead to them: the launchpad's other apps, the composer's tools, the message menu's notes, knowledge base, read-aloud and note-app exports, the agent's browser, dictation, the help menu, the Cherry account in the user menu and the CherryIN sign-in. Saving or exporting a message as Markdown or an image becomes a browser download, and the agent's file tree and file preview are served.
 
 Out of scope: hardening of the enterprise Web app (its CSP `connect-src`, the access token kept in Worker memory, isolation between profiles), which is in the enterprise repository; backend authorization, tracked with the enterprise backend; backup and recovery (M4); and the evidence for #21728's acceptance items that depend on backup.
 
@@ -61,7 +61,7 @@ Out of scope: hardening of the enterprise Web app (its CSP `connect-src`, the ac
 - AC3 — Opening an account asks for persistent storage; when it is refused (simulated), one warning toast appears per account and not again after a reload; when it is granted, none appears. (verification: packaged artifact)
 - AC4 — In all three browsers, scripts in a model reply's HTML and in an HTML code block's preview do not run and cannot read OPFS, and a QuickJS script sees none of `fetch`, `indexedDB`, `navigator` or `postMessage`. (verification: packaged artifact)
 - AC5 — The long chat and long agent session tests run in Chromium and record reply times and the memory of the page and its Workers every 50 turns (chat) and every 10 turns (agent), in this note. Memory after turn 200 (chat) and turn 50 (agent) is at most 1.5 times the memory after turn 50 (chat) and turn 10 (agent), and the last ten replies take on average at most twice as long as the first ten. (verification: packaged artifact)
-- AC6 — The README has the capability matrix, and every route the matrix lists as desktop-only answers with `WebUnsupportedError`. No file under `src/main`, `src/preload`, `src/renderer` or `src/shared` changes. (verification: change-scope report and code review)
+- AC6 — The README has the capability matrix, and every route the matrix lists as desktop-only answers with `WebUnsupportedError`. The Web app shows none of the entries listed in item 6 and saves a message as a download. No file under `src/main`, `src/preload`, `src/renderer` or `src/shared` changes except the first-run page's `enableCherryInLogin` switch and its test. (verification: packaged artifact, change-scope report and code review)
 
 ## Risks
 
