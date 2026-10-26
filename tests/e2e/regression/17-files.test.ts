@@ -317,10 +317,11 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
     })
 
     await test.step('8. Restart Electron and reopen the persisted RTF', async () => {
+      await filesView().getByRole('button', { name: 'Back', exact: true }).click()
+      await expect(filesView().getByRole('button', { name: 'Upload files', exact: true })).toBeVisible()
       page = await app.restart()
       await selectSidebarApp(page, 'Files')
-      const back = filesView().getByRole('button', { name: 'Back', exact: true })
-      if (await back.isVisible()) await back.click()
+      await expect(filesView().getByRole('button', { name: 'Upload files', exact: true })).toBeVisible()
       await openLibraryFile('simple.rtf')
       await assertRichDocument(filePreview('simple.rtf'))
       await screenshot('MP-150 formatted RTF after restart')

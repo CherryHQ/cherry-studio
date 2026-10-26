@@ -37,6 +37,7 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
   await dismissOnboarding(page)
   const targetView = {
     Chat: '[data-ui~="chat.view"]:visible',
+    Files: '[data-ui~="files.view"]:visible',
     Settings: '[data-ui~="settings.view"]:visible',
     Work: '[data-ui~="agent.view"]:visible'
   }[name]
