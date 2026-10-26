@@ -10,6 +10,7 @@ import {
   migrateDisabledToolsForServerRename,
   parseFunctionCallToolName,
   toCamelCase,
+  toSdkMcpServerSegment,
   translateLegacyMcpToolRules,
   translateMcpToolRulesToRuntimeNames
 } from '../mcpToolName'
@@ -1066,6 +1067,62 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
         reservedKeys: RESERVED
       })
     ).toEqual([saved, `mcp__GitHub__${'a'.repeat(60)}`, `mcp__github__${'a'.repeat(60)}`])
+  })
+
+  it('moves a departing server denial onto its stable id before releasing its configured-name key', () => {
+    // A and B are both named `docs`; A mounts first, owns the key, and disabling A.run saved
+    // `mcp__docs__run`. Unmounting A (without disabledTools) releases the name and B claims it;
+    // remounting A after B brings A back under its id. Skipping departing A leaves the denial on
+    // `docs` — the key B now holds — so after reconnect A ran under Full Access while B was
+    // incorrectly denied (deniedA=false, deniedB=true). The denial must follow A onto its id
+    // BEFORE the name key is released, and the name-keyed original must go: it spells B's
+    // runtime name, and keeping it would deny B in A's place.
+    const unmounted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+      oldMountedServers: [
+        { mcpId: idA, name: 'docs' },
+        { mcpId: idB, name: 'docs' }
+      ],
+      newMountedServers: [{ mcpId: idB, name: 'docs' }],
+      reservedKeys: RESERVED
+    })
+    // A's id registers under its raw form — Pi matches `mcp__<id>__tool` verbatim and the SDK
+    // keeps hyphens in the segment, so the raw and SDK-segment forms fold into one entry (the
+    // camelized-key alias exists only for configured-name destinations; an id has none).
+    expect(unmounted).toEqual([`mcp__${idA}__run`])
+
+    // Remounting A after B reallocates no key (B keeps `docs`, A returns on its id), so the
+    // persisted denial needs no further migration.
+    expect(
+      migrateAgentDisabledToolsForAllocationChange(unmounted ?? [], {
+        oldMountedServers: [{ mcpId: idB, name: 'docs' }],
+        newMountedServers: [
+          { mcpId: idB, name: 'docs' },
+          { mcpId: idA, name: 'docs' }
+        ],
+        reservedKeys: RESERVED
+      })
+    ).toBeUndefined()
+  })
+
+  it('denies the remounted owner and allows the name claimant after the departing-server migration', () => {
+    // Policy seam: the Claude SDK hard-block list is built by translating the persisted rules
+    // with the live id→key map (settingsBuilder/agentTools). After unmount+remount, A is keyed
+    // by its id and B holds `docs`: A's runtime name must stay denied, B's must not appear.
+    const persisted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+      oldMountedServers: [
+        { mcpId: idA, name: 'docs' },
+        { mcpId: idB, name: 'docs' }
+      ],
+      newMountedServers: [{ mcpId: idB, name: 'docs' }],
+      reservedKeys: RESERVED
+    })
+    const serverNameById = new Map([
+      [idA, idA],
+      [idB, 'docs']
+    ])
+    const denied = translateLegacyMcpToolRules(persisted, serverNameById)
+    expect(denied).toContain(`mcp__${toSdkMcpServerSegment(idA)}__run`)
+    expect(denied).not.toContain('mcp__docs__run')
   })
 })
 

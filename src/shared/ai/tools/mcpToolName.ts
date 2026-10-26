@@ -456,6 +456,14 @@ interface AgentKeyRewrite {
    * over-block.
    */
   fromIsId?: boolean
+  /**
+   * The owner is leaving the mount set: its configured-name key is being RELEASED, and the
+   * saved string spells the next claimant's runtime name the moment the key changes hands.
+   * The rewrite moves the denial onto the departing server's stable id and the name-keyed
+   * original is dropped — keeping it would deny the claimant in the departed server's place
+   * (the display-name alias protection does not apply to a key nobody keeps).
+   */
+  departing?: boolean
 }
 
 /**
@@ -576,7 +584,20 @@ export function migrateAgentDisabledToolsForAllocationChange(
   const rewrites: AgentKeyRewrite[] = []
   for (const [mcpId, oldKey] of oldKeys) {
     const newKey = newKeys.get(mcpId)
-    if (newKey === undefined || newKey === oldKey) continue
+    if (newKey === undefined) {
+      // Departing server: its configured-name key is released to the allocation, and the next
+      // claimant registers exactly the strings saved under that key — moving the denial onto
+      // the departing server's stable id BEFORE the release keeps the denial with its owner
+      // instead of denying the claimant in its place. An id key is never reassigned, so a
+      // denial already keyed by the id needs no move (an id-keyed original also survives the
+      // rewrite below).
+      const stableKey = sanitizeAgentServerKey(mcpId)
+      if (oldKey !== stableKey) {
+        rewrites.push({ fromKey: oldKey, toKey: stableKey, fromIsId: false, departing: true })
+      }
+      continue
+    }
+    if (newKey === oldKey) continue
     // Pi's camelized alias derives from the configured name, so the extra form is only
     // meaningful when the post-change configured name actually won its allocation (and
     // camelizes differently) — the same condition the rename migration applies.
@@ -740,7 +761,14 @@ function applyAgentKeyRewrites(
           // rename that displaced it, so the alias still resolves its denial ("docs" stays
           // `docs` while its key moves to the id) and must survive too: the rewritten copies
           // carry only the camelized tool fragment, which cannot regenerate the alias.
-          keepOriginal = matched.fromIsId === true || idSegments.has(serverPart) || displaySegments.has(serverPart)
+          // A DEPARTING rewrite skips the display-name protection: its key is being released,
+          // so the alias spells the CLAIMANT's registered name — keeping the original would
+          // deny the claimant in the departed server's place. Id-native segments above still
+          // keep their originals (an id form survives every allocation change).
+          keepOriginal =
+            matched.fromIsId === true ||
+            idSegments.has(serverPart) ||
+            (matched.departing !== true && displaySegments.has(serverPart))
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = [
             ...rewriteHashed(toolPart, lossyMatched.toKey),

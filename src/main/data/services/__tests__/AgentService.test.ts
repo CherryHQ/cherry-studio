@@ -1018,6 +1018,36 @@ describe('AgentService', () => {
       expect(reloaded?.disabledTools).toEqual(['mcp__id-b__run', 'mcp__GitHub__run', 'mcp__github__run'])
     })
 
+    it('moves a departing server denial onto its id when unmounting releases the shared name to its sibling', async () => {
+      // A and B are both named `docs`; A mounts first, owns the name, and disabling A.run saved
+      // `mcp__docs__run`. Unmounting A skipped the departing server in the migration, so the
+      // denial stayed keyed `docs` — the key B is promoted onto. Remounting A (which returns
+      // under its id) left the denial on B's runtime name: A ran under Full Access while B was
+      // incorrectly denied. The denial must move onto A's id before the name is released, and
+      // the name-keyed original must not survive it.
+      await insertMcpServer('srv-a', 'docs')
+      await insertMcpServer('srv-b', 'docs')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Departing Owner',
+        model: TEST_MODEL_ID,
+        mcps: ['srv-a', 'srv-b'],
+        disabledTools: ['mcp__docs__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['srv-b'] })
+      // A's id registers under its raw form (hyphens survive the SDK segment, so raw and
+      // SDK-segment fold into one entry); `mcp__docs__run` is gone — it is B's runtime name now.
+      expect(agentService.getAgent(created.id)?.disabledTools).toEqual(['mcp__srv-a__run'])
+
+      agentService.updateAgent(created.id, { mcps: ['srv-b', 'srv-a'] })
+      const reloaded = agentService.getAgent(created.id)
+      // A returned under its id and stays denied; B holds `docs` with no inherited denial.
+      expect(reloaded?.mcps).toEqual(['srv-b', 'srv-a'])
+      expect(reloaded?.disabledTools).toEqual(['mcp__srv-a__run'])
+      expect(reloaded?.disabledTools).not.toContain('mcp__docs__run')
+    })
+
     it('reads same-timestamp mount rows in mcpServerId order', async () => {
       // Rows written by older versions (or createAgent) can share one timestamp: readers must
       // break ties by mcpServerId so migration old-reads and runtime allocation agree on legacy
