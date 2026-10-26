@@ -4270,6 +4270,40 @@ describe('ClaudeCodeRuntimeDriver', () => {
       await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
     })
 
+    it('still applies newly disabled tools to the retained connection when the model is unavailable', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      const agent = { id: 'agent-1', configuration: { permission_mode: 'acceptEdits', disallowed_tools: ['Bash'] } }
+      mocks.getAgent.mockReturnValue(agent)
+      mocks.deriveConfig.mockResolvedValue({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      // The tightened restriction reaches the local gate; the permission mode stays at the
+      // connection's baseline (null here) because the rebuild applies mode changes.
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
+      expect(toolPolicySnapshot.update).toHaveBeenCalledWith({
+        ...agent,
+        configuration: { permission_mode: undefined, disallowed_tools: ['Bash'] }
+      })
+    })
+
+    it('fails closed when the tool policy cannot be applied while the model is unavailable', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: {} })
+      toolPolicySnapshot.update.mockRejectedValueOnce(new Error('snapshot write failed'))
+      mocks.deriveConfig.mockResolvedValue({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('failed')
+    })
+
     it('serializes concurrent reconciles instead of interleaving them', async () => {
       const { connection } = await connectWithSnapshot()
 

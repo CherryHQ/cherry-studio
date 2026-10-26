@@ -512,6 +512,30 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
+  /** Refresh the local tool-policy snapshot from the agent when the route cannot be derived. */
+  private async applyLiveToolPolicyWithoutRoute(): Promise<boolean> {
+    const baseline = this.connectionConfig
+    if (!this.toolPolicySnapshot || !baseline) return true
+    try {
+      const agent = agentService.getAgent(this.input.agentId)
+      if (!agent) return true
+      await this.toolPolicySnapshot.update({
+        ...agent,
+        configuration: {
+          ...agent.configuration,
+          permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as AgentPermissionMode | undefined
+        }
+      })
+      return true
+    } catch (error) {
+      logger.warn('Live tool-policy apply failed while the model was unavailable', {
+        sessionId: this.input.sessionId,
+        error
+      })
+      return false
+    }
+  }
+
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
@@ -530,7 +554,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // A disabled/unroutable model is a configuration error the user must see. Invalidating would
       // close the session silently; a rebuild reconnects through the cold build, whose availability
       // check throws this message into the turn.
-      if (derived.reason === 'model-unavailable') return 'rebuild'
+      if (derived.reason === 'model-unavailable') {
+        // The retained connection keeps serving an active turn until the rebuild lands, so tool
+        // restrictions the user just tightened must reach its local gate now. The permission mode
+        // stays frozen at the connection's baseline; the rebuild applies any mode change.
+        if (!(await this.applyLiveToolPolicyWithoutRoute())) return 'failed'
+        return 'rebuild'
+      }
       return 'invalid'
     }
     const baseline = this.connectionConfig
