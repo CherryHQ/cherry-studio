@@ -1,4 +1,5 @@
 import p_302ai from './302ai'
+import p_acedatacloud from './acedatacloud'
 import p_aihubmix from './aihubmix'
 import p_aionly from './aionly'
 import p_alayanew from './alayanew'
@@ -133,5 +134,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_acedatacloud
 ]
