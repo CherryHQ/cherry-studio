@@ -3169,6 +3169,7 @@
   "provider.doubao": "Volcengine",
   "provider.fireworks": "Fireworks",
   "provider.gemini": "Gemini",
+  "provider.gisoo": "Gisoo",
   "provider.gitee-ai": "Gitee AI",
   "provider.github": "GitHub Models",
   "provider.gpustack": "GPUStack",

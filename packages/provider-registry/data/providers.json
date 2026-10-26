@@ -721,6 +721,31 @@
       "name": "AMD GPU Cloud"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Gisoo - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://gisoo.pro/api"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://gisoo.pro/api/v1"
+        }
+      },
+      "id": "gisoo",
+      "metadata": {
+        "website": {
+          "apiKey": "https://gisoo.pro/app/api",
+          "docs": "https://gisoo.pro/docs",
+          "models": "https://gisoo.pro/docs/models",
+          "official": "https://gisoo.pro"
+        }
+      },
+      "name": "Gisoo"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
@@ -2726,5 +2751,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "1b44511badb438e6"
+  "version": "eb3cb36f9a43c44d"
 }

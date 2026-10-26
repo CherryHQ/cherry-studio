@@ -61,6 +61,7 @@ import { meta as firecrawlMeta } from './firecrawl/meta'
 import { meta as fireworksMeta } from './fireworks/meta'
 import { meta as flowithMeta } from './flowith/meta'
 import { meta as gensparkMeta } from './genspark/meta'
+import { meta as gisooMeta } from './gisoo/meta'
 import { meta as giteeAiMeta } from './gitee-ai/meta'
 import { meta as githubMeta } from './github/meta'
 import { meta as githubCopilotMeta } from './github-copilot/meta'
@@ -227,6 +228,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   fireworks: fireworksMeta,
   flowith: flowithMeta,
   genspark: gensparkMeta,
+  gisoo: gisooMeta,
   'gitee-ai': giteeAiMeta,
   github: githubMeta,
   'github-copilot': githubCopilotMeta,

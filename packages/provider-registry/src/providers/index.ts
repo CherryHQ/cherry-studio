@@ -20,6 +20,7 @@ import p_doubao from './doubao'
 import p_fireworks from './fireworks'
 import p_gateway from './gateway'
 import p_gemini from './gemini'
+import p_gisoo from './gisoo'
 import p_gpustack from './gpustack'
 import p_grok from './grok'
 import p_grok_cli from './grok-cli'
@@ -88,6 +89,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_gisoo,
   p_tokendance,
   p_new_api,
   p_lmstudio,

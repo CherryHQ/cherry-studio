@@ -64,6 +64,7 @@ export const PROVIDER_ICON_LOADERS = {
   fireworks: () => import('./fireworks').then(({ FireworksIcon }) => FireworksIcon),
   flowith: () => import('./flowith').then(({ FlowithIcon }) => FlowithIcon),
   genspark: () => import('./genspark').then(({ GensparkIcon }) => GensparkIcon),
+  gisoo: () => import('./gisoo').then(({ GisooIcon }) => GisooIcon),
   'gitee-ai': () => import('./gitee-ai').then(({ GiteeAiIcon }) => GiteeAiIcon),
   github: () => import('./github').then(({ GithubIcon }) => GithubIcon),
   'github-copilot': () => import('./github-copilot').then(({ GithubCopilotIcon }) => GithubCopilotIcon),
