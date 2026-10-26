@@ -42,6 +42,26 @@ test('leaves out the entries for desktop and Cherry account services', async ({ 
   await expect(panel.getByRole('radio')).toHaveCount(3)
 })
 
+test('keeps the agent browser off in a workspace that had it on', async ({ page }) => {
+  type PreferenceApi = {
+    preference: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }
+  }
+  const keys = ['app.browser.agent_control.enabled', 'app.browser.open_links_in_browser']
+  await gotoApp(page)
+  // As a workspace created before the Web edition turned these off has them.
+  await page.evaluate(async (keys) => {
+    for (const key of keys) await (window.api as unknown as PreferenceApi).preference.set(key, true)
+  }, keys)
+
+  await page.reload()
+  await composerInput(page).waitFor()
+  const values = await page.evaluate(
+    (keys) => Promise.all(keys.map((key) => (window.api as unknown as PreferenceApi).preference.get(key))),
+    keys
+  )
+  expect(values).toEqual([false, false])
+})
+
 test('saves a reply as a Markdown download', async ({ page }) => {
   await gotoApp(page)
   await useMockProvider(page, Date.now().toString(36))

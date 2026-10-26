@@ -9,20 +9,28 @@ const WEB_SIDEBAR_RESOURCES = new Set(['agents', 'assistants'])
 
 /**
  * First-run preferences where the Web edition differs from the desktop: the sidebar offers only chat
- * and agents, and desktop-only features (the agent browser, skills, web search, exports to Word and
- * note apps) are off or left out of the toolbars and menus.
+ * and agents, and skills and web search are left out of the toolbars.
  */
 const webDefaults: Partial<typeof desktopDefaults> = {
   'ui.sidebar_shortcut': desktopDefaults['ui.sidebar_shortcut'].filter(
     ({ target }) => target.kind === 'resource' && WEB_SIDEBAR_RESOURCES.has(target.locator.resourceId)
   ),
-  'app.browser.agent_control.enabled': false,
   'agent.input.toolbar.pinned_tools': desktopDefaults['agent.input.toolbar.pinned_tools'].filter(
     (id) => id !== 'skills'
   ),
   'chat.input.toolbar.pinned_tools': desktopDefaults['chat.input.toolbar.pinned_tools'].filter(
     (id) => id !== 'web-search'
-  ),
+  )
+}
+
+/**
+ * Desktop-only features the Web edition has no settings page for: the agent browser (and links
+ * opening in it) and exports to Word and note apps. `startCoreWorker` sets them on every start, so a
+ * workspace created before one was turned off here is turned off too.
+ */
+export const fixedWebPreferences: Partial<typeof desktopDefaults> = {
+  'app.browser.agent_control.enabled': false,
+  'app.browser.open_links_in_browser': false,
   'data.export.menus.docx': false,
   'data.export.menus.joplin': false,
   'data.export.menus.notion': false,

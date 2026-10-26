@@ -242,6 +242,9 @@ once per account that the browser may delete the data.
 - The desktop seeders run on every `open`, as in the desktop `DbService.onInit`.
   `WebPreferenceDefaultsSeeder` runs first and writes the preferences whose Web default
   differs (the sidebar offers only agents and chat); the desktop seeders skip existing rows.
+  Desktop-only features with no Web settings page (the agent browser, links opening in it,
+  exports to Word and note apps) are turned off on every `open` (`fixedWebPreferences`), also in
+  workspaces created before they were.
 
 ## Tests
 

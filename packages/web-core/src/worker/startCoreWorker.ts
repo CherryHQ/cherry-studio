@@ -22,7 +22,7 @@ import { addLocalFolder, allowLocalFolder, mountLocalFolders, unmountLocalFolder
 import { mountAccountFiles, unmountAccountFiles } from '../database/accountFiles'
 import { type OpenedDatabase, openDatabase } from '../database/openDatabase'
 import { WebCherryAssistantSeeder } from '../database/WebCherryAssistantSeeder'
-import { WebPreferenceDefaultsSeeder } from '../database/WebPreferenceDefaultsSeeder'
+import { fixedWebPreferences, WebPreferenceDefaultsSeeder } from '../database/WebPreferenceDefaultsSeeder'
 import { application } from '../runtime/application'
 import { connectPage, ipcMain } from '../runtime/electron'
 import { installNodeGlobals } from '../runtime/nodeGlobals'
@@ -89,6 +89,7 @@ async function startAccountServices(opened: OpenedDatabase) {
   ])
   const preferences = new PreferenceService()
   await preferences._doInit()
+  await preferences.setMultiple(fixedWebPreferences)
   application.register('PreferenceService', preferences)
   // The desktop keeps the system awake while a reply or agent turn runs; a tab cannot.
   application.register('RuntimeActivityService', { begin: () => ({ dispose() {} }) })
