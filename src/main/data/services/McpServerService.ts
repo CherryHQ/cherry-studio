@@ -303,6 +303,17 @@ export class McpServerService {
 
     let affectedAgentIds: string[] = []
     application.get('DbService').withWriteTx((tx) => {
+      // Removing the server releases its record key: a same-named sibling (or a later mount)
+      // inherits it, so the departing server's name-keyed denial rules must move onto its
+      // stable id BEFORE the associations go — the same allocation migration the mount-update
+      // path applies, in the same transaction.
+      const migratedAgentIds = agentService.migrateDisabledToolsForMcpServerRemovalTx(tx, id)
+      if (migratedAgentIds.length > 0) {
+        logger.info('Migrated disabled tool rules for deleted MCP server', {
+          mcpServerId: id,
+          agentIds: migratedAgentIds
+        })
+      }
       affectedAgentIds = agentService.removeMcpFromAllAgentsTx(tx, id)
       tx.delete(mcpServerTable).where(eq(mcpServerTable.id, id)).run()
     })

@@ -813,18 +813,6 @@ export class AgentService {
             // reservations via `nonCandidateIds` — the runtime reserves every mounted id
             // BEFORE skipping the browser, and a configured name equal to that id must be
             // predicted to fall back to its own id here exactly as the runtime allocates it.
-            const mountSnapshot = (mcpIds: readonly string[]) =>
-              mcpIds.flatMap((mcpId): { mcpId: string; name?: string; browser?: boolean } => {
-                const [mountedRow] = tx
-                  .select({ name: mcpServerTable.name, type: mcpServerTable.type })
-                  .from(mcpServerTable)
-                  .where(eq(mcpServerTable.id, mcpId))
-                  .limit(1)
-                  .all()
-                if (mountedRow && mountedRow.type === 'inMemory' && mountedRow.name === BuiltinMcpServerNames.browser)
-                  return { mcpId, name: mountedRow.name, browser: true }
-                return mountedRow ? { mcpId, name: mountedRow.name } : { mcpId }
-              })
             const oldMountedServers = tx
               .select({ mcpServerId: agentMcpServerTable.mcpServerId })
               .from(agentMcpServerTable)
@@ -833,8 +821,8 @@ export class AgentService {
               .all()
               .map(({ mcpServerId }) => mcpServerId)
             if (updates.disabledTools === undefined && oldMountedServers.length > 0) {
-              const oldMountedRefs = mountSnapshot(oldMountedServers)
-              const newMountedRefs = mountSnapshot(newMcps)
+              const oldMountedRefs = this.snapshotMountedServersTx(tx, oldMountedServers)
+              const newMountedRefs = this.snapshotMountedServersTx(tx, newMcps)
               const migrated = migrateAgentDisabledToolsForAllocationChange(current.disabledTools ?? [], {
                 oldMountedServers: oldMountedRefs,
                 // The submitted array is the persisted order: the insert below writes each row
@@ -1206,6 +1194,76 @@ export class AgentService {
     const existingIds = new Set(existing.map((row) => row.id))
     const missingId = uniqueIds.find((id) => !existingIds.has(id))
     if (missingId) throw DataApiErrorFactory.notFound('KnowledgeBase', missingId)
+  }
+
+  /**
+   * Snapshot the given mounted server ids with their configured names, inside the caller's
+   * transaction. The in-memory browser is flagged so callers keep it out of the allocation
+   * candidates while its id still joins the per-set reservations: the runtime reserves every
+   * mounted id BEFORE skipping the browser (resolveMountedAgentMcpServers), and the migration
+   * must predict exactly the same keys.
+   */
+  private snapshotMountedServersTx(
+    tx: DbOrTx,
+    mcpIds: readonly string[]
+  ): Array<{ mcpId: string; name?: string; browser?: boolean }> {
+    return mcpIds.flatMap((mcpId): { mcpId: string; name?: string; browser?: boolean } => {
+      const [mountedRow] = tx
+        .select({ name: mcpServerTable.name, type: mcpServerTable.type })
+        .from(mcpServerTable)
+        .where(eq(mcpServerTable.id, mcpId))
+        .limit(1)
+        .all()
+      if (mountedRow && mountedRow.type === 'inMemory' && mountedRow.name === BuiltinMcpServerNames.browser)
+        return { mcpId, name: mountedRow.name, browser: true }
+      return mountedRow ? { mcpId, name: mountedRow.name } : { mcpId }
+    })
+  }
+
+  /**
+   * Migrate every mounting agent's saved denial rules for the removal of an MCP server, inside
+   * the caller's transaction (McpServerService.delete). The removal releases the server's
+   * record key exactly like an unmount: a same-named sibling (or a later mount) inherits it,
+   * and the departing server's name-keyed denials would deny the inheriting server's tool in
+   * its place. Mirrors the mount-update path in updateAgent — same allocation, same browser
+   * rule — and must run BEFORE the junction rows go, while both allocations are still
+   * readable. Returns the agent ids whose persisted rules changed.
+   */
+  migrateDisabledToolsForMcpServerRemovalTx(tx: DbOrTx, mcpServerId: string): string[] {
+    const mountedBy = tx
+      .select({ agentId: agentMcpServerTable.agentId })
+      .from(agentMcpServerTable)
+      .where(eq(agentMcpServerTable.mcpServerId, mcpServerId))
+      .all()
+    const changedAgentIds: string[] = []
+    for (const { agentId } of mountedBy) {
+      const [agent] = tx
+        .select({ id: agentsTable.id, disabledTools: agentsTable.disabledTools })
+        .from(agentsTable)
+        .where(eq(agentsTable.id, agentId))
+        .limit(1)
+        .all()
+      if (!agent) continue
+      const oldMountedIds = tx
+        .select({ mcpServerId: agentMcpServerTable.mcpServerId })
+        .from(agentMcpServerTable)
+        .where(eq(agentMcpServerTable.agentId, agentId))
+        .orderBy(asc(agentMcpServerTable.createdAt), asc(agentMcpServerTable.mcpServerId))
+        .all()
+        .map(({ mcpServerId }) => mcpServerId)
+      const oldMountedRefs = this.snapshotMountedServersTx(tx, oldMountedIds)
+      const migrated = migrateAgentDisabledToolsForAllocationChange(agent.disabledTools ?? [], {
+        oldMountedServers: oldMountedRefs,
+        newMountedServers: oldMountedRefs.filter(({ mcpId }) => mcpId !== mcpServerId),
+        reservedKeys: [...Object.values(CHERRY_MCP_SERVER)],
+        nonCandidateIds: new Set(oldMountedRefs.flatMap(({ browser, mcpId }) => (browser ? [mcpId] : [])))
+      })
+      if (migrated) {
+        this.updateDisabledToolsTx(tx, agentId, migrated)
+        changedAgentIds.push(agentId)
+      }
+    }
+    return changedAgentIds
   }
 
   /**

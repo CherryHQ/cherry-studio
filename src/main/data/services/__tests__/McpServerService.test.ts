@@ -7,6 +7,7 @@ import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { McpServerService, mcpServerService } from '@data/services/McpServerService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { translateLegacyMcpToolRules } from '@shared/ai/tools/mcpToolName'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 describe('McpServerService', () => {
@@ -458,6 +459,40 @@ describe('McpServerService', () => {
 
       const rows = await dbh.db.select().from(mcpServerTable)
       expect(rows).toHaveLength(0)
+    })
+
+    it('migrates denial rules onto the departing server id before a same-named sibling inherits the key', async () => {
+      // A and B are both named `docs`; A mounts first and owns the key, so disabling A.run
+      // saved `mcp__docs__run`. Deleting A removes its association — if the removal releases
+      // the key without applying the allocation migration, B inherits `docs` and A's
+      // restriction denies B's previously enabled tool. The removal must migrate the saved
+      // rules transactionally, exactly like the ordinary mount-update path.
+      await seedServer({ id: 'srv-a', name: 'docs' })
+      await seedServer({ id: 'srv-b', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run', 'mcp__other__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-a', createdAt: 1000 },
+        { agentId: 'agent-1', mcpServerId: 'srv-b', createdAt: 1001 }
+      ])
+
+      mcpServerService.delete('srv-a')
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // A's denial follows A onto its stable id; the unrelated rule is untouched.
+      expect(agent.disabledTools).toEqual(['mcp__srv-a__run', 'mcp__other__run'])
+      // Enforcement seam: B inherits the `docs` key after the deletion, and the persisted
+      // rules must not block B's runtime name.
+      const denied = translateLegacyMcpToolRules(agent.disabledTools, new Map([['srv-b', 'docs']]))
+      expect(denied).not.toContain('mcp__docs__run')
+      expect(denied).toContain('mcp__srv-a__run')
     })
 
     it('should throw NOT_FOUND when deleting non-existent server', () => {
