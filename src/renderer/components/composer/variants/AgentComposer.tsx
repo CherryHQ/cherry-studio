@@ -1629,7 +1629,15 @@ const AgentComposerInner = ({
   )
 
   // Attachment edits arrive through tool state rather than the editor callbacks.
+  // Advance the revision for actual attachment mutations only: TabRouter's
+  // Activity tears down and re-runs effects on tab hide/show without any edit,
+  // and a spurious bump here makes a settling enqueue skip the draft clear,
+  // leaving the queued text submittable a second time (cherry-pr-review
+  // inv_9f8c2dcd0a5dd26d#f1).
+  const filesForRevisionRef = useRef(files)
   useEffect(() => {
+    if (filesForRevisionRef.current === files) return
+    filesForRevisionRef.current = files
     draftEditRevisionRef.current += 1
   }, [files])
   useEffect(() => {

@@ -3,7 +3,7 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type ComponentType, type ReactNode, useEffect } from 'react'
+import { Activity, type ComponentType, type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -2298,6 +2298,85 @@ describe('ChatComposer', () => {
     // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
     secondView.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
+    expect(onSend).not.toHaveBeenCalled()
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
+  it('queues the follow-up only once when a tab hide/show reconnects effects while the enqueue persists', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    // Hold the queue POST open across the tab hide/show below; count POSTs to
+    // catch a duplicate minted UUID (cherry-pr-review inv_9f8c2dcd0a5dd26d#f1).
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const view = render(
+      <Activity mode="visible">
+        <ChatComposer topic={topic} onSend={onSend} />
+      </Activity>
+    )
+    // Type the draft first: the retained editor state after settlement is the
+    // defect, and typing exercises the real text-edit revision path.
+    act(() => mocks.surfaceProps?.onTextChange('hello'))
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // TabRouter hides/shows the tab through Activity BEFORE the enqueue
+    // settles: effects re-run without any edit, which must not advance the
+    // draft edit revision - a spurious bump makes settlement skip the draft
+    // clear and leaves the queued message submittable a second time.
+    await act(async () => {
+      view.rerender(
+        <Activity mode="hidden">
+          <ChatComposer topic={topic} onSend={onSend} />
+        </Activity>
+      )
+    })
+    await act(async () => {
+      view.rerender(
+        <Activity mode="visible">
+          <ChatComposer topic={topic} onSend={onSend} />
+        </Activity>
+      )
+    })
+
+    await act(async () => {
+      releaseEnqueue?.()
+      // onSendDraft may return void; normalize before settling (cherry-pr-review inv_4359c31231f90009).
+      await Promise.allSettled([Promise.resolve(firstSend)])
+    })
+    // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
+    view.rerender(
+      <Activity mode="visible">
+        <ChatComposer topic={topic} onSend={onSend} />
+      </Activity>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+    expect(enqueuePosts).toBe(1)
     expect(onSend).not.toHaveBeenCalled()
     const queueContent = mocks.surfaceProps?.queueContent as any
     expect(queueContent.props.items).toHaveLength(1)

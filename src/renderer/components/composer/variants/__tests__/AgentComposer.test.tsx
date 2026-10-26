@@ -5,7 +5,7 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
-import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
+import { Activity, type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1445,6 +1445,92 @@ describe('AgentComposer', () => {
         isStreaming
       />
     )
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
+  })
+
+  it('queues the follow-up only once when a tab hide/show reconnects effects while the enqueue persists', async () => {
+    // Hold the queue POST open across the tab hide/show below; count POSTs to
+    // catch a duplicate minted UUID (cherry-pr-review inv_9f8c2dcd0a5dd26d#f1).
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const view = render(
+      <Activity mode="visible">
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming
+        />
+      </Activity>
+    )
+    // Type the draft first: the retained editor state after settlement is the
+    // defect, and typing exercises the real text-edit revision path.
+    act(() => mocks.surfaceProps?.onTextChange('hello'))
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // TabRouter hides/shows the tab through Activity BEFORE the enqueue
+    // settles: effects re-run without any edit, which must not advance the
+    // draft edit revision - a spurious bump makes settlement skip the draft
+    // clear and leaves the queued message submittable a second time.
+    await act(async () => {
+      view.rerender(
+        <Activity mode="hidden">
+          <AgentComposer
+            agentId="agent-1"
+            sessionId="session-1"
+            sendMessage={mocks.sendMessage}
+            stop={mocks.stop}
+            isStreaming
+          />
+        </Activity>
+      )
+    })
+    await act(async () => {
+      view.rerender(
+        <Activity mode="visible">
+          <AgentComposer
+            agentId="agent-1"
+            sessionId="session-1"
+            sendMessage={mocks.sendMessage}
+            stop={mocks.stop}
+            isStreaming
+          />
+        </Activity>
+      )
+    })
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await Promise.allSettled([Promise.resolve(firstSend)])
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+    expect(enqueuePosts).toBe(1)
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
     await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
   })
 
