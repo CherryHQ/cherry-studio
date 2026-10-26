@@ -106,11 +106,11 @@ Use the [frontend testing guidelines](../../../docs/references/testing/frontend-
 
 A passing implemented flow does not cover capabilities absent from the current product. Scenarios record these gaps with `uncovered` annotations; they do not search for fictional controls.
 
-| Case | Verified scope | Uncovered capability |
+| Case | Implemented checks | Uncovered capability |
 | --- | --- | --- |
-| MP-57 | Memory setting persistence and retained snapshots | Runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
+| MP-57 | Memory setting persistence and retained snapshots | Memory file-path display; runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
 | MP-69 | File categories, counts and clearing filters | Filename search and result highlighting |
-| MP-72 | Existing file-library operations | Referencing an existing library file from the composer |
+| MP-72 | Blocked; no executable reference flow | Referencing an existing library file from the composer |
 | MP-74 | Draft persistence and external-edit conflict handling | An explicit Saved status indicator |
 | MP-82 | Document import, size limit, translation and Notes export control | Source character counter, Markdown save-as and translated-file naming |
 | MP-90 | Preview zoom, pan, rotation and saving the original image | Image upscaling or enhancement |
