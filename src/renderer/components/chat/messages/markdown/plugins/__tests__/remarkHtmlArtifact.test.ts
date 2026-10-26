@@ -1,4 +1,4 @@
-import type { Root } from 'mdast'
+import type { Paragraph, Root } from 'mdast'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
@@ -1547,6 +1547,100 @@ After`
     ])
     expect(tree.children.some((child) => child.type === 'html')).toBe(false)
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
+  })
+
+  // A fully paired disclosure chain re-enters the paired-body processing once per nesting
+  // level: message-sized depths must not exhaust the JavaScript call stack, and the aggregate
+  // work must grow with the input, not with the square of the nesting depth (each level
+  // re-scanning the suffix the previous level already walked).
+  it('keeps deeply nested paired disclosures stack-safe and sub-quadratic', () => {
+    const durations: number[] = []
+    for (const depth of [600, 1200, 2400]) {
+      const source = '<details>\n\n'.repeat(depth) + 'Body\n\n' + '</details>\n\n'.repeat(depth) + 'After'
+      const start = performance.now()
+      const tree = parse(source)
+      durations.push(performance.now() - start)
+      // Every boundary stays raw around the single body paragraph, no artifact frame is
+      // fabricated anywhere in the chain, and `After` stays outside the disclosures.
+      expect(tree.children).toHaveLength(depth * 2 + 2)
+      expect(tree.children[0]).toMatchObject({ type: 'html', value: '<details>' })
+      expect(tree.children[depth]).toMatchObject({ type: 'paragraph', children: [{ value: 'Body' }] })
+      expect(tree.children[depth + 1]).toMatchObject({ type: 'html', value: '</details>' })
+      expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
+      expect(tree.children.some((child) => child.type === 'code')).toBe(false)
+    }
+    // Two doublings must stay near-linear: quadratic suffix re-scans grow ~4x per doubling
+    // (16x overall). The bounds leave generous room for machine noise while still failing on
+    // quadratic growth or an outright crash.
+    expect(durations[2]).toBeLessThan(Math.max(durations[0] * 10, 150))
+    expect(durations[2]).toBeLessThan(2000)
+  })
+
+  // A nested `<svg>` inside `foreignObject` RE-ENTERS foreign content: the ancestor
+  // integration point must not keep the HTML raw-text algorithm active inside the inner svg,
+  // so its self-closing `<title/>` really ends the element. Treating it as HTML raw text
+  // hangs the scan on a `</title>` that never comes, the document's real `</html>` is missed,
+  // and the complete document loses its artifact (the stylesheet leaks into Markdown).
+  it('keeps the document artifact when a nested svg re-enters foreign content', () => {
+    const source = `Before
+
+<html><body><svg><foreignObject><svg><title/></svg></foreignObject></svg><style>p{color:red}</style><p>Card</p></body></html>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'code', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'code', lang: 'html', value: source.split('\n\n')[1] })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
+  // The foreignObject disclosure shape from the QA thread, on ONE line: CommonMark keeps the
+  // whole construct as INLINE html inside a paragraph, which this plugin never touches — no
+  // artifact frame may be fabricated from it and the boundaries survive as inline html.
+  it('leaves a single-line foreignObject disclosure inline', () => {
+    const source =
+      '<svg width="520" height="220"><foreignObject><details><summary>label</summary> BODY </details></foreignObject></svg> AFTER'
+    const tree = parse(source)
+
+    expect(tree.children).toHaveLength(1)
+    expect(tree.children[0]).toMatchObject({ type: 'paragraph' })
+    const inlines = (tree.children[0] as Paragraph).children ?? []
+    expect(tree.children.some((child) => child.type === 'code')).toBe(false)
+    expect(inlines.filter((child) => child.type === 'html').map((child) => (child as { value: string }).value)).toEqual(
+      [
+        '<svg width="520" height="220">',
+        '<foreignObject>',
+        '<details>',
+        '<summary>',
+        '</summary>',
+        '</details>',
+        '</foreignObject>',
+        '</svg>'
+      ]
+    )
+    expect(inlines.some((child) => child.type === 'text' && (child as { value: string }).value.includes('AFTER'))).toBe(
+      true
+    )
+  })
+
+  // The block-level variant of the same shape (blank lines make the nodes top-level html
+  // blocks): the pairing exemption applies INSIDE foreign content too — the disclosure
+  // boundaries stay raw around the body and the trailing sentence stays outside.
+  it('keeps a blank-line-split foreignObject disclosure paired', () => {
+    const source =
+      '<svg width="520" height="220">\n\n<foreignObject>\n\n<details>\n<summary>label</summary>\n\nBODY\n\n</details>\n\n</foreignObject>\n\n</svg>\n\nAFTER'
+    const tree = parse(source)
+
+    expect(tree.children[2]).toMatchObject({ type: 'html', value: '<details>\n<summary>label</summary>' })
+    expect(
+      tree.children.some(
+        (child) =>
+          child.type === 'paragraph' &&
+          (child as { children?: Array<{ value?: string }> }).children?.some((text) => text.value === 'BODY')
+      )
+    ).toBe(true)
+    expect(tree.children[4]).toMatchObject({ type: 'html', value: '</details>' })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'AFTER' }] })
   })
 
   describe('classifyHtmlArtifactSource', () => {

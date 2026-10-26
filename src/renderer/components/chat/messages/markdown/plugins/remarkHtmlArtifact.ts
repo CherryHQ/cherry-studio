@@ -148,9 +148,9 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
     // `annotation-xml`) leaves the HTML integration point.
     if (value.startsWith('</', lt)) {
       if (/^<\/(?:svg|math)[\s>/]/i.test(value.slice(lt))) {
-        state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
+        popForeignContext(state, 'F')
       } else if (FOREIGN_INTEGRATION_CLOSE_REGEX.test(value.slice(lt))) {
-        state.foreignHtmlIntegrationDepth = Math.max((state.foreignHtmlIntegrationDepth ?? 1) - 1, 0)
+        popForeignContext(state, 'I')
       }
       position = lt + 2
       continue
@@ -360,15 +360,16 @@ interface ContainerScanState {
   /** Script data tokenizer region flags, carried while `rawText === 'script'`. */
   scriptEscaped?: boolean
   scriptDoubleEscaped?: boolean
-  /** Foreign-content (SVG/MathML) namespace depth: the raw-text algorithm never applies inside. */
-  foreignDepth?: number
   /**
-   * HTML integration point depth: `foreignObject`, in foreign content `desc`/`title`, the
-   * MathML text integration points (`mi`/`mo`/`mn`/`ms`/`mtext`) and an HTML-encoded
-   * `annotation-xml`. Their children parse as HTML, so the raw-text algorithm applies again
-   * inside them.
+   * Foreign-content namespace STACK: one character per open special element — `F` for an
+   * svg/math namespace, `I` for an HTML integration point (`foreignObject`, in foreign
+   * content `desc`/`title`, the MathML text integration points, an HTML-encoded
+   * `annotation-xml`). The stack (not independent counters) is load-bearing: a nested
+   * `<svg>` inside an integration point re-enters FOREIGN content, and leaving it must
+   * restore the enclosing integration point. The raw-text algorithm applies exactly when the
+   * INNERMOST open context is `F`.
    */
-  foreignHtmlIntegrationDepth?: number
+  foreignContext?: string
 }
 
 // A completed tag whose `>` is preceded by the self-closing marker. In foreign content it
@@ -378,12 +379,32 @@ function isSelfClosingTag(value: string, start: number, end: number): boolean {
   return /\/\s*>$/.test(value.slice(start, end))
 }
 
+// Pushes one namespace context onto the foreign-content stack (`F` = svg/math, `I` = an HTML
+// integration point).
+function pushForeignContext(state: ContainerScanState, context: 'F' | 'I'): void {
+  state.foreignContext = (state.foreignContext ?? '') + context
+}
+
+// Pops the innermost open context of `context`, together with everything opened inside it (a
+// close of an outer element while inner ones are still open is malformed nesting whose
+// interior ends with the element). A stray close of an element that is not open at all leaves
+// the stack empty — the same no-op the counter clamps this replaces had.
+function popForeignContextStack(stack: string, context: 'F' | 'I'): string {
+  const index = stack.lastIndexOf(context)
+  return index === -1 ? '' : stack.slice(0, index)
+}
+
+function popForeignContext(state: ContainerScanState, context: 'F' | 'I'): void {
+  state.foreignContext = popForeignContextStack(state.foreignContext ?? '', context)
+}
+
 // Foreign content (SVG/MathML) EXCEPT its HTML integration points (`foreignObject`, in foreign
 // content `desc`/`title`, the MathML text integration points, an HTML-encoded `annotation-xml`):
 // inside an integration point children parse as HTML, so the raw-text algorithm applies there
-// again.
+// again. Decided by the INNERMOST open context: a nested `<svg>` inside an integration point is
+// foreign again even though the integration point is still open around it.
 function isForeignContext(state: ContainerScanState): boolean {
-  return (state.foreignDepth ?? 0) > 0 && (state.foreignHtmlIntegrationDepth ?? 0) === 0
+  return (state.foreignContext ?? '').endsWith('F')
 }
 
 // An `annotation-xml` element is an HTML integration point only when its `encoding` attribute
@@ -413,7 +434,9 @@ function applyCompletedTag(
 ): void {
   const name = tagName?.toLowerCase()
   if (name === 'svg' || name === 'math') {
-    if (!isSelfClosingTag(value, tagStart, tagEnd)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
+    // A foreign namespace opens INSIDE whatever context it appears in — an `<svg>` within an
+    // HTML integration point re-enters foreign content (nested-SVG documents).
+    if (!isSelfClosingTag(value, tagStart, tagEnd)) pushForeignContext(state, 'F')
     return
   }
   // svg `foreignObject`/`desc`/`title` are HTML integration points: their children parse as
@@ -421,7 +444,7 @@ function applyCompletedTag(
   // they are ordinary unknown HTML elements.
   if (name === 'foreignobject' || name === 'desc' || name === 'title') {
     if (isForeignContext(state) && !isSelfClosingTag(value, tagStart, tagEnd)) {
-      state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+      pushForeignContext(state, 'I')
       // The integration point's children parse as HTML: a pending raw-text transition (a
       // `title` opener recorded before its tag completed) is voided, and the pending opener
       // must not linger for the NEXT completed tag.
@@ -442,7 +465,7 @@ function applyCompletedTag(
   // suppression that boundary detection needs.)
   if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') {
     if (isForeignContext(state) && !isSelfClosingTag(value, tagStart, tagEnd)) {
-      state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+      pushForeignContext(state, 'I')
       state.pendingRawText = undefined
     }
     return
@@ -453,7 +476,7 @@ function applyCompletedTag(
       isHtmlIntegrationEncoding(value.slice(tagStart, tagEnd)) &&
       !isSelfClosingTag(value, tagStart, tagEnd)
     ) {
-      state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+      pushForeignContext(state, 'I')
       state.pendingRawText = undefined
     }
     return
@@ -493,8 +516,7 @@ function resetStreamState(state: ContainerScanState): void {
   state.pendingRawText = undefined
   state.scriptEscaped = undefined
   state.scriptDoubleEscaped = undefined
-  state.foreignDepth = undefined
-  state.foreignHtmlIntegrationDepth = undefined
+  state.foreignContext = undefined
 }
 
 // Detects a tag OPENer (`<div`, `<details`, …) — close tags (`</div>`) are complete by
@@ -544,11 +566,19 @@ function findUnfinishedTagEnd(value: string, from: number, state: ContainerScanS
 // provided, receives the LOWEST depth value observed during this node's scan — the suffix
 // memo needs the within-node dip, not just the node's net delta, to know which entry counts
 // could resolve inside the node.
+// A details-boundary observer for the pairing scan: `isOpen` distinguishes the two boundary
+// kinds, start/end locate the token inside the scanned value. Fired ONLY for the depth-moving
+// `<details`/`</details` tokens (never for comments, raw text or other tags) and never across
+// nodes — the observer is a per-scan-call parameter, not carried on the shared state, so no
+// snapshot can capture a stale one.
+type ContainerTokenSink = (isOpen: boolean, start: number, end: number) => void
+
 function scanContainerBoundaries(
   value: string,
   state: ContainerScanState,
   trackDepth = true,
-  countMinOut?: { value: number }
+  countMinOut?: { value: number },
+  tokenSink?: ContainerTokenSink
 ): ContainerScanResult {
   let position = 0
   // Both searches scan to end-of-input on miss while position only grows: cache them, or every
@@ -720,7 +750,7 @@ function scanContainerBoundaries(
         const openTag = TITLE_OPEN_TAG_REGEX.exec(value.slice(tagStart))
         if (openTag !== null) {
           if (!isSelfClosingTag(value, tagStart, tagStart + openTag[0].length)) {
-            state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+            pushForeignContext(state, 'I')
           }
           state.pendingRawText = undefined
           position = tagStart + openTag[0].length
@@ -741,19 +771,19 @@ function scanContainerBoundaries(
     // a raw-text open means its end tag is not in this node: the body continues in later nodes.
     if (!token.startsWith('<details') && !token.startsWith('</details')) {
       if (token.startsWith('</svg') || token.startsWith('</math')) {
-        state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
+        popForeignContext(state, 'F')
         continue
       }
       // An integration-point close (`foreignObject`/`desc`/`title`, the MathML text
       // integration points, or an HTML-encoded `annotation-xml`) leaves the HTML integration
       // point.
       if (FOREIGN_INTEGRATION_CLOSE_REGEX.test(token)) {
-        state.foreignHtmlIntegrationDepth = Math.max((state.foreignHtmlIntegrationDepth ?? 1) - 1, 0)
+        popForeignContext(state, 'I')
         continue
       }
       const name = /^<([a-z][a-z0-9-]*)/.exec(token)?.[1]
       if (name === 'svg' || name === 'math') {
-        if (!isSelfClosingTag(token, 0, token.length)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
+        if (!isSelfClosingTag(token, 0, token.length)) pushForeignContext(state, 'F')
         continue
       }
       // svg `foreignObject`/`desc`/`title` are HTML integration points (children parse as
@@ -762,14 +792,14 @@ function scanContainerBoundaries(
       // content is an ordinary HTML raw-text element and enters its body below.
       if (name === 'foreignobject') {
         if (isForeignContext(state) && !isSelfClosingTag(token, 0, token.length)) {
-          state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+          pushForeignContext(state, 'I')
         }
         continue
       }
       if (name === 'desc' || name === 'title') {
         if (isForeignContext(state)) {
           if (!isSelfClosingTag(token, 0, token.length)) {
-            state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+            pushForeignContext(state, 'I')
           }
           continue
         }
@@ -783,13 +813,13 @@ function scanContainerBoundaries(
       // detection needs.)
       if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') {
         if (isForeignContext(state) && !isSelfClosingTag(token, 0, token.length)) {
-          state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+          pushForeignContext(state, 'I')
         }
         continue
       }
       if (name === 'annotation-xml') {
         if (isForeignContext(state) && isHtmlIntegrationEncoding(token) && !isSelfClosingTag(token, 0, token.length)) {
-          state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+          pushForeignContext(state, 'I')
         }
         continue
       }
@@ -803,6 +833,7 @@ function scanContainerBoundaries(
       if (!trackDepth) continue
       state.count -= 1
       if (countMinOut !== undefined && state.count < countMinOut.value) countMinOut.value = state.count
+      tokenSink?.(false, match.index, match.index + match[0].length)
       if (state.count === 0) {
         // The token consumed the complete end tag, quotes included.
         return { closed: true, closeStart: match.index, closeEnd: match.index + match[0].length }
@@ -813,6 +844,7 @@ function scanContainerBoundaries(
       // (quotes consumed), so no `>` inside a quoted attribute can end it early.
       if (!trackDepth) continue
       state.count += 1
+      tokenSink?.(true, match.index, match.index + match[0].length)
     }
   }
   return { closed: false }
@@ -826,8 +858,10 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
   let depth = 0
   let scanned = 0
   let rawText: string | undefined
-  let foreignDepth = 0
-  let foreignHtmlIntegrationDepth = 0
+  // Local foreign-content namespace stack (same encoding as ContainerScanState.foreignContext):
+  // a scratch context for this node-only scan.
+  let foreignContext = ''
+  const localIsForeign = (): boolean => foreignContext.endsWith('F')
   // Same monotone-position caches as the pairing scan: an end-of-input miss must not re-scan
   // per token iteration.
   let commentStart: number | undefined
@@ -916,15 +950,10 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
       // raw text and hides the first literal `</title>` — the lazy match stops at that literal
       // and exposes the `</details>` behind it. Consume only the open tag and mark the
       // integration point instead.
-      if (
-        match[1] !== undefined &&
-        match[1].toLowerCase() === 'title' &&
-        foreignDepth > 0 &&
-        foreignHtmlIntegrationDepth === 0
-      ) {
+      if (match[1] !== undefined && match[1].toLowerCase() === 'title' && localIsForeign()) {
         const openTag = TITLE_OPEN_TAG_REGEX.exec(value.slice(tagStart))
         if (openTag !== null) {
-          if (!isSelfClosingTag(value, tagStart, tagStart + openTag[0].length)) foreignHtmlIntegrationDepth += 1
+          if (!isSelfClosingTag(value, tagStart, tagStart + openTag[0].length)) foreignContext += 'I'
           scanned = tagStart + openTag[0].length
           continue
         }
@@ -937,19 +966,19 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
     const token = match[0].toLowerCase()
     if (!token.startsWith('<details') && !token.startsWith('</details')) {
       if (token.startsWith('</svg') || token.startsWith('</math')) {
-        foreignDepth = Math.max(foreignDepth - 1, 0)
+        foreignContext = popForeignContextStack(foreignContext, 'F')
         continue
       }
       // An integration-point close (`foreignObject`/`desc`/`title`, the MathML text
       // integration points, or an HTML-encoded `annotation-xml`) leaves the HTML integration
       // point.
       if (FOREIGN_INTEGRATION_CLOSE_REGEX.test(token)) {
-        foreignHtmlIntegrationDepth = Math.max(foreignHtmlIntegrationDepth - 1, 0)
+        foreignContext = popForeignContextStack(foreignContext, 'I')
         continue
       }
       const name = /^<([a-z][a-z0-9-]*)/.exec(token)?.[1]
       if (name === 'svg' || name === 'math') {
-        if (!isSelfClosingTag(token, 0, token.length)) foreignDepth += 1
+        if (!isSelfClosingTag(token, 0, token.length)) foreignContext += 'F'
         continue
       }
       // svg `foreignObject`/`desc`/`title` are HTML integration points (children parse as
@@ -957,15 +986,15 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
       // parse as HTML, so no raw-text body opens inside them — a `title` outside foreign
       // content is an ordinary HTML raw-text element and enters its body below.
       if (name === 'foreignobject') {
-        if (foreignDepth > 0 && foreignHtmlIntegrationDepth === 0 && !isSelfClosingTag(token, 0, token.length)) {
-          foreignHtmlIntegrationDepth += 1
+        if (localIsForeign() && !isSelfClosingTag(token, 0, token.length)) {
+          foreignContext += 'I'
         }
         continue
       }
       if (name === 'desc' || name === 'title') {
-        if (foreignDepth > 0 && foreignHtmlIntegrationDepth === 0) {
+        if (localIsForeign()) {
           if (!isSelfClosingTag(token, 0, token.length)) {
-            foreignHtmlIntegrationDepth += 1
+            foreignContext += 'I'
           }
           continue
         }
@@ -978,28 +1007,19 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
       // `</details>` boundary either way, so this keeps the literal suppression that boundary
       // detection needs.)
       if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') {
-        if (foreignDepth > 0 && foreignHtmlIntegrationDepth === 0 && !isSelfClosingTag(token, 0, token.length)) {
-          foreignHtmlIntegrationDepth += 1
+        if (localIsForeign() && !isSelfClosingTag(token, 0, token.length)) {
+          foreignContext += 'I'
         }
         continue
       }
       if (name === 'annotation-xml') {
-        if (
-          foreignDepth > 0 &&
-          foreignHtmlIntegrationDepth === 0 &&
-          isHtmlIntegrationEncoding(token) &&
-          !isSelfClosingTag(token, 0, token.length)
-        ) {
-          foreignHtmlIntegrationDepth += 1
+        if (localIsForeign() && isHtmlIntegrationEncoding(token) && !isSelfClosingTag(token, 0, token.length)) {
+          foreignContext += 'I'
         }
         continue
       }
       // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
-      if (
-        name !== undefined &&
-        RAW_TEXT_CLOSE_REGEXES.has(name) &&
-        !(foreignDepth > 0 && foreignHtmlIntegrationDepth === 0)
-      ) {
+      if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name) && !localIsForeign()) {
         rawText = name
       }
       continue
@@ -1068,8 +1088,7 @@ function copyScanLexicalState(target: ContainerScanState, source: ContainerScanS
   target.pendingRawText = source.pendingRawText
   target.scriptEscaped = source.scriptEscaped
   target.scriptDoubleEscaped = source.scriptDoubleEscaped
-  target.foreignDepth = source.foreignDepth
-  target.foreignHtmlIntegrationDepth = source.foreignHtmlIntegrationDepth
+  target.foreignContext = source.foreignContext
 }
 
 function sameScanLexicalState(a: ContainerScanState, b: ContainerScanState): boolean {
@@ -1082,8 +1101,7 @@ function sameScanLexicalState(a: ContainerScanState, b: ContainerScanState): boo
     a.pendingRawText === b.pendingRawText &&
     a.scriptEscaped === b.scriptEscaped &&
     a.scriptDoubleEscaped === b.scriptDoubleEscaped &&
-    a.foreignDepth === b.foreignDepth &&
-    a.foreignHtmlIntegrationDepth === b.foreignHtmlIntegrationDepth
+    a.foreignContext === b.foreignContext
   )
 }
 
@@ -1149,11 +1167,32 @@ function invalidateCloseScanMemo(memo: CloseScanMemo, position: number): void {
   }
 }
 
+/**
+ * Match of a NESTED opener, recorded while an enclosing pairing search walks past it: every
+ * `<details>` opener whose pairing close the enclosing walk passes gets the close recorded,
+ * so the frame that starts at that opener resolves in O(1) instead of re-walking the span the
+ * enclosing walk already covered (which made fully paired nesting quadratic). Keyed by the
+ * opener NODE: the processing splices replace node objects, so a stale entry misses its key
+ * instead of misfiring. `closeIndex` is the close's index in TOP-LEVEL array coordinates —
+ * the consuming frame translates by its own array offset and verifies the close by node
+ * identity, so any surviving staleness degrades to the ordinary walk (correct, just slower).
+ */
+interface NestedContainerMatch {
+  closeNode: Html
+  closeIndex: number
+  closeStart: number
+  closeEnd: number
+}
+
+type NestedContainerMatchTable = Map<Html, NestedContainerMatch>
+
 function findPairedContainerClose(
   children: readonly RootContent[],
   startIndex: number,
   end = children.length,
-  closeScanMemo?: CloseScanMemo
+  closeScanMemo?: CloseScanMemo,
+  matchTable?: NestedContainerMatchTable,
+  indexOffset?: number
 ): PairedContainerClose | undefined {
   const open = children[startIndex]
   if (open?.type !== 'html' || !HTML_CONTAINER_OPEN_REGEX.test(stripLeadingHtmlMetadata(open.value))) {
@@ -1170,6 +1209,26 @@ function findPairedContainerClose(
   // raw-text body (or dangling comment/tag/CDATA) opened beside the retained openings holds
   // the body's own literals, so the body scan must resume inside it, not start fresh.
   const bodyEntryState: ContainerScanState = { ...state }
+
+  // A match recorded by an enclosing walk jumps straight to the close. Bounds + node identity
+  // guard every assumption: a range that excludes the recorded close, a replaced close node or
+  // any coordinate drift falls through to the walk below.
+  const recorded = matchTable !== undefined && indexOffset !== undefined ? matchTable.get(open) : undefined
+  if (recorded !== undefined && indexOffset !== undefined) {
+    const closeIndex = recorded.closeIndex - indexOffset
+    const closeNode = closeIndex > startIndex && closeIndex < end ? children[closeIndex] : undefined
+    if (closeNode !== undefined && closeNode === recorded.closeNode && recorded.closeEnd <= closeNode.value.length) {
+      return {
+        index: closeIndex,
+        closeNode,
+        closeStart: recorded.closeStart,
+        closeEnd: recorded.closeEnd,
+        retainedOpens,
+        bodyEntryState
+      }
+    }
+  }
+
   // Visited-node log of the current walk, fed to the close-free suffix memo when the walk
   // completes (or when it resolves: the fully-scanned prefix is still a close-free window).
   const visited: Array<{
@@ -1179,6 +1238,13 @@ function findPairedContainerClose(
     delta: number
     minDelta: number
   }> = []
+  // Openers whose closes this walk passes, innermost last. The CALLED opener is absent (its
+  // own open lives in the opening node scanned above): a close arriving with the stack empty
+  // closes one of the caller's own retained opens and records nothing.
+  const pendingOpeners: Html[] = []
+  // A node holding SEVERAL openers gets no match — an entry keyed by the shared node could
+  // not tell a consumer at that node which opener's close it needs.
+  const ambiguousOpeners = new Set<Html>()
   for (let index = startIndex + 1; index < end; index += 1) {
     const child = children[index]
     if (child?.type !== 'html') continue
@@ -1193,7 +1259,9 @@ function findPairedContainerClose(
     ) {
       // The skipped span joins the visited log as one synthetic node, so a later reverse
       // recording (this walk may still resolve further down) folds the span's exact delta
-      // minimum into its recorded windows instead of skipping over it.
+      // minimum into its recorded windows instead of skipping over it. Openers inside the
+      // skipped span record no match — their consumers walk, and their walks share this
+      // memo's window instead.
       const entryState: ContainerScanState = { ...state }
       const newCount = state.count + memoEntry.suffixTotal
       copyScanLexicalState(state, memoEntry.exitState)
@@ -1210,7 +1278,31 @@ function findPairedContainerClose(
     }
     const entryState: ContainerScanState = { ...state }
     const countMin: { value: number } = { value: state.count }
-    const scan = scanContainerBoundaries(child.value, state, true, countMin)
+    let tokenSink: ContainerTokenSink | undefined
+    if (matchTable !== undefined && indexOffset !== undefined) {
+      const table = matchTable
+      const offset = indexOffset
+      tokenSink = (isOpen, tokenStart, tokenEnd) => {
+        if (isOpen) {
+          pendingOpeners.push(child)
+          return
+        }
+        const openerNode = pendingOpeners.pop()
+        if (openerNode === undefined) return
+        const below = pendingOpeners[pendingOpeners.length - 1]
+        if (below === openerNode || ambiguousOpeners.has(openerNode)) {
+          ambiguousOpeners.add(openerNode)
+          return
+        }
+        table.set(openerNode, {
+          closeNode: child,
+          closeIndex: offset + index,
+          closeStart: tokenStart,
+          closeEnd: tokenEnd
+        })
+      }
+    }
+    const scan = scanContainerBoundaries(child.value, state, true, countMin, tokenSink)
     visited.push({
       index,
       entryState,
@@ -1356,36 +1448,112 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
   const source = String(file)
   const children: RootContent[] = []
 
-  // `retainedOpens` counts disclosures opened by a shared opening node outside this range —
-  // the range must keep their closes raw instead of letting them become code. `entryState`
-  // carries the enclosing opening node's lexical state (raw-text body, dangling comment or
-  // tag, script tokenizer region) into the retained-close scan: the body's first html node
-  // continues that stream, so its literals must not resolve as boundaries.
-  const processRange = (
-    items: RootContent[],
-    from: number,
-    to: number,
-    retainedOpens: number,
-    entryState?: ContainerScanState
-  ): void => {
-    let pendingCloses = retainedOpens
-    // Lexical state for resolving retained closes across the body's html nodes: depth 1 means
+  // One pending range of the paired-container traversal. The traversal is ITERATIVE over a
+  // stack of frames: processing a matched body used to recurse once per nesting level, and a
+  // fully paired disclosure chain exhausted the JavaScript call stack at message-sized depths
+  // (~2,400 levels in 55KB). Pausing pushes the body's frame on top of the paused one, and the
+  // driver below runs it to completion before resuming — LIFO order replaces the recursion.
+  interface ProcessRangeFrame {
+    /** The range's nodes: a slice of the parent frame's array, plus at most one prefix node
+     * appended at the end. Every mutation inside is a 1:1 splice, so indices stay stable. */
+    items: RootContent[]
+    from: number
+    to: number
+    /** Next node index the loop processes. */
+    index: number
+    /** This array's index 0 in top-level array coordinates, translating nested-match close
+     * indices into local ones. `undefined` for the synthetic single-node prefix ranges, whose
+     * nodes belong to no array. */
+    indexOffset: number | undefined
+    /** Closes still owed to openings retained in an enclosing shared opening node. */
+    pendingCloses: number
+    // Lexical state for resolving retained closes across the range's html nodes: depth 1 means
     // "the next unmatched close is the retained one" — it re-arms only AFTER a resolution, so
-    // the depth the body's own nested openings accumulate survives between resolutions.
-    const pendingScanState: ContainerScanState = entryState ? { ...entryState, count: 1 } : { count: 1 }
+    // the depth the range's own nested openings accumulate survives between resolutions.
+    pendingScanState: ContainerScanState
     // Lexical state of the stream at the CURRENT node's start, carried across the range's html
     // nodes. A node reached inside a raw-text body, comment, dangling tag or CDATA section is
     // literal text: its `<details>`/`<html>` are never markup, so it must not start a pairing
     // search or a document artifact — a fresh scan would treat a textarea literal as a real
     // opener and consume the next disclosure's close. Only the lexical fields matter here;
     // disclosure depth is tracked by the pairing/pending scans themselves.
-    const streamState: ContainerScanState = entryState ? { ...entryState, count: 0 } : { count: 0 }
+    streamState: ContainerScanState
     // Close-free windows for THIS range's array instance: pairing searches from successive
     // unmatched openers share their fruitless suffix walks through it. Indices are stable —
     // every splice below replaces one node 1:1 — and each splice invalidates the windows that
     // span the replaced position.
-    const closeScanMemo: CloseScanMemo = new Map()
-    for (let index = from; index < to; index += 1) {
+    closeScanMemo: CloseScanMemo
+    /** Set while a nested body frame runs: the close emission the loop still owes. */
+    resume?: {
+      closeNode: Html
+      closeStart: number
+      closeEnd: number
+      /** The close node's index in THIS frame's array. */
+      closeIndex: number
+      remainderStart: number | undefined
+      /** Whether the close resolves a retained opening (pending-close bookkeeping) or a
+       * paired container boundary (plain lexical reset). */
+      retained: boolean
+    }
+  }
+
+  // Nested matches recorded by every walk, shared by every frame (see NestedContainerMatchTable).
+  const nestedMatches: NestedContainerMatchTable = new Map()
+  const stack: ProcessRangeFrame[] = []
+  const pushRangeFrame = (
+    items: RootContent[],
+    from: number,
+    to: number,
+    retainedOpens: number,
+    entryState: ContainerScanState | undefined,
+    indexOffset: number | undefined
+  ): void => {
+    stack.push({
+      items,
+      from,
+      to,
+      index: from,
+      indexOffset,
+      pendingCloses: retainedOpens,
+      pendingScanState: entryState ? { ...entryState, count: 1 } : { count: 1 },
+      streamState: entryState ? { ...entryState, count: 0 } : { count: 0 },
+      closeScanMemo: new Map()
+    })
+  }
+
+  pushRangeFrame(tree.children, 0, tree.children.length, 0, undefined, 0)
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1]
+    const { items, to, closeScanMemo, streamState, pendingScanState } = frame
+    if (frame.resume !== undefined) {
+      const { closeNode, closeStart, closeEnd, closeIndex, remainderStart, retained } = frame.resume
+      frame.resume = undefined
+      children.push(sliceHtmlNode(closeNode, closeStart, closeEnd))
+      if (retained) {
+        frame.pendingCloses -= 1
+        frame.pendingScanState.count = 1
+      }
+      // At the close the lexical stream is plain: the scan could only resolve a real
+      // `</details>` boundary once every raw-text body, comment, tag and CDATA section ended.
+      resetStreamState(frame.streamState)
+      if (remainderStart !== undefined) {
+        // The NEXT disclosure's opening after the boundary (`</details>` and `<details>` merge
+        // into one html block when no blank line separates them) re-enters pairing as a fresh
+        // open. Leading whitespace on the remainder is insignificant inside the html block.
+        items.splice(closeIndex, 1, sliceHtmlNode(closeNode, remainderStart, closeNode.value.length))
+        invalidateCloseScanMemo(closeScanMemo, closeIndex)
+        frame.index = closeIndex // the loop increment lands on the remainder
+      } else {
+        // Resuming re-enters the node loop without the increment a `continue` would have
+        // applied, so skipping the emitted close lands one PAST it.
+        frame.index = closeIndex + 1
+      }
+      continue
+    }
+    let paused = false
+    for (; frame.index < to; frame.index += 1) {
+      const index = frame.index
+      const pendingCloses = frame.pendingCloses
       const insideLiteralRegion = isInsideLexicalRegion(streamState)
       const documentEnd = insideLiteralRegion ? undefined : findHtmlDocumentEnd(items, index, to)
       if (documentEnd !== undefined) {
@@ -1421,11 +1589,13 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         for (const node of documentNodes) {
           if (node.type === 'html') scanContainerBoundaries(node.value, streamState, false)
         }
-        index = resumeIndex
+        frame.index = resumeIndex
         continue
       }
 
-      const paired = insideLiteralRegion ? undefined : findPairedContainerClose(items, index, to, closeScanMemo)
+      const paired = insideLiteralRegion
+        ? undefined
+        : findPairedContainerClose(items, index, to, closeScanMemo, nestedMatches, frame.indexOffset)
       if (paired !== undefined) {
         // Exempt only the matched boundaries; the body re-enters normal processing so nested
         // disclosures pair and inner artifacts/documents keep their existing paths.
@@ -1510,32 +1680,32 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // them inside the artifact.
         // The paired close closes the outermost opening of the opening node; every opening
         // retained next to it has no matching open inside the body, so its close arrives as an
-        // unpaired body node and must stay raw (see the fallback below).
-        processRange(
+        // unpaired body node and must stay raw (see the fallback below). The body range runs
+        // as its own frame; this frame pauses and finishes the close emission (plus the
+        // remainder splice below) once the body frame completes — the stack order replaces
+        // the recursion that exhausted the call stack on deep nesting.
+        const rest = closeNode.value.slice(paired.closeEnd)
+        frame.resume = {
+          closeNode,
+          closeStart: paired.closeStart,
+          closeEnd: paired.closeEnd,
+          closeIndex: paired.index,
+          remainderStart:
+            paired.closeEnd < closeNode.value.length
+              ? paired.closeEnd + (rest.length - rest.trimStart().length)
+              : undefined,
+          retained: false
+        }
+        pushRangeFrame(
           body,
           bodyStart,
           body.length,
           Math.max(paired.retainedOpens - 1, 0) + remainderOpens,
-          bodyEntryState
+          bodyEntryState,
+          frame.indexOffset === undefined ? undefined : frame.indexOffset + index + 1
         )
-        children.push(sliceHtmlNode(closeNode, paired.closeStart, paired.closeEnd))
-        // At the close the lexical stream is plain: the pairing scan could only resolve a real
-        // `</details>` boundary once every raw-text body, comment, tag and CDATA section ended.
-        resetStreamState(streamState)
-        if (paired.closeEnd < closeNode.value.length) {
-          // The NEXT disclosure's opening after the boundary (`</details>` and `<details>`
-          // merge into one html block when no blank line separates them) re-enters pairing as
-          // a fresh open. Leading whitespace on the remainder is insignificant inside the
-          // html block.
-          const rest = closeNode.value.slice(paired.closeEnd)
-          const remainderStart = paired.closeEnd + (rest.length - rest.trimStart().length)
-          items.splice(paired.index, 1, sliceHtmlNode(closeNode, remainderStart, closeNode.value.length))
-          invalidateCloseScanMemo(closeScanMemo, paired.index)
-          index = paired.index - 1 // the loop increment lands on the remainder
-        } else {
-          index = paired.index
-        }
-        continue
+        paused = true
+        break
       }
 
       const child = items[index]
@@ -1555,16 +1725,36 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         if (close !== undefined) {
           // This close belongs to an opening retained in a shared opening node: emit it raw so
           // the retained disclosure actually closes instead of swallowing the following prose.
+          // Content preceding the boundary keeps the normal path as its own frame (a shared
+          // close prefix): it continues the lexical stream as of BEFORE this node — a raw-text
+          // body opened in an earlier body node holds the prefix's own literals, so a fresh
+          // scan would fire on them and emit a stray raw close. The stack order runs the
+          // prefix frame before this frame's close emission, like the recursion did.
           if (close.start > 0) {
-            // Content preceding the boundary keeps the normal path, like a shared close prefix.
-            // It continues the lexical stream as of BEFORE this node — a raw-text body opened
-            // in an earlier body node holds the prefix's own literals, so a fresh scan would
-            // fire on them and emit a stray raw close.
-            processRange([sliceHtmlNode(child, 0, close.start)], 0, 1, pendingCloses, stateBeforeNode)
+            const rest = child.value.slice(close.end)
+            frame.resume = {
+              closeNode: child,
+              closeStart: close.start,
+              closeEnd: close.end,
+              closeIndex: index,
+              remainderStart:
+                close.end < child.value.length ? close.end + (rest.length - rest.trimStart().length) : undefined,
+              retained: true
+            }
+            pushRangeFrame(
+              [sliceHtmlNode(child, 0, close.start)],
+              0,
+              1,
+              frame.pendingCloses,
+              stateBeforeNode,
+              undefined
+            )
+            paused = true
+            break
           }
           children.push(sliceHtmlNode(child, close.start, close.end))
-          pendingCloses -= 1
-          pendingScanState.count = 1
+          frame.pendingCloses -= 1
+          frame.pendingScanState.count = 1
           // The resolved close is a real boundary: the lexical stream is plain after it.
           resetStreamState(streamState)
           if (close.end < child.value.length) {
@@ -1575,7 +1765,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
             const remainderStart = close.end + (rest.length - rest.trimStart().length)
             items.splice(index, 1, sliceHtmlNode(child, remainderStart, child.value.length))
             invalidateCloseScanMemo(closeScanMemo, index)
-            index -= 1 // the loop increment lands on the remainder
+            frame.index = index - 1 // the loop increment lands on the remainder
           }
           continue
         }
@@ -1589,9 +1779,10 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
       // dangling tag or CDATA section opened here holds their literals as text.
       if (child.type === 'html') scanContainerBoundaries(child.value, streamState, false)
     }
+    // The frame finished its range only when the loop ran to the end; a pause left it on the
+    // stack to resume after the nested frame above it completes.
+    if (!paused) stack.pop()
   }
-
-  processRange(tree.children, 0, tree.children.length, 0)
 
   tree.children = children
 }
