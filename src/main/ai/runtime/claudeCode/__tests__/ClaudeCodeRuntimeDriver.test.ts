@@ -4126,7 +4126,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     }
 
-    async function connectWithSnapshot() {
+    async function connectWithSnapshot(baselinePermissionMode: string | null = null) {
       const queryQueue = createAsyncQueue<any>()
       const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode: vi.fn() }
       const toolPolicySnapshot = {
@@ -4136,7 +4136,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
       mocks.createClaudeQuery.mockReturnValue(query)
       mocks.buildRequest.mockResolvedValue({
-        connectionConfig: makeConfig({}).config,
+        connectionConfig: makeConfig({ permissionMode: baselinePermissionMode }).config,
         key: 'warm-key',
         options: { model: 'sonnet' },
         settings: { toolPolicySnapshot },
@@ -4289,6 +4289,28 @@ describe('ClaudeCodeRuntimeDriver', () => {
         ...agent,
         configuration: { permission_mode: undefined, disallowed_tools: ['Bash'] }
       })
+    })
+
+    it('keeps the baseline permission mode when the model is unavailable and the mode changed too', async () => {
+      const { connection, toolPolicySnapshot, query } = await connectWithSnapshot('default')
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        configuration: { permission_mode: 'bypassPermissions', disallowed_tools: ['Bash'] }
+      })
+      mocks.deriveConfig.mockResolvedValue({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      // The looser mode is not adopted by the retained connection; only the tightened tool list is.
+      expect(toolPolicySnapshot.update).toHaveBeenCalledWith({
+        id: 'agent-1',
+        configuration: { permission_mode: 'default', disallowed_tools: ['Bash'] }
+      })
+      expect(query.setPermissionMode).not.toHaveBeenCalled()
     })
 
     it('fails closed when the tool policy cannot be applied while the model is unavailable', async () => {
