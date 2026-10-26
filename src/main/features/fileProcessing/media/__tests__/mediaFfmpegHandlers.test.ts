@@ -364,10 +364,35 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     )
 
     expect(frames.frames).toHaveLength(1)
-    // The label is the fallback seek that decoded, so it sits within the last 250ms of the 6.9s video.
-    expect(frames.frames[0]?.timestampMs).toBeGreaterThan(6_650)
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThan(6_800)
     expect(frames.frames[0]?.timestampMs).toBeLessThan(requestedTimestampMs)
-    expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
+    // Input seek fails on this stream, so this is the output-side retry. Frame 82 is the last frame.
+    const thumbnail = (input: string, select?: number) =>
+      spawnSync(
+        ffmpegPath,
+        [
+          '-v',
+          'error',
+          '-i',
+          input,
+          '-vf',
+          `${select == null ? '' : `select=eq(n\\,${select}),`}scale=16:16`,
+          '-frames:v',
+          '1',
+          '-f',
+          'rawvideo',
+          '-pix_fmt',
+          'gray',
+          'pipe:1'
+        ],
+        { encoding: 'buffer' }
+      ).stdout
+    const difference = (left: Buffer, right: Buffer) =>
+      left.reduce((total, value, index) => total + Math.abs(value - (right[index] ?? 0)), 0) / left.length
+    const extracted = thumbnail(frames.frames[0].path)
+    expect(difference(extracted, thumbnail(transportStreamWithLongAudioPath, 82))).toBeLessThan(
+      difference(extracted, thumbnail(transportStreamWithLongAudioPath, 81))
+    )
   })
 
   it('keeps a nonzero start relative and returns the last video frame when audio is longer', async () => {

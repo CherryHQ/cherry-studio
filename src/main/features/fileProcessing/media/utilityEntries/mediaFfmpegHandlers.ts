@@ -281,7 +281,7 @@ async function videoSeekBounds(
   signal: AbortSignal,
   logger: Logger,
   pidRegistryPath?: string
-): Promise<{ durationMs: number; lastFrameMs?: number }> {
+): Promise<{ durationMs: number; lastFrameMs?: number; outputSeekOffsetMs?: number }> {
   let probe: unknown
   try {
     probe = await probeJson(filePath, signal, logger, pidRegistryPath)
@@ -329,7 +329,8 @@ async function videoSeekBounds(
   }
 
   const lastFrameMs = ptsSeconds == null ? undefined : relativeInputSeekMs(ptsSeconds, tail.formatStartTimeSeconds)
-  return { durationMs, lastFrameMs }
+  const outputSeekOffsetMs = Math.max(0, (tail.videoStartSeconds - tail.formatStartTimeSeconds) * 1000)
+  return { durationMs, lastFrameMs, outputSeekOffsetMs }
 }
 
 export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = {
@@ -460,9 +461,11 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
               ]
         for (const attempt of attempts) {
           rmSync(outputPath, { force: true })
+          // Output -ss counts from the video stream start; the reported timestamp stays input-relative.
+          const outputSeekMs = Math.floor(Math.max(0, attempt.seekMs - (bounds.outputSeekOffsetMs ?? 0)))
           const seekArgs = attempt.inputSeek
             ? ['-ss', (attempt.seekMs / 1000).toFixed(3), '-i', filePath]
-            : ['-i', filePath, '-ss', (attempt.seekMs / 1000).toFixed(3)]
+            : ['-i', filePath, '-ss', (outputSeekMs / 1000).toFixed(3)]
           try {
             await runCommand(
               ffmpegPath,
