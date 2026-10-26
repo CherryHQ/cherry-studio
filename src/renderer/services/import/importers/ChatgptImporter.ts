@@ -65,6 +65,10 @@ export class ChatgptImporter implements ConversationImporter {
       const parsed = JSON.parse(fileContent)
       const conversations = Array.isArray(parsed) ? parsed : [parsed]
 
+      // An empty list is not a ChatGPT export; reject it up front instead of
+      // letting parse() throw `no_conversations` later (aligns with AnthropicImporter).
+      if (conversations.length === 0) return false
+
       // Check if it has the basic ChatGPT conversation structure
       return conversations.every(
         (conv) =>

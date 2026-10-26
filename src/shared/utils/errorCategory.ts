@@ -341,12 +341,16 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'knowledge'
   }
 
-  // Response parse errors
+  // Response parse errors. A "failed to parse" that names the REQUEST is the upstream
+  // rejecting our payload ("Failed to parse request body" — #22164), not a malformed AI
+  // response, so it falls through to the request-failure branch instead.
+  const requestParseFailure = msg.includes('failed to parse') && msg.includes('request')
+
   if (
     msg.includes('unexpected token') ||
     msg.includes('invalid response') ||
     msg.includes('parse error') ||
-    msg.includes('failed to parse') ||
+    (!requestParseFailure && msg.includes('failed to parse')) ||
     msg.includes('json parse') ||
     msg.includes('invalid json') ||
     msg.includes('malformed json') ||

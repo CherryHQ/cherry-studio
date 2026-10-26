@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.6
+
+### Patch Changes
+
+- [#22629](https://github.com/CherryHQ/cherry-studio/pull/22629) [`98d3c26`](https://github.com/CherryHQ/cherry-studio/commit/98d3c268a6d3b2296602adfe1da8160965a32708) Thanks [@JuLuogo](https://github.com/JuLuogo)! - Add the DeepSeek V4 Flash reasoning off switch on the official provider (`thinking.type=disabled` / `reasoningEffort=none`) and expose an explicit Off control in the speed popover.
+
 ## 0.2.5
 
 ### Patch Changes
