@@ -20,34 +20,45 @@ interface ChatResult {
 }
 
 /** A provider pointing at the mock endpoint, a model on it, an assistant using it and an empty topic. */
-async function createChatSetup(page: Page) {
-  return page.evaluate(async (baseUrl) => {
-    const { client } = harness
-    const providerId = `mock-${crypto.randomUUID().slice(0, 8)}`
-    const provider = await client.request('POST', '/providers', {
-      body: {
-        providerId,
-        name: 'Mock provider',
-        defaultChatEndpoint: 'openai-chat-completions',
-        endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
-        apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
-      }
-    })
-    if (provider.error) throw new Error(`create provider: ${provider.error.message}`)
-    const models = await client.request('POST', '/models', {
-      body: [{ providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }]
-    })
-    if (models.error) throw new Error(`create model: ${models.error.message}`)
-    const assistant = await client.request<Assistant>('POST', '/assistants', {
-      body: { name: 'Web trial', modelId: `${providerId}::mock-chat` }
-    })
-    if (assistant.error) throw new Error(`create assistant: ${assistant.error.message}`)
-    const topic = await client.request<Topic>('POST', '/topics', {
-      body: { name: 'Web chat', assistantId: assistant.data!.id }
-    })
-    if (topic.error) throw new Error(`create topic: ${topic.error.message}`)
-    return { topicId: topic.data!.id }
-  }, MOCK_PROVIDER)
+async function createChatSetup(page: Page, capabilities: string[] = []) {
+  return page.evaluate(
+    async ({ baseUrl, capabilities }) => {
+      const { client } = harness
+      const providerId = `mock-${crypto.randomUUID().slice(0, 8)}`
+      const provider = await client.request('POST', '/providers', {
+        body: {
+          providerId,
+          name: 'Mock provider',
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
+          apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
+        }
+      })
+      if (provider.error) throw new Error(`create provider: ${provider.error.message}`)
+      const models = await client.request('POST', '/models', {
+        body: [
+          {
+            providerId,
+            modelId: 'mock-chat',
+            name: 'Mock chat',
+            endpointTypes: ['openai-chat-completions'],
+            capabilities
+          }
+        ]
+      })
+      if (models.error) throw new Error(`create model: ${models.error.message}`)
+      const assistant = await client.request<Assistant>('POST', '/assistants', {
+        body: { name: 'Web trial', modelId: `${providerId}::mock-chat` }
+      })
+      if (assistant.error) throw new Error(`create assistant: ${assistant.error.message}`)
+      const topic = await client.request<Topic>('POST', '/topics', {
+        body: { name: 'Web chat', assistantId: assistant.data!.id }
+      })
+      if (topic.error) throw new Error(`create topic: ${topic.error.message}`)
+      return { topicId: topic.data!.id }
+    },
+    { baseUrl: MOCK_PROVIDER, capabilities }
+  )
 }
 
 function chat(page: Page, topicId: string, text: string, parentAnchorId?: string) {
@@ -109,6 +120,17 @@ test('streams a chat reply from an OpenAI-compatible provider and keeps it acros
     'second turn',
     'echo: second turn'
   ])
+})
+
+test('chats with a model that can call tools', async ({ page, account }) => {
+  await page.evaluate((account) => harness.client.open(account), account)
+  // A tool-calling model makes the turn look up the assistant's MCP servers, which the Web edition has none of.
+  const { topicId } = await createChatSetup(page, ['function-call'])
+
+  const result = await chat(page, topicId, 'hello with tools')
+  expect(result.error).toBeUndefined()
+  expect(result.status).toBe('success')
+  expect(result.deltas.join('')).toBe('echo: hello with tools')
 })
 
 test('persists a provider error on the reply instead of leaving it pending', async ({ page, account }) => {
