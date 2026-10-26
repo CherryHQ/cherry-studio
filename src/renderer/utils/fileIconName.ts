@@ -259,19 +259,19 @@ export function getFileIconName(filePath: string): string {
   const lowerFilename = filename.toLowerCase()
 
   // Check exact filename match first
-  if (filenameMap[filename]) return filenameMap[filename]
-  if (filenameMap[lowerFilename]) return filenameMap[lowerFilename]
+  if (Object.hasOwn(filenameMap, filename)) return filenameMap[filename]
+  if (Object.hasOwn(filenameMap, lowerFilename)) return filenameMap[lowerFilename]
 
   // Check compound extensions (e.g. .d.ts, .spec.ts)
   const parts = filename.split('.')
   if (parts.length > 2) {
     const compoundExt = parts.slice(-2).join('.').toLowerCase()
-    if (extensionMap[compoundExt]) return extensionMap[compoundExt]
+    if (Object.hasOwn(extensionMap, compoundExt)) return extensionMap[compoundExt]
   }
 
   // Check simple extension
   const ext = parts.pop()?.toLowerCase()
-  if (ext && extensionMap[ext]) return extensionMap[ext]
+  if (ext && Object.hasOwn(extensionMap, ext)) return extensionMap[ext]
 
   return DEFAULT_ICON
 }
