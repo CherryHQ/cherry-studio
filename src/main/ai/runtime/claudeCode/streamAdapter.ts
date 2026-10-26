@@ -141,6 +141,8 @@ type StreamContext = {
   currentReasoningPartId: string | undefined
   textPartId: string | undefined
   accumulatedText: string
+  /** Message whose text `content_block_delta` already streamed; the offset below is per message. */
+  streamedTextMessageId: string | undefined
   streamedTextLength: number
   usage: LanguageModelV3Usage
   hasReceivedStreamEvents: boolean
@@ -218,6 +220,17 @@ function isClaudeCodeTruncationError(error: unknown, bufferedText: string): bool
 
 function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
+}
+
+const SYNTHETIC_ASSISTANT_MODEL = '<synthetic>'
+/** How the CLI renders a provider failure into that message's text block. */
+const API_ERROR_TEXT = /^API Error: /
+
+/** A provider failure the CLI folds in as an assistant message whose text is the raw API error. */
+function isSyntheticApiErrorMessage(message: SDKAssistantMessage, text: string): boolean {
+  return (
+    message.error !== undefined || message.message?.model === SYNTHETIC_ASSISTANT_MODEL || API_ERROR_TEXT.test(text)
+  )
 }
 
 function getToolParentId(
@@ -544,6 +557,7 @@ export class ClaudeCodeStreamAdapter {
       currentReasoningPartId: undefined,
       textPartId: undefined,
       accumulatedText: '',
+      streamedTextMessageId: undefined,
       streamedTextLength: 0,
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
@@ -793,6 +807,10 @@ export class ClaudeCodeStreamAdapter {
         this.handleMessageDelta(event, ctx)
         break
       case 'message_start':
+        // Each assistant message restarts the partial-vs-aggregated dedupe window.
+        ctx.streamedTextMessageId = event.message.id
+        ctx.streamedTextLength = 0
+        break
       case 'message_stop':
         break
     }
@@ -1056,8 +1074,16 @@ export class ClaudeCodeStreamAdapter {
 
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
 
+    if (text && isSyntheticApiErrorMessage(message, text)) {
+      logger.debug('Dropping the synthetic API-error message text', {
+        sessionId: this.sessionId,
+        error: message.error,
+        chars: text.length
+      })
+      return
+    }
     if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+      this.handleAssistantText(text, message.message.id, sdkParentToolUseId, ctx)
     }
   }
 
@@ -1128,9 +1154,19 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
+  private handleAssistantText(
+    text: string,
+    messageId: string | undefined,
+    sdkParentToolUseId: SdkParentToolUseId,
+    ctx: StreamContext
+  ): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
-    if (ctx.hasReceivedStreamEvents) {
+    // Dedupe only within the message the deltas streamed from; an unknown streamed id
+    // (relay without `message_start`) keeps the old turn-scoped comparison.
+    const dedupesAgainstStream =
+      ctx.hasReceivedStreamEvents &&
+      (ctx.streamedTextMessageId === undefined || ctx.streamedTextMessageId === messageId)
+    if (dedupesAgainstStream) {
       const newTextStart = ctx.streamedTextLength
       const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
       ctx.accumulatedText = text
@@ -1143,15 +1179,20 @@ export class ClaudeCodeStreamAdapter {
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
       }
       ctx.streamedTextLength = text.length
-    } else {
-      ctx.accumulatedText += text
-      if (ctx.options.responseFormat?.type !== 'json') {
-        if (!ctx.textPartId) {
-          ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
-        }
-        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
+      return
+    }
+
+    if (ctx.hasReceivedStreamEvents && messageId !== undefined) {
+      ctx.streamedTextMessageId = messageId
+      ctx.streamedTextLength = 0
+    }
+    ctx.accumulatedText += text
+    if (ctx.options.responseFormat?.type !== 'json') {
+      if (!ctx.textPartId) {
+        ctx.textPartId = generateId()
+        ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
       }
+      ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
     }
   }
 

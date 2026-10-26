@@ -499,6 +499,99 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts[2]).toMatchObject({ type: 'text-end', id: (parts[0] as any).id })
   })
 
+  it('keeps the provider HTTP error out of the assistant text on the synthetic API-error path', () => {
+    const { adapter, parts } = createAdapter()
+    const errorText = "API Error: 400 This model's maximum context length is 8 tokens"
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'message_start',
+        message: { id: 'msg-partial', role: 'assistant', model: 'glm-4.6', content: [] }
+      })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '正在生成回答' } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    // The aggregated copy of the streamed message must stay deduped …
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { id: 'msg-partial', model: 'glm-4.6', content: [{ type: 'text', text: '正在生成回答' }] }
+    } as any)
+    // … while the CLI's synthetic API-error message carries the provider body it must not render.
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      error: 'invalid_request',
+      message: {
+        id: 'msg-api-error',
+        model: '<synthetic>',
+        content: [{ type: 'text', text: errorText }]
+      }
+    } as any)
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('正在生成回答')
+
+    // The failure itself must still reach the structured error channel untouched.
+    let thrown: unknown
+    try {
+      adapter.handleMessage(
+        successResult({ is_error: true, terminal_reason: 'api_error', api_error_status: 400, result: errorText })
+      )
+    } catch (error) {
+      thrown = error
+    }
+    expect(serializeError(thrown)).toMatchObject({ name: 'ClaudeCodeResultError', statusCode: 400, message: errorText })
+  })
+
+  it('emits a new assistant message whole instead of slicing it by the previous message', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'message_start',
+        message: { id: 'msg-first', role: 'assistant', model: 'glm-4.6', content: [] }
+      })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'I will read the file' }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    // A later message arrives without partial events; its text is shorter than the first one.
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { id: 'msg-second', model: 'glm-4.6', content: [{ type: 'text', text: 'Found 3 matches' }] }
+    } as any)
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('I will read the fileFound 3 matches')
+  })
+
   it('does not emit or persist tagged or synthetic-source reminders from the assistant stream', async () => {
     const { adapter, parts } = createAdapter()
     const reminder = 'The task tools have not been used recently.'
