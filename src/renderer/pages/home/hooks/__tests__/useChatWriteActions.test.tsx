@@ -1,5 +1,7 @@
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as MessageUiStateCache from '@renderer/services/messageUiStateCache'
 
 const { invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
   invalidateMessages: vi.fn(),
@@ -17,14 +19,28 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
 }))
-vi.mock('@renderer/services/messageUiStateCache', () => ({
+vi.mock('@renderer/services/messageUiStateCache', async (importOriginal) => ({
+  ...(await importOriginal<typeof MessageUiStateCache>()),
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
+import { streamingAnimationService } from '@cherrystudio/ui/components/composites/markdown/streaming-animation-service'
+import { thinkingScrollService } from '@renderer/services/ThinkingScrollService'
 import type { Topic } from '@renderer/types/topic'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useChatWriteActions } from '../useChatWriteActions'
+
+beforeEach(() => {
+  cleanup()
+  streamingAnimationService.clear()
+  thinkingScrollService.clear()
+})
+afterEach(() => {
+  cleanup()
+  streamingAnimationService.clear()
+  thinkingScrollService.clear()
+})
 
 function makeCache() {
   return {
@@ -519,6 +535,12 @@ describe('useChatWriteActions — regenerate', () => {
     })
     const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
 
+    streamingAnimationService.write('a1-part-0', { source: 'Alpha beta', optionsKey: '{}', blocks: new Map([[0, 10]]) })
+    thinkingScrollService.write('a1-part-1', { scrollTop: 25, following: false, isExpanded: true })
+    seedReservedMessages.mockImplementationOnce(async () => {
+      expect(streamingAnimationService.read('a1-part-0')).toBeUndefined()
+      expect(thinkingScrollService.read('a1-part-1')).toBeUndefined()
+    })
     await actions.regenerate('a1')
 
     expect(regenerate).not.toHaveBeenCalled()

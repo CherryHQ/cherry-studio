@@ -1,5 +1,9 @@
 import { createContext, use } from 'react'
 
+import type { MarkdownAnimationSession } from './streaming-animation-service'
+
+export const MarkdownAnimationContext = createContext<MarkdownAnimationSession | null>(null)
+
 /**
  * Carries the raw markdown source to sub-components rendered inside a
  * `<Markdown>` (e.g. `Table` needs the original markdown to support

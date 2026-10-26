@@ -1,5 +1,5 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-import { use, useId, useMemo, useState } from 'react'
+import { use, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 import type { Pluggable } from 'unified'
@@ -8,6 +8,8 @@ import {
   createCodeHighlightPlugin,
   defaultMarkdownPlugins,
   Markdown,
+  forgetStreamingMarkdownAnimations,
+  type MarkdownAnimationRecovery,
   StreamingMarkdown,
   withMath
 } from '@cherrystudio/ui'
@@ -43,12 +45,18 @@ const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
 export function AppMarkdown(props: AppMarkdownProps) {
   const generatedId = useId()
   const id = props.id ?? generatedId
-  return <MarkdownContent key={id} {...props} id={id} />
+  const isStreaming = props.isStreaming ?? false
+  const recovery = props.id ? { id: props.id, source: props.children, isStreaming } : undefined
+  useEffect(() => {
+    if (props.id && !isStreaming) forgetStreamingMarkdownAnimations((candidate) => candidate === props.id)
+  }, [props.id, isStreaming])
+  return <MarkdownContent key={id} {...props} id={id} animationRecovery={recovery} />
 }
 
 function MarkdownContent({
   children,
   id,
+  animationRecovery,
   isStreaming = false,
   singleDollarMath = true,
   className,
@@ -56,7 +64,7 @@ function MarkdownContent({
   remarkPlugins,
   rehypePlugins,
   transformSource = removeSvgEmptyLines
-}: AppMarkdownProps & { id: string }) {
+}: AppMarkdownProps & { id: string; animationRecovery?: MarkdownAnimationRecovery }) {
   const { t } = useTranslation()
   const { openFilePath, resolveImageSrc } = useMarkdownHost()
   const [hasStreamed, setHasStreamed] = useState(isStreaming)
@@ -97,6 +105,7 @@ function MarkdownContent({
       {hasStreamed || isStreaming ? (
         <StreamingMarkdown
           {...commonProps}
+          animationRecovery={animationRecovery}
           animated={isStreaming && content.length <= MAX_ANIMATED_CONTENT_LENGTH ? undefined : false}
           parseIncompleteMarkdown={isStreaming}
           parseMarkdownIntoBlocksFn={parseMarkdownBlocks}>

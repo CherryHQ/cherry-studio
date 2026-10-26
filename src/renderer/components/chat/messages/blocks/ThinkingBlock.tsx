@@ -1,8 +1,19 @@
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import { type MarkdownSource, Scrollbar } from '@cherrystudio/ui'
+import { thinkingScrollService, type ThinkingScrollSnapshot } from '@renderer/services/ThinkingScrollService'
 
 import { getDistanceToBottom, getRealBottom } from '../list/scrollGeometry'
 import { VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX } from '../list/ScrollOwnershipContext'
@@ -73,22 +84,69 @@ ThinkingBlockContent.displayName = 'ThinkingBlockContent'
 
 const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
   const { thoughtAutoCollapse } = useMessageRenderConfig()
-  const [isExpanded, setIsExpanded] = useState(!thoughtAutoCollapse)
+  const [saved] = useState(() => thinkingScrollService.read(id))
+  const [isExpanded, setIsExpanded] = useState(saved?.isExpanded ?? !thoughtAutoCollapse)
   const contentId = useId()
   const contentRef = useRef<HTMLDivElement>(null)
-  const followingRef = useRef(true)
+  const followingRef = useRef(saved?.following ?? true)
+  const pendingRestoreRef = useRef(saved)
+  const restoredScrollTopRef = useRef<number | undefined>(undefined)
+  const lastSnapshotRef = useRef<ThinkingScrollSnapshot | undefined>(saved)
+  const expandedRef = useRef(isExpanded)
+  expandedRef.current = isExpanded
+  const preferenceRef = useRef(thoughtAutoCollapse)
   const hasContent = !!content
+
+  const savePanel = useCallback(
+    (panel: HTMLDivElement) => {
+      const previous = lastSnapshotRef.current
+      if (previous && thinkingScrollService.read(id) !== previous) return
+      const measurable = !pendingRestoreRef.current && !panel.hidden && panel.clientHeight > 0
+      if (!measurable && !previous) return
+      const snapshot = {
+        scrollTop: measurable ? panel.scrollTop : previous!.scrollTop,
+        following: followingRef.current,
+        isExpanded: expandedRef.current
+      }
+      thinkingScrollService.write(id, snapshot)
+      lastSnapshotRef.current = thinkingScrollService.read(id)
+    },
+    [id]
+  )
+
+  const restorePanel = useCallback((panel: HTMLDivElement) => {
+    const pending = pendingRestoreRef.current
+    if (!pending) return true
+    if (panel.hidden || panel.clientHeight <= 0) return false
+    const target = pending.following
+      ? getRealBottom(panel)
+      : Math.min(Math.max(0, pending.scrollTop), getRealBottom(panel))
+    panel.scrollTop = target
+    restoredScrollTopRef.current = target
+    pendingRestoreRef.current = undefined
+    return true
+  }, [])
+
+  useLayoutEffect(() => {
+    const panel = contentRef.current
+    if (!panel) return
+    restorePanel(panel)
+    savePanel(panel)
+    return () => savePanel(panel)
+  })
 
   useEffect(() => {
     const panel = contentRef.current
-    if (!panel || !isExpanded || !isStreaming) return
+    if (!panel || !isExpanded || (!isStreaming && !pendingRestoreRef.current)) return
     const observer = new ResizeObserver(() => {
-      if (followingRef.current) panel.scrollTop = getRealBottom(panel)
+      if (!restorePanel(panel) || panel.hidden || panel.clientHeight <= 0) return
+      if (isStreaming && followingRef.current) panel.scrollTop = getRealBottom(panel)
+      savePanel(panel)
     })
     observer.observe(panel)
     if (panel.firstElementChild) observer.observe(panel.firstElementChild)
     return () => observer.disconnect()
-  }, [hasContent, isExpanded, isStreaming])
+  }, [hasContent, isExpanded, isStreaming, restorePanel, savePanel])
   const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
@@ -114,6 +172,8 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   }, [thinkingPreviewScanResult])
 
   useEffect(() => {
+    if (preferenceRef.current === thoughtAutoCollapse) return
+    preferenceRef.current = thoughtAutoCollapse
     setIsExpanded(!thoughtAutoCollapse)
   }, [thoughtAutoCollapse])
 
@@ -179,8 +239,11 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         className={THINKING_CONTENT_PANEL_CLASSNAME}
         onScroll={() => {
           const panel = contentRef.current
-          if (!panel || !isExpanded || !isStreaming) return
+          if (!panel || !isExpanded || panel.clientHeight <= 0 || pendingRestoreRef.current) return
+          if (panel.scrollTop === restoredScrollTopRef.current) return
+          restoredScrollTopRef.current = undefined
           followingRef.current = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
+          savePanel(panel)
         }}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </Scrollbar>

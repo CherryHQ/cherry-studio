@@ -1,4 +1,6 @@
+import { forgetStreamingMarkdownAnimations } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
+import { thinkingScrollService } from '@renderer/services/ThinkingScrollService'
 import type { MessageUiState } from '@renderer/types/message'
 
 type MessageUiStateUpdate = MessageUiState | ((current: MessageUiState) => MessageUiState)
@@ -22,5 +24,14 @@ export function subscribeCachedMessageUiState(messageId: string, listener: () =>
 }
 
 export function invalidateCachedMessageUiStates(messageIds: Iterable<string>): void {
-  for (const messageId of messageIds) cacheService.delete(cacheKey(messageId))
+  const ids = [...messageIds]
+  for (const messageId of ids) cacheService.delete(cacheKey(messageId))
+  invalidateCachedMessageMarkdownStates(ids)
+}
+
+export function invalidateCachedMessageMarkdownStates(messageIds: Iterable<string>): void {
+  const prefixes = [...messageIds].map((id) => `${id}-part-`)
+  const matches = (id: string) => prefixes.some((prefix) => id.startsWith(prefix))
+  forgetStreamingMarkdownAnimations(matches)
+  thinkingScrollService.deleteWhere(matches)
 }

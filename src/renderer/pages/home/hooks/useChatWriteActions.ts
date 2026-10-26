@@ -21,7 +21,10 @@ import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
-import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+import {
+  invalidateCachedMessageMarkdownStates,
+  invalidateCachedMessageUiStates
+} from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
@@ -334,6 +337,7 @@ export function useChatWriteActions(params: Params): Result {
           ...turnOptionsRequestFields(turnOptions)
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        invalidateCachedMessageMarkdownStates([target.id])
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
           preserveActiveNode: ack.preserveActiveNode

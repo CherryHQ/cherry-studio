@@ -8,7 +8,7 @@
  * the package stays provider-agnostic.
  */
 
-import { type ReactElement, useCallback, useMemo, useRef } from 'react'
+import { type ReactElement, use, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import remarkDefinitionList, { defListHastHandlers } from 'remark-definition-list'
 import remarkAlert from 'remark-github-blockquote-alert'
 import { remarkMark } from 'remark-mark-highlight'
@@ -20,12 +20,13 @@ import {
   defaultRehypePlugins,
   defaultRemarkPlugins,
   defaultUrlTransform,
+  parseMarkdownIntoBlocks,
   type PluginConfig,
   Streamdown
 } from 'streamdown'
 import type { Pluggable } from 'unified'
 
-import { MarkdownBlockContext } from './context'
+import { MarkdownAnimationContext, MarkdownBlockContext } from './context'
 import { rehypeHeadingIds, rehypePrefixSvgReferences, rehypePreserveAnchorTargets } from './plugins'
 import {
   FILE_LINK_MARKER_PROPERTY,
@@ -34,6 +35,8 @@ import {
 } from './plugins/rehype-preserve-file-links'
 import { createRelativeImagePreservation } from './plugins/rehype-preserve-relative-images'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
+import { MarkdownAnimationSession } from './streaming-animation-service'
+import type { MarkdownAnimationRecovery } from './streaming-markdown'
 import {
   createMarkdownSanitizeSchema,
   DISALLOWED_ELEMENTS,
@@ -51,10 +54,27 @@ const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).m
 
 function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
   const markdownCtx = useMemo(() => ({ content }), [content])
+  const session = use(MarkdownAnimationContext)
+  const blockPlugin =
+    session && props.animatePlugin && props.rehypePlugins?.includes(props.animatePlugin.rehypePlugin)
+      ? session.getBlock(props.index, content)
+      : props.animatePlugin
+  const rehypePlugins = useMemo(
+    () =>
+      blockPlugin && props.animatePlugin && blockPlugin !== props.animatePlugin
+        ? props.rehypePlugins?.map((plugin) =>
+            plugin === props.animatePlugin?.rehypePlugin ? blockPlugin.rehypePlugin : plugin
+          )
+        : props.rehypePlugins,
+    [props.rehypePlugins, props.animatePlugin, blockPlugin]
+  )
+  useLayoutEffect(() => {
+    if (blockPlugin) session?.commit(props.index, blockPlugin)
+  })
 
   return (
     <MarkdownBlockContext value={markdownCtx}>
-      <Block content={content} {...props} />
+      <Block content={content} {...props} animatePlugin={blockPlugin} rehypePlugins={rehypePlugins} />
     </MarkdownBlockContext>
   )
 }
@@ -122,6 +142,7 @@ export interface MarkdownCoreProps {
   extraRehypePlugins?: Pluggable[]
   /** Caller-supplied extra remark plugins appended after Streamdown defaults + remarkAlert. */
   extraRemarkPlugins?: Pluggable[]
+  animationRecovery?: MarkdownAnimationRecovery
   /** Animation config forwarded to Streamdown's built-in `animated` prop. */
   animated?: AnimateOptions | false
   mode: 'static' | 'streaming'
@@ -145,6 +166,7 @@ export function MarkdownCore({
   extraRehypePlugins,
   extraRemarkPlugins,
   animated,
+  animationRecovery,
   mode,
   parseIncompleteMarkdown,
   parseMarkdownIntoBlocksFn,
@@ -154,6 +176,36 @@ export function MarkdownCore({
   preserveFileLinkHrefs = false,
   preserveRelativeImageSrcs = false
 }: MarkdownCoreProps): ReactElement {
+  const sessionRef = useRef<MarkdownAnimationSession | null>(null)
+  const optionsKey = JSON.stringify(animated)
+  const recoveryEnabled = animationRecovery?.isStreaming && animated
+  if (recoveryEnabled && animationRecovery) {
+    const current = sessionRef.current
+    if (
+      !current ||
+      current.id !== animationRecovery.id ||
+      current.optionsKey !== optionsKey ||
+      !current.continues(animationRecovery.source)
+    ) {
+      sessionRef.current = new MarkdownAnimationSession(
+        animationRecovery.id,
+        animationRecovery.source,
+        optionsKey,
+        animated
+      )
+    }
+    sessionRef.current!.updateSource(animationRecovery.source)
+  }
+  const session = recoveryEnabled ? sessionRef.current : null
+  const parseBlocks = useMemo(() => {
+    if (!session) return parseMarkdownIntoBlocksFn
+    const parser = parseMarkdownIntoBlocksFn ?? parseMarkdownIntoBlocks
+    return (source: string) => {
+      const blocks = parser(source)
+      session.captureInitialBlocks(blocks)
+      return blocks
+    }
+  }, [session, parseMarkdownIntoBlocksFn])
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
   const stableComponents = useStableReference(components, isSameComponents)
   const stableExtraRehypePlugins = useStableReference(extraRehypePlugins, isSamePluggableList)
@@ -223,26 +275,28 @@ export function MarkdownCore({
   const markdownCtx = useMemo(() => ({ content: children }), [children])
 
   return (
-    <MarkdownBlockContext value={markdownCtx}>
-      <div className={['markdown', className].filter(Boolean).join(' ')}>
-        <Streamdown
-          BlockComponent={MarkdownBlock}
-          mode={mode}
-          plugins={plugins}
-          rehypePlugins={rehypePlugins}
-          remarkPlugins={remarkPlugins}
-          components={stableComponents}
-          disallowedElements={disallowedElements}
-          urlTransform={urlTransform}
-          parseIncompleteMarkdown={parseIncompleteMarkdown}
-          parseMarkdownIntoBlocksFn={parseMarkdownIntoBlocksFn}
-          normalizeHtmlIndentation
-          remarkRehypeOptions={remarkRehypeOptions}
-          animated={animated || undefined}
-          isAnimating={!!animated && mode === 'streaming'}>
-          {children}
-        </Streamdown>
-      </div>
-    </MarkdownBlockContext>
+    <MarkdownAnimationContext value={session}>
+      <MarkdownBlockContext value={markdownCtx}>
+        <div className={['markdown', className].filter(Boolean).join(' ')}>
+          <Streamdown
+            BlockComponent={MarkdownBlock}
+            mode={mode}
+            plugins={plugins}
+            rehypePlugins={rehypePlugins}
+            remarkPlugins={remarkPlugins}
+            components={stableComponents}
+            disallowedElements={disallowedElements}
+            urlTransform={urlTransform}
+            parseIncompleteMarkdown={parseIncompleteMarkdown}
+            parseMarkdownIntoBlocksFn={parseBlocks}
+            normalizeHtmlIndentation
+            remarkRehypeOptions={remarkRehypeOptions}
+            animated={animated || undefined}
+            isAnimating={!!animated && mode === 'streaming'}>
+            {children}
+          </Streamdown>
+        </div>
+      </MarkdownBlockContext>
+    </MarkdownAnimationContext>
   )
 }
