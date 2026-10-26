@@ -273,6 +273,31 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
   })
 
+  it('projects a stable-id denial onto the frozen allocation when the server is no longer mounted', async () => {
+    // Full Access turn with `mcp-1` exposed as `docs`; the agent is updated to mount nothing
+    // and the tool is disabled by its stable id. The CURRENT allocation is empty, so the
+    // denial cannot translate through it — but the ACTIVE connection still serves
+    // `mcp__docs__run` until its deferred rebuild lands, so the id-keyed denial must project
+    // onto the frozen baseline key or the explicitly disabled tool executes.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], [serverId]), {
+      serverNameById: new Map([[serverId, 'docs']])
+    })
+
+    await snapshot.update(makeAgent([`mcp__${serverId}__run`], []), {
+      serverNameById: new Map(),
+      baselineServerNameById: new Map([[serverId, 'docs']]),
+      preserveDenied: []
+    })
+    expect(snapshot.isDisabled(`mcp__${serverId}__run`)).toBe(true)
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    // The replacement connection's connect refresh carries no baseline — release.
+    await snapshot.update(makeAgent([`mcp__${serverId}__run`], []), { serverNameById: new Map() })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(false)
+    expect(snapshot.isDisabled(`mcp__${serverId}__run`)).toBe(true)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))

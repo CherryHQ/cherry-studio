@@ -271,12 +271,22 @@ export async function createClaudeAgentToolPolicySnapshot(
     )
     // The active connection still answers to its connect-time keys: re-express each fresh
     // current-key denial under the baseline keys so a disable that lands after a rename also
-    // blocks the pre-rename identity until the replacement connection releases it.
+    // blocks the pre-rename identity until the replacement connection releases it. A server
+    // absent from the CURRENT allocation (unmounted or deleted mid-turn) has no current key to
+    // translate through — its stable-id denial names the server exactly, so it still projects
+    // onto the baseline key the frozen connection registered it under.
     if (baselineServerNameById) {
       for (const denial of freshDenied) {
         for (const [id, baselineKey] of baselineServerNameById) {
           const currentKey = serverNameById?.get(id)
-          if (currentKey === undefined || currentKey === baselineKey) continue
+          if (currentKey === undefined) {
+            const idPrefix = `mcp__${toSdkMcpServerSegment(id)}__`
+            if (denial.startsWith(idPrefix)) {
+              retainedDenied.add(`mcp__${toSdkMcpServerSegment(baselineKey)}__${denial.slice(idPrefix.length)}`)
+            }
+            continue
+          }
+          if (currentKey === baselineKey) continue
           const currentPrefix = `mcp__${toSdkMcpServerSegment(currentKey)}__`
           if (!denial.startsWith(currentPrefix)) continue
           retainedDenied.add(`mcp__${toSdkMcpServerSegment(baselineKey)}__${denial.slice(currentPrefix.length)}`)
