@@ -110,6 +110,41 @@ describe('finalizeLiveMessages', () => {
     expect(voice.spoken).toEqual([])
   })
 
+  it('drops a submit that was preparing files while the conversation was saved', async () => {
+    // The composer awaits attachment preparation, then calls the send it captured before Save.
+    // Dispatching it would reach the now-persisted topic with no branch anchor.
+    conversation.persistTopic.mockResolvedValue(undefined)
+    conversation.sendMessage.mockClear()
+    const { result } = renderHook(() => useQuickConversation({}))
+    const pendingSend = result.current.send
+
+    await act(async () => {
+      await result.current.save()
+    })
+
+    act(() => {
+      expect(pendingSend('follow-up with attachment')).toBe(false)
+    })
+    expect(conversation.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('drops a submit that was preparing files across a reset, but sends on the new lease', () => {
+    conversation.sendMessage.mockClear()
+    const { result, rerender } = renderHook(() => useQuickConversation({}))
+    const pendingSend = result.current.send
+
+    lease.topicId = 'temp-topic-2'
+    rerender()
+
+    act(() => {
+      expect(pendingSend('meant for the old conversation')).toBe(false)
+    })
+    expect(conversation.sendMessage).not.toHaveBeenCalled()
+    act(() => {
+      expect(result.current.send('meant for the new one')).toBe(true)
+    })
+  })
+
   it('refuses to send while a save is in flight, and sends again once that save fails', async () => {
     // A turn accepted mid-save would dispatch against the promoted topic with no branch
     // anchor, then be stopped when the save ends the conversation.

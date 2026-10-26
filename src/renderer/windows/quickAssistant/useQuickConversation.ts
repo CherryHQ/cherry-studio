@@ -86,6 +86,8 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
   const [isSaving, setIsSaving] = useState(false)
   // Read synchronously by send(): state would lag a follow-up submitted right after Save.
   const savingRef = useRef(false)
+  /** The topic a save moved to SQLite; it belongs to the main window from then on. */
+  const savedTopicIdRef = useRef<string | null>(null)
 
   const {
     messages: chatMessages,
@@ -246,6 +248,9 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
       // While saving, a turn could dispatch against the promoted topic with no branch anchor,
       // only to be stopped when the save ends the conversation.
       if (!ready || !topicId || isPreparing || isPending || savingRef.current) return false
+      // A submit that awaited file preparation across a save or reset holds a stale callback;
+      // dispatching it would land on the persisted topic with no branch anchor.
+      if (topicId !== topicIdRef.current || topicId === savedTopicIdRef.current) return false
       const parts = options?.userMessageParts ?? [{ type: 'text' as const, text }]
       if (parts.length === 0) return false
 
@@ -289,6 +294,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     setIsSaving(true)
     try {
       await persist()
+      savedTopicIdRef.current = savingTopicId
       // Esc, collapse, or an assistant switch can drop the lease mid-request; the caller must
       // not then end the conversation the user has started since.
       return topicIdRef.current === savingTopicId
