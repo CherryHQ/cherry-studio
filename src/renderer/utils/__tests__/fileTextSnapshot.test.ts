@@ -63,6 +63,16 @@ describe('decodeFileText', () => {
 })
 
 describe('encodeFileText round-trip', () => {
+  it('preserves a leading content U+FEFF after the UTF-8 BOM when round-tripping and editing', () => {
+    const bytes = withUtf8Bom('\uFEFFfirst\r\nsecond\r\n')
+    const decoded = decodeFileText(bytes)
+    expect(decoded).toEqual({ content: '\uFEFFfirst\nsecond\n', lineEnding: 'crlf', hasBom: true })
+    expect(encodeFileText(decoded.content, decoded.lineEnding, decoded.hasBom)).toEqual(bytes)
+    expect(encodeFileText(`${decoded.content}third\n`, decoded.lineEnding, decoded.hasBom)).toEqual(
+      withUtf8Bom('\uFEFFfirst\r\nsecond\r\nthird\r\n')
+    )
+  })
+
   it('restores CRLF + BOM byte-for-byte', () => {
     const bytes = withUtf8Bom('first\r\nsecond\r\n')
     const decoded = decodeFileText(bytes)
