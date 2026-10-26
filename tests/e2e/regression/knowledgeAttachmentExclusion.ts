@@ -12,6 +12,7 @@ import { TopicSchema } from '@shared/data/types/topic'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
+import { openAttachmentPicker } from './chat'
 import { selectSidebarApp } from './navigation'
 import type { RegressionApp } from './RegressionApp'
 
@@ -195,7 +196,7 @@ export async function knowledgeAttachmentExclusion(app: RegressionApp, page: Pag
     await page.getByRole('button', { name: 'Close', exact: true }).last().click()
     await composer.getByRole('button', { name: 'Remove', exact: true }).click()
     await expect(composer).not.toContainText(baseName)
-    await composer.getByRole('button', { name: 'Upload attachment', exact: true }).click()
+    await openAttachmentPicker(page, composer)
     chooseNativeFile(app.record.platform, app.paths, pdfPath)
     await expect(composer).toContainText('sample.pdf')
     await expect(knowledge).toBeDisabled()

@@ -3,9 +3,10 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { basename, dirname, extname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { readAppRecord } from './lifecycle'
+import { readAppRecord, readOwnedRecord } from './lifecycle'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
+import { assertOwnedProcess, findCdpPid, isDescendant } from './process'
 import type { Platform } from './types'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
@@ -152,8 +153,18 @@ function runAsync(file: string, args: string[], timeout: number): Promise<void> 
  * blocked inside the modal call, so nothing inside the page can dismiss it: click the
  * box's default button from the desktop instead. Resolves once the box is gone.
  */
-export function dismissNativeMessageBox(platform: Platform, paths: RunPaths, title: string): Promise<void> {
-  const electronPid = readAppRecord(paths).electronPid
+export async function dismissNativeMessageBox(platform: Platform, paths: RunPaths, title: string): Promise<void> {
+  const record = readOwnedRecord(paths)
+  let electronPid = record.electronPid
+  const deadline = Date.now() + 60_000
+  while (!electronPid && Date.now() < deadline) {
+    electronPid = findCdpPid(platform)
+    if (!electronPid) await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  if (!electronPid) throw new Error('Owned application did not open its CDP port before the native dialog')
+  assertOwnedProcess(record, electronPid, 'electron')
+  if (!isDescendant(electronPid, record.runnerPid, platform))
+    throw new Error('Native dialog process is outside the owned run')
   if (platform === 'macos') {
     const script = [
       'on run argv',

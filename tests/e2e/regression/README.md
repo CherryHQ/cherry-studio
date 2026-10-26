@@ -100,3 +100,18 @@ Both endpoints use `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`. The embedding provider
 Never attach credentials or enable credential-bearing Playwright traces. HTML reports and failure screenshots are produced by Playwright and the fixture; sanitized Electron logs are copied during finalization.
 
 Use the [frontend testing guidelines](../../../docs/references/testing/frontend-testing.md). Keep local changes separate from hosted runtime validation; successful enumeration and unit tests do not prove desktop permissions or external model availability.
+
+
+## Partial coverage
+
+A passing implemented flow does not cover capabilities absent from the current product. Scenarios record these gaps with `uncovered` annotations; they do not search for fictional controls.
+
+| Case | Verified scope | Uncovered capability |
+| --- | --- | --- |
+| MP-57 | Memory setting persistence and retained snapshots | Runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
+| MP-69 | File categories, counts and clearing filters | Filename search and result highlighting |
+| MP-72 | Existing file-library operations | Referencing an existing library file from the composer |
+| MP-74 | Draft persistence and external-edit conflict handling | An explicit Saved status indicator |
+| MP-82 | Document import, size limit, translation and Notes export control | Source character counter, Markdown save-as and translated-file naming |
+| MP-90 | Preview zoom, pan, rotation and saving the original image | Image upscaling or enhancement |
+| MP-115 | Backup archive creation and backup-manager visibility | Native notification delivery |

@@ -212,7 +212,7 @@ export async function launchApp(
   }
 }
 
-function readOwnedRecord(paths: RunPaths): LaunchRecord {
+export function readOwnedRecord(paths: RunPaths): LaunchRecord {
   const record = readJson<LaunchRecord>(paths.appRecord)
   if (record.schemaVersion !== 1 || record.ownership !== 'regression-driver' || record.policy !== 'ephemeral') {
     throw new Error('Refusing to control an unowned application record')
@@ -316,7 +316,7 @@ export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Pr
 }
 
 export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {
-  const current = readAppRecord(paths)
+  const current = readOwnedRecord(paths)
   await stopOwnedApp(paths)
   return launchApp(paths, {
     mode: current.mode,

@@ -132,7 +132,10 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       { directory: app.paths.workspace }
     )
     await openLaunchpadApp(page, 'Code Mate')
-    await page.getByRole('button', { name: 'Claude Code', exact: true }).first().click()
+    await codeView
+      .locator('[data-ui~="code.navigation"]')
+      .getByRole('button', { name: /^Claude Code\b/ })
+      .click()
     const dialog = await configure()
     await dialog.getByRole('button', { name: 'Select a model', exact: true }).click()
     await page.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()

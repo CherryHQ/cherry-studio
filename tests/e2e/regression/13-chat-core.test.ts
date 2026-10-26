@@ -13,7 +13,7 @@ import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
-import { sendChatMarker } from './chat'
+import { openAttachmentPicker, sendChatMarker } from './chat'
 import { chatEfficiency } from './chatEfficiency'
 import { chatImageGeneration } from './chatImageGeneration'
 import { codeBlockToolbar } from './codeBlockToolbar'
@@ -163,13 +163,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
     const editor = composer.locator('[contenteditable="true"]').first()
     const fileToken = (name: string) => composer.locator('[data-composer-token-kind="file"]').filter({ hasText: name })
     const upload = async (path: string) => {
-      const direct = composer.getByRole('button', { name: 'Upload attachment', exact: true })
-      if (await direct.isVisible()) {
-        await direct.click()
-      } else {
-        await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
-        await page.getByText('Upload attachment', { exact: true }).last().click()
-      }
+      await openAttachmentPicker(page, composer)
       chooseNativeFile(app.record.platform, app.paths, path)
     }
     const readMessages = async () => {

@@ -9,6 +9,7 @@ import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { createAgent, selectAgentWorkspace } from './agents'
+import { openAttachmentPicker } from './chat'
 import { ensureCustomChatProvider } from './models'
 import type { RegressionApp } from './RegressionApp'
 import { closeSettings } from './settings'
@@ -75,12 +76,7 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   const messages = view.locator('[data-ui~="chat.message"]:visible')
   const overlay = page.getByTestId('artifact-file-preview-overlay')
   const attachAndSend = async (name: string) => {
-    const upload = composer.getByRole('button', { name: 'Upload attachment', exact: true })
-    if (await upload.isVisible()) await upload.click()
-    else {
-      await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
-      await page.getByText('Upload attachment', { exact: true }).last().click()
-    }
+    await openAttachmentPicker(page, composer)
     chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, name))
     await expect(composer.locator('[data-composer-token-kind="file"]').filter({ hasText: name })).toBeVisible()
     await editor.press('End')

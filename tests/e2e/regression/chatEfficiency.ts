@@ -10,7 +10,7 @@ import { TopicSchema } from '@shared/data/types/topic'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
-import { sendChatMarker } from './chat'
+import { openAttachmentPicker, sendChatMarker } from './chat'
 import { efficiencyImage, startChatEfficiencyServer } from './chatEfficiencyServer'
 import { selectSidebarApp } from './navigation'
 import type { RegressionApp } from './RegressionApp'
@@ -193,7 +193,7 @@ export async function chatEfficiency(app: RegressionApp, page: Page, testInfo: T
 
     const imagePath = join(app.paths.fixtures, 'mp18-attachment.png')
     await writeFile(imagePath, efficiencyImage)
-    await composer.getByRole('button', { name: 'Upload attachment', exact: true }).click()
+    await openAttachmentPicker(page, composer)
     chooseNativeFile(app.record.platform, app.paths, imagePath)
     await expect(composer).toContainText('mp18-attachment.png')
     await Promise.all([

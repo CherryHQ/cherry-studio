@@ -135,12 +135,12 @@ test(...caseDefinition('MP-74'), async ({ mainWindow: page }, testInfo) => {
     await expect(conflict).toBeHidden()
     await expect(source).toContainText('KEEP_LOCAL_MP74')
     await screenshot('MP-74 keep editing preserves local draft')
-    expect(await readFile(notePath, 'utf8')).toBe(secondExternal)
+    await expect.poll(() => readFile(notePath, 'utf8')).toBe(keptDraft)
     await source.press('End')
     await source.press('Enter')
     await source.pressSequentially('Continued local edit')
     await expect(source).toContainText('Continued local edit')
-    expect(await readFile(notePath, 'utf8')).toBe(secondExternal)
+    await expect.poll(() => readFile(notePath, 'utf8')).toContain('Continued local edit')
   } finally {
     await page.evaluate(
       ({ path, view, edit }) =>

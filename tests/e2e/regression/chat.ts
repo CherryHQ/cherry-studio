@@ -1,7 +1,16 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
+
+export async function openAttachmentPicker(page: Page, composer: Locator): Promise<void> {
+  const direct = composer.getByRole('button', { name: 'Upload attachment', exact: true })
+  if (await direct.isVisible()) await direct.click()
+  else {
+    await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+    await page.getByText('Upload attachment', { exact: true }).last().click()
+  }
+}
 
 export async function selectChatModel(page: Page, model: string): Promise<void> {
   await selectSidebarApp(page, 'Chat')

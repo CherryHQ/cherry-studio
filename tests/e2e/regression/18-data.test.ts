@@ -11,6 +11,7 @@ import { TopicSchema } from '@shared/data/types/topic'
 
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { readOwnedRecord } from '../../../scripts/e2e/regression/lifecycle'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { dismissNativeMessageBox } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
@@ -355,7 +356,16 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
     await Promise.all([closed, acknowledged])
     if (app.record.mode === 'branch') {
-      // The exit was the restart the dialog asks for; bring the application back through the harness.
+      const { runnerPid: runner, platform } = app.record
+      const promotion = app.restart().then(
+        () => undefined,
+        (error: unknown) => error
+      )
+      await expect.poll(() => readOwnedRecord(app.paths).runnerPid, { timeout: 30_000 }).not.toBe(runner)
+      await dismissNativeMessageBox(platform, app.paths, 'Manual Restart Required')
+      const result = await promotion
+      expect(result, 'Restore promotion exits before opening the main window').toBeInstanceOf(Error)
+      expect((result as Error).message).toContain('exited before CDP became ready')
       page = await app.restart()
     } else {
       // The packaged build relaunches itself; take ownership of the replacement before asserting.
