@@ -2,6 +2,7 @@ import { seeders } from '@data/db/seeding/seederRegistry'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/streamManager'
@@ -103,6 +104,19 @@ async function startAccountServices(opened: OpenedDatabase) {
   const agentSessions = new AgentSessionRuntimeService()
   await agentSessions._doInit()
   application.register('AgentSessionRuntimeService', agentSessions)
+  // Channels, scheduled tasks and agent-to-agent deliveries are desktop-only, so archiving and
+  // deleting agents and sessions find nothing of theirs to pause, drain or resync.
+  const idle = {
+    pause: () => ({ dispose() {} }),
+    drainInFlight: async () => ({ stragglerIds: [] }),
+    listActiveWork: () => []
+  }
+  application.register('ChannelManager', { ...idle, reconcileAgent() {} })
+  application.register('AgentSessionDeliveryService', { ...idle, kick() {}, drainSessionQueues: async () => {} })
+  application.register('JobManager', { syncJobScheduleTimerById() {} })
+  const agentLifecycle = new AgentLifecycleService()
+  await agentLifecycle._doInit()
+  application.register('AgentLifecycleService', agentLifecycle)
 }
 
 function serializeError(error: unknown): SerializedError {
@@ -165,6 +179,7 @@ export function startCoreWorker(
     async close() {
       if (!opened) return
       await hooks.beforeClose?.()
+      await application.get('AgentLifecycleService')._doStop()
       // Let live replies persist their partial text before the database goes away.
       await application.get('AgentSessionRuntimeService')._doStop()
       await application.get('AiStreamManager')._doStop()

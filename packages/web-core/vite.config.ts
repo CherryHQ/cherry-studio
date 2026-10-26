@@ -32,6 +32,7 @@ export const workerAliases = [
   { find: /^(node:)?buffer$/, replacement: fileURLToPath(import.meta.resolve('buffer/')) },
   { find: /^(node:)?util$/, replacement: runtime('nodeUtil.ts') },
   { find: /^sharp$/, replacement: disabled('sharp.ts') },
+  { find: /^tar$/, replacement: resolve(import.meta.dirname, 'src/agent/tar.ts') },
   { find: /^better-sqlite3$/, replacement: runtime('betterSqlite3.ts') },
   {
     find: /^drizzle-orm\/better-sqlite3\/migrator$/,
@@ -111,8 +112,6 @@ export function resolveProcessAliases(extraPageSources: string[] = []): Plugin {
  */
 export const workerModuleReplacements: Record<string, string> = {
   'ai/agentSession/fork/index.ts': disabled('forks.ts'),
-  'ai/agents/AgentLifecycleService.ts': disabled('agents.ts'),
-  'ai/agents/AgentWorkspaceStorageService.ts': disabled('agents.ts'),
   'ai/agents/createBuiltinAssistantSession.ts': disabled('agents.ts'),
   'ai/agents/createBuiltinSkillSession.ts': disabled('agents.ts'),
   'ai/agents/createBuiltinSupportSession.ts': disabled('agents.ts'),
@@ -296,6 +295,12 @@ export const coreWorkerConfig = {
   ],
   rolldownOptions: {
     output: {
+      // ZenFS tells its own nested calls apart by the `__patched__` function name in stack traces
+      // (its `Async` mixin); mangling that name leaves the OPFS mount and its sync cache out of step.
+      minify: {
+        compress: { keepNames: { function: true, class: false } },
+        mangle: { keepNames: { function: true, class: false } }
+      },
       codeSplitting: workerCodeSplitting([
         resolve(import.meta.dirname, 'harness/harnessWorker.ts'),
         resolve(import.meta.dirname, 'app/coreWorker.ts')

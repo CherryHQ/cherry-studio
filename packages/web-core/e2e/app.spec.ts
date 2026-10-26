@@ -37,6 +37,7 @@ test('runs the desktop main window with only the Web edition features', async ({
     'Default Model',
     'General',
     'Appearance',
+    'Archive',
     'About & Feedback'
   ])
   expect(pageErrors).toEqual([])

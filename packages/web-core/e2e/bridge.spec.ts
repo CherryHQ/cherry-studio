@@ -164,3 +164,41 @@ test('creates an agent and gives it a session, as the new-agent dialog does', as
   // An agent's empty session is reused rather than duplicated.
   expect(result.second).toMatchObject({ created: false, session: { id: result.first.session.id } })
 })
+
+test('archives an agent with its sessions and restores them', async ({ page, account }) => {
+  await gotoBridge(page, account)
+  const result = await page.evaluate(async () => {
+    const { dataApiService, ipcApi } = bridge
+    const providerId = `mock-${crypto.randomUUID().slice(0, 8)}`
+    await dataApiService.post('/providers', {
+      body: { providerId, name: 'Mock provider', defaultChatEndpoint: 'openai-chat-completions' }
+    })
+    await dataApiService.post('/models', {
+      body: [{ providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }]
+    })
+    const agent = await ipcApi.request('ai.agent.create', {
+      type: 'pi',
+      name: 'Web agent',
+      model: `${providerId}::mock-chat`
+    })
+    const { session } = await ipcApi.request('ai.agent.session.reuse_or_create', {
+      agentId: agent.id,
+      workspace: { type: 'system' }
+    })
+    const listed = async () => ({
+      agent: ((await dataApiService.get('/agents')) as { items: { id: string }[] }).items.some(
+        ({ id }) => id === agent.id
+      ),
+      session: ((await dataApiService.get('/agent-sessions')) as { items: { id: string }[] }).items.some(
+        ({ id }) => id === session.id
+      )
+    })
+    const archive = await ipcApi.request('ai.agent.delete', { agentId: agent.id, deleteSessions: true })
+    const archived = await listed()
+    await ipcApi.request('ai.agent.restore', { agentId: agent.id })
+    return { archive, archived, restored: await listed() }
+  })
+  expect(result.archive.deleted).toBe(true)
+  expect(result.archived).toEqual({ agent: false, session: false })
+  expect(result.restored).toEqual({ agent: true, session: true })
+})
