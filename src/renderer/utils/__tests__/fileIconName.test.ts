@@ -48,6 +48,13 @@ describe('getFileIconName', () => {
     expect(getFileIconName('')).toBe('document')
   })
 
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty', 'notes.constructor', 'notes.__proto__'])(
+    'falls back to the document icon for an inherited object key: %s',
+    (filename) => {
+      expect(getFileIconName(filename)).toBe('document')
+    }
+  )
+
   it('maps office documents onto the collection glyphs that exist', () => {
     expect(getFileIconName('report.docx')).toBe('word')
     expect(getFileIconName('budget.xlsx')).toBe('table')
