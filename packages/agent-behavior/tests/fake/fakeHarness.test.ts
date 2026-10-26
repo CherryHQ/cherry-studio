@@ -21,7 +21,7 @@ import {
 import type { JobKind, TxOp } from '../../src/core/decisions'
 import { createFakeHarness } from '../../src/fake/fakeHarness'
 import { createScriptedHost } from '../../src/fake/scriptedHost'
-import type { BoundPorts, LifecycleHandlers, ToolDefinition } from '../../src/ports/harness'
+import type { BoundPorts, CompactionRequest, LifecycleHandlers, ToolDefinition } from '../../src/ports/harness'
 
 const pendingAfter = <T>(promise: Promise<T>) =>
   Promise.race([
@@ -397,5 +397,38 @@ describe('fake harness', () => {
     hold.release('h')
     await fake.settle()
     expect(seen).toEqual([0, 1, 2])
+  })
+
+  // Catches a compaction that drops the summary it was accepted with: the model, the verifier and the next summary
+  // would see nothing of what it compacted, and neither would a fork taken after it (H1, H12).
+  it('keeps the accepted summary in the model context in place of what it compacted', async () => {
+    const asked: CompactionRequest[] = []
+    const fake = createFakeHarness({
+      install: (p) =>
+        p.lifecycle.register({
+          ...onReopen(async () => {}),
+          onCompacting: async (_thread, request) => (asked.push(request), { summary: 'what happened so far' })
+        })
+    })
+    const context = (thread: ThreadId) => fake.withCall(thread, (p) => p.ledger.modelContext(thread))
+    const summary = { kind: 'compaction', text: 'what happened so far' }
+    const t = await fake.createThread()
+    fake.script(t, [reply('first'), reply('second')])
+    await fake.sendUser(t, 'before')
+    await fake.settle()
+    await fake.compact(t)
+    expect(await context(t)).toEqual([summary])
+    const at = (await read(fake, t)).history.at(-1)!.id
+    const spec = { ...childSpec('background', 'fork'), fork: { from: t, at } }
+    const { spawned } = await fake.withCall(t, (p) =>
+      p.ledger.transact(t, () => step([{ type: 'spawn-child', spec, key: key('fork') }], null))
+    )
+    expect(await context(spawned[0].child)).toEqual([summary])
+    await fake.restart()
+    expect(await context(t)).toEqual([summary])
+    await fake.sendUser(t, 'after')
+    await fake.settle()
+    await fake.compact(t)
+    expect(asked[1].messages).toEqual([summary, { kind: 'user', text: 'after' }, { kind: 'assistant', text: 'second' }])
   })
 })

@@ -451,6 +451,10 @@ Beyond `ContractHarness` it offers:
   for crash-equivalence checks.
 - `requestLog(thread)`: the ids of the entries each model request on `thread` saw, after the context filter.
 
+A compaction keeps the summary `onCompacting` accepted with its entry, across restarts and into forks, and the model
+context (`ledger.modelContext`, each model request, the next `CompactionRequest.messages`) then starts with that
+summary, followed by the entries after it.
+
 `restart()` loses what a Durable restart loses (handlers, run loops, running jobs, waiters) and keeps what it keeps
 (entries, submissions, memo, the job table, the final arguments of tool calls). The lost run loops' abort signals fire,
 so a host ask they still wait on (an approval, a question) is withdrawn instead of taking a later answer, and a

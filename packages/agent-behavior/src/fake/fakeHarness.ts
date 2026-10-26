@@ -322,6 +322,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         active.requests += 1
       }
       const handlers = epoch.lifecycle
+      let summary: string | undefined
       if (handlers) {
         const asking = epoch
         const key = `${thread}:${target.entries.at(-1)?.entry.id ?? 'start'}`
@@ -331,11 +332,13 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
           messages: modelContext(state, epoch, target),
           signal: new AbortController().signal
         } as const
-        if ('decline' in (await within((ports) => handlers.onCompacting(thread, request, ports)))) return
+        const verdict = await within((ports) => handlers.onCompacting(thread, request, ports))
+        if ('decline' in verdict) return
         // A restart while onCompacting ran retired the epoch that asked; its compaction must not land in the next one.
         if (!alive(asking)) return
+        summary = verdict.summary
       }
-      append(target, { kind: 'compaction', id: nextItem(state) })
+      append(target, { kind: 'compaction', id: nextItem(state) }, summary)
       await lifecycle((handlers, ports) => handlers.onCompacted(thread, ports))
     },
     async settle() {

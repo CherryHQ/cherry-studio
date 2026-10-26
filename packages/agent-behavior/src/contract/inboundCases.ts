@@ -332,11 +332,12 @@ export const inboundCases: readonly ContractCase[] = [
       )
     }
   },
-  // Catches an adapter that compacts without asking the package, compacts after a decline (D33), or keys two
-  // compactions alike, so the second would reuse the first's memoized summary (H12, I-d).
+  // Catches an adapter that compacts without asking the package, compacts after a decline (D33), leaves the accepted
+  // summary out of the model context, or keys two compactions alike, so the second would reuse the first's memoized
+  // summary (H12, I-d).
   {
     name: 'a compaction asks onCompacting first and compacts nothing on a decline',
-    covers: ['lifecycle.register'],
+    covers: ['lifecycle.register', 'ledger.modelContext'],
     needs: [],
     async run(open) {
       const asked: CompactionRequest[] = []
@@ -366,6 +367,8 @@ export const inboundCases: readonly ContractCase[] = [
       await h.compact(t)
       check((await compactions()) === 1, 'a compaction with a summary must add one compaction entry')
       same(compacted, [t], 'onCompacted must run once, after the compaction that happened')
+      const context = JSON.stringify(await h.withCall(t, (p) => p.ledger.modelContext(t)))
+      check(context.includes('what happened so far'), 'the model context after a compaction must carry its summary')
       await h.sendUser(t, 'after')
       await h.settle()
       await h.compact(t)

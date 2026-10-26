@@ -39,7 +39,7 @@ export interface Ledger {
     thread: ThreadId,
     decide: (facts: ConversationFacts) => Step<R>
   ): Promise<TransactResult<R>>
-  /** What the model would see next on `thread` (after compaction), for the verifier and the summarizer. */
+  /** What the model would see next on `thread`, a compaction's summary included, for the verifier and summarizer. */
   modelContext(thread: ThreadId): Promise<readonly JsonValue[]>
 }
 
