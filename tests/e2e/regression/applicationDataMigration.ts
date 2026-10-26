@@ -202,10 +202,13 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     await app.disconnect()
     await adoptRelaunchedApp(app.paths)
     const relocation = await app.window('/userDataRelocation/')
-    await expect(relocation.getByRole('button', { name: /Restart/ })).toBeVisible({ timeout: 120_000 })
+    await expect(relocation.getByRole('heading', { name: 'Migration complete', exact: true })).toBeVisible({
+      timeout: 120_000
+    })
     const migrationImage = await captureMaskedScreenshot(relocation, getSensitiveConfigValues())
     await testInfo.attach('MP-119 migration completed', { body: migrationImage, contentType: 'image/png' })
-    page = await app.restart()
+    await relocation.getByRole('button', { name: 'Restart Cherry Studio', exact: true }).click({ noWaitAfter: true })
+    page = await app.adoptRelaunch()
     expect((await readAppInfo()).appDataPath).toBe(destination)
     const migratedDb = await readFile(join(destination, 'Data/cherrystudio.sqlite'))
     expect(migratedDb.subarray(0, 16).toString()).toBe('SQLite format 3\0')
