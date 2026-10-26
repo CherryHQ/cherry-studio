@@ -14,7 +14,9 @@ Status: implemented
 
 `AiStreamManager` 在每个执行 attempt 内为源数据块编号。合并后的载荷携带最后覆盖的 `sequence`，attach 在重放之外返回 `replayThrough[attemptId]`。替换 `WebContentsListener` 前先刷新旧监听器，既保留同一窗口其他消费者的输出，又保证每个实时载荷只位于截止位置的一侧。
 
-Renderer 在 attach 等待期间按顺序暂存实时块和终止事件，先应用重放，再消费对应截止位置之后的实时块。延迟到达的重复 IPC 投递也会被丢弃。完成、取消和错误按顺序位于暂存输出之后。在任何读取器 attach 之前就已完成的轮次，直接通过暂存事件收尾；释放订阅时清空队列。
+Renderer 在 attach 等待期间按顺序暂存实时块和终止事件。Attach 还返回 `replayFrom[attemptId]`，在环形缓冲裁剪或拆分后仍保留合并载荷的首个来源序号。如果暂存的实时投递覆盖整个保留的重放区间，Renderer 只消费一次这份实时序列；否则先应用重放，再消费截止位置之后的实时块。仅收到部分实时数据不足以跳过重放。延迟到达且已经覆盖的 IPC 投递会被丢弃。
+
+终态 attach 响应和失败的 attach 请求都先排空暂存输出，再结束分支。暂存的原生终态优先于 attach 的兜底结果，确保完成只报告一次。在任何读取器 attach 之前就已完成的轮次，直接通过暂存事件收尾；释放订阅时清空队列。
 
 这些元数据属于 Cherry 的临时流传输层，不改变 harness 接口、原生会话或消息持久化。当前契约见 [Stream Manager](../../../../docs/references/ai/stream-manager.md) 和 [Execution Overlay](../../../../docs/references/ai/execution-overlay.md)。
 
@@ -32,5 +34,7 @@ Renderer 在 attach 等待期间按顺序暂存实时块和终止事件，先应
 
 - Regression — `TopicStreamSubscription.test.ts`：注册前、attach 期间及重放之后的实时与重放重叠；中途订阅；内容相同的新增量；attach 期间的终止事件。
 - Regression — `AiStreamManager.test.ts`：重复 attach 时的重放截止位置及待发送增量刷新，保留现有消费者的输出。
+- Regression — `TopicStreamSubscription.test.ts`：终态 attach 响应与请求失败保留暂存正文；实时数据覆盖截断重放时，保留被裁剪的前缀且不重复尾部，使用真实 SDK reader 验证。
+- Regression — `AiStreamManager.test.ts`：合并后重放覆盖从原始来源序号开始，拆分增量被裁剪后从保留下来的来源序号开始。
 - Regression — 定向 Main 和 Renderer 测试还覆盖压缩、监听器合并、暂停、执行覆盖层、续轮及传输消费者。
 - Regression — 本地 Electron 接入原生 Pi 和本地 HTTP/SSE 测试服务：两轮自然快速响应与一轮延迟 attach 回包均发生投递重叠，但实时文本块、渲染正文和持久化文本块各只有一份；刷新尚未完成的流不增加模型请求。

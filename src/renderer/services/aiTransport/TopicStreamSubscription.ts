@@ -76,6 +76,7 @@ export class TopicStreamSubscription {
   #topicOpen = false
   #terminalAttemptWatermark: number | undefined
   #pendingEvents: Array<() => void> = []
+  #pendingCoverage = new Map<number, { first: number; last: number }>()
   #replayThrough: Record<number, number> = {}
 
   constructor(topicId: string) {
@@ -184,6 +185,7 @@ export class TopicStreamSubscription {
     this.#branchRetirementListeners.clear()
     this.#topicStateListeners.clear()
     this.#pendingEvents = []
+    this.#pendingCoverage.clear()
     if (this.#attached) void ipcApi.request('ai.stream.detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
@@ -379,6 +381,7 @@ export class TopicStreamSubscription {
     for (const branch of branches) {
       const key = branchKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
       if (this.#branches.get(key) !== branch) continue
+      if (this.#terminalByBranchKey.has(key)) continue
       this.#emitTerminal(branch.executionId, terminal, branch.anchorMessageId, branch.attemptId)
     }
   }
@@ -406,6 +409,10 @@ export class TopicStreamSubscription {
     this.#ipcUnsubs.push(
       ipcApi.on('ai.stream.chunk', (data) => {
         if (data.topicId !== this.#topicId) return
+        if (!this.#attached && data.attemptId !== undefined && data.sequence !== undefined) {
+          const previous = this.#pendingCoverage.get(data.attemptId)
+          this.#pendingCoverage.set(data.attemptId, { first: previous?.first ?? data.sequence, last: data.sequence })
+        }
         if (data.executionId && data.attemptId !== undefined) {
           this.#getOrCreateBranch(data.executionId, data.anchorMessageId, data.attemptId)
         }
@@ -480,6 +487,7 @@ export class TopicStreamSubscription {
   #drainPendingEvents(): void {
     const events = this.#pendingEvents
     this.#pendingEvents = []
+    this.#pendingCoverage.clear()
     for (const deliver of events) deliver()
   }
 
@@ -496,25 +504,43 @@ export class TopicStreamSubscription {
         if (this.#disposed) return
         this.#attached = true
         switch (res.status) {
-          case 'attached':
+          case 'attached': {
+            const liveAttempts = new Set(
+              [...this.#pendingCoverage]
+                .filter(
+                  ([attemptId, coverage]) =>
+                    coverage.first <= (res.replayFrom?.[attemptId] ?? 0) &&
+                    coverage.last >= res.replayThrough[attemptId]
+                )
+                .map(([attemptId]) => attemptId)
+            )
+            this.#replayThrough = Object.fromEntries(
+              Object.entries(res.replayThrough).filter(([attemptId]) => !liveAttempts.has(Number(attemptId)))
+            )
+            for (const payload of res.bufferedChunks) {
+              if (payload.attemptId === undefined || !liveAttempts.has(payload.attemptId)) this.#routeChunk(payload)
+            }
+            this.#drainPendingEvents()
             this.#replayThrough = res.replayThrough
-            for (const payload of res.bufferedChunks) this.#routeChunk(payload)
             break
+          }
           case 'not-found':
           case 'done':
+            this.#drainPendingEvents()
             this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: false })
             break
           case 'paused':
+            this.#drainPendingEvents()
             this.#terminateBranches(branchesAtAttach, { isAbort: true, isError: false })
             break
           case 'error':
+            this.#drainPendingEvents()
             if (res.error) {
               this.#enqueueErrorToBranches({ type: 'data-error', data: { ...res.error } }, branchesAtAttach)
             }
             this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: true })
             break
         }
-        this.#drainPendingEvents()
         shouldReattach = res.status !== 'attached' && this.hasAnyOpenBranch()
         if (shouldReattach) this.#attached = false
         // If every execution unregistered while this attach was in flight, the
@@ -527,8 +553,8 @@ export class TopicStreamSubscription {
         // instead of hanging forever on a stream that never attached. Recovery
         // happens through a fresh subscription on the next mount.
         if (!this.#disposed) {
-          this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: true })
           this.#drainPendingEvents()
+          this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: true })
           shouldReattach = this.hasAnyOpenBranch()
         }
       } finally {

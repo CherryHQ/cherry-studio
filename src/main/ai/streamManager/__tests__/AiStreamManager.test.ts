@@ -2037,6 +2037,7 @@ describe('AiStreamManager', () => {
       expect(response).toEqual({
         status: 'attached',
         replayThrough: { [attemptId!]: 4 },
+        replayFrom: { [attemptId!]: 1 },
         bufferedChunks: [
           {
             topicId: 'a',
@@ -2050,6 +2051,7 @@ describe('AiStreamManager', () => {
             executionId: 'provider-a::model-a',
             attemptId,
             sequence: 3,
+            firstSequence: 2,
             chunk: { type: 'text-delta', id: 'p1', delta: 'hello' }
           },
           {
@@ -2061,6 +2063,27 @@ describe('AiStreamManager', () => {
           }
         ]
       })
+    })
+
+    it('reports the start of retained source coverage after evicting a merged or split prefix', () => {
+      const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
+      const {
+        executions: [{ attemptId }]
+      } = startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ab' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'cd' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ef' })
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const attach = () => ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(attach()).toMatchObject({ replayFrom: { [attemptId]: 2 }, replayThrough: { [attemptId]: 4 } })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ghijklmnopqr' })
+      expect(attach()).toMatchObject({ replayFrom: { [attemptId]: 5 }, replayThrough: { [attemptId]: 5 } })
     })
 
     it('cuts replay between coalesced deltas without dropping output for an existing consumer', () => {

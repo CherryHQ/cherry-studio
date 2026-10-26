@@ -140,10 +140,14 @@ Choose by **consumer / producer fanout**:
   explicit consumer registration; `attach` is the entry point and also
   returns a compact replay to fill the "before I subscribed" gap.
 - **Replay has an execution cutoff.** Managed chunks carry an attempt-scoped
-  `sequence`; `attach` returns `replayThrough[attemptId]` with the compact replay.
+  `sequence`; `attach` returns `replayFrom[attemptId]` and
+  `replayThrough[attemptId]` with the compact replay. Merged payloads retain
+  their first source sequence so eviction does not overstate replay coverage.
   Main flushes the previous window listener's pending deltas before replacing
-  it, so a coalesced payload cannot cross that cutoff. Renderer consumers apply
-  replay before queued live events and discard live chunks covered by the cutoff.
+  it, so a coalesced payload cannot cross that cutoff. `TopicStreamSubscription`
+  uses queued live output when it covers the entire retained replay interval;
+  otherwise it applies replay before uncovered live events. Terminal attach
+  responses drain queued content before closing branches.
 - **Bootstrap needs no extra IPC.** A new window pulls all shared cache
   entries via `Cache_GetAllShared` on mount; every
   `topic.stream.statuses.${topicId}` entry comes through without a

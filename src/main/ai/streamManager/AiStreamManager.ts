@@ -1886,13 +1886,16 @@ export class AiStreamManager extends BaseService {
 
     const bufferedChunks: StreamChunkPayload[] = []
     const replayThrough: Record<number, number> = {}
+    const replayFrom: Record<number, number> = {}
     for (const exec of stream.executions.values()) {
       replayThrough[exec.attemptId] = exec.sequence
+      const first = exec.buffer[0]
+      replayFrom[exec.attemptId] = first?.firstSequence ?? first?.sequence ?? exec.sequence + 1
       bufferedChunks.push(
         ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
       )
     }
-    return { status: 'attached', bufferedChunks, replayThrough }
+    return { status: 'attached', bufferedChunks, replayThrough, replayFrom }
   }
 
   detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {

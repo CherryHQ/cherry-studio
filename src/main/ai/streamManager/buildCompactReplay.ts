@@ -126,6 +126,7 @@ export function mergeDeltaPayload(
     }
     const merged: StreamChunkPayload = {
       ...tail,
+      firstSequence: tail.firstSequence ?? tail.sequence,
       sequence: incoming.sequence,
       chunk: {
         ...prev,
@@ -145,6 +146,7 @@ export function mergeDeltaPayload(
     }
     const merged: StreamChunkPayload = {
       ...tail,
+      firstSequence: tail.firstSequence ?? tail.sequence,
       sequence: incoming.sequence,
       chunk: { ...prev, inputTextDelta: prev.inputTextDelta + next.inputTextDelta }
     }

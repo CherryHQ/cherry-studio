@@ -502,6 +502,62 @@ describe('TopicStreamSubscription', () => {
     }
   )
 
+  it.each(['done', 'paused', 'error', 'rejected'] as const)(
+    'drains queued answer text before an attach response settles as %s',
+    async (status) => {
+      const attach = Promise.withResolvers<unknown>()
+      mock.mockApi.streamAttach.mockReturnValueOnce(attach.promise)
+      const sub = new TopicStreamSubscription(TOPIC)
+      const stream = sub.register(A, 'answer', 1)
+      const terminals: Array<{ isAbort: boolean; isError: boolean }> = []
+      sub.onExecutionTerminal((_id, terminal) => terminals.push(terminal))
+      mock.emitChunk(TOPIC, A, { type: 'text-start', id: 't' }, 'answer', 1, 1)
+      mock.emitChunk(TOPIC, A, textChunk('complete answer'), 'answer', 1, 2)
+      if (status === 'rejected') attach.reject(new Error('attach failed'))
+      else attach.resolve({ status, finalMessages: {}, error: status === 'error' ? STREAM_ERROR : undefined })
+
+      let message
+      for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
+      expect(message?.parts.filter((part) => part.type === 'text')).toEqual([
+        { type: 'text', text: 'complete answer', state: 'streaming' }
+      ])
+      expect(terminals).toEqual([
+        expect.objectContaining({ isAbort: status === 'paused', isError: status === 'error' || status === 'rejected' })
+      ])
+      sub.dispose()
+    }
+  )
+
+  it.each([true, false])('preserves one complete answer when queued live covers replay: %s', async (coversReplay) => {
+    const attach = Promise.withResolvers<unknown>()
+    mock.mockApi.streamAttach.mockReturnValueOnce(attach.promise)
+    const sub = new TopicStreamSubscription(TOPIC)
+    const stream = sub.register(A, 'answer', 1)
+    if (coversReplay) {
+      mock.emitChunk(TOPIC, A, { type: 'text-start', id: 't' }, 'answer', 1, 1)
+      mock.emitChunk(TOPIC, A, textChunk('prefix-'), 'answer', 1, 2)
+    }
+    mock.emitChunk(TOPIC, A, textChunk('suffix'), 'answer', 1, 4)
+    mock.emitChunk(TOPIC, A, { type: 'text-end', id: 't' }, 'answer', 1, 5)
+    attach.resolve({
+      status: 'attached',
+      replayFrom: { 1: coversReplay ? 3 : 1 },
+      replayThrough: { 1: 5 },
+      bufferedChunks: [
+        { type: 'text-start', id: 't' },
+        textChunk(coversReplay ? 'suffix' : 'prefix-suffix'),
+        { type: 'text-end', id: 't' }
+      ].map((chunk) => ({ topicId: TOPIC, executionId: A, attemptId: 1, anchorMessageId: 'answer', chunk }))
+    })
+    await tick()
+    mock.emitDone(TOPIC, A, 'success', true, 'answer')
+
+    let message
+    for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
+    expect(message?.parts).toEqual([{ type: 'text', text: 'prefix-suffix', state: 'done' }])
+    sub.dispose()
+  })
+
   it('retires covered sibling branches from attach replay when the topic reaches its attempt watermark', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',
