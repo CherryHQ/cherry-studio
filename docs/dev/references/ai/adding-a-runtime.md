@@ -111,6 +111,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        inputs as aborted when execution ends without placing them, without automatic resend.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
+     - `childProjection(toolCallId)` — expose a child snapshot and subscription
+       through the root owner. `messageChild(contextId, text)` dispatches child input
+       through that owner. These optional desktop facets do not add native history
+       methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.
      - `compaction-start` / `compaction-complete` / `compaction-error`

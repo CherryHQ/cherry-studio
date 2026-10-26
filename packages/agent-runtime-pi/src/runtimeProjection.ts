@@ -21,6 +21,7 @@ export class PiProjection {
   readonly feed: ThreadFeed
   private ids = new WeakMap<object, string>()
   private originals = new WeakMap<object, PiMessage>()
+  private readonly aliases: Record<string, string> = {}
   private inputIds = new WeakMap<object, InputId>()
   private active = new Map<string, string>()
   private calls = new Map<string, string>()
@@ -104,6 +105,46 @@ export class PiProjection {
       (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin
     )
     return origin < 0 ? undefined : new Set(branch.slice(origin + 1).map((entry) => entry.id))
+  }
+
+  /** Committed native entries and their proven live identities; copied parent context is excluded. */
+  archive(): {
+    messages: RuntimeMessage[]
+    aliases: Record<string, string>
+    legacy: Record<string, { messageId: string; parts: number[] }>
+  } {
+    const branch = this.session.sessionManager.getBranch()
+    const start = branch.findLastIndex(
+      (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin
+    )
+    const calls = this.calls
+    this.calls = new Map()
+    this.snapshotMessages = []
+    const aliases: Record<string, string> = {}
+    try {
+      for (const entry of branch.slice(start + 1)) {
+        if (entry.type !== 'message' && entry.type !== 'custom_message') continue
+        const message = sessionEntryToContextMessages(entry)[0]
+        const offset = this.snapshotMessages.length
+        this.write(message, entry.id, 'complete')
+        const live = this.ids.get(message)
+        if (live) for (const message of this.snapshotMessages.slice(offset)) aliases[message.id] = live
+      }
+      const legacy: Record<string, { messageId: string; parts: number[] }> = {}
+      for (const message of this.snapshotMessages) {
+        const parts: number[] = []
+        message.parts.forEach((part, index) => {
+          if (part.type === 'dynamic-tool')
+            legacy[`${message.id}:call:${part.toolCallId}`] = { messageId: message.id, parts: [index] }
+          else parts.push(index)
+        })
+        legacy[message.id] = { messageId: message.id, parts }
+      }
+      return { messages: this.snapshotMessages, aliases: { ...aliases, ...this.aliases }, legacy }
+    } finally {
+      this.snapshotMessages = undefined
+      this.calls = calls
+    }
   }
 
   private bind(session: AgentSession): void {
@@ -244,6 +285,7 @@ export class PiProjection {
         id = entryId
         this.ids.set(message, id)
         this.ids.set(original, id)
+        if (id !== liveId) this.aliases[id] = liveId
       }
     }
     const value: RuntimeMessage = {

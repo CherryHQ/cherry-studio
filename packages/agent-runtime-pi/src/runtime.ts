@@ -47,6 +47,7 @@ export interface PiRuntimeBehavior {
     readonly thread: Thread
     readonly parent: Thread
     readonly origin: SubagentOrigin
+    readonly toolCallId: string
   }): SubagentSessionOptions | Promise<SubagentSessionOptions>
 }
 
@@ -65,6 +66,8 @@ export interface PiThreadHandle extends ThreadHandle {
   readonly pi: {
     contextUsage(): ContextUsage | undefined
     history(): readonly SessionEntry[]
+    /** Read committed entries through owner shutdown, until this access is released. */
+    archive(): ReturnType<PiProjection['archive']>
     toolDefinition(name: string): ToolDefinition | undefined
     toolCallId(ref: CallRef): string | undefined
     cancelQueuedInputs(): OperationResult<readonly InputId[]>
@@ -212,11 +215,19 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       },
       onError: report,
       openSession: async ({ sessionManager, extension, summarize, child }) => {
+        const parent = child && owned.find((entry) => entry.ref.id === child.parent)
+        const nativeCallId =
+          parent &&
+          historyOf(parent.session.sessionManager.getBranch(), parent.ref.id)
+            .flatMap((item) => (item.kind === 'assistant' ? item.toolCalls : []))
+            .find((call) => call.callKey === child.origin.parentToolCallId)?.callId
+        if (child && !nativeCallId) throw new Error('Child origin has no native parent call')
         const configured = child
           ? await behavior.configureChild({
               thread: refFor(sessionManager.getSessionId()),
               parent: refFor(child.parent),
-              origin: child.origin
+              origin: child.origin,
+              toolCallId: nativeCallId!
             })
           : undefined
         const model = configured?.model ?? config.model
@@ -293,6 +304,10 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       pi: {
         contextUsage: () => (unavailable() ? undefined : entry.session.getContextUsage()),
         history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),
+        archive: () => {
+          if (released) throw new Error('Pi history access is closed')
+          return structuredClone(entry.projection.archive())
+        },
         toolDefinition: (name) => (unavailable() ? undefined : entry.session.getToolDefinition(name)),
         toolCallId: (ref) =>
           unavailable() || ref.thread !== entry.ref.id ? undefined : entry.behavior?.harness.toolCallId(ref),

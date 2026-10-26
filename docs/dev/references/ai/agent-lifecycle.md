@@ -65,8 +65,10 @@ DB rollback must not emit these effects. Post-commit resource failures do not
 undo committed business state; startup recovery and later reconciliation repair
 derived resources.
 
-Restore applies to the explicitly selected entity, not an implicit subtree.
-Related Sessions remain independently restorable. Undo supplies explicit entity
+Restore applies to the explicitly selected entity. Independent related Sessions
+remain independently restorable. Owned child archives follow their root Session's
+archive, restore, and permanent deletion; they are not independent restore targets.
+Undo supplies explicit entity
 IDs; no temporary restore snapshot or archive-operation journal is stored in DB.
 Pins removed at archive time are not recreated. Session archive retains the
 existing sticky-binding detachment policy.
