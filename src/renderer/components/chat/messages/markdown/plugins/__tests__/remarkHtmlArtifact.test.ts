@@ -1299,6 +1299,114 @@ After.`
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
   })
 
+  // A same-node `<title>…</title>` pair inside FOREIGN content must not be consumed by the
+  // opaque raw-text shortcut: `title` is an HTML integration point there, so the `<script>`
+  // inside it parses as HTML and its raw-text body hides the literal `</title>` (and the
+  // `</details>` behind it). Stopping the lazy body at the literal exposes the close to pairing
+  // and shreds the embedded document.
+  it('keeps the document artifact when a script string inside svg title hides its own end tag', () => {
+    const source = `Before
+
+<details>
+<summary>Doc</summary>
+
+<html><head><style>p{color:red}</style></head><body><svg><title><script>const t="</title></details>";</script></title></svg><p>Card</p></body></html>
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<details>\n<summary>Doc</summary>' })
+    expect(tree.children[2]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: source.split('\n\n')[2]
+    })
+    expect((tree.children[3] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
+  // MathML text integration points (`mi`/`mo`/`mn`/`ms`/`mtext`) parse their children as HTML:
+  // the `<script>` inside `mtext` is an HTML raw-text element, so the literal `</details>` in
+  // its string is source code. Suppressing raw text across the whole MathML subtree lets the
+  // literal hijack the pairing close and shred the embedded document.
+  it('keeps the document artifact when a script string inside mtext hides a close', () => {
+    const source = `Before
+
+<details>
+<summary>Doc</summary>
+
+<html><head><style>p{color:red}</style></head><body><math><mtext><script>const t="</details>";</script></mtext></math><p>Card</p></body></html>
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<details>\n<summary>Doc</summary>' })
+    expect(tree.children[2]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: source.split('\n\n')[2]
+    })
+    expect((tree.children[3] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
+  // The HTML tokenizer accepts (and ignores) attributes on an end tag: `</script data-x>`
+  // really closes the script element. A close pattern requiring `<\/script\s*>` leaves the
+  // raw-text body open, the document's real `</html>` is swallowed as script source, and the
+  // document never assembles into an artifact.
+  it('keeps the document artifact when the script end tag carries an attribute', () => {
+    const source = `Before
+
+<html><head><style>p{color:red}</style></head><body><script>1</script data-x><p>Card</p></body></html>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'code', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: source.split('\n\n')[1]
+    })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
+  // CommonMark gives a leading HTML comment its own html node before the summary label: the
+  // label lookup must skip metadata-only nodes, or the summary lands on the artifact path and
+  // the native disclosure loses its label entirely.
+  it('keeps the summary label behind a leading comment node in the disclosure', () => {
+    const source = `<details>
+
+<!-- label -->
+<summary>Outer</summary>
+
+Body
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'html', // <details> opener
+      'html', // <!-- label --> node
+      'html', // summary label
+      'paragraph', // Body
+      'html', // paired close
+      'paragraph' // After.
+    ])
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<!-- label -->' })
+    expect(tree.children[2]).toMatchObject({ type: 'html', value: '<summary>Outer</summary>' })
+    expect((tree.children[4] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
   // The remainder after the summary label can leave the stream inside a lexical region it
   // opened (a `<textarea>`): the body's first nodes continue THAT stream, so forwarding only
   // the remainder's open count drops the raw-text state — the literal close the textarea holds

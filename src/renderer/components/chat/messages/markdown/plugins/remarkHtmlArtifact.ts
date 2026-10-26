@@ -5,7 +5,12 @@ import { unified } from 'unified'
 
 const LEADING_HTML_METADATA_REGEX = /^(?:\s*(?:<!--[\s\S]*?-->|<!doctype[^>]*>|<\?[\s\S]*?\?>))*/i
 const HTML_DOCUMENT_START_REGEX = /^<html(?:\s|>)/i
-const HTML_DOCUMENT_END_REGEX = /<\/html\s*>/i
+// The tail of an END tag: the HTML tokenizer consumes (and ignores) attributes on end tags,
+// so `</script data-x="a>b">` really closes the element — a `\s*>` pattern rejects it and
+// leaves the lexical region open, hanging the stream. Quoted attribute values may hide `>`.
+const END_TAG_TAIL_PATTERN = String.raw`(?=[\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>`
+const HTML_DOCUMENT_END_REGEX = new RegExp(`</html${END_TAG_TAIL_PATTERN}`, 'i')
+const HTML_CLOSE_TAG_REGEX = new RegExp(`^</html${END_TAG_TAIL_PATTERN}`, 'i')
 const HTML_LANGUAGE_REGEX = /^html?$/i
 const PROTECTED_HTML_PLACEHOLDER_PREFIX = '__CHERRY_STUDIO_HTML_ARTIFACT_'
 const LEADING_HTML_DOCTYPE_REGEX = /^(?:\s*(?:<!--[\s\S]*?-->|<\?[\s\S]*?\?>))*\s*<!doctype(?:\s|>)/i
@@ -117,7 +122,7 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
     }
     const lt = value.indexOf('<', position)
     if (lt === -1) return undefined
-    const closeMatch = /^<\/html\s*>/i.exec(value.slice(lt))
+    const closeMatch = HTML_CLOSE_TAG_REGEX.exec(value.slice(lt))
     if (closeMatch) return lt + closeMatch[0].length
     if (value.startsWith('<!--', lt)) {
       const end = value.indexOf('-->', lt + 4)
@@ -139,11 +144,12 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
     }
     // A close tag of anything else: its interior holds no boundary, skip past the marker. A
     // foreign-content namespace close leaves that context; an integration-point close
-    // (`foreignObject`/`desc`/`title`) leaves the HTML integration point.
+    // (`foreignObject`/`desc`/`title`, the MathML text integration points, or an HTML-encoded
+    // `annotation-xml`) leaves the HTML integration point.
     if (value.startsWith('</', lt)) {
-      if (/^<\/(?:svg|math)[\s>]/i.test(value.slice(lt))) {
+      if (/^<\/(?:svg|math)[\s>/]/i.test(value.slice(lt))) {
         state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
-      } else if (/^<\/(?:foreignobject|desc|title)[\s>]/i.test(value.slice(lt))) {
+      } else if (FOREIGN_INTEGRATION_CLOSE_REGEX.test(value.slice(lt))) {
         state.foreignHtmlIntegrationDepth = Math.max((state.foreignHtmlIntegrationDepth ?? 1) - 1, 0)
       }
       position = lt + 2
@@ -227,7 +233,9 @@ const RAW_TEXT_ELEMENT_NAMES = [
 // search with `lastIndex`, and without `g` a regex ignores it — finding an EARLIER element's
 // close, moving the cursor backward, and looping forever on consecutive raw-text elements
 // whose second close has not arrived yet.
-const RAW_TEXT_CLOSE_REGEXES = new Map(RAW_TEXT_ELEMENT_NAMES.map((name) => [name, new RegExp(`</${name}\\s*>`, 'gi')]))
+const RAW_TEXT_CLOSE_REGEXES = new Map(
+  RAW_TEXT_ELEMENT_NAMES.map((name) => [name, new RegExp(`</${name}${END_TAG_TAIL_PATTERN}`, 'gi')])
+)
 // Same-node raw-text bodies the token regex may consume lazily up to their end tag. `script` is
 // excluded: its escaped/double-escaped tokenizer states decide where the element really ends
 // (see scanScriptDataEnd), and a lazy first-`</script>` match would expose a following literal
@@ -242,7 +250,7 @@ const SAME_NODE_RAW_TEXT_ELEMENT_NAMES = RAW_TEXT_ELEMENT_NAMES.filter(
 // attribute — can never close a disclosure. Disclosure tags consume their full attribute list
 // (`title="</details>"` is legal HTML whose decoy must not reach the depth counter); a generic
 // tag does the same so a quoted `>` never ends the tag early.
-const CONTAINER_LEXICAL_TOKEN_PATTERN = `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:foreignobject|desc|title)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`
+const CONTAINER_LEXICAL_TOKEN_PATTERN = `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1${END_TAG_TAIL_PATTERN}|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:foreignobject|desc|title|annotation-xml|mtext|mi|mo|mn|ms)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`
 // Anchored: every token alternative starts at a fixed marker, so the candidate positions are
 // found with linear monotone searches and the token is matched AT its own position. A failed
 // anchored attempt never re-scans the input — the unanchored regex retries its attribute-soup
@@ -251,7 +259,16 @@ const CONTAINER_LEXICAL_TOKEN_PATTERN = `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]
 const CONTAINER_LEXICAL_TOKEN_STICKY_REGEX = new RegExp(CONTAINER_LEXICAL_TOKEN_PATTERN, 'yi')
 // First `</` opening one of the dedicated close-token alternatives — the third candidate class
 // (comments, CDATA and tag openers have their own linear searches).
-const CONTAINER_CLOSE_TOKEN_START_REGEX = /<\/(?:details|foreignobject|desc|title|svg|math)(?=[\s>/])/gi
+const CONTAINER_CLOSE_TOKEN_START_REGEX =
+  /<\/(?:details|foreignobject|desc|title|annotation-xml|mtext|mi|mo|mn|ms|svg|math)(?=[\s>/])/gi
+// Dedicated close tokens that LEAVE an HTML integration point: the SVG ones
+// (`foreignObject`/`desc`/`title` in foreign content), the MathML text integration points
+// (`mi`/`mo`/`mn`/`ms`/`mtext`) and an HTML-encoded `annotation-xml`.
+const FOREIGN_INTEGRATION_CLOSE_REGEX = /^<\/(?:foreignobject|desc|title|annotation-xml|mtext|mi|mo|mn|ms)(?=[\s>/])/i
+// Anchored open-tag match for a foreign-content `title`: its children parse as HTML (an HTML
+// integration point), so the scanner must consume ONLY the open tag there — never the lazy
+// same-node body up to the first literal `</title>` (a `<script>` child hides that literal).
+const TITLE_OPEN_TAG_REGEX = new RegExp(`^<title(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>`, 'i')
 
 // Script data tokenizer regions (HTML spec): `<!--` opens the escaped region and a `<script`
 // inside it re-enters double-escaping — there a literal `</script>` only steps back to escaped
@@ -261,7 +278,9 @@ const CONTAINER_CLOSE_TOKEN_START_REGEX = /<\/(?:details|foreignobject|desc|titl
 // across blank-line-separated html nodes resumes inside its tokenizer region.
 const SCRIPT_OPEN_TAG_REGEX = /^<script(?=[\t\n\f />])/i
 const SCRIPT_END_TAG_OPEN_REGEX = /^<\/script(?=[\t\n\f />])/i
-const SCRIPT_END_TAG_REGEX = /^<\/script\s*>/i
+// The end tag may carry (ignored) attributes: `</script data-x>` closes the element like a
+// bare `</script>` does. A `\s*>` pattern rejects it and leaves the body hanging open.
+const SCRIPT_END_TAG_REGEX = new RegExp(`^</script${END_TAG_TAIL_PATTERN}`, 'i')
 
 /**
  * Finds where a script element's data truly ends: the offset just past the element-ending
@@ -344,8 +363,10 @@ interface ContainerScanState {
   /** Foreign-content (SVG/MathML) namespace depth: the raw-text algorithm never applies inside. */
   foreignDepth?: number
   /**
-   * HTML integration point depth (`foreignObject`, and in foreign content `desc`/`title`): its
-   * children parse as HTML, so the raw-text algorithm applies again inside it.
+   * HTML integration point depth: `foreignObject`, in foreign content `desc`/`title`, the
+   * MathML text integration points (`mi`/`mo`/`mn`/`ms`/`mtext`) and an HTML-encoded
+   * `annotation-xml`. Their children parse as HTML, so the raw-text algorithm applies again
+   * inside them.
    */
   foreignHtmlIntegrationDepth?: number
 }
@@ -357,10 +378,20 @@ function isSelfClosingTag(value: string, start: number, end: number): boolean {
   return /\/\s*>$/.test(value.slice(start, end))
 }
 
-// Foreign content (SVG/MathML) EXCEPT its HTML integration points (`foreignObject`): inside an
-// integration point children parse as HTML, so the raw-text algorithm applies there again.
+// Foreign content (SVG/MathML) EXCEPT its HTML integration points (`foreignObject`, in foreign
+// content `desc`/`title`, the MathML text integration points, an HTML-encoded `annotation-xml`):
+// inside an integration point children parse as HTML, so the raw-text algorithm applies there
+// again.
 function isForeignContext(state: ContainerScanState): boolean {
   return (state.foreignDepth ?? 0) > 0 && (state.foreignHtmlIntegrationDepth ?? 0) === 0
+}
+
+// An `annotation-xml` element is an HTML integration point only when its `encoding` attribute
+// is an ASCII case-insensitive match for an HTML document media type.
+function isHtmlIntegrationEncoding(tag: string): boolean {
+  const encoding = /\bencoding\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/i.exec(tag)
+  const value = (encoding?.[1] ?? encoding?.[2] ?? encoding?.[3] ?? '').trim().toLowerCase()
+  return value === 'text/html' || value === 'application/xhtml+xml'
 }
 
 /**
@@ -399,8 +430,33 @@ function applyCompletedTag(
     }
     // A `title` outside foreign content is an ordinary HTML raw-text element and still enters
     // its body through the pendingRawText handling below; `desc`/`foreignObject` are then
-    // ordinary unknown elements.
+    // ordinary unknown HTML elements.
     if (name !== 'title') return
+  }
+  // The MathML text integration points parse their children as HTML in foreign content (a
+  // `<script>` inside them is an HTML raw-text element); an `annotation-xml` is an integration
+  // point only with an HTML document encoding. Outside foreign content they are ordinary
+  // non-raw-text elements. (Per spec the text integration points are MathML-only — inside SVG
+  // `mtext` etc. are ordinary foreign elements — but foreign content can never host a real
+  // `</details>` boundary either way, so treating them as integration points keeps the literal
+  // suppression that boundary detection needs.)
+  if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') {
+    if (isForeignContext(state) && !isSelfClosingTag(value, tagStart, tagEnd)) {
+      state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+      state.pendingRawText = undefined
+    }
+    return
+  }
+  if (name === 'annotation-xml') {
+    if (
+      isForeignContext(state) &&
+      isHtmlIntegrationEncoding(value.slice(tagStart, tagEnd)) &&
+      !isSelfClosingTag(value, tagStart, tagEnd)
+    ) {
+      state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+      state.pendingRawText = undefined
+    }
+    return
   }
   if (state.pendingRawText !== undefined) {
     if (!isForeignContext(state)) {
@@ -655,6 +711,22 @@ function scanContainerBoundaries(
         applyCompletedTag(value, tagName, tagStart, end + 1, state)
         continue
       }
+      // A same-node raw-text match on `title` inside foreign content is bogus: there `title`
+      // is an HTML integration point (its children parse as HTML), so a `<script>` child is
+      // raw text and hides the first literal `</title>` — the lazy match stops at that literal
+      // and exposes the `</details>` behind it. Consume only the open tag and mark the
+      // integration point instead.
+      if (match[1] !== undefined && match[1].toLowerCase() === 'title' && isForeignContext(state)) {
+        const openTag = TITLE_OPEN_TAG_REGEX.exec(value.slice(tagStart))
+        if (openTag !== null) {
+          if (!isSelfClosingTag(value, tagStart, tagStart + openTag[0].length)) {
+            state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+          }
+          state.pendingRawText = undefined
+          position = tagStart + openTag[0].length
+          continue
+        }
+      }
     } else {
       return { closed: false }
     }
@@ -672,9 +744,10 @@ function scanContainerBoundaries(
         state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
         continue
       }
-      // An integration-point close (`foreignObject`/`desc`/`title`) leaves the HTML integration
+      // An integration-point close (`foreignObject`/`desc`/`title`, the MathML text
+      // integration points, or an HTML-encoded `annotation-xml`) leaves the HTML integration
       // point.
-      if (token.startsWith('</foreignobject') || token.startsWith('</desc') || token.startsWith('</title')) {
+      if (FOREIGN_INTEGRATION_CLOSE_REGEX.test(token)) {
         state.foreignHtmlIntegrationDepth = Math.max((state.foreignHtmlIntegrationDepth ?? 1) - 1, 0)
         continue
       }
@@ -700,6 +773,25 @@ function scanContainerBoundaries(
           }
           continue
         }
+      }
+      // The MathML text integration points (`mi`/`mo`/`mn`/`ms`/`mtext`) and an HTML-encoded
+      // `annotation-xml`: same integration-point handling as above (children parse as HTML, so
+      // a `<script>` inside them is raw text). Outside foreign content they are ordinary
+      // non-raw-text elements. (Per spec the text integration points are MathML-only — inside
+      // SVG they are ordinary foreign elements — but foreign content can never host a real
+      // `</details>` boundary either way, so this keeps the literal suppression that boundary
+      // detection needs.)
+      if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') {
+        if (isForeignContext(state) && !isSelfClosingTag(token, 0, token.length)) {
+          state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+        }
+        continue
+      }
+      if (name === 'annotation-xml') {
+        if (isForeignContext(state) && isHtmlIntegrationEncoding(token) && !isSelfClosingTag(token, 0, token.length)) {
+          state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+        }
+        continue
       }
       // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
       if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name) && !isForeignContext(state)) {
@@ -819,6 +911,24 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
         openerStart = undefined
         continue
       }
+      // A same-node raw-text match on `title` inside foreign content is bogus: there `title`
+      // is an HTML integration point (its children parse as HTML), so a `<script>` child is
+      // raw text and hides the first literal `</title>` — the lazy match stops at that literal
+      // and exposes the `</details>` behind it. Consume only the open tag and mark the
+      // integration point instead.
+      if (
+        match[1] !== undefined &&
+        match[1].toLowerCase() === 'title' &&
+        foreignDepth > 0 &&
+        foreignHtmlIntegrationDepth === 0
+      ) {
+        const openTag = TITLE_OPEN_TAG_REGEX.exec(value.slice(tagStart))
+        if (openTag !== null) {
+          if (!isSelfClosingTag(value, tagStart, tagStart + openTag[0].length)) foreignHtmlIntegrationDepth += 1
+          scanned = tagStart + openTag[0].length
+          continue
+        }
+      }
     } else {
       return undefined
     }
@@ -830,9 +940,10 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
         foreignDepth = Math.max(foreignDepth - 1, 0)
         continue
       }
-      // An integration-point close (`foreignObject`/`desc`/`title`) leaves the HTML integration
+      // An integration-point close (`foreignObject`/`desc`/`title`, the MathML text
+      // integration points, or an HTML-encoded `annotation-xml`) leaves the HTML integration
       // point.
-      if (token.startsWith('</foreignobject') || token.startsWith('</desc') || token.startsWith('</title')) {
+      if (FOREIGN_INTEGRATION_CLOSE_REGEX.test(token)) {
         foreignHtmlIntegrationDepth = Math.max(foreignHtmlIntegrationDepth - 1, 0)
         continue
       }
@@ -859,6 +970,30 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
           continue
         }
       }
+      // The MathML text integration points (`mi`/`mo`/`mn`/`ms`/`mtext`) and an HTML-encoded
+      // `annotation-xml`: same integration-point handling as above (children parse as HTML, so
+      // a `<script>` inside them is raw text). Outside foreign content they are ordinary
+      // non-raw-text elements. (Per spec the text integration points are MathML-only — inside
+      // SVG they are ordinary foreign elements — but foreign content can never host a real
+      // `</details>` boundary either way, so this keeps the literal suppression that boundary
+      // detection needs.)
+      if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') {
+        if (foreignDepth > 0 && foreignHtmlIntegrationDepth === 0 && !isSelfClosingTag(token, 0, token.length)) {
+          foreignHtmlIntegrationDepth += 1
+        }
+        continue
+      }
+      if (name === 'annotation-xml') {
+        if (
+          foreignDepth > 0 &&
+          foreignHtmlIntegrationDepth === 0 &&
+          isHtmlIntegrationEncoding(token) &&
+          !isSelfClosingTag(token, 0, token.length)
+        ) {
+          foreignHtmlIntegrationDepth += 1
+        }
+        continue
+      }
       // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
       if (
         name !== undefined &&
@@ -881,11 +1016,13 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
 
 // End offset (just past the first `</summary>`) of the summary element starting `value`, or
 // undefined when the open tag never completes in this node. The open tag consumes its quoted
-// attribute list, so a decoy `</summary>` inside it cannot end the label early.
+// attribute list, so a decoy `</summary>` inside it cannot end the label early; the close may
+// carry (ignored) attributes like any browser-recognized end tag.
+const SUMMARY_CLOSE_TAG_REGEX = new RegExp(`</summary${END_TAG_TAIL_PATTERN}`, 'i')
 function findSummaryElementEnd(value: string): number | undefined {
   const open = /^<summary(?=[\s>])(?:"[^"]*"|'[^']*'|[^>"'])*>/i.exec(value)
   if (!open) return undefined
-  const close = /<\/summary\s*>/i.exec(value.slice(open[0].length))
+  const close = SUMMARY_CLOSE_TAG_REGEX.exec(value.slice(open[0].length))
   return close ? open[0].length + close.index + close[0].length : undefined
 }
 
@@ -1312,8 +1449,27 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // the body's first nodes continue THAT stream, so its state rides along with the
         // remainder's open count.
         let bodyEntryState = paired.bodyEntryState
-        const firstBody = body[0]
+        // CommonMark gives a leading comment (or doctype/PI) its own html node before the
+        // summary label: metadata-only nodes carry no label, so locate the summary beyond them
+        // — a body[0]-only check would swallow the label into the artifact and leave the native
+        // disclosure without its summary. When NO summary follows, the metadata stays in the
+        // body range: the document assembly (and the artifact paths) already skip it to find
+        // the document start, and emitting it early would strand a bare node outside the
+        // artifact.
+        let labelIndex = 0
+        for (let head = 0; head < body.length; head += 1) {
+          const node = body[head]
+          if (node?.type !== 'html' || !isHtmlMetadataOnly(node)) break
+          labelIndex = head + 1
+        }
+        const firstBody = body[labelIndex]
         if (firstBody?.type === 'html' && HTML_SUMMARY_OPEN_REGEX.test(stripLeadingHtmlMetadata(firstBody.value))) {
+          // The skipped metadata nodes are insignificant inside the html block and inert
+          // (complete comments/doctype/PI): emit them raw ahead of the raw label.
+          for (let head = 0; head < labelIndex; head += 1) {
+            const node = body[head]
+            if (node) children.push(node)
+          }
           const summaryEnd = findSummaryElementEnd(firstBody.value)
           if (summaryEnd !== undefined) {
             const rest = firstBody.value.slice(summaryEnd)
@@ -1326,10 +1482,11 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
               // the whole node orphaned the inner close onto the artifact path. Whitespace and
               // the comments between are insignificant inside the html block and are dropped.
               children.push(sliceHtmlNode(firstBody, 0, summaryEnd))
-              body[0] = sliceHtmlNode(firstBody, openerStart, firstBody.value.length)
+              body[labelIndex] = sliceHtmlNode(firstBody, openerStart, firstBody.value.length)
+              bodyStart = labelIndex
             } else {
               children.push(firstBody)
-              bodyStart = 1
+              bodyStart = labelIndex + 1
               // Body content before any opener (`<div>…`) voids the opener search above, but
               // the remainder can still OPEN disclosures: count them (scratch state only) so
               // the body range keeps their closes raw. The scan's LEXICAL state (a raw-text
@@ -1345,9 +1502,12 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
             // The label's open tag never completed in this node (streaming): keep the whole
             // node raw, as before the split existed.
             children.push(firstBody)
-            bodyStart = 1
+            bodyStart = labelIndex + 1
           }
         }
+        // Without a summary, bodyStart stays 0: the metadata-only nodes remain in the body
+        // range and the document assembly (which skips them to find the document start) keeps
+        // them inside the artifact.
         // The paired close closes the outermost opening of the opening node; every opening
         // retained next to it has no matching open inside the body, so its close arrives as an
         // unpaired body node and must stay raw (see the fallback below).
