@@ -377,10 +377,8 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       // The exit was the restart the dialog asks for; bring the application back through the harness.
       page = await app.restart()
     } else {
-      await expect(async () => {
-        page = await app.mainWindow()
-        await expect(page.locator('[data-ui="app.shell"]').first()).toBeVisible()
-      }).toPass({ timeout: 60_000 })
+      // The packaged build relaunches itself; take ownership of the replacement before asserting.
+      page = await app.adoptRelaunch()
     }
     await expect(page.locator('[data-ui="app.shell"]').first()).toBeVisible()
     const restored = await readTopic()

@@ -16,6 +16,7 @@ import { exportTopicFiles } from './exportTopicFiles'
 import { expect, test } from './fixture'
 import { selectSidebarApp, dismissOnboarding } from './navigation'
 import { topicGrouping } from './topicGrouping'
+import { collectVirtualizedText } from './virtualList'
 
 test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
@@ -90,8 +91,8 @@ test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
   }
   const checkAgentSessions = async () => {
     const sessions = query(
-      "SELECT id FROM agent_session WHERE deleted_at IS NULL AND type = 'conversation' ORDER BY id"
-    )
+      "SELECT id, name FROM agent_session WHERE deleted_at IS NULL AND type = 'conversation' ORDER BY id"
+    ) as { id: string; name: string }[]
     await selectSidebarApp(page, 'Work')
     const headers = page.locator('[data-ui~="chat.group-header"]:visible')
     for (const header of await headers.all()) {
@@ -99,7 +100,22 @@ test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
       const expand = header.getByRole('button', { name: 'Expand', exact: true })
       if (await expand.isVisible()) await expand.click()
     }
-    await expect(page.getByTestId('agent-session-row').filter({ visible: true })).toHaveCount(sessions.length)
+    // The session list renders only its visible window, so every stored session is
+    // matched against the text the list shows while it is scrolled.
+    const firstSession = page.getByTestId('agent-session-row').first()
+    if ((await firstSession.count()) > 0) {
+      const scroller = firstSession.locator('xpath=ancestor::*[@data-virtual-scrolling][1]')
+      const listed =
+        (await scroller.count()) > 0
+          ? await collectVirtualizedText(page, scroller)
+          : await page.evaluate(() => document.body.innerText)
+      expect(
+        sessions.filter(({ name }) => !listed.includes(name)).map(({ name }) => name),
+        'Every stored session must be listed'
+      ).toEqual([])
+    } else {
+      expect(sessions, 'Sessions must be listed once the store holds any').toEqual([])
+    }
     await selectSidebarApp(page, 'Chat')
     return sessions
   }

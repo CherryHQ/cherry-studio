@@ -28,6 +28,7 @@ import { selectSidebarApp } from './navigation'
 import { referenceLibraryFile } from './referenceLibraryFile'
 import { createRtfPreviewFixtures } from './rtfPreviewFixtures'
 import { openSettingsSection } from './settings'
+import { collectVirtualizedText, revealVirtualized } from './virtualList'
 
 test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
@@ -645,11 +646,17 @@ test(...caseDefinition('MP-69'), async ({ mainWindow: page }, testInfo) => {
     const all = await readFiles()
     expect(all.nextCursor, 'All fixtures and existing files must fit in the verification page').toBeUndefined()
     const allNames = all.items.map(({ name, ext }) => (ext ? `${name}.${ext}` : name))
-    const assertAllFiles = async () => {
-      await expect(content.getByRole('checkbox', { name: /^Select / })).toHaveCount(all.total + 1)
-      for (const name of allNames) await expect(content.getByText(name, { exact: true })).toBeVisible()
+    // The library renders only its visible window, so it is read while scrolling.
+    const scroller = content.locator('[data-scrolling]').first()
+    const listedText = () => collectVirtualizedText(page, scroller)
+    const expectListed = async (names: string[], message: string) => {
+      const text = await listedText()
+      expect(
+        names.filter((name) => !text.includes(name)),
+        message
+      ).toEqual([])
     }
-    await assertAllFiles()
+    await expectListed(allNames, 'Every stored file must be listed')
     await expect(navigation.getByRole('button', { name: /^All Files/ })).toContainText(String(all.total))
 
     await test.step('Each category shows only its files and the correct count', async () => {
@@ -658,23 +665,21 @@ test(...caseDefinition('MP-69'), async ({ mainWindow: page }, testInfo) => {
         const category = navigation.getByRole('button', { name: new RegExp(`^${fixture.label}`) })
         await expect(category).toHaveText(new RegExp(`^${fixture.label}\\s*${expected.total}$`))
         await category.click()
-        for (const entry of expected.items) {
-          await expect(content.getByText(`${entry.name}.${entry.ext}`, { exact: true })).toBeVisible()
-        }
+        const listed = await listedText()
+        const names = expected.items.map(({ name, ext }) => (ext ? `${name}.${ext}` : name))
+        expect(
+          names.filter((name) => !listed.includes(name)),
+          `Every ${fixture.label} file must be listed`
+        ).toEqual([])
         for (const other of fixtures.filter(({ type }) => type !== fixture.type)) {
-          await expect(content.getByText(other.name, { exact: true })).toHaveCount(0)
-        }
-        if (fixture.type === 'image') {
-          await expect(content.getByRole('img')).toHaveCount(expected.total)
-        } else {
-          await expect(content.getByRole('checkbox', { name: /^Select / })).toHaveCount(expected.total + 1)
+          expect(listed, `${other.name} must not be listed under ${fixture.label}`).not.toContain(other.name)
         }
         await screenshot(`MP-69 ${fixture.label} filter and count`)
       }
     })
 
     await navigation.getByText('All Files', { exact: true }).click()
-    await assertAllFiles()
+    await expectListed(allNames, 'Every stored file must be listed again after clearing the filter')
     await screenshot('MP-69 all files before search')
     const search = content
       .getByRole('searchbox')
@@ -685,23 +690,26 @@ test(...caseDefinition('MP-69'), async ({ mainWindow: page }, testInfo) => {
     const matches = allNames.filter((name) => name.toLowerCase().includes('sample'))
     for (const name of matches) {
       const filename = content.getByText(name, { exact: true })
+      await revealVirtualized(page, scroller, filename)
       await expect(filename).toBeVisible()
       await expect(filename.locator('mark')).toHaveText(/sample/i)
     }
+    const searchResults = await listedText()
     for (const name of allNames.filter((name) => !matches.includes(name))) {
-      await expect(content.getByText(name, { exact: true })).toHaveCount(0)
+      expect(searchResults, `${name} must not be listed for a filename search`).not.toContain(name)
     }
     await screenshot('MP-69 filename search with highlighted matches')
     await search.fill(`${prefix}-does-not-exist`)
-    for (const name of allNames) await expect(content.getByText(name, { exact: true })).toHaveCount(0)
     await expect(content.getByText('No matching files found', { exact: true })).toBeVisible()
+    const noMatches = await listedText()
+    for (const name of allNames) expect(noMatches, `${name} must not be listed`).not.toContain(name)
     await screenshot('MP-69 no matching files')
     await navigation.getByText('Document', { exact: true }).click()
     await search.clear()
     await navigation.getByText('All Files', { exact: true }).click()
     await expect(search).toHaveValue('')
     await expect(content.getByText('No matching files found', { exact: true })).toHaveCount(0)
-    await assertAllFiles()
+    await expectListed(allNames, 'Every stored file must be listed after clearing the search')
     await screenshot('MP-69 all files restored after clearing search and filter')
   } finally {
     if (ids.length) {

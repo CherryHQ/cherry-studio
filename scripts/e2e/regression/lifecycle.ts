@@ -9,6 +9,7 @@ import {
   assertOwnedProcess,
   CDP_PORT,
   findCdpPid,
+  findProcessGroupId,
   isAlive,
   isDescendant,
   MAIN_INSPECTOR_PORT,
@@ -284,6 +285,34 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
     throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)
   }
+}
+
+/**
+ * Adopt the instance a packaged restore relaunched on its own. The replacement is not a
+ * descendant of the recorded runner, so cleanup has to be pointed at it explicitly.
+ */
+export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Promise<AppRecord> {
+  const record = readAppRecord(paths)
+  if (record.mode !== 'tag') throw new Error('Only a packaged launch relaunches itself')
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    const electronPid = findCdpPid(record.platform)
+    if (electronPid && electronPid !== record.electronPid && isAlive(electronPid)) {
+      const runnerPid = findProcessGroupId(electronPid, record.platform) ?? electronPid
+      const adopted: AppRecord = {
+        ...record,
+        runnerPid,
+        electronPid,
+        startedAt: new Date().toISOString(),
+        restartCount: record.restartCount + 1
+      }
+      assertOwnedProcess(adopted, electronPid, 'electron')
+      writeJson(paths.appRecord, adopted)
+      return readAppRecord(paths)
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
+  }
+  throw new Error('The relaunched application did not take over the CDP port')
 }
 
 export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {

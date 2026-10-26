@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
@@ -16,6 +16,8 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
   let page = initialPage
   const directory = join(app.paths.evidence, 'MP-11')
   const notesDirectory = join(directory, 'notes')
+  // Leftover notes and timestamped exports from an earlier phase run would break the rerun.
+  await rm(directory, { recursive: true, force: true })
   await mkdir(notesDirectory, { recursive: true })
   const original = await page.evaluate(async () => ({
     path: await window.api.preference.get('feature.notes.path'),
@@ -66,8 +68,13 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
     await nameInput.fill(title)
     await nameInput.press('Enter')
     await editor().locator('.cm-content').fill(`${body}\n\n\`\`\`text\n${code}\n\`\`\``)
-    await notes().getByRole('button', { name: 'Source code mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Live preview', exact: true }).click()
+    const modeSelector = editor().getByRole('combobox')
+    await modeSelector.click()
+    await page.getByRole('option', { name: 'Source code mode', exact: true }).click()
+    await expect(modeSelector).toHaveAccessibleName('Source code mode')
+    await modeSelector.click()
+    await page.getByRole('option', { name: 'Live preview', exact: true }).click()
+    await expect(modeSelector).toHaveAccessibleName('Live preview')
     await editor().getByRole('button', { name: 'Language', exact: true }).click()
     const language = page.getByRole('dialog')
     await language.getByRole('combobox').fill('pyth')
@@ -174,6 +181,8 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
       ['none', 'Without images']
     ] as const) {
       const exportDirectory = join(directory, mode)
+      // ExportService stamps Markdown file names, so a previous run would leave several exports.
+      await rm(exportDirectory, { recursive: true, force: true })
       await mkdir(exportDirectory, { recursive: true })
       await page.evaluate((path) => window.api.preference.set('data.export.markdown.path', path), exportDirectory)
       await selectSidebarApp(page, 'Chat')
