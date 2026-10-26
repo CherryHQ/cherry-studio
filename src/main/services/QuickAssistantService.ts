@@ -28,7 +28,7 @@ import { app, BrowserWindow, type Rectangle, screen } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isMac, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { clampInto } from '@main/core/window/windowBoundsTracker'
@@ -142,6 +142,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
   /** Set when the user drags the window taller/shorter while expanded, and preferred
    *  over the renderer's default from then on. In-memory only — a relaunch forgets it. */
   private lastPanelHeight: number | null = null
+  /** Height our last setView asked for, so a resize we caused is not taken for the user's. */
+  private requestedHeight: number | null = null
   private viewTweenTimer: ReturnType<typeof setInterval> | null = null
 
   protected async onInit() {
@@ -376,22 +378,25 @@ export class QuickAssistantService extends BaseService implements Activatable {
     const onHide = () => {
       this.stopPostUnpinFocusPoll()
     }
-    // Fires once a user drag settles (never during our own tween, which is guarded).
+    // Linux has no `resized`, and its `resize` also reports our own setBounds.
     const onResized = () => {
       if (this.viewTweenTimer || this.view !== 'panel' || window.isDestroyed()) return
-      this.lastPanelHeight = window.getBounds().height
+      const { height } = window.getBounds()
+      if (height !== this.requestedHeight) this.lastPanelHeight = height
     }
 
     window.on('blur', onBlur)
     window.on('show', onShow)
     window.on('hide', onHide)
-    window.on('resized', onResized)
+    if (isLinux) window.on('resize', onResized)
+    else window.on('resized', onResized)
     this.registerDisposable(() => {
       if (window.isDestroyed()) return
       window.removeListener('blur', onBlur)
       window.removeListener('show', onShow)
       window.removeListener('hide', onHide)
-      window.removeListener('resized', onResized)
+      if (isLinux) window.removeListener('resize', onResized)
+      else window.removeListener('resized', onResized)
     })
   }
 
@@ -429,6 +434,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     const requested = view === 'panel' ? (this.lastPanelHeight ?? contentHeight) : contentHeight
     const from = window.getBounds()
     const to = this.resolveBoundsForHeight(window, requested)
+    this.requestedHeight = to.height
 
     if (!animate || Math.abs(to.height - from.height) < VIEW_TWEEN_MIN_DELTA_PX) {
       this.stopViewTween()

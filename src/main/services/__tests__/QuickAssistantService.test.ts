@@ -8,6 +8,15 @@ const { appGetMock, screenshotSessionRequestedByMock } = vi.hoisted(() => ({
   screenshotSessionRequestedByMock: vi.fn()
 }))
 
+const platform = vi.hoisted(() => ({ isLinux: false }))
+
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  get isLinux() {
+    return platform.isLinux
+  }
+}))
+
 vi.mock('@application', () => ({
   application: { get: appGetMock }
 }))
@@ -201,6 +210,76 @@ describe('QuickAssistantService', () => {
     expect(window.setHasShadow).toHaveBeenNthCalledWith(1, true)
     expect(window.setHasShadow).toHaveBeenNthCalledWith(2, false)
     expect(window.setHasShadow).toHaveBeenNthCalledWith(3, false)
+  })
+
+  /** A window whose bounds follow setBounds, and whose listeners the test can fire. */
+  const createResizableWindow = (height: number) => {
+    const { listeners, window } = createWindow()
+    let bounds = { x: 480, y: 900 - height, width: 680, height }
+    const resizable = Object.assign(window, {
+      getBounds: vi.fn(() => bounds),
+      setBounds: vi.fn((next: typeof bounds) => {
+        bounds = next
+      }),
+      setHasShadow: vi.fn()
+    })
+    appGetMock.mockImplementation((name: string) => {
+      if (name === 'WindowManager') return { getWindow: () => resizable }
+      if (name === 'ScreenshotOverlayService') return { isSessionRequestedBy: screenshotSessionRequestedByMock }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    return {
+      listeners,
+      window: resizable,
+      userResize: (next: number) => {
+        bounds = { ...bounds, y: bounds.y + bounds.height - next, height: next }
+        listeners.get('resize')?.()
+      }
+    }
+  }
+
+  it('keeps a panel height the user dragged to on Linux, where Electron has no resized event', () => {
+    platform.isLinux = true
+    Object.assign(screen, {
+      getDisplayMatching: vi.fn(() => ({ id: 2, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
+    })
+    const { window, userResize } = createResizableWindow(560)
+    const service = new QuickAssistantService()
+    setupQuickAssistant(service, window)
+    ;(service as unknown as { windowId: string }).windowId = 'quick-assistant-window'
+    try {
+      service.setView({ view: 'panel', contentHeight: 560, animate: false })
+      userResize(700)
+
+      // A multiline draft grows the composer, which re-reports the panel view.
+      service.setView({ view: 'panel', contentHeight: 560, animate: false })
+
+      expect(window.getBounds().height).toBe(700)
+    } finally {
+      platform.isLinux = false
+    }
+  })
+
+  it("does not take its own resize for the user's on Linux", () => {
+    platform.isLinux = true
+    Object.assign(screen, {
+      getDisplayMatching: vi.fn(() => ({ id: 2, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
+    })
+    const { listeners, window } = createResizableWindow(560)
+    const service = new QuickAssistantService()
+    setupQuickAssistant(service, window)
+    ;(service as unknown as { windowId: string }).windowId = 'quick-assistant-window'
+    try {
+      service.setView({ view: 'panel', contentHeight: 560, animate: false })
+      // Linux reports our own setBounds through the same event.
+      listeners.get('resize')?.()
+
+      service.setView({ view: 'panel', contentHeight: 600, animate: false })
+
+      expect(window.getBounds().height).toBe(600)
+    } finally {
+      platform.isLinux = false
+    }
   })
 
   it('does not replace the collapsed bar height while a quick panel is open', () => {
