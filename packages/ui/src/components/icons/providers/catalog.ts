@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-11T15:18:33.533Z
- * Total icons: 164
+ * Generated at: 2026-10-26T18:07:07.841Z
+ * Total icons: 165
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -146,9 +146,9 @@ import { SmitheryIcon } from './smithery'
 import { SophnetIcon } from './sophnet'
 import { StabilityIcon } from './stability'
 import { StepIcon } from './step'
-import { SuperbotIcon } from './superbot/superbot'
 import { StreamlakeIcon } from './streamlake'
 import { SunoIcon } from './suno'
+import { SuperbotIcon } from './superbot/superbot'
 import { TavilyIcon } from './tavily'
 import { TencentCloudTiIcon } from './tencent-cloud-ti'
 import { TesseractJsIcon } from './tesseract-js'
@@ -313,9 +313,9 @@ export const PROVIDER_ICON_CATALOG = {
   sophnet: SophnetIcon,
   stability: StabilityIcon,
   step: StepIcon,
-  superbot: SuperbotIcon,
   streamlake: StreamlakeIcon,
   suno: SunoIcon,
+  superbot: SuperbotIcon,
   tavily: TavilyIcon,
   'tencent-cloud-ti': TencentCloudTiIcon,
   'tesseract-js': TesseractJsIcon,
