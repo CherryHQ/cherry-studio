@@ -43,7 +43,8 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   })
   const preferences = await page.evaluate(async () => ({
     theme: await window.api.preference.get('ui.theme_mode'),
-    naming: await window.api.preference.get('topic.naming.enabled')
+    naming: await window.api.preference.get('topic.naming.enabled'),
+    browser: await window.api.preference.get('app.browser.open_links_in_browser')
   }))
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
@@ -255,6 +256,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
     })
 
     await test.step('7. Dispatch safe external links and block unsafe protocols', async () => {
+      await page.evaluate(() => window.api.preference.set('app.browser.open_links_in_browser', false))
       const inspectorArg = app.record.args.find((arg) => /^--inspect(?:-brk)?=/.test(arg))
       const port = inspectorArg?.split('=').at(-1)?.split(':').at(-1) ?? '9229'
       const targets = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as Array<{
@@ -314,7 +316,8 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
       async ({ preferences, assistantId, providerId }) => {
         await window.api.preference.setMultiple({
           'ui.theme_mode': preferences.theme,
-          'topic.naming.enabled': preferences.naming
+          'topic.naming.enabled': preferences.naming,
+          'app.browser.open_links_in_browser': preferences.browser
         })
         if (assistantId) {
           const deleted = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
