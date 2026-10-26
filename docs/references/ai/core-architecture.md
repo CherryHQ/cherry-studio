@@ -15,67 +15,23 @@ each subsystem.
 
 ## Layered view
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                            Renderer                                  │
-│                                                                      │
-│  useChat({ id: topicId, transport: IpcChatTransport })               │
-│    ├─ sendMessages      → ipcApi.request('ai.stream.open')            │
-│    ├─ reconnectToStream → ipcApi.request('ai.stream.attach')          │
-│    ├─ abort signal      → ipcApi.request('ai.stream.abort')           │
-│    └─ stop()            → sdkStop + await ai.stream.abort             │
-│                                                                      │
-│  History:           useQuery('/topics/:topicId/messages') → DataApi   │
-│  Topic-level state: useTopicStreamStatus → shared cache              │
-│  Approval bridge:   useToolApprovalBridge → ai.tool.respond_approval │
-└──────────────────────────────────────────────────────────────────────┘
-                                 ↕ IPC (keyed by topicId)
-┌──────────────────────────────────────────────────────────────────────┐
-│                              Main                                    │
-│                                                                      │
-│  src/main/ipc/handlers/ai.ts — thin IpcApi transport adapters:       │
-│    ├─ ai.stream.open   → AiStreamManager.dispatch                    │
-│    ├─ ai.stream.attach → AiStreamManager.attach                      │
-│    ├─ ai.stream.detach → AiStreamManager.detach                      │
-│    ├─ ai.stream.abort  → await AiStreamManager.abortAndDrain         │
-│    └─ ai.tool.respond_approval → AiService.respondToolApproval       │
-│                                                                      │
-│  dispatch (src/main/ai/streamManager/context/dispatch.ts)            │
-│    pick ChatContextProvider → prepareDispatch → manager.send(...)     │
-│                                                                      │
-│  AiStreamManager                                                     │
-│    activeStreams: Map<topicId, ActiveStream>                          │
-│      listeners + executions                                          │
-│    runs N StreamExecution loops, fan-out per chunk to listeners       │
-│                                                                      │
-│  runExecutionLoop (AiStreamManager) → AiService.streamText(req,signal)│
-│    buildAgentParams: registry.selectActive + applyDeferExposition     │
-│    new Agent({tools, hookParts}) — composeHooks runs inside Agent     │
-│    → agent.stream(messages, signal)                                   │
-│    pipeStreamLoop tees:                                              │
-│      • broadcast → WebContents / SSE / channel-adapter / persistence │
-│      • readUIMessageStream → CherryUIMessage snapshot                │
-│                                                                      │
-│  Terminal listeners:                                                 │
-│    PersistenceListener → MessageService / TemporaryChat / Translation
-│    WebContentsListener  → ai.stream.done directed event              │
-│    ChannelAdapterListener → adapter.onStreamComplete                  │
-│    SseListener          → res.write('[DONE]')                         │
-└──────────────────────────────────────────────────────────────────────┘
-                                 ↓
-                        @ai-sdk/* package
-                                 ↓
-                          LLM provider API
+```text
+Renderer: commands → ai.stream.open/abort → AiStreamManager
+          views    ← ai.projection.* ← root/child message publishers
+Main: context provider → AiService / native runtime → UIMessageChunk stream
+      pipeStreamLoop → SDK message accumulator → current root projection
+      child native observation → reconciliation/archive → independent child projection
+Terminal: persistence → projection and other subscriber notifications → cleanup
+Model requests: existing provider registry / gateway / AI SDK paths remain unchanged
 ```
 
 ## Sequence: a fresh chat turn
 
-1. User hits send. `useChat.sendMessages` calls `IpcChatTransport.sendMessages`.
-2. Transport packages `AiStreamOpenRequest`, dispatches via
+1. User hits send. The command hook or conversation controller captures the input and topic.
+2. It packages `AiStreamOpenRequest`, dispatches via
    `streamDispatchService` over IpcApi `ai.stream.open`.
 3. The `ai.stream.open` handler in `src/main/ipc/handlers/ai.ts` resolves the
-   managed sender window, wraps it in a `WebContentsListener`, and calls
-   `AiStreamManager.dispatch`.
+   managed sender window and calls `AiStreamManager.dispatchCommand`. Observation is a separate projection subscription.
 4. `dispatchStreamRequest` picks the first `ChatContextProvider` whose
    `canHandle(topicId)` matches and asks it to `prepareDispatch`.
 5. The provider resolves models, persists the user message for persistent chat
@@ -107,7 +63,7 @@ each subsystem.
    listeners, accumulate via `readUIMessageStream`.
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):
    - `PersistenceListener` writes the final assistant message.
-   - `WebContentsListener` sends `ai.stream.done` to subscribed windows.
+   - `TopicMessageProjection` publishes the final message and terminal state to subscribed windows.
    - Shared-cache `topic.stream.statuses.<topicId>` flips to the terminal status.
 10. Renderer's `useQuery('/topics/:topicId/messages')` revalidates; the
     optimistic overlay is disposed.
@@ -142,7 +98,7 @@ overlay-vs-persist conditional write.
 | `Provider.endpointConfigs`, `endpointType` resolution, variant suffixes, custom providers | [Provider Resolution](./provider-resolution.md) |
 | `adapterFamily` field, runtime resolver, write paths (catalog / migrator) | [Adapter Family](./adapter-family.md) |
 | OTel span tree, `AdapterTracer`, `AiSdkSpanAdapter`, dev-tools view | [Observability](./observability.md) |
-| `IpcChatTransport`, dispatch service, per-execution demux | [IPC Transport](./ipc-transport.md) |
+| Commands, dispatch results and shared projection subscriptions | [IPC Transport](./ipc-transport.md) |
 | Approval flow, Main-as-writer invariant, persistent decisions | [Tool Approval](./tool-approval.md) |
 
 ## Invariants
@@ -187,7 +143,7 @@ src/main/ai/
 └── utils/                        ← reasoning / model parameters / options / websearch
 
 src/main/ipc/handlers/ai.ts        ← IpcApi transport adapters
-src/renderer/services/aiTransport/ ← IpcChatTransport, StreamDispatchService, overlays
+src/renderer/services/aiTransport/ ← MessageProjectionService, StreamDispatchService, overlays
 src/renderer/hooks/               ← useChatWithHistory, useToolApprovalBridge, useTopicStreamStatus
 packages/aiCore/                  ← @cherrystudio/ai-core (Agent + plugins + provider extensions)
 packages/provider-registry/       ← provider catalog, registry-utils (adapterFamily inference)

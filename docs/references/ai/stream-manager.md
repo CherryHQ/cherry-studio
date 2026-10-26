@@ -12,14 +12,13 @@ sources:
 
 `AiStreamManager` is the Main-process **active-stream registry** and the
 broker for every stream event. It owns the full life cycle of an AI
-streaming reply — from `sendMessages` until the assistant turn finishes
+streaming reply — from command admission until the assistant turn finishes
 persisting — including multicast fan-out, reconnect, abort, steering
 (queue + yield + continuation), and persistence triggering.
 
 The renderer no longer holds a direct reference to the stream. Closing a
 window does not abort the stream; it continues on Main and persists
-normally. When the user returns, `attach` re-subscribes and the
-manager replays any chunks that landed in between.
+normally. Returning desktop views attach to the current message projection. Raw-stream clients may still attach to bounded chunk replay.
 
 **Key: `topicId`.** A topic has at most one active stream at a time;
 "streaming" is one phase of a topic, and every subscriber on a topic is
@@ -39,54 +38,20 @@ which produced three structural bug classes:
   crash/close between stream-end and commit lost the reply.
 
 **Goal:** move stream lifecycle, multicast fan-out, and persistence to Main;
-the renderer's only job is rendering chunks. The sections below are the
+the renderer's job is applying message patches and rendering views. The sections below are the
 reference for that Main-side design.
 
 ## Architecture
 
-```
-┌──────────────── Renderer ────────────────────────────────────┐
-│                                                              │
-│  useChat({ id: topicId, transport: IpcChatTransport })       │
-│    ├─ sendMessages      → ai.stream.open                     │
-│    ├─ reconnectToStream → ai.stream.attach                   │
-│    └─ abort signal      → ai.stream.abort                    │
-│                                                              │
-│  History:           useQuery('/topics/:topicId/messages')    │
-│  Topic-level state: useTopicStreamStatus → shared cache       │
-└──────────────────────────────────────────────────────────────┘
-                 ↕ IPC (all keyed by topicId)
-┌──────────────── Main ────────────────────────────────────────┐
-│                                                              │
-│  dispatchStreamRequest(manager, subscriber, req)             │
-│    │ pick first ChatContextProvider whose canHandle matches  │
-│    │ provider.prepareDispatch(subscriber, req, ctx)          │
-│    └ manager.send(prepared)                                  │
-│                                                              │
-│  AiStreamManager                                             │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │ activeStreams: Map<topicId, ActiveStream>              │  │
-│  │   listeners:  Map<listenerId, StreamListener>          │  │
-│  │   executions: Map<modelId, StreamExecution>            │  │
-│  │     ├─ abortController / status                        │  │
-│  │     └─ buffer (ring) + droppedChunks                   │  │
-│  │   lifecycle: StreamLifecycle  (chat or prompt)         │  │
-│  └────────────────────────────────────────────────────────┘  │
-│         ↓ createAndLaunchExecution → runExecutionLoop        │
-│  AiService.streamText(request) → ReadableStream<UIMessageChunk> │
-│         ↓ pipeStreamLoop (tees: broadcast + readUIMessageStream) │
-│                                                              │
-│  terminal → dispatchToListeners (awaited phase order):       │
-│    1. PersistenceListener → PersistenceBackend.persistAssistant
-│       • MessageServiceBackend  (SQLite tree)                 │
-│       • TemporaryChatBackend   (in-memory)                   │
-│       • AgentSessionMessageBackend (agent-session DB)        │
-│    2. WebContentsListener → ai.stream.done/error events      │
-│       other notification listeners (channel / SSE)          │
-│    3. TraceFlushListener → TraceStorageService.saveSpans    │
-│    Persistence failure → emit correction error and suppress  │
-│      the original notification phase; cleanup still runs     │
-└──────────────────────────────────────────────────────────────┘
+```text
+Renderer commands → ai.stream.open/abort → AiStreamManager
+Renderer views    → ai.projection.attach/detach
+                           ↑ snapshots / message patches
+Main SDK stream → pipeStreamLoop → TopicMessageProjection
+                     ├─ raw chunk listeners (SSE, channels, prompt consumers)
+                     └─ readUIMessageStream → accumulated CherryUIMessage
+Terminal: PersistenceListener → projection and other notifications → cleanup
+Child owner: independent native observation/archive → shared projection delivery
 ```
 
 ## Pub/sub model
@@ -107,7 +72,8 @@ volume × audience width**.
 
 | Consumer | Events | Subscription |
 |---|---|---|
-| `WebContentsListener` | chunk + terminal | explicit `attach` → `ActiveStream.listeners` |
+| `TopicMessageProjection` | accumulated messages + post-persistence terminal | manager-owned; desktop views use `ai.projection.attach` |
+| `WebContentsListener` | raw chunk + terminal | explicit legacy `attach` → `ActiveStream.listeners` |
 | `PersistenceListener` | terminal | built by the provider and added in `send()` |
 | `TraceFlushListener` | terminal | built by chat / agent-session turn owners and added in `send()` |
 | `ChannelAdapterListener` / `SseListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
@@ -117,9 +83,9 @@ volume × audience width**.
 
 | | Targeted listener dispatch | SharedCache mirror |
 |---|---|---|
-| Transport | `ai.stream.chunk` / `ai.stream.done` / `ai.stream.error` | `cacheService.setShared('topic.stream.statuses.${topicId}', …)` → built-in `Cache_Sync` broadcast |
-| Main-side registry | `ActiveStream.listeners: Map<listenerId, StreamListener>` | none — uses the generic `CacheService` infra |
-| Subscriber API | `attach` to register, explicit `detach` | `useSharedCacheValue('topic.stream.statuses.${topicId}')` by topicId |
+| Transport | Desktop: `ai.projection.changed`; raw consumers: stream-specific events | `cacheService.setShared('topic.stream.statuses.${topicId}', …)` → built-in `Cache_Sync` broadcast |
+| Main-side registry | `ProjectionSubscriptions` for desktop views; `ActiveStream.listeners` for raw consumers | none — uses the generic `CacheService` infra |
+| Subscriber API | `ai.projection.attach/detach` for desktop views | `useSharedCacheValue('topic.stream.statuses.${topicId}')` by topicId |
 | Per-event size | tens of bytes to KBs (10s/s) | tens of bytes (≤ 5 transitions per stream) |
 | Audience | narrow (one window per listener typically) | wide (every sidebar / indicator across all windows) |
 | Cost of irrelevant pushes | high (bandwidth + deserialization) | negligible |
@@ -136,21 +102,8 @@ Choose by **consumer / producer fanout**:
 
 ### Rules that follow from the channel split
 
-- **`ai.stream.attach` is required.** The listener channel requires
-  explicit consumer registration; `attach` is the entry point and also
-  returns a compact replay to fill the "before I subscribed" gap.
-- **Replay has an execution cutoff.** Managed chunks carry an attempt-scoped
-  `sequence`; `attach` returns `replayFrom[attemptId]` and
-  `replayThrough[attemptId]` with the compact replay. Merged payloads retain
-  their first source sequence so eviction does not overstate replay coverage.
-  Coalesced live payloads carry that same range. If queued live output covers the
-  replay but its opening text/reasoning event was evicted, the subscription opens
-  that part before its first retained live delta.
-  Main flushes the previous window listener's pending deltas before replacing
-  it, so a coalesced payload cannot cross that cutoff. `TopicStreamSubscription`
-  uses queued live output when it covers the entire retained replay interval;
-  otherwise it applies replay before uncovered live events. Terminal attach
-  responses drain queued content before closing branches.
+- **Desktop views attach explicitly.** `ai.projection.attach` returns the current baseline and installs directed patch delivery. Revisions count published batches; a gap obtains a new baseline. See [Execution Overlay](./execution-overlay.md).
+- **Raw replay retains source cutoffs.** `ai.stream.attach` returns attempt-scoped `replayFrom` and `replayThrough` with compact replay, and flushes the old window listener before replacement. This remains a bounded raw-stream contract, not the desktop message-projection protocol.
 - **Bootstrap needs no extra IPC.** A new window pulls all shared cache
   entries via `Cache_GetAllShared` on mount; every
   `topic.stream.statuses.${topicId}` entry comes through without a

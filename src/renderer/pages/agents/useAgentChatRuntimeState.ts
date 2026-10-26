@@ -311,7 +311,7 @@ export function useAgentChatRuntimeState({
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, {
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, {
     onUpdate: (_executionId, event) => {
       const projected = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
       const turnOrigin =

@@ -14,10 +14,11 @@ import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSuppor
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
+import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -103,18 +104,22 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
-  'ai.agent.child.attach': async ({ sessionId, toolCallId, subscriptionId }, { senderId }) => {
+  'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
-    if (!sender || senderId === null) throw new Error('Child subscription requires a window')
-    return application
-      .get('AgentSessionRuntimeService')
-      .attachChild(sender, sessionId, toolCallId, subscriptionId, (update) =>
-        application.get('IpcApiService').send(senderId, 'ai.agent.child.changed', { subscriptionId, update })
-      )
+    if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
+    const send = (update: MessageProjectionUpdate) =>
+      application.get('IpcApiService').send(senderId, 'ai.projection.changed', { subscriptionId, update })
+    return target.kind === 'topic'
+      ? application.get('AiStreamManager').attachProjection(sender, target.topicId, subscriptionId, send)
+      : application
+          .get('AgentSessionRuntimeService')
+          .attachChild(sender, target.sessionId, target.toolCallId, subscriptionId, send)
   },
-  'ai.agent.child.detach': async ({ subscriptionId }, { senderId }) => {
+  'ai.projection.detach': async ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
-    if (sender) application.get('AgentSessionRuntimeService').detachChild(sender, subscriptionId)
+    if (!sender) return
+    if (target.kind === 'topic') application.get('AiStreamManager').detachProjection(sender, subscriptionId)
+    else application.get('AgentSessionRuntimeService').detachChild(sender, subscriptionId)
   },
   'ai.agent.child.message': ({ sessionId, contextId, text }) =>
     application.get('AgentSessionRuntimeService').messageChild(sessionId, contextId, text),
@@ -153,9 +158,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     if (!senderId) throw new Error('ai.stream.open requires a managed window')
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
-    const subscriber = new WebContentsListener(wc, request.topicId)
     const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
-    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, dispatchRequest))
+    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatchCommand(dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
@@ -268,14 +272,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       const wc = senderWebContents(senderId)
       if (!wc) throw new Error('Edit and resend requires a managed window')
       try {
-        return await application
-          .get('AiStreamManager')
-          .dispatch(new WebContentsListener(wc, buildAgentSessionTopicId(sessionId)), {
-            ...input,
-            trigger: 'edit-agent-message',
-            topicId: buildAgentSessionTopicId(sessionId),
-            editTarget: target
-          })
+        return await application.get('AiStreamManager').dispatchCommand({
+          ...input,
+          trigger: 'edit-agent-message',
+          topicId: buildAgentSessionTopicId(sessionId),
+          editTarget: target
+        })
       } catch (error) {
         if (error instanceof AgentSessionForkError) {
           if (error.reason === 'unsupported_checkpoint') {

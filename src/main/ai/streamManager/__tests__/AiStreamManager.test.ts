@@ -1,8 +1,11 @@
+import { EventEmitter } from 'node:events'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
+import { APICallError, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -167,29 +170,12 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
-const replayIpc = vi.hoisted(
-  (): { request(route: string, input: unknown): Promise<unknown>; chunk(payload: StreamChunkPayload): void } => ({
-    request: () => Promise.resolve(undefined),
-    chunk: () => {}
-  })
-)
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: (route: string, input: unknown) => replayIpc.request(route, input),
-    on: (event: string, callback: (payload: StreamChunkPayload) => void) => {
-      if (event === 'ai.stream.chunk') replayIpc.chunk = callback
-      return () => {}
-    }
-  }
-}))
-
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
-const { TopicStreamSubscription } = await import('@renderer/services/aiTransport/TopicStreamSubscription')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -310,6 +296,90 @@ describe('AiStreamManager', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  // The projection terminal must follow the archive barrier and contain the SDK's final accumulated text.
+  it.each([false, true])('publishes SDK snapshots and respects persistence failure=%s', async (failWrite) => {
+    const feed = controlledStream()
+    mockStreamText.mockResolvedValueOnce(feed.stream)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'projection-topic', 'subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    let release!: () => void
+    let entered = false
+    const persistence = new PersistenceListener({
+      topicId: 'projection-topic',
+      modelId: 'p::m',
+      backend: {
+        kind: 'test',
+        persistAssistant: async () => {
+          entered = true
+          await new Promise<void>((resolve) => {
+            release = resolve
+          })
+          if (failWrite) throw new Error('archive write failed')
+        }
+      },
+      onPersistFailed: (error) => mgr.broadcastTopicError('projection-topic', 'p::m', error)
+    })
+    startSingle(mgr, {
+      topicId: 'projection-topic',
+      modelId: 'p::m',
+      request: req('projection-topic'),
+      listeners: [persistence]
+    })
+    feed.enqueue({ type: 'start', messageId: 'answer' })
+    feed.enqueue({ type: 'text-start', id: 'text' })
+    feed.enqueue({ type: 'text-delta', id: 'text', delta: 'visible before completion' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'visible before completion' }))
+    feed.enqueue({ type: 'text-end', id: 'text' })
+    feed.enqueue({ type: 'finish' })
+    feed.close()
+    await vi.waitFor(() => expect(entered).toBe(true))
+    expect(view).toMatchObject({ kind: 'topic', executions: [{ status: 'active' }] })
+    release()
+    await vi.waitFor(() =>
+      expect(view).toMatchObject({ kind: 'topic', executions: [{ status: failWrite ? 'unresolved' : 'done' }] })
+    )
+    expect(view?.messages[0].parts[0]).toMatchObject({ text: 'visible before completion' })
+    if (failWrite) expect(view?.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
+    mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
+  // Host approval decisions bypass the SDK stream; later snapshots must not resurrect the old card.
+  it('projects a resolved approval immediately and keeps it resolved on later SDK snapshots', async () => {
+    const feed = controlledStream()
+    mockStreamText.mockResolvedValueOnce(feed.stream)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'approval-projection', 'subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    startSingle(mgr, {
+      topicId: 'approval-projection',
+      modelId: 'p::m',
+      request: req('approval-projection'),
+      listeners: []
+    })
+    feed.enqueue({ type: 'start', messageId: 'answer' })
+    feed.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'Read', input: {} })
+    feed.enqueue({ type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
+    expect(mgr.resolveToolApproval('approval-projection', 'call', true)).toBe(true)
+    await vi.waitFor(() =>
+      expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
+    )
+    feed.enqueue({ type: 'text-start', id: 'text' })
+    feed.enqueue({ type: 'text-delta', id: 'text', delta: 'waiting for tool' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[1]).toMatchObject({ text: 'waiting for tool' }))
+    expect(view?.messages[0].parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
+    feed.close()
+    await vi.advanceTimersByTimeAsync(0)
+    mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
   })
 
   describe('streamPrompt', () => {
@@ -456,8 +526,7 @@ describe('AiStreamManager', () => {
       expect(snap).toMatchObject({
         topicId: 'a',
         status: 'pending',
-        isMultiModel: false,
-        listenerIds: ['l:a']
+        isMultiModel: false
       })
       expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       // One streamText call per execution — 1 for single-model.
@@ -682,10 +751,6 @@ describe('AiStreamManager', () => {
       // No second streamText call — the live stream is reused.
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
-      // The listener id is still the single "l:a" (upsert, not duplicate).
-      const snap = mgr.inspect('a')!
-      expect(snap.listenerIds).toEqual(['l:a'])
-
       // Behaviour proves the listener was actually replaced: only l2 sees the chunk.
       mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
       expect(l1.chunks).toHaveLength(0)
@@ -739,7 +804,6 @@ describe('AiStreamManager', () => {
       expect(result.mode).toBe('injected')
       expect(result.activeExecutions).toEqual([expect.objectContaining({ executionId: 'provider-a::model-a' })])
       expect(mockStreamText).toHaveBeenCalledTimes(1)
-      expect(mgr.inspect('agent-session:s1')?.listenerIds).toEqual(['l:a', 'l:b'])
     })
 
     it('attaches a follow-up subscriber to a grace-period stream so the next turn carries it', async () => {
@@ -802,7 +866,6 @@ describe('AiStreamManager', () => {
       const snap = mgr.inspect('a')!
       expect(snap.executions).toHaveLength(2)
       expect(snap.isMultiModel).toBe(true)
-      expect(snap.listenerIds).toEqual(['l:a'])
 
       // Behaviour: the single shared listener receives from either execution.
       mgr.onChunk('a', 'provider-a::model-a', chunk('from-a'))
@@ -1374,7 +1437,7 @@ describe('AiStreamManager', () => {
       expect(alive.chunks).toHaveLength(1)
       expect(dead.chunks).toHaveLength(0)
       // The dead listener was removed from the map during delivery.
-      expect(mgr.inspect('a')!.listenerIds).toEqual(['alive:a'])
+      expect(mgr.inspect('a')!.listenerIds).not.toContain('dead:a')
     })
 
     it('buffers chunks and replays to late-joining listener', () => {
@@ -1421,7 +1484,6 @@ describe('AiStreamManager', () => {
       abortMgr.onChunk('a', 'provider-a::model-a', chunk('late'))
 
       const snap = abortMgr.inspect('a')!
-      expect(snap.listenerIds).toEqual([])
       expect(snap.status).toBe('aborted')
       expect(snap.executions[0].abortSignal.aborted).toBe(true)
     })
@@ -1538,6 +1600,7 @@ describe('AiStreamManager', () => {
       expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       expect(conversationCompletedEvents).toEqual([])
 
+      await vi.waitFor(() => expect(releaseB).toBeTypeOf('function'))
       releaseB()
       await settledPromise
       await terminal
@@ -1617,6 +1680,7 @@ describe('AiStreamManager', () => {
         .then(() =>
           startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [next] })
         )
+      await vi.waitFor(() => expect(releaseB).toBeTypeOf('function'))
       releaseB()
       await followUp
       await terminal
@@ -1627,7 +1691,7 @@ describe('AiStreamManager', () => {
       expect(fakeCacheService.setShared.mock.calls.map(([, value]) => value)).toContainEqual(
         expect.objectContaining({ status: 'done', turnId: previousTurnId })
       )
-      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: [next.id] })
+      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: expect.arrayContaining([next.id]) })
     })
 
     it('dispatch() admits a renderer follow-up only after the previous terminal dispatch settles', async () => {
@@ -1664,6 +1728,7 @@ describe('AiStreamManager', () => {
       expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
       expect(conversationCompletedEvents).toEqual([])
 
+      await vi.waitFor(() => expect(releaseB).toBeTypeOf('function'))
       releaseB()
       await expect(followUp).resolves.toEqual({ mode: 'started' })
       await terminal
@@ -1674,7 +1739,7 @@ describe('AiStreamManager', () => {
       expect(fakeCacheService.setShared.mock.calls.map(([, value]) => value)).toContainEqual(
         expect.objectContaining({ status: 'done', turnId: previousTurnId })
       )
-      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: [next.id] })
+      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: expect.arrayContaining([next.id]) })
     })
 
     it('suppresses the original terminal notification after persistence surfaced an error', async () => {
@@ -2080,41 +2145,6 @@ describe('AiStreamManager', () => {
           }
         ]
       })
-    })
-
-    it('renders a complete coalesced live answer after its replay prefix and opening were evicted', async () => {
-      const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
-      const sender = {
-        id: 1,
-        isDestroyed: () => false,
-        send: (_channel: string, event: string, payload: StreamChunkPayload) => {
-          if (event === 'ai.stream.chunk') replayIpc.chunk(payload)
-        }
-      }
-      const wc = sender as unknown as Electron.WebContents
-      const {
-        executions: [{ attemptId }]
-      } = startSingle(ringMgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new WebContentsListener(wc, 'a')]
-      })
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' })
-      const subscription = new TopicStreamSubscription('a')
-      subscription.listen()
-      for (const delta of ['AA', 'BB', 'CC', 'DD', 'EE'])
-        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p', delta })
-      replayIpc.request = async (route) =>
-        route === 'ai.stream.attach' ? ringMgr.attach(wc, { topicId: 'a' }) : undefined
-      const stream = subscription.register('provider-a::model-a', undefined, attemptId)
-      await Promise.resolve()
-      await Promise.resolve()
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p' })
-      subscription.dispose()
-      let message
-      for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
-      expect(message?.parts).toEqual([{ type: 'text', text: 'AABBCCDDEE', state: 'done' }])
     })
 
     it('reports the start of retained source coverage after evicting a merged or split prefix', () => {
@@ -3823,14 +3853,14 @@ describe('AiStreamManager', () => {
         })
         expect(mgr.inspect(topicId)).toMatchObject({
           status: 'pending',
-          listenerIds: [replacementListener.id]
+          listenerIds: expect.arrayContaining([replacementListener.id])
         })
         expect(mgr.hasPendingSteer(topicId)).toBe(true)
 
         vi.advanceTimersByTime(31_000)
         expect(mgr.inspect(topicId)).toMatchObject({
           status: 'pending',
-          listenerIds: [replacementListener.id]
+          listenerIds: expect.arrayContaining([replacementListener.id])
         })
 
         await mgr.onExecutionDone(topicId, modelId)
