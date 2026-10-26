@@ -14,7 +14,7 @@ import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { CHERRY_MCP_SERVER } from '@main/ai/agentMcpIdentities'
+import { CHERRY_MCP_SERVER } from '@main/utils/agentMcpIdentities'
 import {
   migrateAgentDisabledToolsForServerRename,
   migrateDisabledToolsForServerRename,

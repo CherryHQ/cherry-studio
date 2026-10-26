@@ -1,8 +1,9 @@
 /**
  * The Cherry-owned agent MCP server identities. Which of them a session mounts is the runtime's
- * call. Every consumer is main-process (the policy registry, and the data layer reserving these
- * keys when it mirrors the runtime's server-key allocation), so the declaration lives in main —
- * the tool-approval registry re-exports it as the policy-side consumer.
+ * call. Both sides of the main-process split consume it — the AI policy registry and the data
+ * layer reserving these keys when it mirrors the runtime's server-key allocation — so it lives
+ * in `utils/`, the foundation both may depend down on (main-process.md §3); the tool-approval
+ * registry re-exports it as the policy-side consumer.
  */
 export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',

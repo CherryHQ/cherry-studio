@@ -11,13 +11,13 @@
  * approval is a security policy and belongs in the runtime-neutral approval layer.
  */
 
-// Main-owned declaration (every consumer is main-process); re-exported to keep this registry
-// the policy-side canonical import path.
-import { CHERRY_MCP_SERVER } from '@main/ai/agentMcpIdentities'
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import { computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
+// Main-owned declaration (every consumer is main-process); re-exported to keep this registry
+// the policy-side canonical import path.
+import { CHERRY_MCP_SERVER } from '@main/utils/agentMcpIdentities'
 import {
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
