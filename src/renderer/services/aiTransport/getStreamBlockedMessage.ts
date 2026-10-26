@@ -4,5 +4,7 @@ import type { AiStreamOpenResponse } from '@shared/ai/transport'
 type BlockedStreamResponse = Extract<AiStreamOpenResponse, { mode: 'blocked' }>
 
 export function getStreamBlockedMessage(response: BlockedStreamResponse): string {
-  return response.reason === 'paused' ? i18n.t('restore.messages_paused') : response.message
+  return response.reason === 'paused'
+    ? i18n.t(response.operation === 'backup' ? 'backup.messages_paused' : 'restore.messages_paused')
+    : response.message
 }
