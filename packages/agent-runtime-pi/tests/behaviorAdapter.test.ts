@@ -1,4 +1,4 @@
-import { readdirSync, rmSync } from 'node:fs'
+import { readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { TSchema } from '@earendil-works/pi-ai'
@@ -21,7 +21,7 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import type { AgentRuntimeEvent, BehaviorSessionRequest, CompactionSummarizer } from '../src'
+import type { AgentRuntimeEvent, AgentRuntimeSession, BehaviorSessionRequest, CompactionSummarizer } from '../src'
 import { historyOf } from '../src/behavior/history'
 import { type OpenSession, openPiHarness, type PiHarness } from './behaviorHarness'
 
@@ -127,26 +127,43 @@ async function spawn(pi: PiHarness, parent: ThreadId, fork?: ChildSpec['fork']):
   )
   return spawned[0].child
 }
-/** A stored parent and a stored conversation, one turn behind each; the second one's storage is gone, so writes fail. */
+/**
+ * A stored parent and a stored conversation, one turn behind each; the second one's storage is moved away, so its
+ * writes fail until `restore` brings it back.
+ */
 async function brokenStorage(pi: PiHarness) {
   const sessions = join(pi.cwd, 'sessions')
   const manager = SessionManager.create(pi.cwd, sessions)
   const parent = await pi.behavior.openConversation(manager)
   const gone = join(pi.cwd, 'gone')
-  const broken = await pi.behavior.openConversation(SessionManager.create(pi.cwd, gone))
+  const brokenManager = SessionManager.create(pi.cwd, gone)
+  const broken = await pi.behavior.openConversation(brokenManager)
   for (const thread of [parent, broken]) {
     pi.harness.script(thread, [{ text: 'one' }])
     await pi.harness.sendUser(thread, 'first')
   }
   await pi.harness.settle()
-  rmSync(gone, { recursive: true })
-  return { parent, broken, sessions, file: manager.getSessionFile()! }
+  renameSync(gone, `${gone}-away`)
+  return {
+    parent,
+    broken,
+    sessions,
+    file: manager.getSessionFile()!,
+    brokenFile: brokenManager.getSessionFile()!,
+    restore: () => renameSync(`${gone}-away`, gone)
+  }
 }
 const notice = (thread: ThreadId, label: string): TxOp => ({
   type: 'append-record',
   thread,
   record: { type: 'goal-notice', value: { text: label, level: 'info' } },
   key: key(label)
+})
+const quiet = (thread: ThreadId, text: string): TxOp => ({
+  type: 'append-quiet',
+  thread,
+  input: input(text),
+  key: key(text)
 })
 
 describe('coding-agent behavior adapter', () => {
@@ -450,6 +467,65 @@ describe('coding-agent behavior adapter', () => {
     ).rejects.toThrow('ENOENT')
     expect((await read(pi, parent)).history).toEqual(before)
     expect(historyOf(SessionManager.open(file).getBranch(), parent)).toEqual(before)
+  })
+
+  // Catches a quiet input that fails to write letting its commit succeed: the leaf stays on an entry the disk never
+  // got, so once storage is back the next write hangs off it and a reload loses the conversation (H1).
+  it('refuses a commit whose quiet input fails to write and keeps later writes on the stored branch', async () => {
+    const pi = await openPiHarness(() => {})
+    const { broken, brokenFile, restore } = await brokenStorage(pi)
+    const before = (await read(pi, broken)).history
+    const commit = (ops: TxOp[]) =>
+      pi.harness.withCall(broken, (ports) => ports.ledger.transact(broken, () => ({ ops, effects: [], result: null })))
+    await expect(commit([quiet(broken, 'lost status')])).rejects.toThrow('ENOENT')
+    expect((await read(pi, broken)).history).toEqual(before)
+    restore()
+    expect(historyOf(SessionManager.open(brokenFile).getBranch(), broken)).toEqual(before)
+    await commit([notice(broken, 'later')])
+    const after = (await read(pi, broken)).history
+    expect(after).toEqual([...before, expect.objectContaining({ kind: 'record', key: key('later') })])
+    expect(historyOf(SessionManager.open(brokenFile).getBranch(), broken)).toEqual(after)
+  })
+
+  // Catches a quiet input written by a commit that a later write then refuses staying on its conversation's branch, in
+  // memory or after a reload (H1: a rejected commit writes nothing).
+  it('takes back the quiet input of a refused commit, also after a reload', async () => {
+    const pi = await openPiHarness(() => {})
+    const { parent, broken, file } = await brokenStorage(pi)
+    const before = (await read(pi, parent)).history
+    const ops = [quiet(parent, 'taken back'), notice(broken, 'lost')]
+    await expect(
+      pi.harness.withCall(parent, (ports) => ports.ledger.transact(parent, () => ({ ops, effects: [], result: null })))
+    ).rejects.toThrow('ENOENT')
+    expect((await read(pi, parent)).history).toEqual(before)
+    expect(historyOf(SessionManager.open(file).getBranch(), parent)).toEqual(before)
+  })
+
+  // Catches a quiet input that reaches the branch but not the session's transcript (`session.messages`, which a host
+  // projects), or one that starts a run (H1: the model sees a quiet input without a run starting).
+  it('puts a quiet input in the model context and the session transcript without starting a run', async () => {
+    const sessions: AgentRuntimeSession[] = []
+    const pi = await openPiHarness(
+      () => {},
+      [],
+      async (request, open) => {
+        const native = await open(request)
+        sessions.push(native)
+        return native
+      }
+    )
+    const t = await pi.harness.createThread()
+    await pi.harness.withCall(t, (ports) =>
+      ports.ledger.transact(t, () => ({ ops: [quiet(t, 'parked status')], effects: [], result: null }))
+    )
+    expect(markerKeys(await read(pi, t))).toEqual([key('parked status')])
+    const context = await pi.harness.withCall(t, (ports) => ports.ledger.modelContext(t))
+    expect(JSON.stringify(context)).toContain('parked status')
+    expect(sessions[0].session.messages).toContainEqual(
+      expect.objectContaining({ role: 'custom', content: 'parked status' })
+    )
+    await pi.harness.settle()
+    expect(pi.requests(t)).toEqual([])
   })
 
   // Catches onCompacted running while Pi still compacts, where the quiet input it adds (the subagent status after a
@@ -1114,32 +1190,5 @@ describe('coding-agent behavior adapter', () => {
     await pi.harness.sendUser(t, 'go')
     await pi.harness.settle()
     expect(seen).toBeUndefined()
-  })
-
-  // Catches a quiet input whose write fails once the commit returned (the disk, a session subscriber) ending as an
-  // unhandled rejection instead of reaching onError.
-  it('reports a quiet input that fails to write', async () => {
-    const failure = new Error('subscriber failed')
-    const pi = await openPiHarness(
-      () => {},
-      [],
-      async (request, open) => {
-        const native = await open(request)
-        native.session.subscribe((event) => {
-          if (event.type === 'message_end' && event.message.role === 'custom') throw failure
-        })
-        return native
-      }
-    )
-    const t = await pi.harness.createThread()
-    await pi.harness.withCall(t, (ports) =>
-      ports.ledger.transact(t, () => ({
-        ops: [{ type: 'append-quiet', thread: t, input: input('status'), key: key('quiet') }],
-        effects: [],
-        result: null
-      }))
-    )
-    await pi.harness.settle()
-    expect(pi.errors).toEqual([failure])
   })
 })

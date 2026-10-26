@@ -36,7 +36,7 @@ type Applied = {
 }
 /**
  * One operation, checked: `create` makes the storage a spawn needs, `persist` makes its disk writes, which can throw,
- * and `register` applies what cannot be taken back (the adapter's maps, a quiet input's send).
+ * and `register` applies what cannot be taken back (the adapter's maps, a session's context).
  */
 type Prepared = {
   readonly create?: () => SessionManager
@@ -123,11 +123,13 @@ function persistAll(adapter: Adapter, prepared: readonly Prepared[]): void {
   } catch (error) {
     for (const [manager, leaf] of leaves) {
       if (manager.getLeafId() === leaf) continue
-      if (leaf === null) manager.resetLeaf()
-      else manager.branch(leaf)
+      const restore = () => (leaf === null ? manager.resetLeaf() : manager.branch(leaf))
+      restore()
       try {
         manager.appendCustomEntry(ROLLBACK_KIND, { error: error instanceof Error ? error.message : String(error) })
       } catch (failure) {
+        // The refused rollback entry is not on disk, so a later write must not follow it.
+        restore()
         adapter.report(failure)
       }
     }
@@ -156,12 +158,13 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
         'marker'
       )
         throw new Error(`append-quiet needs a marker input, got ${op.input.kind}`)
-      // Sent idle without a turn trigger, Pi appends it before `sendCustomMessage` first awaits; a failure there (the
-      // disk, a subscriber) only rejects that promise, which no caller awaits.
+      // Not `sendCustomMessage`: a disk failure there only rejects its promise, after Pi moved the leaf.
       return {
-        register: () => {
-          target.native!.session.sendCustomMessage(message, { triggerTurn: false }).catch(adapter.report)
-        }
+        persist: () => {
+          target.manager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details)
+        },
+        // What Pi does after its own append; its message events are left out (README H1).
+        register: () => target.native!.session.refreshContext()
       }
     }
     case 'spawn-child': {
