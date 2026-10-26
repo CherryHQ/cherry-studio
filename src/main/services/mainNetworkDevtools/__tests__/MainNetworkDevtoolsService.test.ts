@@ -303,6 +303,25 @@ describe('MainNetworkDevtoolsService helpers', () => {
     expect(captureRequestBody('{"n":1.50,"m":42}', 'application/json')).not.toMatchObject({ replayable: false })
   })
 
+  it('scans a large JSON string value in linear time without flagging digits inside strings', () => {
+    const body = JSON.stringify({ prompt: `count:${'1'.repeat(60000)}` })
+    const start = performance.now()
+    const captured = captureRequestBody(body, 'application/json')
+    expect(performance.now() - start).toBeLessThan(500)
+    expect(captured).not.toMatchObject({ replayable: false })
+  })
+
+  it('marks overflowing JSON numbers as non-replayable and keeps the literal for display', () => {
+    const captured = captureRequestBody('{"amount":1e309,"api_key":"secret"}', 'application/json')
+    expect(captured).toMatchObject({ replayable: false })
+    expect(captured?.text).toContain('1e309')
+    expect(captured?.text).not.toContain('secret')
+    expect(captureRequestBody('{"amount":-1e309}', 'application/json')).toMatchObject({ replayable: false })
+    expect(captureRequestBody('{"amount":1e30,"ok":"1e309"}', 'application/json')).not.toMatchObject({
+      replayable: false
+    })
+  })
+
   it('marks gzip-compressed binary JSON bodies as non-replayable', () => {
     const body = Buffer.from('{"prompt":"hi"}', 'utf8')
     expect(captureRequestBody(body, 'application/json', { 'content-encoding': 'gzip' })).toMatchObject({

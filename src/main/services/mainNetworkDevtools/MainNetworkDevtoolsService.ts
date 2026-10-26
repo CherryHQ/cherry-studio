@@ -867,10 +867,32 @@ function redactBodyText(text: string, contentType?: string, preserveIntegerLiter
 function hasJsonIntegerPrecisionRisk(text: string, contentType?: string): boolean {
   if (!isJsonContentType(contentType) && !looksJson(text)) return false
 
-  for (const match of text.matchAll(/(?<=^|[:,[])\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?=\s*(?:[,}\]]|$))/g)) {
-    const token = match[1]
-    if (!token || !jsonNumberTokenHasPrecisionRisk(token)) continue
-    return true
+  // Single linear pass that skips JSON strings, so digits inside string values are never scanned and a large
+  // string cannot trigger regex backtracking on the main process.
+  let index = 0
+  while (index < text.length) {
+    const char = text.charAt(index)
+    if (char === '"') {
+      index++
+      while (index < text.length) {
+        const current = text.charAt(index)
+        if (current === '\\') {
+          index += 2
+          continue
+        }
+        index++
+        if (current === '"') break
+      }
+      continue
+    }
+    if (char === '-' || char === '.' || (char >= '0' && char <= '9')) {
+      let end = index + 1
+      while (end < text.length && /[-+0-9.eE]/.test(text.charAt(end))) end++
+      if (jsonNumberTokenHasPrecisionRisk(text.slice(index, end))) return true
+      index = end
+      continue
+    }
+    index++
   }
 
   return false
@@ -893,7 +915,7 @@ function normalizeJsonNumberToken(token: string): string | undefined {
 
 /**
  * True when parsing the token into a double and re-serializing it would change the number (lost integer
- * digits, dropped fractions such as `9007199254740992.5`). The full token is compared, not just its integer part.
+ * digits, dropped fractions such as `9007199254740992.5`, or overflow to Infinity). The full token is compared, not just its integer part.
  */
 function jsonNumberTokenHasPrecisionRisk(token: string): boolean {
   let value: number
@@ -902,7 +924,9 @@ function jsonNumberTokenHasPrecisionRisk(token: string): boolean {
   } catch {
     return false
   }
-  if (typeof value !== 'number' || !Number.isFinite(value)) return false
+  if (typeof value !== 'number') return false
+  // Overflow (e.g. 1e309 parses to Infinity) cannot be replayed: JSON.stringify would emit null.
+  if (!Number.isFinite(value)) return true
   const original = normalizeJsonNumberToken(token)
   const reserialized = normalizeJsonNumberToken(JSON.stringify(value))
   return original === undefined || original !== reserialized
