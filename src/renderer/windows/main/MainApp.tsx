@@ -13,7 +13,7 @@ import { CommandContextKeyProvider, CommandProvider } from '@renderer/components
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
+import { FileEditRecovery, FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
@@ -133,6 +133,7 @@ export function MainWindowContent(): React.ReactElement {
           <McpInteractionHost />
           <PopupHost />
           <ToastHost />
+          <FileEditRecovery />
           <DictationShortcutHost />
           <VoicePlaybackHost />
           {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}

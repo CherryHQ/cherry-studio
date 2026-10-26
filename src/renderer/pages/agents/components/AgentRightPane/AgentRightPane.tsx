@@ -735,6 +735,7 @@ function AgentRightPaneStateProvider({
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
   const fileSession = useFileEditSession(editHandle, `agent-artifact:${sessionId}`)
   const discardFileDraft = fileSession.discard
+  const flushFileDraft = fileSession.flush
   const systemWorkspacePath = useMemo(() => {
     if (workspaceType !== AGENT_WORKSPACE_TYPE.SYSTEM || !workspacePath) return undefined
     const result = AbsoluteFilePathSchema.safeParse(workspacePath)
@@ -759,10 +760,13 @@ function AgentRightPaneStateProvider({
         transition()
         return
       }
-      pendingFileTransitionRef.current = transition
-      setShowDirtyLeaveConfirmation(true)
+      // Save before leaving; only an edit that cannot be saved asks to be discarded.
+      void flushFileDraft().then(transition, () => {
+        pendingFileTransitionRef.current = transition
+        setShowDirtyLeaveConfirmation(true)
+      })
     },
-    [fileSession.isDirty]
+    [fileSession.isDirty, flushFileDraft]
   )
 
   useLayoutEffect(() => {
@@ -801,7 +805,7 @@ function AgentRightPaneStateProvider({
   }, [discardFileDraft])
 
   // Every selection entry point (tree, artifact link, close, watcher cleanup)
-  // lands here, so leaving a dirty edit path always requires confirmation.
+  // lands here, so leaving a dirty edit path always saves first.
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => {
       if (isSameFileSelection(previewFileSelection, selection)) {

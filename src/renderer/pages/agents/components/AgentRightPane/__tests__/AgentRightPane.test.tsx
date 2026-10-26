@@ -681,6 +681,11 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Leaving a dirty file saves first; the leave-dialog flows below need that save to fail, synchronously.
+    fileSessionFlushMock.mockImplementation(
+      () =>
+        ({ then: (_: unknown, onRejected: (error: Error) => void) => onRejected(new Error('save failed')) }) as never
+    )
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
@@ -3020,6 +3025,39 @@ describe('AgentRightPane', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
   })
 
+  it('saves the dirty file and navigates without asking to discard', async () => {
+    fileSessionFlushMock.mockResolvedValue(undefined)
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([
+      ['README.md', { kind: 'file' }],
+      ['src/deep.ts', { kind: 'file' }]
+    ])
+    const renderPane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(renderPane())
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    })
+
+    expect(fileSessionFlushMock).toHaveBeenCalledOnce()
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
+  })
+
   it('keeps the current dirty file when navigation is cancelled', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
@@ -3086,7 +3124,6 @@ describe('AgentRightPane', () => {
       fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
     })
     expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
-    expect(fileSessionFlushMock).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
