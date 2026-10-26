@@ -322,6 +322,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'repeat 100 times',
       'if not (exists sheet 1 of window 1) then exit repeat',
       'delay 0.1',
+      'if exists text field 1 of sheet 1 of window 1 then key code 36',
       'end repeat',
       'if exists sheet 1 of window 1 then error "Go to Folder did not finish"',
       'repeat 100 times',
