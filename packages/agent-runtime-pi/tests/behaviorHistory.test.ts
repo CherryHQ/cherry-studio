@@ -91,4 +91,33 @@ describe('behavior history', () => {
     })
     expect(keysOf(history)).toEqual(new Set(['k-marker', 'k-record']))
   })
+
+  // Catches a projection that drops a person's image: an image-only message would read as empty, so `vcc_recall` could
+  // not find it by `[image]` and its expansion would be blank (HistoryEntry text).
+  it('projects an image as [image] where it stands and leaves out the thinking of a reply', () => {
+    const manager = SessionManager.inMemory('/tmp/behavior-history')
+    const thread = runtimeId<'thread'>(manager.getSessionId())
+    const image = { type: 'image' as const, data: 'aGk=', mimeType: 'image/png' }
+    manager.appendMessage({ role: 'user', content: [image], timestamp: 1 })
+    manager.appendMessage({
+      role: 'user',
+      content: [{ type: 'text', text: 'before ' }, image, { type: 'text', text: ' after' }],
+      timestamp: 2
+    })
+    manager.appendMessage({
+      role: 'assistant',
+      content: [
+        { type: 'thinking', thinking: 'pondering' },
+        { type: 'text', text: 'seen' }
+      ],
+      api: 'contract',
+      provider: 'contract',
+      model: 'model',
+      usage,
+      stopReason: 'stop',
+      timestamp: 3
+    })
+    const texts = historyOf(manager.getBranch(), thread).map((entry) => ('text' in entry ? entry.text : undefined))
+    expect(texts).toEqual(['[image]', 'before [image] after', 'seen'])
+  })
 })
