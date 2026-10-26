@@ -45,6 +45,7 @@ import {
   HoverCardTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -87,6 +88,7 @@ import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentChildProjection } from '@renderer/hooks/agent/useAgentChildProjection'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
@@ -206,6 +208,7 @@ interface AgentFlowTab {
 }
 
 interface AgentRightPaneMeta {
+  runtimeType?: string
   sessionId?: string
   sessionName?: string
   /** Container-level trace id for the session. When developer mode is on, the Trace tab renders this trace tree. */
@@ -598,6 +601,7 @@ function AgentRightPaneActionsProvider({
 }
 
 function AgentRightPaneStateProvider({
+  runtimeType,
   children,
   workspaceId,
   workspacePath,
@@ -945,6 +949,7 @@ function AgentRightPaneStateProvider({
   )
   const meta = useMemo<AgentRightPaneMeta>(
     () => ({
+      runtimeType,
       sessionId,
       sessionName,
       traceId,
@@ -959,6 +964,7 @@ function AgentRightPaneStateProvider({
     }),
     [
       agentAvatar,
+      runtimeType,
       agentId,
       agentName,
       conversationState,
@@ -1309,10 +1315,19 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 })
 
 function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const meta = useAgentRightPaneMeta()
   const runtime = useAgentRightPaneRuntime()
   const status = useAgentRightPaneStatus(active)
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
+  const child = useAgentChildProjection(
+    meta.sessionId ?? '',
+    tab?.toolCallId,
+    active && !!meta.sessionId && meta.runtimeType === 'pi'
+  )
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [inputError, setInputError] = useState<string>()
   const deferredToolResult = useMemo(
     () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
     [runtime.partsByMessageId, tab?.toolCallId]
@@ -1321,10 +1336,23 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
   const flow = useMemo(
     () =>
-      !active && retainedFlowRef.current
-        ? retainedFlowRef.current
-        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId, selectedToolOutput),
-    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId]
+      child?.view
+        ? {
+            messages: [...child.view.messages],
+            partsByMessageId: Object.fromEntries(child.view.messages.map((message) => [message.id, message.parts])),
+            toolNodes: [],
+            selectedToolCallIds: new Set<string>(),
+            selectedTool: undefined
+          }
+        : !active && retainedFlowRef.current
+          ? retainedFlowRef.current
+          : buildAgentToolFlowProjection(
+              runtime.messages,
+              runtime.partsByMessageId,
+              tab?.toolCallId,
+              selectedToolOutput
+            ),
+    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId, child?.view]
   )
   useLayoutEffect(() => {
     if (active) retainedFlowRef.current = flow
@@ -1332,7 +1360,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
 
   if (!tab) return null
 
-  if (!flow.messages.length) {
+  if (!flow.messages.length && !child?.view) {
     return (
       <EmptyState
         icon={GitBranch}
@@ -1355,6 +1383,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   taskPath.unshift(t('agent.right_pane.flow.main_task'))
   const pathLabel = taskPath.join(' › ')
   const task = status.runTasks.find((task) => task.toolUseId === tab.toolCallId)
+  const taskStatus = child?.view?.active ? 'in_progress' : task?.status
   const statusLabels = {
     pending: t('message.tools.pending'),
     in_progress: t('message.tools.status.running'),
@@ -1380,10 +1409,10 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
             </Breadcrumb>
           </Tooltip>
         </div>
-        {task && (
+        {taskStatus && (
           <Badge variant="outline" className="gap-1 border-border-subtle font-normal" role="status">
-            <TaskStatusIcon status={task.status} />
-            {statusLabels[task.status]}
+            <TaskStatusIcon status={taskStatus} />
+            {statusLabels[taskStatus]}
           </Badge>
         )}
       </div>
@@ -1395,6 +1424,43 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
           partsByMessageId={flow.partsByMessageId}
         />
       </div>
+      {(child?.error || child?.view?.diagnostic || inputError) && (
+        <p role="alert" className="px-4 py-2 text-sm text-error">
+          {inputError ?? child?.error ?? child?.view?.diagnostic}
+        </p>
+      )}
+      {child?.view?.available && (
+        <form
+          className="flex shrink-0 gap-2 border-t border-border-subtle p-3"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            if (!input.trim() || sending) return
+            setSending(true)
+            setInputError(undefined)
+            try {
+              await ipcApi.request('ai.agent.child.message', {
+                sessionId: meta.sessionId!,
+                contextId: child.view!.contextId,
+                text: input
+              })
+              setInput('')
+            } catch (error) {
+              setInputError(String(error))
+            } finally {
+              setSending(false)
+            }
+          }}>
+          <Textarea.Input
+            value={input}
+            onValueChange={setInput}
+            aria-label={t('chat.input.placeholder')}
+            className="min-h-10"
+          />
+          <Button type="submit" disabled={sending || !input.trim()}>
+            {t('chat.input.send')}
+          </Button>
+        </form>
+      )}
     </div>
   )
 }

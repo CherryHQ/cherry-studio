@@ -1337,24 +1337,43 @@ export class AgentSessionMessageService {
   listRuntimeResumeTokensBySession(sessionIds: readonly string[]): Map<string, Set<string>> {
     const tokensBySession = new Map<string, Set<string>>()
     if (sessionIds.length === 0) return tokensBySession
-
-    const rows = application
-      .get('DbService')
-      .getDb()
+    const db = application.get('DbService').getDb()
+    const owners = db
+      .select({ id: sessionTable.id, owner: sessionTable.ownerSessionId })
+      .from(sessionTable)
+      .where(or(inArray(sessionTable.id, sessionIds), inArray(sessionTable.ownerSessionId, sessionIds)))
+      .all()
+    if (!owners.length) return tokensBySession
+    const requested = new Set(sessionIds)
+    const destinations = new Map(
+      owners.map(({ id, owner }) => [id, [id, owner].filter((key): key is string => !!key && requested.has(key))])
+    )
+    const collect = (sessionId: string, token: string | null) => {
+      if (!token) return
+      for (const owner of destinations.get(sessionId) ?? []) {
+        const tokens = tokensBySession.get(owner) ?? new Set<string>()
+        tokens.add(token)
+        tokensBySession.set(owner, tokens)
+      }
+    }
+    const ownedIds = owners.map(({ id }) => id)
+    const rows = db
       .selectDistinct({
         sessionId: sessionMessagesTable.sessionId,
         runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
       })
       .from(sessionMessagesTable)
-      .where(
-        and(inArray(sessionMessagesTable.sessionId, sessionIds), isNotNull(sessionMessagesTable.runtimeResumeToken))
-      )
+      .where(and(inArray(sessionMessagesTable.sessionId, ownedIds), isNotNull(sessionMessagesTable.runtimeResumeToken)))
       .all()
-    for (const { sessionId, runtimeResumeToken } of rows) {
-      if (!runtimeResumeToken) continue
-      const tokens = tokensBySession.get(sessionId) ?? new Set<string>()
-      tokens.add(runtimeResumeToken)
-      tokensBySession.set(sessionId, tokens)
+    for (const row of rows) collect(row.sessionId, row.runtimeResumeToken)
+    const bindings = db
+      .select()
+      .from(agentSessionContextTable)
+      .where(inArray(agentSessionContextTable.sessionId, ownedIds))
+      .all()
+    for (const binding of bindings) {
+      collect(binding.sessionId, binding.nativeThreadId)
+      collect(binding.sessionId, binding.intendedThreadId)
     }
     return tokensBySession
   }
@@ -1594,6 +1613,23 @@ export class AgentSessionMessageService {
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
+  }
+
+  /** Reconciles a child archive's proven source order without editing a product conversation branch. */
+  orderChildArchiveTx(tx: DbOrTx, sessionId: string, order: readonly string[]): void {
+    const session = tx.select().from(sessionTable).where(eq(sessionTable.id, sessionId)).get()
+    if (!session?.ownerSessionId) throw new Error('Only owned child archives can reconcile message order')
+    const rows = tx.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, sessionId)).all()
+    const byId = new Map(rows.filter((row) => row.role !== 'root').map((row) => [row.id, row]))
+    if (new Set(order).size !== byId.size || order.some((id) => !byId.has(id)))
+      throw new Error('Child archive order must retain every message')
+    let parentId = ensureAgentSessionRootTx(tx, sessionId)
+    for (const id of order) {
+      if (byId.get(id)!.parentId !== parentId)
+        tx.update(sessionMessagesTable).set({ parentId }).where(eq(sessionMessagesTable.id, id)).run()
+      parentId = id
+    }
+    tx.update(sessionTable).set({ activeNodeId: parentId }).where(eq(sessionTable.id, sessionId)).run()
   }
 
   private saveMessagesWithActivityTx(

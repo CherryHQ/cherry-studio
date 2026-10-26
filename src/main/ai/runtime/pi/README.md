@@ -62,8 +62,9 @@ Large tool output is saved under `feature.agents.outputs`, which read tools may 
 
 `ThreadProjection` converts ordered runtime items into UI chunks. A snapshot establishes its baseline;
 it never replays recovered content into the product archive. Tool items use the Pi facet's opaque
-lookup and the existing tool renderer. Child output maps to its native spawn call in the existing
-background-flow transport. Goal rounds and background delivery announce autonomous turn boundaries.
+lookup and the existing tool renderer. Child output uses an independent `ChildThreadProjection`
+and product archive; only task-card metadata remains on background-flow. Goal rounds and background
+delivery announce autonomous turn boundaries.
 Observation loss fails the turn and retires the owner.
 
 `PiRuntimeConnection` remains the bridge to `AgentSessionRuntimeService`: it owns product input
@@ -80,6 +81,18 @@ may have no file yet; Pi flushes lazily and Cherry publishes its resume token af
 There is no reconstruction from product messages. The connection stays owned while idle until explicit
 retirement or application shutdown; stopping aborts native work and flushes observed input facts.
 Queued inputs Pi never placed are marked aborted and are not automatically resent after a stop/error.
+
+Child projection consumes the public `ThreadHandle` and committed content supplied by the connection.
+It never imports Pi types or dispatches input. The connection reads the typed `pi.archive()` facet,
+which proves native entry/live-item aliases and excludes inherited parent context, and submits child
+input through its native owner. Archive messages use the existing shared message model, with stable
+product IDs and source mappings saved atomically. IPC sends a snapshot on attach and ordered patches
+afterward; detaching a window leaves the native observer and archive writer alive.
+
+Reopening a parent restores identity-checked child files without starting work. Missing owners leave
+saved child output readable. A restored parent's stop policy still applies to child continuation;
+an independent archive is never a writable root. Shutdown quiesces native execution, reconciles
+committed child history while its access remains readable, and releases access after archive flush.
 
 ## Verification boundaries
 

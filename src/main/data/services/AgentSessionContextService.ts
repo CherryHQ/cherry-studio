@@ -4,10 +4,12 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { agentRuntimeBackendTable as backends, type AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
+import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import { agentSessionContextTable as contexts, type AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 
 import { ensureAgentSessionRootTx, readAgentSessionAncestry } from './agentSessionMessageTree'
+import { agentSessionService } from './AgentSessionService'
 
 const locatorSchema = z.discriminatedUnion('kind', [
   z.object({ version: z.literal(1), kind: z.literal('pi') }),
@@ -19,7 +21,69 @@ const locatorSchema = z.discriminatedUnion('kind', [
 ])
 
 class AgentSessionContextService {
+  child(
+    parentContextId: string,
+    subagentId: string,
+    nativeThreadId: string,
+    toolCallId: string,
+    name: string
+  ): AgentSessionContextRow {
+    return application.get('DbService').withWriteTx((tx) => {
+      const parent = tx.select().from(contexts).where(eq(contexts.id, parentContextId)).get()
+      if (!parent) throw new Error('Parent context is unavailable')
+      const found = tx
+        .select()
+        .from(contexts)
+        .where(and(eq(contexts.parentContextId, parentContextId), eq(contexts.subagentId, subagentId)))
+        .get()
+      if (found) {
+        if (found.nativeThreadId !== nativeThreadId) throw new Error('Child identity changed')
+        return found
+      }
+      const parentSession = tx.select().from(sessions).where(eq(sessions.id, parent.sessionId)).get()!
+      const sessionId = agentSessionService.createChildArchiveTx(
+        tx,
+        parentSession.ownerSessionId ?? parent.sessionId,
+        name
+      )
+      return tx
+        .insert(contexts)
+        .values({
+          sessionId,
+          parentContextId,
+          subagentId,
+          nativeThreadId,
+          backendId: parent.backendId,
+          spawnToolCallId: toolCallId,
+          anchorMessageId: ensureAgentSessionRootTx(tx, sessionId),
+          checkpointMapping: { projection: {} }
+        })
+        .returning()
+        .get()
+    })
+  }
+
+  findChild(ownerSessionId: string, toolCallId: string): AgentSessionContextRow | undefined {
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({ context: contexts })
+      .from(contexts)
+      .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
+      .where(and(eq(sessions.ownerSessionId, ownerSessionId), eq(contexts.spawnToolCallId, toolCallId)))
+      .all()
+    return rows.length === 1 ? rows[0].context : undefined
+  }
+
+  saveProjectionTx(tx: DbOrTx, contextId: string, mapping: Record<string, string>, gap?: string): void {
+    tx.update(contexts)
+      .set({ checkpointMapping: { projection: mapping, ...(gap && { gap }) } })
+      .where(eq(contexts.id, contextId))
+      .run()
+  }
+
   preparePiBranch(sessionId: string, messageId?: string, nativeId?: string): AgentSessionContextRow {
+    agentSessionService.assertIndependentSession(sessionId)
     return application.get('DbService').withWriteTx((tx) => {
       const anchor = messageId ?? ensureAgentSessionRootTx(tx, sessionId)
       const existing = this.branchTx(tx, sessionId, anchor)

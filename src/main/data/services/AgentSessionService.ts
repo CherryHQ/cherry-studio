@@ -156,6 +156,34 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
+    const owner = tx.select().from(sessionsTable).where(eq(sessionsTable.id, ownerSessionId)).get()
+    if (!owner || owner.deletedAt) throw new Error('Child archive owner is unavailable')
+    const id = uuidv4()
+    this.insertTx(tx, {
+      id,
+      ownerSessionId,
+      type: 'background',
+      name,
+      workspaceId: owner.workspaceId,
+      agentId: owner.agentId,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+    ensureAgentSessionRootTx(tx, id)
+    return id
+  }
+
+  assertIndependentSession(id: string): void {
+    const row = application
+      .get('DbService')
+      .getDb()
+      .select({ owner: sessionsTable.ownerSessionId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, id))
+      .get()
+    if (row?.owner) throw new Error('Child execution must be accessed through its native owner')
+  }
   private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
   readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
 
@@ -941,7 +969,8 @@ export class AgentSessionService {
     values: {
       type: AgentSessionType
       id: string
-      agentId: string
+      agentId: string | null
+      ownerSessionId?: string
       name: string
       description?: string
       workspaceId: string
@@ -1063,7 +1092,10 @@ export class AgentSessionService {
     ids: string[],
     options: { requireAll?: boolean; deletedAt?: number } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
-    const uniqueIds = Array.from(new Set(ids))
+    const children = ids.length
+      ? tx.select({ id: sessionsTable.id }).from(sessionsTable).where(inArray(sessionsTable.ownerSessionId, ids)).all()
+      : []
+    const uniqueIds = Array.from(new Set([...ids, ...children.map((row) => row.id)]))
     if (uniqueIds.length === 0) return { trashedIds: [], taskScheduleIds: [], deliveryResults: [] }
 
     const rows = tx
@@ -1141,7 +1173,9 @@ export class AgentSessionService {
     const [row] = db
       .update(sessionsTable)
       .set({ deletedAt: null })
-      .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
+      .where(
+        and(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)), isNotNull(sessionsTable.deletedAt))
+      )
       .returning({ id: sessionsTable.id })
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
