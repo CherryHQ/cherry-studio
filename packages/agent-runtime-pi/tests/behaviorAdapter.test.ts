@@ -245,8 +245,9 @@ describe('coding-agent behavior adapter', () => {
     const parent = await pi.harness.createThread()
     const child = await spawn(pi, parent)
     pi.harness.script(child, [{ text: 'first' }, { text: 'second' }])
-    late.send = () => pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('late'), key('late')))
-    await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
+    late.send = () =>
+      pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('late'), key('late'), 1))
+    await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work'), 1))
     await pi.harness.settle()
     expect(await late.sent).toEqual({ run: 2, status: 'started' })
     expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 2, key('late')))).toEqual({
@@ -275,7 +276,7 @@ describe('coding-agent behavior adapter', () => {
       { text: '', toolCalls: [{ name: 'second', args: {} }] },
       { text: 'done' }
     ])
-    await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
+    await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work'), 1))
     await first.started
     const steer = pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('steer'), key('steer')))
     first.release()
@@ -308,7 +309,7 @@ describe('coding-agent behavior adapter', () => {
     const child = await spawn(pi, parent)
     sent.child = child
     pi.harness.script(child, [{ text: '', toolCalls: [{ name: 'hold', args: {} }] }, { text: 'child done' }])
-    await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
+    await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work'), 1))
     await hold.started
     pi.harness.script(parent, [{ text: '', toolCalls: [{ name: 'steerer', args: {} }] }, { text: 'never' }])
     await pi.harness.sendUser(parent, 'go')
@@ -323,6 +324,22 @@ describe('coding-agent behavior adapter', () => {
       text: 'child done'
     })
     expect(markerKeys(await read(pi, child))).toEqual([key('work'), key('kept')])
+  })
+
+  // Catches a reservation restricting input admission or reusing a previously passed run number.
+  it('continues beyond an obsolete run reservation', async () => {
+    const pi = await openPiHarness(() => {})
+    const parent = await pi.harness.createThread()
+    const child = await spawn(pi, parent)
+    pi.harness.script(child, [{ text: 'second' }, { text: 'third' }])
+    const send = (label: string, run: number) =>
+      pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input(label), key(label), run))
+    expect(await send('second', 2)).toEqual({ run: 2, status: 'started' })
+    await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 2, key('second')))
+    expect(await send('skipped', 1)).toEqual({ run: 3, status: 'started' })
+    await pi.harness.settle()
+    expect(markerKeys(await read(pi, child))).toEqual([key('second'), key('skipped')])
+    expect((await read(pi, parent)).children.get(child)?.runUsage).toHaveLength(3)
   })
 
   // Catches a fork that starts the child empty or copies the parent's history past the fork point.
@@ -359,7 +376,7 @@ describe('coding-agent behavior adapter', () => {
     )
     expect(copied).toEqual(['user', 'one', 'record'])
     pi.harness.script(child, [{ text: 'forked' }])
-    const sent = await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('go'), key('go')))
+    const sent = await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('go'), key('go'), 1))
     expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, sent.run, key('go')))).toEqual(
       { outcome: 'completed', text: 'forked' }
     )
@@ -794,7 +811,7 @@ describe('coding-agent behavior adapter', () => {
     const spawning = spawn(pi, parent)
     const [child] = (await read(pi, parent)).children.keys()
     const send = () =>
-      pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('early'), key('early')))
+      pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('early'), key('early'), 1))
     await expect(send()).rejects.toThrow()
     building.release()
     await spawning

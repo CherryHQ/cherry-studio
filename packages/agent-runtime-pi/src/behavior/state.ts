@@ -79,6 +79,7 @@ export type Conversation = {
   active?: RunState
   /** The latest run in this process, active or ended. */
   latest?: RunState
+  /** The highest run number started; a number the package skipped never starts. */
   runs: number
   readonly ends: Map<number, RunEnding>
   lastEnd?: RunEnding['live']
