@@ -231,7 +231,7 @@ export const ledgerCases: readonly ContractCase[] = [
       const t = await h.createThread()
       const child = await spawnBackground(h, t, 'c7')
       h.script(child, [callTool('hold', { id: 'c7' }, U1), reply('done', U2)])
-      await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c7-msg')))
+      await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c7-msg'), 1))
       await hold.started('c7')
       check((await read(h, t)).children.get(child)?.running === true, 'a child with an active run must report running')
       hold.release('c7')

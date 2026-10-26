@@ -34,9 +34,9 @@ export async function abandonSpawn(context: Context, parent: ThreadId, call: Cal
 }
 
 /**
- * Runs run `run` of `child` to its end (design §7.5): sends its input under `subagentMessage(child, run)`, waits for the
- * run that took it and records the end once (D19). `call` is the call that spawned the child. The result is what a
- * foreground call returns.
+ * Runs run `run` of `child` to its end (design §7.5): sends its input under `subagentMessage(child, run)`, which the
+ * harness starts as run `run` (H3), waits for that run and records the end once (D19). `call` is the call that spawned
+ * the child. The result is what a foreground call returns.
  */
 export async function runChild(
   context: Context,
@@ -48,7 +48,7 @@ export async function runChild(
   key: Key = keys.subagentMessage(child, run)
 ): Promise<ToolResultFact> {
   const { ports } = context
-  const accepted = await ports.helpers.message(child, input, key)
+  const accepted = await ports.helpers.message(child, input, key, run)
   // Only a first input from the aborted call that owns the run is withdrawn (H3).
   if (accepted.status === 'withdrawn') return abandonSpawn(context, parent, call)
   // A stop recorded before the input arrived (G-C4) still applies: the run it started stops at once.

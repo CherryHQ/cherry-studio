@@ -113,8 +113,11 @@ export type MessageResult = { readonly run: number; readonly status: 'started' |
  * immediately if it is no longer active.
  */
 export interface Helpers {
-  /** Message a child; normal completion before consumption carries the input into a subsequent run. */
-  message(child: ThreadId, input: TurnInput, key: Key): Promise<MessageResult>
+  /**
+   * Message a child; normal completion carries unconsumed input forward. `reservedRun` is a minimum for a new run,
+   * preserving numbering after a recorded run never started; it never restricts a message to an active run.
+   */
+  message(child: ThreadId, input: TurnInput, key: Key, reservedRun?: number): Promise<MessageResult>
   awaitAnswer(child: ThreadId, run: number, key: Key): Promise<RunEndFacts>
   /**
    * Stops run `run` of `child` if it is the child's active run, otherwise does nothing; a later step re-decides from

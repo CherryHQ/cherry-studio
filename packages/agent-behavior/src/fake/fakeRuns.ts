@@ -81,24 +81,25 @@ export function message(
   thread: ThreadState,
   input: TurnInput,
   key: string,
-  cancelled = false
+  cancelled = false,
+  reservedRun?: number
 ): MessageResult {
   const existing = thread.submissions.get(key)
   if (existing) return existing.admission as MessageResult
   const active = thread.active
+  const run = active?.run ?? Math.max(thread.runs + 1, reservedRun ?? 0)
+  const starts = !active
   if (cancelled) {
     const withdrawn: MessageResult = { run: active?.run ?? thread.runs + 1, status: 'withdrawn' }
     thread.submissions.set(key, { input, admission: withdrawn, state: 'withdrawn' })
     return withdrawn
   }
-  const admission: MessageResult = active
-    ? { run: active.run, status: 'queued' }
-    : { run: thread.runs + 1, status: 'started' }
+  const admission: MessageResult = { run, status: starts ? 'started' : 'queued' }
   thread.submissions.set(key, { input, admission, state: 'queued' })
-  if (active) thread.steer.push(key)
+  if (!starts) thread.steer.push(key)
   else {
     answerOpenCalls(host.state, thread)
-    startRun(host, thread, key)
+    startRun(host, thread, key, run)
   }
   return admission
 }
@@ -183,8 +184,9 @@ function drain(host: RunHost, thread: ThreadState): void {
   if (next !== undefined) startRun(host, thread, next)
 }
 
-function startRun(host: RunHost, thread: ThreadState, key: string): void {
-  thread.runs += 1
+/** Starts the run as `run`; the numbers it skips count zero usage, since usage is summed per run up to `thread.runs`. */
+function startRun(host: RunHost, thread: ThreadState, key: string, run = thread.runs + 1): void {
+  thread.runs = run
   const goalRound = thread.submissions.get(key)!.input.kind === ENTRY_KINDS.goalRound
   thread.active = { run: thread.runs, goalRound, requests: 0 }
   appendInput(host.state, thread, key)

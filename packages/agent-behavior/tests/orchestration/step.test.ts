@@ -181,7 +181,7 @@ describe('install', () => {
     const child = spawned[0].child
     const key = keys.subagentMessage(child, 1)
     const answer = await w.enter(t, async (_entries, ports) => {
-      await ports.helpers.message(child, message('go'), key)
+      await ports.helpers.message(child, message('go'), key, 1)
       return ports.helpers.awaitAnswer(child, 1, key)
     })
     expect(answer.outcome).toBe('limit_reached')

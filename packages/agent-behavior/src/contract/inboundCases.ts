@@ -493,7 +493,7 @@ export const inboundCases: readonly ContractCase[] = [
       )
       const child = await spawnBackground(h, t, 'c31')
       h.script(child, [reply('child done')])
-      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c31-msg')))
+      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c31-msg'), 1))
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c31-msg')))
       same(asked.slice(2), [[child, 0, 'child']], "a spawned conversation's requests must be metered as a child's")
     }

@@ -41,7 +41,8 @@ function heldReportJob(method: 'read' | 'message') {
           ...ports,
           helpers: {
             ...ports.helpers,
-            message: async (child, input, key) => gate.promise.then(() => ports.helpers.message(child, input, key))
+            message: async (child, input, key, run) =>
+              gate.promise.then(() => ports.helpers.message(child, input, key, run))
           }
         }
   )
@@ -642,6 +643,82 @@ describe('a stop before the first input (G-C4)', () => {
     expect(child.live.runEnd?.outcome).toBe('aborted')
     expect(child.history.some((entry) => entry.kind === 'assistant' && entry.text === 'ran')).toBe(false)
   })
+
+  const continueThenStop = [
+    callTool('message_subagent', { id: CHILD, message: 'go on' }),
+    callTool('hold', { id: 'parent' }),
+    callTool('stop_subagent', { id: CHILD }),
+    reply('stopped')
+  ]
+  /** Stops run 2 through `stop_subagent` while its call is held, then releases that call; answers the finished runs. */
+  async function stopContinuation(w: ReturnType<typeof world>, t: ThreadId, hold: ReturnType<typeof holds>) {
+    await hold.started('child')
+    hold.release('parent')
+    await vi.waitFor(async () =>
+      expect(runRecords(await w.read(t)).at(-1)).toMatchObject({ run: 2, stoppedBy: 'model' })
+    )
+    hold.release('child')
+    await w.fake.settle()
+    const facts = await w.read(t)
+    const child = await w.read(CHILD)
+    expect(child.live.runEnd?.outcome).toBe('aborted')
+    expect(child.history.some((entry) => entry.kind === 'assistant' && entry.text === 'ran')).toBe(false)
+    expect(toolResults(facts).at(-1)).toMatchObject({
+      tool: 'stop_subagent',
+      isError: false,
+      details: { sessionId: CHILD, stopped: true, run: 2 }
+    })
+    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(2)
+    return runRecords(facts)
+      .filter(({ status }) => status === 'finished')
+      .map(({ run, outcome }) => [run, outcome])
+  }
+
+  // Catches recorded and harness run numbers drifting apart once a recorded run never started (H3): the continuation
+  // ran as the harness's run 1, so the stop of run 2 missed it and the child finished while the tool said it stopped.
+  it('stops the continuation of a child the model stopped before its first input', async () => {
+    const hold = holds()
+    const held = heldReportJob('read')
+    const w = world({
+      wrap: held.wrap,
+      extra: (p) => p.tools.register(hold.tool),
+      scripts: (_t, lineage) => (lineage.kind === 'subagent' ? [callTool('hold', { id: 'child' }), reply('ran')] : [])
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('subagent', BACKGROUND), callTool('stop_subagent', { id: CHILD }), ...continueThenStop])
+    await w.fake.sendUser(t, 'go')
+    await hold.started('parent')
+    held.release()
+    expect(await stopContinuation(w, t, hold)).toEqual([
+      [1, 'stopped'],
+      [2, 'stopped']
+    ])
+  })
+
+  // Catches the same drift when a restart ends the run no input reached (onOpen records it interrupted): continued
+  // after the reopen, the child must still run, and stop, as run 2.
+  it('stops the continuation of a child whose first run a restart ended before its first input', async () => {
+    const hold = holds()
+    const held = heldReportJob('read')
+    const w = world({
+      wrap: held.wrap,
+      extra: (p) => p.tools.register(hold.tool),
+      scripts: (_t, lineage) => (lineage.kind === 'subagent' ? [callTool('hold', { id: 'child' }), reply('ran')] : [])
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('subagent', BACKGROUND), reply('spawned')])
+    await w.fake.sendUser(t, 'go')
+    await w.enter(t, (_entries, ports) => ports.waits.untilIdle(t))
+    await w.fake.restart()
+    w.fake.script(t, continueThenStop)
+    await w.fake.sendUser(t, 'continue it')
+    await hold.started('parent')
+    held.release()
+    expect(await stopContinuation(w, t, hold)).toEqual([
+      [1, 'interrupted'],
+      [2, 'stopped']
+    ])
+  })
 })
 
 describe('stopSubagent entry', () => {
@@ -748,7 +825,7 @@ describe('stopSubagent entry', () => {
     const first = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
     await w.fake.settle()
     // The rules refuse to continue a child the person stopped, so run 2 starts through the harness itself.
-    await w.enter(t, (_entries, ports) => ports.helpers.message(CHILD, childInput('again'), key('run-2')))
+    await w.enter(t, (_entries, ports) => ports.helpers.message(CHILD, childInput('again'), key('run-2'), 2))
     await hold.started('two')
     const again = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
     hold.release('two')
