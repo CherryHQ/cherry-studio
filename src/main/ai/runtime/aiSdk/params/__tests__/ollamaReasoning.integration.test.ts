@@ -5,6 +5,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
@@ -20,7 +21,7 @@ const MODEL_ID = 'nemotron-3.5-lightning:30b-a3b'
 const PROMPT: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
 
 describe('Ollama discovered reasoning through request construction', () => {
-  setupTestDatabase()
+  const dbh = setupTestDatabase()
 
   beforeEach(() => {
     const getPath = vi.mocked(application.getPath).getMockImplementation()
@@ -48,6 +49,71 @@ describe('Ollama discovered reasoning through request construction', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     providerRegistryService.clearCache()
+  })
+
+  it.each(['ollama', 'remote-ollama'])('preserves a pre-native-default remote host on %s', async (providerId) => {
+    const baseUrl = 'http://ollama.remote.example:11434'
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId,
+        presetProviderId: 'ollama',
+        name: 'Remote Ollama',
+        orderKey: 'a0',
+        defaultChatEndpoint: null,
+        endpointConfigs: { 'anthropic-messages': { baseUrl } }
+      })
+      .run()
+
+    const provider = providerService.getByProviderId(providerId)
+    expect(
+      providerService.getReasoningContextsByProviderIdsTx(dbh.db, [providerId]).get(providerId)?.endpointConfigs?.[
+        'ollama-chat'
+      ]?.baseUrl
+    ).toBe(baseUrl)
+    const { models } = await listModels(provider)
+    expect(vi.mocked(customFetchModule.customFetch).mock.calls.map(([url]) => String(url))).toEqual([
+      `${baseUrl}/api/tags`,
+      `${baseUrl}/api/show`
+    ])
+    modelService.create([
+      {
+        dto: {
+          providerId,
+          modelId: MODEL_ID,
+          endpointTypes: models[0].endpointTypes,
+          reasoning: models[0].reasoning,
+          capabilities: models[0].capabilities
+        },
+        registryData: providerRegistryService.lookupModel(providerId, MODEL_ID)
+      }
+    ])
+    const model = modelService.getByKey(providerId, MODEL_ID)
+    const params = await buildAgentParams({
+      provider,
+      model,
+      signal: undefined,
+      request: { conversation: { id: 'remote-test' }, disableTools: true, reasoningEffort: 'medium' }
+    })
+    const baseURL =
+      'baseURL' in params.sdkConfig.providerSettings ? params.sdkConfig.providerSettings.baseURL : undefined
+    const request = await captureWithFetch((fetch) =>
+      createOllamaWithImageModel({ baseURL, fetch })
+        .languageModel(params.sdkConfig.modelId)
+        .doGenerate({ prompt: PROMPT, providerOptions: params.options.providerOptions })
+    )
+    expect(request.url).toBe(`${baseUrl}/api/chat`)
+    expect(request.body).toHaveProperty('think', 'medium')
+    expect(dbh.db.select().from(userProviderTable).all()[0].endpointConfigs).toEqual({
+      'anthropic-messages': { baseUrl }
+    })
+    providerService.update(providerId, {
+      endpointConfigs: { ...provider.endpointConfigs, 'ollama-chat': { baseUrl: 'http://localhost:11434' } }
+    })
+    expect(providerService.getByProviderId(providerId).endpointConfigs?.['ollama-chat']?.baseUrl).toBe(
+      'http://localhost:11434'
+    )
+    expect(providerService.getByProviderId(providerId).endpointConfigs?.['anthropic-messages']?.baseUrl).toBe(baseUrl)
   })
 
   describe.each(['doGenerate', 'doStream'] as const)('%s with a saved non-native endpoint', (method) => {

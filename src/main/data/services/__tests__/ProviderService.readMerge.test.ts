@@ -9,7 +9,7 @@ import { providerService } from '@data/services/ProviderService'
 import { makeModel } from '@main/ai/__tests__/fixtures/model'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { ErrorCode } from '@shared/data/api/errors'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
@@ -24,7 +24,7 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
   class RegistryLoader {
     loadProviders() {
       return [
-        ...registry.providers.filter(({ id }) => ['huggingface', 'openai'].includes(id)),
+        ...registry.providers.filter(({ id }) => ['huggingface', 'openai', 'ollama'].includes(id)),
         {
           id: 'cherryin',
           endpointConfigs: {
@@ -74,6 +74,48 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
 
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
+
+  it.each<{
+    presetProviderId: string | null
+    defaultChatEndpoint: EndpointType | null
+    nativeHost?: string
+    expectedNativeHost?: string
+  }>([
+    {
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: null,
+      nativeHost: 'http://native.example:11434',
+      expectedNativeHost: 'http://native.example:11434'
+    },
+    { presetProviderId: 'ollama', defaultChatEndpoint: 'ollama-chat', expectedNativeHost: 'http://localhost:11434' },
+    {
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: 'anthropic-messages',
+      expectedNativeHost: 'http://localhost:11434'
+    },
+    { presetProviderId: null, defaultChatEndpoint: null }
+  ])(
+    'preserves explicit host/default ownership for $presetProviderId / $defaultChatEndpoint / $nativeHost',
+    ({ presetProviderId, defaultChatEndpoint, nativeHost, expectedNativeHost }) => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'ollama-copy',
+          presetProviderId,
+          defaultChatEndpoint,
+          name: 'Custom connection',
+          orderKey: 'a0',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'http://anthropic.example:11434' },
+            ...(nativeHost ? { 'ollama-chat': { baseUrl: nativeHost } } : {})
+          }
+        })
+        .run()
+      const provider = providerService.getByProviderId('ollama-copy')
+      expect(provider.endpointConfigs?.['ollama-chat']?.baseUrl).toBe(expectedNativeHost)
+      expect(provider.endpointConfigs?.['anthropic-messages']?.baseUrl).toBe('http://anthropic.example:11434')
+    }
+  )
 
   it('restores OpenAI summary permission for a seed-shaped row with no stored dialect', () => {
     dbh.db

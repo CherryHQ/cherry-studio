@@ -242,6 +242,13 @@ internal requests; which Cloud models a feature may use is decided where the
 model is chosen, not here. Gateway requests run without Cherry's retries or
 fallback models, so a request is served only by the model it named.
 
+Claude Agent SDK routes to native Ollama carry the submitted thinking selection
+in `X-Cherry-Reasoning-Effort`. For authenticated internal Agent requests, a valid
+selection takes precedence over SDK-generated thinking fields: off sends
+`think: false`, default omits `think`, and an explicit supported level is sent
+unchanged. External requests and invalid header values follow normal dialect
+conversion.
+
 ## Request flow (generation routes)
 
 The OpenAI, Anthropic, and Gemini generation routes call

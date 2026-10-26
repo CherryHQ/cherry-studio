@@ -325,6 +325,8 @@ The request path resolves one profile from exact provider-model, endpoint overri
 
 The built-in Ollama provider defaults to `ollama-chat`. Native model discovery reads `thinking.values` and `thinking.default` from `/api/show`. When the active endpoint is native Ollama, these model-specific controls take precedence over catalog reasoning on both custom and preset-backed models. Model reads project reasoning and request controls through the first saved model endpoint, ahead of provider and catalog defaults, so non-native endpoint choices do not expose native-only levels. Fetching models refreshes the saved controls and reasoning capability without changing other model settings. An unavailable or omitted thinking declaration leaves saved controls unchanged; an explicit `[false]` declaration exposes no thinking choices. Named levels outside the application's reasoning vocabulary are not offered.
 
+Existing Ollama presets and copies with no explicit default endpoint or native host reuse a saved Anthropic-slot host for native connections. Reads do not rewrite rows. A later explicit native host choice, including the factory localhost address, takes precedence over that inherited host.
+
 See [Reasoning Control](../../../packages/provider-registry/docs/reasoning-control.md) for the schemas, precedence rules, and UI-to-request data flow.
 
 ## File Locations

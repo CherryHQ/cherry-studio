@@ -72,3 +72,5 @@ export const MIN_INPUT_ROOM_RATIO = 0.2
 
 /** Internal Claude Agent SDK → Cherry API Gateway bridge for Codex priority requests. */
 export const CHERRY_FAST_MODE_HEADER = 'X-Cherry-Fast-Mode'
+/** Preserve the user's thinking selection across SDK-injected defaults on the internal gateway. */
+export const CHERRY_REASONING_EFFORT_HEADER = 'X-Cherry-Reasoning-Effort'
