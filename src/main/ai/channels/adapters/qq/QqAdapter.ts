@@ -36,8 +36,11 @@ const QQ_MAX_PASSIVE_ENTRIES = 1000
 const QQ_FILE_TYPE_IMAGE = 1
 const QQ_FILE_TYPE_VIDEO = 2
 const QQ_FILE_TYPE_FILE = 4
-/** Inline base64 upload cap; larger files need QQ's undocumented chunked protocol. */
-const QQ_MAX_INLINE_UPLOAD_BYTES = 10 * MB
+/** QQ's documented `file_data` direct-upload cap; larger files need the chunked upload flow. */
+const QQ_MAX_DIRECT_UPLOAD_BYTES = 5 * MB
+/** Native media formats QQ documents (png/jpg images, mp4 video); everything else uploads as a plain file. */
+const QQ_NATIVE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg'])
+const QQ_NATIVE_VIDEO_TYPES = new Set(['video/mp4'])
 
 // QQ Bot WebSocket opcodes
 const OP_DISPATCH = 0
@@ -96,8 +99,8 @@ type QqMessage = {
 }
 
 function qqMediaFileType(mediaType: string): number {
-  if (mediaType.startsWith('image/')) return QQ_FILE_TYPE_IMAGE
-  if (mediaType.startsWith('video/')) return QQ_FILE_TYPE_VIDEO
+  if (QQ_NATIVE_IMAGE_TYPES.has(mediaType)) return QQ_FILE_TYPE_IMAGE
+  if (QQ_NATIVE_VIDEO_TYPES.has(mediaType)) return QQ_FILE_TYPE_VIDEO
   return QQ_FILE_TYPE_FILE
 }
 
@@ -751,16 +754,14 @@ class QqAdapter extends ChannelAdapter {
     if (type !== 'c2c' && type !== 'group') {
       throw new Error(`Unknown chat type: ${type}`)
     }
-    if (file.size > QQ_MAX_INLINE_UPLOAD_BYTES) {
+    if (file.size > QQ_MAX_DIRECT_UPLOAD_BYTES) {
       throw new Error(
-        `QQ inline upload limit is ${QQ_MAX_INLINE_UPLOAD_BYTES / MB} MB; "${file.filename}" is ${(file.size / MB).toFixed(1)} MB`
+        `QQ direct upload limit is ${QQ_MAX_DIRECT_UPLOAD_BYTES / MB} MB; "${file.filename}" is ${(file.size / MB).toFixed(1)} MB`
       )
     }
 
     const base = type === 'c2c' ? `${QQ_API_BASE}/v2/users/${id}` : `${QQ_API_BASE}/v2/groups/${id}`
     const fileType = qqMediaFileType(file.media_type)
-    // The docs still list `file_data` as unsupported, but production accepts inline base64 —
-    // and a desktop app has no public URL to hand QQ instead.
     const upload: Record<string, unknown> = { file_type: fileType, file_data: file.data, srv_send_msg: false }
     if (fileType === QQ_FILE_TYPE_FILE) upload.file_name = sanitizeUploadFileName(file.filename)
 

@@ -364,6 +364,21 @@ describe('QqAdapter.sendFile', () => {
     expect(posts[0].body.file_name).toBeUndefined()
   })
 
+  it.each([
+    ['anim.gif', 'image/gif'],
+    ['photo.webp', 'image/webp'],
+    ['clip.webm', 'video/webm'],
+    ['clip.mov', 'video/quicktime']
+  ])('uploads %s (%s, not a QQ native format) as a plain file_type 4 file', async (filename, mediaType) => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const posts = capturePosts({ file_uuid: 'u', file_info: 'INFO-5', ttl: 0 })
+
+    await adapter.sendFile('c2c:u1', { filename, data: 'eA==', media_type: mediaType, size: 1 })
+
+    expect(posts[0].body).toEqual({ file_type: 4, file_data: 'eA==', srv_send_msg: false, file_name: filename })
+  })
+
   it('rejects guild channels and guild DMs before any request', async () => {
     const adapter = createAdapter()
 
@@ -372,11 +387,23 @@ describe('QqAdapter.sendFile', () => {
     expect(mockNetFetch).not.toHaveBeenCalled()
   })
 
-  it('rejects files over the 10 MB inline cap before any request', async () => {
+  it('rejects files over the 5 MB direct-upload cap before any request', async () => {
     const adapter = createAdapter()
 
-    await expect(adapter.sendFile('c2c:u1', { ...pdf, size: 10 * 1024 * 1024 + 1 })).rejects.toThrow('10 MB')
+    await expect(adapter.sendFile('c2c:u1', { ...pdf, size: 5 * 1024 * 1024 + 1 })).rejects.toThrow(
+      'QQ direct upload limit is 5 MB'
+    )
     expect(mockNetFetch).not.toHaveBeenCalled()
+  })
+
+  it('accepts a file of exactly 5 MB', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const posts = capturePosts({ file_uuid: 'u', file_info: 'INFO-6', ttl: 0 })
+
+    await adapter.sendFile('c2c:u1', { ...pdf, size: 5 * 1024 * 1024 })
+
+    expect(posts).toHaveLength(2)
   })
 
   it('does not send a message when the upload returns no file_info', async () => {
