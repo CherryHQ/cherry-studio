@@ -694,6 +694,7 @@
   "chat.input.file_error": "Erreur lors du traitement du fichier",
   "chat.input.file_not_supported": "Le modèle ne prend pas en charge ce type de fichier",
   "chat.input.file_not_supported_count": "{{count}} fichiers non pris en charge",
+  "chat.input.followup_queue.auto_send_stopped": "L’envoi automatique s’est arrêté. Vos messages restent dans la file d’attente ; vous pouvez les modifier, les supprimer ou les envoyer manuellement.",
   "chat.input.followup_queue.edit": "Modifier",
   "chat.input.followup_queue.pause": "Mettre en pause l'envoi automatique",
   "chat.input.followup_queue.remove": "Retirer",

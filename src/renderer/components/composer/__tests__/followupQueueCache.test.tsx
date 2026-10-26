@@ -16,6 +16,7 @@ function setup() {
     useFollowupQueue({
       scopeKey,
       status: 'done',
+      turnId: `turn-${lastCompletedAt}`,
       lastCompletedAt,
       onDrain: ({ text }) => {
         attempts.push(text)
@@ -138,6 +139,7 @@ it.each([false, true])('settles a manual send that started before completion (su
       useFollowupQueue({
         scopeKey,
         status,
+        turnId: 'turn-200',
         lastCompletedAt: status === 'done' ? 200 : null,
         onDrain: ({ text }) => {
           attempts.push(text)

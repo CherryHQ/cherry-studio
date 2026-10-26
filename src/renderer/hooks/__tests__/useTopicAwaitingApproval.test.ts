@@ -1,12 +1,16 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+import { useFollowupQueue } from '@renderer/components/composer/useFollowupQueue'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 
 const mockEntry = vi.fn<
   () =>
     | {
         status: TopicStreamStatus | undefined
+        turnId?: string
         lastCompletedAt?: number
         activeExecutions: []
         awaitingApprovalAnchors: []
@@ -39,12 +43,13 @@ import {
   useTopicStreamStatus
 } from '../useTopicStreamStatus'
 
-const setEntry = (status: TopicStreamStatus | undefined, lastCompletedAt?: number) => {
-  mockEntry.mockReturnValue({ status, lastCompletedAt, activeExecutions: [], awaitingApprovalAnchors: [] })
+const setEntry = (status: TopicStreamStatus | undefined, lastCompletedAt?: number, turnId = 'turn-1') => {
+  mockEntry.mockReturnValue({ status, turnId, lastCompletedAt, activeExecutions: [], awaitingApprovalAnchors: [] })
 }
 
 describe('useTopicAwaitingApproval', () => {
   beforeEach(() => {
+    MockCacheUtils.resetMocks()
     mockEntry.mockReset()
     setLastSeenCompletion.mockClear()
     lastSeenCompletion = null
@@ -81,6 +86,44 @@ describe('useTopicAwaitingApproval', () => {
     rerender()
 
     expect(result.current.isFulfilled).toBe(true)
+  })
+
+  it.each(['done', 'error', 'aborted'] as const)(
+    'exposes %s identity without broadening the successful unread receipt',
+    (status) => {
+      setEntry(status, 1000, 'terminal-identity')
+      const { result, rerender } = renderHook(() => useTopicStreamStatus('t'))
+      expect(result.current.turnId).toBe('terminal-identity')
+      expect(result.current.isFulfilled).toBe(status === 'done')
+      act(() => {
+        result.current.markSeen()
+      })
+      rerender()
+      expect(result.current.isFulfilled).toBe(false)
+      expect(result.current.turnId).toBe('terminal-identity')
+    }
+  )
+
+  it('does not let badge acknowledgment consume queue admission for the same turn', async () => {
+    setEntry('done', 1000, 'acknowledged-turn')
+    const badge = renderHook(() => useTopicStreamStatus('t'))
+    act(() => {
+      badge.result.current.markSeen()
+    })
+    badge.rerender()
+    expect(badge.result.current.isFulfilled).toBe(false)
+    const payload = { text: 'B', userMessageParts: [{ type: 'text' as const, text: 'B' }] }
+    cacheService.setCasual('followup-queue.t:assistant', [{ id: 'B', draft: { text: 'B', tokens: [] }, payload }])
+    const onDrain = vi.fn().mockResolvedValue(true)
+    const queue = renderHook(() => {
+      const stream = useTopicStreamStatus('t')
+      return useFollowupQueue({ ...stream, scopeKey: 't:assistant', autoSendEnabled: true, onDrain })
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(onDrain.mock.calls).toEqual([[payload, true]])
+    expect(queue.result.current.items).toEqual([])
   })
 
   it.each<TopicStreamStatus>(['pending', 'streaming'])(

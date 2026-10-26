@@ -694,6 +694,7 @@
   "chat.input.file_error": "Σφάλμα κατά την επεξεργασία του αρχείου",
   "chat.input.file_not_supported": "Το μοντέλο δεν υποστηρίζει αυτό το είδος αρχείων",
   "chat.input.file_not_supported_count": "{{count}} αρχεία δεν υποστηρίζονται",
+  "chat.input.followup_queue.auto_send_stopped": "Η αυτόματη αποστολή σταμάτησε. Τα μηνύματά σας παραμένουν στην ουρά· μπορείτε να τα επεξεργαστείτε, να τα αφαιρέσετε ή να τα στείλετε χειροκίνητα.",
   "chat.input.followup_queue.edit": "Επεξεργασία",
   "chat.input.followup_queue.pause": "Παύση αυτόματης αποστολής",
   "chat.input.followup_queue.remove": "Αφαίρεση",
