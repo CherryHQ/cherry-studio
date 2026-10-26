@@ -5047,6 +5047,8 @@
   "settings.models.retry.fallback_models": "Modelli di riserva",
   "settings.models.retry.fallback_models_count": "{{count}} modelli selezionati",
   "settings.models.retry.fallback_models_description": "Modelli da provare in ordine quando il modello principale non riesce",
+  "settings.models.retry.image_max_attempts": "[to be translated]:Image retry attempts",
+  "settings.models.retry.image_max_attempts_description": "[to be translated]:Retries for direct image generations on transient errors. Each retry may be billed again — set to 0 to disable.",
   "settings.models.retry.max_attempts": "Numero massimo di nuovi tentativi",
   "settings.models.retry.tooltip": "Gli errori che consentono nuovi tentativi riprovano il modello attuale fino al limite configurato. Se continua a non riuscire, o l'errore non consente nuovi tentativi, i modelli di riserva vengono provati una volta ciascuno, in ordine. Con più chiavi API per lo stesso modello, gli errori 401/429 fanno prima passare alla chiave successiva. I nuovi tentativi e i modelli di riserva si applicano solo prima dell'inizio dello streaming dei contenuti.",
   "settings.models.toolbar.pull_short": "Sincronizza modelli",

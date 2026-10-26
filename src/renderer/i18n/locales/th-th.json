@@ -5047,6 +5047,8 @@
   "settings.models.retry.fallback_models": "โมเดลสำรอง",
   "settings.models.retry.fallback_models_count": "เลือก {{count}} โมเดล",
   "settings.models.retry.fallback_models_description": "โมเดลที่ลองตามลำดับเมื่อโมเดลหลักล้มเหลว",
+  "settings.models.retry.image_max_attempts": "[to be translated]:Image retry attempts",
+  "settings.models.retry.image_max_attempts_description": "[to be translated]:Retries for direct image generations on transient errors. Each retry may be billed again — set to 0 to disable.",
   "settings.models.retry.max_attempts": "จำนวนครั้งลองสูงสุด",
   "settings.models.retry.tooltip": "ข้อผิดพลาดที่ลองใหม่ได้จะลองโมเดลปัจจุบันซ้ำถึงขีดจำกัดที่กำหนด หากยังล้มเหลว หรือข้อผิดพลาดไม่สามารถลองใหม่ได้ โมเดลสำรองจะถูกลองครั้งละหนึ่งตามลำดับ หากมีหลาย API Keys สำหรับโมเดลเดียวกัน ข้อผิดพลาด 401/429 จะสลับไปที่คีย์ถัดไปก่อน การลองใหม่และการสำรองใช้เฉพาะก่อนเนื้อหาเริ่มสตรีม",
   "settings.models.toolbar.pull_short": "ซิงค์โมเดล",
