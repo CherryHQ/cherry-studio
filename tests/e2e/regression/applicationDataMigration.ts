@@ -6,6 +6,7 @@ import { dirname, join, parse } from 'node:path'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 import JSZip from 'jszip'
 
+import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
@@ -37,6 +38,7 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
   // Relocation rewrites the install-scoped boot config and only packaged builds accept it;
   // branch runs launch unpackaged Electron from the repository.
   const packaged = app.record.mode === 'tag'
+  const initialElectronPid = app.record.electronPid
   const bootConfigPath = packaged
     ? join(homedir(), '.cherrystudio', 'boot-config.json')
     : join(app.paths.profiles, app.record.profile, '.cherrystudio', 'boot-config.json')
@@ -228,8 +230,16 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     try {
       if (restoreBootConfig) {
         await app.disconnect()
-        const cdpPid = findCdpPid(app.record.platform)
-        if (cdpPid && cdpPid !== app.record.electronPid) await adoptRelaunchedApp(app.paths)
+        const current = app.record
+        const cdpPid = findCdpPid(current.platform)
+        const config = existsSync(bootConfigPath)
+          ? (JSON.parse(await readFile(bootConfigPath, 'utf8')) as Partial<BootConfigSchema>)
+          : undefined
+        const mappedPath = current.executablePath ? config?.['app.user_data_path']?.[current.executablePath] : undefined
+        const queuedRelaunch =
+          current.electronPid === initialElectronPid &&
+          (config?.['temp.user_data_relocation']?.to === destination || mappedPath === destination)
+        if (queuedRelaunch || (cdpPid && cdpPid !== current.electronPid)) await adoptRelaunchedApp(app.paths)
         await stopOwnedApp(app.paths)
         if (bootConfigBackup) await writeFile(bootConfigPath, bootConfigBackup)
         else await rm(bootConfigPath, { force: true })
