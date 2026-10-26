@@ -3210,6 +3210,7 @@
   "provider.perplexity": "Perplexity",
   "provider.ph8": "PH8",
   "provider.poe": "Poe",
+  "provider.powertokens": "PowerTokens",
   "provider.ppio": "PPIO",
   "provider.qiniu": "Qiniu AI",
   "provider.qwenlm": "QwenLM",
