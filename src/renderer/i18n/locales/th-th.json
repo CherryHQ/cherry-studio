@@ -641,6 +641,7 @@
   "backup.error.newer_version": "ข้อมูลสำรองนี้สร้างโดย Cherry Studio เวอร์ชันใหม่กว่าและไม่สามารถกู้คืนในเวอร์ชันนี้ โปรดอัปเดต Cherry Studio แล้วลองอีกครั้ง",
   "backup.error.operation_busy": "การสำรองหรือกู้คืนอื่นกำลังดำเนินการอยู่ รอให้เสร็จแล้วลองอีกครั้ง",
   "backup.error.webdav_tls_certificate": "ไม่สามารถตรวจสอบใบรับรอง TLS ของเซิร์ฟเวอร์ WebDAV หากเซิร์ฟเวอร์ใช้ใบรับรองแบบ self-signed หรือ private-CA ให้เปิดใช้ 'อนุญาตใบรับรองแบบ Self-Signed' ในการตั้งค่า → ข้อมูล → WebDAV (ซึ่งจะลดความปลอดภัยในการรับส่งข้อมูล)",
+  "backup.error.webdav_too_large": "เซิร์ฟเวอร์ WebDAV ปฏิเสธข้อมูลสำรองเนื่องจากเกินขีดจำกัดขนาดการอัปโหลด (HTTP 413) โปรดยกเว้นไฟล์แนบเพื่อลดขนาด หรือใช้พื้นที่จัดเก็บที่มีขีดจำกัดสูงกว่า",
   "backup.progress.completed": "สำรองข้อมูลเสร็จสมบูรณ์",
   "backup.progress.compressing": "กำลังบีบอัดไฟล์...",
   "backup.progress.copying_database": "กำลังคัดลอกฐานข้อมูล...",

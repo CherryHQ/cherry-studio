@@ -641,6 +641,7 @@
   "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
   "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.error.webdav_tls_certificate": "Δεν ήταν δυνατή η επαλήθευση του πιστοποιητικού TLS του διακομιστή WebDAV. Εάν ο διακομιστής χρησιμοποιεί αυτο-υπογεγραμμένο πιστοποιητικό ή πιστοποιητικό ιδιωτικής CA, ενεργοποιήστε το «Να επιτρέπονται αυτο-υπογεγραμμένα πιστοποιητικά» στις Ρυθμίσεις → Δεδομένα → WebDAV (αυτό μειώνει την ασφάλεια μεταφοράς).",
+  "backup.error.webdav_too_large": "Ο διακομιστής WebDAV απέρριψε το αντίγραφο ασφαλείας επειδή υπερβαίνει το όριο μεγέθους μεταφόρτωσης (HTTP 413). Εξαιρέστε συνημμένα για να μειώσετε το μέγεθος ή χρησιμοποιήστε χώρο αποθήκευσης με υψηλότερο όριο.",
   "backup.progress.completed": "Η αντιγραφή ασφαλείας ολοκληρώθηκε",
   "backup.progress.compressing": "Συμπίεση αρχείων...",
   "backup.progress.copying_database": "Αντιγραφή βάσης δεδομένων...",

@@ -641,6 +641,7 @@
   "backup.error.newer_version": "Questo backup è stato creato con una versione più recente di Cherry Studio e non può essere ripristinato con questa versione. Aggiorna Cherry Studio e riprova.",
   "backup.error.operation_busy": "È già in corso un'altra operazione di backup o ripristino. Attendi che termini e riprova.",
   "backup.error.webdav_tls_certificate": "Impossibile verificare il certificato TLS del server WebDAV. Se il server utilizza un certificato autofirmato o di un'autorità di certificazione privata, abilita 'Consenti certificati autofirmati' in Impostazioni → Dati → WebDAV (questa opzione riduce la sicurezza del trasporto).",
+  "backup.error.webdav_too_large": "Il server WebDAV ha rifiutato il backup perché supera il limite di caricamento (HTTP 413). Escludi gli allegati per ridurre le dimensioni del backup oppure usa un servizio di archiviazione con un limite di caricamento superiore.",
   "backup.progress.completed": "Backup completato",
   "backup.progress.compressing": "Compressione dei file...",
   "backup.progress.copying_database": "Copia del database...",
