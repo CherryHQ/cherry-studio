@@ -161,6 +161,7 @@ export const FileList = memo(function FileList({
           <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
             <div
               data-ui="files.row"
+              data-file-entry-id={file.id}
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
               }}

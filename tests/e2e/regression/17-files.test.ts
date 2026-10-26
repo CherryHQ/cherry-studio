@@ -57,8 +57,26 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   }
   const filesView = () => page.locator('[data-ui~="files.view"]:visible')
   const filePreview = (name: string) => filesView().getByRole('region', { name, exact: true })
+  const previewEntryIds = new Map<string, string>()
   const openLibraryFile = async (name: string) => {
-    await filesView().locator('[data-ui~="files.row"]:visible').getByText(name, { exact: true }).click()
+    let id = previewEntryIds.get(name)
+    if (!id) {
+      let matches: { id: string }[] = []
+      await expect
+        .poll(async () => {
+          matches = (await entries()).filter(
+            (entry) => !originalIds.has(entry.id) && `${entry.name}.${entry.ext}` === name
+          )
+          return matches.length
+        }, `The first preview must identify one newly imported ${name}`)
+        .toBe(1)
+      id = matches[0].id
+      previewEntryIds.set(name, id)
+    }
+    await filesView()
+      .locator(`[data-ui~="files.row"][data-file-entry-id="${id}"]:visible`)
+      .getByText(name, { exact: true })
+      .click()
     await expect(filePreview(name)).toBeVisible()
   }
   const assertRichDocument = async (preview: Locator) => {
@@ -78,7 +96,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   let assistantId: string | undefined
   let inspectorUrl: string | undefined
   const entries = async () => {
-    const items: { id: string }[] = []
+    const items: { id: string; name: string; ext: string | null }[] = []
     let cursor: string | undefined
     do {
       const response = await page.evaluate(
