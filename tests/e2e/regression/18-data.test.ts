@@ -38,7 +38,7 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
   }
   // Backup archives embed Data/cherrystudio.sqlite, whose provider rows hold the real API keys, so
   // they are written outside every uploaded artifact root.
-  const directory = join(app.paths.private, 'MP-115-local-backups')
+  const directory = join(app.paths.private, `MP-115-local-backups-${Date.now()}`)
   await mkdir(directory, { recursive: true })
   const keys = [
     'data.backup.local.dir',

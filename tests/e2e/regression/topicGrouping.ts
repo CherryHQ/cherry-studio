@@ -148,18 +148,23 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
       for (const name of [...assistantNames, 'Unlinked Assistant']) await expand(name)
       for (const topic of topics) await expect(row(topic.name)).toBeVisible()
       const groups = await displayedGroups()
+      const ownedRows = (name: string) =>
+        groups[name].filter((value) => topics.some((topic) => value.includes(topic.id) || value.includes(topic.name)))
       for (const [name, members] of [
         [assistantNames[0], topics.slice(0, 2)],
         [assistantNames[1], topics.slice(2, 4)],
         ['Unlinked Assistant', topics.slice(4)]
       ] as const) {
-        expect(groups[name]).toBeDefined()
-        expect(groups[name]).toHaveLength(members.length)
+        expect(groups[name], `${name} group must be rendered`).toBeDefined()
+        // The unlinked bucket also holds conversations this run did not create, so count only case-owned rows.
+        expect(ownedRows(name), `${name} must contain exactly its seeded topics`).toHaveLength(members.length)
         for (const topic of members)
-          expect(groups[name].some((value) => value.includes(topic.id) || value.includes(topic.name))).toBe(true)
-        expect(
-          groups[name].filter((value) => topics.some((topic) => value.includes(topic.id) || value.includes(topic.name)))
-        ).toHaveLength(members.length)
+          expect(ownedRows(name).some((value) => value.includes(topic.id) || value.includes(topic.name))).toBe(true)
+        for (const topic of topics.filter((candidate) => !members.includes(candidate)))
+          expect(
+            ownedRows(name).some((value) => value.includes(topic.id) || value.includes(topic.name)),
+            `${name} must not contain ${topic.name}`
+          ).toBe(false)
       }
       for (const name of ['Today', 'Yesterday', 'Earlier']) await expect(header(name)).toBeHidden()
     }

@@ -210,7 +210,7 @@ export const REGRESSION_CASES = [
     title: 'Advanced parameters and permission modes',
     tasks: ['code-tools', 'code-cli-permissions'],
     phase: '08-code-tools',
-    capabilities: [],
+    capabilities: ['desktopAutomation'],
     platforms: ['macos']
   },
   {
@@ -833,7 +833,7 @@ export const REGRESSION_CASES = [
     title: 'System tray menu',
     tasks: ['system-integration'],
     phase: '20-system',
-    capabilities: [],
+    capabilities: ['desktopAutomation'],
     platforms: ['macos']
   },
   {
@@ -841,7 +841,7 @@ export const REGRESSION_CASES = [
     title: 'Deep links, single instance, and relaunch',
     tasks: ['system-integration'],
     phase: '20-system',
-    capabilities: [],
+    capabilities: ['desktopAutomation'],
     platforms: ['macos']
   },
   {

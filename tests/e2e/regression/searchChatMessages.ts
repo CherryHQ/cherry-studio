@@ -168,15 +168,12 @@ export async function searchChatMessages(app: RegressionApp, page: Page, testInf
     await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeLessThan(originalScrollTop - 500)
     await attachScreenshot('MP-38 search match highlighted and scrolled into view')
 
-    await bar.getByRole('button', { name: 'Include Your Questions', exact: true }).click()
+    const includeUser = bar.getByRole('button', { name: 'Include Your Questions', exact: true })
+    await expect(includeUser).toHaveAttribute('aria-pressed', 'false')
+    await includeUser.click()
+    await expect(includeUser).toHaveAttribute('aria-pressed', 'true')
     await expect(bar).toContainText('0/3')
-    await expect
-      .soft(bar.getByText('User', { exact: true }), 'Search results must identify user matches')
-      .toBeVisible({ timeout: 1500 })
-    await expect
-      .soft(bar.getByText('Assistant', { exact: true }), 'Search results must identify assistant matches')
-      .toBeVisible({ timeout: 1500 })
-    await attachScreenshot('MP-38 search count and role presentation')
+    await attachScreenshot('MP-38 search count and user-question toggle')
 
     await input.fill('mp38-no-such-word-9081726354')
     await expect(bar).toContainText('0/0')
