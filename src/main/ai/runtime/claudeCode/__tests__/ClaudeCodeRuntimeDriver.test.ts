@@ -4342,6 +4342,53 @@ describe('ClaudeCodeRuntimeDriver', () => {
       expect(toolPolicySnapshot.update).toHaveBeenCalledWith(expect.objectContaining({ disabledTools: ['Bash'] }))
     })
 
+    it('does not advance the cached tool-policy facts when the fallback snapshot write fails', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: ['Bash'], configuration: {} })
+      toolPolicySnapshot.update.mockRejectedValueOnce(new Error('snapshot write failed'))
+      mocks.deriveConfig.mockResolvedValueOnce({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('failed')
+
+      // The cache still holds the pre-failure facts, so the healthy re-derive sees the difference
+      // and applies it instead of treating the unapplied restriction as already in force.
+      mocks.deriveConfig.mockResolvedValueOnce(makeConfig({ disabledTools: ['Bash'] }))
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('patched')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(2)
+    })
+
+    it('records applied MCP and disabled-tool facts together after the fallback update', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        disabledTools: ['Bash', 'Read'],
+        mcps: ['mcp-b', 'mcp-a'],
+        configuration: {}
+      })
+      mocks.deriveConfig.mockResolvedValueOnce({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
+
+      // The same facts re-derived on a healthy route are already enforced: no second update.
+      mocks.deriveConfig.mockResolvedValueOnce({
+        ok: true as const,
+        config: {
+          rebuildSignature: 'sig-1',
+          rebuildFactFingerprints: { modelId: 'model-hash-1', skills: 'skills-hash-1' },
+          live: { toolPolicy: { permissionMode: null, disabledTools: ['Bash', 'Read'], mcps: ['mcp-a', 'mcp-b'] } }
+        }
+      })
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('current')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
+    })
+
     it('fails closed when the tool policy cannot be applied while the model is unavailable', async () => {
       const { connection, toolPolicySnapshot } = await connectWithSnapshot()
       mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: {} })
