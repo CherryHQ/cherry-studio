@@ -2374,7 +2374,7 @@ describe('ChatComposer', () => {
 
     // Another Send therefore cannot queue a duplicate of A.
     await act(async () => {
-      mocks.surfaceProps?.onSendDraft({ text: mocks.surfaceProps?.text ?? '', tokens: [] })
+      void mocks.surfaceProps?.onSendDraft({ text: mocks.surfaceProps?.text ?? '', tokens: [] })
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     expect(enqueuePosts).toBe(1)
@@ -2437,7 +2437,7 @@ describe('ChatComposer', () => {
     mocks.assistant = { ...mocks.assistant, id: 'assistant-1' }
     view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
     await act(async () => {
-      mocks.surfaceProps?.onSendDraft({ text: mocks.surfaceProps?.text ?? '', tokens: [] })
+      void mocks.surfaceProps?.onSendDraft({ text: mocks.surfaceProps?.text ?? '', tokens: [] })
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     expect(enqueuePosts).toBe(1)
