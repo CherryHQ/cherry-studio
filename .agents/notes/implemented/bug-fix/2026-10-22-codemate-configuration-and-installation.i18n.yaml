@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-22-codemate-configuration-and-installation.md
+2026-10-22-codemate-configuration-and-installation.md: 36325b3b8a9d1936e393f1cde1afff38d366377b
+2026-10-22-codemate-configuration-and-installation.zh.md: e38aa4023bf2c0e06c3bd5e88d7787482f0db8f8

@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -127,4 +128,26 @@ it.each([
     expectedFiles: [{ target, path: '/test/config', content: original }],
     preserveModelSource: true
   })
+})
+
+it('blocks editing while Hermes WebUI is running and offers stopping it before saving', async () => {
+  MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', { status: 'running' })
+  vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+    if (route === 'code_cli.read_config')
+      return { files: [{ target: 'hermes-config', path: '/test/config.yaml', content: 'model: test' }] } as never
+    if (route === 'hermes_dashboard.stop') {
+      MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', { status: 'stopped' })
+      return { success: true } as never
+    }
+    return { success: true } as never
+  })
+  const { rerender } = render(<LocalAgentCliConfig tool={CodeCli.HERMES} />)
+  await userEvent.click(screen.getByRole('button', { name: 'CLI 配置文件' }))
+  expect(await screen.findByRole('status')).toHaveTextContent('请先停止 Hermes WebUI，再编辑其配置。')
+  expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
+  await userEvent.click(screen.getByRole('button', { name: '停止' }))
+  rerender(<LocalAgentCliConfig tool={CodeCli.HERMES} />)
+  await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+  fireEvent.change(screen.getByRole('textbox', { name: 'config' }), { target: { value: 'model: next' } })
+  expect(screen.getByRole('button', { name: '保存' })).toBeEnabled()
 })

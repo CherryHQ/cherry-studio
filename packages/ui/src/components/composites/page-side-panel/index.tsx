@@ -1,7 +1,8 @@
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { XIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import * as React from 'react'
-import { useCallback, useEffect, useId, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Button } from '@cherrystudio/ui/components/primitives/button'
@@ -16,7 +17,8 @@ import Scrollbar from '../scrollbar'
  * otherwise to `document.body`. Scoped to a container it positions `absolute`
  * within it; at `document.body` it stays `fixed` to the viewport.
  *
- * For edge-attached modal sheets, use the shadcn `Drawer` primitive instead.
+ * Modal focus, background interaction, and dismissal use the Radix Dialog primitive.
+ * For edge-attached sheets, use the shadcn `Drawer` primitive instead.
  */
 type PageSidePanelPlacement = 'left' | 'right'
 
@@ -60,7 +62,6 @@ function PageSidePanel({
   const standardTitle = title ? <span className="text-base font-semibold text-foreground">{title}</span> : null
   const headerContent = header ?? standardTitle
   const hasHeader = !!headerContent || showCloseButton
-  const headerId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
@@ -78,108 +79,129 @@ function PageSidePanel({
     [onClose]
   )
 
-  useEffect(() => {
-    if (open) {
-      closedByPointerDownRef.current = false
-      triggerRef.current = document.activeElement as HTMLElement | null
-      requestAnimationFrame(() => {
-        panelRef.current?.focus()
-      })
-    } else {
-      triggerRef.current?.focus()
-      triggerRef.current = null
-    }
-  }, [open])
-
   const panel = (
-    <AnimatePresence onExitComplete={onExitComplete}>
-      {open && (
-        <>
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            data-slot="page-side-panel-backdrop"
-            className={cn(isScopedPortal ? 'absolute inset-0' : 'fixed inset-0', 'z-60 bg-black/50', backdropClassName)}
-            onClick={handleClose}
-          />
-          <motion.aside
-            ref={panelRef}
-            key="panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={headerContent ? headerId : undefined}
-            tabIndex={-1}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') handleClose(e)
-            }}
-            initial={{ x: side === 'right' ? '100%' : '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: side === 'right' ? '100%' : '-100%' }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            data-slot="page-side-panel"
-            className={cn(
-              isScopedPortal ? 'absolute' : 'fixed',
-              'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
-              side === 'right' ? 'right-3' : 'left-3',
-              contentClassName
-            )}>
-            {hasHeader && (
-              <div
-                data-slot="page-side-panel-header"
-                className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
-                <div id={headerContent ? headerId : undefined} className="flex min-w-0 flex-1 items-center">
-                  {headerContent}
-                </div>
-                {showCloseButton && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onPointerDown={(event) => {
-                      closedByPointerDownRef.current = true
-                      handleClose(event)
-                    }}
-                    onClick={(event) => {
-                      if (closedByPointerDownRef.current) {
-                        closedByPointerDownRef.current = false
-                        event.preventDefault()
-                        event.stopPropagation()
-                        return
-                      }
-                      handleClose(event)
-                    }}
-                    aria-label={closeLabel}
-                    data-slot="page-side-panel-close"
-                    className={cn(
-                      'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
-                      closeButtonClassName
-                    )}>
-                    <XIcon size={16} />
-                  </Button>
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose()
+      }}>
+      <AnimatePresence onExitComplete={onExitComplete}>
+        {open && (
+          <>
+            <DialogPrimitive.Overlay forceMount asChild>
+              <motion.div
+                key="backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                data-slot="page-side-panel-backdrop"
+                className={cn(
+                  isScopedPortal ? 'absolute inset-0' : 'fixed inset-0',
+                  'z-60 bg-black/50',
+                  backdropClassName
                 )}
-              </div>
-            )}
+                onClick={handleClose}
+              />
+            </DialogPrimitive.Overlay>
+            <DialogPrimitive.Content
+              forceMount
+              asChild
+              aria-describedby={undefined}
+              onOpenAutoFocus={(event) => {
+                event.preventDefault()
+                closedByPointerDownRef.current = false
+                triggerRef.current = document.activeElement as HTMLElement | null
+                panelRef.current?.focus()
+              }}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault()
+                triggerRef.current?.focus()
+                triggerRef.current = null
+              }}
+              onEscapeKeyDown={(event) => {
+                event.preventDefault()
+                onClose()
+              }}
+              onPointerDownOutside={(event) => event.preventDefault()}>
+              <motion.aside
+                ref={panelRef}
+                key="panel"
+                role="dialog"
+                aria-modal="true"
+                tabIndex={-1}
+                initial={{ x: side === 'right' ? '100%' : '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: side === 'right' ? '100%' : '-100%' }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                data-slot="page-side-panel"
+                className={cn(
+                  isScopedPortal ? 'absolute' : 'fixed',
+                  'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
+                  side === 'right' ? 'right-3' : 'left-3',
+                  contentClassName
+                )}>
+                {hasHeader && (
+                  <div
+                    data-slot="page-side-panel-header"
+                    className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
+                    {headerContent ? (
+                      <DialogPrimitive.Title asChild>
+                        <div className="flex min-w-0 flex-1 items-center">{headerContent}</div>
+                      </DialogPrimitive.Title>
+                    ) : (
+                      <div className="min-w-0 flex-1" />
+                    )}
+                    {showCloseButton && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onPointerDown={(event) => {
+                          closedByPointerDownRef.current = true
+                          handleClose(event)
+                        }}
+                        onClick={(event) => {
+                          if (closedByPointerDownRef.current) {
+                            closedByPointerDownRef.current = false
+                            event.preventDefault()
+                            event.stopPropagation()
+                            return
+                          }
+                          handleClose(event)
+                        }}
+                        aria-label={closeLabel}
+                        data-slot="page-side-panel-close"
+                        className={cn(
+                          'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
+                          closeButtonClassName
+                        )}>
+                        <XIcon size={16} />
+                      </Button>
+                    )}
+                  </div>
+                )}
 
-            <Scrollbar
-              data-slot="page-side-panel-body"
-              className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
-              {children}
-            </Scrollbar>
+                {!headerContent && <DialogPrimitive.Title className="sr-only">{closeLabel}</DialogPrimitive.Title>}
+                <Scrollbar
+                  data-slot="page-side-panel-body"
+                  className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
+                  {children}
+                </Scrollbar>
 
-            {footer && (
-              <div
-                data-slot="page-side-panel-footer"
-                className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
-                {footer}
-              </div>
-            )}
-          </motion.aside>
-        </>
-      )}
-    </AnimatePresence>
+                {footer && (
+                  <div
+                    data-slot="page-side-panel-footer"
+                    className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
+                    {footer}
+                  </div>
+                )}
+              </motion.aside>
+            </DialogPrimitive.Content>
+          </>
+        )}
+      </AnimatePresence>
+    </DialogPrimitive.Root>
   )
 
   return portalContainer ? createPortal(panel, portalContainer) : panel

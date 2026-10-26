@@ -65,7 +65,7 @@ function ManagedWebUiActions({ config, disabled, id }: Props & { id: LocalAgentW
         if (result.url) open(result.url)
       }
     } catch {
-      toast.error(t('code.launch.error'))
+      toast.error(t(stop ? 'code.web_ui.stop_failed' : 'code.launch.error'))
     } finally {
       setPending(false)
     }

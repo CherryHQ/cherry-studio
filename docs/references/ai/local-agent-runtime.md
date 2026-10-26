@@ -32,7 +32,10 @@ provider is required. “Local” refers to the CLI process, not an offline mode
 ## Ownership and routing
 
 - Agent configuration is SQLite business data under `configuration.localRuntime`.
-  Detection, connection checks, and session capability reads use IpcApi.
+  Detection, connection checks, and session capability reads use IpcApi. Updates
+  merge individual `localRuntime` fields inside the database transaction. Omitted
+  fields keep their latest values; explicit `undefined` clears an optional field.
+  Advanced settings never resubmit model or enablement snapshots.
 - Stream execution identities use `runtime:<agent-id>`; this is never stored as a
   provider/model foreign key. Message snapshots retain the author and native model
   identifier when reported by the CLI.
@@ -112,7 +115,9 @@ installation over an existing managed copy; other ACP presets retain their
 existing installation discovery order. Explicit paths fail without fallback. Every connection
 resolves installation facts again, so upgrades do not pin an old version path.
 Managed installations use the shared binary execution environment; system CLIs
-retain the user's shell environment. Explicit environment overrides apply last.
+retain the user's shell environment. Explicit environment overrides apply last and
+also participate in executable-name lookup. Windows environment names are matched
+without case sensitivity, including native configuration-directory overrides.
 
 New Code Mate installations, upgrades and lazy terminal installations use the
 system installer shared with Agent Services: global npm packages, `uv tool install`
@@ -120,7 +125,11 @@ for Python tools, and the official system installer for the Antigravity CLI.
 ACP-only distributions still use registry recipes and user-directory binary
 installation. Package managers redirected into Cherry-managed directories are
 rejected. Existing mise installations remain discoverable and removable; no
-new Code Mate CLI is installed through mise. Uninstallation verifies package
+new Code Mate CLI is installed through mise. Hermes reuses its native Python
+installation recipe, including WebUI dependencies, without requiring a registry entry.
+Binary upgrades retain prior resources for running terminal processes and record
+their ownership. Explicit uninstall removes the current bundle and verified recorded
+versions; unrecorded legacy directories are not deleted. Uninstallation verifies package
 ownership; externally installed binaries without a supported ownership check
 must be removed through their original installer.
 

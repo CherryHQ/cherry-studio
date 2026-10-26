@@ -53,19 +53,19 @@ export function resolveInstallRecipe(
   registry: unknown,
   platform = process.platform,
   arch = process.arch
-): LocalAgentInstallRecipe | LocalAgentBinaryRecipe | undefined {
+): LocalAgentInstallRecipe | LocalAgentBinaryRecipe | CliScriptRecipe | undefined {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
   if (!preset) throw new Error('Unknown local agent preset')
-  // Native drivers need the original CLI; the registry still ships the retired Kimi CLI.
+  // Hermes is absent from the registry; Kimi's registry entry still ships the retired CLI.
   const native =
-    preset.protocol !== 'acp' || presetId === 'kimi'
+    preset.protocol !== 'acp' || presetId === 'kimi' || presetId === 'hermes'
       ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
       : undefined
-  const entry =
-    native || preset.npmPackage
-      ? undefined
-      : registrySchema.parse(registry).agents.find((agent) => agent.id === (registryIds[presetId] ?? presetId))
-  const npmPackage = native?.packageName ?? preset.npmPackage ?? entry?.distribution.npx?.package
+  if (native) return resolveCliInstallRecipe(native, undefined, platform)
+  const entry = preset.npmPackage
+    ? undefined
+    : registrySchema.parse(registry).agents.find((agent) => agent.id === (registryIds[presetId] ?? presetId))
+  const npmPackage = preset.npmPackage ?? entry?.distribution.npx?.package
   if (npmPackage) {
     if (!/^(@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*(?:@[a-zA-Z0-9.+_-]+)?$/.test(npmPackage)) {
       throw new Error('Invalid npm package in ACP registry')

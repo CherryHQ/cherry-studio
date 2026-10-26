@@ -5,10 +5,12 @@ import { createInterface } from 'node:readline'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { Mutex } from 'async-mutex'
+import { app, session } from 'electron'
 
 import { application } from '@application'
 import { resolveLocalAgentLaunch } from '@main/ai/runtime/localAgent/launch'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getEnvironmentValue } from '@main/utils/env'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { LOCAL_AGENT_WEB_UI_IDS, type LocalAgentWebUiId, type ManagedToolStatusState } from '@shared/types/managedTool'
@@ -19,6 +21,7 @@ interface WebUiProcess {
   child?: ChildProcess
   startup?: AbortController
   status: ManagedToolStatusState
+  authentication?: { origin: string; username: string; password: string }
 }
 
 @Injectable('LocalAgentWebUiService')
@@ -27,6 +30,27 @@ interface WebUiProcess {
 export class LocalAgentWebUiService extends BaseService {
   private readonly processes = new Map<LocalAgentWebUiId, WebUiProcess>()
   private closing = false
+
+  protected onInit() {
+    const login = (
+      event: Electron.Event,
+      contents: Electron.WebContents | null,
+      details: Electron.AuthenticationResponseDetails,
+      authInfo: Electron.AuthInfo,
+      callback: (username?: string, password?: string) => void
+    ) => {
+      if (authInfo.isProxy || authInfo.scheme.toLowerCase() !== 'basic') return
+      if (contents?.getType() !== 'webview' || contents.session !== session.fromPartition('persist:webview')) return
+      const credentials = [...this.processes.values()].find(
+        (entry) => entry.child && entry.authentication?.origin === new URL(details.url).origin
+      )?.authentication
+      if (!credentials) return
+      event.preventDefault()
+      callback(credentials.username, credentials.password)
+    }
+    app.on('login', login)
+    this.registerDisposable(() => app.removeListener('login', login))
+  }
 
   protected async onStop() {
     this.closing = true
@@ -76,6 +100,14 @@ export class LocalAgentWebUiService extends BaseService {
           env.QWEN_SERVER_TOKEN = randomBytes(24).toString('base64url')
           url.hash = `token=${env.QWEN_SERVER_TOKEN}`
         }
+        const password = id === 'opencode' ? getEnvironmentValue(env, 'OPENCODE_SERVER_PASSWORD') : undefined
+        instance.authentication = password
+          ? {
+              origin: url.origin,
+              username: getEnvironmentValue(env, 'OPENCODE_SERVER_USERNAME') || 'opencode',
+              password
+            }
+          : undefined
         const child = crossPlatformSpawn(launch.executable, args, {
           env,
           cwd: application.getPath('sys.home'),
@@ -87,6 +119,7 @@ export class LocalAgentWebUiService extends BaseService {
         const exited = () => {
           if (instance.child !== child) return
           instance.child = undefined
+          instance.authentication = undefined
           abort.abort()
           this.publish(instance, { status: 'stopped' })
         }
@@ -103,6 +136,11 @@ export class LocalAgentWebUiService extends BaseService {
         while (Date.now() < deadline) {
           abort.signal.throwIfAborted()
           const response = await fetch(url, {
+            headers: instance.authentication
+              ? {
+                  Authorization: `Basic ${Buffer.from(`${instance.authentication.username}:${instance.authentication.password}`).toString('base64')}`
+                }
+              : undefined,
             signal: AbortSignal.any([abort.signal, AbortSignal.timeout(1000)]),
             redirect: 'error'
           }).catch(() => undefined)
@@ -149,6 +187,7 @@ export class LocalAgentWebUiService extends BaseService {
       if (!(await waitForProcessExit(child, 1000))) throw new Error('Web UI did not stop')
     }
     if (entry.child === child) entry.child = undefined
+    entry.authentication = undefined
   }
 }
 

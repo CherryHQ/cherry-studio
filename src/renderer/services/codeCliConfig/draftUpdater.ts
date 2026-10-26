@@ -1,12 +1,19 @@
+import { applyEdits, format } from 'jsonc-parser'
+
 import { getAdapter, resolveCliConfigOptionChanges, sanitizeCliConfigBlob } from './adapters'
-import { parseJsonOrThrow, renderJsonFile } from './file'
+import { parseJsonOrThrow } from './file'
 import { extractConnectionFromCliConfigDraft } from './parser'
 import type { CliConfigFileDraft } from './types'
 import { asRecord } from './values'
 
 export function formatCliConfigDraftFile(file: CliConfigFileDraft): CliConfigFileDraft {
   if (file.language !== 'json') return file
-  return { ...file, content: renderJsonFile(parseJsonOrThrow(file.content)) }
+  parseJsonOrThrow(file.content)
+  const content = applyEdits(
+    file.content,
+    format(file.content, undefined, { insertSpaces: true, tabSize: 2, eol: '\n' })
+  )
+  return { ...file, content: `${content.trimEnd()}\n` }
 }
 
 export function updateCliConfigDraftConfig(

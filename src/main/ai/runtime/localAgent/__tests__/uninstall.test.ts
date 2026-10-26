@@ -56,6 +56,58 @@ describe('local agent uninstall ownership', () => {
     expect(await fs.readdir(path.join(root, 'agents'))).toHaveLength(1)
   })
 
+  it('retains old resources through upgrades and removes only recorded owned bundles on uninstall', async () => {
+    const entry = await install('example')
+    const rootPath = path.join(root, 'agents')
+    const [legacy] = await fs.readdir(rootPath)
+    await fs.unlink(path.join(rootPath, legacy, '.cherry-install.json'))
+    const unrelated = path.join(rootPath, 'example-unrelated')
+    await fs.mkdir(unrelated)
+    await fs.writeFile(path.join(unrelated, 'keep'), 'unowned')
+    for (const version of ['2.0', '3.0']) {
+      await installBinaryAgent(
+        'example',
+        {
+          manager: 'binary',
+          version,
+          archive: 'https://example.com/agent',
+          cmd: 'agent'
+        },
+        new AbortController().signal,
+        entry
+      )
+    }
+    expect(await fs.readFile(path.join(rootPath, legacy, 'files', 'agent'), 'utf8')).toContain('hello')
+    expect(await fs.readdir(rootPath)).toHaveLength(4)
+    expect(await uninstallBinaryAgent('example', entry)).toBe(true)
+    expect(await fs.readdir(rootPath)).toEqual(['example-unrelated'])
+    expect(await fs.readFile(path.join(unrelated, 'keep'), 'utf8')).toBe('unowned')
+  })
+
+  it.skipIf(process.platform === 'win32')('does not follow a retired bundle replaced by a symlink', async () => {
+    const entry = await install('example')
+    const rootPath = path.join(root, 'agents')
+    const [oldName] = await fs.readdir(rootPath)
+    const oldBundle = path.join(rootPath, oldName)
+    await installBinaryAgent(
+      'example',
+      {
+        manager: 'binary',
+        version: '2.0',
+        archive: 'https://example.com/agent',
+        cmd: 'agent'
+      },
+      new AbortController().signal,
+      entry
+    )
+    const outside = path.join(root, 'preserved')
+    await fs.rename(oldBundle, outside)
+    await fs.symlink(outside, oldBundle)
+    expect(await uninstallBinaryAgent('example', entry)).toBe(true)
+    expect(await fs.readFile(path.join(outside, 'files', 'agent'), 'utf8')).toContain('hello')
+    expect((await fs.lstat(oldBundle)).isSymbolicLink()).toBe(true)
+  })
+
   it.skipIf(process.platform === 'win32')('refuses a replaced executable pointing outside the bundle', async () => {
     const entry = await install('example')
     const bundle = (await fs.readdir(path.join(root, 'agents')))[0]

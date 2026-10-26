@@ -599,7 +599,7 @@ const openCodeAdapter: CliConfigAdapter = {
   extractConfig(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
     const out: Record<string, any> = {}
-    if (asRecord(config.compaction).auto === true) out.autoCompact = true
+    if (typeof asRecord(config.compaction).auto === 'boolean') out.autoCompact = asRecord(config.compaction).auto
     if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
     const providers = asRecord(config.provider)
     const providerKey = findCherryProviderKey(providers)

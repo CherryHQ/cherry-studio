@@ -54,6 +54,11 @@ describe('system agent install recipes', () => {
   })
 
   it('keeps native Python extras and uses platform-specific official Antigravity installers', () => {
+    expect(resolveInstallRecipe('hermes', undefined)).toEqual({
+      manager: 'uv',
+      package: 'hermes-agent[web]',
+      args: ['tool', 'install', '--upgrade', 'hermes-agent[web]']
+    })
     expect(resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.hermes!, '0.19.0')).toMatchObject({
       manager: 'uv',
       args: ['tool', 'install', '--upgrade', 'hermes-agent[web]==0.19.0']

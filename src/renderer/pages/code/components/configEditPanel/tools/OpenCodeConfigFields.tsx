@@ -28,7 +28,7 @@ export const OpenCodeConfigFields: FC<OpenCodeConfigFieldsProps> = ({ config, on
   )
 
   const reasoning = env.OPENCODE_REASONING === 'true'
-  const autoCompact = config.autoCompact === true
+  const autoCompact = config.autoCompact !== false
 
   const updateEnvField = useCallback(
     (key: string, value: string) => {
@@ -65,7 +65,7 @@ export const OpenCodeConfigFields: FC<OpenCodeConfigFieldsProps> = ({ config, on
         <TogglePill
           label={t('code.adv.opencode.auto_compact')}
           active={autoCompact}
-          onClick={() => updateField('autoCompact', autoCompact ? undefined : true)}
+          onClick={() => updateField('autoCompact', !autoCompact)}
         />
       </div>
     </div>

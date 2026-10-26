@@ -3,6 +3,7 @@ import {
   ArrowUpCircle,
   CheckCircle2,
   Download,
+  GripVertical,
   CircleAlert,
   Loader2,
   MessageSquare,
@@ -165,8 +166,10 @@ export function LocalAgentDirectory({
     void navigate({ to: destination, search: { id: selected }, replace: true })
   }, [navigate, selected, destination])
   const includeCli = !!renderCli
+  const detectionRequest = useRef(0)
   const refresh = useCallback(
     async (manual = false) => {
+      const request = ++detectionRequest.current
       setDetecting(true)
       try {
         const [localDetections, cliSnapshots] = await Promise.all([
@@ -178,6 +181,7 @@ export function LocalAgentDirectory({
               )
             : undefined
         ])
+        if (request !== detectionRequest.current) return
         setDetections([
           ...localDetections,
           ...(cliSnapshots
@@ -189,16 +193,20 @@ export function LocalAgentDirectory({
         ])
       } catch (error) {
         logger.warn('Failed to refresh local agent installations', error as Error)
-        if (manual) toast.error(String(error))
+        if (manual && request === detectionRequest.current) toast.error(String(error))
       } finally {
-        setDetecting(false)
+        if (request === detectionRequest.current) setDetecting(false)
       }
     },
     [includeCli]
   )
+  const invalidateDetections = useCallback(() => {
+    detectionRequest.current++
+  }, [])
   useEffect(() => {
     void refresh()
-  }, [refresh])
+    return invalidateDetections
+  }, [refresh, invalidateDetections])
   useIpcOn('binary.availability_changed', () => void refresh())
   const localAgents = agents.filter((a) => a.type === 'local')
   const installedIds = new Set(detections.filter((detection) => detection.path).map((detection) => detection.presetId))
@@ -232,6 +240,7 @@ export function LocalAgentDirectory({
       (DEFAULT_AGENT_ORDER.get(a.id) ?? DEFAULT_AGENT_ORDER.size) -
         (DEFAULT_AGENT_ORDER.get(b.id) ?? DEFAULT_AGENT_ORDER.size)
   )
+  const dragName = (id: string | number) => entries.find((entry) => entry.id === id)?.name ?? String(id)
   const entry = entries.find((e) => e.id === selected || e.agent?.id === selected)
   const cliTool = entry?.preset
     ? codeCliForLocalAgent(entry.preset.id)
@@ -301,6 +310,21 @@ export function LocalAgentDirectory({
                 disabled={!!query || detecting}
                 gap="0.5rem"
                 restrictions={{ scrollableAncestor: true }}
+                accessibility={{
+                  screenReaderInstructions: { draggable: t('local_agents.drag.instructions') },
+                  announcements: {
+                    onDragStart: ({ active }) => t('local_agents.drag.picked_up', { name: dragName(active.id) }),
+                    onDragOver: ({ active, over }) =>
+                      over
+                        ? t('local_agents.drag.over', {
+                            name: dragName(active.id),
+                            over: dragName(over.id)
+                          })
+                        : undefined,
+                    onDragEnd: ({ active }) => t('local_agents.drag.dropped', { name: dragName(active.id) }),
+                    onDragCancel: ({ active }) => t('local_agents.drag.cancelled', { name: dragName(active.id) })
+                  }
+                }}
                 onReorder={async (nextItems) => {
                   const reordered = [...entries]
                   reordered.splice(
@@ -326,33 +350,43 @@ export function LocalAgentDirectory({
                           ? t('local_agents.detected')
                           : t('local_agents.not_installed')
                   const row = (
-                    <Button
-                      key={e.id}
-                      ref={dragHandleProps?.ref}
-                      {...dragHandleProps?.attributes}
-                      {...dragHandleProps?.listeners}
-                      variant="ghost"
-                      className={cn(
-                        'h-8 w-full justify-start gap-2.5 rounded-[10px] border border-transparent py-0 pr-2.5 pl-2 text-left font-normal shadow-none hover:bg-muted',
-                        entry?.id === e.id && 'bg-muted font-medium'
+                    <div className="group relative">
+                      <Button
+                        variant="ghost"
+                        className={cn(
+                          'h-8 w-full justify-start gap-2.5 rounded-[10px] border border-transparent py-0 pr-7 pl-2 text-left font-normal shadow-none hover:bg-muted',
+                          entry?.id === e.id && 'bg-muted font-medium'
+                        )}
+                        aria-pressed={entry?.id === e.id}
+                        aria-label={e.id.startsWith('cli:') ? e.name : `${e.name} · ${status}`}
+                        onClick={() => setPendingSelection(e.id)}>
+                        <LocalAgentIcon
+                          presetId={e.preset?.id}
+                          cliId={e.id.startsWith('cli:') ? e.id.slice(4) : undefined}
+                          size={26}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-sm leading-[1.35]">{e.name}</span>
+                        {notInstalled ? (
+                          <span className="shrink-0 text-xs font-normal text-foreground-tertiary">
+                            {t('local_agents.not_installed')}
+                          </span>
+                        ) : (
+                          enabled && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-success" />
+                        )}
+                      </Button>
+                      {dragHandleProps && (
+                        <Button
+                          ref={dragHandleProps.ref}
+                          {...dragHandleProps.attributes}
+                          {...dragHandleProps.listeners}
+                          variant="ghost"
+                          size="icon-sm"
+                          className="absolute top-1/2 right-0.5 size-6 -translate-y-1/2 cursor-grab opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                          aria-label={t('local_agents.drag.handle', { name: e.name })}>
+                          <GripVertical className="lucide-custom size-3.5 text-muted-foreground" />
+                        </Button>
                       )}
-                      aria-pressed={entry?.id === e.id}
-                      aria-label={e.id.startsWith('cli:') ? e.name : `${e.name} · ${status}`}
-                      onClick={() => setPendingSelection(e.id)}>
-                      <LocalAgentIcon
-                        presetId={e.preset?.id}
-                        cliId={e.id.startsWith('cli:') ? e.id.slice(4) : undefined}
-                        size={26}
-                      />
-                      <span className="min-w-0 flex-1 truncate text-sm leading-[1.35]">{e.name}</span>
-                      {notInstalled ? (
-                        <span className="shrink-0 text-xs font-normal text-foreground-tertiary">
-                          {t('local_agents.not_installed')}
-                        </span>
-                      ) : (
-                        enabled && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-success" />
-                      )}
-                    </Button>
+                    </div>
                   )
                   const tool = e.preset
                     ? codeCliForLocalAgent(e.preset.id)
@@ -536,11 +570,16 @@ function LocalAgentDetails({
     clearResult()
     if (pendingSelection) onNavigate()
   }
-  const persistLocalRuntime = (localRuntime: LocalAgentConfiguration, name?: string) =>
+  const persistLocalRuntime = (localRuntime: Partial<LocalAgentConfiguration>, name?: string) =>
     agent
       ? updateAgent({ id: agent.id, name, configuration: { localRuntime } }, { showSuccessToast: false })
       : createAgentAndRefresh(
-          { type: 'local', name: name ?? preset?.name ?? '', model: null, configuration: { localRuntime } },
+          {
+            type: 'local',
+            name: name ?? preset?.name ?? '',
+            model: null,
+            configuration: { localRuntime: { ...initial, ...localRuntime } }
+          },
           async () => {}
         )
   const goToChat = async () => {
@@ -682,14 +721,15 @@ function LocalAgentDetails({
       setBusyAction(undefined)
     }
   }
-  const save = async (localRuntime: LocalAgentConfiguration, savedName: string, action: 'save' | 'toggle') => {
+  const save = async (localRuntime: Partial<LocalAgentConfiguration>, savedName: string, action: 'save' | 'toggle') => {
     if (busy) return false
     setBusyAction(action)
     clearResult()
     try {
       if (!savedName) throw new Error(t('local_agents.name_required'))
-      if (localRuntime.enabled || (!preset && !agent)) {
-        const response = await ipcApi.request('ai.local_agents.check', localRuntime)
+      const configuration = { ...initial, ...localRuntime }
+      if (configuration.enabled || (!preset && !agent)) {
+        const response = await ipcApi.request('ai.local_agents.check', configuration)
         if (!response.ok) {
           showError(checkError(response))
           return false
@@ -785,9 +825,7 @@ function LocalAgentDetails({
                       aria-label={t('local_agents.enable')}
                       checked={initial.enabled}
                       disabled={busy || (!preset && !agent) || (!initial.enabled && !available)}
-                      onCheckedChange={(enabled) =>
-                        void save({ ...initial, enabled }, agent?.name ?? preset?.name ?? '', 'toggle')
-                      }
+                      onCheckedChange={(enabled) => void save({ enabled }, agent?.name ?? preset?.name ?? '', 'toggle')}
                     />
                   }
                 </>

@@ -16,7 +16,7 @@ import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 
 import type { LocalAgentBinaryRecipe } from './installRecipe'
 import { systemAgentEntry, systemAgentWrapper } from './launch'
-import { getBinaryAgentInstallation } from './uninstall'
+import { getBinaryAgentInstallation, writeBinaryManifest } from './uninstall'
 
 const MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 
@@ -42,6 +42,7 @@ export async function installBinaryAgent(
   const staging = await fs.mkdtemp(path.join(root, `${executable}-${recipe.version}-`))
   const archive = path.join(staging, 'download')
   const content = path.join(staging, 'files')
+  const commandPath = recipe.cmd.replace(/\\/g, '/')
   let published = false
   try {
     const response = await fetch(recipe.archive, { signal })
@@ -115,17 +116,24 @@ export async function installBinaryAgent(
       else await pipeline(createReadStream(archive), extract, { signal })
       if (invalidEntry) throw invalidEntry
     } else {
-      const target = inside(content, recipe.cmd)
+      const target = inside(content, commandPath)
       await fs.mkdir(path.dirname(target), { recursive: true })
       await fs.copyFile(archive, target)
     }
     signal.throwIfAborted()
-    const command = inside(content, recipe.cmd)
+    const command = inside(content, commandPath)
     if (!(await fs.stat(command)).isFile()) throw new Error('Agent executable is missing from archive')
     await fs.chmod(command, 0o755)
     await fs.rm(archive)
     await fs.mkdir(bin, { recursive: true })
     const entry = systemAgentEntry(executable)
+    // Keep retired resources for running terminals; explicit uninstall reclaims proven bundles.
+    if (previous) await writeBinaryManifest(executable, previous.bundle, previous.retired)
+    await writeBinaryManifest(
+      executable,
+      staging,
+      previous ? [...previous.retired, path.basename(previous.bundle)] : []
+    )
     if (previous) {
       const temporary = `${entry}.${randomUUID()}.tmp`
       try {

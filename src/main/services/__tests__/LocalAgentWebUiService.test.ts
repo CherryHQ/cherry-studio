@@ -2,12 +2,13 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { app, session } from 'electron'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type * as ProcessRunner from '@main/utils/processRunner'
-import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
+import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 import { LocalAgentWebUiService } from '../LocalAgentWebUiService'
 
@@ -16,7 +17,10 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 vi.mock('@main/ai/runtime/localAgent/launch', () => ({
-  resolveLocalAgentLaunch: async () => ({ executable: process.execPath, env: process.env })
+  resolveLocalAgentLaunch: async (config: LocalAgentConfiguration) => ({
+    executable: process.execPath,
+    env: { ...process.env, ...config.env }
+  })
 }))
 vi.mock('@main/utils/processRunner', async (importOriginal) => {
   const actual = await importOriginal<typeof ProcessRunner>()
@@ -34,7 +38,13 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => {
         const port = Number(args[args.indexOf('--port') + 1]);
         http.createServer((req, res) => {
           res.setHeader('Content-Type', 'text/html');
-          if (req.url.startsWith('/auth')) {
+          if (process.env.OPENCODE_SERVER_PASSWORD) {
+            const expected = 'Basic ' + Buffer.from((process.env.OPENCODE_SERVER_USERNAME || 'opencode') + ':' + process.env.OPENCODE_SERVER_PASSWORD).toString('base64');
+            if (req.headers.authorization !== expected) {
+              res.statusCode = 401;
+              res.setHeader('WWW-Authenticate', 'Basic realm="OpenCode"');
+            }
+          } else if (req.url.startsWith('/auth')) {
             res.statusCode = req.headers.authorization === 'Bearer ' + token ? 200 : 401;
           }
           res.end('<html>Agent Web UI</html>');
@@ -61,10 +71,57 @@ beforeEach(async () => {
   home = await mkdtemp(path.join(tmpdir(), 'agent-web-'))
   vi.mocked(application.getPath).mockReturnValue(home)
   service = new LocalAgentWebUiService()
+  vi.mocked(app.on).mockClear()
+  await service._doInit()
 })
 afterEach(async () => {
-  await Promise.all(LOCAL_AGENT_WEB_UI_IDS.map((id) => service.stop(id)))
+  await service._doStop()
   await rm(home, { recursive: true, force: true })
+})
+
+it('opens a password-protected server without exposing credentials in shared status or other guests', async () => {
+  const username = 'audit-user'
+  const password = 'audit-password'
+  const status = await service.start({
+    ...config,
+    presetId: 'opencode',
+    env: { OPENCODE_SERVER_USERNAME: username, OPENCODE_SERVER_PASSWORD: password }
+  })
+  expect(status.status).toBe('running')
+  expect(new URL(status.url!).username).toBe('')
+  expect(JSON.stringify(status)).not.toContain(password)
+  expect((await fetch(status.url!)).status).toBe(401)
+
+  const login = (vi.mocked(app.on).mock.calls as unknown as [string, unknown][]).find(
+    ([event]) => event === 'login'
+  )![1] as (
+    event: { preventDefault(): void },
+    contents: unknown,
+    details: { url: string },
+    auth: { isProxy: boolean; scheme: string },
+    callback: (username?: string, password?: string) => void
+  ) => void
+  const event = { preventDefault: vi.fn() }
+  const guest = { getType: () => 'webview', session: session.fromPartition('persist:webview') }
+  const auth = { isProxy: false, scheme: 'basic' }
+  let credentials: [string | undefined, string | undefined] | undefined
+  const receive = (username?: string, password?: string) => {
+    credentials = [username, password]
+  }
+  login(event, guest, { url: 'https://unrelated.example/' }, auth, receive)
+  login(event, guest, { url: status.url! }, { ...auth, isProxy: true }, receive)
+  login(event, { ...guest, session: session.fromPartition('persist:other') }, { url: status.url! }, auth, receive)
+  expect(credentials).toBeUndefined()
+
+  login(event, guest, { url: status.url! }, auth, receive)
+  expect(credentials).toEqual([username, password])
+  const authorization = `Basic ${Buffer.from(`${credentials![0]}:${credentials![1]}`).toString('base64')}`
+  expect(await (await fetch(status.url!, { headers: { authorization } })).text()).toContain('Agent Web UI')
+
+  await service.stop('opencode')
+  credentials = undefined
+  login(event, guest, { url: status.url! }, auth, receive)
+  expect(credentials).toBeUndefined()
 })
 
 it('keeps agents isolated, reuses running servers and releases only the stopped agent port', async () => {

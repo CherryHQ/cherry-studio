@@ -5,6 +5,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { appendBundledGitPathTail, isPathWithin, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
+import { mergeEnvironment } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import {
   LOCAL_AGENT_PRESETS,
@@ -94,12 +95,13 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
   const shellEnv = await getRawShellEnv(signal)
+  const lookupEnv = mergeEnvironment(shellEnv, preset?.env, config.env)
   let executable: string | undefined
   let source = 'system'
   if (config.executableOverride && !(terminal && definition?.terminalExecutable)) {
     executable = path.isAbsolute(config.executableOverride)
       ? config.executableOverride
-      : ((await findExecutableInEnv(config.executableOverride, { env: shellEnv })) ?? undefined)
+      : ((await findExecutableInEnv(config.executableOverride, { env: lookupEnv })) ?? undefined)
     if (!executable) throw new Error('Local agent executable was not found')
     if (!(await fs.stat(executable)).isFile()) throw new Error('Local agent executable is not a file')
     await fs.access(executable, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
@@ -127,7 +129,7 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
     args: config.args.length
       ? config.args
       : [...(preset?.platformArgs?.[process.platform as 'linux' | 'darwin' | 'win32'] ?? preset?.args ?? [])],
-    env: { ...env, ...preset?.env, ...config.env }
+    env: mergeEnvironment(env, preset?.env, config.env)
   }
 }
 
@@ -135,7 +137,7 @@ export async function openLocalAgentTerminal(config: LocalAgentConfiguration) {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
   if (!preset?.terminalArgs) throw new Error('This agent does not have a supported interactive CLI')
   const launch = await resolveLocalAgentLaunch(config, undefined, true)
-  const envKeys = new Set(['PATH', ...Object.keys(preset.env ?? {}), ...Object.keys(config.env)])
+  const envKeys = new Set(['PATH', ...Object.keys(mergeEnvironment(preset.env, config.env))])
   const env = Object.fromEntries(
     Object.entries(launch.env).filter(
       ([key]) => envKeys.has(key) || key.toUpperCase() === 'PATH' || key.startsWith('MISE_')

@@ -184,6 +184,19 @@ describe('CLI config provider fields', () => {
     expect(onChange).toHaveBeenCalledWith({})
   })
 
+  it('shows OpenCode default compaction as enabled and explicitly saves false when switched off', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<OpenCodeConfigFields config={{}} onChange={onChange} />)
+    const toggle = screen.getByRole('button', { name: 'code.adv.opencode.auto_compact' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(toggle)
+    expect(onChange).toHaveBeenLastCalledWith({ autoCompact: false })
+    rerender(<OpenCodeConfigFields config={{ autoCompact: false }} onChange={onChange} />)
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(toggle)
+    expect(onChange).toHaveBeenLastCalledWith({ autoCompact: true })
+  })
+
   it('writes Qwen approval mode selections', () => {
     const onChange = vi.fn()
     render(<QwenConfigFields config={{}} onChange={onChange} />)

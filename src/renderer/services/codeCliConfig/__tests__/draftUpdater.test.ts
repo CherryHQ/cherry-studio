@@ -90,6 +90,20 @@ describe('formatCliConfigDraftFile', () => {
     expect(formatCliConfigDraftFile(file).content).toBe('{\n  "b": 2,\n  "a": 1\n}\n')
   })
 
+  it('retains JSONC comments and trailing commas when formatting a user-owned config', () => {
+    const file: CliConfigFileDraft = {
+      target: 'opencode-config',
+      label: '',
+      path: '',
+      language: 'json',
+      content: '{// Model choice\n"model":"provider/model",/* retained */}'
+    }
+    const formatted = formatCliConfigDraftFile(file).content
+    expect(formatted).toContain('// Model choice')
+    expect(formatted).toContain('/* retained */')
+    expect(formatted).toContain('"model": "provider/model",')
+  })
+
   it('leaves non-JSON (toml/dotenv) drafts untouched', () => {
     const file: CliConfigFileDraft = {
       target: 'kimi-config',
@@ -242,8 +256,9 @@ describe('updateCliConfigDraftConfig', () => {
     expect(parsed.compaction).toEqual({ auto: true, prune: false, reserved: 10000 })
     expect(parsed).not.toHaveProperty('autoCompact')
 
-    const disabled = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, updated, {})
-    expect(JSON.parse(disabled[0].content).compaction).toEqual({ prune: false, reserved: 10000 })
+    const disabled = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, updated, { autoCompact: false })
+    expect(JSON.parse(disabled[0].content).compaction).toEqual({ auto: false, prune: false, reserved: 10000 })
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, disabled)?.autoCompact).toBe(false)
   })
 
   it('returns the files unchanged when there is no managed connection', () => {

@@ -74,6 +74,15 @@ describe('AgentEntitySchema', () => {
     expect(parsed.configuration).toHaveProperty('reasoning_effort', undefined)
   })
 
+  it('preserves only supplied local runtime fields in a patch, including explicit removals', () => {
+    const patch = UpdateAgentSchema.parse({
+      configuration: { localRuntime: { args: ['--acp'], executableOverride: undefined } }
+    })
+    expect(patch.configuration?.localRuntime).toEqual({ args: ['--acp'], executableOverride: undefined })
+    expect(UpdateAgentSchema.safeParse({ configuration: { localRuntime: { args: [1] } } }).success).toBe(false)
+    expect(AgentConfigurationSchema.safeParse({ localRuntime: { enabled: true } }).success).toBe(false)
+  })
+
   it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {
     expect(UpdateAgentSchema.parse({ knowledgeBaseIds: ['kb-b', 'kb-b'] }).knowledgeBaseIds).toEqual(['kb-b'])
     expect(UpdateAgentSchema.parse({ knowledgeBaseIds: [] }).knowledgeBaseIds).toEqual([])

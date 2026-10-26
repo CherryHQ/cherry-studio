@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { mergeEnvironment } from '@main/utils/env'
 import { atomicWriteFile, ensureDir, read, realpath, remove } from '@main/utils/file'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -28,7 +29,7 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
   if (pathBase === 'hermes-home') {
     return AbsoluteFilePathSchema.parse(path.join(await getHermesHome(), specPath))
   }
-  const env = await getRawShellEnv()
+  const env = mergeEnvironment(await getRawShellEnv())
   const directories: Partial<Record<CliConfigTarget, string | undefined>> = {
     'claude-settings': env.CLAUDE_CONFIG_DIR,
     'codex-config': env.CODEX_HOME,

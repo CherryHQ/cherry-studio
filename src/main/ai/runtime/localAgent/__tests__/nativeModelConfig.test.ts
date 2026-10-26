@@ -3,6 +3,8 @@ import * as toml from 'smol-toml'
 import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
+import { application } from '@application'
+
 import { updateNativeModelConfig } from '../nativeModelConfig'
 
 describe('native model defaults', () => {
@@ -66,5 +68,18 @@ describe('native model defaults', () => {
     ['hermes-config', 'model: [']
   ] as const)('rejects malformed %s instead of replacing the existing settings', (target, content) => {
     expect(() => updateNativeModelConfig(target, content, 'new')).toThrow()
+  })
+
+  it('reports invalid native configuration in the current app language', async () => {
+    const preferences = application.get('PreferenceService')
+    const previous = preferences.get('app.language')
+    await preferences.set('app.language', 'zh-CN')
+    try {
+      expect(() => updateNativeModelConfig('opencode-config', '{ broken', 'next')).toThrow(/JSON.*配置/)
+      expect(() => updateNativeModelConfig('codex-config', 'model = [', 'next')).toThrow(/TOML.*配置/)
+      expect(() => updateNativeModelConfig('hermes-config', 'model: [', 'next')).toThrow(/YAML.*配置/)
+    } finally {
+      await preferences.set('app.language', previous)
+    }
   })
 })

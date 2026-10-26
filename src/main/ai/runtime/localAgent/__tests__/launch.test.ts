@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type * as Platform from '@main/core/platform'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 
@@ -12,8 +13,15 @@ import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch } fr
 
 const inventory = vi.hoisted(() => ({
   openTerminal: vi.fn(),
+  isWin: process.platform === 'win32',
   snapshots: {} as Record<string, BinaryToolSnapshot>,
   bundledGitDir: null as string | null
+}))
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  get isWin() {
+    return inventory.isWin
+  }
 }))
 vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => inventory.bundledGitDir }))
 vi.mock('@application', async () => {
@@ -35,6 +43,7 @@ describe('local agent installation resolution', () => {
     directory = await mkdtemp(path.join(tmpdir(), 'local launch '))
     vi.mocked(application.getPath).mockImplementation((key) => path.join(directory, key))
     inventory.openTerminal.mockReset()
+    inventory.isWin = process.platform === 'win32'
     inventory.openTerminal.mockResolvedValue({ success: true })
     inventory.snapshots = {}
     inventory.bundledGitDir = null
@@ -63,6 +72,22 @@ describe('local agent installation resolution', () => {
         env: expect.objectContaining({ MISE_DATA_DIR: path.join(directory, 'feature.binary.data') })
       })
     )
+  })
+
+  it('passes mixed-case Windows overrides to the terminal with the same values as protocol launches', async () => {
+    inventory.isWin = true
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    const selected = { ...config, env: { Codex_Home: '/selected/codex', foo: 'explicit' } }
+    const launch = await resolveLocalAgentLaunch(selected)
+    await openLocalAgentTerminal(selected)
+    expect(launch.env.CODEX_HOME).toBe('/selected/codex')
+    expect(launch.env.FOO).toBe('explicit')
+    expect(inventory.openTerminal).toHaveBeenLastCalledWith({
+      executable: launch.executable,
+      args: [],
+      usesCherryExecutionEnv: false,
+      env: { PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', CODEX_HOME: launch.env.CODEX_HOME, FOO: launch.env.FOO }
+    })
   })
 
   it.each([
@@ -175,6 +200,21 @@ describe('local agent installation resolution', () => {
     expect((await resolveLocalAgentLaunch(selected)).args).toEqual(['argument with spaces'])
     await rm(executable)
     await expect(resolveLocalAgentLaunch(selected)).rejects.toThrow()
+  })
+
+  it('resolves a custom command in its configured PATH before launching it', async () => {
+    const executable = path.join(directory, `audit-custom${process.platform === 'win32' ? '.cmd' : ''}`)
+    await writeFile(executable, '#!/bin/sh\n')
+    await chmod(executable, 0o755)
+    const launch = await resolveLocalAgentLaunch({
+      protocol: 'acp',
+      enabled: false,
+      args: [],
+      executableOverride: 'audit-custom',
+      env: { PATH: directory }
+    })
+    expect(launch.executable).toBe(executable)
+    expect(launch.env.PATH).toBe(directory)
   })
 
   it.each([

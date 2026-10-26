@@ -76,6 +76,27 @@ describe('system binary installation', () => {
     expect(await fs.readdir(path.dirname(entry))).toEqual([path.basename(entry)])
   })
 
+  it('resolves registry Windows command separators to the extracted file', async () => {
+    const zip = new AdmZip()
+    zip.addFile('dist-package/cursor-agent.cmd', Buffer.from('@echo ready'))
+    serve(zip.toBuffer())
+    const entry = await installBinaryAgent(
+      'example-agent',
+      {
+        manager: 'binary',
+        version: '1.0.0',
+        archive: 'https://example.com/windows.zip',
+        cmd: './dist-package\\cursor-agent.cmd'
+      },
+      new AbortController().signal
+    )
+    const [bundle] = await fs.readdir(path.join(root, 'agents'))
+    expect(
+      await fs.readFile(path.join(root, 'agents', bundle, 'files', 'dist-package', 'cursor-agent.cmd'), 'utf8')
+    ).toBe('@echo ready')
+    expect(await fs.readFile(entry, 'utf8')).toContain('cursor-agent.cmd')
+  })
+
   it('never publishes an executable for a checksum mismatch', async () => {
     serve(Buffer.from('wrong archive'))
     await expect(
@@ -181,20 +202,23 @@ describe('system binary installation', () => {
     }
   )
 
-  it('rejects registry executable paths outside the extracted bundle', async () => {
-    serve(Buffer.from('binary contents'))
-    await expect(
-      installBinaryAgent(
-        'example-agent',
-        {
-          manager: 'binary',
-          version: '1.0.0',
-          archive: 'https://example.com/agent',
-          cmd: '../../outside'
-        },
-        new AbortController().signal
-      )
-    ).rejects.toThrow('escapes')
-    await expect(fs.stat(path.join(root, 'outside'))).rejects.toMatchObject({ code: 'ENOENT' })
-  })
+  it.each(['../../outside', '..\\..\\outside', 'C:\\outside', '\\\\server\\share'])(
+    'rejects registry executable paths outside the extracted bundle: %s',
+    async (cmd) => {
+      serve(Buffer.from('binary contents'))
+      await expect(
+        installBinaryAgent(
+          'example-agent',
+          {
+            manager: 'binary',
+            version: '1.0.0',
+            archive: 'https://example.com/agent',
+            cmd
+          },
+          new AbortController().signal
+        )
+      ).rejects.toThrow(/escapes|Invalid archive path/)
+      await expect(fs.stat(path.join(root, 'outside'))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  )
 })

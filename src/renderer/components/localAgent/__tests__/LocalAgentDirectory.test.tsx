@@ -1,11 +1,12 @@
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabIdContext, TabsContext, type Tab, type TabsContextValue } from '@renderer/hooks/tab'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 
@@ -68,6 +69,22 @@ describe('local agent settings navigation', () => {
     render(<LocalAgentSettingsPage />)
     await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('ai.codebuddy_web.status'))
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it.each(['opencode', 'codebuddy-code'])('reports a stop failure accurately for %s WebUI', async (presetId) => {
+    navigation.search = { id: presetId }
+    if (presetId === 'opencode')
+      MockUseCacheUtils.setSharedCacheValue('feature.local_agent.web_ui.status', { opencode: { status: 'running' } })
+    else MockUseCacheUtils.setSharedCacheValue('feature.codebuddy.web_ui.status', { status: 'running', owned: true })
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
+      if (route === 'ai.local_agents.web_stop' || route === 'ai.codebuddy_web.stop') throw new Error('stop failed')
+      return { models: [] } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: '停止' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('停止 WebUI 失败，请重试。'))
+    expect(screen.getByRole('button', { name: '停止' })).toBeEnabled()
   })
 
   it('keeps automatic authentication failures quiet and reports failures after a manual model refresh', async () => {
@@ -334,7 +351,7 @@ describe('local agent settings navigation', () => {
     rerender(<LocalAgentSettingsPage />)
     const confirmation = await screen.findByRole('alert')
     expect(confirmation).toHaveTextContent('放弃未保存的修改？')
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Claude Code')
+    expect(screen.getByRole('heading', { level: 1, hidden: true })).toHaveTextContent('Claude Code')
     await user.click(within(confirmation).getByRole('button', { name: '取消' }))
     expect(screen.getByRole('textbox', { name: /可执行程序/ })).toHaveValue('/tmp/my-claude')
     expect(navigation.search.id).toBe('claude')
@@ -346,6 +363,52 @@ describe('local agent settings navigation', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('selects an agent with Enter without starting a drag', async () => {
+    const user = userEvent.setup()
+    render(<LocalAgentSettingsPage />)
+    const codex = await screen.findByRole('button', { name: /^Codex ·/ })
+    await waitFor(() => expect(screen.getByRole('button', { name: '重新检测' })).toBeEnabled())
+    codex.focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
+    expect(screen.getAllByRole('button', { name: /^Codex ·/ })).toHaveLength(1)
+  })
+
+  it('ignores stale discovery results after a newer availability update', async () => {
+    vi.mocked(useIpcOn).mockClear()
+    navigation.search = { id: 'cli:openclaw' }
+    MockUseDataApiUtils.mockQueryData('/agents', { items: [], total: 0, page: 1 })
+    let finishOld!: (value: unknown) => void
+    let finishNew!: (value: unknown) => void
+    const oldDetection = new Promise((resolve) => {
+      finishOld = resolve
+    })
+    const newDetection = new Promise((resolve) => {
+      finishNew = resolve
+    })
+    let calls = 0
+    vi.mocked(ipcApi.request).mockImplementation((route) => {
+      if (route === 'ai.local_agents.detect') return (++calls === 1 ? oldDetection : newDetection) as never
+      return Promise.resolve({}) as never
+    })
+    render(<LocalAgentDirectory destination="/app/code" renderCli={() => null} />)
+    const handler = vi
+      .mocked(useIpcOn)
+      .mock.calls.find(([name]) => name === 'binary.availability_changed')![1] as () => void
+    act(() => {
+      handler()
+    })
+    await act(async () => {
+      finishNew([{ presetId: 'claude', path: '/new/claude' }])
+    })
+    expect(screen.getByRole('button', { name: 'Claude Code · 已安装' })).toBeInTheDocument()
+    await act(async () => {
+      finishOld([])
+    })
+    expect(screen.getByRole('button', { name: 'Claude Code · 已安装' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新检测' })).toBeEnabled()
+  })
+
   it('rejects invalid draft JSON before saving and retains the draft for correction', async () => {
     const user = userEvent.setup()
     render(<LocalAgentSettingsPage />)
@@ -354,7 +417,17 @@ describe('local agent settings navigation', () => {
     await user.clear(args)
     await user.type(args, 'invalid json')
     await user.click(screen.getByRole('button', { name: '保存' }))
-    expect(await within(screen.getByRole('dialog')).findByRole('status')).toHaveTextContent(/SyntaxError/)
+    expect(await within(screen.getByRole('dialog')).findByRole('status')).toHaveTextContent(
+      '启动参数必须是 JSON 字符串数组。'
+    )
     expect(args).toHaveValue('invalid json')
+    await user.clear(args)
+    fireEvent.change(args, { target: { value: '[]' } })
+    const env = screen.getByLabelText('环境变量（JSON 对象）')
+    fireEvent.change(env, { target: { value: '{"TEST":1}' } })
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(await within(screen.getByRole('dialog')).findByRole('status')).toHaveTextContent(
+      '环境变量必须是 JSON 对象，变量名须有效，值须为字符串。'
+    )
   })
 })

@@ -80,10 +80,33 @@ describe('local agents on migrated SQLite', () => {
     })
     agentService.updateAgent(agent.id, { configuration: { localRuntime: { ...config, nativeModel: 'cli-model' } } })
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('cli-model')
-    agentService.updateAgent(agent.id, { configuration: { localRuntime: { ...config } } })
+    agentService.updateAgent(agent.id, { configuration: { localRuntime: { nativeModel: undefined } } })
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBeUndefined()
     expect(agentSessionService.getById(session.id).agentId).toBe(agent.id)
     expect(database.db.select().from(userModelTable).all()).toHaveLength(0)
+  })
+
+  it('merges editor fields with the latest model and enable state inside the write transaction', async () => {
+    const agent = await createAgent(request())
+    agentService.updateAgent(agent.id, {
+      configuration: { localRuntime: { nativeModel: 'new-model', enabled: false } }
+    })
+    const updated = agentService.updateAgent(agent.id, {
+      configuration: {
+        localRuntime: { args: ['app-server', '--test'], env: { TEST: 'value' }, executableOverride: undefined }
+      }
+    })
+    expect(updated?.configuration?.localRuntime).toEqual({
+      ...config,
+      enabled: false,
+      nativeModel: 'new-model',
+      args: ['app-server', '--test'],
+      env: { TEST: 'value' }
+    })
+    expect(() => agentService.updateAgent(agent.id, { configuration: { localRuntime: { protocol: 'acp' } } })).toThrow(
+      'Protocol and preset'
+    )
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(updated?.configuration?.localRuntime)
   })
 
   it('routes and persists a native-model reply without a provider/model foreign key', async () => {

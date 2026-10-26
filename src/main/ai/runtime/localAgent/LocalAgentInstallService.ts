@@ -162,7 +162,7 @@ export class LocalAgentInstallService extends BaseService {
       ? resolveCliInstallRecipe(target.cli, targetVersion)
       : resolveInstallRecipe(
           target.id,
-          target.protocol === 'acp' && target.id !== 'kimi' && !target.npmPackage
+          target.protocol === 'acp' && target.id !== 'kimi' && target.id !== 'hermes' && !target.npmPackage
             ? await this.fetchRegistry()
             : undefined
         )

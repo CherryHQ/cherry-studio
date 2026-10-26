@@ -2,12 +2,21 @@ import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser'
 import * as toml from 'smol-toml'
 import { parseDocument } from 'yaml'
 
+import { t } from '@main/i18n'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
+
+function parseToml(content: string) {
+  try {
+    return toml.parse(content)
+  } catch {
+    throw new Error(t('code_cli.model.invalid_config', { format: 'TOML' }))
+  }
+}
 
 /** Changes only the native default, preserving credentials and unrelated settings. */
 export function updateNativeModelConfig(target: CliConfigTarget, content: string | null, model?: string): string {
   if (target === 'codex-config' || target === 'kimi-config') {
-    const config = toml.parse(content ?? '')
+    const config = parseToml(content ?? '')
     const key = target === 'codex-config' ? 'model' : 'default_model'
     if (model === undefined) delete config[key]
     else config[key] = model
@@ -15,7 +24,7 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
   }
   if (target === 'hermes-config' || target === 'minimax-config') {
     const config = parseDocument(content ?? '{}')
-    if (config.errors.length) throw new Error('Invalid agent YAML configuration')
+    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
     const key = target === 'hermes-config' ? ['model', 'default'] : ['defaultModel']
     if (model === undefined) config.deleteIn(key)
     else config.setIn(key, model)
@@ -24,7 +33,7 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
   const errors: ParseError[] = []
   const config = parse(content ?? '{}', errors, { allowTrailingComma: true })
   if (errors.length || !config || typeof config !== 'object' || Array.isArray(config)) {
-    throw new Error('Invalid agent JSON configuration')
+    throw new Error(t('code_cli.model.invalid_config', { format: 'JSON' }))
   }
   let updates: [string[], string | undefined][]
   switch (target) {
@@ -43,7 +52,7 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
       break
     case 'pi-settings': {
       const slash = model?.indexOf('/') ?? -1
-      if (model && (slash < 1 || slash === model.length - 1)) throw new Error('Pi requires a provider/model identifier')
+      if (model && (slash < 1 || slash === model.length - 1)) throw new Error(t('code_cli.model.pi_model_invalid'))
       updates = [
         [['defaultProvider'], model?.slice(0, slash)],
         [['defaultModel'], model?.slice(slash + 1)]
@@ -51,7 +60,7 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
       break
     }
     default:
-      throw new Error('This agent does not support saving a native default model')
+      throw new Error(t('code_cli.model.unsupported'))
   }
   return updates.reduce(
     (text, [key, value]) =>
@@ -67,20 +76,20 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
 
 export function readNativeModelConfig(target: CliConfigTarget, content: string): string | undefined {
   if (target === 'codex-config' || target === 'kimi-config') {
-    const config = toml.parse(content)
+    const config = parseToml(content)
     const value = config[target === 'codex-config' ? 'model' : 'default_model']
     return typeof value === 'string' ? value : undefined
   }
   if (target === 'hermes-config' || target === 'minimax-config') {
     const config = parseDocument(content)
-    if (config.errors.length) throw new Error('Invalid agent YAML configuration')
+    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
     const value = config.getIn(target === 'hermes-config' ? ['model', 'default'] : ['defaultModel'])
     return typeof value === 'string' ? value : undefined
   }
   const errors: ParseError[] = []
   const config = parse(content, errors, { allowTrailingComma: true })
   if (errors.length || !config || typeof config !== 'object' || Array.isArray(config))
-    throw new Error('Invalid agent JSON configuration')
+    throw new Error(t('code_cli.model.invalid_config', { format: 'JSON' }))
   const value =
     target === 'pi-settings'
       ? config.defaultProvider && config.defaultModel && `${config.defaultProvider}/${config.defaultModel}`

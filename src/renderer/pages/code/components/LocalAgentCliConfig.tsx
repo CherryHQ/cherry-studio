@@ -12,6 +12,8 @@ import {
   Scrollbar,
   Tooltip
 } from '@cherrystudio/ui'
+import { useSharedCacheValue } from '@data/hooks/useCache'
+import { useHermesDashboardController } from '@renderer/hooks/agent/useHermesDashboardController'
 import { ipcApi } from '@renderer/ipc'
 import {
   extractConfigFromCliConfigDraft,
@@ -45,6 +47,10 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
   const [error, setError] = useState('')
   const [invalid, setInvalid] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
+  const hermesStatus = useSharedCacheValue('feature.hermes_dashboard.status')
+  const hermesDashboard = useHermesDashboardController(CodeCli.HERMES)
+  const configLocked =
+    tool === CodeCli.HERMES && (hermesStatus?.status === 'running' || hermesStatus?.status === 'starting')
   if (!isFileConfiguredCli(tool)) return null
   const dirty = JSON.stringify(files) !== JSON.stringify(original)
   const change = (next: CliConfigFileDraft[]) => {
@@ -89,7 +95,7 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
     else setOpen(false)
   }
   const save = async () => {
-    if (saving || invalid || !dirty) return
+    if (saving || invalid || !dirty || configLocked) return
     setSaving(true)
     try {
       const changed = files.filter(
@@ -155,8 +161,20 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
           <DialogHeader>
             <DialogTitle>{t('code.cli_config.title')}</DialogTitle>
           </DialogHeader>
+          {configLocked && (
+            <div role="status" className="flex items-center justify-between gap-3 rounded-lg bg-muted p-3 text-sm">
+              <p>{t('code.cli_config.hermes_running')}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                loading={hermesDashboard.stopping}
+                onClick={() => void hermesDashboard.onStop()}>
+                {t('code.stop')}
+              </Button>
+            </div>
+          )}
           <Scrollbar className="min-h-0 flex-1">
-            <div className="space-y-5" inert={saving}>
+            <div className="space-y-5" inert={saving || configLocked}>
               {toolFields && (
                 <section className="space-y-2">
                   <h2 className="text-sm font-semibold">{t('code.tool_parameters')}</h2>
@@ -184,7 +202,10 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
                 <Button variant="ghost" disabled={saving} onClick={close}>
                   {t('common.cancel')}
                 </Button>
-                <Button disabled={!dirty || invalid || saving} loading={saving} onClick={() => void save()}>
+                <Button
+                  disabled={!dirty || invalid || saving || configLocked}
+                  loading={saving}
+                  onClick={() => void save()}>
                   {t('common.save')}
                 </Button>
               </>

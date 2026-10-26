@@ -8,14 +8,24 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import type * as Platform from '@main/core/platform'
+import { t } from '@main/i18n'
 import { codeCliHandlers } from '@main/ipc/handlers/codeCli'
 import { CodeCliService } from '@main/services/codeCli/CodeCliService'
+import { getRawShellEnv } from '@main/utils/shellEnv'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 import { selectLocalAgentModel, syncLocalAgentConfigModel } from '../selectModel'
 
-vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: async () => ({}) }))
+const platform = vi.hoisted(() => ({ isWin: process.platform === 'win32' }))
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  get isWin() {
+    return platform.isWin
+  }
+}))
+vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: vi.fn(async () => ({})) }))
 
 describe('global local agent model selection', () => {
   setupTestDatabase()
@@ -74,7 +84,7 @@ describe('global local agent model selection', () => {
       model: null,
       configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {}, nativeModel: 'previous' } }
     })
-    await expect(selectLocalAgentModel(agent.id, 'next')).rejects.toThrow('native default')
+    await expect(selectLocalAgentModel(agent.id, 'next')).rejects.toThrow(t('code_cli.model.unsupported'))
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('previous')
   })
   it.each([false, true])(
@@ -110,7 +120,9 @@ describe('global local agent model selection', () => {
       expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.sourceModelViaGateway).toBe(viaGateway)
       const modelsPath = path.join(home, '.pi/agent/models.json')
       expect(JSON.parse(await readFile(modelsPath, 'utf8')).providers['cherry-custom'].apiKey).toBe('test-key')
-      await expect(selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6')).rejects.toThrow('must be cleared')
+      await expect(selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6')).rejects.toThrow(
+        t('code_cli.model.provider_clear_required')
+      )
       const restored = await selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6', {
         files: [
           { target: 'pi-settings', content: '{"theme":"dark"}' },
@@ -143,6 +155,32 @@ describe('global local agent model selection', () => {
     ).rejects.toThrow('configuration changed')
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('anthropic/first')
     expect(JSON.parse(await readFile(path.join(home, '.pi/agent/settings.json'), 'utf8')).defaultModel).toBe('first')
+  })
+
+  it('rejects a mixed-case Windows home override before writing a model to the wrong directory', async () => {
+    const agent = agentService.createAgentWithId('windows-env-model', {
+      name: 'Codex',
+      type: 'local',
+      model: null,
+      configuration: {
+        localRuntime: {
+          presetId: 'codex',
+          protocol: 'codex',
+          enabled: true,
+          args: [],
+          env: { Codex_Home: '/different/home' }
+        }
+      }
+    })
+    platform.isWin = true
+    vi.mocked(getRawShellEnv).mockResolvedValue({ codex_home: '/terminal/home' })
+    try {
+      await expect(selectLocalAgentModel(agent.id, 'next')).rejects.toThrow(t('code_cli.model.environment_mismatch'))
+      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBeUndefined()
+    } finally {
+      platform.isWin = process.platform === 'win32'
+      vi.mocked(getRawShellEnv).mockResolvedValue({})
+    }
   })
   it('retains model source for parameter edits and rejects an editor draft after an external edit', async () => {
     const sourceModelId = createUniqueModelId('custom', 'example')

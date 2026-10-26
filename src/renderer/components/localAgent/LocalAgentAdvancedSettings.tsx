@@ -39,11 +39,11 @@ export function LocalAgentAdvancedSettings({
   onChange: () => void
   onError: (error: string) => void
   onUninstall: () => Promise<void>
-  onSave: (config: LocalAgentConfiguration, name: string) => Promise<boolean>
+  onSave: (config: Partial<LocalAgentConfiguration>, name: string) => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
-  const [draftConfig, setDraftConfig] = useState(config)
+  const [executableOverride, setExecutableOverride] = useState(config.executableOverride)
   const [name, setName] = useState(savedName)
   const [args, setArgs] = useState(JSON.stringify(config.args.length ? config.args : (preset?.args ?? [])))
   const [env, setEnv] = useState(JSON.stringify(config.env, null, 2))
@@ -62,16 +62,35 @@ export function LocalAgentAdvancedSettings({
   const save = async () => {
     if (busy) return
     onChange()
+    let parsedArgs: unknown
+    let parsedEnv: unknown
     try {
-      const localRuntime = LocalAgentConfigurationSchema.parse({
-        ...draftConfig,
-        args: JSON.parse(args),
-        env: JSON.parse(env)
-      })
-      if (await onSave(localRuntime, name.trim())) setOpen(false)
-    } catch (error) {
-      onError(String(error))
+      parsedArgs = JSON.parse(args)
+    } catch {
+      onError(t('local_agents.arguments_invalid'))
+      return
     }
+    try {
+      parsedEnv = JSON.parse(env)
+    } catch {
+      onError(t('local_agents.environment_invalid'))
+      return
+    }
+    const parsed = LocalAgentConfigurationSchema.pick({ args: true, env: true }).safeParse({
+      args: parsedArgs,
+      env: parsedEnv
+    })
+    if (!parsed.success) {
+      onError(
+        t(
+          parsed.error.issues[0].path[0] === 'args'
+            ? 'local_agents.arguments_invalid'
+            : 'local_agents.environment_invalid'
+        )
+      )
+      return
+    }
+    if (await onSave({ executableOverride, ...parsed.data }, name.trim())) setOpen(false)
   }
   return (
     <PageSidePanel
@@ -149,8 +168,8 @@ export function LocalAgentAdvancedSettings({
             id="local-agent-path"
             className="h-8 font-mono text-xs"
             placeholder={detection?.path ?? preset?.executable}
-            value={draftConfig.executableOverride ?? ''}
-            onChange={(e) => setDraftConfig({ ...draftConfig, executableOverride: e.target.value || undefined })}
+            value={executableOverride ?? ''}
+            onChange={(e) => setExecutableOverride(e.target.value || undefined)}
           />
         </div>
         <div className="space-y-2">

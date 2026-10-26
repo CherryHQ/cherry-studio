@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -8,6 +9,35 @@ import { application } from '@application'
 import { isPathWithin } from '@main/utils/binaryEnv'
 
 import { systemAgentEntry, systemAgentWrapper } from './launch'
+
+const BINARY_MANIFEST = '.cherry-install.json'
+
+async function readBinaryManifest(bundle: string) {
+  try {
+    const file = path.join(bundle, BINARY_MANIFEST)
+    if (!(await fs.lstat(file)).isFile()) return undefined
+    const data = JSON.parse(await fs.readFile(file, 'utf8'))
+    if (!data || typeof data.executable !== 'string' || !Array.isArray(data.retired)) return undefined
+    return {
+      executable: data.executable,
+      retired: data.retired.filter((name: unknown) => typeof name === 'string') as string[]
+    }
+  } catch (error) {
+    if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
+  }
+}
+
+export async function writeBinaryManifest(executable: string, bundle: string, retired: string[]) {
+  const file = path.join(bundle, BINARY_MANIFEST)
+  const temporary = `${file}.${randomUUID()}.tmp`
+  try {
+    await fs.writeFile(temporary, JSON.stringify({ executable, retired }), { flag: 'wx' })
+    await fs.rename(temporary, file)
+  } finally {
+    await fs.rm(temporary, { force: true })
+  }
+}
 
 export async function getBinaryAgentInstallation(executable: string, detectedPath: string) {
   const entry = systemAgentEntry(executable)
@@ -28,14 +58,28 @@ export async function getBinaryAgentInstallation(executable: string, detectedPat
   const bundle = path.join(root, relative[0])
   if (!isPathWithin(root, bundle) || (await fs.realpath(bundle)) !== bundle) return undefined
   if (!isPathWithin(path.join(bundle, 'files'), resolvedCommand)) return undefined
-  return { entry, bundle, wrapper }
+  const manifest = await readBinaryManifest(bundle)
+  return { entry, bundle, wrapper, retired: manifest?.executable === executable ? manifest.retired : [] }
 }
 
 export async function uninstallBinaryAgent(executable: string, detectedPath: string): Promise<boolean> {
   const installed = await getBinaryAgentInstallation(executable, detectedPath)
   if (!installed) return false
-  await fs.unlink(installed.entry)
+  const root = await fs.realpath(application.getPath('external.acp.agents'))
+  for (const name of new Set(installed.retired)) {
+    if (name !== path.basename(name) || !name.startsWith(`${executable}-`)) continue
+    const bundle = path.join(root, name)
+    if (bundle === installed.bundle || !isPathWithin(root, bundle)) continue
+    const stat = await fs.lstat(bundle).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error
+    })
+    if (!stat?.isDirectory() || (await fs.realpath(bundle)) !== bundle) continue
+    const metadata = await readBinaryManifest(bundle)
+    if (metadata?.executable !== executable) continue
+    await fs.rm(bundle, { recursive: true })
+  }
   await fs.rm(installed.bundle, { recursive: true })
+  await fs.unlink(installed.entry)
   return true
 }
 
