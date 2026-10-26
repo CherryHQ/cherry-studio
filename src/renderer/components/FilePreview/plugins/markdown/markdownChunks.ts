@@ -1059,6 +1059,26 @@ function emphasisFlanks(before: number, run: string, after: number): { opens: bo
 }
 
 /**
+ * Where a scan resumes after the backtick run at `index`: past the span that a run of the same
+ * length closes, or past the run itself when nothing closes it — an unmatched run is literal text
+ * and the content behind it is parsed as such. Code span content is opaque, so a marker inside one
+ * is not a marker at all.
+ */
+function afterBacktickRun(source: string, index: number): number {
+  let opening = 1
+  while (source[index + opening] === '`') opening += 1
+  for (let next = index + opening; next < source.length;) {
+    const at = source.indexOf('`', next)
+    if (at < 0) break
+    let end = at
+    while (source[end] === '`') end += 1
+    if (end - at === opening) return end
+    next = end
+  }
+  return index + opening
+}
+
+/**
  * The offsets of the emphasis runs in `source` — the `*` of `Foo*bar*` — with the flanks micromark
  * reads from the characters beside each one. The scan is linear in the source: a run is matched
  * where it stands and never revisited.
@@ -1071,6 +1091,10 @@ function emphasisRuns(
     const character = source[index]
     if (character === '\\') {
       index += 2
+      continue
+    }
+    if (character === '`') {
+      index = afterBacktickRun(source, index)
       continue
     }
     if (character !== '*' && character !== '_') {
@@ -1101,18 +1125,35 @@ function emphasisSpans(source: string): Map<number, number> {
   const runs = emphasisRuns(source)
   const spans = new Map<number, number>()
   const open: Array<{ at: number; marker: string; remaining: number; closes: boolean }> = []
+  // A closer pairs only with its own marker, so walking the other marker's openers is work with no
+  // possible answer. `openers` indexes `open` per marker, and `bottoms` remembers, per class of
+  // closer, where a failed search ran out: every opener below that was already rejected for the
+  // same class, and a closer cannot make it acceptable again. Together they keep a document that
+  // is all openers of one marker and closers of the other — the shape a heading of
+  // `*a ` × 64k + `a_ ` × 64k takes — from costing its length squared.
+  const openers = new Map<string, number[]>()
+  const bottoms = new Map<string, number>()
+  const trim = (length: number): void => {
+    while (open.length > length) {
+      const dropped = open.pop()
+      if (!dropped) break
+      const stack = openers.get(dropped.marker)
+      if (stack && stack[stack.length - 1] === open.length) stack.pop()
+    }
+    for (const [key, bottom] of bottoms) if (bottom > open.length) bottoms.set(key, open.length)
+  }
   for (const current of runs) {
     let remaining = current.run.length
     if (current.closes) {
+      const stack = openers.get(current.run[0]) ?? []
       while (remaining > 0) {
-        let index = open.length - 1
+        const key = `${current.run[0]}${remaining % 3}${current.opens ? 1 : 0}`
+        const bottom = bottoms.get(key) ?? 0
         let match = -1
-        while (index >= 0) {
-          const candidate = open[index]
-          if (candidate.marker !== current.run[0]) {
-            index -= 1
-            continue
-          }
+        for (let position = stack.length - 1; position >= 0; position -= 1) {
+          const at = stack[position]
+          if (at < bottom) break
+          const candidate = open[at]
           // Rule of three: when the opener can also close or the closer can also open, a closer
           // that is not a multiple of three cannot pair when the two lengths sum to a multiple.
           if (
@@ -1120,13 +1161,15 @@ function emphasisSpans(source: string): Map<number, number> {
             remaining % 3 !== 0 &&
             (candidate.remaining + remaining) % 3 === 0
           ) {
-            index -= 1
             continue
           }
-          match = index
+          match = at
           break
         }
-        if (match < 0) break
+        if (match < 0) {
+          bottoms.set(key, open.length)
+          break
+        }
         const opener = open[match]
         const use = opener.remaining > 1 && remaining > 1 ? 2 : 1
         spans.set(opener.at, (spans.get(opener.at) ?? 0) + use)
@@ -1134,11 +1177,17 @@ function emphasisSpans(source: string): Map<number, number> {
         opener.remaining -= use
         remaining -= use
         // Everything above the opener is inside the span just formed, so it stops opening.
-        open.length = opener.remaining === 0 ? match : match + 1
+        trim(opener.remaining === 0 ? match : match + 1)
+        // A pairing moved an opener's length, and the rule of three reads lengths, so a rejection
+        // remembered before it no longer decides anything.
+        bottoms.clear()
       }
     }
     if (remaining > 0 && current.opens) {
       open.push({ at: current.open, marker: current.run[0], remaining, closes: current.closes })
+      const stack = openers.get(current.run[0]) ?? []
+      stack.push(open.length - 1)
+      openers.set(current.run[0], stack)
     }
   }
   return spans
@@ -1164,6 +1213,10 @@ function strikethroughSpans(source: string): Set<number> {
     const character = source[index]
     if (character === '\\') {
       index += 2
+      continue
+    }
+    if (character === '`') {
+      index = afterBacktickRun(source, index)
       continue
     }
     if (character !== '~') {
@@ -1204,6 +1257,10 @@ function highlightSpans(source: string): Set<number> {
     const character = source[index]
     if (character === '\\') {
       index += 2
+      continue
+    }
+    if (character === '`') {
+      index = afterBacktickRun(source, index)
       continue
     }
     if (character !== '=') {
@@ -1755,10 +1812,11 @@ function headingRenderedText(
           text += character
           index += 1
         } else if (label.closed && !nested && follow >= label.end) {
-          // A link renders its label; an image renders none once it has a destination, while one
-          // without is the literal text the parser leaves standing. A label cannot hold a link, so
-          // reading it is one level deep and never recurses again.
-          if (character !== '!' || follow === label.end) {
+          // A link renders its label; an image renders none — a shortcut image whose label the
+          // document defines has a destination just like `![alt](src)`, so its label is text the
+          // renderer never shows. An image the document defines nothing for is the literal text
+          // above, never this branch. A label cannot hold a link, so reading it is one level deep.
+          if (character !== '!') {
             // The label is read where the link stands and the rest of the segment after it, so the
             // text keeps its document order: the remainder is queued first, then the label, and
             // this segment stops here rather than reading on past the link it just found.

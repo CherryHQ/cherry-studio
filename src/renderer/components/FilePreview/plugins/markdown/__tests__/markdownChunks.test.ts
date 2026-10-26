@@ -338,6 +338,21 @@ describe('splitMarkdownChunks', () => {
     expect(performance.now() - started).toBeLessThan(500)
   })
 
+  it('pairs emphasis markers without walking the openers of the other marker', () => {
+    // 64,000 `*a ` openers followed by 64,000 `a_ ` closers pass both fallback guards. Every closer
+    // searched the whole opener stack for a partner of its own marker and found none, so the scan
+    // cost its length squared — 15.8 s inside one synchronous render pass, before the UI can even
+    // start virtualizing.
+    const content = '# ' + '*a '.repeat(64_000) + 'a_ '.repeat(64_000) + '` *end\n' + '\n'.repeat(100)
+
+    const started = performance.now()
+    const chunks = chunksOf(content)
+    expect(performance.now() - started).toBeLessThan(500)
+
+    expect(chunks).not.toHaveLength(0)
+    expect(joined(chunks)).toBe(content)
+  })
+
   it('reads repeated raw-text openers in one pass', () => {
     // Each opener searched the close list from its head, so a heading of repeated pairs rescanned
     // every closer already passed: 20,000 pairs took over a second and grew quadratically.
@@ -2843,6 +2858,20 @@ describe('heading ids assigned from the text the renderer reads', () => {
 
     expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
     expect(renderedHeadingIds(content)).toEqual(['chunk--alpha-beta', 'chunk--alpha-beta-1'])
+  })
+
+  it('omits the label of a shortcut image the document defines', () => {
+    // `[icon]` resolves against the definition below, so the renderer lays out an image and shows
+    // none of the label's text. Reading it as text keyed the first heading `before-icon-after`
+    // while the second rendered `before-after`, so the duplicate two chunks down took no suffix
+    // and `[jump](#before-after-1)` aimed at a fragment no chunk mounted.
+    const content =
+      '# Before ![icon] after\n\n[icon]: https://example.com/icon.png\n\n' +
+      'filler\n\n'.repeat(3100) +
+      '# Before after\n\n[jump](#before-after-1)'
+
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+    expect(renderedHeadingIds(content)).toEqual(['chunk--before-after', 'chunk--before-after-1'])
   })
 
   it('numbers a struck-through heading toward the text the renderer reads', () => {
