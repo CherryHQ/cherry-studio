@@ -43,9 +43,12 @@ export const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({
   costUsd: a.costUsd + b.costUsd
 })
 
+/** Content as the package reads its text (HistoryEntry): an image as `[image]` in place, no thinking or calls. */
 export function textOf(content: string | readonly { readonly type: string }[]): string {
   if (typeof content === 'string') return content
-  return content.map((part) => (part.type === 'text' ? (part as TextContent).text : '')).join('')
+  return content
+    .map((part) => (part.type === 'text' ? (part as TextContent).text : part.type === 'image' ? '[image]' : ''))
+    .join('')
 }
 
 /** The `key` a marker's details or a record's data carries. */
