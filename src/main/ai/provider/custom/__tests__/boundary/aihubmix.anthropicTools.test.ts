@@ -41,7 +41,7 @@ function urlsSchemaFrom(body: unknown): Record<string, unknown> {
 describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic)', () => {
   it('strips array maxItems/minItems from tool input_schema and folds them into description', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ apiKey: 'sk', fetch })
+      createAihubmix({ endpointType: 'anthropic-messages', apiKey: 'sk', fetch })
         .languageModel('claude-sonnet-4-6')
         .doStream(
           callOptionsWithToolSchema({
@@ -66,7 +66,7 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
 
   it('strips string min/maxLength too', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ apiKey: 'sk', fetch })
+      createAihubmix({ endpointType: 'anthropic-messages', apiKey: 'sk', fetch })
         .languageModel('claude-sonnet-4-6')
         .doStream(
           callOptionsWithToolSchema({
@@ -92,7 +92,7 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
   // does not allow ..." → 400). It must preserve an explicit `additionalProperties:true`.
   it('preserves an explicit additionalProperties:true on a nested object while defaulting others closed', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ apiKey: 'sk', fetch })
+      createAihubmix({ endpointType: 'anthropic-messages', apiKey: 'sk', fetch })
         .languageModel('claude-sonnet-4-6')
         .doStream(
           callOptionsWithToolSchema({

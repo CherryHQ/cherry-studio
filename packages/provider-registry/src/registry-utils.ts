@@ -174,17 +174,36 @@ export function resolveEndpointConnection(
   return undefined
 }
 
+/** Tasks served by native adapters through their configured connection endpoint. */
+export function supportsNativeTask(adapterFamily: string | undefined, capability: ModelCapability): boolean {
+  if (adapterFamily === 'voyage') {
+    return capability === MODEL_CAPABILITY.EMBEDDING || capability === MODEL_CAPABILITY.RERANK
+  }
+  return adapterFamily === 'bedrock' && capability === MODEL_CAPABILITY.EMBEDDING
+}
+
 /** Suggestions are deployment-aware defaults, never replacements for explicit model endpoints. */
 export function suggestModelEndpoints(
   provider: EndpointConnectionSource,
-  model: Pick<ModelConfig, 'endpointTypes' | 'capabilities' | 'outputModalities'>
+  model: Pick<ModelConfig, 'endpointTypes' | 'capabilities' | 'outputModalities'>,
+  deploymentDefaultEndpoint?: EndpointType
 ): EndpointType[] | undefined {
   const taskOnly =
     (model.capabilities ?? []).some((capability) =>
       [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK].some((task) => task === capability)
     ) ||
     (model.outputModalities?.some((modality) => modality !== 'text') && !model.outputModalities?.includes('text'))
-  if (!taskOnly && provider.defaultChatEndpoint) return [provider.defaultChatEndpoint]
+  const chatDefault = deploymentDefaultEndpoint ?? provider.defaultChatEndpoint
+  if (!taskOnly && chatDefault) return [chatDefault]
+  const nativeEndpoint = provider.defaultChatEndpoint
+  if (
+    nativeEndpoint &&
+    (model.capabilities ?? []).some((capability) =>
+      supportsNativeTask(provider.endpointConfigs?.[nativeEndpoint]?.adapterFamily, capability)
+    ) &&
+    resolveEndpointConnection(provider, nativeEndpoint)
+  )
+    return [nativeEndpoint]
   const declared = model.endpointTypes?.filter((endpoint) => resolveEndpointConnection(provider, endpoint))
   if (declared?.length) return declared
   const defaultEndpoint = provider.defaultChatEndpoint

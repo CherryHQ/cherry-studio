@@ -295,12 +295,12 @@ export function incidentRequest(incident: DoctorAgentIncident): unknown {
     if (message.modelId) {
       // Pure resolution only: resolveSdkConfig would advance multi-key rotation and may refresh OAuth.
       const { providerId, modelId } = parseUniqueModelId(message.modelId as UniqueModelId)
-      const { endpointType, baseUrl, providerOptionsKey } = resolveEffectiveEndpoint(
+      const { endpointType, baseUrl, languageModelAdapter } = resolveEffectiveEndpoint(
         providerService.getByProviderId(providerId),
         modelService.getByKey(providerId, modelId)
       )
       // Renamed: key-name redaction masks any field containing "Key".
-      route = { providerId, endpointType, baseUrl, optionsNamespace: providerOptionsKey }
+      route = { providerId, endpointType, baseUrl, optionsNamespace: languageModelAdapter?.providerOptionsKey }
     }
   } catch {
     route = undefined

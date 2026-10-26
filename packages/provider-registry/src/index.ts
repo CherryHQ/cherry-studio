@@ -143,6 +143,7 @@ export {
   canInheritEndpointConnection,
   resolveEndpointConnection,
   suggestModelEndpoints,
+  supportsNativeTask,
   ENDPOINT_CONNECTION_FAMILY,
   getSpeechGenerationEndpoint,
   getNewApiSpeechEndpoint,

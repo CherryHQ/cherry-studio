@@ -46,8 +46,12 @@ export function resolveAiSdkProviderId(provider, endpointType) {
 }
 ```
 
-One signal, no heuristics. Tested with 54 cases in
-`provider/__tests__/endpoint.test.ts`.
+The endpoint selects the registered extension. A multi-backend extension can supply
+an executable language-model adapter containing both its constructor and options
+namespace. AiHubMix and DMXAPI consume this same adapter during SDK construction;
+they do not reroute a selected protocol by model name. Chat serialization may still
+distinguish native OpenAI models from compatible models within that endpoint.
+`provider/__tests__/gatewayModelDefaults.test.ts` checks the resulting HTTP requests.
 
 ### New API image endpoints
 

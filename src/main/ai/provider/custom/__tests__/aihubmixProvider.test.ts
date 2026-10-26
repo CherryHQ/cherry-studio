@@ -1,60 +1,29 @@
 import { describe, expect, it } from 'vitest'
 
 import { createAihubmix } from '../aihubmix/aihubmixProvider'
+import { captureWithFetch } from './boundary/captureRequest'
 
-describe('createAihubmix', () => {
-  const provider = createAihubmix({ apiKey: 'sk-test' })
-
-  it('routes OpenAI LLM ids to the Responses API model', () => {
-    const model = provider.languageModel('gpt-4o') as unknown as { constructor: { name: string }; provider: string }
-
-    expect(model.constructor.name).toBe('OpenAIResponsesLanguageModel')
-    expect(model.provider).toBe('aihubmix.openai-response')
+describe('AiHubMix execution binding', () => {
+  it('rejects chat without a selected client instead of guessing from the model name', () => {
+    expect(() => createAihubmix({ apiKey: 'sk' }).languageModel('claude-sonnet-4-5')).toThrow(
+      'explicit supported endpoint'
+    )
   })
 
-  it('routes OpenAI search preview ids to chat completions', () => {
-    const model = provider.languageModel('gpt-4o-search-preview') as unknown as {
-      constructor: { name: string }
-      provider: string
-    }
-
-    expect(model.constructor.name).toBe('OpenAIChatLanguageModel')
-    expect(model.provider).toBe('aihubmix.chat')
-  })
-
-  it('keeps non-OpenAI ids on the OpenAI-compatible fallback', () => {
-    const model = provider.languageModel('qwen3.5-plus') as unknown as {
-      constructor: { name: string }
-      provider: string
-    }
-
-    expect(model.constructor.name).toBe('OpenAICompatibleChatLanguageModel')
-    expect(model.provider).toBe('aihubmix.chat')
-  })
-
-  it('routes the o-series (^o[134]) to the Responses API model', () => {
-    const model = provider.languageModel('o3') as unknown as { constructor: { name: string }; provider: string }
-
-    expect(model.constructor.name).toBe('OpenAIResponsesLanguageModel')
-    expect(model.provider).toBe('aihubmix.openai-response')
-  })
-
-  it('routes o1-mini / o1-preview to chat completions (no Responses API)', () => {
-    for (const id of ['o1-mini', 'o1-preview']) {
-      const model = provider.languageModel(id) as unknown as { constructor: { name: string }; provider: string }
-
-      expect(model.constructor.name).toBe('OpenAIChatLanguageModel')
-      expect(model.provider).toBe('aihubmix.chat')
-    }
-  })
-
-  it('excludes gpt-4o-image from the OpenAI LLM path (compatible fallback)', () => {
-    const model = provider.languageModel('gpt-4o-image') as unknown as {
-      constructor: { name: string }
-      provider: string
-    }
-
-    expect(model.constructor.name).toBe('OpenAICompatibleChatLanguageModel')
-    expect(model.provider).toBe('aihubmix.chat')
+  it('uses compatible Chat for a Claude id when explicitly bound to Chat', async () => {
+    const request = await captureWithFetch((fetch) =>
+      createAihubmix({
+        apiKey: 'sk',
+        fetch,
+        endpointType: 'openai-chat-completions'
+      })
+        .languageModel('claude-sonnet-4-5')
+        .doGenerate({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+          providerOptions: { aihubmix: { reasoningEffort: 'high' } }
+        })
+    )
+    expect(request.url).toBe('https://aihubmix.com/v1/chat/completions')
+    expect(request.body).toMatchObject({ model: 'claude-sonnet-4-5', reasoning_effort: 'high' })
   })
 })

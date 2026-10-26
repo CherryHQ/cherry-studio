@@ -1,21 +1,7 @@
 /**
- * Composed AiHubMix `ImageModelV3`.
- *
- * Upgrades the in-place `createAihubmix().imageModel` from a plain
- * `OpenAICompatibleImageModel` to a model that branches by model id / mode.
- * Google image models are delegated to `@ai-sdk/google`; Ideogram branches
- * are relocated from the bespoke `pages/paintings/providers/aihubmix/generate.ts`.
- * The DEFAULT branch (gpt-image-1/2, FLUX.1-Kontext-pro, and any unknown id)
- * reconstructs the exact inner `OpenAICompatibleImageModel` this provider
- * built before and delegates to it byte-identically — so chat /
- * `ApiService.fetchImageGeneration` is a strict, byte-identical superset
- * regardless of the paintings-page flag.
- *
- * Painting-specific fields and upload blobs are read from
- * `options.providerOptions.aihubmix`. That key is also exactly what the inner
- * `OpenAICompatibleImageModel` reads (`providerOptionsKey` =
- * `'aihubmix.image'.split('.')[0]` = `'aihubmix'`), so a single bag feeds both
- * the special branches and the default delegate.
+ * AiHubMix image adapter. Google execution follows the selected endpoint;
+ * OpenAI image execution retains the gateway's Ideogram, Flux and Doubao transports.
+ * Painting options are consumed from the aihubmix namespace.
  */
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
@@ -28,7 +14,7 @@ import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-regis
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import type { CanonicalParamKey } from '@shared/data/types/model'
+import type { CanonicalParamKey, EndpointType } from '@shared/data/types/model'
 
 import { readErrorMessage } from '../readErrorMessage'
 import { fileToDataUrl } from '../transportUtils'
@@ -75,6 +61,7 @@ interface AihubmixImageOptions {
 }
 
 export interface CreateAihubmixImageModelOptions {
+  endpointType?: EndpointType
   baseURL: string
   resolveApiKey: () => string
   headers: () => Record<string, string | undefined>
@@ -83,11 +70,6 @@ export interface CreateAihubmixImageModelOptions {
 
 function toBlob(file: AihubmixImageFile): Blob {
   return new Blob([file.data as unknown as BlobPart], { type: file.mediaType })
-}
-
-function isGoogleImageModel(modelId: string): boolean {
-  const normalized = modelId.toLowerCase()
-  return normalized.startsWith('imagen-') || (normalized.startsWith('gemini-') && normalized.includes('image'))
 }
 
 function isGoogleGeminiImageModel(modelId: string): boolean {
@@ -310,10 +292,10 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
 
   const fetchImpl: FetchFunction = customFetch ?? globalThis.fetch
 
-  if (isGoogleImageModel(modelId)) {
+  if (opts.endpointType === 'google-generate-content') {
     const googleProvider = createGoogleGenerativeAI({
       apiKey: resolveApiKey(),
-      baseURL: `${apiRoot}/gemini/v1beta`,
+      baseURL,
       headers: headers(),
       fetch: fetchImpl,
       name: AIHUBMIX_GOOGLE_PROVIDER

@@ -49,6 +49,10 @@ The registry owns the pure connection-source decision: target address, compatibl
 
 Configuration shows the target, source endpoint, and configured address with credential parameters redacted. Missing compatible connections are explained in settings and rejected by request builders. SDK-derived Vertex/Bedrock hosts, managed transports, Google Imagen/embeddings, and existing compatible image adapters retain their established builder contracts.
 
+The gateway follow-up removes the second protocol decision in AiHubMix/DMXAPI factories. Main and Pi share a pure endpoint selector. Registered extensions return an executable language-model adapter whose constructor and options namespace travel together; model-name checks may choose a serializer only within the selected Chat protocol. Deployment defaults remain metadata and enter model resolution separately from the provider default. A central gateway/client/namespace table was rejected because it duplicated the actual constructor decision. Standard embedding and Google image execution use the selected endpoint; bespoke image transports keep their existing lifecycle.
+
+Native task adapter support is shared by endpoint suggestions and request selection. Voyage embedding/reranking and Bedrock embedding keep their configured adapter rather than replacing it with a generic task protocol. `nativeTaskRouting.test.ts` verifies real SDK response decoding. Batch creation sends at most 500 models per request; successful earlier batches remain persisted if a later batch fails, and the caller receives the error.
+
 ### Reset and save ordering
 
 `resetFields` is a PATCH command restricted to capabilities, input modalities, output modalities, and endpoints. Main resolves the current baseline and clears selected columns in one synchronous write transaction. Input modality reset clears `inputModalitiesExplicit`. Contradictory set/reset requests and models without a baseline fail before writes; a failing batch rolls back all its changes. There is no database schema change.
@@ -83,5 +87,7 @@ Implementation is covered by scoped tests, type checks, lint, documentation chec
 - AC8 — Renderer form tests and model-handler tests: stale identities and delayed defaults do not replace explicit edits; failed lookup does not create; unknown models remain editable.
 - AC9 — Shared registry connection tests, Main endpoint tests, and Electron settings: connection source/address and missing-connection explanations agree; same-family and explicit New API inheritance remain supported.
 - AC10 — Real database reset tests, renderer queue/failure/model-switch tests, and Electron: existing rows change only after selected restoration; SQLite shows cleared overrides, other fields remain, and reset cannot overtake edits or update another draft.
+
+`gatewayModelDefaults.test.ts` additionally exercises database defaults/reset and actual SDK requests: explicit Chat, Responses, and Google endpoints for a Claude model must use the selected address and request shape. Boundary tests cover thinking, compatible reasoning, authentication, and Anthropic tool restrictions. These local fixtures do not establish cloud availability.
 
 The detailed local run record and HTTP/screenshot artifacts live under `.context/provider-diagnosis/` and `.context/cherry-electron-dev/`. Validation is local; it does not report remote CI or GitHub approval as completed.

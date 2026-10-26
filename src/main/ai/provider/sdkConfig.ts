@@ -37,11 +37,13 @@ export async function resolveSdkConfig(
   return {
     sdkConfig: {
       ...config,
-      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
-        actualProviderId: provider.id,
-        endpointType: resolvedEndpoint.endpointType,
-        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-      }),
+      providerOptionsKey:
+        config.providerOptionsKey ??
+        resolvedEndpoint.languageModelAdapter?.providerOptionsKey ??
+        resolveProviderOptionsKey(config.providerId, {
+          actualProviderId: provider.id,
+          endpointType: resolvedEndpoint.endpointType
+        }),
       modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
     },
     credentialReceipt

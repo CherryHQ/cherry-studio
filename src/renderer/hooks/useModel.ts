@@ -1,3 +1,4 @@
+import { chunk } from 'es-toolkit'
 import { isUndefined, omitBy } from 'es-toolkit/compat'
 import { useCallback } from 'react'
 import type { SWRConfiguration } from 'swr'
@@ -13,6 +14,7 @@ import type {
   ListModelsQuery,
   UpdateModelDto
 } from '@shared/data/api/schemas/models'
+import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 
@@ -142,9 +144,11 @@ export function useModelMutations() {
   const createModels = useCallback(
     async (dtos: CreateModelsDto) => {
       try {
-        // Batch callers already match the transport contract, so this path
-        // forwards the array verbatim and passes the typed response through.
-        return await createTrigger({ body: dtos })
+        const created: Model[] = []
+        for (const batch of chunk(dtos, MODELS_BATCH_MAX_ITEMS)) {
+          created.push(...(await createTrigger({ body: batch })))
+        }
+        return created
       } catch (error) {
         logger.error('Failed to create models', { count: dtos.length, error })
         throw error

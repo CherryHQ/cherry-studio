@@ -4,7 +4,7 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
+import { CreateModelsSchema, type BulkUpdateModelItem } from '@shared/data/api/schemas/models'
 import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
 import { useDefaultModel, useModelById, useModelMutations, useModels } from '../useModel'
@@ -295,25 +295,17 @@ describe('useModelMutations', () => {
     expect(created).toBeUndefined()
   })
 
-  it('should call create trigger with the full array when createModels is invoked', async () => {
-    const mockTrigger = vi.fn().mockResolvedValue([{ id: 'batch-model-1' }, { id: 'batch-model-2' }])
-    mockUseMutation.mockImplementation(() => ({
-      trigger: mockTrigger,
-      isLoading: false,
-      error: undefined
-    }))
-
+  it('creates every model when a submission exceeds the API batch limit', async () => {
+    const mockTrigger = vi.fn(async ({ body }) => CreateModelsSchema.parse(body))
+    mockUseMutation.mockImplementation(() => ({ trigger: mockTrigger, isLoading: false, error: undefined }))
     const { result } = renderHook(() => useModelMutations())
-
-    const items = [
-      { providerId: 'openai', modelId: 'gpt-5' },
-      { providerId: 'openai', modelId: 'gpt-5-mini' }
-    ]
+    const items = Array.from({ length: 501 }, (_, index) => ({ providerId: 'openai', modelId: `model-${index}` }))
+    let created: unknown
     await act(async () => {
-      await result.current.createModels(items)
+      created = await result.current.createModels(items)
     })
-
-    expect(mockTrigger).toHaveBeenCalledWith({ body: items })
+    expect(created).toEqual(items)
+    expect(mockTrigger.mock.calls.map(([request]) => request.body.length)).toEqual([500, 1])
   })
 
   it('should log and rethrow createModels errors', async () => {

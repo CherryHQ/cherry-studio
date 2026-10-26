@@ -16,7 +16,7 @@ const PROMPT: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [
 describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire', () => {
   it("serializes reasoningEffort 'none' from the aihubmix namespace as reasoning_effort", async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ apiKey: 'sk', fetch })
+      createAihubmix({ endpointType: 'openai-chat-completions', apiKey: 'sk', fetch })
         .languageModel('glm-5')
         .doGenerate({
           prompt: PROMPT,
@@ -30,7 +30,7 @@ describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire',
 
   it('passes unknown aihubmix-namespace fields through to the body alongside an effort tier', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ apiKey: 'sk', fetch })
+      createAihubmix({ endpointType: 'openai-chat-completions', apiKey: 'sk', fetch })
         .languageModel('deepseek-v4')
         .doGenerate({
           prompt: PROMPT,
@@ -42,10 +42,15 @@ describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire',
   })
 })
 
-describe('AiHubMix Gemini boundary — baseURL derives from the configured gateway URL', () => {
+describe('AiHubMix Gemini boundary — selected connection reaches the SDK', () => {
   it('routes the Gemini surface through a user-configured proxy baseURL', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ apiKey: 'sk', baseURL: 'https://proxy.example.com/v1', fetch })
+      createAihubmix({
+        endpointType: 'google-generate-content',
+        apiKey: 'sk',
+        baseURL: 'https://proxy.example.com/gemini/v1beta',
+        fetch
+      })
         .languageModel('gemini-2.5-pro')
         .doGenerate({ prompt: PROMPT })
     )
@@ -53,9 +58,16 @@ describe('AiHubMix Gemini boundary — baseURL derives from the configured gatew
     expect(req.url).toMatch(/^https:\/\/proxy\.example\.com\/gemini\/v1beta\/models\/gemini-2\.5-pro/)
   })
 
-  it('keeps the official Gemini surface for the default baseURL', async () => {
+  it('uses the selected official Gemini connection', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ apiKey: 'sk', fetch }).languageModel('gemini-2.5-pro').doGenerate({ prompt: PROMPT })
+      createAihubmix({
+        endpointType: 'google-generate-content',
+        baseURL: 'https://aihubmix.com/gemini/v1beta',
+        apiKey: 'sk',
+        fetch
+      })
+        .languageModel('gemini-2.5-pro')
+        .doGenerate({ prompt: PROMPT })
     )
 
     expect(req.url).toMatch(/^https:\/\/aihubmix\.com\/gemini\/v1beta\/models\/gemini-2\.5-pro/)
@@ -64,8 +76,9 @@ describe('AiHubMix Gemini boundary — baseURL derives from the configured gatew
   it('uses the resolved Gemini endpoint when Chat and Gemini point at different proxies', async () => {
     const req = await captureWithFetch((fetch) =>
       createAihubmix({
+        endpointType: 'google-generate-content',
         apiKey: 'sk',
-        baseURL: 'https://chat.proxy.example/v1',
+        baseURL: 'https://gemini.proxy.example/custom/v1beta',
         endpointBaseURLs: {
           'google-generate-content': 'https://gemini.proxy.example/custom/v1beta',
           'openai-chat-completions': 'https://chat.proxy.example/v1'

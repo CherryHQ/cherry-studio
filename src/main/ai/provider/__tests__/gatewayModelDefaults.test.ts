@@ -107,6 +107,74 @@ for (const presetProviderId of ['aihubmix', 'dmxapi']) {
       }
     )
 
+    it.each([
+      ['openai-chat-completions', '/chat/completions', 'claude-sonnet-4-5'],
+      ['openai-chat-completions', '/chat/completions', 'gpt-5'],
+      ['openai-responses', '/responses', 'claude-sonnet-4-5'],
+      ['openai-responses', '/responses', 'gpt-5'],
+      ['google-generate-content', '/models/claude-sonnet-4-5:generateContent', 'claude-sonnet-4-5']
+    ] as const)('executes the explicit %s endpoint at %s for %s', async (endpointType, path, modelId) => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: presetProviderId,
+          presetProviderId,
+          name: presetProviderId,
+          orderKey: 'a0',
+          endpointConfigs: {
+            [endpointType]: { baseUrl: 'https://selected.example/v1', adapterFamily: presetProviderId }
+          }
+        })
+        .run()
+      modelService.create([
+        {
+          dto: { providerId: presetProviderId, modelId, endpointTypes: [endpointType] },
+          registryData: providerRegistryService.lookupModel(presetProviderId, modelId)
+        }
+      ])
+      const model = modelService.getByKey(presetProviderId, modelId)
+      const provider = providerService.getByProviderId(presetProviderId)
+      const { sdkConfig } = await resolveSdkConfig(
+        provider,
+        model,
+        resolveEffectiveEndpoint(provider, model),
+        'fixture-only'
+      )
+      const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response('{}', { status: 400 }))
+      const executor = await createExecutor<AppProviderSettingsMap>(sdkConfig.providerId, {
+        ...sdkConfig.providerSettings,
+        fetch
+      })
+      const languageModel = await executor.languageModel(sdkConfig.modelId)
+      await expect(
+        languageModel.doGenerate({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+          providerOptions: {
+            [sdkConfig.providerOptionsKey]:
+              endpointType === 'google-generate-content'
+                ? { thinkingConfig: { thinkingBudget: 1024, includeThoughts: true } }
+                : { reasoningEffort: 'high' }
+          }
+        })
+      ).rejects.toMatchObject({ statusCode: 400 })
+      const url = new URL(String(fetch.mock.calls[0][0]))
+      expect(url.host).toBe('selected.example')
+      expect(url.pathname.endsWith(path)).toBe(true)
+      const body = JSON.parse(String(fetch.mock.calls[0][1]?.body))
+      expect(body).toHaveProperty(
+        endpointType === 'openai-responses'
+          ? 'input'
+          : endpointType === 'google-generate-content'
+            ? 'contents'
+            : 'messages'
+      )
+      if (endpointType === 'openai-chat-completions') expect(body.reasoning_effort).toBe('high')
+      if (endpointType === 'openai-responses' && modelId === 'gpt-5') expect(body.reasoning.effort).toBe('high')
+      if (endpointType === 'google-generate-content')
+        expect(body.generationConfig.thinkingConfig.thinkingBudget).toBe(1024)
+      expect(body.anthropic_version).toBeUndefined()
+    })
+
     it('preserves explicit endpoint choices across loading and default reset', () => {
       dbh.db
         .insert(userProviderTable)

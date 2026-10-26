@@ -1,78 +1,28 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-const ChatCtor = vi.fn()
-const EmbCtor = vi.fn()
-const TransportCtor = vi.fn()
-
-vi.mock('@ai-sdk/openai-compatible', () => ({
-  OpenAICompatibleChatLanguageModel: class {
-    provider: string
-    constructor(modelId: string, config: { provider: string; headers: () => Record<string, string> }) {
-      ChatCtor(modelId, config)
-      this.provider = config.provider
-    }
-  },
-  OpenAICompatibleEmbeddingModel: class {
-    provider: string
-    constructor(modelId: string, config: { provider: string }) {
-      EmbCtor(modelId, config)
-      this.provider = config.provider
-    }
-  }
-}))
-
-vi.mock('../dmxapi/dmxapiTransport', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
-  return {
-    ...actual,
-    createDmxapiTransport: (settings: { apiKey: string; baseURL?: string }) => {
-      TransportCtor(settings)
-      return { submit: vi.fn() }
-    }
-  }
-})
+import { describe, expect, it } from 'vitest'
 
 import { createDmxapiProvider } from '../dmxapi/dmxapiProvider'
+import { captureWithFetch } from './boundary/captureRequest'
 
-describe('createDmxapiProvider', () => {
-  afterEach(() => {
-    ChatCtor.mockReset()
-    EmbCtor.mockReset()
-    TransportCtor.mockReset()
+describe('DMXAPI execution binding', () => {
+  it('rejects chat without a selected client instead of guessing from the model name', () => {
+    expect(() =>
+      createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://relay.example/v1' }).languageModel('claude-sonnet-4-5')
+    ).toThrow('explicit supported endpoint')
   })
 
-  it('languageModel uses "dmxapi.chat" with Bearer auth at chat baseURL', () => {
-    const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    // A generic (non-OpenAI/Anthropic/Gemini) chat id routes through the
-    // OpenAI-compat fallback family, which is the `dmxapi.chat` path.
-    expect((provider.languageModel('qwen-max') as unknown as { provider: string }).provider).toBe('dmxapi.chat')
-
-    const [, config] = ChatCtor.mock.calls[0]
-    expect(config.url({ path: '/chat/completions', modelId: 'qwen-max' })).toBe(
-      'https://www.dmxapi.cn/chat/completions'
+  it('uses the selected embedding address without re-routing a Gemini-named model', async () => {
+    const request = await captureWithFetch((fetch) =>
+      createDmxapiProvider({
+        apiKey: 'sk',
+        fetch,
+        endpointType: 'openai-embeddings',
+        baseURL: 'https://embedding.example/v1',
+        endpointBaseURLs: { 'openai-chat-completions': 'https://chat.example/v1' }
+      })
+        .embeddingModel('gemini-embedding-001')
+        .doEmbed({ values: ['hello'] })
     )
-    expect(config.headers()).toMatchObject({ Authorization: 'Bearer sk' })
-  })
-
-  it('embeddingModel uses "dmxapi.embedding"', () => {
-    const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    expect((provider.embeddingModel('e') as unknown as { provider: string }).provider).toBe('dmxapi.embedding')
-  })
-
-  it('imageModel returns an ImageGenerationModel with provider="dmxapi"', () => {
-    const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    // A bespoke-family model (Doubao Seedream) routes through the custom
-    // transport-backed ImageGenerationModel, whose provider is plain "dmxapi".
-    expect(provider.imageModel('doubao-seedream-3-0').provider).toBe('dmxapi')
-  })
-
-  it('strips the OpenAI-compat suffix from baseURL to derive the transport host', () => {
-    createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1' })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-  })
-
-  it('keeps baseURL untouched when no OpenAI-compat suffix is present', () => {
-    createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
+    expect(request.url).toBe('https://embedding.example/v1/embeddings')
+    expect(request.body).toMatchObject({ model: 'gemini-embedding-001', input: ['hello'] })
   })
 })

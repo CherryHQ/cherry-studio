@@ -49,6 +49,10 @@ Status: implemented
 
 配置界面显示目标、来源端点及配置地址，并脱敏凭证参数。缺少兼容连接时，设置页给出解释，请求构造器拒绝调用。SDK 推导的 Vertex／Bedrock 主机、托管传输、Google Imagen／嵌入和现有兼容图片适配器保留既有构造契约。
 
+网关后续收敛删除 AiHubMix／DMXAPI 工厂中的第二次协议决策。Main 和 Pi 共用纯端点选择器。注册的扩展返回可执行的语言模型适配器，将构造函数与参数 namespace 一起传递；模型名判断只能在已选 Chat 协议内选择序列化实现。部署默认值仍是元数据，独立于供应商默认值进入模型解析。集中维护网关／客户端／namespace 表的方案被否决，因为它重复了实际构造函数的选择决策。标准嵌入和 Google 生图按选定端点执行，专用图片传输保留现有生命周期。
+
+端点建议和请求选择共用原生任务适配器能力。Voyage 嵌入／重排及 Bedrock 嵌入保留已配置的适配器，不会被通用任务协议替换。`nativeTaskRouting.test.ts` 验证真实 SDK 的响应解析。批量创建每次请求最多发送 500 个模型；如果后续批次失败，先前成功的批次仍已持久化，调用方会收到错误。
+
 ### Reset and save ordering
 
 `resetFields` 是 PATCH 命令，仅限能力、输入模态、输出模态和端点。Main 在一次同步写事务中解析当前基线并清空选中列。重置输入模态时同时清除 `inputModalitiesExplicit`。同字段设置／重置冲突及无基线模型会在写入前失败；批量操作中任一失败会回滚全部修改。不修改数据库 schema。
@@ -83,5 +87,7 @@ Status: implemented
 - AC8 — Renderer 表单测试及模型 handler 测试：过期身份和延迟默认值不能替换显式编辑；查询失败不创建模型；未知模型保持可编辑。
 - AC9 — 共享注册表连接测试、Main 端点测试及 Electron 设置页：连接来源／地址与缺少连接的解释一致；同族及显式 New API 继承继续受支持。
 - AC10 — 真实数据库重置测试、Renderer 队列／失败／模型切换测试及 Electron：旧行仅在选择性恢复后改变；SQLite 显示覆盖被清除，其他字段保留，重置不能越过编辑或更新另一份草稿。
+
+`gatewayModelDefaults.test.ts` 还覆盖数据库默认值／重置及实际 SDK 请求：Claude 模型显式选择 Chat、Responses 或 Google 端点时，必须使用所选地址和请求格式。边界测试覆盖 thinking、兼容 reasoning、认证及 Anthropic 工具限制。这些本地 fixture 不证明云端可用性。
 
 详细本地运行记录及 HTTP／截图产物保存在 `.context/provider-diagnosis/` 和 `.context/cherry-electron-dev/`。这些是本地验证，不宣称远端 CI 或 GitHub 审批已完成。

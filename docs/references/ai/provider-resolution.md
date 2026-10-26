@@ -35,8 +35,8 @@ See [Adapter Family](./adapter-family.md) for the full design.
 `src/main/ai/provider/endpoint.ts` exposes the resolution helpers:
 
 ```ts
-resolveEffectiveEndpoint(provider, model): { endpointType, baseUrl, providerOptionsKey? }
-resolveRequestEndpoint(provider, model, kind): { endpointType, baseUrl, providerOptionsKey? }
+resolveEffectiveEndpoint(provider, model): { endpointType, baseUrl, languageModelAdapter? }
+resolveRequestEndpoint(provider, model, kind): { endpointType, baseUrl, languageModelAdapter? }
 resolveProviderVariant(baseProviderId, endpointType): AppProviderId
 resolveAiSdkProviderId(provider, endpointType): AppProviderId
 resolveProviderOptionsKey(aiSdkProviderId, context): string
@@ -47,11 +47,22 @@ resolveProviderOptionsKey(aiSdkProviderId, context): string
 variant suffix if the endpoint type has one, falls back to
 `openai-compatible` when no family is set.
 
-`resolveEffectiveEndpoint` also resolves registered multi-backend gateway routes
-(AiHubMix and DMXAPI) once. The route supplies both the wire endpoint and the
-`providerOptions` namespace used by that gateway's concrete model. The result is
-carried through `SdkConfig`; reasoning encoders consume the resolved namespace
-and never inspect provider or model ids themselves.
+Main and Pi share `selectChatEndpoint`: usable preference, explicit model endpoint,
+deployment model default, provider default, then the first configured connection.
+Explicit model endpoints are never replaced by a model-name rule.
+
+Multi-backend extensions register `resolveLanguageModelAdapter` beside their provider
+factory. It returns one executable `LanguageModelAdapter`: the model constructor and
+the `providerOptions` namespace that constructor consumes. `resolveEffectiveEndpoint`
+carries that object into the config builder and SDK factory; parameter encoding reads
+its namespace. Public routing contains no AiHubMix/DMXAPI dispatch table. Within an
+already selected Chat endpoint, an extension can choose native OpenAI or compatible
+Chat serialization; it cannot change the selected protocol or connection.
+
+Deployment model defaults contain endpoint metadata only. `ProviderRegistryService`
+passes a model-specific default separately to `suggestModelEndpoints`; it never
+changes the meaning of the provider's `defaultChatEndpoint`. Incomplete descriptors
+can still use this same pure default lookup, shared by Main and Pi.
 
 ```ts
 // Full resolver — 6 lines
@@ -135,9 +146,18 @@ not persist its inherited capabilities or modalities as overrides. Manual and ba
 creation resolve defaults on blur or submission through the same Main owner as
 import. Untouched metadata is omitted from creation DTOs; explicit clearing remains
 an empty array. Known task models receive endpoint suggestions compatible with the
-provider's effective connections; general LLM models use the gateway's registered
-per-model route when available, otherwise the provider's default Chat endpoint.
+provider's effective connections; general LLM models use the deployment's registered
+per-model endpoint default when available, otherwise the provider's default Chat endpoint.
 Explicit remote or user endpoint choices remain authoritative.
+Native adapter task capabilities also participate in defaults and request selection:
+Voyage retains its configured connection for embedding/reranking, and Bedrock
+retains its SDK-hosted connection for embedding. A task protocol name alone does
+not replace the native adapter or its response decoder.
+
+Renderer batch creation respects the API's 500-model limit by sending ordered
+batches and collecting their results. Earlier successful batches remain saved
+if a later request fails; the failure is surfaced to the caller.
+
 
 Existing rows are not rewritten automatically. The edit form previews current
 defaults and can restore selected capabilities, modalities, or endpoints. Its

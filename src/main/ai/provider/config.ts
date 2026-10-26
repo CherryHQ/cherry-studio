@@ -51,9 +51,15 @@ import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
-import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
-import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
+import { dmxapiUsesCustomTransport, resolveDmxapiNativeImageFamily } from './custom/dmxapi/dmxapiImageRouting'
+import {
+  resolveAiSdkProviderId,
+  type ResolvedEndpoint,
+  resolveEffectiveEndpoint,
+  resolveLanguageModelAdapter
+} from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import type { LanguageModelAdapter } from './languageModelAdapter'
 import { transformLmStudioRequestBody } from './lmstudio'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
@@ -71,6 +77,7 @@ interface BuilderContext {
   apiKeyOverride?: string
   endpointType?: EndpointType
   endpoint?: string
+  languageModelAdapter?: LanguageModelAdapter
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
 }
 
@@ -210,7 +217,8 @@ export async function resolveProviderAiSdkConfig(
   model: Model,
   options?: ProviderToAiSdkConfigOptions
 ): Promise<ResolvedProviderAiSdkConfig> {
-  const { endpointType, baseUrl } = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
+  const { endpointType, baseUrl } = resolvedEndpoint
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
@@ -228,7 +236,10 @@ export async function resolveProviderAiSdkConfig(
     apiKeyOverride: options?.apiKeyOverride,
     endpointType,
     endpoint,
-    aiSdkProviderId
+    aiSdkProviderId,
+    languageModelAdapter:
+      resolvedEndpoint.languageModelAdapter ??
+      resolveLanguageModelAdapter(aiSdkProviderId, endpointType, model.apiModelId ?? model.id)
   }
 
   const builders: ConfigBuilderEntry[] = [
@@ -358,15 +369,19 @@ export async function resolveProviderAiSdkConfig(
         isGenerateImageModel(model) &&
         imageExtensionPreset !== undefined &&
         (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
-      build: withSelectedApiKey((ctx) => ({
-        // Non-null by the match above.
-        providerId: imageExtensionPreset!,
-        endpoint: ctx.endpoint,
-        providerSettings: {
-          ...ctx.baseConfig,
-          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
-        }
-      }))
+      build: withSelectedApiKey((ctx) =>
+        imageExtensionPreset === SystemProviderIds.dmxapi
+          ? buildDmxapiConfig(ctx)
+          : {
+              // Non-null by the match above.
+              providerId: imageExtensionPreset!,
+              endpoint: ctx.endpoint,
+              providerSettings: {
+                ...ctx.baseConfig,
+                headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+              }
+            }
+      )
     },
     {
       match: (p, id) => id === 'openai-compatible' && isGenerateImageModel(model) && matchesPreset(p, 'minimax'),
@@ -917,22 +932,38 @@ function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType,
 function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
   return {
     providerId: 'aihubmix',
+    providerOptionsKey: ctx.languageModelAdapter?.providerOptionsKey,
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
+      languageModelAdapter: ctx.languageModelAdapter,
+      endpointType: ctx.endpointType,
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
 }
 
 function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
+  const modelId = ctx.model.apiModelId ?? ctx.model.id
+  const imageAdapter =
+    ctx.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      ? 'google'
+      : dmxapiUsesCustomTransport(modelId)
+        ? 'custom'
+        : resolveDmxapiNativeImageFamily(modelId) === 'openai-native'
+          ? 'openai-native'
+          : 'compatible'
   return {
     providerId: 'dmxapi',
+    providerOptionsKey: ctx.languageModelAdapter?.providerOptionsKey,
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      imageAdapter,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
+      languageModelAdapter: ctx.languageModelAdapter,
+      endpointType: ctx.endpointType,
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
     }
   }

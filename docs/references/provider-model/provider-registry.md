@@ -89,7 +89,9 @@ Manual previews, creation, and imported descriptions use this same resolution
 owner. Registry suggestions use the provider's effective connections, not the
 model vendor's identity: a Gemini model served through an OpenAI-compatible
 deployment is not forced onto Google transport. Registered multi-backend gateways
-retain their per-model native Chat route before the generic provider default.
+supply a model-specific endpoint default before the generic provider default. This
+is a separate `suggestModelEndpoints` input, not a temporary rewrite of
+`provider.defaultChatEndpoint`; it contains no SDK constructor or option namespace.
 Explicit provider-model, remote, and user endpoint declarations take precedence
 over suggestions.
 

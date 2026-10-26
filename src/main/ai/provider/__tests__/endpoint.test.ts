@@ -65,16 +65,6 @@ describe('resolveProviderOptionsKey', () => {
     expect(resolveProviderOptionsKey('openai')).toBe('openai')
   })
 
-  it('uses the resolved gateway route instead of re-detecting the model in the encoder', () => {
-    expect(
-      resolveProviderOptionsKey('aihubmix', {
-        actualProviderId: 'aihubmix',
-        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        gatewayProviderOptionsKey: 'google'
-      })
-    ).toBe('google')
-  })
-
   it('uses the concrete provider namespace for openai-compatible adapters', () => {
     expect(
       resolveProviderOptionsKey('openai-compatible', {
@@ -190,7 +180,7 @@ describe('resolveAiSdkProviderId', () => {
       expect(resolvedEndpoint).toEqual({
         endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
         baseUrl: 'https://express-ent-admin.cherryin.net/v1',
-        providerOptionsKey: undefined
+        languageModelAdapter: undefined
       })
       expect(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType)).toBe('open-responses')
     })
@@ -466,7 +456,7 @@ describe('resolveEffectiveEndpoint', () => {
     ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, providerOptionsKey) => {
       expect(resolveEffectiveEndpoint(aihubmix, { id } as never)).toMatchObject({
         endpointType,
-        providerOptionsKey
+        languageModelAdapter: { providerOptionsKey }
       })
     })
 
@@ -479,7 +469,7 @@ describe('resolveEffectiveEndpoint', () => {
       const model = { id: 'claude-opus-4-6', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as never
       expect(resolveEffectiveEndpoint(aihubmix, model)).toMatchObject({
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        providerOptionsKey: undefined
+        languageModelAdapter: expect.objectContaining({ providerOptionsKey: 'aihubmix' })
       })
     })
 
@@ -501,8 +491,9 @@ describe('resolveEffectiveEndpoint', () => {
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       )
       expect(
-        resolveEffectiveEndpoint(staleAihubmix, { id: 'gemini-2.5-pro' } as never).providerOptionsKey
-      ).toBeUndefined()
+        resolveEffectiveEndpoint(staleAihubmix, { id: 'gemini-2.5-pro' } as never).languageModelAdapter
+          ?.providerOptionsKey
+      ).toBe('aihubmix')
       expect(resolveEffectiveEndpoint(staleAihubmix, { id: 'gpt-4o' } as never).endpointType).toBe(
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       )
@@ -540,7 +531,7 @@ describe('resolveEffectiveEndpoint', () => {
     ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, providerOptionsKey) => {
       expect(resolveEffectiveEndpoint(dmxapi, { id } as never)).toMatchObject({
         endpointType,
-        providerOptionsKey
+        languageModelAdapter: { providerOptionsKey }
       })
     })
 
