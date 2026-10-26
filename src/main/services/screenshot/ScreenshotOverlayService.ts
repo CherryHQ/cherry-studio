@@ -128,6 +128,8 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Requester waiting behind the screen-recording permission dialog, if any. */
   private permissionGuideRequesterWindowId: WindowId | null = null
+  /** One guide at a time: a second would overwrite the first one's requester. */
+  private permissionGuideOpen = false
 
   /** Pending reveal per overlay, with the fallback timer it races. Cleared together. */
   private pendingReveals = new Map<WindowId, { reveal: () => void; timer: NodeJS.Timeout }>()
@@ -256,7 +258,7 @@ export class ScreenshotOverlayService extends BaseService {
   ): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
     // `overlayWindowIds` is still empty and a second hotkey press would otherwise pass.
-    if (this.capturing || this.overlayWindowIds.length > 0) return
+    if (this.capturing || this.overlayWindowIds.length > 0 || this.permissionGuideOpen) return
     this.capturing = true
     this.requesterWindowId = requesterWindowId ?? null
 
@@ -269,9 +271,11 @@ export class ScreenshotOverlayService extends BaseService {
         // Held across the guide dialog, not awaited: the requester still counts as
         // owning a session so it does not auto-hide behind the prompt it triggered,
         // while `screenshot.capture` returns to the renderer right away.
-        this.permissionGuideRequesterWindowId = requesterWindowId ?? null
+        const guided = requesterWindowId ?? null
+        this.permissionGuideOpen = true
+        this.permissionGuideRequesterWindowId = guided
         void this.guideToPermission(status).finally(() => {
-          const guided = this.permissionGuideRequesterWindowId
+          this.permissionGuideOpen = false
           this.permissionGuideRequesterWindowId = null
           this._onSessionEnded.fire(guided)
         })

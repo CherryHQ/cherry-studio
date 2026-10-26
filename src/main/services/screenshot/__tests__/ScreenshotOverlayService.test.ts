@@ -1511,6 +1511,32 @@ describe('ScreenshotOverlayService', () => {
       expect(capture.openScreenCaptureSettings).toHaveBeenCalled()
     })
 
+    it('keeps the requester of an open permission guide when the hotkey asks again', async () => {
+      singleDisplaySetup()
+      capture.getScreenCapturePermissionStatus.mockReturnValue('denied')
+      let closeGuide: (value: { response: number }) => void = () => {}
+      electron.dialog.showMessageBox.mockReturnValue(
+        new Promise((resolve) => {
+          closeGuide = resolve
+        })
+      )
+      const ended = vi.fn()
+      service.onSessionEnded(ended)
+
+      await service.startCapture('quick-assistant')
+      // The global shortcut fires while the guide is still on screen.
+      await service.startCapture()
+
+      // Losing ownership here would let the quick assistant's suppressed blur go unsettled.
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(true)
+      expect(electron.dialog.showMessageBox).toHaveBeenCalledTimes(1)
+
+      closeGuide({ response: 1 })
+      await vi.runAllTimersAsync()
+      expect(ended).toHaveBeenCalledWith('quick-assistant')
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
+    })
+
     it('guides to permission rather than logging an error when the capture itself is denied', async () => {
       singleDisplaySetup()
       capture.captureAllMonitors.mockImplementation(() => {
