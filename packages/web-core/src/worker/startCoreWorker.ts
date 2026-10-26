@@ -66,6 +66,11 @@ async function startAccountServices(opened: OpenedDatabase) {
     addSpanEvent() {},
     saveSpans: async () => {}
   })
+  // MCP servers are desktop-only; a tool-calling model's turn still asks which of them are connected.
+  application.register('McpRuntimeService', {
+    getConnectedServerCapabilities: () => undefined,
+    getConnectedServerInstructions: () => undefined
+  })
 }
 
 function serializeError(error: unknown): SerializedError {

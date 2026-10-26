@@ -1,4 +1,5 @@
 import type { AiService } from '@main/ai/AiService'
+import type { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import type { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
 import type { AiStreamManager } from '@main/ai/streamManager'
 import type { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
@@ -24,6 +25,7 @@ interface WebServices {
   AiService: AiService
   TraceStorageService: WebTraceStorage
   RuntimeActivityService: Pick<RuntimeActivityService, 'begin'>
+  McpRuntimeService: Pick<McpRuntimeService, 'getConnectedServerCapabilities' | 'getConnectedServerInstructions'>
 }
 
 /**
