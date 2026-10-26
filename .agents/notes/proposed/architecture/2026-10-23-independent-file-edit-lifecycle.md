@@ -115,7 +115,7 @@ interface PreparedMutation {
 
 ### Main persistence and address contract
 
-Retain the existing `file.edit.open/read/write/settle_write/close` protocol and `EditWriteLedger` where they establish target ownership and terminal outcomes. Simplification removes `resourceKey` and `observationRoot` from the edit resource, not settlement, security checks or temporary-entry retention. Main owns the resolved write target; the renderer does not need it for instance identity. The original locator remains available for display.
+Retain the existing `file.edit.open/read/write/settle_write/close` protocol and `EditWriteLedger` where they establish target ownership and terminal outcomes. Simplification removes `resourceKey` and `observationRoot` from the edit resource, not settlement, security checks or temporary-entry retention. Main owns the resolved write target; the renderer does not need it for instance identity. The original locator remains available for display. [A later decision](../../implemented/bug-fix/2026-10-25-file-edit-unblocked-writes.md) removed `settle_write`, write sequences and `EditWriteLedger`.
 
 | Route | Required contract |
 |---|---|
@@ -143,7 +143,7 @@ For existing in-window rename/move/delete actions, use one conservative window p
 
 After successful preparation, the caller invokes the existing file operation and calls `finish()` in `finally`, including when the operation partially fails. `finish()` revalidates attached instances before resuming them; missing or retargeted handles become unavailable, unchanged documents retain history, and clean changed documents load as explicit replacements. A failed revalidation keeps that instance non-writable with recovery available but releases the window barrier for other instances. Old bindings remain retired. The caller opens a renamed destination through its returned handle as a new instance; the runtime never constructs a destination by replacing a path prefix. Clean detached instances can simply be released. Abandoned acquisitions and repeated finish calls must be safe.
 
-The accepted cost is that an unrelated unsaved conflict in the same window can block a file mutation, and preparation may flush unrelated drafts. This avoids a new filesystem identity/matching subsystem. It does not globally block other windows: their participating writes remain subject to Main target/baseline checks. If finer-grained preparation becomes a product requirement, design it separately rather than restoring heuristic path matching here.
+The accepted cost is that an unrelated unsaved conflict in the same window can block a file mutation, and preparation may flush unrelated drafts. This avoids a new filesystem identity/matching subsystem. It does not globally block other windows: their participating writes remain subject to Main target/baseline checks. If finer-grained preparation becomes a product requirement, design it separately rather than restoring heuristic path matching here. [A later decision](../../implemented/bug-fix/2026-10-25-file-edit-unblocked-writes.md) keeps the window barrier but stops sessions already in conflict or save failure from blocking it.
 
 ### Implementation sequence and verification
 

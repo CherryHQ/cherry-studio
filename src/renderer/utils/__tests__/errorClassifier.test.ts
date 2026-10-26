@@ -331,6 +331,19 @@ describe('classifyError', () => {
     expect(result.navTarget).toBe('/settings/provider?id=gateway%26fallback%23beta')
   })
 
+  // The provider rejected the request body (#22164). That is a request-side failure, so it
+  // must not be diagnosed as "AI returned an invalid response, retry or switch model".
+  it('diagnoses a rejected request body as a request failure, not invalid AI content', () => {
+    const result = classifyError(
+      makeError({ statusCode: 400, message: 'Failed to parse request body', responseBody: 'Bad Request' }),
+      'openai'
+    )
+
+    expect(result.category).toBe('bad_request')
+    expect(result.i18nKey).toBe('error.diagnosis.bad_request')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
   // Auth
   it('classifies 401 as auth', () => {
     const result = classifyError(makeError({ statusCode: 401 }))
