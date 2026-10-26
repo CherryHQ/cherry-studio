@@ -55,7 +55,7 @@ import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
+import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LocalAgentWebUiService } from '@main/services/LocalAgentWebUiService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
@@ -140,6 +140,7 @@ export const services = {
   LocalAgentWebUiService,
   LocalAgentInstallService,
   FileManager,
+  FileEditService,
   AttachmentPresenceService,
   FileIntakeService,
   DirectoryTreeManager,

@@ -207,6 +207,18 @@ pnpm theme:check
 pnpm test
 ```
 
+### Headless Code Highlighting
+
+`@cherrystudio/ui/code-highlight` exposes language/theme metadata, a lazy Highlights runtime,
+synchronous document sessions, and a bounded asynchronous snapshot executor. It imports neither
+React nor application services; metadata access does not initialize WASM. Import this subpath
+instead of the component entry in workers and editor adapters.
+
+`createCodeHighlightPlugin({ execute, themes })` connects Streamdown to a snapshot executor.
+Standalone Markdown defaults to a shared local executor and GitHub light/dark themes. The app
+injects its renderer worker executor and viewer theme preferences. CodeMirror keeps its own
+editor theme settings.
+
 ### Icon Generation
 
 Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.

@@ -83,9 +83,10 @@ describe('local protocol processes', () => {
     await connection.start(cwd)
     const file = path.join(cwd, '说明 #1.txt')
     await writeFile(file, '附件内容：测试')
+    const image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
     const parts = [
       { type: 'text', text: 'Read both attachments' },
-      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,aW1hZ2U=', filename: 'image.png' },
+      { type: 'file', mediaType: 'image/png', url: `data:image/png;base64,${image}`, filename: 'image.png' },
       { type: 'file', mediaType: 'text/plain', url: pathToFileURL(file).href, filename: '说明 #1.txt' }
     ]
     await connection.send({ message: { data: { parts } } } as AgentRuntimeUserInput)
@@ -93,7 +94,7 @@ describe('local protocol processes', () => {
     const prompt = wire.find((message) => message.method === 'session/prompt').params.prompt
     expect(prompt).toEqual([
       { type: 'text', text: 'Read both attachments' },
-      { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' },
+      { type: 'image', mimeType: 'image/png', data: image },
       scenario === 'embedded-files'
         ? {
             type: 'resource',

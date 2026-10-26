@@ -2,6 +2,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import type {
   KnowledgeCheckFileProcessingResultPayload,
+  KnowledgeCopySourcesPayload,
   KnowledgeDeleteSubtreePayload,
   KnowledgeIndexDocumentsPayload,
   KnowledgePrepareRootPayload,
@@ -9,6 +10,10 @@ import type {
 } from '../jobTypes'
 
 export type NarrowedKnowledgeJobInput =
+  | {
+      type: 'knowledge.copy-sources'
+      input: KnowledgeCopySourcesPayload
+    }
   | {
       type: 'knowledge.prepare-root'
       input: KnowledgePrepareRootPayload
@@ -35,6 +40,10 @@ type JobInputObject = Record<string, unknown>
 
 export function narrowKnowledgeJobInput(snapshot: JobSnapshotInput): NarrowedKnowledgeJobInput | null {
   switch (snapshot.type) {
+    case 'knowledge.copy-sources': {
+      const payload = narrowCopySourcesJobPayload(snapshot.input)
+      return payload ? { type: snapshot.type, input: payload } : null
+    }
     case 'knowledge.prepare-root': {
       const payload = narrowItemJobPayload(snapshot.input)
       return payload ? { type: snapshot.type, input: payload } : null
@@ -95,6 +104,25 @@ function narrowItemJobPayload(
 
 function narrowIndexDocumentsJobPayload(rawInput: JobSnapshot['input']): KnowledgeIndexDocumentsPayload | null {
   return narrowItemJobPayload(rawInput)
+}
+
+function narrowCopySourcesJobPayload(rawInput: JobSnapshot['input']): KnowledgeCopySourcesPayload | null {
+  const input = narrowJobInputObject(rawInput)
+  if (!input) return null
+  const basePayload = narrowItemJobPayload(rawInput)
+  if (!basePayload) return null
+  if (!Array.isArray(input.copies)) return null
+  const copiesAreValid = input.copies.every((copy: unknown) => {
+    const entry = narrowJobInputObject(copy)
+    return entry !== null && typeof entry.from === 'string' && typeof entry.relativePath === 'string'
+  })
+  if (!copiesAreValid) return null
+
+  return {
+    baseId: basePayload.baseId,
+    itemId: basePayload.itemId,
+    copies: input.copies as KnowledgeCopySourcesPayload['copies']
+  }
 }
 
 function narrowSubtreeJobPayload(

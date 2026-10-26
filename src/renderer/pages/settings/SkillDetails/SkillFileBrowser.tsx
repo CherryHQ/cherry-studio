@@ -98,7 +98,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     () => (access === 'read_write' && selectedFile ? createFilePathHandle(selectedFile) : undefined),
     [access, selectedFile]
   )
-  const fileSession = useFileEditSession(editableHandle)
+  const fileSession = useFileEditSession(editableHandle, `skill:${skillId}`)
   const notifyExternalChange = fileSession.notifyExternalChange
   const reloadFile = fileSession.reload
   const keepCurrentDraft = fileSession.keepDraft
@@ -133,9 +133,9 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const handleTreeMutation = useCallback(
     (event: TreeMutationEvent) => {
       if (access !== 'read_write') return
+      notifyExternalChange()
       const activePath = selectedFileRef.current
       if (event.type === 'updated' && activePath === event.path) {
-        notifyExternalChange(event.stats.mtime)
         return
       }
       void reconcileSkill().catch(() => undefined)
@@ -232,9 +232,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
     [disabled, flush, selectedFile]
   )
 
-  const discardAndSelectPending = useCallback(() => {
+  const discardAndSelectPending = useCallback(async () => {
     const nextFile = pendingFile
-    fileSession.discard()
+    try {
+      await fileSession.discard()
+    } catch {
+      return
+    }
     setSyncError(null)
     setPendingFile(null)
     if (nextFile) {
@@ -398,20 +402,21 @@ export const SkillFileBrowser = function SkillFileBrowser({
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-background-subtle">
+          <div data-file-edit className="min-h-0 flex-1 overflow-hidden rounded-lg bg-background-subtle">
             {selectedFile ? (
               viewMode === 'edit' && canEdit ? (
                 <div className="flex h-full min-h-0 flex-col">
                   {customPreviewHeader}
                   <CodeEditor
+                    key={`${fileSession.sessionId}:${fileSession.documentEpoch}`}
                     value={fileSession.draft}
                     language={getEditorLanguage(selectedFile)}
                     onChange={fileSession.setDraft}
                     expanded={false}
                     height="100%"
                     theme={activeCmTheme}
-                    editable={!disabled}
-                    readOnly={disabled}
+                    editable={!disabled && !fileSession.readOnly}
+                    readOnly={disabled || fileSession.readOnly}
                     options={{ keymap: true }}
                     className="min-h-0 flex-1"
                   />
@@ -507,9 +512,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
           <Button
             variant="destructive"
             disabled={fileSession.isSaving || isSyncing}
-            onClick={() => {
+            onClick={async () => {
               if (blocker.status !== 'blocked') return
-              fileSession.discard()
+              try {
+                await fileSession.discard()
+              } catch {
+                return
+              }
               setSyncError(null)
               blocker.proceed()
             }}>

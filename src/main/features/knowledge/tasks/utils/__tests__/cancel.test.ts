@@ -106,6 +106,25 @@ describe('cancelActiveKnowledgeJobs', () => {
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'delete-base')
   })
 
+  it('cancels the copy of an item that is deleted while its bytes are still copying', async () => {
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createItem('file-1')])
+    const copyJob = (id: string, itemId: string) =>
+      createJobSnapshot({
+        id,
+        type: 'knowledge.copy-sources',
+        input: { baseId: 'kb-1', itemId, copies: [{ from: `/docs/${itemId}.pdf`, relativePath: `${itemId}.pdf` }] }
+      })
+    listMock.mockResolvedValue([copyJob('copy-file-1', 'file-1'), copyJob('copy-file-2', 'file-2')])
+
+    await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
+      rootItemIds: ['file-1'],
+      onCancelTimeout: 'proceed'
+    })
+
+    expect(cancelMock).toHaveBeenCalledTimes(1)
+    expect(cancelMock).toHaveBeenCalledWith('copy-file-1', 'knowledge-delete-subtree')
+  })
+
   it('returns without listing jobs when the requested subtree resolves empty', async () => {
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
 
