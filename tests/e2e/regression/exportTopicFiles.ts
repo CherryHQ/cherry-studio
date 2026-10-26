@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
-import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises'
+import { readFile, readdir, mkdir, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { basename, dirname, join } from 'node:path'
 
@@ -56,6 +56,9 @@ export async function exportTopicFiles(app: RegressionApp, page: Page, testInfo:
   if (!address || typeof address === 'string') throw new Error('Image fixture server has no port')
   const imageBase = `http://127.0.0.1:${address.port}`
   const output = join(app.paths.evidence, 'MP-47-exports')
+  // ExportService stamps Markdown filenames with a timestamp, so a reused directory would hold
+  // several .md files on a rerun and break the single-file assertions below.
+  await rm(output, { recursive: true, force: true })
   await mkdir(output, { recursive: true })
   try {
     await page.evaluate(

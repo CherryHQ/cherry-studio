@@ -108,7 +108,8 @@ export async function resetAppData(app: RegressionApp, initialPage: Page, testIn
   expect(await readFile(seeded.filePath, 'utf8')).toBe(markerText)
 
   // Keep a full profile copy outside the reset target before exercising destructive UI.
-  const backup = join(app.paths.workspace, 'MP-121-profile-backup')
+  // It contains the live database with real provider keys, so it stays out of the uploaded roots.
+  const backup = join(app.paths.private, 'MP-121-profile-backup')
   await cp(userData, backup, { recursive: true })
   expect((await stat(join(backup, 'Data', 'cherrystudio.sqlite'))).size).toBeGreaterThan(0)
   await testInfo.attach('MP-121 isolated profile and backup', {

@@ -30,7 +30,9 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  const directory = testInfo.outputPath('local-backups')
+  // Backup archives embed Data/cherrystudio.sqlite, whose provider rows hold the real API keys, so
+  // they are written outside every uploaded artifact root.
+  const directory = join(app.paths.private, 'MP-115-local-backups')
   await mkdir(directory, { recursive: true })
   const keys = [
     'data.backup.local.dir',
@@ -223,7 +225,8 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  const backupDir = testInfo.outputPath('local-backups')
+  // Restored archives carry the live database; keep them out of the uploaded evidence roots.
+  const backupDir = join(app.paths.private, 'MP-116-local-backups')
   await mkdir(backupDir, { recursive: true })
   const assistantName = app.resourceName('Restore assistant')
   const topicName = app.resourceName('Restore topic')
@@ -422,7 +425,7 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
     'data.backup.local.sync_interval': await window.api.preference.get('data.backup.local.sync_interval'),
     'data.backup.local.max_backups': await window.api.preference.get('data.backup.local.max_backups')
   }))
-  const directory = join(app.paths.workspace, `MP-117-backups-${Date.now()}`)
+  const directory = join(app.paths.private, `MP-117-backups-${Date.now()}`)
   const savedDirectory = `${directory}-saved`
   const attachScreenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)

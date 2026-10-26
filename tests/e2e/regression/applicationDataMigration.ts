@@ -26,10 +26,12 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  const destination = join(app.paths.fixtures, 'mp119-new-data')
-  const nonempty = join(app.paths.fixtures, 'mp119-nonempty')
-  const readonly = join(app.paths.fixtures, 'mp119-readonly')
-  const backup = join(app.paths.fixtures, 'mp119-backup')
+  // The relocated data directory holds a full profile (including the database with real provider
+  // keys), so it lives outside the uploaded artifact roots.
+  const destination = join(app.paths.private, 'mp119-new-data')
+  const nonempty = join(app.paths.private, 'mp119-nonempty')
+  const readonly = join(app.paths.private, 'mp119-readonly')
+  const backup = join(app.paths.private, 'mp119-backup')
   // Relocation rewrites the install-scoped boot config and only packaged builds accept it;
   // branch runs launch unpackaged Electron from the repository.
   const packaged = app.record.mode === 'tag'

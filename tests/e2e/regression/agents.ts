@@ -61,6 +61,14 @@ export async function createAgent(
   await selectSidebarApp(page, 'Work')
   const agentView = page.locator('[data-ui="agent.view"]:visible').first()
   await expect(agentView).toBeVisible({ timeout: 30_000 })
+  // Sessions only render "Add Agent" in Agent display mode; a previous case can leave work-directory
+  // or time mode behind, so establish the mode this helper needs instead of inheriting it.
+  const displayMode = agentView.getByRole('button', { name: 'Display mode', exact: true })
+  if (await displayMode.isVisible().catch(() => false)) {
+    await displayMode.click()
+    const agentMode = page.getByRole('button', { name: 'Agent', exact: true })
+    if (await agentMode.isVisible().catch(() => false)) await agentMode.click()
+  }
   if (
     await agentView
       .getByText(options.name, { exact: true })
