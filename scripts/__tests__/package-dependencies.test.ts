@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { runInNewContext } from 'node:vm'
 
 import { describe, expect, it } from 'vitest'
 
@@ -24,6 +26,22 @@ function packageRequire(name: string, from: NodeJS.Require): NodeJS.Require {
 }
 
 const piRequire = packageRequire('@earendil-works/pi-ai', require)
+
+it('keeps the esbuild CLI as a small launcher while both compiler entry points work', () => {
+  const runtimeRequire = packageRequire('esbuild', packageRequire('tsx', require))
+  const cli = runtimeRequire.resolve('esbuild/bin/esbuild')
+  expect(statSync(cli).size).toBeLessThan(100_000)
+  const source = 'const answer: number = 42; module.exports = answer'
+  const compiled = [
+    runtimeRequire('esbuild').transformSync(source, { loader: 'ts', format: 'cjs' }).code,
+    execFileSync(process.execPath, [cli, '--loader=ts', '--format=cjs'], { input: source, encoding: 'utf8' })
+  ]
+  for (const code of compiled) {
+    const context = { module: { exports: undefined } }
+    runInNewContext(code, context)
+    expect(context.module.exports).toBe(42)
+  }
+})
 
 describe('packaged Smithy dependencies', () => {
   it('preserves S3 request signing and response decoding for backups', async () => {

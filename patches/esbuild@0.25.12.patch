@@ -1,0 +1,60 @@
+diff --git a/install.js b/install.js
+index 1019e62435fd0258e39ad6db102194d46bd85ce4..971e8d1922a47dfce21101a028646da8276e6be5 100644
+--- a/install.js
++++ b/install.js
+@@ -94,7 +94,6 @@ var https = require("https");
+ var child_process = require("child_process");
+ var versionFromPackageJSON = require(path2.join(__dirname, "package.json")).version;
+ var toPath = path2.join(__dirname, "bin", "esbuild");
+-var isToPathJS = true;
+ function validateBinaryVersion(...command) {
+   command.push("--version");
+   let stdout;
+@@ -136,13 +135,6 @@ which means the "esbuild" binary executable can't be run. You can either:
+     throw new Error(`Expected ${JSON.stringify(versionFromPackageJSON)} but got ${JSON.stringify(stdout)}`);
+   }
+ }
+-function isYarn() {
+-  const { npm_config_user_agent } = process.env;
+-  if (npm_config_user_agent) {
+-    return /\byarn\//.test(npm_config_user_agent);
+-  }
+-  return false;
+-}
+ function fetch(url) {
+   return new Promise((resolve, reject) => {
+     https.get(url, (res) => {
+@@ -220,19 +212,6 @@ require('child_process').execFileSync(${pathString}, process.argv.slice(2), { st
+   fs2.writeFileSync(libMain, `var ESBUILD_BINARY_PATH = ${pathString};
+ ${code}`);
+ }
+-function maybeOptimizePackage(binPath) {
+-  const { isWASM } = pkgAndSubpathForCurrentPlatform();
+-  if (os2.platform() !== "win32" && !isYarn() && !isWASM) {
+-    const tempPath = path2.join(__dirname, "bin-esbuild");
+-    try {
+-      fs2.linkSync(binPath, tempPath);
+-      fs2.renameSync(tempPath, toPath);
+-      isToPathJS = false;
+-      fs2.unlinkSync(tempPath);
+-    } catch {
+-    }
+-  }
+-}
+ async function downloadDirectlyFromNPM(pkg, subpath, binPath) {
+   const url = `https://registry.npmjs.org/${pkg}/-/${pkg.replace("@esbuild/", "")}-${versionFromPackageJSON}.tgz`;
+   console.error(`[esbuild] Trying to download ${JSON.stringify(url)}`);
+@@ -278,12 +257,7 @@ this. If that fails, you need to remove the "--no-optional" flag to use esbuild.
+       }
+     }
+   }
+-  maybeOptimizePackage(binPath);
+ }
+ checkAndPreparePackage().then(() => {
+-  if (isToPathJS) {
+-    validateBinaryVersion(process.execPath, toPath);
+-  } else {
+-    validateBinaryVersion(toPath);
+-  }
++  validateBinaryVersion(process.execPath, toPath);
+ });

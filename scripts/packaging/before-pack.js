@@ -198,6 +198,7 @@ const getNativeModuleFilters = (platform, arch) => {
   const nativeBindingTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
   return [
     ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
+    `!**/node_modules/@esbuild/!(${platform}-${arch})/**`,
     `!**/node_modules/@mariozechner/clipboard-!(${nativeBindingTarget})/**`,
     `!**/node_modules/@koromix/koffi-!(${platform}-${arch})/**`,
     `!**/node_modules/node-addon-require-builtin-!(${nativeBindingTarget})/**`,

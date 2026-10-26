@@ -124,6 +124,8 @@ patchedDependencies:
   "@aiden0z/pptx-renderer@1.2.2": patches/@aiden0z__pptx-renderer@1.2.2.patch
   # Normalize RTF byte representations before code-page decoding; preserve font resets and binary ranges.
   rtf.js@3.0.9: patches/rtf.js@3.0.9.patch
+  # Keep the JS CLI launcher; the native payload already ships under @esbuild/*.
+  esbuild@0.25.12: patches/esbuild@0.25.12.patch
 
 allowBuilds:
   "@google/genai": false
