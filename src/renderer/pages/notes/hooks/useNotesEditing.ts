@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { toast } from '@renderer/services/toast'
-import type { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode, RenameNote } from '@renderer/types/note'
 import { fetchNoteSummary } from '@renderer/utils/aiGeneration'
 
 const logger = loggerService.withContext('UseNotesEditing')
 
 interface UseNotesEditingProps {
-  onRenameNode: (nodeId: string, newName: string) => void
+  onRenameNode: RenameNote
 }
 
 export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
@@ -20,11 +20,13 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
   const [newlyRenamedNodeIds, setNewlyRenamedNodeIds] = useState<Set<string>>(new Set())
 
   const inPlaceEdit = useInPlaceEdit({
-    onSave: (newName: string) => {
+    onSave: async (newName: string) => {
       if (editingNodeId && newName) {
-        onRenameNode(editingNodeId, newName)
-        toast.success(t('common.saved'))
-        logger.debug(`Renamed node ${editingNodeId} to "${newName}"`)
+        const result = await onRenameNode(editingNodeId, newName)
+        if (result.ok) {
+          toast.success(t('common.saved'))
+          logger.debug(`Renamed node ${editingNodeId} to "${result.name}"`)
+        }
       }
       setEditingNodeId(null)
     },
@@ -56,9 +58,11 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
 
         const summaryText = await fetchNoteSummary({ content })
         if (summaryText) {
-          onRenameNode(note.id, summaryText)
-          toast.success(t('notes.auto_rename.success'))
-          renamed = true
+          const result = await onRenameNode(note.id, summaryText)
+          if (result.ok) {
+            toast.success(t('notes.auto_rename.success'))
+            renamed = result.name !== note.name
+          }
         } else {
           toast.error(t('notes.auto_rename.failed'))
         }
