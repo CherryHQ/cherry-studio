@@ -1991,10 +1991,37 @@ function normalizeLstart(lstart: string): string {
   return lstart.trim().replace(/\s+/g, ' ')
 }
 
+/**
+ * The environment every identity read runs `ps` under. `lstart` is printed in the *reader's* time
+ * zone and locale, and the stamp it prints is the identity persisted in the record and the ledger:
+ * read once in `Asia/Shanghai` and again after the machine (or the app's TZ) moved to UTC, the same
+ * process comes back with a different string, so its own task reads it as a recycled pid — the one
+ * answer that refuses Stop/Kill and admits permanent deletion. Pinning both makes the printed
+ * instant depend on the process alone, not on where it was read.
+ */
+const IDENTITY_PS_ENV: NodeJS.ProcessEnv = { ...process.env, TZ: 'UTC', LC_ALL: 'C' }
+
+/** An `lstart` in the shape the pinned reader prints — the only stamp a comparison may act on. */
+const START_STAMP_SHAPE =
+  /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}$/
+
+/**
+ * Whether a stamp identifies an instant at all. A stamp that does not read back in that shape
+ * establishes nothing about the process behind it, so a comparison that fails on one stays
+ * conservative: an unreadable stamp is not proof that the number was handed to someone else.
+ */
+function isReadableStartStamp(stamp: string | undefined): stamp is string {
+  return stamp !== undefined && START_STAMP_SHAPE.test(stamp)
+}
+
 function getPidStartTime(pid: number): string | undefined {
   if (process.platform === 'win32') return undefined
   try {
-    const raw = execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 1_000 })
+    const raw = execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], {
+      encoding: 'utf8',
+      timeout: 1_000,
+      env: IDENTITY_PS_ENV
+    })
     return normalizeLstart(raw) || undefined
   } catch {
     return undefined
@@ -2058,7 +2085,8 @@ function readProcessTable(): ProcessRow[] | null {
     const table = execFileSync('ps', ['-axwwo', 'pgid=,pid=,ppid=,state=,lstart='], {
       encoding: 'utf8',
       maxBuffer: 8 * 1024 * 1024,
-      timeout: 5_000
+      timeout: 5_000,
+      env: IDENTITY_PS_ENV
     })
     const rows: ProcessRow[] = []
     for (const row of table.split('\n')) {
@@ -2123,9 +2151,9 @@ export async function hasLiveTaskEvidence(storageDir: string, record: Background
  * A leaderless group is not covered: its members may still be the task's own orphans.
  */
 function groupLedByReplacement(record: BackgroundTaskRecord): boolean {
-  if (!record.pidStartTime) return false
+  if (!isReadableStartStamp(record.pidStartTime)) return false
   const leader = readGroupMembers(record.pid)?.find((member) => member.pid === record.pid)
-  return leader !== undefined && leader.lstart !== record.pidStartTime
+  return leader !== undefined && isReadableStartStamp(leader.lstart) && leader.lstart !== record.pidStartTime
 }
 
 export async function hasLiveGroupEvidence(
@@ -2666,9 +2694,9 @@ async function reconcileDetachedBackgroundTask(
  * running, and the stop path then refuses it as unsafe to signal.
  */
 function isRecycledPid(record: BackgroundTaskRecord): boolean {
-  if (!record.pidStartTime) return false
+  if (!isReadableStartStamp(record.pidStartTime)) return false
   const observed = getPidStartTime(record.pid)
-  return observed !== undefined && observed !== record.pidStartTime
+  return isReadableStartStamp(observed) && observed !== record.pidStartTime
 }
 
 async function finalizeDetachedBackgroundTask(

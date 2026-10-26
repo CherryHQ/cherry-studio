@@ -1476,7 +1476,8 @@ describe('backgroundTasks', () => {
           // And it names the actual leader, so a restart can re-identify it rather than trust any
           // process that happens to hold the number.
           const liveStamp = execFileSync('ps', ['-p', String(record.pid), '-o', 'lstart='], {
-            encoding: 'utf8'
+            encoding: 'utf8',
+            env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' }
           })
           expect(persisted.pidStartTime).toBe(liveStamp.trim().replace(/\s+/g, ' '))
         } finally {
@@ -1597,6 +1598,37 @@ describe('backgroundTasks', () => {
         }
       }
     )
+
+    // `ps` prints `lstart` in the reader's own time zone, and that string is the identity the
+    // record persists. Read once in one zone and again after the machine moved, the same live
+    // leader fails its own stamp check: the pid reads as recycled, Stop/Kill refuses the task, and
+    // permanent deletion treats the still-running work as already gone.
+    it.skipIf(process.platform === 'win32')('keeps a task identifiable after the reader timezone changes', async () => {
+      const savedTz = process.env.TZ
+      let record: Awaited<ReturnType<typeof startDetachedBackgroundTask>> | undefined
+      try {
+        process.env.TZ = 'Asia/Shanghai'
+        record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+          cwd: storageDir
+        })
+        expect(record.pidStartTime).toBeTruthy()
+        // The app is gone; the stamp on the record is all a restart has to identify the leader by.
+        forgetDetachedTaskOwnershipForTest(record.id)
+        process.env.TZ = 'Pacific/Kiritimati'
+        const listed = await listDetachedBackgroundTasks(storageDir)
+        expect(listed.find((candidate) => candidate.id === record?.id)?.status).toBe('running')
+        expect((await stopDetachedBackgroundTask(storageDir, record.id, true))?.status).toBe('stopped')
+      } finally {
+        process.env.TZ = savedTz
+        try {
+          if (record) process.kill(-record.pid, 'SIGKILL')
+        } catch {
+          // already drained
+        }
+      }
+    })
 
     it.skipIf(process.platform === 'win32')(
       'refuses to signal a group holding a member it cannot account for',
@@ -1819,7 +1851,12 @@ describe('backgroundTasks', () => {
         const replacementPid = occupant.pid ?? 0
         const workerPid = worker.pid ?? 0
         const startStamp = (pid: number): string =>
-          String(execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' }))
+          String(
+            execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], {
+              encoding: 'utf8',
+              env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' }
+            })
+          )
             .trim()
             .replace(/\s+/g, ' ')
         const id = `bt-reused-anchor-${Date.now()}`
@@ -1892,7 +1929,12 @@ describe('backgroundTasks', () => {
         occupant.unref()
         const occupantPid = occupant.pid ?? 0
         const startStamp = (pid: number): string =>
-          String(execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' }))
+          String(
+            execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], {
+              encoding: 'utf8',
+              env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' }
+            })
+          )
             .trim()
             .replace(/\s+/g, ' ')
         const id = `bt-replacement-group-${Date.now()}`
