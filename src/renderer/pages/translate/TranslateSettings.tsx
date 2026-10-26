@@ -481,6 +481,7 @@ const CustomLanguageList: FC = () => {
   return (
     <PageSidePanelSection
       title={t('translate.custom.label')}
+      data-ui="translate.custom-languages"
       actions={
         customLanguages.length > 0 && (
           <span className="text-xs text-foreground-tertiary">{t('code.count', { count: customLanguages.length })}</span>
@@ -689,7 +690,9 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
   if (!editing) {
     return (
       <>
-        <div className="group flex items-center gap-2 rounded-lg px-2 py-1.25 transition-colors hover:bg-muted/30">
+        <div
+          data-ui="translate.custom-language"
+          className="group flex items-center gap-2 rounded-lg px-2 py-1.25 transition-colors hover:bg-muted/30">
           <span className="min-w-0 flex-1 truncate text-sm text-foreground">{language.value}</span>
           <span className="shrink-0 font-mono text-xs text-foreground-tertiary">{language.langCode}</span>
           <IconButton

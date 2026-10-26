@@ -15,7 +15,7 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   await selectSidebarApp(page, 'Chat')
-  const chatView = page.locator('[data-ui="chat.view"]:visible').first()
+  const chatView = page.locator('[data-ui~="chat.view"]:visible').first()
   const assistant = chatView.getByText(name, { exact: true }).first()
 
   if (!(await assistant.isVisible().catch(() => false))) {

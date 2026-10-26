@@ -81,7 +81,7 @@ export async function noteKnowledgeExport(app: RegressionApp, page: Page, testIn
       const notes = page.locator('[data-ui~="notes.view"]:visible')
       const note = notes.getByText(noteName, { exact: true })
       await note.click()
-      await expect(notes.locator('[data-ui~="notes.editor"]')).toContainText(secret)
+      await expect(notes.locator('[data-ui~="notes.editor"][data-file-edit]')).toContainText(secret)
       await note.click({ button: 'right' })
       await page.getByRole('menuitem', { name: 'Export notes to knowledge base', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: 'Export notes to knowledge base', exact: true })

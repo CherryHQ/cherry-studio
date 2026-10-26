@@ -16,11 +16,10 @@ async function openCodeTool(page: Page, name: string): Promise<void> {
 }
 
 async function configureTool(page: Page, model: string, provider: string): Promise<void> {
-  const codeView = page.locator('[data-ui="code.view"]:visible').first()
-  const providerName = codeView.getByText(provider, { exact: true }).first()
-  const providerCard: Locator = providerName.locator(
-    'xpath=ancestor::div[contains(@class, "group") and .//button[normalize-space()="Configure"]][1]'
-  )
+  const codeView = page.locator('[data-ui~="code.view"]:visible').first()
+  const providerCard: Locator = codeView
+    .locator('[data-ui~="code.provider-card"]')
+    .filter({ has: page.getByText(provider, { exact: true }) })
   await providerCard.scrollIntoViewIfNeeded()
   await providerCard.hover()
   const configure = providerCard.getByRole('button', { name: 'Configure', exact: true })
@@ -85,7 +84,7 @@ test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
   await openCodeTool(page, 'OpenClaw')
   await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
   await page
-    .locator('[data-ui="code.view"]:visible')
+    .locator('[data-ui~="code.view"]:visible')
     .first()
     .getByRole('button', { name: 'Launch', exact: true })
     .click()

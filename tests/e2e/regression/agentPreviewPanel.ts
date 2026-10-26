@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process'
-import { rm, writeFile } from 'node:fs/promises'
+import { copyFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
@@ -40,22 +39,7 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
       })
     )
   )
-  execFileSync(
-    'ffmpeg',
-    [
-      '-y',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=blue:s=160x120:d=1',
-      '-c:v',
-      'libx264',
-      '-pix_fmt',
-      'yuv420p',
-      join(app.paths.fixtures, videoName)
-    ],
-    { stdio: 'ignore' }
-  )
+  await copyFile(app.fixturesPath('media', 'sample-5s.mp4'), join(app.paths.fixtures, videoName))
   const slides = new JSZip()
   slides.file(
     '[Content_Types].xml',
@@ -80,7 +64,7 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
     model: app.config.customProvider.chatModel,
     permission: 'Full Access'
   })
-  const view = page.locator('[data-ui="agent.view"]:visible').first()
+  const view = page.locator('[data-ui~="agent.view"]:visible').first()
   await rm(join(app.paths.workspace, 'TASK.md'), { force: true })
   await selectAgentWorkspace(app, page)
   await view.getByRole('button', { name: 'Files', exact: true }).click()

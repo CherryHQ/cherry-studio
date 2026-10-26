@@ -22,7 +22,7 @@ export async function openSettingsSection(page: Page, section: string): Promise<
   await page.keyboard.press('Escape')
   await closeOpenSettingsDrawer(page)
   const sectionButton = page
-    .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
+    .locator('[data-ui~="settings.navigation"] [data-slot="menu-item"]')
     .filter({ hasText: section })
     .first()
   if (!(await sectionButton.isVisible().catch(() => false))) {

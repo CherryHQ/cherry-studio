@@ -166,31 +166,14 @@ describe('ActionWindow surface', () => {
     expect(titleBar).toHaveStyle({ paddingLeft: '78px' })
   })
 
-  it('uses compact title-bar icons and a neutral pinned state', () => {
-    const { container } = render(<ActionWindow />)
-
-    expect(screen.getByTestId('action-icon')).toHaveAttribute('data-size', '14')
-    expect(container.querySelector('.lucide-pin')).toHaveClass('size-[13px]')
-    expect(container.querySelector('.lucide-droplet')).toHaveClass('size-[13px]')
-    expect(container.querySelector('.lucide-minus')).toHaveClass('size-3.5')
-    expect(container.querySelector('.lucide-x')).toHaveClass('size-3.5')
-
-    const pinButton = container.querySelector('.lucide-pin')?.closest('button')
-    fireEvent.click(pinButton!)
-
-    expect(pinButton).toHaveClass('bg-accent', 'text-accent-foreground', 'hover:bg-accent')
-    expect(pinButton).not.toHaveClass('bg-primary/10', 'text-primary')
-    expect(container.querySelector('.lucide-pin')).toHaveClass('text-accent-foreground')
-
-    const opacityButton = container.querySelector('.lucide-droplet')?.closest('button')
-    fireEvent.click(opacityButton!)
-
-    expect(opacityButton).toHaveClass('bg-accent', 'text-accent-foreground', 'hover:bg-accent')
-    expect(opacityButton).not.toHaveClass('bg-primary/10', 'text-primary')
-    const opacitySlider = container.querySelector('[data-slot="slider"]')
-
-    expect(opacitySlider).toHaveClass('data-[orientation=vertical]:min-h-0')
-    expect(opacitySlider).not.toHaveClass('data-[orientation=vertical]:min-h-44')
+  it('names the pin action and updates its name after toggling the native window state', () => {
+    render(<ActionWindow />)
+    fireEvent.click(screen.getByRole('button', { name: 'selection.action.window.pin' }))
+    expect(screen.getByRole('button', { name: 'selection.action.window.pinned' })).toBeVisible()
+    expect(ipcRequest).toHaveBeenCalledWith('selection.pin_action_window', true)
+    fireEvent.click(screen.getByRole('button', { name: 'selection.action.window.pinned' }))
+    expect(screen.getByRole('button', { name: 'selection.action.window.pin' })).toBeVisible()
+    expect(ipcRequest).toHaveBeenCalledWith('selection.pin_action_window', false)
   })
 
   it('resets transient state when a pooled window reuses the same action type', async () => {

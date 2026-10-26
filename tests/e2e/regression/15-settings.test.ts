@@ -360,7 +360,7 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
     page.locator('#setting-appearance-theme-mode').getByRole('button', { name, exact: true })
   const transparentSwitch = () =>
     page
-      .locator('[data-ui="settings.content"] div')
+      .locator('[data-ui~="settings.content"] div')
       .filter({
         has: page.getByText('Transparent Window', { exact: true })
       })
@@ -381,10 +381,10 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
     const shell = page.getByTestId('macos-traffic-light-drag-region').locator('..')
     if (transparent) {
       await expect(shell).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-      await expect(page.locator('[data-ui="settings.view"]')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+      await expect(page.locator('[data-ui~="settings.view"]')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
     } else {
       await expect(shell).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-      await expect(page.locator('[data-ui="settings.view"]')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+      await expect(page.locator('[data-ui~="settings.view"]')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
     }
   }
   const assertColor = async () => {
@@ -417,8 +417,8 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
             const end = performance.now() + 900
             do {
               await new Promise(requestAnimationFrame)
-              const surface = document.querySelector('[data-ui="settings.view"]')
-              const content = document.querySelector('[data-ui="settings.content"]') as HTMLElement | null
+              const surface = document.querySelector('[data-ui~="settings.view"]')
+              const content = document.querySelector('[data-ui~="settings.content"]') as HTMLElement | null
               context.clearRect(0, 0, 1, 1)
               context.fillStyle = surface ? getComputedStyle(surface).backgroundColor : '#ffffff'
               context.fillRect(0, 0, 1, 1)
@@ -549,7 +549,7 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
     await selectSidebarApp(page, 'Settings')
     await screenshot('MP-107 actual settings navigation')
     const messageSection = page
-      .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
+      .locator('[data-ui~="settings.navigation"] [data-slot="menu-item"]')
       .filter({ hasText: 'Message Settings' })
     const section = (await messageSection.count()) ? 'Message Settings' : 'Appearance'
     await openSettingsSection(page, section)
@@ -991,7 +991,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
   const row = page.locator('#setting-shortcut-topic-create')
   const openShortcut = async () => {
     await openSettingsSection(page, 'Keyboard Shortcuts')
-    const settings = page.locator('[data-ui="settings.view"]:visible')
+    const settings = page.locator('[data-ui~="settings.view"]:visible')
     await settings.getByRole('button', { name: 'Search', exact: true }).click()
     await settings.getByPlaceholder('Search shortcuts...').fill('New Conversation')
     await expect(row).toBeVisible()

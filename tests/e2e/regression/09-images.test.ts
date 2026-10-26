@@ -3,6 +3,7 @@ import { once } from 'node:events'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import sharp from 'sharp'
 
@@ -52,13 +53,8 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
   await expect(image).toBeVisible()
   const originalUrl = await image.getAttribute('src')
   expect(originalUrl).toBeTruthy()
-  const readOriginal = () =>
-    page.evaluate(async (url) => {
-      const response = await fetch(url!)
-      if (!response.ok) throw new Error(`Image read failed: ${response.status}`)
-      return Array.from(new Uint8Array(await response.arrayBuffer()))
-    }, originalUrl)
-  const original = Buffer.from(await readOriginal())
+  const readOriginal = () => readFile(fileURLToPath(originalUrl!))
+  const original = await readOriginal()
   const originalSize = await sharp(original).metadata()
 
   await image.click()

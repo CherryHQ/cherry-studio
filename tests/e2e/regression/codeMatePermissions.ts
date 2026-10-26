@@ -61,9 +61,8 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     )
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
   const providerCard = codeView
-    .getByText('Unified Gateway', { exact: true })
-    .first()
-    .locator('xpath=ancestor::div[contains(@class, "group") and .//button[normalize-space()="Configure"]][1]')
+    .locator('[data-ui~="code.provider-card"]')
+    .filter({ has: page.getByText('Unified Gateway', { exact: true }) })
   const configure = async () => {
     await providerCard.hover()
     await providerCard.getByRole('button', { name: 'Configure', exact: true }).click()

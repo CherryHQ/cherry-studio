@@ -144,12 +144,12 @@ The maintained application shell currently includes:
 The maintained feature surfaces currently include:
 
 - `agent.view`;
-- `files.view`, `files.navigation`, and `files.content`;
+- `files.view`, `files.navigation`, `files.content`, `files.row`, and `part:file-size`;
 - `knowledge.view`, `knowledge.navigation`, and `knowledge.content`;
 - `notes.view`, `notes.navigation`, and `notes.editor`;
-- `translate.view`, `translate.input`, and `translate.output`;
+- `translate.view`, `translate.input`, `translate.output`, `translate.custom-languages`, and `translate.custom-language`;
 - `paintings.view`;
-- `code.view`, `code.navigation`, and `code.content`;
+- `code.view`, `code.navigation`, `code.content`, and `code.provider-card`;
 - `mini-apps.view`.
 
 The maintained chat surface currently includes:

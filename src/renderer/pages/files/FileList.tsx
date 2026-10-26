@@ -160,6 +160,7 @@ export const FileList = memo(function FileList({
         return (
           <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
             <div
+              data-ui="files.row"
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
               }}
@@ -204,7 +205,9 @@ export const FileList = memo(function FileList({
                   </>
                 )}
               </div>
-              <span className="truncate text-xs text-muted-foreground">{file.size}</span>
+              <span data-ui="part:file-size" className="truncate text-xs text-muted-foreground">
+                {file.size}
+              </span>
               <span className="truncate text-xs text-muted-foreground">{getFormatLabel(file.format)}</span>
               <span className="truncate text-xs text-foreground-tertiary">{file.updatedAt}</span>
               <div className="grid grid-cols-4 justify-items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">

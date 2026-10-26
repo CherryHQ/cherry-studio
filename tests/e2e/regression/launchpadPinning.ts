@@ -45,7 +45,7 @@ export async function launchpadPinning(app: RegressionApp, page: Page, testInfo:
   if (!builtin) throw new Error('Built-in DeepSeek mini app is missing')
   expect(builtin.presetMiniAppId).toBe('deepseek')
   const sidebarButton = () =>
-    page.locator('[data-ui="app.sidebar"]').getByRole('button', { name: 'DeepSeek', exact: true }).last()
+    page.locator('[data-ui~="app.sidebar"]').getByRole('button', { name: 'DeepSeek', exact: true }).last()
   const miniAppsSection = () =>
     page.locator('section').filter({ has: page.getByRole('heading', { name: 'MiniApps', exact: true }) })
   const tile = () => miniAppsSection().getByRole('button', { name: 'DeepSeek', exact: true }).last()

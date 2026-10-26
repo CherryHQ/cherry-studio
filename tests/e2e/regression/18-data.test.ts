@@ -25,6 +25,11 @@ import { resetAppData } from './resetAppData'
 import { openSettingsSection } from './settings'
 
 test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) => {
+  testInfo.annotations.push({
+    type: 'uncovered',
+    description:
+      'Backup completion uses a system notification rather than a DOM toast. This case verifies the completed archive and backup manager; native completion delivery is not observed.'
+  })
   const attachScreenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -153,9 +158,6 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
       expect(backups.map((backup) => backup.name)).not.toContain(name)
       await backupDialog.getByRole('button', { name: 'Confirm', exact: true }).click()
       await expect(backupDialog).toBeHidden({ timeout: 90_000 })
-      await expect
-        .soft(page.getByText('Backup successful', { exact: true }).first(), 'Completion must be announced')
-        .toBeVisible({ timeout: 5_000 })
       const bytes = await readFile(join(directory, name))
       const archive = await JSZip.loadAsync(bytes)
       expect(archive.file('metadata.json')).not.toBeNull()
@@ -359,7 +361,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       // The packaged build relaunches itself; take ownership of the replacement before asserting.
       page = await app.adoptRelaunch()
     }
-    await expect(page.locator('[data-ui="app.shell"]').first()).toBeVisible()
+    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible()
     const restored = await readTopic()
     expect(restored.status).toBe(200)
     expect(TopicSchema.parse(restored.data)).toMatchObject({ id: topicId, name: topicName, assistantId })
@@ -418,8 +420,8 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const backups = async () => (await readdir(directory)).filter((name) => name.endsWith('.zip')).sort()
-  const interval = page.getByRole('combobox').nth(0)
-  const maximum = page.getByRole('combobox').nth(1)
+  const interval = page.getByRole('combobox', { name: 'Auto Backup', exact: true })
+  const maximum = page.getByRole('combobox', { name: 'Maximum backups', exact: true })
   const lastBackup = page.getByText(/^Last Backup: \d{2}:\d{2}:\d{2}$/)
   const selectInterval = async (name: string) => {
     await interval.click()

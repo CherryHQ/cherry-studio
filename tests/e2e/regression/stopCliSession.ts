@@ -65,10 +65,10 @@ export async function stopCliSession(app: RegressionApp, page: Page, testInfo: T
     )
     await openLaunchpadApp(page, 'Code Mate')
     await page
-      .locator('[data-ui="code.navigation"]:visible')
+      .locator('[data-ui~="code.navigation"]:visible')
       .getByRole('button', { name: /Claude Code/ })
       .click()
-    const view = page.locator('[data-ui="code.view"]:visible').first()
+    const view = page.locator('[data-ui~="code.view"]:visible').first()
     const launch = async () => {
       const baseline = new Set(processes().map(({ pid }) => pid))
       await view.getByRole('button', { name: 'Launch', exact: true }).click()

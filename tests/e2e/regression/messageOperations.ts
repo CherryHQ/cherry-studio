@@ -174,7 +174,7 @@ export async function messageOperations(app: RegressionApp, page: Page, testInfo
     await expect(notes).toBeVisible()
     await attachScreenshot('MP-28 Notes application window')
     await notes.getByRole('button', { name: 'Create a new note', exact: true }).first().click()
-    const noteEditor = page.locator('[data-ui~="notes.editor"] [contenteditable="true"]')
+    const noteEditor = page.locator('[data-ui~="notes.editor"][data-file-edit] [contenteditable="true"]')
     await expect(noteEditor).toBeVisible()
     await noteEditor.click()
     await page.keyboard.press('ControlOrMeta+V')

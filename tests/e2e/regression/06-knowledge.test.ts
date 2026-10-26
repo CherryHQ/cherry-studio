@@ -56,7 +56,7 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
     await dismissOnboarding(page)
     await selectSidebarApp(page, 'Knowledge Base')
     await expect(
-      page.locator('[data-ui="knowledge.navigation"]').getByText(knowledgeName(app), { exact: true })
+      page.locator('[data-ui~="knowledge.navigation"]').getByText(knowledgeName(app), { exact: true })
     ).toBeVisible()
   })
 
@@ -78,7 +78,7 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
     await assistantDialog.getByRole('button', { name: 'Close', exact: true }).click()
 
     const sendQuestion = async () => {
-      const composer = page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first()
+      const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
       await composer.fill('What is the regression knowledge answer? Include the exact marker and cite the source file.')
       await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
       const quickPanel = page.getByTestId('quick-panel')
@@ -497,7 +497,7 @@ test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => 
   try {
     await page.reload()
     await selectSidebarApp(page, 'Knowledge Base')
-    await page.locator('[data-ui="knowledge.navigation"]').getByText(base.name, { exact: true }).click()
+    await page.locator('[data-ui~="knowledge.navigation"]').getByText(base.name, { exact: true }).click()
     await importFolder(documents)
     await expect
       .soft(page.getByText(`Skipped ${skippedCount} unsupported file(s)`, { exact: true }))

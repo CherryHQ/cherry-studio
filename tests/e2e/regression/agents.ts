@@ -36,7 +36,7 @@ export async function builtinAssistantAgent(page: Page): Promise<BuiltinAssistan
 
 export async function selectAgent(page: Page, name: string): Promise<void> {
   await selectSidebarApp(page, 'Work')
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
   await expect(agentView).toBeVisible({ timeout: 30_000 })
   const agent = agentView.getByText(name, { exact: true }).first()
   await expect(agent).toBeVisible()
@@ -45,7 +45,7 @@ export async function selectAgent(page: Page, name: string): Promise<void> {
 
 export async function startNewAgentTask(page: Page, name: string): Promise<void> {
   await selectAgent(page, name)
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
   const agentHeader = agentView.getByRole('button', { name, exact: true }).first()
   await agentHeader.hover()
   const newTask = agentHeader.locator('..').getByRole('button', { name: 'New task', exact: true })
@@ -59,7 +59,7 @@ export async function createAgent(
   options: { name: string; runtime: string; model: string; permission?: string }
 ): Promise<void> {
   await selectSidebarApp(page, 'Work')
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
   await expect(agentView).toBeVisible({ timeout: 30_000 })
   // Sessions only render "Add Agent" in Agent display mode; a previous case can leave work-directory
   // or time mode behind, so establish the mode this helper needs instead of inheriting it.

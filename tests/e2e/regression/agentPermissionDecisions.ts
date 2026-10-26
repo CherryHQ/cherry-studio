@@ -40,7 +40,7 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
   // case can leave its own output behind. Clear it before asserting the pre-write state.
   await rm(output, { force: true })
   expect(existsSync(output), 'The workspace must not hold a stale case output before the write').toBe(false)
-  const view = page.locator('[data-ui="agent.view"]:visible').first()
+  const view = page.locator('[data-ui~="agent.view"]:visible').first()
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   const preview = view.getByTestId('permission-preview')
   const messages = view.locator('[data-ui~="chat.message"]')

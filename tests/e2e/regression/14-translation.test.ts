@@ -475,8 +475,8 @@ test(...caseDefinition('MP-85'), async ({ mainWindow: page }, testInfo) => {
   const server = await startMockChatServer()
   const providerId = `regression-mp85-${Date.now()}`
   const panel = page.getByRole('dialog', { name: 'Translation Settings', exact: true })
-  const customSection = panel.getByText('Custom language', { exact: true }).locator('../..')
-  const row = customSection.locator('div.group').filter({ hasText: name })
+  const customSection = panel.locator('[data-ui~="translate.custom-languages"]')
+  const row = customSection.locator('[data-ui~="translate.custom-language"]').filter({ hasText: name })
   const target = page.getByRole('button', { name: /^Target Language\b/ })
   const openSettings = async () => {
     await page.getByRole('button', { name: 'Translation Settings', exact: true }).click()
@@ -559,10 +559,10 @@ test(...caseDefinition('MP-85'), async ({ mainWindow: page }, testInfo) => {
     await expect(target).toContainText(name)
     const input = 'Good morning, my friend. MP85 translation source.'
     const answer = 'Aear calad, mellon nin. MP85 translated result.'
-    await page.locator('[data-ui="translate.input"] textarea').fill(input)
+    await page.locator('[data-ui~="translate.input"] textarea').fill(input)
     // The real HTTP request must carry the selected custom language, not just return a canned success.
     await Promise.all([
-      page.locator('[data-ui="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click(),
+      page.locator('[data-ui~="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click(),
       (async () => {
         const request = await server.nextRequest(30_000)
         expect(request.body.model).toBe(server.modelId)
@@ -571,7 +571,7 @@ test(...caseDefinition('MP-85'), async ({ mainWindow: page }, testInfo) => {
         request.complete(answer)
       })()
     ])
-    await expect(page.locator('[data-ui="translate.output"]')).toContainText(answer)
+    await expect(page.locator('[data-ui~="translate.output"]')).toContainText(answer)
     await screenshot('MP-85 custom target translation via HTTP mock')
 
     await openSettings()
@@ -735,7 +735,7 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
     await page.reload()
     await selectModel(modelIds[0])
     let panel = await openTranslationSettings()
-    const copyRow = panel.locator('[data-ui="ui.page-side-panel-item"]').filter({ hasText: 'Copy after translation' })
+    const copyRow = panel.locator('[data-ui~="ui.page-side-panel-item"]').filter({ hasText: 'Copy after translation' })
     await copyRow.getByRole('switch').check()
     await expect(copyRow.getByRole('switch')).toBeChecked()
     await screenshot('MP-86 auto copy enabled')
@@ -752,11 +752,11 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
       await page.bringToFront()
       await page.evaluate(() => navigator.clipboard.writeText('MP86 clipboard sentinel'))
       const requestOffset = server.requests.length
-      const view = page.locator('[data-ui="translate.view"]')
-      await view.locator('[data-ui="translate.input"] textarea').fill(server.inputs[index])
+      const view = page.locator('[data-ui~="translate.view"]')
+      await view.locator('[data-ui~="translate.input"] textarea').fill(server.inputs[index])
       await view.getByRole('button', { name: 'Translate', exact: true }).click()
       await expect(
-        view.locator('[data-ui="translate.output"]').getByText(server.answers[index], { exact: true })
+        view.locator('[data-ui~="translate.output"]').getByText(server.answers[index], { exact: true })
       ).toBeVisible({ timeout: 30_000 })
       await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(server.answers[index])
       await expect
@@ -825,7 +825,7 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
     await expect(panel.getByRole('radio', { name: 'LLM', exact: true })).toBeChecked()
     await expect(
       panel
-        .locator('[data-ui="ui.page-side-panel-item"]')
+        .locator('[data-ui~="ui.page-side-panel-item"]')
         .filter({ hasText: 'Copy after translation' })
         .getByRole('switch')
     ).toBeChecked()

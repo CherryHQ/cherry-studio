@@ -24,10 +24,10 @@ test(...caseDefinition('T-01'), async ({ app, mainWindow: page }) => {
   await closeSettings(page)
   await selectTranslationModel(page, app.config.customProvider.chatModel)
 
-  const input = page.locator('[data-ui="translate.input"] textarea')
+  const input = page.locator('[data-ui~="translate.input"] textarea')
   await input.fill('CherryStudio Neptune 27182 TRANSLATION_MARKER')
-  await page.locator('[data-ui="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click()
-  const output = page.locator('[data-ui="translate.output"]')
+  await page.locator('[data-ui~="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click()
+  const output = page.locator('[data-ui~="translate.output"]')
   await expect(output).toContainText('27182', { timeout: 2 * 60_000 })
 
   await page.getByRole('button', { name: 'Translation History', exact: true }).click()
@@ -47,8 +47,8 @@ test(...caseDefinition('T-02'), async ({ app, mainWindow: page }) => {
   chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, 'translation.pdf'))
 
   await expect(page.getByText('PDF detected', { exact: true })).toBeVisible({ timeout: 60_000 })
-  await page.locator('[data-ui="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click()
-  await expect(page.locator('[data-ui="translate.output"]')).toContainText('PDF_TRANSLATION_MARKER_314159', {
+  await page.locator('[data-ui~="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click()
+  await expect(page.locator('[data-ui~="translate.output"]')).toContainText('PDF_TRANSLATION_MARKER_314159', {
     timeout: 2 * 60_000
   })
 })

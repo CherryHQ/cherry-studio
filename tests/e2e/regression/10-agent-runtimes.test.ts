@@ -30,7 +30,7 @@ test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
   const assistant = await builtinAssistantAgent(page)
   await startNewAgentTask(page, assistant.name)
 
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
   const model = agentView
     .getByRole('button', { name: 'Select Model', exact: true })
     .or(agentView.locator('button:has(span[title*=" | "])'))
@@ -54,7 +54,7 @@ test(...caseDefinition('A-03'), async ({ app, mainWindow: page }) => {
   await createAgent(page, { name, permission: 'Full Access', runtime: 'Claude Agent', model })
   await selectAgentWorkspace(app, page)
   const marker = 'CLAUDE_AGENT_RUNTIME_PASS'
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
   const composer = agentView.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   await composer.fill(`Reply with exactly ${marker} and do not use tools.`)
   await agentView.getByRole('button', { name: 'Send', exact: true }).click()
@@ -63,7 +63,7 @@ test(...caseDefinition('A-03'), async ({ app, mainWindow: page }) => {
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await selectSidebarApp(page, 'Work')
-  const restartedAgentView = page.locator('[data-ui="agent.view"]:visible').first()
+  const restartedAgentView = page.locator('[data-ui~="agent.view"]:visible').first()
   await expect(restartedAgentView.getByRole('button', { name, exact: true })).toBeVisible()
 })
 

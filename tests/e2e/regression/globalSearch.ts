@@ -159,7 +159,7 @@ export async function globalSearch(_app: RegressionApp, page: Page, testInfo: Te
     await search.getByRole('option').filter({ hasText: knowledgeName }).click()
     await expect(search).toBeHidden()
     await expect(
-      page.locator('[data-ui="knowledge.content"]').getByText(knowledgeName, { exact: true }).first()
+      page.locator('[data-ui~="knowledge.content"]').getByText(knowledgeName, { exact: true }).first()
     ).toBeVisible()
 
     await openSearch()

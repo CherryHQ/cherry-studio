@@ -43,7 +43,7 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
   const answer = `MP11 completed answer\n\n\`\`\`python\n${code}\n\`\`\`\n\n![MP11 image](data:image/png;base64,${png})`
   let assistantId: string | undefined
   const notes = () => page.locator('[data-ui~="notes.view"]')
-  const editor = () => page.locator('[data-ui~="notes.editor"]')
+  const editor = () => page.locator('[data-ui~="notes.editor"][data-file-edit]')
   const openNote = async () => {
     await selectSidebarApp(page, 'Notes')
     await notes().getByText(title, { exact: true }).click()

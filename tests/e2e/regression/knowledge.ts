@@ -58,9 +58,9 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
 export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promise<void> {
   const name = knowledgeName(app)
   await selectSidebarApp(page, 'Knowledge Base')
-  const navigation = page.locator('[data-ui="knowledge.navigation"]')
+  const navigation = page.locator('[data-ui~="knowledge.navigation"]')
   const existingBase = navigation.getByText(name, { exact: true }).first()
-  const selectedBase = page.locator('[data-ui="knowledge.content"]').getByText(name, { exact: true }).first()
+  const selectedBase = page.locator('[data-ui~="knowledge.content"]').getByText(name, { exact: true }).first()
   const createBase = page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ })
   await expect(existingBase.or(selectedBase).or(createBase).first()).toBeVisible()
 

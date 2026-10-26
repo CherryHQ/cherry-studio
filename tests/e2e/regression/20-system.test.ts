@@ -246,11 +246,11 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
         return bottom
       })
       expect(scroll).toBeGreaterThan(0)
-      const pin = result.getByRole('button').filter({ has: result.locator('svg.lucide-pin') })
+      const pin = result.getByRole('button', { name: 'Pin', exact: true })
       await pin.hover()
       await expect(result.getByRole('tooltip', { name: 'Pin', exact: true })).toBeVisible()
       await pin.click()
-      await pin.hover()
+      await result.getByRole('button', { name: 'Pinned', exact: true }).hover()
       await expect(result.getByRole('tooltip', { name: 'Pinned', exact: true })).toBeVisible()
       const copy = result.getByRole('button', { name: 'Copy Original', exact: true })
       await copy.hover()
@@ -655,7 +655,7 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
   try {
     await openSettingsSection(page, 'Computer Use')
     await page.evaluate(() => window.api.preference.set('app.language', 'zh-CN'))
-    const settings = page.locator('[data-ui="settings.view"]:visible')
+    const settings = page.locator('[data-ui~="settings.view"]:visible')
     await expect(settings.getByRole('heading', { name: '电脑操作', exact: true })).toBeVisible()
     await screenshot('MP-140 step 1 computer use settings')
     await testInfo.attach('MP-140 actual settings text', {

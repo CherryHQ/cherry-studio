@@ -98,7 +98,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     )
     await page.reload()
     await selectSidebarApp(page, 'Work')
-    await page.locator('[data-ui="agent.view"]:visible').getByText(agent!.name, { exact: true }).first().click()
+    await page.locator('[data-ui~="agent.view"]:visible').getByText(agent!.name, { exact: true }).first().click()
     if (!(await list().getByRole('textbox', { name: 'Search tasks', exact: true }).isVisible())) {
       await page
         .getByRole('button', { name: /^Tasks/ })

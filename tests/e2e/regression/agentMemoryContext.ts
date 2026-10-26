@@ -14,13 +14,18 @@ import type { RegressionApp } from './RegressionApp'
 import { closeSettings } from './settings'
 
 export async function agentMemoryContext(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
+  testInfo.annotations.push({
+    type: 'coverage',
+    description:
+      'This E2E verifies persisted Memory settings and retained snapshots. Runtime server filtering is covered by builtinAgentCapabilities.test.ts.'
+  })
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   await testInfo.attach('MP-57 model source and scope', {
-    body: 'Real configured provider and Claude Agent runtime. Memory is agent-scoped across new tasks. Disabling Memory unmounts the memory MCP tools and their instructions but keeps the existing FACT.md identity snapshot (docs/references/ai/agent-prompt-layers.md), so the tool availability, the preserved file, and the retained context are verified separately. No memory contents or model replies are seeded.',
+    body: 'Real configured provider and Claude Agent runtime. This case verifies Memory settings persistence, the preserved FACT.md file, and retained context across new tasks. Runtime server filtering is verified separately in builtinAgentCapabilities.test.ts. No memory contents or model replies are seeded.',
     contentType: 'text/plain'
   })
   await screenshot('MP-57 application before memory setup')
@@ -149,10 +154,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
     const afterDisable = await send(
       '我的项目叫什么？只回答项目名。如果没有记忆则只回答 UNKNOWN。不要使用工具或搜索历史会话。'
     )
-    // Documented contract: disabling Memory unmounts the memory MCP server and its instructions, and
-    // does not disable the existing SOUL.md, USER.md or FACT.md snapshots. The identity snapshot is
-    // still delivered before each turn, so recall can still succeed through the retained context; the
-    // tool availability above is what changes.
+    // Disabling Memory preserves existing identity snapshots; runtime server filtering has a separate unit test.
     await expect
       .soft(afterDisable, 'The retained FACT.md identity snapshot still reaches the agent')
       .toContainText('QA-DEMO')

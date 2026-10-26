@@ -46,7 +46,7 @@ export async function interruptAgentTask(
   )
   expect(agent).toBeDefined()
   await startNewAgentTask(page, agent!.name)
-  const view = page.locator('[data-ui="agent.view"]:visible').first()
+  const view = page.locator('[data-ui~="agent.view"]:visible').first()
   await view
     .getByRole('button', { name: 'Select Model', exact: true })
     .or(view.locator('button:has(span[title*=" | "])'))
@@ -61,7 +61,7 @@ export async function interruptAgentTask(
   const tag = `MP56_PROCESS_${Date.now()}`
   const command = `/bin/sh -c 'sleep 60; printf ${tag}_FINISHED' ${tag}`
   const tracked = new Set<number>()
-  const pause = view.locator('[data-ui="chat.composer.action.pause"]')
+  const pause = view.locator('[data-ui~="chat.composer.action.pause"]')
   const gateway = await page.evaluate(async () => ({
     enabled: await window.api.preference.get('feature.api_gateway.enabled'),
     host: await window.api.preference.get('feature.api_gateway.host'),

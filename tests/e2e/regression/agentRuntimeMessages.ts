@@ -38,7 +38,7 @@ export async function agentRuntimeMessages(app: RegressionApp, page: Page, testI
       .join('+')
   }
   const name = app.resourceName('Runtime messages')
-  const view = page.locator('[data-ui="agent.view"]:visible').first()
+  const view = page.locator('[data-ui~="agent.view"]:visible').first()
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   const messages = view.locator('[data-ui~="chat.message"]')
   const completed = view.getByTestId('completed-process-trigger')

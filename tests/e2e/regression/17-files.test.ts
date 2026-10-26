@@ -159,7 +159,9 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
       TopicSchema.parse(topic.data)
       await page.reload()
       await selectSidebarApp(page, 'Chat')
-      const group = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: 'MP150 RTF assistant' })
+      const group = page
+        .locator('[data-ui~="chat.view"]:visible [data-ui~="chat.group-header"][data-ui~="part:context-menu-trigger"]')
+        .filter({ hasText: 'MP150 RTF assistant' })
       await group.hover()
       const expand = group.getByRole('button', { name: 'Expand', exact: true })
       if (await expand.isVisible()) await expand.click()
@@ -343,19 +345,7 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
   const video = join(root, 'video')
   await Promise.all([upload, documents, images, video].map((path) => mkdir(path, { recursive: true })))
   const movie = join(video, 'sample-5s.mp4')
-  execFileSync('ffmpeg', [
-    '-v',
-    'error',
-    '-f',
-    'lavfi',
-    '-i',
-    'color=c=blue:s=160x120:d=5',
-    '-c:v',
-    'libx264',
-    '-pix_fmt',
-    'yuv420p',
-    movie
-  ])
+  await copyFile(app.fixturesPath('media', 'sample-5s.mp4'), movie)
   await copyFile(join(documents, 'sample.pdf'), join(upload, 'sample.pdf'))
   await copyFile(join(images, 'sample.png'), join(upload, 'sample.png'))
   const fixtures = [
@@ -368,10 +358,10 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  const view = () => page.locator('[data-ui="files.view"]')
+  const view = () => page.locator('[data-ui~="files.view"]')
   const row = (name: string) =>
     view()
-      .locator('div.group.absolute')
+      .locator('[data-ui~="files.row"]')
       .filter({ has: page.getByText(name, { exact: true }) })
   const entries = async () => {
     const items: { id: string; name: string; ext: string; size: number; origin: string }[] = []
@@ -406,7 +396,7 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
       await input.asElement()!.setInputFiles(path)
       if (removeBeforeDrop) await rm(path)
       await view()
-        .locator('[data-ui="files.content"]')
+        .locator('[data-ui~="files.content"]')
         .evaluate((target, input) => {
           const dataTransfer = new DataTransfer()
           dataTransfer.items.add(input.files![0])
@@ -477,18 +467,18 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
       expect(stored).toHaveLength(1)
       expect(stored[0]).toMatchObject({ origin: 'internal', size })
       await expect(row(fixture.name)).toContainText(fixture.format)
-      const sizeText = await row(fixture.name).locator(':scope > span').first().innerText()
+      const sizeText = await row(fixture.name).locator('[data-ui~="part:file-size"]').innerText()
       const match = /^(\d+(?:\.\d+)?) (B|KB|MB|GB)$/.exec(sizeText)
       expect(match, `Visible size for ${fixture.name}`).not.toBeNull()
       const factor = 1024 ** ['B', 'KB', 'MB', 'GB'].indexOf(match![2])
       const precision = match![1].includes('.') ? 0.1 : 1
       expect(Math.abs(Number(match![1]) * factor - size)).toBeLessThanOrEqual((factor * precision) / 2)
-      await view().locator('[data-ui="files.navigation"]').getByText(fixture.category, { exact: true }).click()
+      await view().locator('[data-ui~="files.navigation"]').getByText(fixture.category, { exact: true }).click()
       await expect(view().getByText(fixture.name, { exact: true })).toBeVisible()
       for (const other of fixtures.filter((other) => other !== fixture)) {
         await expect(view().getByText(other.name, { exact: true })).toHaveCount(0)
       }
-      await view().locator('[data-ui="files.navigation"]').getByText('All Files', { exact: true }).click()
+      await view().locator('[data-ui~="files.navigation"]').getByText('All Files', { exact: true }).click()
     }
     const pdfId = (await entries()).find((entry) => entry.ext === 'pdf' && entry.name === 'sample')!.id
     await chooseFiles(join(documents, 'sample.pdf'), false)
@@ -539,7 +529,7 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
   }
 })
 
-test(...caseDefinition('MP-69'), async ({ mainWindow: page }, testInfo) => {
+test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => {
   const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp69-assets-'))
   const prefix = `mp69-${Date.now()}`
   const fixtures = [
@@ -606,28 +596,8 @@ test(...caseDefinition('MP-69'), async ({ mainWindow: page }, testInfo) => {
         'base64'
       )
     )
-    execFileSync('ffmpeg', [
-      '-v',
-      'error',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=green:s=160x120:d=1',
-      '-c:v',
-      'libx264',
-      '-pix_fmt',
-      'yuv420p',
-      join(root, fixtures[2].name)
-    ])
-    execFileSync('ffmpeg', [
-      '-v',
-      'error',
-      '-f',
-      'lavfi',
-      '-i',
-      'sine=frequency=440:duration=1',
-      join(root, fixtures[3].name)
-    ])
+    await copyFile(app.fixturesPath('media', 'sample-5s.mp4'), join(root, fixtures[2].name))
+    await copyFile(app.fixturesPath('media', 'sample.wav'), join(root, fixtures[3].name))
     await writeFile(join(root, fixtures[4].name), Buffer.from(`MP-69 binary ${prefix}\0`))
     for (const fixture of fixtures) {
       const result = await fileRequest('file.batch_create_internal_entries', {
@@ -737,26 +707,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
   await sharp({ create: { width: 320, height: 180, channels: 3, background: '#b53035' } })
     .png()
     .toFile(join(directory, 'sample.png'))
-  execFileSync(
-    'ffmpeg',
-    [
-      '-y',
-      '-f',
-      'lavfi',
-      '-i',
-      'testsrc=size=320x180:rate=24',
-      '-t',
-      '5',
-      '-c:v',
-      'libx264',
-      '-pix_fmt',
-      'yuv420p',
-      '-movflags',
-      '+faststart',
-      join(directory, 'sample-5s.mp4')
-    ],
-    { stdio: 'pipe', timeout: 30_000 }
-  )
+  await copyFile(app.fixturesPath('media', 'sample-5s.mp4'), join(directory, 'sample-5s.mp4'))
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(
     workbook,

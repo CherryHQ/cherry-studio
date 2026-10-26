@@ -125,7 +125,7 @@ test(...caseDefinition('C-01'), async ({ app, mainWindow: page }) => {
   const restarted = await app.restart('authenticated')
   await dismissOnboarding(restarted)
   await selectSidebarApp(restarted, 'Chat')
-  const assistantList = restarted.locator('[data-ui="chat.view"]:visible').getByRole('listbox').first()
+  const assistantList = restarted.locator('[data-ui~="chat.view"]:visible').getByRole('listbox').first()
   await expect(assistantList).toBeVisible()
   await assistantList.getByText(customAssistantName(app), { exact: true }).first().click({ noWaitAfter: true })
   await expect(restarted.getByText('ASSISTANT_PROMPT_PASS').last()).toBeVisible()

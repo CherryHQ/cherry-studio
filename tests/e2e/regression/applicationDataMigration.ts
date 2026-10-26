@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, parse } from 'node:path'
 
@@ -12,6 +12,8 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { adoptRelaunchedApp, stopOwnedApp } from '../../../scripts/e2e/regression/lifecycle'
+import { findCdpPid } from '../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
@@ -28,7 +30,7 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
   }
   // The relocated data directory holds a full profile (including the database with real provider
   // keys), so it lives outside the uploaded artifact roots.
-  const destination = join(app.paths.private, 'mp119-new-data')
+  const destination = await mkdtemp(join(app.paths.private, 'mp119-new-data-'))
   const nonempty = join(app.paths.private, 'mp119-nonempty')
   const readonly = join(app.paths.private, 'mp119-readonly')
   const backup = join(app.paths.private, 'mp119-backup')
@@ -39,7 +41,7 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     ? join(homedir(), '.cherrystudio', 'boot-config.json')
     : join(app.paths.profiles, app.record.profile, '.cherrystudio', 'boot-config.json')
   const bootConfigBackup = existsSync(bootConfigPath) ? await readFile(bootConfigPath) : undefined
-  let relocated = false
+  let restoreBootConfig = false
   for (const directory of [destination, nonempty, readonly, backup]) await mkdir(directory, { recursive: true })
   await writeFile(join(nonempty, 'keep.txt'), 'MP119 existing content')
   await chmod(readonly, 0o555)
@@ -135,7 +137,10 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     await page.getByRole('button', { name: 'Data Directory', exact: true }).click()
     await screenshot('MP-119 application data before migration')
     const selectDirectory = async (path: string) => {
-      await page.getByText('App Data', { exact: true }).locator('..').locator('svg').first().click()
+      await page
+        .locator('#setting-data-data-app-data')
+        .getByRole('button', { name: 'Modify Directory', exact: true })
+        .click()
       try {
         chooseNativeFile(app.record.platform, { ...app.paths, fixtures: dirname(path) }, path)
       } catch (error) {
@@ -189,12 +194,13 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
       await screenshot('MP-119 relocation rejected for an unpackaged build')
       return
     }
+    restoreBootConfig = true
     await dialog.getByRole('button', { name: 'Confirm', exact: true }).click()
     await expect(dialog).toBeHidden()
     await app.disconnect()
+    await adoptRelaunchedApp(app.paths)
     const relocation = await app.window('/userDataRelocation/')
     await expect(relocation.getByRole('button', { name: /Restart/ })).toBeVisible({ timeout: 120_000 })
-    relocated = true
     const migrationImage = await captureMaskedScreenshot(relocation, getSensitiveConfigValues())
     await testInfo.attach('MP-119 migration completed', { body: migrationImage, contentType: 'image/png' })
     page = await app.restart()
@@ -219,31 +225,40 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     ])
     await screenshot('MP-119 migrated history settings and usable conversation')
   } finally {
-    await chmod(readonly, 0o755)
-    await server.close()
-    if (relocated) {
-      // Relocation rewrote the install-scoped boot config. Restore it and relaunch so the
-      // profile stays where the run owns it and later cases do not inherit a moved data directory.
-      if (bootConfigBackup) await writeFile(bootConfigPath, bootConfigBackup)
-      else await rm(bootConfigPath, { force: true })
-      page = await app.restart()
-      expect((await readAppInfo()).appDataPath).toBe(original.appDataPath)
+    try {
+      if (restoreBootConfig) {
+        await app.disconnect()
+        const cdpPid = findCdpPid(app.record.platform)
+        if (cdpPid && cdpPid !== app.record.electronPid) await adoptRelaunchedApp(app.paths)
+        await stopOwnedApp(app.paths)
+        if (bootConfigBackup) await writeFile(bootConfigPath, bootConfigBackup)
+        else await rm(bootConfigPath, { force: true })
+        page = await app.restart()
+        expect((await readAppInfo()).appDataPath).toBe(original.appDataPath)
+      }
+      if (!page.isClosed())
+        await page.evaluate(
+          async ({ previous, assistantId, providerId }) => {
+            await window.api.preference.setMultiple({
+              'topic.naming.enabled': previous.naming,
+              'app.logs.retention_days': previous.retention,
+              'data.backup.local.dir': previous.backup
+            })
+            if (assistantId) {
+              await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
+              await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+            }
+            await window.api.dataApi.request({
+              id: 'mp119-cleanup',
+              method: 'DELETE',
+              path: `/providers/${providerId}`
+            })
+          },
+          { previous, assistantId, providerId }
+        )
+    } finally {
+      await chmod(readonly, 0o755)
+      await server.close()
     }
-    if (!page.isClosed())
-      await page.evaluate(
-        async ({ previous, assistantId, providerId }) => {
-          await window.api.preference.setMultiple({
-            'topic.naming.enabled': previous.naming,
-            'app.logs.retention_days': previous.retention,
-            'data.backup.local.dir': previous.backup
-          })
-          if (assistantId) {
-            await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-            await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
-          }
-          await window.api.dataApi.request({ id: 'mp119-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
-        },
-        { previous, assistantId, providerId }
-      )
   }
 }

@@ -96,6 +96,11 @@ aggregate verdict remains authoritative, including missing or interrupted phases
 
 ## Verification
 
+Media fixtures are checked in under `fixtures/media` and copied into each isolated run by `createFixtures`.
+The MP4 is a generated five-second H.264 clip (320 × 180, 24 fps); the WAV is a one-second 440 Hz PCM tone
+(mono, 16 kHz, 16-bit). They contain no third-party content. Desktop scenarios copy these files under
+case-owned names instead of depending on a runner-installed media encoder.
+
 - `pnpm exec vitest run --project scripts scripts/e2e/regression`
 - `pnpm typecheck:e2e`
 - `CHERRY_TEST_RUN_DIR=/tmp/cherry-regression-list pnpm test:e2e:regression --list`

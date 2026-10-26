@@ -234,6 +234,7 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
             placement="bottom">
             <WindowButton
               onClick={togglePin}
+              aria-label={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
               className={isPinned ? 'bg-accent text-accent-foreground hover:bg-accent' : ''}>
               <Pin className={cn('size-[13px] transition-transform', isPinned && 'rotate-45 text-accent-foreground')} />
             </WindowButton>

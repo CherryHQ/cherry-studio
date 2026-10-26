@@ -19,7 +19,7 @@ export async function dismissTransientDialogs(page: Page): Promise<void> {
 export async function dismissOnboarding(page: Page): Promise<void> {
   const button = page.getByRole('button', { name: 'Set up later', exact: true })
   if (await button.isVisible().catch(() => false)) await button.click()
-  await expect(page.locator('[data-ui="app.shell"]').first()).toBeVisible({ timeout: 2 * 60_000 })
+  await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 2 * 60_000 })
 }
 
 export async function openLaunchpad(page: Page): Promise<void> {
@@ -36,13 +36,13 @@ export async function openLaunchpadApp(page: Page, name: string): Promise<void> 
 export async function selectSidebarApp(page: Page, name: string): Promise<void> {
   await dismissOnboarding(page)
   const targetView = {
-    Chat: '[data-ui="chat.view"]:visible',
-    Settings: '[data-ui="settings.view"]:visible',
-    Work: '[data-ui="agent.view"]:visible'
+    Chat: '[data-ui~="chat.view"]:visible',
+    Settings: '[data-ui~="settings.view"]:visible',
+    Work: '[data-ui~="agent.view"]:visible'
   }[name]
   if (
     await page
-      .locator('[data-ui="settings.view"]:visible')
+      .locator('[data-ui~="settings.view"]:visible')
       .isVisible()
       .catch(() => false)
   ) {
