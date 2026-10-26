@@ -1,0 +1,12 @@
+{
+  "results": [
+    {
+      "excerpts": [" First excerpt. ", "Second excerpt."],
+      "publish_date": "2026-08-26",
+      "title": " Parallel Title ",
+      "url": "https://parallel.example/result"
+    }
+  ],
+  "search_id": "search_test",
+  "session_id": "session_test"
+}
