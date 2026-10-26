@@ -3151,6 +3151,7 @@
   "provider.aionly": "AiOnly",
   "provider.alayanew": "Alaya NeW",
   "provider.anthropic": "Anthropic",
+  "provider.api-route": "API Route",
   "provider.aws-bedrock": "AWS Bedrock",
   "provider.azure-openai": "Azure OpenAI",
   "provider.baichuan": "Baichuan",
