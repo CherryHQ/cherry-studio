@@ -16,7 +16,8 @@ vi.mock('@logger', () => ({
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: mocks.rtkRewrite }))
 
-const { createPiApprovalExtension, createPiToolAuthorizer } = await import('./approvalExtension')
+const { createPiApprovalExtension, createPiToolAuthorizer, isPiMcpToolForcePromptBySource } =
+  await import('./approvalExtension')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
 type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
@@ -62,6 +63,7 @@ function buildGate(
     getPermissionMode: () => AgentPermissionMode | undefined
     getInteractionState: PiApprovalContext['getInteractionState']
     isDisabled: (toolName: string) => boolean
+    requiresSourceApproval: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
     approvalRequiredTools: ReadonlySet<string>
     nonBypassableApprovalTools: ReadonlySet<string>
@@ -79,6 +81,7 @@ function buildGate(
     getPermissionMode: () => 'default',
     getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
     isDisabled: () => false,
+    requiresSourceApproval: () => false,
     autoApprovedTools: new Set(),
     approvalRequiredTools: new Set(),
     nonBypassableApprovalTools: new Set(),
@@ -489,6 +492,23 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted).toHaveLength(1)
     })
 
+    it.each(['generate_image', 'generate_video', 'generate_audio'])(
+      'still gates %s when its MCP server keeps it off auto-approve',
+      async (tool) => {
+        const toolName = `mcp__evolink__${tool}`
+        const { handler, emitted } = buildAutoGate({ requiresSourceApproval: (name: string) => name === toolName })
+        void handler(toolEvent(toolName, {}), extCtx)
+        await flush()
+        expect(emitted).toHaveLength(1)
+      }
+    )
+
+    it('runs an MCP tool its server leaves on auto-approve without asking', async () => {
+      const { handler, emitted } = buildAutoGate()
+      await expect(handler(toolEvent('mcp__evolink__search_models', {}), extCtx)).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+    })
+
     it('still hard-blocks a global install', async () => {
       const { handler, emitted } = buildAutoGate()
       await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject({
@@ -690,4 +710,28 @@ describe('Browser control permission', () => {
       await expect(call()).resolves.toMatchObject({ block: true })
     }
   )
+})
+
+describe('isPiMcpToolForcePromptBySource', () => {
+  const server = {
+    id: 'srv-evolink',
+    name: '@cherry/evolink',
+    disabledAutoApproveTools: ['generate_image', 'generate_video', 'generate_audio']
+  }
+  const snapshots = new Map([['srv-evolink', server as never]])
+  const definition = (tool: string) =>
+    ({ namespace: { name: 'mcp__srv_evolink' }, label: `srv-evolink/${tool}` }) as never
+
+  it('requires a per-call decision for the tools the server lists', () => {
+    for (const tool of server.disabledAutoApproveTools) {
+      expect(isPiMcpToolForcePromptBySource(definition(tool), snapshots)).toBe(true)
+    }
+  })
+
+  it('leaves unlisted tools, non-MCP tools and unknown servers alone', () => {
+    expect(isPiMcpToolForcePromptBySource(definition('search_models'), snapshots)).toBe(false)
+    expect(isPiMcpToolForcePromptBySource({ label: 'bash' } as never, snapshots)).toBe(false)
+    expect(isPiMcpToolForcePromptBySource(definition('generate_image'), new Map())).toBe(false)
+    expect(isPiMcpToolForcePromptBySource(undefined, snapshots)).toBe(false)
+  })
 })

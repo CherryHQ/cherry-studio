@@ -27,9 +27,16 @@ import { realpath } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ExtensionFactory,
+  ToolCallEvent,
+  ToolDefinition
+} from '@earendil-works/pi-coding-agent'
 
 import { loggerService } from '@logger'
+import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { resolveDelegationApproval } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
@@ -41,11 +48,12 @@ import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
+import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import type { AgentRuntimeEvent } from '../types'
-import { PI_TRANSPORT } from './piStreamAdapter'
+import { PI_TRANSPORT, resolvePiMcpToolMetadata } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
 
@@ -84,6 +92,9 @@ export interface PiApprovalContext {
   getPermissionMode: () => AgentPermissionMode | undefined
   /** Live disabled-tool predicate; read at fire-time for the same reason. */
   isDisabled: (toolName: string) => boolean
+  /** Live MCP source policy: a tool its server lists in `disabledAutoApproveTools` needs a per-call
+   *  decision, like `approvalRequiredTools`. Read at fire-time, since MCP tools mount after setup. */
+  requiresSourceApproval: (toolName: string) => boolean
   /** Cherry-owned soul/autonomy tools (`cron`/`notify`/`config`/`memory`) auto-approved in every
    *  permission mode — they drive unattended heartbeat turns, so gating them would deadlock. Fixed
    *  for the session's lifetime; empty when soul mode is off. The `isDisabled` block still hard-blocks
@@ -153,7 +164,8 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       return { block: true, reason: 'Cross-Session delegation requires an interactive user turn.' }
     }
     if (delegationApproval === 'allow') return
-    const approvalRequired = delegationApproval === 'ask' || ctx.approvalRequiredTools.has(toolName)
+    const approvalRequired =
+      delegationApproval === 'ask' || ctx.approvalRequiredTools.has(toolName) || ctx.requiresSourceApproval(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
     // Classify what the model wrote: `rtk git …` hides the real command word from detection.
     const modelInput = { ...input }
@@ -372,4 +384,15 @@ function resolveToolPath(raw: string, workspacePath: string): string | undefined
 function applyInputEdit(input: Record<string, unknown>, updated: Record<string, unknown>): void {
   for (const key of Object.keys(input)) delete input[key]
   Object.assign(input, updated)
+}
+
+/** True when the MCP server behind a native Pi tool lists it in `disabledAutoApproveTools`. */
+export function isPiMcpToolForcePromptBySource(
+  definition: ToolDefinition | undefined,
+  mcpServerSnapshots: McpServerSnapshotMap
+): boolean {
+  const tool = resolvePiMcpToolMetadata(definition, mcpServerSnapshots)
+  if (!tool) return false
+  const server = [...mcpServerSnapshots.values()].find((candidate) => candidate?.id === tool.serverId)
+  return server ? isMcpToolForcePromptBySource(server, { name: tool.name }) : false
 }

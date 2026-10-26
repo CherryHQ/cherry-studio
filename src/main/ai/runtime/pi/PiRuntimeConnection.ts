@@ -66,7 +66,7 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
-import { createPiApprovalExtension } from './approvalExtension'
+import { createPiApprovalExtension, isPiMcpToolForcePromptBySource } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
@@ -329,6 +329,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         getPermissionMode: () => this.permissionMode,
         isDisabled: (toolName: string) => this.isToolDisabled(toolName),
+        requiresSourceApproval: (toolName: string) =>
+          isPiMcpToolForcePromptBySource(this.session?.getToolDefinition(toolName), this.mcpServerSnapshots),
         additionalReadOnlyRoots: additionalSkillPaths,
         // Approval follows the mounted server set; disabledTools still blocks at fire-time.
         autoApprovedTools: new Set(
