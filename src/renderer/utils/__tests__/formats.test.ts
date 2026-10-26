@@ -14,6 +14,19 @@ describe('formats', () => {
       expect(extractHtmlTitle(html)).toBe('Page Title')
     })
 
+    it('should extract a title split across lines', () => {
+      const html = '<html><head><title>\n  Quarterly\nReport\n</title></head><body>Content</body></html>'
+      expect(extractHtmlTitle(html)).toBe('Quarterly\nReport')
+      expect(getFileNameFromHtmlTitle(extractHtmlTitle(html))).toBe('Quarterly-Report')
+    })
+
+    it.each(['<title>\n  Partial Report', '<title>\n  Partial Report\n<head>'])(
+      'should extract an unclosed multiline title from %s',
+      (html) => {
+        expect(extractHtmlTitle(html)).toBe('Partial Report')
+      }
+    )
+
     it('should handle HTML without title tag', () => {
       const html = '<html><head></head><body>Content</body></html>'
       expect(extractHtmlTitle(html)).toBe('')
