@@ -182,6 +182,44 @@ describe('ErrorBlock', () => {
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
   })
 
+  it('keeps the snapshot quota heading, original detail, and provider recovery without AI replacement', async () => {
+    const user = userEvent.setup()
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { diagnoseMessageError, navigateErrorTarget }
+    mocks.translations.set('error.diagnosis.quota', enUS['error.diagnosis.quota'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: '402 status code (no body)',
+          stack: null,
+          executionFailure: {
+            message: '402 status code (no body)',
+            retryable: false,
+            failure: {
+              version: 1,
+              reasonCode: 'quota',
+              source: { layer: 'provider' },
+              context: { statusCode: 402 }
+            }
+          }
+        }}
+        message={{ ...message, model: { ...message.model!, provider: 'silicon' } }}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.quota'])).toBeInTheDocument()
+    expect(screen.getByText('402 status code (no body)')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=silicon')
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+    expect(screen.queryByText('AI summary')).toBeNull()
+    expect(screen.getByText(enUS['error.diagnosis.quota'])).toBeInTheDocument()
+  })
+
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
     render(
       <ErrorBlock

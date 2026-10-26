@@ -1784,6 +1784,66 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('error')
       expect(l.errorResults).toHaveLength(1)
       expect(l.errorResults[0]).toMatchObject({ status: 'error', error: error('fail') })
+
+      const hostFailure = {
+        message: 'Host failure',
+        retryable: false,
+        failure: {
+          version: 1,
+          reasonCode: 'internal',
+          source: { layer: 'host' },
+          context: { statusCode: 402 }
+        }
+      } as const
+      for (const storedFailure of [undefined, hostFailure]) {
+        const topicId = storedFailure ? 'host-error' : 'quota-error'
+        const listener = new FakeListener(`l:${topicId}`)
+        const writes: PersistAssistantInput[] = []
+        const persistence = new PersistenceListener({
+          topicId,
+          backend: {
+            kind: 'test',
+            persistAssistant: (input) => {
+              writes.push(input)
+            }
+          },
+          onPersistFailed: (error) => {
+            throw new Error(error.message ?? 'Persistence failed')
+          }
+        })
+        startSingle(mgr, {
+          topicId,
+          modelId: 'silicon::model-a',
+          request: req(topicId),
+          listeners: [listener, persistence]
+        })
+        await mgr.onExecutionError(topicId, 'silicon::model-a', {
+          ...error('402 status code (no body)'),
+          ...(storedFailure ? { executionFailure: storedFailure } : {})
+        })
+
+        const emittedError = listener.errorResults[0].error
+        const expectedFailure = storedFailure ?? {
+          message: '402 status code (no body)',
+          retryable: false,
+          failure: {
+            version: 1,
+            reasonCode: 'quota',
+            source: { layer: 'provider' },
+            context: { statusCode: 402, providerId: 'silicon', modelId: 'silicon::model-a' }
+          }
+        }
+        expect(emittedError).toMatchObject({
+          message: '402 status code (no body)',
+          executionFailure: expectedFailure
+        })
+        expect(writes).toHaveLength(1)
+        expect(writes[0].status).toBe('error')
+        expect(writes[0].finalMessage?.parts).toContainEqual({ type: 'data-error', data: emittedError })
+        const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+        const attached = mgr.attach(sender as unknown as Electron.WebContents, { topicId })
+        expect(attached).toEqual({ status: 'error', error: emittedError })
+      }
     })
 
     it('uses the anchor message id when execution errors before receiving chunks', async () => {
@@ -3347,7 +3407,17 @@ describe('AiStreamManager', () => {
       expect(listener.errorResults[0].error).toEqual({
         name: null,
         message: 'You have no credits remaining.',
-        stack: null
+        stack: null,
+        executionFailure: {
+          message: 'You have no credits remaining.',
+          retryable: false,
+          failure: {
+            version: 1,
+            reasonCode: 'unknown',
+            source: { layer: 'runtime' },
+            context: { providerId: 'provider-a', modelId: 'provider-a::model-a' }
+          }
+        }
       })
       expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
       expect(mockMainLoggerService.error).toHaveBeenCalledWith('Execution loop error', {
@@ -3384,7 +3454,21 @@ describe('AiStreamManager', () => {
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
       // `errorFromStreamChunk('boom')` → { name: 'StreamError', message: 'boom', stack: null }.
-      expect(listener.errorResults[0].error).toEqual({ name: 'StreamError', message: 'boom', stack: null })
+      expect(listener.errorResults[0].error).toEqual({
+        name: 'StreamError',
+        message: 'boom',
+        stack: null,
+        executionFailure: {
+          message: 'boom',
+          retryable: false,
+          failure: {
+            version: 1,
+            reasonCode: 'unknown',
+            source: { layer: 'runtime' },
+            context: { providerId: 'provider-a', modelId: 'provider-a::model-a' }
+          }
+        }
+      })
       expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
     })
@@ -3438,7 +3522,17 @@ describe('AiStreamManager', () => {
         responseHeaders: null,
         responseBody: null,
         isRetryable: false,
-        data: null
+        data: null,
+        executionFailure: {
+          message: 'no access to this model',
+          retryable: false,
+          failure: {
+            version: 1,
+            reasonCode: 'permission',
+            source: { layer: 'provider' },
+            context: { statusCode: 403, providerId: 'provider-a', modelId: 'provider-a::model-a' }
+          }
+        }
       })
     })
   })
