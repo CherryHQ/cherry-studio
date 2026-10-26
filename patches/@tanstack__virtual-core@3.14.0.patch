@@ -1,0 +1,94 @@
+diff --git a/dist/cjs/index.cjs b/dist/cjs/index.cjs
+index 41c6abc69eca1d5940d06b85fd37aff3bb75aaff..2f6441e586384af12006fd4c7cf70a88c6226f10 100644
+--- a/dist/cjs/index.cjs
++++ b/dist/cjs/index.cjs
+@@ -101,6 +101,7 @@ const observeElementOffset = (instance, cb) => {
+     element.addEventListener("scrollend", endHandler, addEventListenerOptions);
+   }
+   return () => {
++    if (fallback.cancel) fallback.cancel();
+     element.removeEventListener("scroll", handler);
+     if (registerScrollendEvent) {
+       element.removeEventListener("scrollend", endHandler);
+@@ -137,6 +138,7 @@ const observeWindowOffset = (instance, cb) => {
+     element.addEventListener("scrollend", endHandler, addEventListenerOptions);
+   }
+   return () => {
++    if (fallback.cancel) fallback.cancel();
+     element.removeEventListener("scroll", handler);
+     if (registerScrollendEvent) {
+       element.removeEventListener("scrollend", endHandler);
+diff --git a/dist/cjs/utils.cjs b/dist/cjs/utils.cjs
+index 53ae1103a061eb8d7ab145249c0b87df9abea08d..dee54ace41a8d44a6594a917438b36420592846b 100644
+--- a/dist/cjs/utils.cjs
++++ b/dist/cjs/utils.cjs
+@@ -61,10 +61,18 @@ function notUndefined(value, msg) {
+ const approxEqual = (a, b) => Math.abs(a - b) < 1.01;
+ const debounce = (targetWindow, fn, ms) => {
+   let timeoutId;
+-  return function(...args) {
+-    targetWindow.clearTimeout(timeoutId);
+-    timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
+-  };
++  return Object.assign(
++    function(...args) {
++      targetWindow.clearTimeout(timeoutId);
++      timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
++    },
++    {
++      // Backport of virtual-core 3.18: teardown drops a queued call.
++      cancel: () => {
++        targetWindow.clearTimeout(timeoutId);
++      }
++    }
++  );
+ };
+ exports.approxEqual = approxEqual;
+ exports.debounce = debounce;
+diff --git a/dist/esm/index.js b/dist/esm/index.js
+index 11426132b1b5c6361f92ac519a7e131cd58712da..3176da974ee79e880011baff7822e893032e7c90 100644
+--- a/dist/esm/index.js
++++ b/dist/esm/index.js
+@@ -99,6 +99,7 @@ const observeElementOffset = (instance, cb) => {
+     element.addEventListener("scrollend", endHandler, addEventListenerOptions);
+   }
+   return () => {
++    if (fallback.cancel) fallback.cancel();
+     element.removeEventListener("scroll", handler);
+     if (registerScrollendEvent) {
+       element.removeEventListener("scrollend", endHandler);
+@@ -135,6 +136,7 @@ const observeWindowOffset = (instance, cb) => {
+     element.addEventListener("scrollend", endHandler, addEventListenerOptions);
+   }
+   return () => {
++    if (fallback.cancel) fallback.cancel();
+     element.removeEventListener("scroll", handler);
+     if (registerScrollendEvent) {
+       element.removeEventListener("scrollend", endHandler);
+diff --git a/dist/esm/utils.js b/dist/esm/utils.js
+index 96034fae3af0dff0794f297fb58ab11f4bfa2d70..144a531f2ea0c902d470f07c5e41703e265f3976 100644
+--- a/dist/esm/utils.js
++++ b/dist/esm/utils.js
+@@ -59,10 +59,18 @@ function notUndefined(value, msg) {
+ const approxEqual = (a, b) => Math.abs(a - b) < 1.01;
+ const debounce = (targetWindow, fn, ms) => {
+   let timeoutId;
+-  return function(...args) {
+-    targetWindow.clearTimeout(timeoutId);
+-    timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
+-  };
++  return Object.assign(
++    function(...args) {
++      targetWindow.clearTimeout(timeoutId);
++      timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
++    },
++    {
++      // Backport of virtual-core 3.18: teardown drops a queued call.
++      cancel: () => {
++        targetWindow.clearTimeout(timeoutId);
++      }
++    }
++  );
+ };
+ export {
+   approxEqual,
