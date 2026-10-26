@@ -4,6 +4,7 @@ import type { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSes
 import type { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import type { AiService } from '@main/ai/AiService'
 import type { ChannelManager } from '@main/ai/channels/ChannelManager'
+import type { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import type { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
 import type { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
 import type { AiStreamManager } from '@main/ai/streamManager'
@@ -36,6 +37,7 @@ export interface WebServices {
   AiService: AiService
   TraceStorageService: WebTraceStorage
   RuntimeActivityService: Pick<RuntimeActivityService, 'begin'>
+  McpRuntimeService: Pick<McpRuntimeService, 'getConnectedServerCapabilities' | 'getConnectedServerInstructions'>
   AgentSessionRuntimeService: AgentSessionRuntimeService
   ClaudeCodeWarmQueryManager: Pick<ClaudeCodeWarmQueryManager, 'close' | 'closeAgentSessionWarm'>
   AgentJobsService: Pick<AgentJobsService, 'waitForHeartbeat'>
