@@ -165,6 +165,41 @@ describe('MediaFfmpegService dispatch', () => {
     )
   })
 
+  it('rejects a queued request as soon as its caller aborts, and keeps later work behind the active one', async () => {
+    const active = Promise.withResolvers<unknown>()
+    const probeResult = { hasAudio: true, hasVideo: false, durationMs: 1, mime: 'audio/wav', kind: 'audio' }
+    runtime.request.mockImplementationOnce(() => active.promise).mockResolvedValue(probeResult)
+    const controller = new AbortController()
+    const cancelled = new Error('cancelled')
+
+    const activeProbe = service!.probe({ filePath: '/active.wav' })
+    const queuedProbe = service!.probe({ filePath: '/queued.wav' }, controller.signal)
+    const laterProbe = service!.probe({ filePath: '/later.wav' })
+    await vi.waitFor(() => expect(runtime.request).toHaveBeenCalledTimes(1))
+
+    controller.abort(cancelled)
+    await expect(queuedProbe).rejects.toBe(cancelled)
+    expect(runtime.request).toHaveBeenCalledTimes(1)
+
+    active.resolve(probeResult)
+    await expect(activeProbe).resolves.toEqual(probeResult)
+    await expect(laterProbe).resolves.toEqual(probeResult)
+    expect(runtime.request.mock.calls.map(([, input]) => input.filePath)).toEqual(['/active.wav', '/later.wav'])
+  })
+
+  it('rejects an already-aborted request without waiting for the active one', async () => {
+    const active = Promise.withResolvers<unknown>()
+    runtime.request.mockImplementationOnce(() => active.promise)
+    const cancelled = new Error('cancelled')
+
+    const activeProbe = service!.probe({ filePath: '/active.wav' })
+    await vi.waitFor(() => expect(runtime.request).toHaveBeenCalledTimes(1))
+
+    await expect(service!.probe({ filePath: '/aborted.wav' }, AbortSignal.abort(cancelled))).rejects.toBe(cancelled)
+    active.resolve({ hasAudio: true, hasVideo: false, durationMs: 1, mime: 'audio/wav', kind: 'audio' })
+    await activeProbe
+  })
+
   it.each(['worker crash', 'caller abort'])('waits for an orphaned child to exit after %s', async (failureMode) => {
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
     const exited = waitForExit(child)
