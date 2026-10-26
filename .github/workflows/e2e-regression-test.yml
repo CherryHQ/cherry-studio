@@ -18,40 +18,43 @@ on:
           - startup-smoke
           - mini-app
           - notes
-          - 02-basic-features
+          - settings
+          - assistants
+          - error-recovery
+          - chat-core
+          - translation
+          - system-integration
+          - knowledge
+          - mcp-skills
+          - code-tools
+          - paintings
+          - agents
+          - topics
+          - files
+          - data-backup
+          - browser
+          - mini-app-smoke
+          - notes-smoke
+          - mini-app-pinning
           - custom-provider-chat
           - provider-model-scroll
           - custom-assistant
           - chat-stream-failure
           - clear-chat-messages
-          - 03-models-and-assistants
-          - translation
+          - chat-error-recovery
+          - translation-smoke
           - quick-assistant
-          - knowledge
-          - 06-knowledge
+          - knowledge-smoke
           - everything-mcp
           - skill-import
-          - 07-integrations
           - code-cli
           - openclaw
-          - 08-code-tools
+          - code-cli-permissions
           - cherryin-chat
           - image-generation
-          - 09-images
           - agent-basic-task
           - claude-agent-runtime
           - pi-runtime
-          - 10-agent-runtimes
-          - 12-topics
-          - 13-chat-core
-          - 14-notes
-          - 14-translation
-          - 15-settings
-          - 16-assistants
-          - 17-files
-          - 18-data
-          - 19-browser
-          - 20-system
       provider_mode:
         description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
         required: true
@@ -197,7 +200,7 @@ jobs:
           openclaw --version
 
       - name: Prepare Everything MCP package
-        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp'
+        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mcp-skills' || needs.resolve.outputs.task == 'everything-mcp'
         shell: bash
         run: npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
 
@@ -231,9 +234,9 @@ jobs:
           # call their own upstream models — so refuse the run here instead of failing phases that
           # cannot pass whatever the application does.
           case "${{ inputs.task }}" in
-            startup-smoke|mini-app|notes|custom-provider-chat|provider-model-scroll|custom-assistant|chat-stream-failure|translation|quick-assistant) ;;
+            startup-smoke|mini-app-smoke|notes-smoke|custom-provider-chat|provider-model-scroll|custom-assistant|chat-stream-failure|translation-smoke|quick-assistant) ;;
             *)
-              echo "::error::provider_mode=mock supports: startup-smoke, mini-app, notes, custom-provider-chat, provider-model-scroll, custom-assistant, chat-stream-failure, translation, quick-assistant. Task '${{ inputs.task }}' needs provider_mode=real (see scripts/e2e/regression/mock-fixtures/README.md)."
+              echo "::error::provider_mode=mock supports: startup-smoke, mini-app-smoke, notes-smoke, custom-provider-chat, provider-model-scroll, custom-assistant, chat-stream-failure, translation-smoke, quick-assistant. Task '${{ inputs.task }}' needs provider_mode=real (see scripts/e2e/regression/mock-fixtures/README.md)."
               exit 1
               ;;
           esac

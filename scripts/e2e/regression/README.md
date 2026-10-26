@@ -52,7 +52,17 @@ state, user data, and logs from developer instances. Launches disable occluded-w
 backgrounding so Playwright actionability checks keep receiving animation frames.
 
 The workflow keeps one separately timed step per phase (21 today). Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
-`cases.ts` is the execution manifest. The workflow task dropdown lists `all` and every task ID from the manifest. When adding a task, update the workflow options too; the manifest tests enforce that the lists stay in sync.
+`cases.ts` is the execution manifest. Each case declares `tasks`: the first entry is
+its module task, followed by any focused tasks. Module names follow the case library's
+modules, using English kebab-case without execution-order prefixes. For example,
+`notes` selects all implemented Notes cases across phases, while `notes-smoke` selects
+only the create-and-save scenario. `knowledge` includes the library scenarios and the
+`knowledge-smoke` persistence flow. Numeric prefixes belong only to execution phases.
+
+The workflow task dropdown lists `all`, module tasks, then focused tasks. When adding a
+task, update the workflow options too; the manifest tests enforce that the lists stay
+in sync. Reports retain the selected task ID. Existing reports keep their recorded
+task names and outcomes.
 
 `run.json` schema version 2 records both cases and phases. The parent marks a phase running before starting Playwright; the reporter records test results and executor errors; a nonzero child exit also fails the phase.
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.

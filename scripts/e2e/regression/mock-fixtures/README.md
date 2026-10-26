@@ -13,16 +13,16 @@ instead of silently passing it.
 | --- | --- | --- |
 | `custom-provider-chat`, `custom-assistant`, `provider-model-scroll` | `Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else.` `In one sentence, what is two plus two?` `Hello` `markdown table please` | the marker the assertion waits for |
 | `chat-stream-failure` | the scenario drives its own in-process server; these fixtures only cover the recovery turn | marker text |
-| `translation` | `CherryStudio Neptune 27182 TRANSLATION_MARKER`, `PDF_TRANSLATION_MARKER_314159` | input markers echoed so the output assertion sees them |
+| `translation-smoke` | `CherryStudio Neptune 27182 TRANSLATION_MARKER`, `PDF_TRANSLATION_MARKER_314159` | input markers echoed so the output assertion sees them |
 | `quick-assistant` | `Reply with exactly QUICK_ASSISTANT_PASS and nothing else.` | `QUICK_ASSISTANT_PASS` |
-| `startup-smoke`, `mini-app`, `notes` | no provider prompt | — |
+| `startup-smoke`, `mini-app-smoke`, `notes-smoke` | no provider prompt | — |
 
 ## Tasks that mock mode refuses
 
 `provider_mode=mock` fails fast for every other task (see the mock step in
 `.github/workflows/e2e-regression-test.yml`) because a fixture cannot drive them:
 
-- `knowledge` — K-01 asserts semantic retrieval. With no embedding fixture aimock returns its
+- `knowledge`, `knowledge-smoke` — K-01 asserts semantic retrieval. With no embedding fixture aimock returns its
   deterministic fallback vectors, so a "pass" would carry no semantic evidence.
 - `everything-mcp` — MCP-01 asserts a persisted, successful `everything/get-sum` execution. The
   application exposes MCP tools to the model only through the deferred-tool meta tools
@@ -36,3 +36,6 @@ instead of silently passing it.
 - `cherryin-chat`, `image-generation` — own upstream models (CherryIn credentials, image model);
   mock mode only repoints the custom provider.
 - `code-cli`, `openclaw` — external CLIs, no provider traffic of their own.
+
+Module tasks such as `notes`, `mini-app`, and `translation` include additional
+case-library scenarios. Only their focused smoke tasks are covered by these fixtures.

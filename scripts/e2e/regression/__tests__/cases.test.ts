@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -8,15 +8,7 @@ import { runInNewContext } from 'node:vm'
 import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
 import { parse } from 'yaml'
 
-import {
-  getCase,
-  missingCapabilities,
-  PHASE_IDS,
-  REGRESSION_CASES,
-  selectCases,
-  supportsPlatform,
-  TASK_SELECTIONS
-} from '../cases'
+import { getCase, missingCapabilities, PHASE_IDS, selectCases, supportsPlatform, TASK_SELECTIONS } from '../cases'
 
 describe('regression execution plan', () => {
   it('offers every supported task in the workflow dropdown with full regression as the default', () => {
@@ -81,11 +73,62 @@ describe('regression execution plan', () => {
   })
 
   it('selects only the requested task within its workflow phase', () => {
-    expect(selectCases('knowledge', '06-knowledge').map(({ id }) => id)).toEqual(['K-01'])
+    expect(selectCases('knowledge-smoke', '06-knowledge').map(({ id }) => id)).toEqual(['K-01'])
     expect(selectCases('code-cli', '08-code-tools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
     expect(selectCases('notes', '03-models-and-assistants')).toEqual([])
     expect(selectCases('notes', '02-basic-features').map(({ id }) => id)).toEqual(['N-01'])
     expect(() => getCase('missing')).toThrow('Unknown regression case')
+  })
+
+  it.each([
+    ['notes', ['N-01', 'MP-11', 'MP-74', 'MP-75', 'MP-76', 'MP-77', 'MP-78', 'MP-79']],
+    ['knowledge', ['K-01', 'MP-59', 'MP-60', 'MP-61', 'MP-62', 'MP-63', 'MP-64', 'MP-65', 'MP-66', 'MP-67']],
+    ['code-tools', ['CODE-01', 'CODE-02', 'CODE-03', 'MP-97']],
+    ['paintings', ['P-01', 'MP-90', 'MP-91', 'MP-92']],
+    ['translation', ['T-01', 'T-02', 'MP-81', 'MP-82', 'MP-83', 'MP-85', 'MP-86']]
+  ] as const)('includes existing scenarios as well as case-library scenarios in %s', (task, ids) => {
+    expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
+  })
+
+  it.each([
+    ['notes-smoke', ['N-01']],
+    ['knowledge-smoke', ['K-01']],
+    ['mini-app-pinning', ['MP-103']],
+    ['chat-error-recovery', ['MP-17']],
+    ['code-cli-permissions', ['MP-97']]
+  ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
+    expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
+  })
+
+  it('keeps execution order out of selectable task names', () => {
+    for (const task of TASK_SELECTIONS) expect(task).not.toMatch(/^\d/)
+  })
+
+  it('limits mock fixtures to focused smoke tasks instead of expanded module tasks', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const step = workflow.jobs.test.steps.find((step: { id?: string }) => step.id === 'mock')
+    const guard = step.run.slice(0, step.run.indexOf('PORT=4010'))
+    for (const [task, expected] of [
+      ['notes-smoke', 0],
+      ['translation-smoke', 0],
+      ['mini-app-smoke', 0],
+      ['notes', 1],
+      ['translation', 1],
+      ['mini-app', 1]
+    ] as const) {
+      const result = spawnSync('bash', ['-c', guard.replaceAll('${{ inputs.task }}', task)], { encoding: 'utf8' })
+      expect(result.status, result.stdout + result.stderr).toBe(expected)
+    }
+  })
+
+  it('prepares the MCP server package for both the module and focused MCP tasks', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const step = workflow.jobs.test.steps.find(
+      (step: { name: string }) => step.name === 'Prepare Everything MCP package'
+    )
+    for (const task of ['all', 'mcp-skills', 'everything-mcp', 'notes']) {
+      expect(runInNewContext(step.if, { needs: { resolve: { outputs: { task } } } })).toBe(task !== 'notes')
+    }
   })
 
   it('keeps each manifest phase executable by the workflow', () => {
@@ -154,35 +197,36 @@ describe('regression execution plan', () => {
   })
 })
 
-it('discovers each manifest case exactly once through Playwright with its phase and task tag', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
-  try {
-    const cli = createRequire(import.meta.url).resolve('@playwright/test/cli')
-    const report = JSON.parse(
-      execFileSync(
-        process.execPath,
-        [cli, 'test', '--config', 'playwright.regression.config.ts', '--list', '--reporter=json'],
-        {
+it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'code-cli-permissions'] as const)(
+  'discovers the selected %s cases through Playwright without matching another task prefix',
+  (task) => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
+    try {
+      const cli = createRequire(import.meta.url).resolve('@playwright/test/cli')
+      const args = [cli, 'test', '--config', 'playwright.regression.config.ts', '--list', '--reporter=json']
+      if (task !== 'all') args.push('--grep', `@${task}(?:\\s|$)`)
+      const report = JSON.parse(
+        execFileSync(process.execPath, args, {
           encoding: 'utf8',
           timeout: 20_000,
           env: { ...process.env, CHERRY_TEST_RUN_DIR: directory }
-        }
-      )
-    ) as JSONReport
-    const collect = (suites: JSONReportSuite[]): Array<{ id: string | undefined; task: string; phase: string }> =>
-      suites.flatMap((suite) => [
-        ...suite.specs.flatMap((spec) =>
-          spec.tests.map((test) => ({
-            id: test.annotations.find(({ type }) => type === 'regression-case')?.description,
-            task: spec.tags[0],
-            phase: spec.file.replace('.test.ts', '')
-          }))
-        ),
-        ...collect(suite.suites ?? [])
-      ])
-    expect(report.errors).toEqual([])
-    expect(collect(report.suites)).toEqual(REGRESSION_CASES.map(({ id, task, phase }) => ({ id, task, phase })))
-  } finally {
-    rmSync(directory, { recursive: true, force: true })
+        })
+      ) as JSONReport
+      const collect = (suites: JSONReportSuite[]): Array<{ id: string | undefined; tasks: string[]; phase: string }> =>
+        suites.flatMap((suite) => [
+          ...suite.specs.flatMap((spec) =>
+            spec.tests.map((test) => ({
+              id: test.annotations.find(({ type }) => type === 'regression-case')?.description,
+              tasks: spec.tags,
+              phase: spec.file.replace('.test.ts', '')
+            }))
+          ),
+          ...collect(suite.suites ?? [])
+        ])
+      expect(report.errors).toEqual([])
+      expect(collect(report.suites)).toEqual(selectCases(task).map(({ id, tasks, phase }) => ({ id, tasks, phase })))
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   }
-})
+)

@@ -4,30 +4,28 @@ import { REGRESSION_CASES, selectCases, supportsPlatform } from './cases'
 import type { CapabilityResult, CaseStatus, RegressionRun, RunMetadata, RunVerdict } from './types'
 
 export function createRun(metadata: RunMetadata): RegressionRun {
+  const selected = selectCases(metadata.task)
+  const selectedIds = new Set(selected.map(({ id }) => id))
   return {
     schemaVersion: 2,
     metadata,
     startedAt: new Date().toISOString(),
     capabilities: {},
     phases: Object.fromEntries(
-      [
-        ...new Set(
-          selectCases(metadata.task)
-            .filter(({ id }) => supportsPlatform(id, metadata.platform))
-            .map(({ phase }) => phase)
-        )
-      ].map((phase) => [phase, { status: 'pending', errors: [] }])
+      [...new Set(selected.filter(({ id }) => supportsPlatform(id, metadata.platform)).map(({ phase }) => phase))].map(
+        (phase) => [phase, { status: 'pending', errors: [] }]
+      )
     ),
     cases: Object.fromEntries(
       REGRESSION_CASES.map((testCase) => {
-        const selected = metadata.task === 'all' || testCase.task === metadata.task
+        const isSelected = selectedIds.has(testCase.id)
         const supported = supportsPlatform(testCase.id, metadata.platform)
         return [
           testCase.id,
           {
             id: testCase.id,
-            status: selected && supported ? 'pending' : 'not_applicable',
-            summary: !selected
+            status: isSelected && supported ? 'pending' : 'not_applicable',
+            summary: !isSelected
               ? `Not selected by task ${metadata.task}`
               : !supported
                 ? `Not supported on ${metadata.platform}`
@@ -119,7 +117,7 @@ export function getRunVerdict(run: RegressionRun): RunVerdict {
   const phases = Object.values(run.phases)
   // A task whose every case is unsupported on this platform has nothing to execute here;
   // excluding it is a correct result, not a blocked one.
-  if (selectCases(run.metadata.task).filter(({ id }) => supportsPlatform(id, run.metadata.platform)).length === 0) {
+  if (applicable.length === 0 && phases.length === 0) {
     return `${prefix}_not_applicable`
   }
   if (

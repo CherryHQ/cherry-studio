@@ -1,6 +1,46 @@
-import { completeE2eCase, createRun, finalizeRun, getRunVerdict } from '../state'
+import { completeE2eCase, createRun, finalizeRun, getRunVerdict, updatePhase } from '../state'
+import type { RegressionRun } from '../types'
 
 describe('Playwright run state', () => {
+  it('initializes every phase selected by a module task without selecting unrelated cases', () => {
+    const run = createRun({
+      appVersion: 'development',
+      commitSha: 'sha',
+      mode: 'branch',
+      platform: 'macos',
+      ref: 'main',
+      runner: 'macos-latest',
+      task: 'notes'
+    })
+    expect(Object.keys(run.phases)).toEqual(['02-basic-features', '14-notes'])
+    expect(run.cases['N-01'].status).toBe('pending')
+    expect(run.cases['MP-76'].status).toBe('pending')
+    expect(run.cases['APP-01'].status).toBe('not_applicable')
+  })
+
+  it('preserves recorded verdicts after a task name is removed from the current manifest', () => {
+    const run = createRun({
+      appVersion: 'development',
+      commitSha: 'sha',
+      mode: 'branch',
+      platform: 'macos',
+      ref: 'main',
+      runner: 'macos-latest',
+      task: 'code-cli-permissions'
+    })
+    const completed = updatePhase(
+      completeE2eCase(run, 'MP-97', 'passed', 'Permission modes verified'),
+      '08-code-tools',
+      'passed'
+    )
+    const historical = JSON.parse(
+      JSON.stringify({
+        ...completed,
+        metadata: { ...completed.metadata, task: '08-code-tools' }
+      })
+    ) as RegressionRun
+    expect(getRunVerdict(historical)).toBe('development_pass')
+  })
   it('accepts English summaries but rejects empty results', () => {
     const run = createRun({
       appVersion: '2.0.8',
@@ -82,7 +122,7 @@ describe('Playwright run state', () => {
         platform: 'windows',
         ref: 'main',
         runner: 'windows-2022',
-        task: '08-code-tools'
+        task: 'code-cli-permissions'
       })
     )
 

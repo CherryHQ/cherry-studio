@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { REGRESSION_CASES, type TaskSelection } from './cases'
+import { REGRESSION_CASES } from './cases'
 import { getRunVerdict } from './state'
 import {
   type AggregateReport,
@@ -66,12 +66,6 @@ function escapeXml(value: string): string {
     .replace(/'/g, '&apos;')
 }
 
-function taskLabel(task: TaskSelection): string {
-  if (task === 'all') return 'All tasks'
-  const titles = REGRESSION_CASES.filter((testCase) => testCase.task === task).map(({ title }) => title)
-  return titles.length > 0 ? titles.join(', ') : task
-}
-
 function selectedCases(run: RegressionRun) {
   return REGRESSION_CASES.filter(({ id }) => run.cases[id].status !== 'not_applicable')
 }
@@ -120,7 +114,7 @@ export function renderMarkdown(run: RegressionRun): string {
     `| Commit SHA | \`${escapeMarkdown(run.metadata.commitSha)}\` |`,
     `| App version | \`${escapeMarkdown(run.metadata.appVersion)}\` |`,
     `| Run mode | ${MODE_LABELS[run.metadata.mode]} |`,
-    `| Task selection | ${escapeMarkdown(taskLabel(run.metadata.task))} |`,
+    `| Task selection | \`${escapeMarkdown(run.metadata.task)}\` |`,
     `| Started at (UTC) | \`${run.startedAt}\` |`,
     ...(run.finishedAt ? [`| Finished at (UTC) | \`${run.finishedAt}\` |`] : []),
     `| Duration | ${formatDuration(run.startedAt, run.finishedAt)} |`,

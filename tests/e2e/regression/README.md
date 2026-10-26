@@ -23,14 +23,14 @@ The built-in assistant's tests start new tasks and clear skill tokens where requ
 
 A failed scenario must not supply the expected result for another scenario. Assert a new assistant response, a newly written file, or a real native event; do not inject success markers through IPC.
 
-The `knowledge` task is one end-to-end case (`K-01`): create and index a knowledge
+The `knowledge-smoke` task is one end-to-end case (`K-01`): create and index a knowledge
 base, verify recall, restart the application, then query the persisted base and
-verify the answer and citations. It imports the fixtures only once. The former
-`knowledge-import` and `knowledge-qa` task IDs are replaced by `knowledge`.
+verify the answer and citations. It imports the fixtures only once. The `knowledge`
+module task also includes the implemented knowledge case-library scenarios.
 
 ## Adding or selecting a case
 
-1. Add the case to `scripts/e2e/regression/cases.ts`, including its phase, task, and required capabilities.
+1. Add the case to `scripts/e2e/regression/cases.ts`, including its phase, module and focused `tasks`, and required capabilities.
 2. Register it with `test(...caseDefinition('CASE-ID'), async ({ app, mainWindow }) => { ... })`.
 3. Establish its preconditions in the scenario or domain helper. Keep selectors scoped to the relevant product surface.
 4. Run manifest tests, typechecking, and Playwright enumeration. Add a workflow step only when introducing a new phase.
@@ -42,7 +42,10 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
   --run-dir /absolute/run-directory --phase 02-basic-features
 ```
 
-The run's task selection controls which cases execute. To run only Notes, initialize with `--task notes`; do not narrow an all-task run manually and then treat it as a full pass.
+The run's task selection controls which cases execute. Use `--task notes` for all
+implemented Notes cases, including those in other phases, or `--task notes-smoke` for
+the create-and-save flow. Do not narrow an all-task run manually and then treat it as
+a full pass.
 
 ## Local streaming failure regression
 

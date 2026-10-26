@@ -25,7 +25,7 @@ describe('regression report gate', () => {
           platform,
           ref: 'test',
           runner: platform,
-          task: 'notes'
+          task: 'notes-smoke'
         })
         const completed = completeE2eCase(run, 'N-01', index === 0 ? macosStatus : windowsStatus, 'Case finished')
         return finalizeRun(updatePhase(completed, '02-basic-features', 'passed'))
@@ -74,7 +74,7 @@ describe('regression report gate', () => {
       commitSha: 'sha',
       mode: 'branch',
       ref: 'main',
-      task: 'notes'
+      task: 'notes-smoke'
     } as const
     const macos = completeE2eCase(
       createRun({ ...metadata, platform: 'macos', runner: 'macos-latest' }),
@@ -111,7 +111,7 @@ describe('regression report gate', () => {
         platform: 'macos',
         ref: 'main',
         runner: 'macos-latest',
-        task: 'notes'
+        task: 'notes-smoke'
       }),
       'N-01',
       'passed',
@@ -120,6 +120,7 @@ describe('regression report gate', () => {
     const phaseId = Object.keys(run.phases)[0]
     const passed = updatePhase(run, phaseId, 'passed')
     expect(renderAggregateMarkdown(aggregateRuns([passed]))).not.toContain('## Needs attention')
+    expect(renderMarkdown(passed)).toContain('| Task selection | `notes-smoke` |')
     const failed = updatePhase(passed, phaseId, 'failed', ['Executor exit code 1'])
     const markdown = renderAggregateMarkdown(aggregateRuns([failed]))
     expect(markdown).toContain(`| macOS | Phase ${phaseId} | ❌ Failed | Executor exit code 1 |`)
@@ -134,7 +135,7 @@ describe('regression report gate', () => {
       platform: 'windows',
       ref: 'main',
       runner: 'windows-2022',
-      task: 'notes'
+      task: 'notes-smoke'
     })
     const markdown = renderAggregateMarkdown(aggregateRuns([run]))
     expect(markdown).toContain('| Windows | 0 | 0 | 0 | 1 |')
