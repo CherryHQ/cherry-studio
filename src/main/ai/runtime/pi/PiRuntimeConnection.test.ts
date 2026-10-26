@@ -1458,7 +1458,7 @@ describe('PiRuntimeConnection', () => {
     expect(events.at(-1)?.type).toBe('error')
   })
 
-  it('claims the submitted text steer and keeps an earlier unsent media steer reserved', async () => {
+  it('keeps a later text steer behind an earlier media steer until the turn ends', async () => {
     mocks.isStreaming = true
     const deferred = createDeferred<string[]>()
     mocks.collectMediaNotes = () => deferred.promise
@@ -1467,60 +1467,65 @@ describe('PiRuntimeConnection', () => {
     const text = userInput('text after media')
 
     expect(conn.redirect(media)).toBe(true)
-    expect(mocks.steer).not.toHaveBeenCalled()
     expect(conn.redirect(text)).toBe(true)
-    expect(mocks.steer).toHaveBeenCalledTimes(1)
+    expect(mocks.steer).not.toHaveBeenCalled()
 
-    const cb = mocks.subscribeCb!
-    cb({ type: 'message_start', message: { role: 'user' } } as unknown as AgentSessionEvent)
     mocks.isStreaming = false
-    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
 
     const events = await collectUntilTerminal(conn.events)
-    const boundary = events.find((event) => event.type === 'steer-boundary')
-    const undelivered = events.find((event) => event.type === 'steer-undelivered')
-    expect(boundary).toEqual(expect.objectContaining({ type: 'steer-boundary', inputs: [text] }))
-    expect(undelivered).toEqual(expect.objectContaining({ type: 'steer-undelivered', inputs: [media] }))
-    expect(events.findIndex((event) => event.type === 'steer-boundary')).toBeLessThan(
-      events.findIndex((event) => event.type === 'steer-undelivered')
+    expect(events.find((event) => event.type === 'steer-boundary')).toBeUndefined()
+    expect(events.find((event) => event.type === 'steer-undelivered')).toEqual(
+      expect.objectContaining({ type: 'steer-undelivered', inputs: [media, text] })
     )
 
     deferred.resolve(['Attached file "clip.wav":\nkept'])
     await deferred.promise
     await Promise.resolve()
-    expect(mocks.steer).toHaveBeenCalledTimes(1)
+    expect(mocks.steer).not.toHaveBeenCalled()
   })
 
-  it('in all mode claims every submitted steer and leaves the unsent media reservation', async () => {
+  it.each(['one-at-a-time', 'all'] as const)(
+    'in %s mode submits steers in redirect order once the earlier media analysis finishes',
+    async (mode) => {
+      mocks.isStreaming = true
+      mocks.steeringMode = mode
+      const deferred = createDeferred<string[]>()
+      mocks.collectMediaNotes = () => deferred.promise
+      const conn = await new PiRuntimeConnection(input).start()
+
+      expect(conn.redirect(mediaInput())).toBe(true)
+      expect(conn.redirect(userInput('first text'))).toBe(true)
+      expect(conn.redirect(userInput('second text'))).toBe(true)
+      expect(mocks.steer).not.toHaveBeenCalled()
+
+      deferred.resolve(['Attached file "clip.wav":\nkept'])
+      await vi.waitFor(() => expect(mocks.steer).toHaveBeenCalledTimes(3))
+      const sent = mocks.steer.mock.calls.map(([content]) => String(content))
+      expect(sent[0]).toContain('kept')
+      expect(sent[1]).toContain('first text')
+      expect(sent[2]).toContain('second text')
+      await conn.close()
+    }
+  )
+
+  it('requeues a failed media steer together with the later steers waiting behind it', async () => {
     mocks.isStreaming = true
-    mocks.steeringMode = 'all'
     const deferred = createDeferred<string[]>()
     mocks.collectMediaNotes = () => deferred.promise
     const conn = await new PiRuntimeConnection(input).start()
+    const iter = conn.events[Symbol.asyncIterator]()
     const media = mediaInput()
-    const first = userInput('first text')
-    const second = userInput('second text')
+    const text = userInput('correction after media')
 
     expect(conn.redirect(media)).toBe(true)
-    expect(conn.redirect(first)).toBe(true)
-    expect(conn.redirect(second)).toBe(true)
-    expect(mocks.steer).toHaveBeenCalledTimes(2)
+    expect(conn.redirect(text)).toBe(true)
+    deferred.reject(new Error('analysis failed'))
 
-    const cb = mocks.subscribeCb!
-    cb({ type: 'message_start', message: { role: 'user' } } as unknown as AgentSessionEvent)
-    mocks.isStreaming = false
-    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
-
-    const events = await collectUntilTerminal(conn.events)
-    const boundary = events.find((event) => event.type === 'steer-boundary')
-    const undelivered = events.find((event) => event.type === 'steer-undelivered')
-    expect(boundary).toEqual(expect.objectContaining({ type: 'steer-boundary', inputs: [first, second] }))
-    expect(undelivered).toEqual(expect.objectContaining({ type: 'steer-undelivered', inputs: [media] }))
-
-    deferred.resolve(['Attached file "clip.wav":\nkept'])
-    await deferred.promise
-    await Promise.resolve()
-    expect(mocks.steer).toHaveBeenCalledTimes(2)
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'steer-undelivered', inputs: [media, text] } })
+    expect(mocks.steer).not.toHaveBeenCalled()
+    await conn.close()
   })
 
   it('requeues an accepted media steer when the turn ends during analysis', async () => {

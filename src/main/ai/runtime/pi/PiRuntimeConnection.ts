@@ -147,6 +147,8 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
 interface PendingSteer {
   input: AgentRuntimeUserInput
   mediaController?: AbortController
+  /** Prompt text once ready; a media steer has none until its analysis finishes. */
+  content?: string
 }
 
 export class PiRuntimeConnection implements AgentRuntimeConnection {
@@ -559,14 +561,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const pending: PendingSteer = { input }
     this.pendingSteers.push(pending)
     const deliver = (content: string) => {
-      if (!this.pendingSteers.includes(pending) || this.submittedSteers.includes(pending)) return
-      this.submittedSteers.push(pending)
-      void session.steer(wrapSteerReminder(content)).catch((error) => {
-        this.removePendingSteer(pending)
-        if (this.closed) return
-        logger.error('pi steer failed', error as Error)
-        this.eventQueue.push({ type: 'error', error })
-      })
+      if (!this.pendingSteers.includes(pending)) return
+      pending.content = content
+      this.submitReadySteers(session)
     }
 
     if (!hasAgentMediaAttachment(input.message)) {
@@ -584,15 +581,31 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         deliver(buildAgentUserContent(input.message, notes))
       })
       .catch((error) => {
-        const stillPending = this.pendingSteers.includes(pending)
-        this.removePendingSteer(pending)
-        if (!stillPending || this.closed) return
+        const index = this.pendingSteers.indexOf(pending)
+        if (index === -1 || this.closed) return
         logger.error('pi media analysis failed', error as Error)
-        // A failed follow-up must not terminate the host turn that is still streaming.
-        // Requeue it through the same undelivered path used when the turn ends first.
-        this.eventQueue.push({ type: 'steer-undelivered', inputs: [pending.input] })
+        // A failed follow-up must not terminate the host turn that is still streaming. Requeue it
+        // with the later steers waiting behind it, so they keep their order instead of overtaking.
+        const requeued = this.pendingSteers.splice(index)
+        for (const steer of requeued) steer.mediaController?.abort()
+        this.eventQueue.push({ type: 'steer-undelivered', inputs: requeued.map((steer) => steer.input) })
       })
     return true
+  }
+
+  /** Hand ready steers to pi in redirect order, stopping at the first one still being analyzed. */
+  private submitReadySteers(session: AgentSession): void {
+    for (const pending of this.pendingSteers) {
+      if (this.submittedSteers.includes(pending)) continue
+      if (pending.content === undefined) return
+      this.submittedSteers.push(pending)
+      void session.steer(wrapSteerReminder(pending.content)).catch((error) => {
+        this.removePendingSteer(pending)
+        if (this.closed) return
+        logger.error('pi steer failed', error as Error)
+        this.eventQueue.push({ type: 'error', error })
+      })
+    }
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {
