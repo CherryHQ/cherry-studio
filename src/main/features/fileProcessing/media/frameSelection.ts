@@ -142,9 +142,11 @@ function selectDistributedScenes(
   const scenes: number[] = []
   let replaced = false
   let covered = false
+  // A detected cut is a decoded frame time, so it skips the uniform backbone's end seek margin.
+  const lastCutMs = Math.max(0, Math.ceil(durationMs) - 1)
   const ranked = sceneChanges
     .map((change) => ({
-      timestampMs: Math.min(lastMs, Math.max(0, Math.round(change.timestampMs))),
+      timestampMs: Math.min(lastCutMs, Math.max(0, Math.round(change.timestampMs))),
       score: change.score
     }))
     .filter((change) => Number.isFinite(change.score) && change.score > 0)

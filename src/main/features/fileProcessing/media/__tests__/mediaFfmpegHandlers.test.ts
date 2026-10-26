@@ -1233,6 +1233,59 @@ describe.skipIf(!hasBundledFfmpeg && !requiresBundledFfmpeg)('mediaFfmpegHandler
     expect(existsSync(pidRegistryPath)).toBe(false)
   })
 
+  it('keeps a closing white scene inside the end seek margin through detect, plan, and extract', async () => {
+    const cutPath = join(root, 'closing-white.mov')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=black:s=64x64:r=100:d=3.01',
+        '-vf',
+        "format=rgb24,geq=r='255':g='if(gte(N,300),255,0)':b='if(gte(N,300),255,0)'",
+        '-c:v',
+        'ffv1',
+        '-pix_fmt',
+        'bgr0',
+        cutPath
+      ])
+    ).toBe(0)
+
+    const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mov' }, context())
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: cutPath,
+        durationMs: probe.durationMs,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: SCENE_SCORE_THRESHOLD,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 32
+      },
+      context()
+    )
+    const planned = planAnalysisFrameTimestamps({
+      durationMs: probe.durationMs,
+      maxFrames: 24,
+      targetIntervalMs: 4_000,
+      sceneChanges: detected.changes
+    })
+    const extracted = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: cutPath,
+        outputDir: join(root, 'closing-white-frames'),
+        timestampsMs: planned,
+        maxEdgePx: 160,
+        jpegQuality: 70
+      },
+      context()
+    )
+    const colors = extracted.frames.map((frame) => averageColor(frame.path))
+    const evidence = JSON.stringify({ durationMs: probe.durationMs, detected: detected.changes, planned, colors })
+
+    expect(colors[0], evidence).toBe('red')
+    expect(colors, evidence).toContain('white')
+  })
+
   it('keeps a fractional-PTS white frame through detect, plan, extract, and dedup', async () => {
     const cutPath = join(root, 'fractional-pts-white.mov')
     // Frames 57–59 would be the first 8 Hz bucket-5 samples and would hide the white frame.
