@@ -197,11 +197,13 @@ export async function switchConversationModel(app: RegressionApp, page: Page, te
     expect(beforeSwitch.slice(0, 2)).toEqual(originalMessages)
     expect(beforeSwitch[3]).toMatchObject({ modelId: originalModelId, status: 'success' })
 
+    // Chat applies a model switch to the current topic immediately. The context-impact
+    // confirmation is an Agent-session contract (AgentChat), so no dialog may block Chat here.
     await selectChatModel(page, nextModelId)
-    await expect(dialog).toBeVisible()
-    await attachScreenshot('MP-26 context impact confirmation')
-    await dialog.getByRole('button', { name: 'Switch model', exact: true }).click()
-    await expect(dialog).toBeHidden()
+    await expect(dialog, 'Chat must apply a model switch without an Agent-session confirmation').toBeHidden({
+      timeout: 3000
+    })
+    await attachScreenshot('MP-26 existing conversation after switching model')
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(nextModelId)
     expect(await readMessages()).toEqual(beforeSwitch)
     const replyId = await sendAndCheckModel(

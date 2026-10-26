@@ -184,6 +184,16 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
     expect(await page.evaluate(async (url) => (await fetch(url)).text(), `http://127.0.0.1:${originPort}/`)).toBe(
       'MP112 direct target'
     )
+    // Bypass rules are a Custom Proxy field. Set them while that mode is active; the saved
+    // preference outlives the mode switch and still routes the wildcard hosts below.
+    const bypass = page.getByPlaceholder('localhost,127.0.0.1,::1', { exact: true })
+    await expect(bypass, 'Custom Proxy exposes its bypass rules field').toBeVisible()
+    await bypass.fill(`*.test.com,${lanWildcard}`)
+    await bypass.blur()
+    await expect
+      .poll(() => page.evaluate(() => window.api.preference.get('app.proxy.bypass_rules')))
+      .toBe(`*.test.com,${lanWildcard}`)
+    await screenshot('MP-112 wildcard bypass rules saved in Custom Proxy mode')
     await chooseMode('System Proxy', 'system')
     const [recovered] = await Promise.all([
       page.evaluate(
@@ -203,15 +213,12 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
     await page.reload()
     await openSettingsSection(page, 'General')
     await expect(mode).toHaveText('System Proxy')
-    const bypassLabel = page.locator('[data-ui~="settings.content"]').getByText('Bypass Rules', { exact: true })
-    await expect(bypassLabel, 'Bypass Rules must remain editable after switching to System Proxy (step 4)').toBeVisible(
-      {
-        timeout: 3000
-      }
-    )
-    const bypass = page.getByPlaceholder('localhost,127.0.0.1,::1', { exact: true })
-    await bypass.fill(`*.test.com,${lanWildcard}`)
-    await bypass.blur()
+    // The bypass field is Custom-only, so System Proxy must not render it; the saved rules
+    // still have to survive the mode switch.
+    await expect(
+      page.locator('[data-ui~="settings.content"]').getByText('Bypass Rules', { exact: true }),
+      'System Proxy mode must hide the Custom-only bypass field'
+    ).toBeHidden({ timeout: 3000 })
     await expect
       .poll(() => page.evaluate(() => window.api.preference.get('app.proxy.bypass_rules')))
       .toBe(`*.test.com,${lanWildcard}`)

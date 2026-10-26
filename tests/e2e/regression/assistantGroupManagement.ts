@@ -107,11 +107,17 @@ export async function assistantGroupManagement(
     await expect(groupedCards.filter({ has: page.getByText(names[1], { exact: true }) })).toHaveCount(1)
     await screenshot('MP-24 two assistants in group')
 
+    // Clicking the selected group clears its filter; it does not collapse the group. The library
+    // then lists every assistant again, and the selected state is the only thing that goes away.
     await group().click()
-    await expect(group()).toBeVisible()
-    for (const name of names) await expect(card(name)).toBeHidden()
-    await screenshot('MP-24 collapsed group keeps its name and hides assistants')
+    await expect(
+      group(),
+      'Clicking the selected group must clear its filter instead of collapsing the group'
+    ).not.toHaveClass(/border-border-selected/)
+    for (const name of names) await expect(card(name)).toBeVisible()
+    await screenshot('MP-24 cleared group filter keeps its name and shows every assistant')
     await group().click()
+    await expect(group()).toHaveClass(/border-border-selected/)
     for (const name of names) await expect(card(name)).toBeVisible()
 
     await restart()

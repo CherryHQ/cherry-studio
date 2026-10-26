@@ -92,7 +92,9 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
     .toBe(90)
   await attachScreenshot('MP-90 enlarged dragged and rotated preview')
   await preview.getByRole('button', { name: 'Reset', exact: true }).click()
-  await preview.getByRole('button', { name: 'Close', exact: true }).click()
+  // The preview dialog disables its own default close button; the toolbar action is labeled `Close Preview`.
+  await preview.getByRole('button', { name: 'Close Preview', exact: true }).click()
+  await expect(preview).toBeHidden()
 
   const upscale = view.getByRole('button', { name: /^(Upscale|Enhance|HD Enhancement|高清增强|放大)$/i })
   await expect(upscale, 'A generated image must expose its enhancement action').toBeVisible()

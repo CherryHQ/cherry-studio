@@ -53,7 +53,9 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(permission.getByRole('button', { name: 'Open Accessibility Settings', exact: true })).toBeVisible()
     await screenshot(page, 'MP-127 accessibility permission required')
     await page.keyboard.press('Escape')
-    throw new Error('UNCOVERED: macOS has not granted Accessibility permission to the test application')
+    // Missing Accessibility trust is a prerequisite gap, not a regression: the controller
+    // records skipped as blocked, while a throw would be reported as a product failure.
+    test.skip(true, 'UNCOVERED: macOS has not granted Accessibility permission to the test application')
   }
 
   // Real native selection and UI; only the external model HTTP responses are mocked.
