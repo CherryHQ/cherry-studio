@@ -5,6 +5,8 @@ import i18n from 'i18next'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as FileEditSessionModule from '@renderer/components/FileEditSessionProvider'
+
 import SubWindowApp from '../SubWindowApp'
 
 const state = vi.hoisted(() => ({ themeThrows: false }))
@@ -18,6 +20,11 @@ vi.mock('@renderer/components/layout/TabsProvider', () => ({
   TabsProvider: ({ children }: PropsWithChildren) => children
 }))
 vi.mock('@renderer/components/ConversationNotificationRuntime', () => ({ ConversationNotificationRuntime: () => null }))
+// Recovery has its own integration tests; the MCP harness uses a context-free tab shell.
+vi.mock('@renderer/components/FileEditSessionProvider', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileEditSessionModule>()),
+  FileEditRecovery: () => null
+}))
 
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: ({ children }: PropsWithChildren) => {
