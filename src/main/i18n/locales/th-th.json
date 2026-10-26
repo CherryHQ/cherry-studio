@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "ไม่สามารถเข้าถึงเส้นทางเวิร์กสเปซ: {{path}}",
   "agent.session.workspace_status.missing": "ไม่มีเส้นทางเวิร์กสเปซ: {{path}}",
   "agent.session.workspace_status.not_directory": "เส้นทางเวิร์กสเปซไม่ใช่ไดเรกทอรี: {{path}}",
+  "agent.tools.to_markdown.unsupported_windows_arm64": "ไม่รองรับ to_markdown บน Windows ARM64 เนื่องจากตัวแปลงเอกสารที่มาพร้อมแอปไม่มีบิลด์แบบเนทีฟสำหรับแพลตฟอร์มนี้ การติดตั้งส่วนที่ต้องพึ่งพาใหม่จะไม่แก้ไขข้อจำกัดนี้",
   "apiGateway.docs.description": "HTTP API ที่เข้ากันได้กับ OpenAI, Anthropic และ Gemini สำหรับ Cherry Studio พร้อมด้วยเอนด์พอยต์เฉพาะของ Cherry (โมเดล, ความรู้)",
   "apiGateway.docs.language_switcher_label": "ภาษาของเอกสาร",
   "apiGateway.docs.operations.chat_completions": "สร้าง Chat Completion คำขอและเนื้อหาการตอบสนองเป็นไปตามรูปแบบ OpenAI Chat Completions ตั้งค่า `stream: true` สำหรับเอาต์พุตแบบเพิ่มทีละส่วน",

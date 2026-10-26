@@ -20,7 +20,7 @@ Status: implemented
 
 ## 后果
 
-被关闭的冲突现在会用保留的草稿覆盖外部版本，而不是静默暂停自动保存——这符合按钮文案与 SkillFileBrowser 参照实现。`prepareMutation` 的全会话 flush 语义未变。
+被关闭的冲突现在会用保留的草稿覆盖外部版本，而不是静默暂停自动保存——这符合按钮文案与 SkillFileBrowser 参照实现。[后续修复](2026-10-25-file-edit-unblocked-writes.md)使已处于冲突或保存失败状态的会话不再阻止 `prepareMutation`。
 
 ## 验证
 
