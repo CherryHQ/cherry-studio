@@ -14,7 +14,7 @@ Status: implemented
 
 `prepareMutation()` 仍封闭全部会话，但只刷写尚未处于冲突或保存失败状态的会话。已搁置的会话在恢复界面保留草稿；变更继续执行，`finish()` 照旧重新验证挂载中的会话。准备期间新出现的刷写失败仍会取消该操作。
 
-笔记立即切换，由保留会话在分离时保存。输入法组合输入结束前保持当前编辑器挂载。后台保存中的草稿不会触发失败提示。失败草稿可重新打开、复制、重试或明确放弃；冲突笔记重新打开后处理冲突，不提供无法成功的普通重试。恢复界面位于标签页 Provider 内，确保在同一窗口重新打开。Agent 产物面板仍先等待 `flush()` 再切换，仅在保存失败时询问是否放弃。
+笔记立即切换，由保留会话在分离时保存。输入法组合输入结束前保持当前编辑器挂载。后台保存中的草稿不会触发失败提示。失败草稿可重新打开、复制、重试或明确放弃；冲突笔记重新打开后处理冲突，不提供无法成功的普通重试。窗口组装层在标签页 Provider 内提供笔记专属的重新打开操作；共享恢复界面只负责通用草稿操作。Agent 产物面板仍先等待 `flush()` 再切换，仅在保存失败时询问是否放弃。
 
 ## 备选方案
 
@@ -32,4 +32,4 @@ Status: implemented
 - 回归 — `pnpm test:renderer src/renderer/pages/notes/__tests__/NotesPage.test.tsx src/renderer/pages/agents/components/AgentRightPane/__tests__/AgentRightPane.test.tsx`：笔记切换不等待进行中或失败的保存，也不丢弃草稿；组合输入期间延迟导航，当前文件被删除时保留草稿。Agent 面板保持先保存再切换的行为。
 - 回归 — `pnpm test:main src/main/services/file/__tests__/FileEditService.test.ts`：去除账本后，条件写入、目标改指向、entry/path 写入竞争、元数据恢复和租约关闭时的排空仍满足契约。
 
-- 回归 — `pnpm test:renderer src/renderer/components/__tests__/FileEditSessionProvider.test.tsx`：后台保存中不显示失败提示；失败草稿可重试，放弃需确认；冲突可重新打开原笔记且不覆盖外部内容。
+- 回归 — `pnpm test:renderer src/renderer/windows/__tests__/WindowFileEditRecovery.test.tsx`：后台保存中不显示失败提示；失败草稿可重试，放弃需确认；冲突可重新打开原笔记且不覆盖外部内容。

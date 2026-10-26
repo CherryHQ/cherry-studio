@@ -2,12 +2,9 @@ import { type ReactNode, use, useEffect, useState, useSyncExternalStore } from '
 import { useTranslation } from 'react-i18next'
 
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
-import { useCache } from '@renderer/data/hooks/useCache'
-import { useTabs } from '@renderer/hooks/tab'
 import { FileEditSessionContext } from '@renderer/hooks/useFileEditSession'
-import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
+import { FileEditSessionManager, type SessionSnapshot } from '@renderer/services/fileEdit/FileEditSessionManager'
 import { toast } from '@renderer/services/toast'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 export function FileEditSessionProvider({ children }: { children: ReactNode }) {
   const [manager] = useState(() => new FileEditSessionManager())
@@ -26,67 +23,70 @@ export function FileEditSessionProvider({ children }: { children: ReactNode }) {
   return <FileEditSessionContext value={manager}>{children}</FileEditSessionContext>
 }
 
-export function FileEditRecovery() {
+export function FileEditRecovery({
+  getReopenAction
+}: {
+  getReopenAction?: (session: SessionSnapshot) => (() => void) | undefined
+}) {
   const manager = use(FileEditSessionContext)
   if (!manager) throw new Error('File recovery requires a window session provider')
   const retained = useSyncExternalStore(manager.subscribe, manager.getSnapshot)
   const failures = retained.filter((session) => session.conflict || session.saveError || session.readError)
   const [discardId, setDiscardId] = useState<string>()
   const discarding = retained.find((session) => session.sessionId === discardId)
-  const [, setActiveFilePath] = useCache('notes.active_file_path')
-  const { openTab } = useTabs()
   const { t } = useTranslation()
 
   return (
     <>
       {failures.length > 0 && (
         <div className="fixed right-4 bottom-4 z-50 max-w-md space-y-3 rounded-lg border border-warning-border bg-warning-subtle p-3 text-warning-subtle-foreground">
-          {failures.map((session) => (
-            <div key={session.sessionId} role="alert" className="space-y-1">
-              <p className="break-all text-xs">{session.locator}</p>
-              <p className="text-sm">
-                {t(session.conflict ? 'agent.preview_pane.edit.conflict.title' : 'agent.preview_pane.edit.save_failed')}
-              </p>
-              <div className="flex gap-2">
-                {session.ownerId === 'notes' && !session.readError && (
+          {failures.map((session) => {
+            const reopen = getReopenAction?.(session)
+            return (
+              <div key={session.sessionId} role="alert" className="space-y-1">
+                <p className="break-all text-xs">{session.locator}</p>
+                <p className="text-sm">
+                  {t(
+                    session.conflict ? 'agent.preview_pane.edit.conflict.title' : 'agent.preview_pane.edit.save_failed'
+                  )}
+                </p>
+                <div className="flex gap-2">
+                  {reopen && (
+                    <Button size="sm" variant="outline" onClick={reopen}>
+                      {t('common.open')}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      setActiveFilePath(AbsoluteFilePathSchema.parse(session.locator))
-                      openTab('/app/notes')
-                    }}>
-                    {t('common.open')}
+                    onClick={() =>
+                      void navigator.clipboard.writeText(session.draft).catch(() => toast.error(t('notes.save_failed')))
+                    }>
+                    {t('common.copy')}
                   </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    void navigator.clipboard.writeText(session.draft).catch(() => toast.error(t('notes.save_failed')))
-                  }>
-                  {t('common.copy')}
-                </Button>
-                {!session.conflict && !session.readError && (
+                  {!session.conflict && !session.readError && (
+                    <Button
+                      size="sm"
+                      disabled={session.isSaving}
+                      onClick={() =>
+                        void manager
+                          .recover(session.sessionId, 'retry')
+                          .catch(() => toast.error(t('notes.save_failed')))
+                      }>
+                      {t('common.retry')}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
+                    variant="outline"
                     disabled={session.isSaving}
-                    onClick={() =>
-                      void manager.recover(session.sessionId, 'retry').catch(() => toast.error(t('notes.save_failed')))
-                    }>
-                    {t('common.retry')}
+                    onClick={() => setDiscardId(session.sessionId)}>
+                    {t('agent.preview_pane.edit.discard')}
                   </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={session.isSaving}
-                  onClick={() => setDiscardId(session.sessionId)}>
-                  {t('agent.preview_pane.edit.discard')}
-                </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
       <ConfirmDialog

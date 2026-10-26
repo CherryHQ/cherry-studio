@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-25-file-edit-unblocked-writes.md
-2026-10-25-file-edit-unblocked-writes.md: b9537dabf7aeb5170c0a96e3ec9da061ab5a01ee
-2026-10-25-file-edit-unblocked-writes.zh.md: d23194c73b9224efd032ed1adf644df64f4695f4
+2026-10-25-file-edit-unblocked-writes.md: 95c26581d6f4877bf892a643e27abf15e20bc0b3
+2026-10-25-file-edit-unblocked-writes.zh.md: 5676d93967c54c119061ff59d7ac99e7cc27be51

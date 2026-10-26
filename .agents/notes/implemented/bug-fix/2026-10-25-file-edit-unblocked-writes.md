@@ -14,7 +14,7 @@ The file editing runtime from [the independent lifecycle proposal](../../propose
 
 `prepareMutation()` still seals every session, but flushes only sessions not already in conflict or save failure. Parked sessions keep their drafts on the recovery surface; the mutation proceeds and `finish()` revalidates attached sessions as before. A flush that fails during preparation still cancels the operation.
 
-Notes switches immediately and lets the retained session save on detachment. Input-method composition keeps the current editor mounted until the composition ends. Detached pending saves do not produce failure alerts. Failed drafts remain available to reopen, copy, retry or explicitly discard; conflicted Notes drafts reopen for resolution instead of offering a retry that cannot succeed. The recovery surface lives inside the tab provider so reopening stays in the same window. The agent artifact pane still awaits `flush()` before switching and asks to discard only when saving fails.
+Notes switches immediately and lets the retained session save on detachment. Input-method composition keeps the current editor mounted until the composition ends. Detached pending saves do not produce failure alerts. Failed drafts remain available to reopen, copy, retry or explicitly discard; conflicted Notes drafts reopen for resolution instead of offering a retry that cannot succeed. Window composition supplies the Notes-specific reopen action inside the tab provider; shared recovery owns only generic draft actions. The agent artifact pane still awaits `flush()` before switching and asks to discard only when saving fails.
 
 ## Alternatives considered
 
@@ -32,4 +32,4 @@ A parked draft whose own file is renamed or deleted becomes unwritable after `fi
 - Regression — `pnpm test:renderer src/renderer/pages/notes/__tests__/NotesPage.test.tsx src/renderer/pages/agents/components/AgentRightPane/__tests__/AgentRightPane.test.tsx`: Notes navigation does not wait for a pending or failed save and does not discard the draft; composition delays navigation and a removed active file retains its draft. The agent pane keeps its save-before-switch behavior.
 - Regression — `pnpm test:main src/main/services/file/__tests__/FileEditService.test.ts`: conditional writes, target retargeting, competing entry/path writes, metadata recovery and lease close draining keep their contracts without the ledger.
 
-- Regression — `pnpm test:renderer src/renderer/components/__tests__/FileEditSessionProvider.test.tsx`: pending detached saves never show a failure alert; failed drafts support retry and confirmed discard; conflicts reopen the original note without overwriting external bytes.
+- Regression — `pnpm test:renderer src/renderer/windows/__tests__/WindowFileEditRecovery.test.tsx`: pending detached saves never show a failure alert; failed drafts support retry and confirmed discard; conflicts reopen the original note without overwriting external bytes.

@@ -4,7 +4,6 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as FileEditSessionModule from '@renderer/components/FileEditSessionProvider'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 
 const onboardingModule = vi.hoisted(() => ({ evaluations: 0 }))
@@ -43,10 +42,7 @@ vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }
 vi.mock('@renderer/components/PopupHost', () => ({ PopupHost: () => null }))
 vi.mock('@renderer/components/ToastHost', () => ({ default: () => null }))
 // Recovery has its own integration tests; this shell harness intentionally omits its providers.
-vi.mock('@renderer/components/FileEditSessionProvider', async (importOriginal) => ({
-  ...(await importOriginal<typeof FileEditSessionModule>()),
-  FileEditRecovery: () => null
-}))
+vi.mock('@renderer/windows/WindowFileEditRecovery', () => ({ WindowFileEditRecovery: () => null }))
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: () => {
     throw new Error('theme provider boom')
