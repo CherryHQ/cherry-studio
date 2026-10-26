@@ -58,7 +58,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   const filesView = () => page.locator('[data-ui~="files.view"]:visible')
   const filePreview = (name: string) => filesView().getByRole('region', { name, exact: true })
   const openLibraryFile = async (name: string) => {
-    await filesView().getByText(name, { exact: true }).first().click()
+    await filesView().getByText(name, { exact: true }).filter({ visible: true }).click()
     await expect(filePreview(name)).toBeVisible()
   }
   const assertRichDocument = async (preview: Locator) => {
@@ -301,6 +301,8 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
     await test.step('8. Restart Electron and reopen the persisted RTF', async () => {
       page = await app.restart()
       await selectSidebarApp(page, 'Files')
+      const back = filesView().getByRole('button', { name: 'Back', exact: true })
+      if (await back.isVisible()) await back.click()
       await openLibraryFile('simple.rtf')
       await assertRichDocument(filePreview('simple.rtf'))
       await screenshot('MP-150 formatted RTF after restart')
