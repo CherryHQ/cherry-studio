@@ -109,7 +109,7 @@ const { overlay, liveAssistants, disposeOverlay, reset, clear } = useExecutionOv
   topicId,
   activeExecutions,      // ActiveExecution[] from useTopicStreamStatus
   uiMessages,            // current DB snapshot
-  { onFinish }
+  { onUpdate, onFinish, onLeave }
 )
 ```
 
@@ -119,6 +119,13 @@ rAF batching keyed by `topicId`. The hook only acquires/releases a
 refcounted view and reads it via `useSyncExternalStore` — unmounting
 (route/tab/conversation switch) does **not** tear the stream down,
 and remounting restores the live overlay synchronously.
+
+`onUpdate(executionId, { attemptId, message })` receives each assembled live snapshot,
+including typed text/reasoning/tool parts. Consumers select their eligible attempt and
+body parts; the transport does not depend on voice services. `onFinish` supplies the
+terminal snapshot once. `onLeave` runs when this view releases its topic subscription;
+view-owned work such as automatic reading stops while the retained overlay and Main
+chat generation continue. Callback updates do not reattach the stream.
 
 ### One reader per turn, zero cross-turn state
 

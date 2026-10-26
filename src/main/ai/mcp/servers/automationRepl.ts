@@ -76,7 +76,7 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
     'reset',
     {
       description:
-        'Clear persistent automation JS state and release control leases. Does not close user pages/apps or resume user-stopped control.',
+        'Clear automation JS state and release control leases. Does not close pages or resume user-stopped control.',
       inputSchema: automationReplResetInput
     },
     async () => toMcpResult(await (await currentRun()).reset())

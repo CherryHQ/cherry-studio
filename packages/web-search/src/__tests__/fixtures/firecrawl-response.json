@@ -1,0 +1,13 @@
+{
+  "data": {
+    "web": [
+      {
+        "description": "Fallback Description",
+        "markdown": "Scraped Markdown Content",
+        "title": "Firecrawl Title",
+        "url": "https://firecrawl.example/result"
+      }
+    ]
+  },
+  "success": true
+}

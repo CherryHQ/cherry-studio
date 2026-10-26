@@ -27,9 +27,17 @@ listener flushes pending text while the session still exists.
 | `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
 | `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
 | `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |
+| `agentPagination.ts` | Page byte budget: projected DTO sizing, offset prefixes and keyset query retries |
 | `agentQueries.ts` | Persisted sessions/messages/parts/interactions projected onto wire DTOs |
 | `agentJournal.ts` | Shared per-session journal: stream listener → protocol events, checkpoints, epoch |
 | `agentSubscriptions.ts` | Connection-private subscriptions: prepare, activate, ack credit, reset |
+
+Historical message lists support the advertised `partsMode: 'paged'` extension:
+metadata-only summaries avoid an oversized `partIds` array while existing
+`agent.parts.list` pages retain complete content. The default list mode, live
+events and checkpoints keep full message snapshots. Single-item budget failures
+include terminal size details; consuming those details is a client responsibility.
+See [the protocol contract](../../../../packages/remote-protocol/README.md#paged-message-summaries).
 
 Deviations from the design doc, kept deliberately small:
 

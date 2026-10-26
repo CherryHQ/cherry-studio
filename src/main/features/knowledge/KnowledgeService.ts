@@ -28,6 +28,7 @@ import type {
 import { KnowledgeConceptService } from './query/KnowledgeConceptService'
 import { KnowledgeQueryService } from './query/KnowledgeQueryService'
 import { createCheckFileProcessingResultJobHandler } from './tasks/checkFileProcessingResultJobHandler'
+import { createCopySourcesJobHandler } from './tasks/copySourcesJobHandler'
 import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
@@ -52,6 +53,10 @@ export class KnowledgeService extends BaseService {
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
+    jobManager.registerHandler(
+      'knowledge.copy-sources',
+      createCopySourcesJobHandler(this.knowledgeLockManager, this.ingestionService)
+    )
     jobManager.registerHandler(
       'knowledge.prepare-root',
       createPrepareRootJobHandler(this.knowledgeLockManager, this.ingestionService)
