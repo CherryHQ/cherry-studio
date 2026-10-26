@@ -609,6 +609,7 @@ function AgentRightPaneStateProvider({
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
   const previousSessionIdRef = useRef(sessionId)
   const artifactOpenRequestRef = useRef(0)
+  const fileTransitionRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const pendingWorkspaceCommitRef = useRef<(() => void) | null>(null)
   // Decline follows one incoming request. A new session or workspace key starts another.
@@ -756,15 +757,24 @@ function AgentRightPaneStateProvider({
 
   const requestFileTransition = useCallback(
     (transition: () => void) => {
+      const requestId = ++fileTransitionRequestRef.current
+      pendingFileTransitionRef.current = null
+      setShowDirtyLeaveConfirmation(false)
       if (!fileSession.isDirty) {
         transition()
         return
       }
       // Save before leaving; only an edit that cannot be saved asks to be discarded.
-      void flushFileDraft().then(transition, () => {
-        pendingFileTransitionRef.current = transition
-        setShowDirtyLeaveConfirmation(true)
-      })
+      void flushFileDraft().then(
+        () => {
+          if (fileTransitionRequestRef.current === requestId) transition()
+        },
+        () => {
+          if (fileTransitionRequestRef.current !== requestId) return
+          pendingFileTransitionRef.current = transition
+          setShowDirtyLeaveConfirmation(true)
+        }
+      )
     },
     [fileSession.isDirty, flushFileDraft]
   )
@@ -792,13 +802,14 @@ function AgentRightPaneStateProvider({
   )
 
   const handleDiscardAndContinue = useCallback(async () => {
+    const requestId = fileTransitionRequestRef.current
     const transition = pendingFileTransitionRef.current
     try {
       await discardFileDraft()
     } catch {
       return
     }
-    if (pendingFileTransitionRef.current !== transition) return
+    if (fileTransitionRequestRef.current !== requestId || pendingFileTransitionRef.current !== transition) return
     pendingFileTransitionRef.current = null
     transition?.()
     setShowDirtyLeaveConfirmation(false)
@@ -887,12 +898,6 @@ function AgentRightPaneStateProvider({
       setPreviewFileSelection(null)
       setFileTreeExpandedIds(new Set())
       setFileTreeSearchKeyword('')
-    }
-    if (!fileSession.isDirty) {
-      pendingFileTransitionRef.current = null
-      setShowDirtyLeaveConfirmation(false)
-      commitWorkspace()
-      return
     }
     pendingWorkspaceCommitRef.current = commitWorkspace
     requestFileTransition(commitWorkspace)

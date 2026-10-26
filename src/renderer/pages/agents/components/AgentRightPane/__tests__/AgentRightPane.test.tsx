@@ -3058,6 +3058,53 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
   })
 
+  it.each(['resolve', 'reject'] as const)(
+    'ignores an older preview request when its delayed save settles with %s after newer navigation',
+    async (outcome) => {
+      const user = userEvent.setup()
+      const saving = Promise.withResolvers<void>()
+      fileSessionFlushMock.mockReturnValue(saving.promise)
+      fileTreeModelState.hasLoaded = true
+      fileTreeModelState.nodeById = new Map([
+        ['README.md', { kind: 'file' }],
+        ['src/deep.ts', { kind: 'file' }]
+      ])
+      const renderPane = () => (
+        <TestAgentRightPane
+          defaultOpen
+          sessionId="session-a"
+          workspacePath="/workspace"
+          messages={[]}
+          partsByMessageId={{}}>
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      const { rerender } = render(renderPane())
+      await user.click(screen.getByRole('button', { name: 'select README.md' }))
+      await user.click(screen.getByRole('button', { name: 'edit' }))
+      fileSessionState.isDirty = true
+      rerender(renderPane())
+      await user.click(screen.getByRole('button', { name: 'preview' }))
+
+      // Undo can make A clean while its earlier write is still pending.
+      fileSessionState.isDirty = false
+      rerender(renderPane())
+      await user.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+      await user.click(screen.getByRole('button', { name: 'edit' }))
+      fileSessionState.isDirty = true
+      rerender(renderPane())
+      await act(async () => {
+        if (outcome === 'resolve') saving.resolve()
+        else saving.reject(new Error('A save failed'))
+      })
+
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'edit')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('keeps the current dirty file when navigation is cancelled', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
