@@ -235,6 +235,13 @@ export async function stopOwnedApp(paths: RunPaths): Promise<void> {
 
 async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   if (record.platform === 'macos') {
+    if (record.mode === 'tag' && record.electronPid && isAlive(record.electronPid)) {
+      assertOwnedProcess(record, record.electronPid, 'electron')
+      // A relocation renderer exiting before its main process can schedule another relaunch.
+      terminateExactProcess(record.electronPid, record.platform)
+      await waitForExit(record.electronPid)
+      await waitForMacProcessGroupExit(record.runnerPid)
+    }
     terminateOwnedMacProcessGroup(record)
     if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
       terminateOwnedMacProcessGroup(record, 'SIGKILL')

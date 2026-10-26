@@ -92,7 +92,14 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
     }
   } else {
     const expected = record.mode === 'tag' ? record.executablePath : record.targetRoot
-    if (!expected || !members.some((member) => member[3].includes(expected))) {
+    const appContents =
+      record.mode === 'tag' ? record.executablePath?.match(/^(.*\.app\/Contents)\/MacOS\/[^/]+$/)?.[1] : undefined
+    if (
+      !expected ||
+      !members.some(
+        (member) => member[3].includes(expected) || (appContents && member[3].startsWith(`${appContents}/Frameworks/`))
+      )
+    ) {
       throw new Error('Refusing cleanup: orphaned process group does not match the owned application')
     }
   }

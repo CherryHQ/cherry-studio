@@ -18,11 +18,92 @@ import { type AppRecord, ensureProfile, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 afterEach(() => {
+  vi.useRealTimers()
   execFileSyncMock.mockReset()
   vi.restoreAllMocks()
 })
 
 describe('owned application lifecycle', () => {
+  it('stops a packaged macOS relocation without triggering a renderer-driven relaunch', async () => {
+    vi.useFakeTimers()
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-lifecycle-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    const mainPid = 42_000
+    const rendererPid = 42_001
+    const executablePath = join(directory, 'Cherry Studio.app/Contents/MacOS/Cherry Studio')
+    const alive = new Set([mainPid, rendererPid])
+    let relaunched = false
+    let command = executablePath
+    let helperCommand = join(
+      directory,
+      'Cherry Studio.app/Contents/Frameworks/Cherry Studio Helper.app/Contents/MacOS/Cherry Studio Helper'
+    )
+    const record: AppRecord = {
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'tag',
+      platform: 'macos',
+      profile: 'authenticated',
+      runKey: 'relocation',
+      targetRoot: directory,
+      executablePath,
+      command: executablePath,
+      args: [],
+      cwd: directory,
+      runnerPid: mainPid,
+      electronPid: mainPid,
+      cdpPort: 9222,
+      targetUrl: 'file:///windows/userDataRelocation/index.html',
+      logPath: join(paths.logs, 'electron.log'),
+      startedAt: '2026-10-26T00:00:00.000Z',
+      restartCount: 1
+    }
+    writeFileSync(paths.appRecord, JSON.stringify(record))
+    vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      if (signal === 0) {
+        if (!alive.has(Number(pid))) throw new Error('Process not found')
+        return true
+      }
+      if (pid === mainPid) {
+        alive.delete(mainPid)
+        return true
+      }
+      if (pid === -mainPid && alive.has(mainPid)) relaunched = true
+      alive.clear()
+      return true
+    })
+    execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+      if (file === 'lsof') return relaunched ? '43000' : alive.has(mainPid) ? String(mainPid) : ''
+      if (file === 'ps' && args.includes('command=')) return command
+      if (file === 'ps' && args.includes('pid=,pgid=,command='))
+        return [...alive].map((pid) => `${pid} ${mainPid} ${pid === mainPid ? command : helperCommand}`).join('\n')
+      if (file === 'ps' && args.includes('pgid=,stat=')) return [...alive].map(() => `${mainPid} S`).join('\n')
+      throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
+    })
+    try {
+      const stopped = expect(stopOwnedApp(paths)).resolves.toBeUndefined()
+      await vi.runAllTimersAsync()
+      await stopped
+      expect(alive.size).toBe(0)
+      expect(relaunched).toBe(false)
+
+      alive.add(mainPid)
+      command = '/Applications/Unrelated.app/Contents/MacOS/Unrelated'
+      await expect(stopOwnedApp(paths)).rejects.toThrow('its command no longer matches the owned run')
+      expect(alive.has(mainPid)).toBe(true)
+
+      alive.delete(mainPid)
+      alive.add(rendererPid)
+      helperCommand = '/Applications/Unrelated.app/Contents/MacOS/Unrelated'
+      await expect(stopOwnedApp(paths)).rejects.toThrow('orphaned process group does not match the owned application')
+      expect(alive.has(rendererPid)).toBe(true)
+    } finally {
+      rmSync(directory, { force: true, recursive: true })
+    }
+  })
+
   it('reuses a live application when the requested profile already matches', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-lifecycle-'))
     const paths = getRunPaths(directory)
