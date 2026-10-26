@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-26-bounded-attachment-text.md
+2026-10-26-bounded-attachment-text.md: b78e94a1de807e07a598fa8bd5d496a4bb8c2ade
+2026-10-26-bounded-attachment-text.zh.md: 9e71eac1763032a29026b61545c06b5763c6e225

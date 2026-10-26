@@ -1,14 +1,17 @@
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as LegacyFile from '@main/utils/legacyFile'
+
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getVersionMock, getByIdMock, readMock, cacheGet, cacheSet } = vi.hoisted(() => ({
+const { getVersionMock, getByIdMock, readMock, readChunkMock, cacheGet, cacheSet } = vi.hoisted(() => ({
   getVersionMock: vi.fn<() => Promise<{ mtime: number; size: number }>>(),
   getByIdMock: vi.fn<() => Promise<{ ext: string | null }>>(),
   readMock: vi.fn<() => Promise<{ content: Uint8Array }>>(),
+  readChunkMock: vi.fn<() => Promise<{ content: Uint8Array }>>(),
   cacheGet: vi.fn(),
   cacheSet: vi.fn()
 }))
@@ -18,7 +21,9 @@ vi.mock('@application', () => ({
     get: (name: string) =>
       name === 'CacheService'
         ? { get: cacheGet, set: cacheSet }
-        : { getVersion: getVersionMock, getById: getByIdMock, read: readMock },
+        : name === 'PreferenceService'
+          ? { get: () => 'en-US' }
+          : { getVersion: getVersionMock, getById: getByIdMock, read: readMock, readChunk: readChunkMock },
     getPath: () => '/tmp'
   }
 }))
@@ -36,10 +41,10 @@ vi.mock('word-extractor', () => ({
 const { extractPdfTextMock } = vi.hoisted(() => ({ extractPdfTextMock: vi.fn<() => Promise<string>>() }))
 vi.mock('@main/utils/pdf', () => ({ extractPdfText: extractPdfTextMock }))
 
-const { decodeTextMock } = vi.hoisted(() => ({ decodeTextMock: vi.fn<() => string>() }))
+const { decodeTextMock } = vi.hoisted(() => ({ decodeTextMock: vi.fn<(buffer: Buffer) => string>() }))
 vi.mock('@main/utils/legacyFile', () => ({ decodeTextWithAutoEncoding: decodeTextMock }))
 
-import { extractDocumentText, noExtractableTextNote } from '../attachmentTextExtraction'
+import { AttachmentTextTooLargeError, extractDocumentText, noExtractableTextNote } from '../attachmentTextExtraction'
 
 const LRMX_UTF8 = `<?xml version="1.0" encoding="UTF-8"?>
 <GanBuRenMianShenPiBiao>
@@ -61,8 +66,38 @@ afterEach(() => vi.clearAllMocks())
 describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.read', () => {
   beforeEach(() => {
     getVersionMock.mockResolvedValue({ mtime: 1, size: 2 })
+    getByIdMock.mockResolvedValue({ ext: 'md' })
+    readChunkMock.mockImplementation(() => readMock())
     cacheGet.mockReturnValue(undefined)
     readMock.mockResolvedValue({ content: BYTES })
+  })
+
+  // Oversized inline-image Markdown must fail before decoding or tokenization.
+  it('rejects an 11 MiB single-line Markdown before reading it', async () => {
+    const content = Buffer.from('![image](data:image/png;base64,' + 'A'.repeat(11 * 1024 * 1024) + ')')
+    getVersionMock.mockResolvedValueOnce({ mtime: 1, size: content.byteLength })
+    readMock.mockResolvedValue({ content })
+    decodeTextMock.mockReturnValue('')
+    await expect(extractDocumentText('e1')).rejects.toThrow(/8 MiB/)
+    expect(readChunkMock).not.toHaveBeenCalled()
+    expect(readMock).not.toHaveBeenCalled()
+    expect(decodeTextMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects growth beyond the limit before decoding the bounded read', async () => {
+    readChunkMock.mockResolvedValueOnce({ content: Buffer.alloc(8 * 1024 * 1024 + 1, 'A') })
+    await expect(extractDocumentText('e1')).rejects.toBeInstanceOf(AttachmentTextTooLargeError)
+    expect(decodeTextMock).not.toHaveBeenCalled()
+    expect(cacheSet).not.toHaveBeenCalled()
+  })
+
+  it('preserves ordinary Markdown content through the bounded path', async () => {
+    const markdown = '# Title\n\nA paragraph with **emphasis**.'
+    readMock.mockResolvedValueOnce({ content: Buffer.from(markdown) })
+    const { decodeTextWithAutoEncoding } = await vi.importActual<typeof LegacyFile>('@main/utils/legacyFile')
+    decodeTextMock.mockImplementationOnce(decodeTextWithAutoEncoding)
+    expect(await extractDocumentText('e1')).toBe(markdown)
+    expect(readChunkMock).toHaveBeenCalledWith('e1', 0, 8 * 1024 * 1024 + 1)
   })
 
   it('extracts PDF via extractPdfText on the raw bytes (no physical path)', async () => {
@@ -169,7 +204,6 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
   it('caches by entry version and skips re-extraction on hit', async () => {
     cacheGet.mockReturnValueOnce('cached text')
     expect(await extractDocumentText('e1')).toBe('cached text')
-    expect(getByIdMock).not.toHaveBeenCalled()
     expect(readMock).not.toHaveBeenCalled()
   })
 

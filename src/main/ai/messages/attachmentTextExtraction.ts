@@ -14,6 +14,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 import { decodeTextBufferIfText } from '@main/utils/file'
 import { extractLegacyDocText } from '@main/utils/legacyDoc'
 import { decodeTextWithAutoEncoding } from '@main/utils/legacyFile'
@@ -30,6 +31,16 @@ const OFFICE_PARSER_EXTS = new Set(
 )
 
 const CACHE_TTL_MS = 30 * 60 * 1000
+const MAX_TEXT_EXTRACTION_BYTES = 8 * 1024 * 1024
+
+export class AttachmentTextTooLargeError extends Error {
+  readonly providerErrorCategory = 'payload' as const
+
+  constructor() {
+    super(t('file_processing.errors.document_size_limit_exceeded', { maxSize: '8 MiB' }))
+    this.name = 'AttachmentTextTooLargeError'
+  }
+}
 
 /** Model-facing note when a document yields no extractable text (scanned / image-only). */
 export function noExtractableTextNote(filename: string): string {
@@ -37,7 +48,13 @@ export function noExtractableTextNote(filename: string): string {
 }
 
 async function extract(entryId: FileEntryId, ext: string): Promise<string | null> {
-  const { content } = await application.get('FileManager').read(entryId, { encoding: 'binary' })
+  const fileManager = application.get('FileManager')
+  const isDocument = ext === 'pdf' || ext === 'doc' || OFFICE_PARSER_EXTS.has(ext)
+  // One overflow byte catches growth after the version check without an unbounded read.
+  const { content } = isDocument
+    ? await fileManager.read(entryId, { encoding: 'binary' })
+    : await fileManager.readChunk(entryId, 0, MAX_TEXT_EXTRACTION_BYTES + 1)
+  if (!isDocument && content.byteLength > MAX_TEXT_EXTRACTION_BYTES) throw new AttachmentTextTooLargeError()
 
   if (ext === 'pdf') return (await extractPdfText(content)).trim()
 
@@ -70,14 +87,18 @@ export async function extractDocumentText(
   const fileManager = application.get('FileManager')
   const cache = application.get('CacheService')
 
+  if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
   const version = await fileManager.getVersion(entryId)
+  const entry = await fileManager.getById(entryId)
+  const ext = entry.ext?.toLowerCase() ?? ''
+  if (ext !== 'pdf' && ext !== 'doc' && !OFFICE_PARSER_EXTS.has(ext) && version.size > MAX_TEXT_EXTRACTION_BYTES) {
+    throw new AttachmentTextTooLargeError()
+  }
   const cacheKey = `doc-extraction:${entryId}:${version.mtime}:${version.size}`
   const cached = cache.get<string | null>(cacheKey)
   if (cached !== undefined) return cached
 
   if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
-  const entry = await fileManager.getById(entryId)
-  const ext = entry.ext?.toLowerCase() ?? ''
   const text = await extract(entryId, ext)
 
   logger.debug('Processed document text', { entryId, ext, chars: text?.length ?? 0, binary: text === null })
