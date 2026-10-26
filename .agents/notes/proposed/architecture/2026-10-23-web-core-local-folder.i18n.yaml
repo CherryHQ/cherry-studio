@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-23-web-core-local-folder.md
-2026-10-23-web-core-local-folder.md: 5cff4e450e1c60bba5ee1431d1f35cdd83b1ea27
-2026-10-23-web-core-local-folder.zh.md: 8456b3c439b3987d2d9e3c6400084ab53b5681d0
+2026-10-23-web-core-local-folder.md: 0bd5905243cdcddd585828c150f8b360709349af
+2026-10-23-web-core-local-folder.zh.md: e59384f7e33c759b7a978889aa903de63659b357

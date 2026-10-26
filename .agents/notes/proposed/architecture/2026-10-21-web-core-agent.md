@@ -21,8 +21,8 @@ Run the unmodified desktop agent-session host and agent UI over a browser runtim
 
 1. **A file system in the Worker.** `fs` and `fs/promises` resolve to ZenFS with its OPFS backend, mounted at `/web` (the root of `application.getPath`) on the account's OPFS directory when the account opens, and unmounted on close.
    - ZenFS keeps an in-memory copy of the mount, so desktop code that calls `existsSync` or `readFileSync` works. Async writes resolve after OPFS has them.
-   - ZenFS's async `rename` to a new path renames the file but rejects with `ENOENT`, so the shim routes it through the sync rename.
-2. **The desktop agent-session host in the Worker.** `AgentSessionRuntimeService` starts with the account. `AgentChatContextProvider` and the workspace resolver are no longer replaced. The workspace storage service (user-chosen workspaces) and the lifecycle service (deleting and archiving, which needs workspace archives) stay replaced. Session forks are replaced by a stand-in that answers that the Web edition does not support them.
+   - ZenFS tells its own nested calls apart by the `__patched__` function name in stack traces, so the Worker build keeps function names when it minifies. With the name mangled, an async `rename` left OPFS and the in-memory copy out of step.
+2. **The desktop agent-session host in the Worker.** `AgentSessionRuntimeService` starts with the account. `AgentChatContextProvider` and the workspace resolver are no longer replaced. The lifecycle service and the workspace storage service run too, for archiving and deleting (item 7). Session forks are replaced by a stand-in that answers that the Web edition does not support them.
 3. **A browser runtime driver registered as `pi`**, replacing `registerDrivers.ts`. New agents already default to Pi, so the agent UI, permission modes and tool cards need no change, and agent rows stay compatible with the desktop. Each turn:
    - reads the session's stored messages and builds the prompt with `buildAgentRuntimePrompt`;
    - runs the desktop AI SDK agent loop (`Agent` in `ai/runtime/aiSdk`) with the session's model through the same provider resolution as chat;
@@ -43,11 +43,14 @@ Run the unmodified desktop agent-session host and agent UI over a browser runtim
    The policy's guard against Cherry's SQLite files is replaced: the database is an OPFS file outside `/web`, so no file tool reaches it. Python cannot either: it runs in the sandboxed iframe's opaque origin. JavaScript cannot: QuickJS gives a script no browser API.
 5. **A pre-installed Web Cherry Assistant.** A Web seeder creates one Pi agent named Cherry Assistant, with a system workspace and a first session. The desktop Cherry Assistant and Cherry Support seeders are skipped.
 6. **UI.** The Web sidebar adds Agents. Build-time replacements of two `src/shared` modules make the runtime capability table offer only Pi, hide heartbeat, skills, knowledge bases and MCP for it, and list the browser tools in the agent editor.
-7. **Tests.** The mock provider learns to answer with tool calls, and `e2e/agent.spec.ts` drives the Agents page in Chromium, WebKit and Firefox.
+7. **Archiving and deleting.** The agent list's archive actions and Settings → Archive call the lifecycle routes, which are served: archive, restore and permanent deletion of agents and sessions. The settings menu shows Archive.
+   - Archiving a session packs its system workspace into a gzipped tarball, and restoring unpacks it. node-tar needs Node streams and zlib, so in the Worker `tar` is a small module that builds and reads the same tarballs with `modern-tar` and the browser's `CompressionStream`.
+   - Channels, scheduled tasks and agent-to-agent deliveries are desktop-only, so the services that own them are stand-ins with nothing to pause, drain or resync.
+8. **Tests.** The mock provider learns to answer with tool calls, and `e2e/agent.spec.ts` drives the Agents page in Chromium, WebKit and Firefox.
 
 Implementation lands in one PR on top of this Spec.
 
-Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat runs, channels, session forks, deleting and archiving agents and sessions, attachments, and including workspace files in backups (milestone M4). User-chosen workspaces are proposed in the [local folder note](2026-10-23-web-core-local-folder.md).
+Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat runs, channels, session forks, the archive's automatic cleanup (it runs on the desktop job scheduler), attachments, and including workspace files in backups (milestone M4). User-chosen workspaces are proposed in the [local folder note](2026-10-23-web-core-local-folder.md).
 
 ## Alternatives considered
 
@@ -56,6 +59,8 @@ Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat 
 - **Our own OPFS file system.** It could avoid holding the mount in memory, but it would reimplement Node's `fs` semantics, sync calls included. ZenFS is maintained and passed write, sync read, listing, rename and reload checks in all three browsers.
 - **IndexedDB for files.** OPFS already holds the database and handles file contents directly.
 - **Pyodide with the app's origin.** It needs no iframe, but Python could then open the account's OPFS directory, database included.
+- **node-tar through Node polyfills.** It would bring stream and zlib polyfills into the Worker for one caller.
+- **`nanotar` for the archives.** It is smaller, but it cuts entry names longer than 100 characters, so files deep in a workspace would come back under the wrong name.
 - **Run the agent loop in the page.** The Worker already owns the AI layer and the database; the page would block the UI during tool runs.
 
 ## Acceptance criteria
@@ -65,6 +70,7 @@ Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat 
 - AC3 — A denied approval ends the tool call with the denial and leaves the file unwritten. `read`, `ls`, `find` and `grep` inside the workspace run without approval. (verification: packaged artifact)
 - AC4 — `python_execute` runs Python in the page's Pyodide and returns its output, and that Python cannot open the app's OPFS. `js_execute` returns a script's result and stops an endless loop at its timeout. (verification: packaged artifact)
 - AC5 — The existing Web Core tests still pass, the Worker build has no Node built-in, Electron or native import, and no file under `src/main`, `src/preload`, `src/renderer` or `src/shared` changes. The growth of the Worker's first download and the size of the QuickJS module are recorded. (verification: packaged artifact and change-scope report, recorded in the implemented note)
+- AC6 — Archiving a session from the agent list removes it with its workspace files. Restoring it from Settings → Archive brings back the session and its files, including one whose path is longer than 100 characters, and deleting it there permanently removes its files. An agent archived with its sessions comes back with them. (verification: packaged artifact)
 
 ## Risks
 
@@ -75,4 +81,6 @@ Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat 
 - **Pi-typed rows.** If Web data later reaches the desktop, the desktop runs these agents with the real Pi, which also has `bash`.
 - **Python keeps the network.** The sandbox takes away the app's storage, not network access: allowed Python code can send what it is given (its script and context) to any server that allows CORS.
 - **Pyodide comes from a CDN.** The page loads it from jsDelivr, which must keep sending CORS headers for the cross-origin-isolated page; private deployments may need to host it.
+- **Archived items are not cleaned up automatically.** The archive's auto-cleanup interval has no effect until the Web edition runs scheduled jobs; items stay until the user deletes them.
+- **Function names in the Worker.** Keeping them for ZenFS grows the Worker's chunks by about 3.5% (29 KB gzipped).
 - **Workspace files are not backed up yet.** Clearing site data loses them until backup (M4) lands.
