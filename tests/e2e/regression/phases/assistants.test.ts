@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { writeFile, readFile } from 'node:fs/promises'
+import { rm, writeFile, readFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 
@@ -725,6 +725,9 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
       .filter({ has: page.getByRole('heading', { name, exact: true }) })
     await expect(cards).toHaveCount(1)
     await screenshot('MP-23 custom assistant before export')
+    // The export name is fixed so the import dialog can be asserted on it; drop this case's previous
+    // output first, otherwise the poll reads a stale file from an earlier invocation.
+    await rm(exportedPath, { force: true })
     await cards.first().getByRole('button', { name: 'More', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Export Assistant', exact: true }).click()
     if (app.record.platform === 'macos') {
@@ -759,7 +762,19 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     } else {
       saveNativeFile(app.record.platform, app.paths, exportedPath)
     }
-    await expect.poll(() => readFile(exportedPath, 'utf8').catch(() => '')).not.toBe('')
+    // Poll the parsed payload, not just file size: a leftover file from an earlier invocation would
+    // satisfy a nonempty check and then fail the name assertion against stale output.
+    await expect
+      .poll(async () => {
+        const text = await readFile(exportedPath, 'utf8').catch(() => '')
+        if (!text) return ''
+        try {
+          return (JSON.parse(text) as { name?: string }[])[0]?.name ?? ''
+        } catch {
+          return ''
+        }
+      })
+      .toBe(name)
     const content = await readFile(exportedPath, 'utf8')
     const exported = JSON.parse(content)
     expect(exported).toEqual([expect.objectContaining({ name, prompt, emoji, description: '', type: 'agent' })])
