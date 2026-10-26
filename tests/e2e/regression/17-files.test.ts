@@ -34,7 +34,12 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   const fixtures = await createRtfPreviewFixtures(join(app.paths.fixtures, 'MP-150'))
   testInfo.annotations.push({
     type: 'coverage-note',
-    description: 'Shift-JIS / Big5：无此类文件未验。Chat transport uses the repository mock; preview rendering is real.'
+    description: 'Chat transport uses the repository mock; Files preview rendering is real.'
+  })
+  testInfo.annotations.push({
+    type: 'uncovered',
+    description:
+      'Ordinary Chat opens RTF attachments through the native file handler; it has no RTF side panel. A 360px side panel and Shift-JIS/Big5 fixtures are not covered.'
   })
   const preferences = await page.evaluate(async () => ({
     theme: await window.api.preference.get('ui.theme_mode'),
@@ -96,13 +101,15 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   try {
     await test.step('1. Upload simple.rtf through Files and assert formatted read-only content', async () => {
       await selectSidebarApp(page, 'Files')
+      const back = filesView().getByRole('button', { name: 'Back', exact: true })
+      if (await back.isVisible()) await back.click()
       await upload('simple.rtf', filesView().getByRole('button', { name: 'Upload files', exact: true }))
       await openLibraryFile('simple.rtf')
       await screenshot('MP-150 Files RTF preview')
       await assertRichDocument(filePreview('simple.rtf'))
     })
 
-    await test.step('2. Send RTF attachments in a new conversation and open the right preview panel', async () => {
+    await test.step('2. Preserve RTF and image attachments when sending a new conversation', async () => {
       const seeded = await page.evaluate(
         async ({ providerId, baseUrl, modelId }) => {
           const request = window.api.dataApi.request
@@ -186,17 +193,19 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
           request.complete('MP150 attachments received')
         })()
       ])
-      await page.locator('[data-ui~="chat.message"]').getByText('simple.rtf', { exact: true }).first().click()
-      await expect(page.getByTestId('artifact-pane-header')).toContainText('simple.rtf')
-      await assertRichDocument(page.getByTestId('artifact-file-preview-overlay'))
-      await screenshot('MP-150 Chat right panel RTF preview')
+      const messages = page.locator('[data-ui~="chat.message"]:visible')
+      for (const name of ['simple', 'gbk'])
+        await expect(messages.getByRole('button', { name, exact: true })).toBeVisible()
+      await screenshot('MP-150 sent RTF attachment cards')
     })
 
     await test.step('3. Decode an actual GBK document', async () => {
-      await page.locator('[data-ui~="chat.message"]').getByText('gbk.rtf', { exact: true }).first().click()
-      const preview = page.getByTestId('artifact-file-preview-overlay')
+      await selectSidebarApp(page, 'Files')
+      await openLibraryFile('gbk.rtf')
+      const preview = filePreview('gbk.rtf')
       await expect(preview.getByText('中文旧文档', { exact: true })).toBeVisible()
       await expect(preview).not.toContainText('�')
+      await preview.getByRole('button', { name: 'Back', exact: true }).click()
     })
 
     await test.step('4. Reject oversized and truncated RTF without a blank screen or crash', async () => {
@@ -213,42 +222,35 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
       }
     })
 
-    await test.step('5. Switch simple.rtf → PNG → GBK without stale content', async () => {
-      await selectSidebarApp(page, 'Chat')
-      const preview = page.getByTestId('artifact-file-preview-overlay')
-      for (const name of ['simple.rtf', 'contrast.png', 'gbk.rtf']) {
-        await page.locator('[data-ui~="chat.message"]').getByText(name, { exact: true }).first().click()
-        await expect(page.getByTestId('artifact-pane-header')).toContainText(name)
+    await test.step('5. Switch documents and images without stale content', async () => {
+      for (const name of ['simple.rtf', 'gbk.rtf']) {
+        await openLibraryFile(name)
+        const preview = filePreview(name)
         if (name === 'simple.rtf') await assertRichDocument(preview)
         else {
           await expect(preview.getByText('Bold MP150', { exact: true })).toHaveCount(0)
-          if (name === 'gbk.rtf') await expect(preview.getByText('中文旧文档', { exact: true })).toBeVisible()
-          else await expect(preview.getByRole('img').first()).toBeVisible()
+          await expect(preview.getByText('中文旧文档', { exact: true })).toBeVisible()
         }
+        await preview.getByRole('button', { name: 'Back', exact: true }).click()
       }
+      await filesView().getByText('contrast.png', { exact: true }).click()
+      const imageDialog = page.getByTestId('image-preview-dialog')
+      const image = imageDialog.getByTestId('image-preview-viewport').locator('img')
+      await expect(image).toBeVisible()
+      await expect.poll(() => image.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true)
+      await imageDialog.getByRole('button', { name: 'Close Preview', exact: true }).click()
     })
 
-    await test.step('6. Keep light/dark documents readable in a 360px panel', async () => {
-      await page.locator('[data-ui~="chat.message"]').getByText('simple.rtf', { exact: true }).first().click()
-      const preview = page.getByTestId('artifact-file-preview-overlay')
-      const handle = page.getByRole('separator').filter({ visible: true }).last()
-      const box = await handle.boundingBox()
-      const viewport = await page.evaluate(() => innerWidth)
-      expect(box).not.toBeNull()
-      await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
-      await page.mouse.down()
-      await page.mouse.move(viewport - 360, box!.y + box!.height / 2, { steps: 15 })
-      await page.mouse.up()
+    await test.step('6. Keep light and dark Files previews readable', async () => {
+      await openLibraryFile('simple.rtf')
+      const preview = filePreview('simple.rtf')
       for (const theme of [ThemeMode.light, ThemeMode.dark]) {
         await page.evaluate((theme) => window.api.preference.set('ui.theme_mode', theme), theme)
         await assertRichDocument(preview)
-        const bounds = await preview.boundingBox()
-        expect(bounds!.width).toBeGreaterThanOrEqual(320)
-        expect(bounds!.width).toBeLessThanOrEqual(400)
         const text = preview.getByText('中文富文本预览', { exact: true })
         await expect(text).not.toHaveCSS('color', 'rgba(0, 0, 0, 0)')
         await expect(preview).toHaveCSS('filter', 'none')
-        await screenshot(`MP-150 ${theme} narrow panel`)
+        await screenshot(`MP-150 ${theme} Files preview`)
       }
     })
 
@@ -266,7 +268,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
         inspectorUrl!,
         `(() => { const { shell } = process.mainModule.require('electron'); globalThis.__mp150 = { original: shell.openExternal, urls: [] }; shell.openExternal = async (url) => { globalThis.__mp150.urls.push(url) } })()`
       )
-      const preview = page.getByTestId('artifact-file-preview-overlay')
+      const preview = filePreview('simple.rtf')
       const originalUrl = page.url()
       for (const [label, url] of [
         ['HTTPS MP150', 'https://example.com/mp150'],

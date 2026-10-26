@@ -115,3 +115,4 @@ A passing implemented flow does not cover capabilities absent from the current p
 | MP-82 | Document import, size limit, translation and Notes export control | Source character counter, Markdown save-as and translated-file naming |
 | MP-90 | Preview zoom, pan, rotation and saving the original image | Image upscaling or enhancement |
 | MP-115 | Backup archive creation and backup-manager visibility | Native notification delivery |
+| MP-150 | Files RTF formatting, encoding, validation, preview switching, links and restart; Chat attachment transport | Ordinary Chat RTF side panel, a 360px side panel, and Shift-JIS/Big5 fixtures |

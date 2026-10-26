@@ -690,7 +690,7 @@ export const REGRESSION_CASES = [
   },
   {
     id: 'MP-150',
-    title: 'Preview RTF in the files page and side panel',
+    title: 'Preview RTF in Files and preserve Chat attachments',
     tasks: ['files'],
     phase: '17-files',
     capabilities: ['desktopAutomation']
