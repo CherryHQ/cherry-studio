@@ -36,21 +36,56 @@ export async function builtinAssistantAgent(page: Page): Promise<BuiltinAssistan
 
 export async function selectAgent(page: Page, name: string): Promise<void> {
   await selectSidebarApp(page, 'Work')
-  const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
-  await expect(agentView).toBeVisible({ timeout: 30_000 })
-  const agent = agentView.getByText(name, { exact: true }).first()
-  await expect(agent).toBeVisible()
-  await agent.click({ noWaitAfter: true })
+  const view = page.locator('[data-ui~="agent.view"]:visible')
+  await expect(view).toHaveCount(1, { timeout: 30_000 })
+  const entry = view
+    .locator('div[class~="group/resource-list-group"]')
+    .filter({
+      has: page.getByRole('button', {
+        name,
+        exact: true
+      })
+    })
+    .filter({
+      has: page.getByRole('button', {
+        name: 'New task',
+        exact: true,
+        includeHidden: true
+      })
+    })
+  await expect(entry).toHaveCount(1)
+  const header = entry.getByRole('button', {
+    name,
+    exact: true
+  })
+  await expect(header).toHaveCount(1)
+  await header.click({ noWaitAfter: true })
 }
 
 export async function startNewAgentTask(page: Page, name: string): Promise<void> {
   await selectAgent(page, name)
-  const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
-  const agentHeader = agentView.getByRole('button', { name, exact: true }).first()
-  await agentHeader.hover()
-  const newTask = agentHeader.locator('..').getByRole('button', { name: 'New task', exact: true })
+  const view = page.locator('[data-ui~="agent.view"]:visible')
+  await expect(view).toHaveCount(1, { timeout: 30_000 })
+  const entry = view.locator('div[class~="group/resource-list-group"]').filter({
+    has: page.getByRole('button', {
+      name,
+      exact: true
+    })
+  })
+  await expect(entry).toHaveCount(1)
+  const header = entry.getByRole('button', {
+    name,
+    exact: true
+  })
+  await expect(header).toHaveCount(1)
+  await header.hover()
+  const newTask = entry.getByRole('button', {
+    name: 'New task',
+    exact: true
+  })
   await expect(newTask).toBeVisible()
   await newTask.click()
+
   await expect(page.locator('[data-ui~="chat.message"]:visible')).toHaveCount(0, { timeout: 30_000 })
 }
 

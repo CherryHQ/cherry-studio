@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "工作區路徑無法存取：{{path}}",
   "agent.session.workspace_status.missing": "工作區路徑不存在：{{path}}",
   "agent.session.workspace_status.not_directory": "工作區路徑不是資料夾：{{path}}",
+  "agent.tools.to_markdown.unsupported_windows_arm64": "Windows ARM64 不支援 to_markdown，因為內建文件轉換器沒有適用於此平台的原生建置版本。重新安裝相依套件無法解決此限制。",
   "apiGateway.docs.description": "與 OpenAI、Anthropic 和 Gemini 相容的 Cherry Studio HTTP API，並提供 Cherry 專用端點（模型、知識庫）",
   "apiGateway.docs.language_switcher_label": "說明文件語言",
   "apiGateway.docs.operations.chat_completions": "建立一次對話補全。請求與回應格式與 OpenAI Chat Completions 一致；設定 `stream: true` 可串流輸出。",

@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
   "agent.session.workspace_status.missing": "La ruta del espacio de trabajo no existe: {{path}}",
   "agent.session.workspace_status.not_directory": "La ruta del espacio de trabajo no es una carpeta: {{path}}",
+  "agent.tools.to_markdown.unsupported_windows_arm64": "to_markdown no es compatible con Windows ARM64 porque el conversor de documentos incluido no tiene una versión nativa para esta plataforma. Reinstalar las dependencias no resolverá esta limitación.",
   "apiGateway.docs.description": "API HTTP de Cherry Studio compatible con OpenAI, Anthropic y Gemini, más los endpoints propios de Cherry (modelos, bases de conocimiento)",
   "apiGateway.docs.language_switcher_label": "Idioma de la documentación",
   "apiGateway.docs.operations.chat_completions": "Crea una respuesta de chat. El cuerpo de la petición y de la respuesta sigue el formato de OpenAI Chat Completions; con `stream: true` la salida es incremental.",
