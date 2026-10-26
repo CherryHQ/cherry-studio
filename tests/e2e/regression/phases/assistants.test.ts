@@ -198,7 +198,8 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
             const purge = await window.api.dataApi.request({
               id: 'cleanup-topic-purge',
               method: 'DELETE',
-              path: `/topics/${topicId}?permanent=true`
+              path: `/topics/${topicId}`,
+              params: { permanent: true }
             })
             if (purge.status !== 204 && purge.status !== 404) throw new Error('cleanup left case topics in the trash')
           }
@@ -597,13 +598,22 @@ test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
           })) as IpcResult<{ deleted: boolean }>
           if (!permanentlyDeletedAssistant.ok) {
             // This case archived the assistant itself, and the trash route deletes active rows only.
+            // The trash route only removes active rows, so purge the archived assistant through its
+            // DataApi route: the query belongs in `params`, and the handler reports the removal.
             const purge = await window.api.dataApi.request({
               id: 'cleanup-assistant-purge',
               method: 'DELETE',
-              path: `/assistants/${assistantId}?permanent=true`
+              path: `/assistants/${assistantId}`,
+              params: { permanent: true }
             })
-            if (purge.status !== 204 && purge.status !== 404)
+            if (purge.status !== 200 || (purge.data as { deleted?: boolean } | null)?.deleted !== true)
               throw new Error('cleanup left the case assistant in the trash')
+            const reread = await window.api.dataApi.request({
+              id: 'cleanup-assistant-verify',
+              method: 'GET',
+              path: `/assistants/${assistantId}`
+            })
+            if (reread.status !== 404) throw new Error('cleanup left the case assistant readable')
           }
         }
         for (const topicId of topicIds) {
@@ -615,7 +625,8 @@ test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
             const purge = await window.api.dataApi.request({
               id: 'cleanup-topic-purge',
               method: 'DELETE',
-              path: `/topics/${topicId}?permanent=true`
+              path: `/topics/${topicId}`,
+              params: { permanent: true }
             })
             if (purge.status !== 204 && purge.status !== 404) throw new Error('cleanup left case topics in the trash')
           }
@@ -826,13 +837,22 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
           })) as IpcResult<{ deleted: boolean }>
           if (!permanentlyDeletedAssistant.ok) {
             // This case archived the assistant itself, and the trash route deletes active rows only.
+            // The trash route only removes active rows, so purge the archived assistant through its
+            // DataApi route: the query belongs in `params`, and the handler reports the removal.
             const purge = await window.api.dataApi.request({
               id: 'cleanup-assistant-purge',
               method: 'DELETE',
-              path: `/assistants/${assistantId}?permanent=true`
+              path: `/assistants/${assistantId}`,
+              params: { permanent: true }
             })
-            if (purge.status !== 204 && purge.status !== 404)
+            if (purge.status !== 200 || (purge.data as { deleted?: boolean } | null)?.deleted !== true)
               throw new Error('cleanup left the case assistant in the trash')
+            const reread = await window.api.dataApi.request({
+              id: 'cleanup-assistant-verify',
+              method: 'GET',
+              path: `/assistants/${assistantId}`
+            })
+            if (reread.status !== 404) throw new Error('cleanup left the case assistant readable')
           }
         }
         await window.api.preference.set('chat.default_model_id', originalDefault)
@@ -1075,13 +1095,22 @@ test(...caseDefinition('MP-25'), async ({ app, mainWindow }, testInfo) => {
           })) as IpcResult<{ deleted: boolean }>
           if (!permanentlyDeletedAssistant2.ok) {
             // This case archived the assistant itself, and the trash route deletes active rows only.
+            // The trash route only removes active rows, so purge the archived assistant through its
+            // DataApi route: the query belongs in `params`, and the handler reports the removal.
             const purge = await window.api.dataApi.request({
               id: 'cleanup-assistant-purge',
               method: 'DELETE',
-              path: `/assistants/${assistantId}?permanent=true`
+              path: `/assistants/${assistantId}`,
+              params: { permanent: true }
             })
-            if (purge.status !== 204 && purge.status !== 404)
+            if (purge.status !== 200 || (purge.data as { deleted?: boolean } | null)?.deleted !== true)
               throw new Error('cleanup left the case assistant in the trash')
+            const reread = await window.api.dataApi.request({
+              id: 'cleanup-assistant-verify',
+              method: 'GET',
+              path: `/assistants/${assistantId}`
+            })
+            if (reread.status !== 404) throw new Error('cleanup left the case assistant readable')
           }
         }
         await window.api.dataApi.request({ id: 'mp25-cleanup', method: 'DELETE', path: `/providers/${providerId}` })

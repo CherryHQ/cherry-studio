@@ -68,6 +68,10 @@ export async function agentRuntimeMessages(app: RegressionApp, page: Page, testI
       name: app.workspaceName
     })
     await selectAgentWorkspace(app, page)
+    // The agent name is stable across runs, so a task from an earlier run may still hold messages:
+    // start a fresh one before asserting on an empty history.
+    await startNewAgentTask(page, name)
+    await selectAgentWorkspace(app, page)
 
     const send = async (text: string, key = keys(labels[0])) => {
       await composer.fill(text)
