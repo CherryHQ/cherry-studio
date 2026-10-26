@@ -1443,6 +1443,7 @@
   "error.http.402": "Plată necesară. Soldul sau cota contului tău este epuizată - alimentează pe site-ul furnizorului sau treci la alt furnizor",
   "error.http.403": "Acces refuzat. Te rugăm să verifici dacă contul tău este verificat sau contactează furnizorul de servicii pentru mai multe informații",
   "error.http.404": "Modelul nu a fost găsit sau calea cererii este incorectă",
+  "error.http.413": "Corpul cererii este prea mare. Te rugăm să reduci dimensiunea mesajului, a atașamentului sau a istoricului conversației și să încerci din nou",
   "error.http.429": "Prea multe cereri. Te rugăm să încerci din nou mai târziu",
   "error.http.500": "Eroare de server. Te rugăm să încerci din nou mai târziu",
   "error.http.502": "Eroare gateway. Te rugăm să încerci din nou mai târziu",

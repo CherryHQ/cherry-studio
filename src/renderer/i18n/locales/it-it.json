@@ -1443,6 +1443,7 @@
   "error.http.402": "Pagamento richiesto. Saldo o quota dell'account esauriti. Ricarica sul sito del fornitore o passa a un altro fornitore",
   "error.http.403": "Accesso negato. Verifica che il tuo account sia verificato o contatta il fornitore del servizio per maggiori informazioni",
   "error.http.404": "Modello non trovato o percorso della richiesta errato",
+  "error.http.413": "Corpo della richiesta troppo grande. Riduci le dimensioni del messaggio, dell’allegato o della cronologia della conversazione e riprova",
   "error.http.429": "Troppe richieste. Riprova più tardi",
   "error.http.500": "Errore del server. Riprova più tardi",
   "error.http.502": "Errore del gateway. Riprova più tardi",

@@ -1443,6 +1443,7 @@
   "error.http.402": "Payment required. Your account balance or quota is exhausted - top up on the provider's website or switch to another provider",
   "error.http.403": "Access denied. Please check if your account is verified, or contact the service provider for more information",
   "error.http.404": "Model not found or request path is incorrect",
+  "error.http.413": "Request body too large. Reduce the size of the message, attachment or conversation history and try again",
   "error.http.429": "Too many requests. Please try again later",
   "error.http.500": "Server error. Please try again later",
   "error.http.502": "Gateway error. Please try again later",
