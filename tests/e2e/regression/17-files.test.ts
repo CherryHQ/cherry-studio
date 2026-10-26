@@ -24,7 +24,7 @@ import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomati
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { openAttachmentPicker, submitChatMarker } from './chat'
 import { expect, test } from './fixture'
-import { openLaunchpadApp, selectSidebarApp } from './navigation'
+import { selectSidebarApp } from './navigation'
 import { createRtfPreviewFixtures } from './rtfPreviewFixtures'
 import { openSettingsSection } from './settings'
 import { collectVirtualizedText } from './virtualList'
@@ -318,8 +318,11 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
 
     await test.step('8. Restart Electron and reopen the persisted RTF', async () => {
       page = await app.restart()
-      await openLaunchpadApp(page, 'Files')
-      await expect(filesView().getByRole('button', { name: 'Upload files', exact: true })).toBeVisible()
+      await selectSidebarApp(page, 'Files')
+      const restoredPreview = filePreview('simple.rtf')
+      await expect(restoredPreview).toBeVisible()
+      await restoredPreview.getByRole('button', { name: 'Back', exact: true }).click()
+      await expect(restoredPreview).toBeHidden()
       await openLibraryFile('simple.rtf')
       await assertRichDocument(filePreview('simple.rtf'))
       await screenshot('MP-150 formatted RTF after restart')
