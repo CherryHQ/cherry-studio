@@ -471,7 +471,8 @@ test(...caseDefinition('MP-92'), async ({ mainWindow: page }, testInfo) => {
         created: Math.floor(Date.now() / 1000),
         data: [
           {
-            b64_json: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
+            b64_json:
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNQTX79HwAElwJzdIqk6AAAAABJRU5ErkJggg=='
           }
         ]
       })

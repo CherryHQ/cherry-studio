@@ -4,7 +4,7 @@ import { join } from 'node:path'
 export async function createRtfPreviewFixtures(directory: string): Promise<Record<string, string>> {
   await mkdir(directory, { recursive: true })
   const png = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ZkAAAAASUVORK5CYII=',
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNQTX79HwAElwJzdIqk6AAAAABJRU5ErkJggg==',
     'base64'
   )
   const unicode = (text: string) => Array.from(text, (char) => `\\u${char.charCodeAt(0)}?`).join('')

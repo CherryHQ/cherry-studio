@@ -40,7 +40,8 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
   const assistantName = app.resourceName('MP11 mock assistant')
   const code = 'print("MP11 persistent code")'
   const body = 'MP11 note body remains complete.'
-  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7XcAAAAASUVORK5CYII='
+  const png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNQTX79HwAElwJzdIqk6AAAAABJRU5ErkJggg=='
   const answer = `MP11 completed answer\n\n\`\`\`python\n${code}\n\`\`\`\n\n![MP11 image](data:image/png;base64,${png})`
   let assistantId: string | undefined
   const notes = () => page.locator('[data-ui~="notes.view"]')

@@ -631,7 +631,7 @@ test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => 
     await writeFile(
       join(root, fixtures[1].name),
       Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7l8AAAAASUVORK5CYII=',
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNQTX79HwAElwJzdIqk6AAAAABJRU5ErkJggg==',
         'base64'
       )
     )
