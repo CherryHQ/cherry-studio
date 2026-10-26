@@ -186,8 +186,6 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
   // qwen3.7-max-preview is on the docs table but absent from the catalog (the 38-model list only
   // carries qwen3.8-max-preview), so no preset row serves it and it stays ineligible.
   it.each([
-    'qwen3.8-max',
-    'qwen3.8-2.4t-a95b',
     'qwen3.7-max',
     'qwen3.7-plus',
     'qwen3.7-flash',
@@ -200,6 +198,16 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
     expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({
       enable_search: true,
       search_options: { forced_search: true, search_strategy: 'agent' }
+    })
+  })
+
+  // The Qwen3.8 series does not support the `agent` value of search_strategy on Chat
+  // (docs.qwencloud.com/developer-guides/tool-calling/web-search): search is enabled without a
+  // strategy; agent-style retrieval is served by the Responses `web_search` tool instead.
+  it.each(['qwen3.8-max', 'qwen3.8-2.4t-a95b'])('enables search without a strategy for %s', (apiModelId) => {
+    expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({
+      enable_search: true,
+      search_options: { forced_search: true }
     })
   })
 
@@ -217,7 +225,8 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
     'deepseek-v4-flash',
     'deepseek-v4-flash-0731',
     'glm-5.2',
-    'glm-5-2'
+    'glm-5-2',
+    'kimi-k3'
   ])('injects no enable_search for the Responses-only id %s on the chat path', (apiModelId) => {
     expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({})
   })

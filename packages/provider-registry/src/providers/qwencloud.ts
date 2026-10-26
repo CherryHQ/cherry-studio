@@ -125,10 +125,11 @@ const webSearchModelPrefixes = [
 /**
  * Responses `web_search` tool lines from the same table — a CLOSED id list, not a family prefix:
  * `deepseek-v4` would also claim flash-vision-exp and `glm-5-2` the -fast variant, neither of
- * which the docs serve search on. Dated snapshots pro-0813/flash-0731 are listed upstream but
- * absent from the catalog; append them here once models.dev carries them.
+ * which the docs serve search on. kimi-k3 is documented "supported only by the Responses API".
+ * Dated snapshots pro-0813/flash-0731 are listed upstream but absent from the catalog; append
+ * them here once models.dev carries them.
  */
-const responsesSearchModelIds = ['deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5-2']
+const responsesSearchModelIds = ['deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5-2', 'kimi-k3']
 
 /** qwen-image-3.0 / -pro serve both t2i and editing off one sync multimodal endpoint. */
 const qwenImage3Mode: ImageModeDef = {

@@ -32,11 +32,11 @@ export interface CherryWebSearchConfig {
  * `config.ts` still routes it through the preset's transform (both use `matchesPreset`). Comparing
  * `model.providerId` there routed those copies to the server side and then injected nothing.
  */
-// DeepSeek-V4 / GLM-5.2 on QwenCloud serve web search through the Responses `web_search` tool only;
-// the supported-models table marks both lines "Responses API only" as a CLOSED id list, so the
-// pattern anchors exactly — flash-vision-exp and glm-5.2-fast/-fast-preview stay out. Dots and
+// DeepSeek-V4 / GLM-5.2 / Kimi-K3 on QwenCloud serve web search through the Responses `web_search`
+// tool only; the supported-models table marks these lines "Responses API only" as a CLOSED id list,
+// so the pattern anchors exactly — flash-vision-exp and glm-5.2-fast/-fast-preview stay out. Dots and
 // hyphens both appear depending on id origin (wire apiModelId vs catalog modelId).
-const qwencloudResponsesOnlySearch = /^deepseek-v4-(?:pro(?:-0813)?|flash(?:-0731)?)$|^glm-5[.-]2$/
+const qwencloudResponsesOnlySearch = /^(?:deepseek-v4-(?:pro(?:-0813)?|flash(?:-0731)?)|glm-5[.-]2|kimi-k3)$/
 
 export function getWebSearchParams(model: Model, provider: Provider | undefined): Record<string, any> {
   if (provider && matchesPreset(provider, 'zhipu')) {
@@ -67,8 +67,10 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
   }
 
   if (provider && matchesPreset(provider, 'qwencloud')) {
-    // Chat `enable_search` follows the QwenCloud web-search supported-models table; eligible lines
-    // take the `agent` strategy (docs.qwencloud.com/developer-guides/text-generation/web-search).
+    // Chat `enable_search` follows the QwenCloud web-search supported-models table
+    // (docs.qwencloud.com/developer-guides/tool-calling/web-search). The Qwen3.8 series does NOT
+    // support the `agent` value of `search_strategy` on Chat — those lines enable search without a
+    // strategy, and agent-style retrieval happens through the Responses `web_search` tool instead.
     const apiModelId = getRawModelId(model)
     // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only ("Responses API only"
     // in the table) — Chat's enable_search is not served for them, so inject nothing on this path.
@@ -81,9 +83,7 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
       return {}
     }
     const searchStrategy =
-      /qwen3[.-]8-(?:max|2)|qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(
-        apiModelId
-      )
+      /qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(apiModelId)
         ? 'agent'
         : undefined
     return {
@@ -174,8 +174,9 @@ export function buildProviderBuiltinWebSearchConfig(
         return servesResponsesWebSearch(model) ? { openai: {} } : undefined
       }
       if (model && provider && matchesPreset(provider, 'qwencloud')) {
-        // Only the DeepSeek-V4/GLM-5.2 lines take the Responses web_search tool (docs.qwencloud.com
-        // web-search); Qwen lines search via Chat's enable_search — `undefined` keeps the tool off.
+        // Only the DeepSeek-V4/GLM-5.2/Kimi-K3 lines take the Responses web_search tool
+        // (docs.qwencloud.com web-search); Qwen lines search via Chat's enable_search — `undefined`
+        // keeps the tool off.
         return qwencloudResponsesOnlySearch.test(getRawModelId(model)) ? { openai: {} } : undefined
       }
       const searchContextSize =
