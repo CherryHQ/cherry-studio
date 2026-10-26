@@ -63,14 +63,15 @@ export class MediaFfmpegService extends BaseService {
     options: UtilityProcessRequestOptions<MediaFfmpegContract['methods'][M]['event']>
   ): Promise<MediaFfmpegContract['methods'][M]['output']> {
     const generation = this.generation
-    const run = this.gate.then(
-      () => this.request(method, input, options, generation),
-      () => this.request(method, input, options, generation)
-    )
-    this.gate = run.then(
-      () => undefined,
-      () => undefined
-    )
+    const previous = this.gate
+    const run = waitForTurn(previous, options.signal).then(() => this.request(method, input, options, generation))
+    // A caller aborted while queued rejects early, but the next caller still waits for the active request.
+    this.gate = previous
+      .then(() => run)
+      .then(
+        () => undefined,
+        () => undefined
+      )
     return run
   }
 
@@ -103,6 +104,18 @@ export class MediaFfmpegService extends BaseService {
       })
     }
   }
+}
+
+function waitForTurn(previous: Promise<unknown>, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason)
+    const onAbort = () => reject(signal!.reason)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    void previous.then(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    })
+  })
 }
 
 const PROCESS_EXIT_TIMEOUT_MS = 5_000
