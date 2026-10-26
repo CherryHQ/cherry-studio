@@ -88,6 +88,7 @@ function decodeSortedKnowledgeItemCursor(
 
 type KnowledgeItemsByBaseOptions = {
   groupId?: string | null
+  includeDeleting?: boolean
 }
 
 type GetSubtreeItemsOptions = {
@@ -235,7 +236,10 @@ export class KnowledgeItemService {
   getItemsByBaseId(baseId: string, options: KnowledgeItemsByBaseOptions = {}): KnowledgeItem[] {
     knowledgeBaseService.getById(baseId)
 
-    const conditions = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+    const conditions = [eq(knowledgeItemTable.baseId, baseId)]
+    if (!options.includeDeleting) {
+      conditions.push(ne(knowledgeItemTable.status, 'deleting'))
+    }
 
     if (options.groupId !== undefined) {
       conditions.push(
@@ -344,9 +348,15 @@ export class KnowledgeItemService {
     return updatedRows.length
   }
 
-  /** Create an item already in its active status (`preparing` for a directory container, `processing` for a leaf) and reconcile its parent container so an add into an already-completed directory pulls it back into an active status. */
-  createActive(baseId: string, item: CreateKnowledgeItemDto): KnowledgeItem {
-    const status: KnowledgeItemStatus = item.type === 'directory' ? 'preparing' : 'processing'
+  /**
+   * Create an item already in its active status (`preparing` for a directory container or a file
+   * whose bytes are still to be copied in, `processing` for any other leaf) and reconcile its parent
+   * container so an add into an already-completed directory pulls it back into an active status.
+   *
+   * @param options.awaitingCopy - The item's `raw/` bytes land later (`knowledge.copy-sources`).
+   */
+  createActive(baseId: string, item: CreateKnowledgeItemDto, options: { awaitingCopy?: boolean } = {}): KnowledgeItem {
+    const status: KnowledgeItemStatus = item.type === 'directory' || options.awaitingCopy ? 'preparing' : 'processing'
     const dbService = application.get('DbService')
     const row = dbService.withWriteTx((tx) => {
       this.validateGroupOwnerTx(tx, baseId, item.groupId)
@@ -469,6 +479,39 @@ export class KnowledgeItemService {
       return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
     }
     return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
+  }
+
+  /**
+   * Move every `completed` leaf of a base back to `processing` on the caller's transaction and roll
+   * their containers up, so the leaves read as unfinished until each is indexed again.
+   *
+   * @returns The activated leaf ids, oldest first.
+   */
+  activateCompletedLeavesTx(tx: DbOrTx, baseId: string): string[] {
+    const rows = tx
+      .update(knowledgeItemTable)
+      .set({ status: 'processing' })
+      .where(
+        and(
+          eq(knowledgeItemTable.baseId, baseId),
+          ne(knowledgeItemTable.type, 'directory'),
+          eq(knowledgeItemTable.status, 'completed')
+        )
+      )
+      .returning({
+        id: knowledgeItemTable.id,
+        groupId: knowledgeItemTable.groupId,
+        createdAt: knowledgeItemTable.createdAt
+      })
+      .all()
+    this.reconcileContainersTx(
+      tx,
+      baseId,
+      rows.map((row) => row.groupId)
+    )
+    return rows
+      .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
+      .map((row) => row.id)
   }
 
   setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting'): string[] {

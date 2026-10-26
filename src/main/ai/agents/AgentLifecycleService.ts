@@ -2,6 +2,7 @@ import { application } from '@application'
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
@@ -14,12 +15,19 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 
 import { buildAgentSessionTopicId } from '../agentSession/topic'
-import { sweepAgentOrphans } from './agentOrphanSweep'
+import { reclaimPurgedRuntimeSessions, sweepAgentOrphans } from './agentOrphanSweep'
 import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
 const RETRY_AGENT_SESSION_ARCHIVE = Symbol('retry-agent-session-archive')
+
+function resumeTokensForDeletedSessions(
+  ids: readonly string[],
+  tokensBySession: Map<string, Set<string>>
+): Set<string> {
+  return new Set(ids.flatMap((id) => [...(tokensBySession.get(id) ?? [])]))
+}
 
 export class AgentSessionArchiveBusyError extends Error {
   constructor(readonly sessionIds: string[]) {
@@ -335,6 +343,7 @@ export class AgentLifecycleService extends BaseService {
         if (failedDrain) throw failedDrain.reason
 
         const workspaces = agentSessionService.listSystemWorkspaceSessions(expiredSessionIds)
+        const tokensBySession = agentSessionMessageService.listRuntimeResumeTokensBySession(expiredSessionIds)
         const purgedIds =
           expiredSessionIds.length === 0
             ? []
@@ -343,6 +352,7 @@ export class AgentLifecycleService extends BaseService {
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
         await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
+        await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(purgedIds, tokensBySession))
         return { purgedIds, hasMore: sessionIds.length === limit }
       } finally {
         for (const release of releases.reverse()) release()
@@ -359,6 +369,9 @@ export class AgentLifecycleService extends BaseService {
   ): Promise<{ deletedIds: string[] }> {
     const deleteSessions = async () => {
       const workspaces = agentSessionService.listSystemWorkspaceSessions(ids)
+      const tokensBySession = permanent
+        ? agentSessionMessageService.listRuntimeResumeTokensBySession(ids)
+        : new Map<string, Set<string>>()
       const result = agentSessionService.deleteByIdsWithImpact(ids, {
         permanent,
         ...(targetState === 'active' ? { targetState } : {})
@@ -367,6 +380,9 @@ export class AgentLifecycleService extends BaseService {
       await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
+      if (permanent) {
+        await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(result.deletedIds, tokensBySession))
+      }
       return { deletedIds: result.deletedIds }
     }
     if (permanent && targetState === 'trashed')
@@ -404,6 +420,10 @@ export class AgentLifecycleService extends BaseService {
     if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
     const deleteAgent = async () => {
       const workspaces = agentSessionService.listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
+      const tokensBySession =
+        permanent && targetState === 'active' && deleteSessions
+          ? agentSessionMessageService.listRuntimeResumeTokensBySession(agentSessionService.listIdsByAgent(agentId))
+          : new Map<string, Set<string>>()
       const { result, scheduleIds } = application.get('DbService').withWriteTx((tx) => {
         const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent, targetState })
         const { scheduleIds, deletedSchedules } = result.deleted
@@ -429,6 +449,11 @@ export class AgentLifecycleService extends BaseService {
       await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
+      if (permanent && targetState === 'active' && deleteSessions) {
+        await reclaimPurgedRuntimeSessions(
+          resumeTokensForDeletedSessions(result.deletedSessionIds ?? [], tokensBySession)
+        )
+      }
       return {
         deleted: result.deleted,
         ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})

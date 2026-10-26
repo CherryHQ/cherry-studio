@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as CodeStyleModule from '@renderer/hooks/useCodeStyle'
 import type * as UseModelModule from '@renderer/hooks/useModel'
 
 const {
@@ -116,7 +117,8 @@ vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({ openTab: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeStyleModule>()),
   useCodeStyle: () => ({ activeCmTheme: 'light' }),
   useCmTheme: () => 'light'
 }))

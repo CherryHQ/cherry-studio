@@ -1,6 +1,7 @@
 import { shell, systemPreferences } from 'electron'
 
 import {
+  VoiceModelSupport,
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
@@ -92,4 +93,14 @@ export async function openSystemVoiceSettings(): Promise<void> {
   const url = urls[process.platform]
   if (!url) throw new VoiceRuntimeError('unsupported')
   await shell.openExternal(url)
+}
+
+export function mlxVoiceSupport(environment: VoiceEnvironment) {
+  if (environment.platform !== 'darwin') return VoiceModelSupport.UnsupportedPlatform
+  if (environment.arch !== 'arm64') return VoiceModelSupport.UnsupportedArchitecture
+  const major = environment.majorVersion ?? 0
+  const minor = environment.minorVersion ?? 0
+  if (!Number.isInteger(major) || major < 26 || (major === 26 && (!Number.isInteger(minor) || minor < 2)))
+    return VoiceModelSupport.UnsupportedVersion
+  return VoiceModelSupport.Supported
 }

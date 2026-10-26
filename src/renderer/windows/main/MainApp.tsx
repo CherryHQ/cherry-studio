@@ -11,7 +11,9 @@ import {
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
@@ -131,6 +133,7 @@ export function MainWindowContent(): React.ReactElement {
           <McpInteractionHost />
           <PopupHost />
           <ToastHost />
+          <DictationShortcutHost />
           <VoicePlaybackHost />
           {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
         </MandatoryGateProvider>
@@ -148,11 +151,13 @@ function MainApp(): React.ReactElement {
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
       <ThemeProvider>
         <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <MainWindowContent />
-            </CommandProvider>
-          </CommandContextKeyProvider>
+          <FileEditSessionProvider>
+            <CommandContextKeyProvider>
+              <CommandProvider>
+                <MainWindowContent />
+              </CommandProvider>
+            </CommandContextKeyProvider>
+          </FileEditSessionProvider>
         </CodeStyleProvider>
       </ThemeProvider>
     </ErrorBoundary>

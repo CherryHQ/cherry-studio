@@ -39,6 +39,7 @@ import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
 import type { PaintingData } from '../model/types/paintingData'
+import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { PaintingImageAddButton, PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
@@ -160,7 +161,9 @@ const PaintingParamsButton: FC<{
   )
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
-  if (configItems.length === 0) return null
+  // A model without registry fields can still have the timeout control; hiding the entry
+  // point would make that setting unreachable.
+  if (configItems.length === 0 && !supportsImageRequestTimeout(painting.providerId)) return null
 
   return (
     <Popover>

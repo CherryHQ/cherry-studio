@@ -188,7 +188,7 @@ vi.mock('./piMcpExtension', async (importOriginal) => ({
 vi.mock('./modelInjection', () => ({
   resolvePiProviderInjectionForSession: mocks.resolveInjection,
   usesPiGateway: mocks.usesPiGateway,
-  materializePiProviderStream: async (injection: any) => ({
+  materializePiProviderStream: async (injection: { providerConfig: unknown; suppressReasoningSummary: boolean }) => ({
     providerConfig: injection.providerConfig,
     streamSimple: mocks.providerStreamSimple
   })
@@ -419,6 +419,7 @@ beforeEach(() => {
   mocks.resolveInjection.mockReturnValue({
     providerName: 'p',
     api: 'anthropic-messages',
+    suppressReasoningSummary: false,
     providerConfig: { name: 'P', baseUrl: 'https://x', apiKey: 'placeholder', api: 'anthropic-messages', models: [] },
     apiKey: 'real-key',
     modelId: 'm',
@@ -1867,6 +1868,44 @@ describe('PiRuntimeConnection', () => {
       approvalGateHandler()({ type: 'tool_call', toolName, toolCallId: 'tc-mcp-live', input: {} }, {})
     ).resolves.toMatchObject({ block: true })
   })
+
+  it.each(['auto', 'bypassPermissions'])(
+    'wires delegation approval to the live %s mode and interaction',
+    async (permission_mode) => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { permission_mode } })
+      const conn = await new PiRuntimeConnection(input).start()
+      const authorize = approvalGateHandler()
+      for (const name of ['session_create', 'session_send']) {
+        const event = {
+          type: 'tool_call',
+          toolName: buildPiMcpToolName('cherry-tools', name),
+          toolCallId: name,
+          input: {}
+        }
+        for (let call = 0; call < 2; call++) await expect(authorize(event, {})).resolves.toBeUndefined()
+        mocks.getInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        await expect(authorize(event, {})).resolves.toMatchObject({ block: true })
+        mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+      }
+      expect(toolApprovalRegistry.size()).toBe(0)
+
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { permission_mode: 'default' } })
+      await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('patched')
+      const pending = authorize(
+        {
+          type: 'tool_call',
+          toolName: buildPiMcpToolName('cherry-tools', 'session_send'),
+          toolCallId: 'after-mode-change',
+          input: {}
+        },
+        {}
+      )
+      await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+      toolApprovalRegistry.abort(SESSION_ID, 'test-cancel')
+      await expect(pending).resolves.toMatchObject({ block: true })
+      await conn.close()
+    }
+  )
 
   describe('skill installation approval', () => {
     const installSkill = {
