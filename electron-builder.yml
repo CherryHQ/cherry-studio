@@ -233,6 +233,7 @@ releaseInfo:
     - [Agent Session] Continue the target workspace when creating across agents; surface compaction failures.
     - [Messages] Drop historical tool parts with incompatible replay inputs.
     - [Virtual List] Hand sticky headers over at the pinned stack bottom.
+    - [Notes] Fixed an issue where dismissing the "note changed on disk" conflict dialog left the editor session stuck, failing all later note renames, deletions, and moves with misleading errors.
 
     🔒 Security
     - [Electron] Upgrade to 44.9.3 for certificate security fixes.
@@ -272,6 +273,7 @@ releaseInfo:
     - [智能体会话] 跨智能体创建时继续目标工作区；显示压缩失败。
     - [消息] 丢弃历史工具部件中不兼容的重放输入。
     - [虚拟列表] 在固定堆栈底部移交粘性标题。
+    - [笔记] 修复关闭“笔记已在磁盘上更改”冲突对话框后编辑会话卡住，导致后续笔记重命名、删除和移动失败并显示误导性错误的问题。
 
     🔒 安全
     - [Electron] 升级到 44.9.3 以修复证书安全问题。
