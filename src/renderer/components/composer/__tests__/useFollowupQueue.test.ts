@@ -4359,6 +4359,107 @@ describe('useFollowupQueue', () => {
   })
 })
 
+describe('cherry-pr-review a5461bcd43 reconciliation follow-ups', () => {
+  it('reconciles the newest parked completion when an older reconcile timer is pending', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimHeadTrigger } = wireMutations()
+      const onDrain = vi.fn(async () => true)
+      // Both claims lost to a peer that never dispatches (abandoned grant).
+      claimHeadTrigger.mockResolvedValue({ claimed: false })
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+        initialProps: { completion: { status: 'streaming' as const, lastCompletedAt: null as number | null } }
+      })
+      // First completion parks the edge and starts the 5s reconcile timer.
+      await act(async () => {
+        rerender({ completion: { status: 'done' as const, lastCompletedAt: 100 } })
+      })
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+      // A second lost completion inside the window replaces the tentative
+      // marker; the older timer must not strand it.
+      await act(async () => {
+        rerender({ completion: { status: 'done' as const, lastCompletedAt: 200 } })
+      })
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
+      // The peer abandons both reservations (no shared ack ever lands): the
+      // reconcile must re-drive the drain for the NEWEST parked completion.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(claimHeadTrigger.mock.calls.length).toBeGreaterThan(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes a restored copy whose edit session retired while the failing switch was in flight', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'draft A'), row('b', 'draft B')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+      // Take A fully: it becomes the live edit session.
+      await act(async () => {
+        await result.current.takeForEdit('a', () => ({ draft: draft('draft A'), payload: payload('draft A') }))
+      })
+      // Switch to B; block B's DELETE so the switch is in flight.
+      let rejectDelete!: (error: Error) => void
+      takeDeleteTrigger
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              rejectDelete = reject
+            })
+        )
+        // The second attempt fails too: both DELETEs lost (the review's trigger).
+        .mockRejectedValueOnce(new Error('db down'))
+      let switchDone = false
+      await act(async () => {
+        void result.current
+          .takeForEdit('b', () => ({ draft: draft('draft A'), payload: payload('draft A') }))
+          .then(() => {
+            switchDone = true
+          })
+      })
+      // The restore POST for A's copy landed before the DELETE attempt
+      // (born held).
+      const restoreCalls = () =>
+        (postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>).filter(
+          ([args]) => args.body.held === true
+        )
+      expect(restoreCalls().length).toBeGreaterThan(0)
+      const copyId = restoreCalls()[restoreCalls().length - 1][0].body.id
+      const heldCallsFor = () => restoreCalls().filter(([args]) => args.body.id === copyId).length
+      expect(heldCallsFor()).toBe(1)
+
+      // Submit A while B's DELETE is pending: the edit session retires.
+      await act(async () => {
+        result.current.releaseEdit('submitted')
+      })
+      // Both DELETE attempts fail -> the hold path runs with no live session.
+      await act(async () => {
+        rejectDelete(new Error('db down'))
+      })
+      await act(async () => {})
+      expect(switchDone).toBe(true)
+      // Fixed behavior: the redundant copy is CLOSED (remove + retained
+      // cleanup), never re-stamped held for a session nobody will end.
+      // Exactly the birth stamp: a re-stamp means the hold was registered for
+      // a session nobody will end (the defect).
+      expect(heldCallsFor()).toBe(1)
+      const closes = (deleteTrigger.mock.calls as unknown as Array<[{ params: { id: string } }]>).map(
+        ([args]) => args.params.id
+      )
+      expect(closes).toContain(copyId)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('persistBlobAttachments', () => {
   it('replaces a pathless screenshot Blob with a durable managed file path that survives JSON persistence', async () => {
     const createInternalEntry = vi.fn(async () => ({ id: 'entry-1' }))
