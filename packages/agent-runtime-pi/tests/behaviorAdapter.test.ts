@@ -568,6 +568,42 @@ describe('coding-agent behavior adapter', () => {
     expect((await read(pi, t)).keysSeen.has(key('after-compaction'))).toBe(true)
   })
 
+  // Catches a host compact() released before its onCompacted returns: untilIdle would resolve, and hostCallInFlight read
+  // false, while the call still runs its lifecycle handler (H5, G6).
+  it('keeps a host compaction in flight until its onCompacted returns', async () => {
+    const entered = latch()
+    const handler = latch()
+    const pi = await openPiHarness((ports) =>
+      ports.lifecycle.register({
+        ...noLifecycle,
+        onCompacted: async () => {
+          entered.release()
+          await handler.promise
+        }
+      })
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: 'first' }])
+    await pi.harness.sendUser(t, 'before')
+    await pi.harness.settle()
+    const compacting = pi.harness.compact(t)
+    await entered.promise
+    let idle = false
+    const waiting = pi.harness
+      .withCall(t, (ports) => ports.waits.untilIdle(t))
+      .then(() => {
+        idle = true
+      })
+    // Pi's own compaction has returned by the next macrotask; only onCompacted is pending.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(idle).toBe(false)
+    expect((await read(pi, t)).live.hostCallInFlight).toBe(true)
+    handler.release()
+    await compacting
+    await waiting
+    expect((await read(pi, t)).live.hostCallInFlight).toBe(false)
+  })
+
   // Catches a compaction during a run that the meter never sees or that does not count toward the run's requests, so a
   // child's compactions escape its request cap, a refused one that still asks onCompacting or compacts, or a key that
   // is not the entry the compaction follows, so two compactions would share one memoized summary (H11, H12).

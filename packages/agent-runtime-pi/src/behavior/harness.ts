@@ -404,16 +404,19 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       if (!conv.native) throw new Error(`Conversation ${thread} has no session`)
       conv.hostCompacts += 1
       conv.declined = false
+      // In flight until `onCompacted` has returned too (H5).
       try {
-        await conv.native.compact()
-      } catch (error) {
-        // A decline compacts nothing and is no failure of the call; its reason is the `compaction-end` error.
-        if (!conv.declined) throw error
+        try {
+          await conv.native.compact()
+        } catch (error) {
+          // A decline compacts nothing and is no failure of the call; its reason is the `compaction-end` error.
+          if (!conv.declined) throw error
+        }
+        await conv.compacted
       } finally {
         conv.hostCompacts -= 1
         wake(conv)
       }
-      await conv.compacted
     },
     async settled() {
       do {
