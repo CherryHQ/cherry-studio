@@ -538,8 +538,12 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
           'topic.naming.enabled': preferences.naming
         })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({ id: 'mp10-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
       },
@@ -790,8 +794,12 @@ test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
           'chat.input.send_message_shortcut': preferences.sendShortcut
         })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({
           id: `${providerId}-delete`,

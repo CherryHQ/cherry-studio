@@ -6,6 +6,7 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { evaluateCdpExpression } from '../../../../scripts/e2e/regression/cdpClient'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
@@ -328,8 +329,12 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
         })
         if (mcpId) await window.api.ipcApi.request('mcp.server.remove', { serverId: mcpId })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({ id: 'mp17-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
       },

@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -151,8 +152,12 @@ export async function assistantGroupManagement(
         if (groupId)
           await window.api.dataApi.request({ id: 'mp24-cleanup-group', method: 'DELETE', path: `/groups/${groupId}` })
         for (const assistantId of assistantIds) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
       },
       { assistantIds, groupId }

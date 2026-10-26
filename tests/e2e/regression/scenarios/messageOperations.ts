@@ -306,8 +306,12 @@ export async function messageOperations(app: RegressionApp, page: Page, testInfo
           'feature.voice.speech.model_id': preferences.speechModel
         })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({
           id: `${providerId}-delete`,

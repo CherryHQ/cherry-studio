@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import {
@@ -161,8 +162,12 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
     if (page.isClosed()) page = await app.restart()
     if (assistantId)
       await page.evaluate(async (assistantId) => {
-        await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-        await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+        const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+          assistantId,
+          deleteTopics: true
+        })) as IpcResult<{ deleted: boolean }>
+        if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+          throw new Error('cleanup left the case assistant in the trash')
       }, assistantId)
     await page.evaluate(
       ({ tray, language }) =>

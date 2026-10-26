@@ -95,7 +95,9 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
           }
           if (label === name) inside = true
         } else if (inside) {
-          rows.push(item.value)
+          // The list is virtualized and overscans: one topic can be rendered in several windows,
+          // so keep the first sighting only. Duplicates would inflate the membership count.
+          if (!rows.includes(item.value)) rows.push(item.value)
         }
       }
       if (ended) break
@@ -244,12 +246,19 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
       async ({ originalMode, topicIds, assistantIds }) => {
         await window.api.preference.set('topic.tab.display_mode', originalMode)
         if (topicIds.length) {
-          await window.api.ipcApi.request('trash.topic.archive', { topicIds })
-          await window.api.ipcApi.request('trash.topic.delete_permanently', { topicIds })
+          const permanentlyDeletedTopics = (await window.api.ipcApi.request('trash.topic.delete_permanently', {
+            topicIds
+          })) as IpcResult<{ deletedCount: number }>
+          if (!permanentlyDeletedTopics.ok || permanentlyDeletedTopics.data.deletedCount !== new Set(topicIds).size)
+            throw new Error('cleanup left case topics in the trash')
         }
         for (const assistantId of assistantIds) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
       },
       { originalMode, topicIds: topics.map(({ id }) => id), assistantIds }

@@ -2,6 +2,7 @@ import { AssistantSchema } from '@shared/data/types/assistant'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { MessageSchema } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
@@ -459,8 +460,12 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       async ({ assistantId, providerId, namingEnabled }) => {
         await window.api.preference.set('topic.naming.enabled', namingEnabled)
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({
           id: `${providerId}-delete`,

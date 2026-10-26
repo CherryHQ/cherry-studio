@@ -519,8 +519,12 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
           'app.browser.open_links_in_browser': preferences.browser
         })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({
           id: `${providerId}-delete`,

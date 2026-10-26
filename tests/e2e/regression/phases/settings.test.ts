@@ -8,6 +8,7 @@ import AdmZip from 'adm-zip'
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { languageNativeNameMap } from '@shared/utils/languages'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
 
@@ -729,8 +730,12 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
       async ({ previous, assistantId, providerId }) => {
         await window.api.preference.setMultiple(previous)
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({ id: 'mp107-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
       },
@@ -959,8 +964,12 @@ test(...caseDefinition('MP-108'), async ({ app, mainWindow: page }, testInfo) =>
       async ({ preferences, assistantId, providerId }) => {
         await window.api.preference.setMultiple(preferences)
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({ id: 'mp108-delete', method: 'DELETE', path: `/providers/${providerId}` })
       },
@@ -1113,8 +1122,12 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
           'shortcut.app.search': original.search
         })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant3 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant3.ok || !permanentlyDeletedAssistant3.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
       },
       { original, assistantId }

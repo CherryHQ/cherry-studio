@@ -8,6 +8,7 @@ import type { Page } from '@playwright/test'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
@@ -296,8 +297,12 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
       async ({ previous, providerId, assistantId }) => {
         await window.api.preference.setMultiple(previous)
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({ id: 'mp127-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
       },

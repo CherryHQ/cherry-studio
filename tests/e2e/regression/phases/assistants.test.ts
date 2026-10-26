@@ -188,8 +188,20 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
           'chat.input.send_message_shortcut': preferences.shortcut
         })
         if (topicId) {
-          await window.api.ipcApi.request('trash.topic.archive', { topicIds: [topicId] })
-          await window.api.ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
+          const permanentlyDeletedTopics = (await window.api.ipcApi.request('trash.topic.delete_permanently', {
+            topicIds: [topicId]
+          })) as IpcResult<{ deletedCount: number }>
+          if (permanentlyDeletedTopics.ok && permanentlyDeletedTopics.data.deletedCount !== new Set([topicId]).size)
+            throw new Error('cleanup left case topics in the trash')
+          if (!permanentlyDeletedTopics.ok) {
+            // This case archived the topic itself, and the trash route deletes active rows only.
+            const purge = await window.api.dataApi.request({
+              id: 'cleanup-topic-purge',
+              method: 'DELETE',
+              path: `/topics/${topicId}?permanent=true`
+            })
+            if (purge.status !== 204 && purge.status !== 404) throw new Error('cleanup left case topics in the trash')
+          }
         }
         await window.api.dataApi.request({ id: 'mp20-delete', method: 'DELETE', path: `/providers/${providerId}` })
       },
@@ -579,20 +591,44 @@ test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
     await page.evaluate(
       async ({ assistantIds, topicIds, providerId, agentId, preferences }) => {
         for (const assistantId of assistantIds) {
-          await window.api.ipcApi
-            .request('trash.assistant.archive', { assistantId, deleteTopics: false })
-            .catch(() => undefined)
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok) {
+            // This case archived the assistant itself, and the trash route deletes active rows only.
+            const purge = await window.api.dataApi.request({
+              id: 'cleanup-assistant-purge',
+              method: 'DELETE',
+              path: `/assistants/${assistantId}?permanent=true`
+            })
+            if (purge.status !== 204 && purge.status !== 404)
+              throw new Error('cleanup left the case assistant in the trash')
+          }
         }
         for (const topicId of topicIds) {
-          await window.api.ipcApi.request('trash.topic.archive', { topicIds: [topicId] }).catch(() => undefined)
-          await window.api.ipcApi
-            .request('trash.topic.delete_permanently', { topicIds: [topicId] })
-            .catch(() => undefined)
+          const permanentlyDeletedTopics = (await window.api.ipcApi.request('trash.topic.delete_permanently', {
+            topicIds: [topicId]
+          })) as IpcResult<{ deletedCount: number }>
+          if (!permanentlyDeletedTopics.ok) {
+            // This case archived the topic itself, and the trash route deletes active rows only.
+            const purge = await window.api.dataApi.request({
+              id: 'cleanup-topic-purge',
+              method: 'DELETE',
+              path: `/topics/${topicId}?permanent=true`
+            })
+            if (purge.status !== 204 && purge.status !== 404) throw new Error('cleanup left case topics in the trash')
+          }
         }
         if (agentId) {
-          await window.api.ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true }).catch(() => undefined)
-          await window.api.ipcApi.request('ai.agent.delete_permanently', { agentId, deleteSessions: true })
+          // The case archived the agent, so purge it in its trashed state instead of the active-only route.
+          const permanentlyDeletedAgent = (await window.api.ipcApi.request('ai.agent.delete', {
+            agentId,
+            deleteSessions: true,
+            permanent: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAgent.ok || !permanentlyDeletedAgent.data.deleted)
+            throw new Error('cleanup left the case agent in the trash')
         }
         await window.api.dataApi.request({
           id: 'mp22-cleanup-provider',
@@ -784,8 +820,20 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     await page.evaluate(
       async ({ ids, providerId, originalDefault }) => {
         for (const assistantId of ids) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok) {
+            // This case archived the assistant itself, and the trash route deletes active rows only.
+            const purge = await window.api.dataApi.request({
+              id: 'cleanup-assistant-purge',
+              method: 'DELETE',
+              path: `/assistants/${assistantId}?permanent=true`
+            })
+            if (purge.status !== 204 && purge.status !== 404)
+              throw new Error('cleanup left the case assistant in the trash')
+          }
         }
         await window.api.preference.set('chat.default_model_id', originalDefault)
         await window.api.dataApi.request({ id: 'mp23-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
@@ -1021,8 +1069,20 @@ test(...caseDefinition('MP-25'), async ({ app, mainWindow }, testInfo) => {
           'menu.presentation_mode': preferences.menuMode
         })
         for (const assistantId of assistantIds) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant2.ok) {
+            // This case archived the assistant itself, and the trash route deletes active rows only.
+            const purge = await window.api.dataApi.request({
+              id: 'cleanup-assistant-purge',
+              method: 'DELETE',
+              path: `/assistants/${assistantId}?permanent=true`
+            })
+            if (purge.status !== 204 && purge.status !== 404)
+              throw new Error('cleanup left the case assistant in the trash')
+          }
         }
         await window.api.dataApi.request({ id: 'mp25-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
       },

@@ -8,6 +8,7 @@ import { AssistantSchema } from '@shared/data/types/assistant'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
@@ -212,8 +213,12 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
       async ({ previous, assistantId, providerId }) => {
         await window.api.preference.setMultiple(previous)
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         await window.api.dataApi.request({ id: 'mp115-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
       },
@@ -301,8 +306,11 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     await writeFile(join(backupDir, 'MP-116-broken.zip'), 'This is not a ZIP backup')
 
     await page.evaluate(async (topicId) => {
-      await window.api.ipcApi.request('trash.topic.archive', { topicIds: [topicId] })
-      await window.api.ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
+      const permanentlyDeletedTopics = (await window.api.ipcApi.request('trash.topic.delete_permanently', {
+        topicIds: [topicId]
+      })) as IpcResult<{ deletedCount: number }>
+      if (!permanentlyDeletedTopics.ok || permanentlyDeletedTopics.data.deletedCount !== new Set([topicId]).size)
+        throw new Error('cleanup left case topics in the trash')
       await window.api.preference.set('topic.naming.enabled', true)
     }, topicId)
     expect((await readTopic()).status).toBe(404)
@@ -405,8 +413,12 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
             'data.backup.local.skip_backup_file': originalPreferences.slim,
             'topic.naming.enabled': originalPreferences.naming
           })
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         },
         { assistantId, originalPreferences }
       )
@@ -663,8 +675,12 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
     ])
     for (const assistantId of ids) {
       await page.evaluate(async (assistantId) => {
-        await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-        await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+        const permanentlyDeletedAssistant3 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+          assistantId,
+          deleteTopics: true
+        })) as IpcResult<{ deleted: boolean }>
+        if (!permanentlyDeletedAssistant3.ok || !permanentlyDeletedAssistant3.data.deleted)
+          throw new Error('cleanup left the case assistant in the trash')
       }, assistantId)
     }
   }

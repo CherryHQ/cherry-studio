@@ -2,6 +2,8 @@ import { writeFile } from 'node:fs/promises'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { AssistantSchema } from '../../../../src/shared/data/types/assistant'
@@ -195,8 +197,12 @@ export async function importMcpServer(app: RegressionApp, page: Page, testInfo: 
       async ({ assistantId, serverId, providerId, naming }) => {
         await window.api.preference.set('topic.naming.enabled', naming)
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
         }
         if (serverId) await window.api.ipcApi.request('mcp.server.remove', { serverId })
         await window.api.dataApi.request({ id: 'mp134-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
