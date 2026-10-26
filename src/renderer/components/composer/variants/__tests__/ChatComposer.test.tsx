@@ -513,7 +513,9 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
-  useChatWrite: () => mocks.chatWrite ?? { pause: vi.fn(), startNewContext: vi.fn() }
+  // `null` models a surface without a ChatWriteContext provider (the quick assistant).
+  useChatWrite: () =>
+    mocks.chatWrite === null ? null : (mocks.chatWrite ?? { pause: vi.fn(), startNewContext: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -2250,6 +2252,23 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('stops the running turn from Pause on a surface without a chat-write context', () => {
+    // The quick assistant has no ChatWriteContext; Pause must reach its own stop rather than
+    // silently doing nothing while generation continues.
+    mocks.chatWrite = null
+    mocks.topicPending = true
+    const onPause = vi.fn()
+    try {
+      render(<ChatComposer topic={topic} onSend={vi.fn()} onPause={onPause} />)
+      act(() => {
+        void mocks.surfaceProps?.onPause?.()
+      })
+      expect(onPause).toHaveBeenCalledTimes(1)
+    } finally {
+      mocks.chatWrite = undefined
+    }
   })
 
   it('queues a follow-up while the topic is streaming (does not send directly)', async () => {

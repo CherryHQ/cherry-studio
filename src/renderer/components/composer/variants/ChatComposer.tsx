@@ -186,6 +186,8 @@ export interface ChatComposerProps {
   sendDisabled?: boolean
   /** False when the backend cannot take a turn mid-stream (temporary topics have no steer queue). */
   steerWhileBusy?: boolean
+  /** Stops the running turn; surfaces without a ChatWriteContext must supply it. */
+  onPause?: () => void
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
@@ -420,6 +422,7 @@ const ChatComposerRoot = ({
   chatTarget,
   sendDisabled,
   steerWhileBusy,
+  onPause: onPauseProp,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -484,6 +487,7 @@ const ChatComposerRoot = ({
             chatTarget={chatTarget}
             sendDisabled={sendDisabled}
             steerWhileBusy={steerWhileBusy}
+            onPause={onPauseProp}
             compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -527,6 +531,7 @@ const ChatComposerInner = ({
   chatTarget,
   sendDisabled = false,
   steerWhileBusy = true,
+  onPause: onPauseProp,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -1298,8 +1303,9 @@ const ChatComposerInner = ({
   })
 
   const onPause = useCallback(() => {
-    chatWrite?.pause()
-  }, [chatWrite])
+    if (onPauseProp) onPauseProp()
+    else chatWrite?.pause()
+  }, [chatWrite, onPauseProp])
 
   const handleAssistantChange = useCallback(
     async (nextId: string | null) => {

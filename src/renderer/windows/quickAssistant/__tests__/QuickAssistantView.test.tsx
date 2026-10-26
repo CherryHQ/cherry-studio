@@ -23,7 +23,8 @@ const runtime = vi.hoisted(() => ({
   assistants: [] as { id: string; name: string }[],
   ipcHandlers: new Map<string, () => void>(),
   /** The latest `onSend` handed to the composer, to read what it reports back. */
-  composerOnSend: null as ((text: string) => unknown) | null
+  composerOnSend: null as ((text: string) => unknown) | null,
+  composerOnPause: null as (() => void) | null
 }))
 
 // The bar's background depends on whether its frame is transparent, which is macOS-only.
@@ -69,16 +70,19 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     compactWhenSingleLine,
     externalContextControls,
     onNewTopic,
+    onPause,
     onSend,
     placement
   }: {
     compactWhenSingleLine?: boolean
     externalContextControls?: boolean
     onNewTopic?: () => void
+    onPause?: () => void
     onSend: (text: string) => unknown
     placement: string
   }) => {
     runtime.composerOnSend = onSend
+    runtime.composerOnPause = onPause ?? null
     return (
       <div
         data-compact={String(Boolean(compactWhenSingleLine))}
@@ -416,6 +420,19 @@ describe('QuickAssistantView', () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
     expect(screen.getByTestId('quick-messages')).toBeInTheDocument()
     expect(quickConversation.reset).not.toHaveBeenCalled()
+  })
+
+  it("stops the conversation from the composer's Pause, in the bar and in the panel", async () => {
+    // This window has no ChatWriteContext, so the composer's own Pause had nothing to stop.
+    render(<QuickAssistantView draggable={false} />)
+    act(() => runtime.composerOnPause?.())
+    expect(quickConversation.stop).toHaveBeenCalledTimes(1)
+
+    quickConversation.send.mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: 'mock send' }))
+    await screen.findByTestId('quick-messages')
+    act(() => runtime.composerOnPause?.())
+    expect(quickConversation.stop).toHaveBeenCalledTimes(2)
   })
 
   it('tells the composer when a send was not taken, so it keeps the draft or queued follow-up', () => {

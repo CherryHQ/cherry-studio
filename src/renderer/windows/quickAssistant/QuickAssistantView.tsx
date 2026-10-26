@@ -169,6 +169,8 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     collapse()
   }, [collapse, save, t])
 
+  const handlePause = useCallback(() => void stop(), [stop])
+
   const handleCloseWindow = useCallback(() => ipcApi.request('quick_assistant.hide'), [])
 
   const handleEsc = useCallback(() => {
@@ -354,6 +356,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               externalContextControls
               sendDisabled={!topicId || isSaving}
               steerWhileBusy={false}
+              onPause={handlePause}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}
             />
@@ -372,6 +375,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               externalContextControls
               sendDisabled={!topicId || isSaving}
               steerWhileBusy={false}
+              onPause={handlePause}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}
               onDraftAssistantChange={handleAssistantChange}
