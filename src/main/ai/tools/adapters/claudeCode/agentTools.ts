@@ -221,7 +221,13 @@ export async function createClaudeAgentToolPolicySnapshot(
     },
 
     isDisabled(runtimeName) {
-      return disallowed.has(runtimeName) || disallowed.has(normalizeClaudeBuiltinName(runtimeName))
+      if (disallowed.has(runtimeName) || disallowed.has(normalizeClaudeBuiltinName(runtimeName))) return true
+      if (!runtimeName.startsWith('mcp__')) return false
+      if (disallowed.has('mcp__*')) return true
+      const separator = runtimeName.indexOf('__', 'mcp__'.length)
+      if (separator < 0) return false
+      const server = runtimeName.slice(0, separator)
+      return disallowed.has(server) || disallowed.has(`${server}__*`)
     },
 
     getPermissionMode() {

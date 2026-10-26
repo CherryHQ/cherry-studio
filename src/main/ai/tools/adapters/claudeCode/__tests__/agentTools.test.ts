@@ -90,6 +90,21 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
   })
 
+  it.each(['mcp__assistant-files__read_file', 'mcp__assistant-files', 'mcp__assistant-files__*', 'mcp__*'])(
+    'revokes assistant file reads on a warm connection through %s',
+    async (rule) => {
+      const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent())
+      expect(snapshot.isDisabled('mcp__assistant-files__read_file')).toBe(false)
+
+      await snapshot.update(makeAgent([rule]))
+      expect(snapshot.isDisabled('mcp__assistant-files__read_file')).toBe(true)
+      expect(snapshot.isDisabled('mcp__cherry-tools__notify')).toBe(rule === 'mcp__*')
+
+      await snapshot.update(makeAgent())
+      expect(snapshot.isDisabled('mcp__assistant-files__read_file')).toBe(false)
+    }
+  )
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))

@@ -1,9 +1,11 @@
 ---
-description: Per-attachment routing to native file parts or capped extracted analysis, with read_file paging for truncated overflow
+description: Per-attachment routing to native file parts or capped extracted text and analysis, with read_file paging for truncated overflow and full attachment detail and Pi read analysis for audio and video
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
+  - src/main/ai/runtime/pi/PiRuntimeConnection.ts
+  - src/main/ai/runtime/pi/piMediaRead.ts
   - src/main/features/fileProcessing/media/MediaAnalysisService.ts
   - src/shared/utils/file/fileExtensions.ts
   - src/renderer/utils/file.ts
@@ -61,8 +63,9 @@ Decided per file part in `prepareChatMessages`
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
-- Audio/video probe or analysis failure degrades to a clear model-visible note.
-  Cancellation is not degraded and continues to abort the request.
+- A failed probe degrades to the unreadable-file note. Failed non-native
+  audio/video analysis stops before the provider request with a localized
+  error; cancellation continues to abort the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
@@ -105,7 +108,7 @@ Extracted text and compact media analysis are bounded so multi-turn context stay
 
 Default cap ≈ 8k chars/file (tunable).
 
-## `read_file` — text-only overflow tool
+## `read_file` — paged full attachment detail
 
 `src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts`, using the
 per-request attachment allow-list from the tool-call context.
@@ -114,25 +117,59 @@ per-request attachment allow-list from the tool-call context.
   **handle** (unique, normalized — see `collectFileAttachments`), resolved to an
   entry id against a per-request allow-list. The model never sees or guesses
   entry ids, and can only read files attached to the current conversation.
-- Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
-  filename-level messages; details are logged, not returned.
+- Returns paginated text: extracted document text, image OCR, or full
+  timestamped audio/video analysis. Errors are sanitized to filename-level
+  messages; details are logged, not returned. Cancellation propagates.
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.
-- Claude Code exposes the same read operation through the Cherry Assistant-only
-  `assistant-files` MCP server. Its model-facing handles are stable, opaque
+- Claude Code exposes the same read operation through the `assistant-files` MCP
+  server. The built-in Assistant keeps the full server (`read_file`,
+  `save_attachment`, `move_to_trash`), including when that Assistant runs on Pi.
+  An ordinary open Claude Code Agent mounts a read-only server that discovers and
+  auto-allows only `mcp__assistant-files__read_file`. Handles stay stable, opaque
   hashes of FileEntry ids. The server rebuilds its allow-list from the current
-  session transcript when each tool call runs, so deleting a message revokes
-  access immediately. Ordinary Claude Code Agents receive neither this server
-  nor its attachment manifest.
-- Because native media is kept inline (never routed through the tool),
-  `read_file` carries no media result — no `toModelOutput` base64 re-read, no
-  resend re-materialization.
+  session transcript on each call, so deleting a message revokes access immediately.
+  Ordinary Claude audio and video are not sent as filesystem paths; the prompt
+  names `mcp__assistant-files__read_file` and the opaque attachment handle.
+  Images and documents keep their existing routing. Ordinary Pi agents do not
+  mount this server; they keep Pi's filesystem `read`.
+- Both the AI SDK Agent tool and Claude Code's `assistant-files` MCP server call
+  the same `ReadFileTool.readFile` implementation. Media reads therefore share
+  identical offset/limit paging and model-visible continuation instructions.
 
 Cherry Assistant also gets approval-gated `save_attachment` from the same
 session-scoped server. It writes only new paths inside the session workspace and
 never overwrites an existing file. No attachment state or write tools are added
 to the shared chat runtime or to ordinary Agents.
+
+## Pi `read` — filesystem media analysis
+
+Pi filesystem agents keep the SDK tool named `read`
+(`src/main/ai/runtime/pi/PiRuntimeConnection.ts`,
+`src/main/ai/runtime/pi/piMediaRead.ts`). This path is not the attachment
+allow-list used by `read_file` and `assistant-files`. The model passes a
+workspace path, and Cherry does not restrict that path to files attached to the
+current conversation.
+
+`wrapPiReadToolForMedia` keeps Pi's `read` name, parameter schema, and approval
+identity. The wrapped tool is registered in `customTools` next to managed bash.
+`excludeTools` still matches the name `read`, so a disabled read stays
+disabled. Every path that is not audio or video, including images, calls the
+original `read` implementation.
+
+Audio and video paths call the same `MediaAnalysisService.analyzeToFullText`
+used by `read_file`. The tool `signal` is passed through.
+`signal.throwIfAborted()` runs before analysis, after analysis, and after
+paging, so a cancellation keeps `signal.reason`.
+
+Paging is Pi's line window, distinct from the AI SDK `read_file` character
+`offset` and `limit`. Pi's `offset` is 1-based and `limit` counts lines. The
+selected lines then pass through the SDK `truncateHead` cap (`DEFAULT_MAX_LINES`
+and `DEFAULT_MAX_BYTES`). Continuation notices use the next line offset. An
+oversized first line is clipped with `surrogateSafeEnd` and stays on this tool.
+The result is `{ content: [{ type: 'text', text }], details: undefined }`.
+Relative paths resolve with `path.resolve(cwd, path)`.
 
 ## Extraction & OCR
 
@@ -140,7 +177,8 @@ to the shared chat runtime or to ordinary Agents.
 |---|---|
 | office/pdf/text → text | `extractDocumentText` (`src/main/ai/messages/attachmentTextExtraction.ts`) |
 | image → text (non-vision) | `FileProcessingService.ocrImage` (`src/main/features/fileProcessing/`) |
-| audio/video → compact analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
+| audio/video chat turn → compact analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
+| audio/video read_file → timestamped analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
 
 `ai/` reaches OCR through the `FileProcessingService` rather than deep-importing
 the feature, keeping processor/handler internals in that domain. Both
@@ -157,6 +195,10 @@ the bytes are binary or their legacy encoding is too ambiguous to decode safely.
 `MediaAnalysisService` caches compact chat analysis by file identity/version and
 the ASR, Vision, OCR, and execution-budget configuration. A repeated turn does
 not duplicate preprocessing, and configuration changes invalidate the cache.
+`read_file` reaches audio and video through `MediaAnalysisService`, which caches
+that analysis by file identity/version and the ASR, Vision, OCR, and
+execution-budget configuration. Repeated reads do not duplicate preprocessing,
+and configuration changes invalidate the cache.
 
 ## Capability resolution
 
@@ -169,9 +211,13 @@ SDK converter. PDF additionally requires a first-party provider
 (`supportsNativePdf`). There is no `pdf-compatibility` middleware — native PDFs
 pass through inline, non-native PDFs go through extraction.
 
-## Invariants
+## Chat-turn invariants
 
-- Content visibility never depends on a tool call.
+These apply to the chat attachment turn above. They do not describe Pi's
+filesystem `read`, which runs only when the model calls that tool and is not
+limited to conversation attachments.
+
+- Content visibility on the chat turn never depends on a tool call.
 - `fileEntryId` never reaches the model (filename in, filename out).
 - Native modalities keep provider-native handling.
 - Models not configured for image input never receive native image parts.
