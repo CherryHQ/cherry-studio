@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiHandlers } from '@main/ipc/handlers/ai'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -31,6 +32,15 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.abort': aiHandlers['ai.stream.abort'],
   'ai.tool.respond_approval': aiHandlers['ai.tool.respond_approval'],
   'ai.agent.create': aiHandlers['ai.agent.create'],
+  // The desktop's `AgentLifecycleService` also archives removed duplicates' system workspaces, which
+  // the Web edition does not keep; here their runtimes are only closed.
+  'ai.agent.session.reuse_or_create': async (input) => {
+    const { session, created, deletedDuplicateSessionIds } =
+      agentSessionService.reuseOrCreatePlaceholderWithImpact(input)
+    const runtime = application.get('AgentSessionRuntimeService')
+    await Promise.allSettled(deletedDuplicateSessionIds.map((sessionId) => runtime.closeSession(sessionId)))
+    return { session, created, deletedDuplicateSessionIds }
+  },
   'ai.agent.session.prewarm': aiHandlers['ai.agent.session.prewarm'],
   'ai.agent.session.close_warm': aiHandlers['ai.agent.session.close_warm'],
   'ai.agent.session.set_pending_input_count': aiHandlers['ai.agent.session.set_pending_input_count'],

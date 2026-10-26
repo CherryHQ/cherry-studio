@@ -85,10 +85,11 @@ so tool cards, approvals and stored messages match the desktop's. `sharedModuleR
 swaps two `src/shared` modules in both the Worker and the page: the Pi tool catalog lists the
 browser tools (`ls`, `find` and `grep` are read-class) and the runtime capabilities turn off
 heartbeat, knowledge bases, MCP, skills and slash commands. Served agent IpcApi routes:
-`ai.agent.create`, `ai.tool.respond_approval` and the session's `prewarm`, `close_warm`,
-`set_pending_input_count`, `refresh_context_usage`, `edit_target`, `edit_resend` and `fork`
-(editing a sent message and forking answer that the checkpoint is unsupported). Deleting or archiving an agent
-or session is not served yet.
+`ai.agent.create`, `ai.tool.respond_approval` and the session's `reuse_or_create`, `prewarm`,
+`close_warm`, `set_pending_input_count`, `refresh_context_usage`, `edit_target`, `edit_resend` and
+`fork` (editing a sent message and forking answer that the checkpoint is unsupported). A new agent
+has no heartbeat to wait for, so `AgentJobsService` is a stand-in with `waitForHeartbeat` only.
+Deleting or archiving an agent or session is not served yet.
 
 ### Local folders
 

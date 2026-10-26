@@ -1,3 +1,4 @@
+import type { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import type { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import type { AiService } from '@main/ai/AiService'
 import type { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
@@ -32,6 +33,7 @@ export interface WebServices {
   RuntimeActivityService: Pick<RuntimeActivityService, 'begin'>
   AgentSessionRuntimeService: AgentSessionRuntimeService
   ClaudeCodeWarmQueryManager: Pick<ClaudeCodeWarmQueryManager, 'close' | 'closeAgentSessionWarm'>
+  AgentJobsService: Pick<AgentJobsService, 'waitForHeartbeat'>
 }
 
 /**

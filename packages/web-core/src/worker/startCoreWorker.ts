@@ -98,6 +98,8 @@ async function startAccountServices(opened: OpenedDatabase) {
   })
   // The agent host releases Claude Code's warm queries for every session; the browser runtime keeps none.
   application.register('ClaudeCodeWarmQueryManager', { close: async () => {}, closeAgentSessionWarm() {} })
+  // Agents run no heartbeats here (`agentRuntimeCapabilities`), so a new agent has none to wait for.
+  application.register('AgentJobsService', { waitForHeartbeat: async () => undefined })
   const agentSessions = new AgentSessionRuntimeService()
   await agentSessions._doInit()
   application.register('AgentSessionRuntimeService', agentSessions)
