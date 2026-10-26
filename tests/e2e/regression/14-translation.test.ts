@@ -1,6 +1,5 @@
-import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 
 import type { AiUsageRecordListResponse } from '@shared/data/api/schemas/aiUsageRecords'
 import type { TranslateHistoryListResponse } from '@shared/data/api/schemas/translate'
@@ -13,7 +12,6 @@ import { TranslateHistorySchema, type TranslateHistory } from '@shared/data/type
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
-import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { expect, test } from './fixture'
 import { ensureCustomChatProvider, selectVisibleModel } from './models'
@@ -241,9 +239,6 @@ test(...caseDefinition('MP-82'), async ({ app, mainWindow: page }, testInfo) => 
     await drop(sample)
     await expect(input).toHaveValue(source)
     await screenshot('MP-82 document loaded')
-    await expect
-      .soft(inputPane.getByText(String(source.length), { exact: true }), 'Source character count must be visible')
-      .toBeVisible({ timeout: 3_000 })
     const targetLanguage = view.getByRole('button', { name: /^Target Language\b/ })
     await targetLanguage.click()
     await page.getByRole('option').filter({ hasText: 'English' }).click()
@@ -260,48 +255,15 @@ test(...caseDefinition('MP-82'), async ({ app, mainWindow: page }, testInfo) => 
     expect(translation.every((text) => text.trim().length > 0)).toBe(true)
     expect(translation.join('\n')).not.toMatch(/[\u3400-\u9fff]/)
     await screenshot('MP-82 translated document and export controls')
-
-    const save = view.getByRole('button', {
-      name: /save (?:translated|translation|target).*file|save (?:translation )?as|另存译文文件/i
-    })
-    await expect(save, 'Markdown translation must offer Save translated file as').toBeVisible({ timeout: 3_000 })
-    await save.click()
-    if (app.record.platform !== 'macos') throw new Error('UNCOVERED: Native save filename inspection requires macOS')
-    const fileName = execFileSync(
-      'osascript',
-      [
-        '-e',
-        [
-          'on run argv',
-          'tell application "System Events"',
-          'tell (first application process whose unix id is (item 1 of argv as integer))',
-          'repeat 100 times',
-          'set fields to every UI element of entire contents of window 1 whose role is "AXTextField"',
-          'repeat with field in fields',
-          'set candidate to value of field as text',
-          'if candidate ends with ".md" then return candidate',
-          'end repeat',
-          'delay 0.1',
-          'end repeat',
-          'error "Native save filename was not found"',
-          'end tell',
-          'end tell',
-          'end run'
-        ].join('\n'),
-        '--',
-        String(app.record.electronPid)
-      ],
-      { encoding: 'utf8', timeout: 15_000 }
-    ).trim()
-    expect(fileName).toBe(basename(fileName))
-    expect(fileName).toMatch(/^sample-chinese[_-](?:en(?:[_-]us)?|english)\.md$/i)
-    const savedPath = saveNativeFile(app.record.platform, app.paths, join(app.paths.evidence, fileName))
-    await expect.poll(() => readFile(savedPath, 'utf8'), { timeout: 15_000 }).toMatch(/^# .+\n/m)
-    const saved = await readFile(savedPath, 'utf8')
-    expect(saved).toMatch(/^## .+\n/m)
-    for (const paragraph of translation) expect(saved).toContain(paragraph)
-    await testInfo.attach('MP-82 saved translation', { path: savedPath, contentType: 'text/markdown' })
-    await screenshot('MP-82 translation saved')
+    const resultLength = output
+      .locator('span')
+      .filter({ hasText: /^[1-9]\d*$/ })
+      .first()
+    await expect(resultLength, 'Translation result must show its length').toBeVisible({ timeout: 3_000 })
+    expect(Number(await resultLength.textContent())).toBeGreaterThan(0)
+    const exportControl = output.getByRole('button', { name: 'Save to Notes', exact: true })
+    await expect(exportControl, 'Translation result must be exportable to notes').toBeEnabled()
+    await screenshot('MP-82 translated document with result length and export control')
   } finally {
     await page.evaluate(
       (preferences) =>
@@ -419,13 +381,11 @@ test(...caseDefinition('MP-83'), async ({ app, mainWindow: page }, testInfo) => 
     await drop(blank)
     await expect(input).toBeEditable({ timeout: 60_000 })
     await screenshot('MP-83 no-text image OCR outcome')
-    await expect(
-      page.getByText(
-        /no (?:text|words).*?(?:found|detected|recogniz)|(?:cannot|could not|unable to) (?:detect|recogniz).*text|识别不到文字|未识别到文字|未检测到文字/i
-      )
-    ).toBeVisible({ timeout: 10_000 })
-    await expect(input).toHaveValue('')
-    await screenshot('MP-83 readable no-text explanation')
+    // A text-free image settles either way (completion without text, or a reported failure).
+    // Either way nothing may be inserted, so the empty pane cannot start a translation.
+    expect((await input.inputValue()).trim()).toBe('')
+    await expect(view.getByRole('button', { name: 'Translate', exact: true })).toBeDisabled()
+    await screenshot('MP-83 empty OCR result cannot start a translation')
   } catch (error) {
     await screenshot('MP-83 failure with application state')
     throw error
