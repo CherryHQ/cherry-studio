@@ -5455,7 +5455,6 @@
   "settings.proxy.address": "Proxy Adresi",
   "settings.proxy.bypass": "Atlama Kuralları",
   "settings.proxy.mode.custom": "Özel Proxy",
-  "settings.proxy.mode.description": "Cherry Studio'nun proxy ayarı yalnızca kendi isteklerine uygulanır. TUN modu, Cherry Studio ayarı değil; harici bir proxy istemcisinin (Clash, sing-box veya Surge gibi) özelliğidir. Uygulamanın proxy ayarlarını izlemeyen trafiği yakalar ve oluşturulan görseller indirilemediğinde yardımcı olabilir. Yönetici/root izni gerektirir (macOS'te istemcinin ağ uzantısının onaylanması gerekir) ve her platformda kullanılamaz.",
   "settings.proxy.mode.none": "Proxy Yok",
   "settings.proxy.mode.system": "Sistem Proxy'si",
   "settings.proxy.mode.title": "Proxy Modu",

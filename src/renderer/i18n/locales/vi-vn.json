@@ -5455,7 +5455,6 @@
   "settings.proxy.address": "Địa chỉ Proxy",
   "settings.proxy.bypass": "Bỏ qua các quy tắc",
   "settings.proxy.mode.custom": "Proxy Tùy chỉnh",
-  "settings.proxy.mode.description": "Proxy của Cherry Studio chỉ áp dụng cho các yêu cầu của chính ứng dụng. Chế độ TUN là tính năng của ứng dụng proxy bên ngoài (như Clash, sing-box hoặc Surge), không phải cài đặt trong Cherry Studio. Nó thu nhận lưu lượng không tuân theo cài đặt proxy của ứng dụng và có thể hữu ích khi không tải được ảnh đã tạo. Tính năng này cần quyền quản trị viên/root (trên macOS, cần phê duyệt tiện ích mạng của ứng dụng proxy) và không có trên mọi nền tảng.",
   "settings.proxy.mode.none": "Không có proxy",
   "settings.proxy.mode.system": "Proxy Hệ Thống",
   "settings.proxy.mode.title": "Chế độ Proxy",

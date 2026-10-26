@@ -5455,7 +5455,6 @@
   "settings.proxy.address": "Proxy Address",
   "settings.proxy.bypass": "Bypass Rules",
   "settings.proxy.mode.custom": "Custom Proxy",
-  "settings.proxy.mode.description": "Cherry Studio's proxy applies to its own requests. TUN mode is a feature of an external proxy client (Clash, sing-box, Surge), not a Cherry Studio setting. It captures traffic that ignores app proxy settings and may help if painting image downloads fail. It requires an external client and administrator/root access (on macOS, approval of its network extension) and is not available on every platform.",
   "settings.proxy.mode.none": "No Proxy",
   "settings.proxy.mode.system": "System Proxy",
   "settings.proxy.mode.title": "Proxy Mode",

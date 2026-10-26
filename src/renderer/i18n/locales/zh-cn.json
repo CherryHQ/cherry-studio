@@ -5455,7 +5455,6 @@
   "settings.proxy.address": "代理地址",
   "settings.proxy.bypass": "代理绕过规则",
   "settings.proxy.mode.custom": "自定义代理",
-  "settings.proxy.mode.description": "Cherry Studio 的代理设置只作用于应用自身的请求。TUN 模式是外部代理客户端（如 Clash、sing-box、Surge）的功能，不是 Cherry Studio 的开关。它可以接管不遵循应用代理设置的流量；如果绘画图片下载失败，可能会有所帮助。使用时需要管理员/root 权限（在 macOS 上还需批准客户端的网络扩展），且并非所有平台都支持。",
   "settings.proxy.mode.none": "不使用代理",
   "settings.proxy.mode.system": "系统代理",
   "settings.proxy.mode.title": "代理模式",

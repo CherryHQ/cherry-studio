@@ -5455,7 +5455,6 @@
   "settings.proxy.address": "ที่อยู่ Proxy",
   "settings.proxy.bypass": "กฎบายพาส",
   "settings.proxy.mode.custom": "Proxy ที่กำหนดเอง",
-  "settings.proxy.mode.description": "Proxy ของ Cherry Studio ใช้กับคำขอของแอปเอง โหมด TUN เป็นฟีเจอร์ของไคลเอนต์ Proxy ภายนอก (Clash, sing-box, Surge) ไม่ใช่การตั้งค่าของ Cherry Studio โดยจะดักจับทราฟฟิกที่ไม่ใช้การตั้งค่า Proxy ของแอป และอาจช่วยได้หากดาวน์โหลดรูปภาพที่สร้างไม่สำเร็จ การใช้งานต้องมีไคลเอนต์ภายนอกและสิทธิ์ผู้ดูแลระบบ/root (บน macOS ต้องอนุมัติส่วนขยายเครือข่ายของไคลเอนต์ด้วย) และไม่ได้รองรับทุกแพลตฟอร์ม",
   "settings.proxy.mode.none": "ไม่มี Proxy",
   "settings.proxy.mode.system": "Proxy ระบบ",
   "settings.proxy.mode.title": "โหมด Proxy",

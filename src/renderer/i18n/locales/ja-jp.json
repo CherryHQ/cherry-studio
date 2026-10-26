@@ -5455,7 +5455,6 @@
   "settings.proxy.address": "プロキシアドレス",
   "settings.proxy.bypass": "バイパスルール",
   "settings.proxy.mode.custom": "カスタムプロキシ",
-  "settings.proxy.mode.description": "Cherry Studio のプロキシは、アプリ自身のリクエストに適用されます。TUN モードは外部プロキシクライアント（Clash、sing-box、Surge など）の機能であり、Cherry Studio の設定ではありません。アプリのプロキシ設定に従わない通信を捕捉し、生成画像のダウンロードに失敗した場合に役立つことがあります。管理者/root 権限（macOS ではクライアントのネットワーク拡張機能の承認）が必要で、すべてのプラットフォームで利用できるわけではありません。",
   "settings.proxy.mode.none": "プロキシを使用しない",
   "settings.proxy.mode.system": "システムプロキシ",
   "settings.proxy.mode.title": "プロキシモード",
