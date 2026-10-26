@@ -5713,6 +5713,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "L'OCR di sistema richiama direttamente il motore nativo. È il più veloce, ma la precisione dipende dalla versione del sistema operativo.",
   "settings.tool.file_processing.processors.tesseract.description": "Motore OCR open source di Google eseguito interamente in locale.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Descrive i fotogrammi video campionati con un modello di chat dotato di visione. Le immagini dei fotogrammi vengono inviate al provider selezionato; il testo sullo schermo continua a usare il processore OCR configurato nelle impostazioni OCR.",
+  "settings.tool.file_processing.video_vision.title": "Modello di visione video",
   "settings.tool.websearch.blacklist": "Elenco di blocco",
   "settings.tool.websearch.blacklist_invalid_entries": "Voci non valide nell'elenco di blocco: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Usa il seguente formato (una voce per riga)\nCorrispondenza con schema: *://*.example.com/*\nEspressione regolare: /example\\.(net|org)/",
