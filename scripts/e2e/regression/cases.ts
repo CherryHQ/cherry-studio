@@ -849,7 +849,7 @@ export const REGRESSION_CASES = [
     title: 'Computer Use permissions and desktop control toggle',
     tasks: ['system-integration'],
     phase: 'system',
-    capabilities: [],
+    capabilities: ['desktopAutomation'],
     platforms: ['macos']
   },
   {

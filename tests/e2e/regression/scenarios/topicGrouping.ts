@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
-import { expect, type Page, type TestInfo } from '@playwright/test'
+import { expect, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 import type { AppInfo } from '@renderer/types/app'
 import { AssistantSchema } from '@shared/data/types/assistant'
@@ -13,6 +13,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 // Catch incorrect date/assistant buckets, disappearing headers on collapse, and lost display preferences on restart.
@@ -33,30 +34,84 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     await chat().getByRole('button', { name: 'Display mode', exact: true }).click()
     await page.getByRole('button', { name, exact: true }).click()
   }
+  const groupLabels = ['Today', 'Yesterday', 'Earlier', ...assistantNames, 'Unlinked Assistant']
+  // Both the row set and the group headers live in one virtualized list: rows below the window are
+  // not mounted, and a header scrolls away from rows deeper inside its own group.
+  const scroller = () => chat().locator('[data-virtual-scrolling]').first()
+  const reveal = async (target: Locator) => {
+    if ((await target.count()) > 0 && (await target.first().isVisible())) return
+    await revealVirtualized(page, scroller(), target)
+  }
   const expand = async (name: string) => {
+    await reveal(header(name))
     const group = header(name)
-    await expect(group).toBeVisible()
+    await expect(group, `${name} group header must be reachable`).toBeVisible()
     await group.hover()
     const button = group.locator('button[aria-expanded="false"]:not([aria-label="More"])')
     if (await button.count()) await button.click()
   }
-  const displayedGroups = () =>
-    chat().evaluate(
-      (element, labels) => {
-        const groups: Record<string, string[]> = {}
-        let current = ''
-        for (const item of element.querySelectorAll('[data-ui~="chat.group-header"], [data-testid="topic-list-row"]')) {
-          if (item.matches('[data-ui~="chat.group-header"]')) {
-            current = labels.find((label) => item.textContent?.includes(label)) ?? ''
-            groups[current] = []
-          } else if (current) {
-            groups[current].push(item.getAttribute('data-topic-id') ?? item.textContent?.trim() ?? '')
+  const showAllRows = async () => {
+    for (let step = 0; step < 10; step += 1) {
+      const more = chat().locator('button:visible').filter({ hasText: 'Show more' })
+      if ((await more.count()) === 0) return
+      await more.first().click()
+      await page.waitForTimeout(150)
+    }
+  }
+  // Walk the list from the group's own header to the next known header, keeping the rows of this
+  // group out of every window it renders on the way.
+  const groupRows = async (name: string): Promise<string[]> => {
+    await reveal(header(name))
+    const list = scroller()
+    const rows: string[] = []
+    let inside = false
+    for (let step = 0; step < 80; step += 1) {
+      const items = await list.evaluate((element) => {
+        const labelOf = (item: Element) => {
+          for (const span of item.querySelectorAll('span')) {
+            const text = (span.textContent ?? '').trim()
+            if (text) return text
           }
+          return (item.textContent ?? '').trim()
         }
-        return groups
-      },
-      ['Today', 'Yesterday', 'Earlier', ...assistantNames, 'Unlinked Assistant']
-    )
+        const sequence: Array<{ kind: 'header'; label: string } | { kind: 'row'; value: string }> = []
+        for (const item of element.querySelectorAll('[data-ui~="chat.group-header"], [data-testid="topic-list-row"]')) {
+          sequence.push(
+            item.matches('[data-ui~="chat.group-header"]')
+              ? { kind: 'header', label: labelOf(item) }
+              : { kind: 'row', value: item.getAttribute('data-topic-id') ?? (item.textContent ?? '').trim() }
+          )
+        }
+        return sequence
+      })
+      let ended = false
+      for (const item of items) {
+        if (item.kind === 'header') {
+          const label = groupLabels.find((candidate) => item.label === candidate)
+          if (!label) continue
+          if (inside && label !== name) {
+            ended = true
+            break
+          }
+          if (label === name) inside = true
+        } else if (inside) {
+          rows.push(item.value)
+        }
+      }
+      if (ended) break
+      const moved = await list.evaluate((element) => {
+        const next = Math.min(element.scrollTop + element.clientHeight * 0.8, element.scrollHeight)
+        if (next <= element.scrollTop) return false
+        element.scrollTop = next
+        return true
+      })
+      if (!moved) break
+      await page.waitForTimeout(200)
+    }
+    return rows
+  }
+  const ownedIn = (values: string[]) =>
+    values.filter((value) => topics.some((topic) => value.includes(topic.id) || value.includes(topic.name)))
 
   try {
     for (const name of assistantNames) {
@@ -111,60 +166,67 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     await setMode('Time')
-    for (const name of ['Today', 'Yesterday', 'Earlier']) await expand(name)
-    for (const topic of topics) await expect(row(topic.name)).toBeVisible()
-
-    const timeGroups = await displayedGroups()
-    const owned = (values: string[]) =>
-      values.filter((value) => topics.some((topic) => value.includes(topic.id) || value.includes(topic.name)))
+    await showAllRows()
     for (const [name, daysAgo, count] of [
       ['Today', 0, 2],
       ['Yesterday', 1, 1],
       ['Earlier', 14, 2]
     ] as const) {
-      expect(timeGroups[name], `${name} must contain exactly its seeded topics`).toBeDefined()
-      expect(owned(timeGroups[name]), `${name} must contain exactly its seeded topics`).toHaveLength(count)
+      await expand(name)
+      const rendered = ownedIn(await groupRows(name))
+      expect(rendered, `${name} must contain exactly its seeded topics`).toHaveLength(count)
       const members = topics.filter((topic) => topic.daysAgo === daysAgo)
-      expect(
-        timeGroups[name].filter((value) =>
-          members.some((topic) => value.includes(topic.id) || value.includes(topic.name))
-        )
-      ).toHaveLength(count)
+      for (const topic of members) {
+        expect(
+          rendered.some((value) => value.includes(topic.id) || value.includes(topic.name)),
+          `${name} must list ${topic.name}`
+        ).toBe(true)
+      }
       for (const topic of topics.filter((topic) => topic.daysAgo !== daysAgo)) {
-        expect(timeGroups[name].some((value) => value.includes(topic.id) || value.includes(topic.name))).toBe(false)
+        expect(
+          rendered.some((value) => value.includes(topic.id) || value.includes(topic.name)),
+          `${name} must not list ${topic.name}`
+        ).toBe(false)
       }
     }
     await screenshot('MP-45 time groups expanded')
+    await reveal(header('Earlier'))
     await header('Earlier').locator('button[aria-expanded="true"]').click()
     await expect(header('Earlier')).toBeVisible()
-    for (const topic of topics.filter((topic) => topic.daysAgo === 14)) await expect(row(topic.name)).toBeHidden()
+    for (const topic of topics.filter((topic) => topic.daysAgo === 14)) await expect(row(topic.name)).toHaveCount(0)
+    await reveal(row(topics[2].name))
     await expect(row(topics[2].name)).toBeVisible()
     await screenshot('MP-45 earlier group collapsed')
     await expand('Earlier')
-    for (const topic of topics.filter((topic) => topic.daysAgo === 14)) await expect(row(topic.name)).toBeVisible()
+    for (const topic of topics.filter((topic) => topic.daysAgo === 14)) {
+      await reveal(row(topic.name))
+      await expect(row(topic.name)).toBeVisible()
+    }
 
     await setMode('Assistant')
     const verifyAssistantGroups = async () => {
-      for (const name of [...assistantNames, 'Unlinked Assistant']) await expand(name)
-      for (const topic of topics) await expect(row(topic.name)).toBeVisible()
-      const groups = await displayedGroups()
-      const ownedRows = (name: string) =>
-        groups[name].filter((value) => topics.some((topic) => value.includes(topic.id) || value.includes(topic.name)))
+      await showAllRows()
       for (const [name, members] of [
         [assistantNames[0], topics.slice(0, 2)],
         [assistantNames[1], topics.slice(2, 4)],
         ['Unlinked Assistant', topics.slice(4)]
       ] as const) {
-        expect(groups[name], `${name} group must be rendered`).toBeDefined()
+        await expand(name)
         // The unlinked bucket also holds conversations this run did not create, so count only case-owned rows.
-        expect(ownedRows(name), `${name} must contain exactly its seeded topics`).toHaveLength(members.length)
-        for (const topic of members)
-          expect(ownedRows(name).some((value) => value.includes(topic.id) || value.includes(topic.name))).toBe(true)
-        for (const topic of topics.filter((candidate) => !members.includes(candidate)))
+        const rendered = ownedIn(await groupRows(name))
+        expect(rendered, `${name} must contain exactly its seeded topics`).toHaveLength(members.length)
+        for (const topic of members) {
           expect(
-            ownedRows(name).some((value) => value.includes(topic.id) || value.includes(topic.name)),
+            rendered.some((value) => value.includes(topic.id) || value.includes(topic.name)),
+            `${name} must list ${topic.name}`
+          ).toBe(true)
+        }
+        for (const topic of topics.filter((candidate) => !members.includes(candidate))) {
+          expect(
+            rendered.some((value) => value.includes(topic.id) || value.includes(topic.name)),
             `${name} must not contain ${topic.name}`
           ).toBe(false)
+        }
       }
       for (const name of ['Today', 'Yesterday', 'Earlier']) await expect(header(name)).toBeHidden()
     }
