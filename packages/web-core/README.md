@@ -32,7 +32,7 @@ Firefox and Safari.
 | Model providers | Yes | Requests go from the browser, so the provider must allow CORS from the app's origin. |
 | CherryIN sign-in, Cherry account, the built-in CherryAI model | No | First-run setup offers provider setup only; CherryIN works with an API key. |
 | Saving and exporting messages | Markdown and image downloads | Notes, knowledge bases, Word and note apps are desktop-only. |
-| Settings | Provider, default model, general, appearance, about | Other sections are desktop-only. |
+| Settings | Provider, default model, general, appearance, archive, about | Other sections are desktop-only. |
 | Agents | Pi runtime | Claude Code and other runtimes, skills, slash commands, heartbeat and scheduled runs are desktop-only. |
 | Agent file tools | Yes | `read`, `write`, `edit`, `ls`, `find`, `grep` in a workspace in the browser's storage. |
 | Agent file tree and file preview | Yes | The preview is read-only. A local folder's tree does not see changes made outside the app. |
@@ -41,7 +41,8 @@ Firefox and Safari.
 | JavaScript | Yes | QuickJS, without network, file or DOM access. |
 | Shell commands | No | |
 | MCP servers | No | |
-| Deleting, archiving and forking agent sessions; editing a sent agent message | No | |
+| Archiving, restoring and deleting agents and sessions | Yes | Archived items stay until deleted: the automatic cleanup is desktop-only. |
+| Forking agent sessions; editing a sent agent message | No | |
 | Attachments and file storage | No | |
 | Web search, knowledge bases | No | |
 | Paintings, translation, notes, mini apps and other sidebar apps | No | The sidebar and launchpad offer agents and chat only. |
@@ -86,7 +87,7 @@ skipped). Traces are dropped: the desktop trace window has no Web
 counterpart. `close` stops live streams before closing the database.
 
 `workerModuleReplacements` swaps the entry modules of desktop features the Web edition leaves
-out (skills, built-in tools, agent archives and forks, channels, attachments and file storage, model
+out (skills, built-in tools, agent forks, channels, attachments and file storage, model
 listing, web search, Copilot / Grok CLI / Ollama, trace storage, devtools) for stand-ins in
 `src/disabled/` that throw `WebUnsupportedError` when called. Swapping the entry module keeps
 the feature's dependencies out of the bundle. Provider requests use the Worker's `fetch`, so
@@ -95,6 +96,9 @@ an endpoint must allow CORS from the page's origin.
 The Worker build moves every eagerly loaded module into a `core` chunk
 (`workerCodeSplitting(entries)`). WebKit evaluates a module Worker's script a second time when a
 lazily loaded chunk imports from it, which started a second Core Worker without a database.
+It also keeps function names when it minifies: ZenFS's `Async` mixin tells its own nested calls
+apart by the `__patched__` name in stack traces, and with that name mangled a `rename` on `/web`
+left the OPFS folder and ZenFS's in-memory copy out of step.
 
 ## How agents run here
 
@@ -123,7 +127,19 @@ heartbeat, knowledge bases, MCP, skills and slash commands. Served agent IpcApi 
 `close_warm`, `set_pending_input_count`, `refresh_context_usage`, `edit_target`, `edit_resend` and
 `fork` (editing a sent message and forking answer that the checkpoint is unsupported). A new agent
 has no heartbeat to wait for, so `AgentJobsService` is a stand-in with `waitForHeartbeat` only.
-Deleting or archiving an agent or session is not served yet.
+
+### Archiving and deleting
+
+The desktop `AgentLifecycleService` and `AgentWorkspaceStorageService` run in the Worker, so
+archiving from the agent list and Settings → Archive work as on the desktop: `ai.agent.delete`,
+`delete_permanently`, `restore` and `sessions.delete`, and the session's `delete`, `restore` and
+`delete_permanently` are served, and `reuse_or_create` goes through the lifecycle service too.
+Archiving a session packs its system workspace into `<workspace>.tar.gz` and restoring unpacks it;
+in the Worker `tar` is `src/agent/tar.ts`, which builds and reads gzipped tarballs with
+`modern-tar` and `CompressionStream`. Channels, scheduled tasks and agent-to-agent deliveries are
+desktop-only, so `ChannelManager`, `JobManager` and `AgentSessionDeliveryService` are stand-ins
+with nothing to pause, drain or resync. The archive's auto-cleanup runs on the desktop job
+scheduler, which the Web edition does not have: archived items stay until they are deleted.
 
 ### Local folders
 
@@ -164,7 +180,7 @@ opens the `local` account (every visitor shares it until login exists) and then 
 another tab holds it, `src/page/startError.ts` replaces the spinner with the reason and a
 reload button. `pageModuleReplacements` swaps renderer modules
 in the page: Sentry is off, the settings menu keeps the provider, default model,
-general, appearance and about sections, creating an agent shows Pi as its runtime
+general, appearance, archive and about sections, creating an agent shows Pi as its runtime
 instead of a choice, and the Pyodide worker starts in a sandboxed iframe. The launchpad, the
 composer's tools, the message menu, the user menu and first-run setup keep only the entries the
 Web edition serves, and the help menu and dictation are left out. `src/page/tailwind.css` points

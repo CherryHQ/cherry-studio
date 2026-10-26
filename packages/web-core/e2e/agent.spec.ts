@@ -101,6 +101,77 @@ test('lists the files the agent writes in the file tree and previews them', asyn
   await expect(page.getByText('second.txt', { exact: true })).toBeVisible()
 })
 
+/** Has the agent write `content` at `filePath` in a new session and returns the file's workspace path. */
+async function writeInNewSession(page: Page, filePath: string, content: string): Promise<string> {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+  await send(page, `please call write {"path":"${filePath}","content":"${content}"}`)
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+  const written = Object.keys(await readWorkspaceFiles(page)).find((path) => path.endsWith(`/${filePath}`))
+  expect(written).toBeDefined()
+  return written!
+}
+
+/** Archives the agent's only session from its row in the agent list. */
+async function archiveSession(page: Page) {
+  // "More" on the agent lists its sessions.
+  await page.getByRole('button', { name: 'More' }).first().click()
+  const row = page.getByTestId('agent-session-row')
+  await row.getByRole('button', { name: 'Archive', exact: true }).focus()
+  await page.keyboard.press('Enter')
+  await expect(row).toHaveCount(0)
+}
+
+async function openArchive(page: Page) {
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Archive', exact: true }).click()
+}
+
+test('archives a session with its files and restores it from the archive', async ({ page }) => {
+  // Longer than the 100 characters a plain tar header holds for a name.
+  const filePath = `${'nested-folder/'.repeat(8)}notes.txt`
+  const written = await writeInNewSession(page, filePath, 'kept in the archive')
+
+  const sessionFolder = written.split('/').slice(0, 2).join('/')
+  // What the session's folder holds once the Worker has finished with it, read again while it is busy.
+  const settled = () =>
+    expect.poll(async () => {
+      const files = await readWorkspaceFiles(page).catch(() => ({}))
+      return { names: Object.keys(files).filter((path) => path.startsWith(sessionFolder)), written: files[written] }
+    })
+
+  // The session leaves the list before its workspace is packed.
+  await archiveSession(page)
+  await settled().toEqual({ names: [`${sessionFolder}.tar.gz`], written: undefined })
+
+  await openArchive(page)
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Restore' }).click()
+  await settled().toEqual({ names: [written], written: 'kept in the archive' })
+})
+
+test('deletes an archived session and its files permanently', async ({ page }) => {
+  const written = await writeInNewSession(page, 'notes.txt', 'deleted for good')
+  const sessionFolder = written.split('/').slice(0, 2).join('/')
+
+  await archiveSession(page)
+  await openArchive(page)
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Delete Permanently' }).click()
+  await page
+    .getByRole('dialog')
+    .or(page.getByRole('alertdialog'))
+    .getByRole('button', { name: /Delete/ })
+    .click()
+  await expect(page.getByRole('tabpanel').getByRole('button', { name: 'Restore' })).toHaveCount(0)
+  await expect
+    .poll(async () => {
+      const files = await readWorkspaceFiles(page).catch(() => undefined)
+      return files && Object.keys(files).filter((path) => path.startsWith(sessionFolder))
+    })
+    .toEqual([])
+})
+
 test('runs Python in the page after approval', async ({ page }) => {
   await gotoApp(page, 'Work')
   await setUpAssistant(page)

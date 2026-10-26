@@ -29,6 +29,7 @@
     "drizzle-orm": "^0.44.5",
     "es-toolkit": "^1.49.0",
     "kerium": "^1.5.0",
+    "modern-tar": "^0.8.6",
     "pathe": "^2.0.3",
     "quickjs-wasi": "3.6.2",
     "zod": "4.4.3"

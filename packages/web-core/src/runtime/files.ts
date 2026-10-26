@@ -26,7 +26,17 @@ export {
   isSameOrInside,
   resolvePath
 } from '@main/utils/file/path'
+export {
+  createPathOverlapCheck,
+  nearestExistingRealPathSync,
+  type PathNameBehavior
+} from '@main/utils/file/pathIdentity'
 export { getPathStatus, type PathStatus, type PathStatusKind } from '@main/utils/file/pathStatus'
+
+/** The desktop's check for a directory fsync the file system cannot do (`@main/utils/file/fs`, which needs Node streams). */
+export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
+  return code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP'
+}
 
 export async function stat(path: AbsoluteFilePath) {
   const s = await fsStat(path)

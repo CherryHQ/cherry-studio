@@ -1,10 +1,14 @@
 import type { AgentJobsService } from '@main/ai/agents/AgentJobsService'
+import type { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
+import type { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import type { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import type { AiService } from '@main/ai/AiService'
+import type { ChannelManager } from '@main/ai/channels/ChannelManager'
 import type { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
 import type { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
 import type { AiStreamManager } from '@main/ai/streamManager'
 import type { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
+import type { JobManager } from '@main/core/job/JobManager'
 import type { CacheService } from '@main/data/CacheService'
 import type { DataApiService } from '@main/data/DataApiService'
 import type { PreferenceService } from '@main/data/PreferenceService'
@@ -36,6 +40,13 @@ export interface WebServices {
   ClaudeCodeWarmQueryManager: Pick<ClaudeCodeWarmQueryManager, 'close' | 'closeAgentSessionWarm'>
   AgentJobsService: Pick<AgentJobsService, 'waitForHeartbeat'>
   DirectoryTreeManager: DirectoryTreeManager
+  AgentLifecycleService: AgentLifecycleService
+  AgentSessionDeliveryService: Pick<
+    AgentSessionDeliveryService,
+    'pause' | 'kick' | 'drainSessionQueues' | 'drainInFlight' | 'listActiveWork'
+  >
+  ChannelManager: Pick<ChannelManager, 'pause' | 'reconcileAgent' | 'drainInFlight' | 'listActiveWork'>
+  JobManager: Pick<JobManager, 'syncJobScheduleTimerById'>
 }
 
 /**
