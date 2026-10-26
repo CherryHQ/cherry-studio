@@ -223,7 +223,7 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
       }
       await navigation.getByText(title, { exact: true }).click()
       const editor = page.locator('[data-ui~="notes.editor"][data-file-edit]')
-      await expect(editor).toHaveAttribute('data-note-id', matching[0].path)
+      await expect(editor).toHaveAttribute('data-note-id', matching[0].path.replaceAll('\\', '/'))
       const firstText = file.content
         .split('\n')
         .find((line) => /^#\s+/.test(line))
