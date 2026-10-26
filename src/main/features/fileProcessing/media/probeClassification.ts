@@ -50,6 +50,8 @@ export interface VideoTailProbePoint {
   endSeconds: number
   /** `format.start_time`. Input `-ss` is relative to this, not the video stream start. */
   formatStartTimeSeconds: number
+  /** Video stream start. Output `-ss` on the mapped video stream counts from here. */
+  videoStartSeconds: number
 }
 
 /** Where a bounded packet read should look. The video stream end is not an input seek. */
@@ -60,7 +62,7 @@ export function videoTailProbePoint(probe: FfprobeResult): VideoTailProbePoint |
   const videoStartSeconds = parseFiniteSeconds(video.start_time) ?? formatStartTimeSeconds
   const durationSeconds = parseFiniteSeconds(video.duration) ?? parseFiniteSeconds(probe.format?.duration)
   if (durationSeconds == null || durationSeconds <= 0) return undefined
-  return { endSeconds: videoStartSeconds + durationSeconds, formatStartTimeSeconds }
+  return { endSeconds: videoStartSeconds + durationSeconds, formatStartTimeSeconds, videoStartSeconds }
 }
 
 /** ffprobe interval covering the end of the video timeline, including a packet that starts earlier. */
