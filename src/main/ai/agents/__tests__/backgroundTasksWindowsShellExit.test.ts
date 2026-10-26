@@ -1,6 +1,6 @@
 import type * as ChildProcessModule from 'node:child_process'
 import { writeFileSync } from 'node:fs'
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -26,6 +26,7 @@ vi.mock('node:child_process', async (importOriginal) => {
 import {
   BACKGROUND_TASK_EVIDENCE_EXT,
   BACKGROUND_TASK_LOG_EXT,
+  BACKGROUND_TASK_RECORD_EXT,
   getDetachedBackgroundTask,
   startDetachedBackgroundTask,
   stopDetachedBackgroundTask
@@ -96,7 +97,12 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
         : [
             '  printf \'ready\' > "$CHERRY_BG_JOB_READY"',
             '  last=""',
-            '  while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null; do',
+            // Bounded, and deaf to nothing: a keeper whose runner outlives the test would
+            // otherwise poll forever. One minute is far past any case here, and a vanished
+            // protocol directory means the runner can never read an answer again.
+            '  iterations=0',
+            '  while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null && [ "$iterations" -lt 1200 ]; do',
+            '    [ -d "$(dirname "$CHERRY_BG_JOB_FILE")" ] || exit 4',
             '    if [ -f "$CHERRY_BG_JOB_REQUEST" ]; then',
             '      nonce=$(cat "$CHERRY_BG_JOB_REQUEST" 2>/dev/null)',
             '      if [ -n "$nonce" ] && [ "$nonce" != "$last" ]; then',
@@ -107,6 +113,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
             '      fi',
             '    fi',
             '    sleep 0.05',
+            '    iterations=$((iterations + 1))',
             '  done'
           ]),
       '  ;;',
@@ -152,6 +159,30 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     })
   }
 
+  /**
+   * Ends the runner each case started, before its storage goes away. The keeper only waits on the
+   * runner, and the runner only reads a protocol directory this hook is about to delete: once that
+   * is gone no membership answer can ever arrive, so neither side can observe the other leaving and
+   * the pair outlives the suite. Killing the runner's group tears both down at once.
+   */
+  const killStartedRunners = async (): Promise<void> => {
+    const names = await readdir(storageDir).catch(() => [] as string[])
+    for (const name of names) {
+      if (!name.endsWith(BACKGROUND_TASK_RECORD_EXT)) continue
+      try {
+        const started = JSON.parse(await readFile(path.join(storageDir, name), 'utf8')) as { pid?: number }
+        if (!started.pid || started.pid <= 0) continue
+        try {
+          process.kill(-started.pid, 'SIGKILL')
+        } catch {
+          process.kill(started.pid, 'SIGKILL')
+        }
+      } catch {
+        // Unreadable or already gone: nothing to end.
+      }
+    }
+  }
+
   beforeEach(async () => {
     // The Windows branch of the spawn factory is what selects the runner under test; the runner
     // itself sees the real platform, so the fake probe below is what it consults.
@@ -162,6 +193,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
   })
 
   afterEach(async () => {
+    await killStartedRunners()
     // Empty the fake table so any live runner reads a drained tree and exits instead of polling
     // a survivor that only exists inside the test.
     if (fakeTable) await writeFile(fakeTable, `${TABLE_HEADER}\n`).catch(() => undefined)
