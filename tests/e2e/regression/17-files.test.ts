@@ -128,7 +128,9 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
             id: 'mp150-model',
             method: 'POST',
             path: '/models',
-            body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+            body: [
+              { providerId, modelId, endpointTypes: ['openai-chat-completions'], capabilities: ['image-recognition'] }
+            ]
           })
           const assistant = await request({
             id: 'mp150-assistant',
@@ -178,6 +180,9 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
         submitChatMarker(page, 'MP150 attachments received'),
         (async () => {
           const request = await server.nextRequest()
+          expect(JSON.stringify(request.body.messages), 'The sent draft must retain its image attachment').toContain(
+            'image_url'
+          )
           request.complete('MP150 attachments received')
         })()
       ])
