@@ -49,9 +49,9 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string | null
     const text = await officeParser.parseOfficeAsync(buffer, { tempFilesLocation: application.getPath('app.temp') })
     return text.trim()
   }
-  if (getFileTypeByExt(ext) === FILE_TYPE.OTHER) {
-    return decodeTextBufferIfText(buffer)?.trim() ?? null
-  }
+  const fileType = getFileTypeByExt(ext)
+  if (fileType === FILE_TYPE.IMAGE || fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) return null
+  if (fileType === FILE_TYPE.OTHER) return decodeTextBufferIfText(buffer)?.trim() ?? null
   return decodeTextWithAutoEncoding(buffer).trim()
 }
 

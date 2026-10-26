@@ -139,8 +139,13 @@ export function resolveRequiredNativeFileSupport(
       if (p.type !== 'file' || typeof p.mediaType !== 'string') continue
       if (p.mediaType.startsWith('image/') && primarySupport.image) required.image = true
       else if (p.mediaType.startsWith('video/') && primarySupport.video) required.video = true
-      else if (p.mediaType.startsWith('audio/') && primarySupport.audio) required.audio = true
-      else if (p.mediaType === 'application/pdf' && primarySupport.pdf) required.pdf = true
+      else if (p.mediaType.startsWith('audio/') && primarySupport.audio) {
+        required.audio = true
+        const mediaType = p.mediaType.toLowerCase()
+        if (!required.audioMediaTypes?.includes(mediaType)) {
+          required.audioMediaTypes = [...(required.audioMediaTypes ?? []), mediaType]
+        }
+      } else if (p.mediaType === 'application/pdf' && primarySupport.pdf) required.pdf = true
     }
   }
   return required
@@ -715,7 +720,7 @@ export class AiService extends BaseService {
           signal,
           primaryUniqueModelId: model.id,
           primaryHasTools: !!tools && Object.keys(tools).length > 0,
-          requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
+          requiredNativeFileSupport: resolveRequiredNativeFileSupport(preparedMessages, nativeFileSupport),
           extraFeatures,
           retryPolicy,
           createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
