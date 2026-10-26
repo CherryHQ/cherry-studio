@@ -57,7 +57,8 @@ const Translate: FC<Props> = ({ text }) => {
   })
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden p-3 [-webkit-app-region:no-drag]">
+    // Keep the exclusion stationary instead of inheriting it into scrolling translation content.
+    <div className="flex flex-1 flex-col overflow-hidden p-3 [-webkit-app-region:no-drag] [&_*]:[-webkit-app-region:initial]">
       <div className="mb-4 flex w-full flex-row items-center justify-center gap-5">
         <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-disabled text-sm">
           <span className="truncate">{t('translate.any.language')}</span>
