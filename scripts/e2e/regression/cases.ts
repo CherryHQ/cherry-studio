@@ -703,7 +703,13 @@ export const REGRESSION_CASES = [
     phase: '18-data',
     capabilities: []
   },
-  { id: 'MP-116', title: 'Restore from a local backup', task: '18-data', phase: '18-data', capabilities: [] },
+  {
+    id: 'MP-116',
+    title: 'Restore from a local backup',
+    task: '18-data',
+    phase: '18-data',
+    capabilities: ['desktopAutomation']
+  },
   { id: 'MP-117', title: 'Automatic backups and retention count', task: '18-data', phase: '18-data', capabilities: [] },
   { id: 'MP-118', title: 'Clear cache by category', task: '18-data', phase: '18-data', capabilities: [] },
   {
@@ -725,7 +731,7 @@ export const REGRESSION_CASES = [
     title: 'Reset application data (run last)',
     task: '18-data',
     phase: '18-data',
-    capabilities: [],
+    capabilities: ['desktopAutomation'],
     platforms: ['macos']
   },
   {

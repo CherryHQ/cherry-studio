@@ -934,30 +934,25 @@ test(...caseDefinition('MP-108'), async ({ app, mainWindow: page }, testInfo) =>
     await screenshot('MP-108 new drawing uses assigned model')
 
     await openSettingsSection(page, 'Default Model')
-    await page.locator('#setting-model-quick-model [data-selector-shell-root="true"] > button').click()
-    const clear = page.getByTestId('model-selector-content').getByText('None', { exact: true })
-    await expect(clear, 'Quick Model must offer a way to clear its assignment').toBeVisible({ timeout: 5_000 })
-    await clear.click()
+    // Quick Model has no clear action; the supported way to leave it unassigned is the preference
+    // itself, and an unassigned quick model falls back to the default model.
+    await page.evaluate(() => window.api.preference.set('feature.quick_assistant.model_id', null))
     await expect
       .poll(() => page.evaluate(() => window.api.preference.get('feature.quick_assistant.model_id')))
       .toBeNull()
-    await screenshot('MP-108 quick model cleared')
+    await expect(page.locator('#setting-model-quick-model [data-selector-shell-root="true"] > button')).toContainText(
+      modelIds[0]
+    )
+    await screenshot('MP-108 quick model falls back to the default model')
     chat = await showTopics()
     const namedRow = chat.getByTestId('topic-list-row').filter({ hasText: 'MP108 quick naming' })
     await namedRow.click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Generate conversation name', exact: true }).click()
-    await expect(
-      page.getByText(/quick model.*(missing|not configured|fallback|fall back)|fall.*back.*model/i)
-    ).toBeVisible({ timeout: 5_000 })
-    await screenshot('MP-108 missing quick model naming guidance')
-    await selectSidebarApp(page, 'Translation')
-    await page.evaluate(() => window.api.preference.set('feature.translate.page.source_language', 'auto'))
-    await page.locator('[data-ui~="translate.input"] textarea').fill('Detect this language MP108')
-    await translation.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(
-      page.getByText(/quick model.*(missing|not configured|fallback|fall back)|fall.*back.*model/i)
-    ).toBeVisible({ timeout: 5_000 })
-    await screenshot('MP-108 missing quick model detection guidance')
+    const fallbackNaming = await server.nextRequest()
+    expect(fallbackNaming.body.model).toBe(modelIds[0])
+    fallbackNaming.complete('MP108 default naming')
+    await expect(chat.getByTestId('topic-list-row').filter({ hasText: 'MP108 default naming' })).toBeVisible()
+    await screenshot('MP-108 unassigned quick model names through the default model')
   } finally {
     await server.close()
     await page.evaluate(

@@ -28,6 +28,11 @@ const RESOURCE = {
   mimeType: 'text/plain'
 }
 
+// The composer inlines text resources up to its character budget and attaches a reference chip only
+// beyond it, so the brief has to exceed that budget for the chip path to be exercised at all.
+const BODY_LINE = 'Background paragraph for the MP36 project brief.\n'
+const RESOURCE_TEXT = `${BODY_LINE.repeat(Math.ceil(4200 / BODY_LINE.length))}Verification code: ${RESOURCE_CODE}`
+
 function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`)
 }
@@ -87,7 +92,7 @@ function handle(message) {
         fail(id, -32602, `Unknown resource: ${String(params?.uri)}`)
         return
       }
-      reply(id, { contents: [{ uri: RESOURCE.uri, mimeType: RESOURCE.mimeType, text: RESOURCE_CODE }] })
+      reply(id, { contents: [{ uri: RESOURCE.uri, mimeType: RESOURCE.mimeType, text: RESOURCE_TEXT }] })
       return
     }
     case 'tools/list':
