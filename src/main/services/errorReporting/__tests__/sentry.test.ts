@@ -150,26 +150,35 @@ describe('Sentry consent gate', () => {
     ).toBeNull()
   })
 
-  it('bounds repeated legacy errors without suppressing a different internal defect', () => {
+  it.each([
+    { label: 'automatic', tags: {} },
+    { label: 'legacy log', tags: { 'capture.source': 'log' } },
+    { label: 'invalid classification', tags: { 'failure.kind': 'reliability' } }
+  ])('limits unclassified $label errors to one per ten minutes', ({ tags }) => {
     grantConsent()
     const options = initOptions()
-    const legacy = { tags: { module: 'Legacy', 'capture.source': 'log' } }
-    expect(options.beforeSend(legacy)).not.toBeNull()
-    expect(options.beforeSend(legacy)).toBeNull()
-    expect(
-      options.beforeSend({
-        tags: {
-          module: 'Persistence',
-          'failure.source': 'application',
-          'failure.kind': 'reliability',
-          'failure.reason': 'persistence_failed',
-          'failure.outcome': 'failed'
-        }
-      })
-    ).not.toBeNull()
+    const unclassified = { tags: { module: 'Unclassified', ...tags } }
+    expect(options.beforeSend(unclassified)).not.toBeNull()
+    const classified = {
+      tags: {
+        module: 'Persistence',
+        'failure.source': 'application',
+        'failure.kind': 'reliability',
+        'failure.reason': 'persistence_failed',
+        'failure.outcome': 'failed'
+      }
+    }
+    expect(options.beforeSend(classified)).not.toBeNull()
+    expect(options.beforeSend(unclassified)).toBeNull()
+    for (let i = 0; i < 4; i++) expect(options.beforeSend(classified)).not.toBeNull()
+    expect(options.beforeSend(classified)).toBeNull()
     const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60 * 1000 + 1)
-    expect(options.beforeSend(legacy)).not.toBeNull()
-    now.mockRestore()
+    try {
+      expect(options.beforeSend(unclassified)).not.toBeNull()
+      expect(options.beforeSend(unclassified)).toBeNull()
+    } finally {
+      now.mockRestore()
+    }
   })
 
   it('does not initialize in development even with reporting consent', () => {
@@ -296,8 +305,8 @@ describe('Sentry client identity', () => {
     grantConsent()
     const options = initOptions()
 
-    const first = options.beforeSend({ message: 'first error' })
-    const second = options.beforeSend({ message: 'second error' })
+    const first = options.beforeSend({ message: 'first error', tags: { module: 'First' } })
+    const second = options.beforeSend({ message: 'second error', tags: { module: 'Second' } })
 
     expect(isUuid(first.user.id)).toBe(true)
     expect(second.user.id).toBe(first.user.id)

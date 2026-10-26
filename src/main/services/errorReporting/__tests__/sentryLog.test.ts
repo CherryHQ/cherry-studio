@@ -4,9 +4,11 @@ import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
 
+import { PersistenceListener, TerminalPersistenceError } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { BaseService } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
 import { ApiServer } from '@main/data/api/core/ApiServer'
+import { messageTable } from '@main/data/db/schemas/message'
 import { classifyDatabaseFailure } from '@main/data/failureFacts'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -116,6 +118,53 @@ describe('Sentry log reporting', () => {
         'failure.reason': 'sqlite_full'
       })
     }
+  })
+
+  it('keeps malformed stored message content local when terminal persistence fails', async () => {
+    setConsent(true)
+    const lines: string[] = []
+    loggerService.getBaseLogger().add(
+      new winston.transports.Stream({
+        stream: new Writable({
+          write(chunk, _encoding, callback) {
+            lines.push(chunk.toString())
+            callback()
+          }
+        })
+      })
+    )
+    const privateContent = 'my diary'
+    const listener = new PersistenceListener({
+      topicId: 'topic',
+      backend: {
+        kind: 'sqlite',
+        persistAssistant() {
+          messageTable.data.mapFromDriverValue(privateContent)
+        }
+      },
+      onPersistFailed: () => {}
+    })
+
+    await expect(
+      listener.onDone({
+        status: 'success',
+        finalMessage: { id: 'message', role: 'assistant', parts: [{ type: 'text', text: 'answer' }] }
+      })
+    ).rejects.toBeInstanceOf(TerminalPersistenceError)
+    await drainLogs()
+
+    expect(lines.join('')).toContain(privateContent)
+    expect(captureExceptionMock.mock.calls).toHaveLength(1)
+    const [reported, context] = captureExceptionMock.mock.calls[0]
+    expect(reported).toMatchObject({ name: 'OperationError', message: 'persistence_failed' })
+    expect(reported.stack).toContain('    at ')
+    expect(reported.stack).not.toContain(privateContent)
+    expect(JSON.stringify(context)).not.toContain(privateContent)
+    expect(context.tags).toMatchObject({
+      operation: 'message.persist',
+      'failure.kind': 'reliability',
+      'failure.reason': 'persistence_failed'
+    })
   })
 
   it('keeps SQL and parameters local while reporting a database failure only once', async () => {

@@ -76,7 +76,7 @@ export class ErrorReportingService extends BaseService {
       runtime: tags['failure.runtime']
     })
     if (facts && !shouldReportFailure(facts)) return null
-    const unknown = facts?.kind === 'unknown' || (!facts && tags['capture.source'] === 'log')
+    const unknown = !facts || facts.kind === 'unknown'
     const key = createHash('sha256')
       .update(
         JSON.stringify([
