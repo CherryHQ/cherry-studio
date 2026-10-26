@@ -21,15 +21,18 @@ export interface RecoveryStats {
  * its own `recovery` uses that instead), then handles orphan running jobs whose
  * handler is no longer registered.
  *
- * In-flight exclusion: rows the CURRENT process is still executing (reported
- * via `isJobInFlight`, backed by `JobManager.inFlightExecuted`) are filtered
- * out up front, before any strategy or the cancelRequested override. Recovery
- * exists to reconcile leftovers from a PRIOR process; a job enqueued during the
- * startup quiet window and still running when the sweep fires is owned by this
- * process and must be left alone — otherwise the retry/singleton reset would
- * re-dispatch it (running it twice) and abandon/cancelRequested would race a
- * second terminal write against the live handler (#16291). `cancel()` already
- * owns in-flight cancellation, so excluding these rows from every branch is safe.
+ * Current-launch exclusion: rows the CURRENT process owns (reported via
+ * `isOwnedByCurrentLaunch`) are filtered out up front, before any strategy or
+ * the cancelRequested override. Recovery exists to reconcile leftovers from a
+ * PRIOR process. A job enqueued during the startup quiet window is owned by this
+ * process whether it is running, queued behind its concurrency cap, or waiting
+ * out a retry backoff when the sweep fires, and so is a leftover this process
+ * already picked up. Touching either breaks it: the retry/singleton reset would
+ * re-dispatch a running job (running it twice), abandon/cancelRequested would race
+ * a second terminal write against its live handler (#16291), and abandon would
+ * cancel a queued one behind JobManager's back, so its `finished` never settles.
+ * `cancel()` already owns cancellation of this process's jobs, so excluding them
+ * from every branch is safe.
  *
  * Step order matters: cancelRequested=true overrides any strategy — those
  * jobs are cancelled regardless. The strategy then applies to the rest.
@@ -43,13 +46,13 @@ export interface RecoveryStats {
  *
  * @param handlers - Registered handler map (type → handler) defining each
  *   type's recovery strategy.
- * @param isJobInFlight - Predicate returning true when the given jobId is
- *   currently being executed by this process; such rows are excluded from all
- *   recovery actions.
+ * @param isOwnedByCurrentLaunch - Predicate returning true when the given jobId
+ *   belongs to this process (enqueued by it, or already executing in it); such
+ *   rows are excluded from all recovery actions.
  */
 export function runStartupRecovery(
   handlers: ReadonlyMap<string, JobHandler>,
-  isJobInFlight: (jobId: string) => boolean
+  isOwnedByCurrentLaunch: (jobId: string) => boolean
 ): RecoveryStats {
   const stats: RecoveryStats = { cancelled: 0, pendingReset: 0, delayedKept: 0, singletonKept: 0 }
   const cancelledByRecovery: JobError = {
@@ -59,11 +62,10 @@ export function runStartupRecovery(
   }
 
   for (const [type, handler] of handlers) {
-    // Exclude rows this process is still executing — recovery only reconciles
-    // prior-process leftovers. Filtering here (above the cancelRequested
-    // override and every strategy) keeps retry/singleton from re-dispatching a
-    // live job and abandon from cancelling it mid-flight (#16291).
-    const active = jobService.getActiveByType(type).filter((r) => !isJobInFlight(r.id))
+    const rows = jobService.getActiveByType(type)
+    // Above the cancelRequested override and every strategy, so none of them
+    // ever touches a job of this process (#16291).
+    const active = rows.filter((r) => !isOwnedByCurrentLaunch(r.id))
     if (active.length === 0) continue
 
     // 1. cancelRequested → cancelled, regardless of strategy. Includes pending
@@ -111,22 +113,24 @@ export function runStartupRecovery(
       }
     }
     if (singletons.length) {
+      // An instance this launch owns supersedes every leftover. Otherwise keep the newest one:
       // singletons keep the createdAt DESC order of the jobService read.
-      const keep = singletons[0]
-      if (keep.status === 'running') {
+      const ownsInstance = rows.some((r) => isOwnedByCurrentLaunch(r.id) && strategyOf(r) === 'singleton')
+      const keep = ownsInstance ? undefined : singletons[0]
+      if (keep?.status === 'running') {
         jobService.resetToPendingByIds([keep.id])
         stats.pendingReset += 1
       }
-      stats.singletonKept += 1
-      const toCancelIds = singletons.slice(1).map((r) => r.id)
+      if (keep) stats.singletonKept += 1
+      const toCancelIds = singletons.filter((r) => r !== keep).map((r) => r.id)
       if (toCancelIds.length) {
         jobService.cancelByIds(toCancelIds, cancelledByRecovery)
         stats.cancelled += toCancelIds.length
       }
       logger.info('Singleton recovery', {
         type,
-        keptId: keep.id,
-        keptStatus: keep.status,
+        keptId: keep?.id ?? null,
+        keptStatus: keep?.status ?? null,
         cancelled: toCancelIds.length
       })
     }

@@ -150,14 +150,21 @@ export class JobManager extends BaseService {
    * enqueued the job. The authoritative in-memory set of jobIds this process is
    * currently executing. Consumers:
    *   - `cancel()` waits on the promise for the handler to release.
-   *   - startup recovery filters these out (via the `isJobInFlight` predicate)
-   *     so a job started during the quiet window is never reset/re-dispatched.
+   *   - startup recovery filters these out, so a leftover already picked up
+   *     during the quiet window is never reset/re-dispatched.
    *   - `spawnExecute` guards against double-running an id already present.
    * Lives independent of `finishedResolvers` because cross-restart dispatch
    * never builds a `handleFor` entry, leaving the resolver map empty even while
    * a controller is registered.
    */
   private readonly inFlightExecuted = new Map<string, Promise<void>>()
+  /**
+   * Non-terminal rows a previous launch left behind, read in `onInit` before
+   * any service can enqueue (every one depends on JobManager). Startup recovery
+   * reconciles only these: a row this launch enqueued is never a leftover,
+   * whatever its status when the sweep fires.
+   */
+  private leftoverJobIds: ReadonlySet<string> = new Set()
   private readonly scheduleDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
@@ -272,7 +279,8 @@ export class JobManager extends BaseService {
   // ---------------- Lifecycle ----------------
 
   protected override onInit(): void {
-    logger.info('JobManager initialized')
+    this.leftoverJobIds = new Set(jobService.getStaleActive().map((row) => row.id))
+    logger.info('JobManager initialized', { leftoverJobs: this.leftoverJobIds.size })
   }
 
   protected override async onReady(): Promise<void> {
@@ -344,8 +352,9 @@ export class JobManager extends BaseService {
    *
    *   1. `runStartupRecovery` resets non-terminal rows per handler strategy
    *      (abandon / retry / singleton) and honours `cancelRequested` overrides,
-   *      EXCEPT rows this process is still executing (`inFlightExecuted`), which
-   *      are excluded so a job started during the quiet window is not re-dispatched.
+   *      on the previous launch's leftovers only (`leftoverJobIds`), minus any
+   *      this process is already executing (`inFlightExecuted`). A job enqueued
+   *      during the quiet window is neither cancelled nor re-dispatched.
    *
    *   2. Resurrect queues for any non-terminal rows from previous runs so
    *      pending dispatch lands on the next tick. `dispatchAll()` iterates
@@ -421,7 +430,10 @@ export class JobManager extends BaseService {
     if (startIndex <= RECOVERY_STEPS.indexOf('reset')) {
       if (interruptedAt({ step: 'reset' })) return
       try {
-        const stats = runStartupRecovery(this.handlers, (id) => this.inFlightExecuted.has(id))
+        const stats = runStartupRecovery(
+          this.handlers,
+          (id) => !this.leftoverJobIds.has(id) || this.inFlightExecuted.has(id)
+        )
         logger.info('Startup recovery complete', stats)
       } catch (err) {
         logger.error('Startup recovery failed', err as Error)

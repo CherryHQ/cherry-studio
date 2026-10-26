@@ -3,7 +3,7 @@
  *
  * These pin the most regression-prone part of the fix for the startup-recovery
  * double-dispatch race (#16291): a job the CURRENT process is still executing
- * (reported via the `isJobInFlight` predicate) must be left untouched by ALL
+ * (reported via the `isOwnedByCurrentLaunch` predicate) must be left untouched by ALL
  * recovery branches — the exclusion sits at the TOP of the per-type loop, above
  * the cancelRequested override. The end-to-end JobManager integration test
  * proves the no-double-dispatch outcome; this proves the predicate filtering
@@ -132,7 +132,7 @@ describe('runStartupRecovery — in-flight exclusion', () => {
   // today, but these pin that "every branch" claim: if the filter were ever
   // moved into the retry branch, singleton would cancel/reset the live row and
   // abandon would cancel it mid-flight.
-  it('singleton: leaves the in-flight row untouched and applies the strategy only to orphans', async () => {
+  it('singleton: leaves the in-flight row untouched and cancels the orphan it supersedes', async () => {
     const type = 'task.singleton.unit.inflight'
     const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
     const t0 = Date.now() - 5000
@@ -179,8 +179,8 @@ describe('runStartupRecovery — in-flight exclusion', () => {
     // filter, singleton keeps the newest (orphan) and CANCELS this older
     // in-flight row mid-flight.
     expect(inFlight?.status).toBe('running')
-    // The sole remaining row (orphan) becomes the kept singleton, reset to pending.
-    expect(orphan?.status).toBe('pending')
+    // This process already runs the one instance, so keeping the orphan too would run two.
+    expect(orphan?.status).toBe('cancelled')
   })
 
   it('abandon: cancels only the orphan and leaves the in-flight row running', async () => {
