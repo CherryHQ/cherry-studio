@@ -317,7 +317,14 @@ function mediaInput(): AgentRuntimeUserInput {
     message: {
       id: 'msg-audio',
       data: {
-        parts: [{ type: 'file', mediaType: 'audio/wav', filename: 'clip.wav', url: 'file:///tmp/clip.wav' }]
+        parts: [
+          {
+            type: 'file',
+            mediaType: 'audio/wav',
+            filename: 'clip.wav',
+            url: pathToFileURL(path.join(tmpdir(), 'clip.wav')).href
+          }
+        ]
       }
     } as AgentRuntimeUserInput['message']
   }
