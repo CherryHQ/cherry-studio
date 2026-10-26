@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 
 describe('ProviderRegistryService explicit provider context', () => {
@@ -26,6 +26,32 @@ describe('ProviderRegistryService explicit provider context', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     providerRegistryService.clearCache()
+  })
+
+  it.each([
+    ['openai/gpt-5.6-terra', false],
+    ['gpt-4o', true]
+  ] as const)('resolves CherryIN %s with its effective temperature support and wire id', (apiModelId, supported) => {
+    const result = providerRegistryService.resolveModel(
+      { id: 'cherryin', presetProviderId: 'cherryin', defaultChatEndpoint: 'openai-chat-completions' },
+      apiModelId
+    )
+    expect(result.presetModel).not.toBeNull()
+    const model = mergePresetModel(
+      result.presetModel!,
+      result.registryOverride,
+      'cherryin',
+      result.reasoningProfile.wire,
+      result.reasoningProfile.support,
+      result.serviceTierControl
+    )
+    expect(model.apiModelId).toBe(apiModelId)
+    if (supported) {
+      expect(result.presetModel?.parameterSupport?.temperature?.supported).not.toBe(false)
+      expect(model.parameterSupport?.temperature?.supported).not.toBe(false)
+    } else {
+      expect(model.parameterSupport?.temperature?.supported).toBe(false)
+    }
   })
 
   it('uses the supplied provider identity even when persisted identity differs and global DB is unavailable', () => {

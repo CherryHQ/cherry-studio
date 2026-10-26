@@ -13,6 +13,7 @@ const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const generatedOverrides = JSON.parse(readFileSync(join(dataDir, 'provider-models.json'), 'utf8')).overrides as Array<{
   providerId: string
   modelId: string
+  apiModelId?: string
   parameterSupport?: { temperature?: { supported?: boolean }; topP?: { supported?: boolean } }
 }>
 
@@ -75,5 +76,22 @@ describe('moonshot-passthrough parameter support', () => {
     expect(dashscopeK2).toBeDefined()
     expect(openrouterK2!.parameterSupport).toBeUndefined()
     expect(dashscopeK2!.parameterSupport).toBeUndefined()
+  })
+})
+
+describe('CherryIN Terra temperature support', () => {
+  it('declares the restriction on the CherryIN offer', () => {
+    expect(overrideOf('cherryin', 'gpt-5-6-terra').parameterSupport?.temperature).toEqual({ supported: false })
+  })
+
+  it('ships a sparse restriction with the namespaced wire id', () => {
+    const row = generatedRowOf('cherryin', 'gpt-5-6-terra')
+    expect(row).toBeDefined()
+    expect(row?.apiModelId).toBe('openai/gpt-5.6-terra')
+    expect(row?.parameterSupport).toEqual({ temperature: { supported: false } })
+  })
+
+  it('does not add a Terra Pro offer', () => {
+    expect(generatedRowOf('cherryin', 'gpt-5-6-terra-pro')).toBeUndefined()
   })
 })
