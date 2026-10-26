@@ -138,3 +138,29 @@ test('streams a reply to the page through the renderer chat transport', async ({
   // Written by the Worker's stream manager, so it reached the page through the shared-cache relay.
   expect(result.streamStatus).toBeTruthy()
 })
+
+test('creates an agent and gives it a session, as the new-agent dialog does', async ({ page, account }) => {
+  await gotoBridge(page, account)
+  const result = await page.evaluate(async () => {
+    const { dataApiService, ipcApi } = bridge
+    const providerId = `mock-${crypto.randomUUID().slice(0, 8)}`
+    await dataApiService.post('/providers', {
+      body: { providerId, name: 'Mock provider', defaultChatEndpoint: 'openai-chat-completions' }
+    })
+    await dataApiService.post('/models', {
+      body: [{ providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }]
+    })
+    const agent = await ipcApi.request('ai.agent.create', {
+      type: 'pi',
+      name: 'Web agent',
+      model: `${providerId}::mock-chat`
+    })
+    const input = { agentId: agent.id, workspace: { type: 'system' } }
+    const first = await ipcApi.request('ai.agent.session.reuse_or_create', input)
+    const second = await ipcApi.request('ai.agent.session.reuse_or_create', input)
+    return { agentId: agent.id, first, second }
+  })
+  expect(result.first).toMatchObject({ created: true, session: { agentId: result.agentId } })
+  // An agent's empty session is reused rather than duplicated.
+  expect(result.second).toMatchObject({ created: false, session: { id: result.first.session.id } })
+})
