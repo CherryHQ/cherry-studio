@@ -1,8 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
+import type { RenameNote } from '@renderer/types/note'
 
 import type { NotesEditorLoading } from '../NotesEditor'
 
@@ -19,10 +21,15 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
+    renameNote: undefined as RenameNote | undefined,
+    finishMutation: vi.fn(),
+    prepareMutation: vi.fn(),
+    renameEntry: vi.fn(),
     sessionStatus: String('ready'),
     sessionIsDirty: false,
     sessionIsSaving: false,
     sessionSaveError: undefined as Error | undefined,
+    sessionConflict: false,
     sessionDraft: 'saved content',
     currentContent: 'saved content',
     richEditorContent: 'edited rich content',
@@ -34,6 +41,7 @@ const mocks = vi.hoisted(() => {
     discardSession: vi.fn(),
     flushSession: vi.fn().mockResolvedValue(undefined),
     reloadSession: vi.fn().mockResolvedValue(undefined),
+    keepDraftSession: vi.fn().mockResolvedValue(undefined),
     notifyExternalChange: vi.fn(),
     ipcRequest: vi.fn(),
     commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
@@ -138,7 +146,15 @@ vi.mock('@cherrystudio/ui', async () => {
             React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
             React.createElement(
               'button',
-              { type: 'button', disabled: confirmLoading, onClick: () => onConfirm?.() },
+              {
+                type: 'button',
+                disabled: confirmLoading,
+                // Mirrors the real ConfirmDialog: close after onConfirm unless it returns false.
+                onClick: () =>
+                  Promise.resolve(onConfirm?.()).then((result) => {
+                    if (result !== false) onOpenChange?.(false)
+                  })
+              },
               confirmText
             )
           )
@@ -224,17 +240,22 @@ vi.mock('@renderer/hooks/useNote', () => ({
 vi.mock('@renderer/hooks/useFileEditSession', () => ({
   useFileEditSession: () => ({
     status: mocks.sessionStatus,
+    sessionId: mocks.activeFilePath,
+    documentEpoch: 1,
+    readOnly: false,
+    prepareMutation: mocks.prepareMutation,
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
     draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
     isDirty: mocks.sessionIsDirty,
     isSaving: mocks.sessionIsSaving,
-    conflict: false,
+    conflict: mocks.sessionConflict,
     saveError: mocks.sessionSaveError,
     metadataRecoveryPending: false,
     unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
     setDraft: mocks.setDraft,
     discard: mocks.discardSession,
     reload: mocks.reloadSession,
+    keepDraft: mocks.keepDraftSession,
     flush: mocks.flushSession,
     notifyExternalChange: mocks.notifyExternalChange
   })
@@ -246,7 +267,7 @@ vi.mock('@renderer/services/NotesService', () => ({
   addDir: vi.fn(),
   addNote: vi.fn(),
   delNode: vi.fn(),
-  renameNode: vi.fn(),
+  renameNode: mocks.renameEntry,
   resolveNotesPath: vi.fn(async (path: string) => ({ path, isFallback: false })),
   uploadNotes: vi.fn()
 }))
@@ -322,26 +343,35 @@ vi.mock('../NotesSettings', () => ({
 }))
 
 vi.mock('../NotesSidebar', () => ({
-  default: ({ onSelectNode }: { onSelectNode: (node: typeof mocks.noteNode) => void }) => (
-    <>
-      <button type="button" onClick={() => onSelectNode(mocks.noteNode)}>
-        select current note
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          onSelectNode({
-            ...mocks.noteNode,
-            id: '/notes/other.md',
-            name: 'other',
-            treePath: '/other',
-            externalPath: '/notes/other.md'
-          })
-        }>
-        select other note
-      </button>
-    </>
-  )
+  default: ({
+    onSelectNode,
+    onRenameNode
+  }: {
+    onSelectNode: (node: typeof mocks.noteNode) => void
+    onRenameNode: RenameNote
+  }) => {
+    mocks.renameNote = onRenameNode
+    return (
+      <>
+        <button type="button" onClick={() => onSelectNode(mocks.noteNode)}>
+          select current note
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSelectNode({
+              ...mocks.noteNode,
+              id: '/notes/other.md',
+              name: 'other',
+              treePath: '/other',
+              externalPath: '/notes/other.md'
+            })
+          }>
+          select other note
+        </button>
+      </>
+    )
+  }
 }))
 
 import NotesPage from '../NotesPage'
@@ -356,10 +386,16 @@ async function renderReadyNotesPage() {
 describe('NotesPage print payloads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.finishMutation.mockReset().mockResolvedValue(undefined)
+    mocks.prepareMutation.mockReset().mockImplementation(async () => ({ finish: mocks.finishMutation }))
+    mocks.renameEntry.mockReset().mockResolvedValue({ path: '/notes/Roadmap.md', name: 'Roadmap' })
+    mocks.rewritePath.mockReset().mockResolvedValue(undefined)
+    mocks.renameNote = undefined
     mocks.sessionStatus = 'ready'
     mocks.sessionIsDirty = false
     mocks.sessionIsSaving = false
     mocks.sessionSaveError = undefined
+    mocks.sessionConflict = false
     mocks.sessionDraft = 'saved content'
     mocks.currentContent = 'saved content'
     mocks.richEditorContent = 'edited rich content'
@@ -387,7 +423,8 @@ describe('NotesPage print payloads', () => {
         },
         file: {
           write: vi.fn().mockResolvedValue(undefined),
-          listDirectory: vi.fn().mockResolvedValue([])
+          listDirectory: vi.fn().mockResolvedValue([]),
+          move: vi.fn().mockResolvedValue(undefined)
         }
       }
     })
@@ -474,6 +511,7 @@ describe('NotesPage print payloads', () => {
     const { rerender } = await renderReadyNotesPage()
 
     mocks.sessionDraft = ''
+    mocks.richEditorContent = ''
     rerender(<NotesPage />)
     await waitFor(() => expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', ''))
 
@@ -555,26 +593,32 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(screen.getByTestId('notes-editor')).toBeInTheDocument())
   })
 
-  it('prompts before leaving a dirty note and keeps the draft when cancelled', async () => {
+  it.each(['saving', 'failed'])('switches a dirty note while its save is %s without discarding', async (state) => {
     mocks.sessionIsDirty = true
+    mocks.sessionIsSaving = state === 'saving'
+    mocks.sessionSaveError = state === 'failed' ? new Error('disk full') : undefined
     mocks.sessionDraft = 'unsaved draft'
     mocks.showWorkspace = true
-
+    mocks.flushSession.mockImplementation(() => new Promise(() => {}))
+    const user = userEvent.setup()
     await renderReadyNotesPage()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'unsaved draft')
-    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
-
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
-    expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.title')
-    expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.description')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
-
+    await user.click(screen.getByRole('button', { name: 'select other note' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
     expect(mocks.discardSession).not.toHaveBeenCalled()
-    expect(mocks.flushSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps the composing editor mounted until composition ends', async () => {
+    mocks.showWorkspace = true
+    const user = userEvent.setup()
+    await renderReadyNotesPage()
+    const editor = screen.getByTestId('notes-editor')
+    fireEvent.compositionStart(editor)
+    await user.click(screen.getByRole('button', { name: 'select other note' }))
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
+    fireEvent.compositionEnd(editor)
+    await user.click(screen.getByRole('button', { name: 'select other note' }))
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
   })
 
   it('does not prompt or discard when reselecting the current dirty note', async () => {
@@ -591,44 +635,51 @@ describe('NotesPage print payloads', () => {
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/note.md')
   })
 
-  it('waits for an in-flight note save before allowing discard and navigation', async () => {
-    mocks.sessionIsDirty = true
-    mocks.sessionIsSaving = true
-    mocks.sessionDraft = 'unsaved draft'
-    mocks.showWorkspace = true
-    const { rerender } = await renderReadyNotesPage()
-
-    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
-
-    expect(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' })).toBeDisabled()
-    expect(mocks.discardSession).not.toHaveBeenCalled()
-
-    mocks.sessionIsSaving = false
-    rerender(<NotesPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
-
-    expect(mocks.discardSession).toHaveBeenCalledOnce()
-    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
-  })
-
-  it('discards a dirty note before continuing the pending navigation', async () => {
-    mocks.sessionIsDirty = true
-    mocks.sessionDraft = 'unsaved draft'
-    mocks.showWorkspace = true
+  it('keeps the draft when the conflict dialog is dismissed without reloading', async () => {
+    mocks.sessionConflict = true
 
     await renderReadyNotesPage()
-    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
-    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.conflict.title')
 
-    expect(mocks.discardSession).toHaveBeenCalledOnce()
-    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
-    expect(mocks.discardSession.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.setActiveFilePath.mock.invocationCallOrder[0]
-    )
-    expect(mocks.flushSession).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'notes.conflict.keep_draft' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.keepDraftSession).toHaveBeenCalledOnce()
+    expect(mocks.reloadSession).not.toHaveBeenCalled()
   })
 
-  it('keeps a dirty draft accessible when the active file is removed and leaving is cancelled', async () => {
+  it('reopens the conflict dialog when keeping the draft fails', async () => {
+    mocks.sessionConflict = true
+    const failure = new Error('baseline read failed')
+    mocks.keepDraftSession.mockImplementationOnce(() => {
+      // The manager publishes the failure on the session snapshot.
+      mocks.sessionSaveError = failure
+      return Promise.reject(failure)
+    })
+
+    await renderReadyNotesPage()
+    fireEvent.click(screen.getByRole('button', { name: 'notes.conflict.keep_draft' }))
+    expect(mocks.keepDraftSession).toHaveBeenCalledOnce()
+
+    // The failure rerender still reports the conflict, which re-opens the dialog.
+    await act(async () => {})
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.conflict.title')
+  })
+
+  it('reloads the disk version without keeping the draft when reload is chosen', async () => {
+    mocks.sessionConflict = true
+
+    await renderReadyNotesPage()
+    fireEvent.click(screen.getByRole('button', { name: 'notes.conflict.reload' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.reloadSession).toHaveBeenCalledOnce()
+    // Flush the microtask that would run a stray keepDraft if the guard regressed.
+    await act(async () => {})
+    expect(mocks.keepDraftSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps a dirty draft accessible when the active file is removed', async () => {
     mocks.sessionIsDirty = true
     mocks.sessionDraft = 'recoverable draft'
     const { rerender } = await renderReadyNotesPage()
@@ -639,12 +690,10 @@ describe('NotesPage print payloads', () => {
     mocks.treeVersion += 1
     rerender(<NotesPage />)
 
-    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.title'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('notes.file_removed_draft'))
     expect(screen.getByRole('alert')).toHaveTextContent('notes.file_removed_draft')
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', '/notes/note.md')
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
@@ -667,5 +716,113 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => {
       expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/Untitled Note.md')
     })
+  })
+
+  // Exercise the page callback itself so failures cannot be hidden by the entry-point hooks.
+  async function rename(newName = 'Roadmap', nodeId = mocks.noteNode.id) {
+    mocks.showWorkspace = true
+    await renderReadyNotesPage()
+    let outcome: Awaited<ReturnType<RenameNote>> | undefined
+    await act(async () => {
+      outcome = await mocks.renameNote!(nodeId, newName)
+    })
+    return outcome
+  }
+
+  it('returns the actual renamed stem only after cleanup and active-path updates settle', async () => {
+    mocks.showWorkspace = true
+    let finish!: () => void
+    const cleanup = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    mocks.finishMutation.mockReturnValue(cleanup)
+    // The service may sanitize a manual name; the public result must use its actual stem.
+    mocks.renameEntry.mockResolvedValue({ path: '/notes/Roadmap.md', name: 'Roadmap' })
+    await renderReadyNotesPage()
+    let settled = false
+    let operation!: ReturnType<RenameNote>
+    await act(async () => {
+      operation = mocks.renameNote!(mocks.noteNode.id, 'Roadmap?')
+      void operation.then(() => {
+        settled = true
+      })
+    })
+    expect(settled).toBe(false)
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/Roadmap.md')
+    await act(async () => {
+      finish()
+      expect(await operation).toEqual({ ok: true, name: 'Roadmap' })
+    })
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/Roadmap.md')
+    expect(mocks.rewritePath).toHaveBeenCalledWith('/notes/note.md', '/notes/Roadmap.md', false)
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['missing', { ok: false, reason: 'failed' }, 'notes.rename_failed'],
+    ['unchanged', { ok: true, name: 'note' }, null]
+  ] as const)('resolves a %s node without preparing a mutation', async (path, expected, error) => {
+    expect(await rename('note', path === 'missing' ? '/notes/missing.md' : mocks.noteNode.id)).toEqual(expected)
+    expect(mocks.prepareMutation).not.toHaveBeenCalled()
+    expect(mocks.renameEntry).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledTimes(error ? 1 : 0)
+    if (error) expect(toast.error).toHaveBeenCalledWith(error)
+  })
+
+  it.each(['missing', 'unchanged', 'metadata', 'cleanup'])(
+    'releases rename suppression after %s so a watcher removal clears selection',
+    async (path) => {
+      mocks.showWorkspace = true
+      const { rerender } = await renderReadyNotesPage()
+      if (path === 'metadata') mocks.rewritePath.mockRejectedValue(new Error('metadata failed'))
+      if (path === 'cleanup') mocks.finishMutation.mockRejectedValue(new Error('cleanup failed'))
+      await act(async () => {
+        await mocks.renameNote!(
+          path === 'missing' ? '/notes/missing.md' : mocks.noteNode.id,
+          path === 'unchanged' ? 'note' : 'Roadmap'
+        )
+      })
+      mocks.projectedNodes = []
+      mocks.treeVersion += 1
+      rerender(<NotesPage />)
+      await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith(undefined))
+    }
+  )
+
+  it.each([
+    'collision',
+    'preparation',
+    'rename',
+    'metadata',
+    'metadata and rollback',
+    'cleanup',
+    'collision and cleanup',
+    'metadata and cleanup'
+  ])('resolves %s failure with exactly one owned error', async (failure) => {
+    if (failure.includes('collision'))
+      mocks.renameEntry.mockRejectedValue(new Error('Target name already exists: Roadmap'))
+    if (failure === 'preparation') mocks.prepareMutation.mockRejectedValue(new Error('draft flush failed'))
+    if (failure === 'rename') mocks.renameEntry.mockRejectedValue(new Error('permission denied'))
+    if (failure.includes('metadata')) mocks.rewritePath.mockRejectedValue(new Error('metadata unavailable'))
+    if (failure.includes('cleanup')) mocks.finishMutation.mockRejectedValue(new Error('cleanup failed'))
+    if (failure === 'metadata and rollback') {
+      vi.mocked(window.api.file.move).mockRejectedValue(new Error('rollback failed'))
+    }
+    const outcome = await rename()
+    expect(outcome).toEqual({ ok: false, reason: failure.includes('collision') ? 'exists' : 'failed' })
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+      failure.includes('collision')
+        ? 'notes.target_name_exists'
+        : failure.includes('metadata')
+          ? 'notes.metadata_sync_failed'
+          : 'notes.rename_failed'
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/Roadmap.md')
+    if (failure !== 'preparation') expect(mocks.finishMutation).toHaveBeenCalled()
+    if (failure.includes('metadata')) {
+      expect(window.api.file.move).toHaveBeenCalledWith('/notes/Roadmap.md', '/notes/note.md')
+    }
   })
 })

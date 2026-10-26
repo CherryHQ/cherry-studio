@@ -34,6 +34,10 @@ import type * as LocalAdapters from '../localAdapters'
 import { VoiceCleanupError, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
 
+// Captured before the describe's beforeEach stubs process as darwin: the real
+// host decides whether the filesystem enforces POSIX permission modes.
+const HOST_PLATFORM = process.platform
+
 const native = vi.hoisted(() => ({
   status: vi.fn(),
   transcribe: vi.fn(),
@@ -1579,7 +1583,9 @@ describe('VoiceSessionService file and admission contract', () => {
     await service._doInit()
 
     expect(await readdir(directory)).toEqual([])
-    expect((await stat(directory)).mode & 0o777).toBe(0o700)
+    if (HOST_PLATFORM !== 'win32') {
+      expect((await stat(directory)).mode & 0o777).toBe(0o700)
+    }
     expect(await readFile(sibling)).toEqual(wav())
     expect((await speech()).result.output).toMatchObject({ kind: 'audio', mimeType: 'audio/wav' })
   })
@@ -2209,13 +2215,31 @@ describe('VoiceSessionService file and admission contract', () => {
     ])
   })
 
+  it.each(['timeout', 'model_load_failed'] as const)(
+    'logs the %s failure with its operation identity',
+    async (reason) => {
+      const speech = { sessionId: randomUUID(), requestId: randomUUID(), text: 'private-text', voice: 'exact' }
+      native.speech.mockRejectedValueOnce(new VoiceRuntimeError(reason))
+
+      await expect(service.speech(a, speech)).rejects.toMatchObject({ reason })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Voice operation failed',
+        expect.objectContaining({
+          sessionId: speech.sessionId,
+          requestId: speech.requestId,
+          operation: 'speech',
+          reason
+        })
+      )
+    }
+  )
+
   it('never logs source text, transcript, bytes or physical paths on success and failure', async () => {
     const input = await recording()
     await service.transcribe(a, input)
     const speech = { sessionId: randomUUID(), requestId: randomUUID(), text: 'private-text', voice: 'exact' }
     native.speech.mockRejectedValueOnce(new Error('private-text private-transcript ' + root))
     await expect(service.speech(a, speech)).rejects.toMatchObject({ reason: 'operation_failed' })
-    mockMainLoggerService.warn.mockClear()
     const terminal = await recording()
     vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValueOnce(
       Object.assign(new Error('private-text private-transcript ' + root), { code: 'EPERM', path: root, content: webm })

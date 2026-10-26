@@ -66,7 +66,7 @@ describe('dashscope (Bailian) endpoint matrix', () => {
 
 describe('deepseek endpoint matrix', () => {
   it('serves the official Responses endpoint through the OpenAI adapter', () => {
-    expect(provider('deepseek').endpointConfigs?.['openai-responses']).toEqual({
+    expect(provider('deepseek').endpointConfigs?.['openai-responses']).toMatchObject({
       adapterFamily: 'openai',
       baseUrl: 'https://api.deepseek.com',
       reasoningFormat: { type: 'openai-responses' }
@@ -95,8 +95,16 @@ describe('deepseek endpoint matrix', () => {
     }
   )
 
+  it.each(['deepseek-v4-flash'])('prefers Responses for %s while keeping Chat Completions selectable', (modelId) => {
+    expect(endpointsOf('deepseek', modelId)).toEqual(['openai-responses', 'openai-chat-completions'])
+  })
+
   it('lists only the current official DeepSeek model IDs', () => {
-    expect(provider('deepseek').overrides?.map(({ modelId }) => modelId)).toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+    expect(provider('deepseek').overrides?.map(({ modelId }) => modelId)).toEqual([
+      'deepseek-flash',
+      'deepseek-v4-flash',
+      'deepseek-v4-pro'
+    ])
   })
 })
 
