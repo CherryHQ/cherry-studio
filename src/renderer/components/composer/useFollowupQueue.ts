@@ -700,8 +700,19 @@ export function useFollowupQueue({
   // removes the superseded copy, and a crashed session's copy ages back into
   // claimability server-side.
   const holdRestoredCopy = useCallback(
-    (copy: { id: string; body: RestoreQueueBody }) => {
-      if (!mountedRef.current || copy.body.scopeKey !== scopeKeyRef.current) {
+    (copy: { id: string; body: RestoreQueueBody }, owner: (typeof takenEditRef)['current']) => {
+      // The captured session's ownership is reconciled before registering:
+      // a submission that retired it while the failing take was in flight
+      // owns the content already, so the copy is redundant - registering the
+      // hold would stop renewal with the session and age the copy back into
+      // claimability, duplicating the submitted draft (cherry-pr-review
+      // a5461bcd43 retired-ownership invariant, same shape as
+      // retired-edit-recovery).
+      if (
+        !mountedRef.current ||
+        copy.body.scopeKey !== scopeKeyRef.current ||
+        (takenEditRef.current !== owner && editRetirementRef.current === 'submitted')
+      ) {
         // The edit session already ended (unmount or scope switch ran cleanup
         // while the failing take was in flight): its composer cache owns the
         // draft, so the held copy is redundant. Registering now would attach
@@ -916,7 +927,7 @@ export function useFollowupQueue({
           // An outgoing edit was already restored into the queue: the composer
           // still shows its draft, so hold the copy out of delivery like any
           // other refused switch.
-          holdRestoredCopy(restoredCopy)
+          holdRestoredCopy(restoredCopy, taken)
         }
         await releaseClaim()
         return undefined
@@ -953,7 +964,7 @@ export function useFollowupQueue({
               // ownership and hold the restored copy out of delivery instead
               // of exposing the edited content to auto-drain and duplicating
               // it on submission (cherry-pr-review).
-              holdRestoredCopy(restoredCopy)
+              holdRestoredCopy(restoredCopy, taken)
             }
             await releaseClaim()
             return undefined
@@ -968,7 +979,7 @@ export function useFollowupQueue({
         // restored copy out of delivery until the session ends
         // (cherry-pr-review).
         if (taken && restoredCopy) {
-          holdRestoredCopy(restoredCopy)
+          holdRestoredCopy(restoredCopy, taken)
         }
         return undefined
       }
@@ -1629,7 +1640,13 @@ export function useFollowupQueue({
   // and re-parks, which reschedules this tick.
   const scheduleTentativeReconcileRef = useRef<(scope: string, completionAt: number) => void>(() => {})
   scheduleTentativeReconcileRef.current = (scope, completionAt) => {
-    if (pendingTentativeReconcileRef.current.has(scope)) return
+    // A newer lost completion replaces the parked marker, so its reconcile
+    // must replace the older timer too: the older callback clears only its
+    // captured completion's marker and exits against the newer one without
+    // rescheduling, stranding delivery when the peer abandons the newer
+    // grant (cherry-pr-review a5461bcd43 abandoned-completion invariant).
+    const pending = pendingTentativeReconcileRef.current.get(scope)
+    if (pending) clearTimeout(pending)
     const tick = () => {
       pendingTentativeReconcileRef.current.delete(scope)
       if (!mountedRef.current) return

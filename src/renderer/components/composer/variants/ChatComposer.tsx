@@ -1046,10 +1046,13 @@ const ChatComposerInner = ({
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
   const selectedKnowledgeBasesScopeKey = buildTopicFollowupScopeKey(scopeKey, selectedAssistantId)
-  // Live queue scope for the async enqueue below: clearing the editor after
-  // the POST must not wipe the newly selected conversation's draft.
-  const queueScopeRef = useRef(selectedKnowledgeBasesScopeKey)
-  queueScopeRef.current = selectedKnowledgeBasesScopeKey
+  // Live topic scope for the async enqueue below: clearing the editor after
+  // the POST must not wipe the newly selected conversation's draft. The draft
+  // editor is keyed by topic, not by assistant: an assistant switch inside one
+  // topic keeps the submitted document visible, so submitted-document
+  // ownership tracks the topic alone (cherry-pr-review).
+  const queueTopicRef = useRef(scopeKey)
+  queueTopicRef.current = scopeKey
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
@@ -1600,24 +1603,27 @@ const ChatComposerInner = ({
     },
     [setFiles]
   )
-  const clearCurrentDraft = useCallback((options?: { submitted?: boolean }) => {
-    // A send/enqueue that consumed the draft marks the edit-session
-    // retirement 'submitted': a suspended edit-switch closes its captured
-    // recovery copy instead of releasing a duplicate (cherry-pr-review
-    // retired-edit-recovery). Cache-driven clears are not submissions.
-    releaseFollowupEditRef.current(options?.submitted === true ? 'submitted' : 'released')
-    setText('')
-    setDraftTokens(undefined)
-    setFiles([])
-    // Knowledge base selection belongs to the conversation scope, not the individual draft.
-    // Clearing the composer must also drop the input-history nav state: a
-    // recalled draft that gets sent/queued without further edits would otherwise
-    // leave useInputHistory pointing at that history entry, so the next
-    // ArrowDown would restore the already-sent draft and ArrowUp would resume
-    // from a stale index.
-    resetHistoryIndex()
-    inputHistoryToolsRef.current = null
-  }, [resetHistoryIndex, setFiles, setText])
+  const clearCurrentDraft = useCallback(
+    (options?: { submitted?: boolean }) => {
+      // A send/enqueue that consumed the draft marks the edit-session
+      // retirement 'submitted': a suspended edit-switch closes its captured
+      // recovery copy instead of releasing a duplicate (cherry-pr-review
+      // retired-edit-recovery). Cache-driven clears are not submissions.
+      releaseFollowupEditRef.current(options?.submitted === true ? 'submitted' : 'released')
+      setText('')
+      setDraftTokens(undefined)
+      setFiles([])
+      // Knowledge base selection belongs to the conversation scope, not the individual draft.
+      // Clearing the composer must also drop the input-history nav state: a
+      // recalled draft that gets sent/queued without further edits would otherwise
+      // leave useInputHistory pointing at that history entry, so the next
+      // ArrowDown would restore the already-sent draft and ArrowUp would resume
+      // from a stale index.
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+    },
+    [resetHistoryIndex, setFiles, setText]
+  )
 
   // Reconcile the active draft owner when an enqueue submitted while this
   // topic's previous composer instance was mounted settles: settlement removes
@@ -1923,7 +1929,7 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        const enqueueScope = selectedKnowledgeBasesScopeKey
+        const enqueueTopic = scopeKey
         const enqueueDraftTopic = draftCacheScopeKey
         const enqueueRevision = draftEditRevisionRef.current
         const enqueueFiles = filesRef.current
@@ -1964,7 +1970,7 @@ const ChatComposerInner = ({
             ) {
               savedDraftBeforeEditingRef.current = { ...savedBackup, text: '', draftTokens: [], files: [] }
             }
-            if (queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
+            if (queueTopicRef.current === enqueueTopic && draftEditRevisionRef.current === enqueueRevision) {
               clearCurrentDraft({ submitted: true })
             }
           }

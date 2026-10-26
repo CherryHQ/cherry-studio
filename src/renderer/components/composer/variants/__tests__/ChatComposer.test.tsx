@@ -2382,6 +2382,69 @@ describe('ChatComposer', () => {
     expect(queueContent.props.items).toHaveLength(1)
   })
 
+  it('clears the submitted document when the assistant switches in the same topic before the enqueue settles', async () => {
+    // The draft editor is keyed by topic: switching assistants inside one
+    // topic does not remount it, so settlement must still clear the submitted
+    // document even though the live queue scope (topic+assistant) has moved
+    // on (cherry-pr-review duplicate-submission-on-assistant-switch).
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    // Hold the queue POST open so the assistant switch lands before settlement.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+    let send: void | Promise<void> | undefined
+    await act(async () => {
+      mocks.surfaceProps?.onTextChange('follow-up A')
+      send = mocks.surfaceProps?.onSendDraft({ text: 'follow-up A', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+
+    // Switch assistants inside the SAME topic while the enqueue is in flight:
+    // the topic-keyed editor still shows the submitted document.
+    mocks.assistant = { ...mocks.assistant, id: 'assistant-2' }
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+    expect(mocks.surfaceProps?.text).toBe('follow-up A')
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await Promise.allSettled([Promise.resolve(send)])
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+
+    // Switching back and pressing Send therefore cannot queue a duplicate.
+    mocks.assistant = { ...mocks.assistant, id: 'assistant-1' }
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      mocks.surfaceProps?.onSendDraft({ text: mocks.surfaceProps?.text ?? '', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
   it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
