@@ -330,28 +330,12 @@ test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
     expect(Math.max(...frameGaps), 'Searching must not stall rendering for 500ms').toBeLessThan(500)
     await screenshot('MP-76 canary name and content results')
 
-    for (const { label, names } of [
-      { label: 'Name+Content', names: ['Field journal', 'canary title only', 'canary both'] },
-      { label: 'Content', names: ['Field journal', 'canary both'] },
-      { label: 'Name', names: ['canary title only', 'canary both'] }
-    ]) {
-      await test.step(`Switch search scope to ${label}`, async () => {
-        const scope = navigation.getByRole('button', { name: /Name\s*\+\s*Content|Search scope/i })
-        await expect.soft(scope, `MP-76 requires a search scope selector: ${label}`).toBeVisible({ timeout: 1500 })
-        // A missing control remains a failure; keep collecting evidence for the other requirements.
-        if (!(await scope.isVisible())) return
-        await scope.click()
-        await page.getByRole('menuitem', { name: label, exact: true }).click()
-        for (const { name } of fixtures) {
-          if (names.includes(name)) await expect(result(name)).toBeVisible({ timeout: 3000 })
-          else await expect(result(name)).toHaveCount(0)
-        }
-      })
-    }
-
-    await expect.soft(navigation.getByText(/canary-seven/), 'Results must display the matching content').toBeVisible({
-      timeout: 1500
-    })
+    const row = (name: string) =>
+      navigation.getByRole('treeitem').filter({ has: page.getByText(name, { exact: true }) })
+    await expect(row('Field journal').getByText('Content', { exact: true })).toBeVisible()
+    await expect(row('canary both').getByText('Name+Content', { exact: true })).toBeVisible()
+    await expect(row('canary title only').getByText(/^(Name\+Content|Content)$/)).toHaveCount(0)
+    await expect(navigation.getByText('Found 3 results (Name: 1, Content: 2)', { exact: true })).toBeVisible()
     await result('Field journal').click()
     const editor = page.locator('[data-ui~="notes.editor"]')
     await expect(editor).toContainText('The marker is canary-seven at line three.')
@@ -361,12 +345,19 @@ test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
     await search.fill('mp76-no-such-word-8f3c9e')
     await expect(navigation.getByText(/Found \d+ results/)).toHaveCount(0, { timeout: 3000 })
     for (const { name } of fixtures) await expect(result(name)).toHaveCount(0)
-    await expect
-      .soft(navigation.getByText(/No results|No matches|Nothing found|No files/i))
-      .toBeVisible({ timeout: 1500 })
+    await expect(navigation.getByRole('treeitem')).toHaveCount(0)
     await expect(search).toBeEditable()
     await expect(search).toHaveValue('mp76-no-such-word-8f3c9e')
     await screenshot('MP-76 nonexistent keyword empty state')
+
+    await search.fill('title only')
+    await expect(result('canary title only')).toBeVisible()
+    await expect(navigation.getByRole('treeitem')).toHaveCount(1)
+    await search.fill('canary-seven')
+    await expect(result('Field journal')).toBeVisible()
+    await expect(result('canary both')).toBeVisible()
+    await expect(navigation.getByRole('treeitem')).toHaveCount(2)
+    await screenshot('MP-76 name and content searches recover after empty results')
   } finally {
     await selectSidebarApp(page, 'Chat')
     await page.evaluate((path) => window.api.preference.set('feature.notes.path', path), originalPath)

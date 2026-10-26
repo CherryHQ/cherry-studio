@@ -165,7 +165,7 @@ export async function resetAppData(app: RegressionApp, initialPage: Page, testIn
   ])
   if (app.record.mode === 'branch') await confirmNativeDialog(app, 'OK')
   await expect.poll(() => isAlive(oldPid), { timeout: 60_000 }).toBe(false)
-  page = await app.restart()
+  page = app.record.mode === 'branch' ? await app.restart() : await app.adoptRelaunch()
   expect(app.record.electronPid).not.toBe(oldPid)
   await expect(page.getByRole('button', { name: /Set up later|稍后设置/ })).toBeVisible({ timeout: 60_000 })
   const after = await page.evaluate(
