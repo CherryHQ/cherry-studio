@@ -37,8 +37,8 @@ export type Seed = (thread: ThreadId, lineage: Lineage) => readonly ScriptedRepl
 export type Owner = { readonly thread: ThreadId; readonly run: number }
 /** How a run ended: what the conversation reports as `live.runEnd` and what `awaitAnswer` answers. */
 export type RunEnding = { readonly live: NonNullable<LiveFacts['runEnd']>['outcome']; readonly answer: RunEndFacts }
-/** A history entry with the run that wrote it. */
-export type StoredEntry = { readonly entry: HistoryEntry; readonly run?: number }
+/** A history entry with the run that wrote it; a compaction keeps the summary it was accepted with. */
+export type StoredEntry = { readonly entry: HistoryEntry; readonly run?: number; readonly summary?: string }
 export type Submission = {
   readonly input: TurnInput
   admission: StartResult | MessageResult
@@ -152,8 +152,8 @@ export function addThread(state: FakeState, lineage: Lineage, seed: Seed, owner?
   return thread
 }
 
-export function append(thread: ThreadState, entry: HistoryEntry): void {
-  thread.entries.push({ entry, run: thread.active?.run })
+export function append(thread: ThreadState, entry: HistoryEntry, summary?: string): void {
+  thread.entries.push({ entry, run: thread.active?.run, summary })
 }
 
 /** The calls of the assistant entry at `at` that no later entry answers. */
@@ -203,11 +203,17 @@ export function inputDone(thread: ThreadState, key: string): boolean {
   return state === undefined || state === 'settled' || state === 'withdrawn'
 }
 
-const MODEL_KINDS: ReadonlySet<HistoryEntry['kind']> = new Set(['user', 'assistant', 'tool-result', 'marker'])
-/** The entries the model sees next: those after the last compaction that enter its context. */
+const MODEL_KINDS: ReadonlySet<HistoryEntry['kind']> = new Set([
+  'compaction',
+  'user',
+  'assistant',
+  'tool-result',
+  'marker'
+])
+/** The entries the model sees next: the last compaction, whose summary stands for those before it, then the rest. */
 export function modelEntries(thread: ThreadState): StoredEntry[] {
-  const start = thread.entries.findLastIndex(({ entry }) => entry.kind === 'compaction') + 1
-  return thread.entries.slice(start).filter(({ entry }) => MODEL_KINDS.has(entry.kind))
+  const last = thread.entries.findLastIndex(({ entry }) => entry.kind === 'compaction')
+  return thread.entries.slice(Math.max(last, 0)).filter(({ entry }) => MODEL_KINDS.has(entry.kind))
 }
 /** What the model sees next: its entries without those the context filter omits (H10). */
 export function visibleEntries(state: FakeState, epoch: Epoch, thread: ThreadState): StoredEntry[] {
@@ -215,9 +221,9 @@ export function visibleEntries(state: FakeState, epoch: Epoch, thread: ThreadSta
   return modelEntries(thread).filter(({ entry }) => !omitted.has(entry.id))
 }
 export const modelContext = (state: FakeState, epoch: Epoch, thread: ThreadState): JsonValue[] =>
-  visibleEntries(state, epoch, thread).map(({ entry }) => ({
+  visibleEntries(state, epoch, thread).map(({ entry, summary }) => ({
     kind: entry.kind,
-    text: 'text' in entry ? entry.text : ''
+    text: summary ?? ('text' in entry ? entry.text : '')
   }))
 
 const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({
@@ -326,7 +332,7 @@ function prepare(state: FakeState, thread: ThreadId, op: TxOp, context: CommitCo
         const lineage: Lineage = { kind: 'subagent', parent: thread, origin: spec.origin }
         const owner = spec.boundary === 'foreground' ? context.owner : undefined
         const child = addThread(state, lineage, context.seed, owner)
-        for (const { entry } of copied) append(child, { ...entry, id: nextItem(state) })
+        for (const { entry, summary } of copied) append(child, { ...entry, id: nextItem(state) }, summary)
         // Parent calls keep running there; calls copied from another child need the interrupted result (H3).
         const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
         for (const call of placeholders)
