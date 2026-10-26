@@ -526,6 +526,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as AgentPermissionMode | undefined
         }
       })
+      // Keep the cached facts equal to what the snapshot now enforces, so a later reconcile that
+      // re-derives the same policy still sees the difference. The rebuild baseline is untouched.
+      this.connectionConfig = {
+        ...baseline,
+        live: {
+          toolPolicy: {
+            permissionMode: baseline.live.toolPolicy.permissionMode,
+            disabledTools: [...(agent.disabledTools ?? [])].sort(),
+            mcps: [...(agent.mcps ?? [])].sort()
+          }
+        }
+      }
       return true
     } catch (error) {
       logger.warn('Live tool-policy apply failed while the model was unavailable', {

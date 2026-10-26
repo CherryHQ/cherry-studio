@@ -4272,7 +4272,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     it('still applies newly disabled tools to the retained connection when the model is unavailable', async () => {
       const { connection, toolPolicySnapshot } = await connectWithSnapshot()
-      const agent = { id: 'agent-1', configuration: { permission_mode: 'acceptEdits', disallowed_tools: ['Bash'] } }
+      const agent = { id: 'agent-1', disabledTools: ['Bash'], configuration: { permission_mode: 'acceptEdits' } }
       mocks.getAgent.mockReturnValue(agent)
       mocks.deriveConfig.mockResolvedValue({
         ok: false,
@@ -4287,7 +4287,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
       expect(toolPolicySnapshot.update).toHaveBeenCalledWith({
         ...agent,
-        configuration: { permission_mode: undefined, disallowed_tools: ['Bash'] }
+        configuration: { permission_mode: undefined }
       })
     })
 
@@ -4295,7 +4295,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const { connection, toolPolicySnapshot, query } = await connectWithSnapshot('default')
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
-        configuration: { permission_mode: 'bypassPermissions', disallowed_tools: ['Bash'] }
+        disabledTools: ['Bash'],
+        configuration: { permission_mode: 'bypassPermissions' }
       })
       mocks.deriveConfig.mockResolvedValue({
         ok: false,
@@ -4308,9 +4309,37 @@ describe('ClaudeCodeRuntimeDriver', () => {
       // The looser mode is not adopted by the retained connection; only the tightened tool list is.
       expect(toolPolicySnapshot.update).toHaveBeenCalledWith({
         id: 'agent-1',
-        configuration: { permission_mode: 'default', disallowed_tools: ['Bash'] }
+        disabledTools: ['Bash'],
+        configuration: { permission_mode: 'default' }
       })
       expect(query.setPermissionMode).not.toHaveBeenCalled()
+    })
+
+    it('re-applies a disabled tool after the model recovers from an unavailable window', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      const unavailable = {
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      }
+
+      // Bash disabled while the route is healthy: applied live.
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: ['Bash'], configuration: {} })
+      mocks.deriveConfig.mockResolvedValueOnce(makeConfig({ disabledTools: ['Bash'] }))
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('patched')
+
+      // Provider disabled and Bash re-enabled: the fallback must refresh the cached facts too.
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: [], configuration: {} })
+      mocks.deriveConfig.mockResolvedValueOnce(unavailable)
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      // Provider restored and Bash disabled again: the restriction must reach the snapshot.
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: ['Bash'], configuration: {} })
+      mocks.deriveConfig.mockResolvedValueOnce(makeConfig({ disabledTools: ['Bash'] }))
+      toolPolicySnapshot.update.mockClear()
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('patched')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
+      expect(toolPolicySnapshot.update).toHaveBeenCalledWith(expect.objectContaining({ disabledTools: ['Bash'] }))
     })
 
     it('fails closed when the tool policy cannot be applied while the model is unavailable', async () => {
