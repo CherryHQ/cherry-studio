@@ -7,13 +7,14 @@ import { AssistantSchema } from '@shared/data/types/assistant'
 import { MessageSchema, type BranchMessagesResponse } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
-import { openAttachmentPicker, sendChatMarker } from './chat'
+import { openAttachmentPicker, sendChatMarker, submitChatMarker } from './chat'
 import { chatEfficiency } from './chatEfficiency'
 import { chatImageGeneration } from './chatImageGeneration'
 import { codeBlockToolbar } from './codeBlockToolbar'
@@ -180,6 +181,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
       return (result.data as BranchMessagesResponse).items.map(({ message }) => MessageSchema.parse(message))
     }
 
+    await editor.fill('图里写了什么')
     await upload(imagePath)
     await expect(fileToken(imageName)).toBeVisible()
     await fileToken(imageName).hover()
@@ -188,13 +190,14 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
       await page.locator('[data-file-token-image-preview] img').evaluate((img: HTMLImageElement) => img.naturalWidth)
     ).toBeGreaterThan(0)
     await screenshot('MP-09 image uploaded')
-    await sendChatMarker(page, '图里写了什么', imageText, false)
+    await submitChatMarker(page, imageText, false)
     await expect(fileToken(imageName)).toHaveCount(0)
     await screenshot('MP-09 real model reads image text')
 
+    await editor.fill('总结这个文件，请保留项目的英文名称、日期和预算数字。')
     await upload(textPath)
     await expect(fileToken(textName)).toBeVisible()
-    await sendChatMarker(page, '总结这个文件，请保留项目的英文名称、日期和预算数字。', 'IRIS', false)
+    await submitChatMarker(page, 'IRIS', false)
     const answer = chat
       .locator('[data-ui~="chat.message"]')
       .filter({ has: page.locator('.message-assistant') })
@@ -258,8 +261,11 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
           'feature.screenshot.enabled': previous.screenshot
         })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const deleted = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<unknown>
+          if (!deleted.ok) throw new Error(deleted.error.message)
         }
         await window.api.dataApi.request({ id: 'mp09-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
       },

@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
@@ -68,7 +69,7 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
     await nameInput.fill(title)
     await nameInput.press('Enter')
     await editor().locator('.cm-content').fill(`${body}\n\n\`\`\`text\n${code}\n\`\`\``)
-    const modeSelector = editor().getByRole('combobox')
+    const modeSelector = notes().locator('[data-ui~="notes.editor-footer"]').getByRole('combobox')
     await modeSelector.click()
     await page.getByRole('option', { name: 'Source code mode', exact: true }).click()
     await expect(modeSelector).toHaveAccessibleName('Source code mode')
@@ -260,8 +261,11 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
           'menu.presentation_mode': original.menu
         })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const deleted = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<unknown>
+          if (!deleted.ok) throw new Error(deleted.error.message)
         }
         await window.api.dataApi.request({ id: 'mp11-delete', method: 'DELETE', path: `/providers/${providerId}` })
       },

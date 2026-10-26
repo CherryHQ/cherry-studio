@@ -20,12 +20,16 @@ export async function selectChatModel(page: Page, model: string): Promise<void> 
 }
 
 export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<string> {
+  const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
+  await composer.fill(prompt)
+  return submitChatMarker(page, marker, exact)
+}
+
+export async function submitChatMarker(page: Page, marker: string, exact = true): Promise<string> {
   const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
   const previousIds = await messages.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute('data-message-id'))
   )
-  const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
-  await composer.fill(prompt)
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   const excludePrevious = previousIds.map((id) => `:not([data-message-id="${id}"])`).join('')
   const response = page

@@ -22,7 +22,7 @@ import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
-import { openAttachmentPicker, sendChatMarker } from './chat'
+import { openAttachmentPicker, submitChatMarker } from './chat'
 import { expect, test } from './fixture'
 import { selectSidebarApp } from './navigation'
 import { createRtfPreviewFixtures } from './rtfPreviewFixtures'
@@ -166,13 +166,16 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
       const expand = group.getByRole('button', { name: 'Expand', exact: true })
       if (await expand.isVisible()) await expand.click()
       await page.getByTestId('topic-list-row').filter({ hasText: 'MP150 RTF topic' }).click()
+      await page
+        .locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]')
+        .fill('Read the attached documents.')
       for (const name of ['simple.rtf', 'contrast.png', 'gbk.rtf']) {
         await openAttachmentPicker(page, page.locator('[data-ui~="chat.composer"]:visible'))
         chooseNativeFile(app.record.platform, app.paths, fixtures[name])
         await expect(page.locator('[data-ui~="chat.composer"]').getByText(name, { exact: true })).toBeVisible()
       }
       await Promise.all([
-        sendChatMarker(page, 'Read the attached documents.', 'MP150 attachments received'),
+        submitChatMarker(page, 'MP150 attachments received'),
         (async () => {
           const request = await server.nextRequest()
           request.complete('MP150 attachments received')
@@ -307,8 +310,11 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
           'topic.naming.enabled': preferences.naming
         })
         if (assistantId) {
-          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+          const deleted = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<unknown>
+          if (!deleted.ok) throw new Error(deleted.error.message)
         }
         await window.api.dataApi.request({
           id: 'mp150-delete-provider',

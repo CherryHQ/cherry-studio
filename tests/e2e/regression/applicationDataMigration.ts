@@ -245,8 +245,11 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
               'data.backup.local.dir': previous.backup
             })
             if (assistantId) {
-              await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
-              await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+              const deleted = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+                assistantId,
+                deleteTopics: true
+              })) as IpcResult<unknown>
+              if (!deleted.ok) throw new Error(deleted.error.message)
             }
             await window.api.dataApi.request({
               id: 'mp119-cleanup',

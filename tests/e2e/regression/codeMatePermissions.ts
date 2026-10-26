@@ -137,7 +137,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       .getByRole('button', { name: /^Claude Code\b/ })
       .click()
     const dialog = await configure()
-    await dialog.getByRole('button', { name: 'Select a model', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Model Selection', exact: true }).click()
     await page.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(dialog).toBeHidden()
