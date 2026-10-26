@@ -56,7 +56,7 @@ describe('Playwright reporter contract', () => {
     const run = readRun(getRunPaths(directory).runState)
     expect(getRunVerdict(run)).toBe('development_failed')
     expect(run.cases['S-01'].status).toBe('passed')
-    expect(run.phases['01-startup'].errors).toEqual(['Executor error: teardown failed: [REDACTED]'])
+    expect(run.phases['startup'].errors).toEqual(['Executor error: teardown failed: [REDACTED]'])
   })
 
   it('does not mutate run state during enumeration without test execution', () => {

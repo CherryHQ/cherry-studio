@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 
-import { dismissTransientDialogs, selectSidebarApp } from './navigation'
+import { dismissTransientDialogs, selectSidebarApp } from './helpers/navigation'
 
 export async function prepareScenario(page: Page): Promise<void> {
   await dismissTransientDialogs(page)

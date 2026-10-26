@@ -57,7 +57,9 @@ its module task, followed by any focused tasks. Module names follow the case lib
 modules, using English kebab-case without execution-order prefixes. For example,
 `notes` selects all implemented Notes cases across phases, while `notes-smoke` selects
 only the create-and-save scenario. `knowledge` includes the library scenarios and the
-`knowledge-smoke` persistence flow. Numeric prefixes belong only to execution phases.
+`knowledge-smoke` persistence flow. Phase IDs use camelCase without numeric prefixes
+and match `tests/e2e/regression/phases/<phaseId>.test.ts`. Their first occurrence in
+the manifest determines execution order; workflow steps must follow that order.
 
 The workflow task dropdown lists `all`, module tasks, then focused tasks. When adding a
 task, update the workflow options too; the manifest tests enforce that the lists stay

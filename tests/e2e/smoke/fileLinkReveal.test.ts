@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { _electron as electron, type Locator } from '@playwright/test'
 
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { selectSidebarApp } from '../regression/navigation'
+import { selectSidebarApp } from '../regression/helpers/navigation'
 import { expect, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend({

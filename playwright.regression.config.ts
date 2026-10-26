@@ -9,7 +9,7 @@ const phase = process.env.CHERRY_TEST_PHASE ?? 'all'
 
 export default defineConfig({
   testDir: './tests/e2e/regression',
-  testMatch: '**/*.test.ts',
+  testMatch: 'phases/*.test.ts',
   timeout: 10 * 60 * 1000,
   expect: { timeout: 30_000 },
   fullyParallel: false,

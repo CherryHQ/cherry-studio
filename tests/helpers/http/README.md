@@ -76,8 +76,8 @@ For example, within a Playwright scenario after configuring and selecting the
 mock provider, with `composer` and `assistantMessage` scoped to this chat:
 
 ```ts
-// From tests/e2e/regression/*.spec.ts
-import { startMockChatServer } from '../../helpers/http/mockChatServer'
+// From tests/e2e/regression/phases/*.test.ts
+import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 
 const server = await startMockChatServer()
 try {

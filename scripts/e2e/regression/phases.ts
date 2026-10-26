@@ -12,7 +12,7 @@ export async function runPhase(paths: RunPaths, phase: PhaseId): Promise<void> {
   const selected = selectCases(run.metadata.task, phase).filter(({ id }) => supportsPlatform(id, run.metadata.platform))
   if (selected.length === 0) return
   writeRun(paths.runState, updatePhase(run, phase, 'running'))
-  const args = ['test', '--config', 'playwright.regression.config.ts', `${phase}.test.ts`]
+  const args = ['test', '--config', 'playwright.regression.config.ts', `phases/${phase}.test.ts`]
   if (run.metadata.task !== 'all') args.push('--grep', `@${run.metadata.task}(?:\\s|$)`)
   const code = await new Promise<number>((resolve) => {
     const child = spawn(process.execPath, [require.resolve('@playwright/test/cli'), ...args], {

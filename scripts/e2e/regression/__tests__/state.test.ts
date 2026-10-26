@@ -12,7 +12,7 @@ describe('Playwright run state', () => {
       runner: 'macos-latest',
       task: 'notes'
     })
-    expect(Object.keys(run.phases)).toEqual(['02-basic-features', '14-notes'])
+    expect(Object.keys(run.phases)).toEqual(['basicFeatures', 'notes'])
     expect(run.cases['N-01'].status).toBe('pending')
     expect(run.cases['MP-76'].status).toBe('pending')
     expect(run.cases['APP-01'].status).toBe('not_applicable')
@@ -30,13 +30,13 @@ describe('Playwright run state', () => {
     })
     const completed = updatePhase(
       completeE2eCase(run, 'MP-97', 'passed', 'Permission modes verified'),
-      '08-code-tools',
+      'codeTools',
       'passed'
     )
     const historical = JSON.parse(
       JSON.stringify({
         ...completed,
-        metadata: { ...completed.metadata, task: '08-code-tools' }
+        metadata: { ...completed.metadata, task: 'codeTools' }
       })
     ) as RegressionRun
     expect(getRunVerdict(historical)).toBe('development_pass')

@@ -15,7 +15,7 @@ import {
 } from '../../../scripts/e2e/regression/lifecycle'
 import { getRunPaths, type RunPaths } from '../../../scripts/e2e/regression/paths'
 import type { TestProfile } from '../../../scripts/e2e/regression/types'
-import { dismissTransientDialogs } from './navigation'
+import { dismissTransientDialogs } from './helpers/navigation'
 
 const MAIN_WINDOW_PATH = '/windows/main/index.html'
 

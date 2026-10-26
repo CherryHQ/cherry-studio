@@ -1,8 +1,8 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { runInNewContext } from 'node:vm'
 
 import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
@@ -73,10 +73,10 @@ describe('regression execution plan', () => {
   })
 
   it('selects only the requested task within its workflow phase', () => {
-    expect(selectCases('knowledge-smoke', '06-knowledge').map(({ id }) => id)).toEqual(['K-01'])
-    expect(selectCases('code-cli', '08-code-tools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
-    expect(selectCases('notes', '03-models-and-assistants')).toEqual([])
-    expect(selectCases('notes', '02-basic-features').map(({ id }) => id)).toEqual(['N-01'])
+    expect(selectCases('knowledge-smoke', 'knowledge').map(({ id }) => id)).toEqual(['K-01'])
+    expect(selectCases('code-cli', 'codeTools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
+    expect(selectCases('notes', 'modelsAndAssistants')).toEqual([])
+    expect(selectCases('notes', 'basicFeatures').map(({ id }) => id)).toEqual(['N-01'])
     expect(() => getCase('missing')).toThrow('Unknown regression case')
   })
 
@@ -137,9 +137,10 @@ describe('regression execution plan', () => {
       .filter((step: { run?: string }) => step.run?.includes('cli.ts run-phase'))
       .map((step: { run: string }) => /--phase ([\w-]+)/.exec(step.run)?.[1])
     expect(phases).toEqual(PHASE_IDS)
-    for (const phase of phases) {
-      expect(existsSync(resolve(`tests/e2e/regression/${phase}.test.ts`))).toBe(true)
-    }
+    expect(readdirSync(resolve('tests/e2e/regression/phases')).sort()).toEqual(
+      PHASE_IDS.map((phase) => `${phase}.test.ts`).sort()
+    )
+    for (const phase of PHASE_IDS) expect(phase).toMatch(/^[a-z][a-zA-Z0-9]*$/)
   })
 
   it('blocks native interactions when desktop automation is missing without blocking pure UI tasks', () => {
@@ -218,13 +219,20 @@ it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'code-cli-per
             spec.tests.map((test) => ({
               id: test.annotations.find(({ type }) => type === 'regression-case')?.description,
               tasks: spec.tags,
-              phase: spec.file.replace('.test.ts', '')
+              phase: basename(spec.file, '.test.ts')
             }))
           ),
           ...collect(suite.suites ?? [])
         ])
       expect(report.errors).toEqual([])
-      expect(collect(report.suites)).toEqual(selectCases(task).map(({ id, tasks, phase }) => ({ id, tasks, phase })))
+      const discovered = collect(report.suites)
+      const selected = selectCases(task).map(({ id, tasks, phase }) => ({ id, tasks, phase }))
+      expect(discovered).toHaveLength(selected.length)
+      for (const phase of PHASE_IDS) {
+        expect(discovered.filter((test) => test.phase === phase)).toEqual(
+          selected.filter((test) => test.phase === phase)
+        )
+      }
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }

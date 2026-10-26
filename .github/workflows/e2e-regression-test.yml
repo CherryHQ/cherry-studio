@@ -346,7 +346,7 @@ jobs:
             printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
           done
 
-      - name: Phase 01 - Startup
+      - name: Phase - Startup
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -354,8 +354,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 01-startup
-      - name: Phase 02 - Basic Features
+          --phase startup
+      - name: Phase - Basic Features
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -363,8 +363,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 02-basic-features
-      - name: Phase 03 - Models And Assistants
+          --phase basicFeatures
+      - name: Phase - Models And Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -372,8 +372,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 03-models-and-assistants
-      - name: Phase 04 - Translation
+          --phase modelsAndAssistants
+      - name: Phase - Translation Smoke
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -381,8 +381,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 04-translation
-      - name: Phase 05 - Desktop Assistants
+          --phase translationSmoke
+      - name: Phase - Desktop Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -390,8 +390,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 05-desktop-assistants
-      - name: Phase 06 - Knowledge
+          --phase desktopAssistants
+      - name: Phase - Knowledge
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -399,8 +399,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 06-knowledge
-      - name: Phase 07 - Integrations
+          --phase knowledge
+      - name: Phase - Integrations
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -408,8 +408,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 07-integrations
-      - name: Phase 08 - Code Tools
+          --phase integrations
+      - name: Phase - Code Tools
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -417,8 +417,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 08-code-tools
-      - name: Phase 09 - Cherryin And Images
+          --phase codeTools
+      - name: Phase - CherryIN
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -426,8 +426,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 09-cherryin-and-images
-      - name: Phase 09 - Images
+          --phase cherryIn
+      - name: Phase - Images
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -435,8 +435,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 09-images
-      - name: Phase 10 - Agent Runtimes
+          --phase images
+      - name: Phase - Agent Runtimes
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -444,8 +444,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 10-agent-runtimes
-      - name: Phase 12 - Topics
+          --phase agentRuntimes
+      - name: Phase - Topics
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -453,8 +453,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 12-topics
-      - name: Phase 13 - Chat Core
+          --phase topics
+      - name: Phase - Chat Core
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -462,8 +462,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 13-chat-core
-      - name: Phase 14 - Notes
+          --phase chatCore
+      - name: Phase - Notes
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -471,8 +471,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 14-notes
-      - name: Phase 14 - Translation
+          --phase notes
+      - name: Phase - Translation
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -480,8 +480,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 14-translation
-      - name: Phase 15 - Settings
+          --phase translation
+      - name: Phase - Settings
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -489,8 +489,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 15-settings
-      - name: Phase 16 - Assistants
+          --phase settings
+      - name: Phase - Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -498,8 +498,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 16-assistants
-      - name: Phase 17 - Files
+          --phase assistants
+      - name: Phase - Files
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -507,8 +507,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 17-files
-      - name: Phase 18 - Data
+          --phase files
+      - name: Phase - Data Management
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -516,8 +516,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 18-data
-      - name: Phase 19 - Browser
+          --phase dataManagement
+      - name: Phase - Browser
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -525,8 +525,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 19-browser
-      - name: Phase 20 - System
+          --phase browser
+      - name: Phase - System
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -534,7 +534,7 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 20-system
+          --phase system
 
       - name: Clear end-to-end test configuration
         if: always()

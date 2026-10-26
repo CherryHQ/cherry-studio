@@ -6,7 +6,7 @@ import iconv from 'iconv-lite'
 
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { type MockChatRequest, startMockChatServer } from '../../helpers/http/mockChatServer'
-import { selectSidebarApp } from '../regression/navigation'
+import { selectSidebarApp } from '../regression/helpers/navigation'
 import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 

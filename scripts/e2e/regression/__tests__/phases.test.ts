@@ -26,10 +26,10 @@ it('fails the platform gate when the real Playwright subprocess cannot acquire i
         task: 'startup-smoke'
       })
     )
-    await runPhase(paths, '01-startup')
+    await runPhase(paths, 'startup')
     const run = readRun(paths.runState)
     expect(run.cases['S-01'].status).toBe('failed')
-    expect(run.phases['01-startup'].status).toBe('failed')
+    expect(run.phases['startup'].status).toBe('failed')
     expect(getRunVerdict(run)).toBe('development_failed')
     expect(process.exitCode).toBe(1)
   } finally {

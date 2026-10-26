@@ -28,7 +28,7 @@ describe('regression report gate', () => {
           task: 'notes-smoke'
         })
         const completed = completeE2eCase(run, 'N-01', index === 0 ? macosStatus : windowsStatus, 'Case finished')
-        return finalizeRun(updatePhase(completed, '02-basic-features', 'passed'))
+        return finalizeRun(updatePhase(completed, 'basicFeatures', 'passed'))
       })
       expect(aggregateRuns(runs).verdict).toBe(`${prefix}_${expected}`)
     })
@@ -58,7 +58,7 @@ describe('regression report gate', () => {
     expect(renderJUnit(run)).not.toMatch(/[\u3400-\u9fff]/)
     expect(renderAggregateMarkdown(aggregateRuns([run]))).not.toMatch(/[\u3400-\u9fff]/)
     expect(renderJUnit(run)).toContain('<skipped message="Task did not finish before the final report"')
-    expect(renderJUnit(run)).toContain('classname="cherry-regression.executor" name="01-startup"><skipped')
+    expect(renderJUnit(run)).toContain('classname="cherry-regression.executor" name="startup"><skipped')
   })
 
   it('keeps a missing branch matrix in the development verdict namespace', () => {
