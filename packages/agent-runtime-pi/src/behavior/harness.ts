@@ -175,10 +175,10 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
           })
       },
       helpers: {
-        message: (child, input, key) =>
+        message: (child, input, key, reservedRun) =>
           enter(scope, async () => {
             const conv = conversation(child)
-            const accepted = messageChild(adapter, conv, input, key, scope.signal?.aborted === true)
+            const accepted = messageChild(adapter, conv, input, key, scope.signal?.aborted === true, reservedRun)
             if (accepted.status !== 'queued') return accepted
             // Wait for actual consumption so a message crossing normal completion reports the subsequent run.
             const submission = conv.submissions.get(key)!
