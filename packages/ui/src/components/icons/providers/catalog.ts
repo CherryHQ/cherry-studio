@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-11T15:18:33.533Z
- * Total icons: 164
+ * Generated at: 2026-10-26T13:10:16.071Z
+ * Total icons: 165
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -91,6 +91,7 @@ import { LeptonIcon } from './lepton'
 import { LingxiIcon } from './lingxi'
 import { LiquidIcon } from './liquid'
 import { LitellmIcon } from './litellm/litellm'
+import { LlmmanIcon } from './llmman/llmman'
 import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
 import { MacosIcon } from './macos'
@@ -258,6 +259,7 @@ export const PROVIDER_ICON_CATALOG = {
   lingxi: LingxiIcon,
   liquid: LiquidIcon,
   litellm: LitellmIcon,
+  llmman: LlmmanIcon,
   lmstudio: LmstudioIcon,
   longcat: LongcatIcon,
   macos: MacosIcon,
