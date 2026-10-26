@@ -20,6 +20,7 @@ import type { RegressionApp } from '../RegressionApp'
 export async function topicGrouping(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   const originalMode = await page.evaluate(() => window.api.preference.get('topic.tab.display_mode'))
   const assistantIds: string[] = []
+  const backgroundTopicIds: string[] = []
   const topics: Array<{ id: string; name: string; daysAgo: number }> = []
   const assistantNames = [app.resourceName('Grouping A'), app.resourceName('Grouping B')]
   const screenshot = async (name: string) => {
@@ -34,7 +35,6 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     await chat().getByRole('button', { name: 'Display mode', exact: true }).click()
     await page.getByRole('button', { name, exact: true }).click()
   }
-  const groupLabels = ['Today', 'Yesterday', 'Earlier', ...assistantNames, 'Unlinked Assistant']
   // Both the row set and the group headers live in one virtualized list: rows below the window are
   // not mounted, and a header scrolls away from rows deeper inside its own group.
   const scroller = () => chat().locator('[data-virtual-scrolling]').first()
@@ -50,67 +50,91 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     const button = group.locator('button[aria-expanded="false"]:not([aria-label="More"])')
     if (await button.count()) await button.click()
   }
+  const scrollForward = () =>
+    scroller().evaluate(async (element) => {
+      const next = Math.min(element.scrollTop + element.clientHeight * 0.8, element.scrollHeight - element.clientHeight)
+      if (next <= element.scrollTop) return false
+      element.scrollTop = next
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      return true
+    })
   const showAllRows = async () => {
-    for (let step = 0; step < 10; step += 1) {
-      const more = chat().locator('button:visible').filter({ hasText: 'Show more' })
-      if ((await more.count()) === 0) return
-      await more.first().click()
-      await page.waitForTimeout(150)
+    const list = scroller()
+    await list.evaluate((element) => {
+      element.scrollTop = 0
+    })
+    for (let step = 0; step < 100; step += 1) {
+      const more = list.getByRole('button', { name: 'Show more', exact: true }).first()
+      const inViewport = await more.evaluateAll((elements) => {
+        if (!elements.length) return false
+        return new Promise<boolean>((resolve) => {
+          const observer = new IntersectionObserver(([entry]) => {
+            observer.disconnect()
+            resolve(entry.intersectionRatio === 1)
+          })
+          observer.observe(elements[0])
+        })
+      })
+      if (inViewport) {
+        const height = await list.evaluate((element) => element.scrollHeight)
+        await more.click()
+        await expect.poll(() => list.evaluate((element) => element.scrollHeight)).toBeGreaterThan(height)
+      } else if (!(await scrollForward())) {
+        return
+      }
     }
+    throw new Error('Topic groups did not finish expanding within 100 virtual windows')
   }
   // Walk the list from the group's own header to the next known header, keeping the rows of this
   // group out of every window it renders on the way.
   const groupRows = async (name: string): Promise<string[]> => {
     await reveal(header(name))
     const list = scroller()
-    const rows: string[] = []
+    const rows = new Set<string>()
     let inside = false
+    let lastIndex = -1
     for (let step = 0; step < 80; step += 1) {
       const items = await list.evaluate((element) => {
         const labelOf = (item: Element) => {
           for (const span of item.querySelectorAll('span')) {
+            if (span.closest('[aria-hidden="true"]')) continue
             const text = (span.textContent ?? '').trim()
             if (text) return text
           }
           return (item.textContent ?? '').trim()
         }
-        const sequence: Array<{ kind: 'header'; label: string } | { kind: 'row'; value: string }> = []
+        const sequence: Array<
+          { index: number } & ({ kind: 'header'; label: string } | { kind: 'row'; value: string })
+        > = []
         for (const item of element.querySelectorAll('[data-ui~="chat.group-header"], [data-testid="topic-list-row"]')) {
+          const index = Number(item.closest('[data-index]')?.getAttribute('data-index'))
           sequence.push(
             item.matches('[data-ui~="chat.group-header"]')
-              ? { kind: 'header', label: labelOf(item) }
-              : { kind: 'row', value: item.getAttribute('data-topic-id') ?? (item.textContent ?? '').trim() }
+              ? { index, kind: 'header', label: labelOf(item) }
+              : { index, kind: 'row', value: item.id }
           )
         }
         return sequence
       })
       let ended = false
       for (const item of items) {
+        if (item.index <= lastIndex) continue
+        lastIndex = item.index
         if (item.kind === 'header') {
-          const label = groupLabels.find((candidate) => item.label === candidate)
-          if (!label) continue
-          if (inside && label !== name) {
+          if (inside && item.label !== name) {
             ended = true
             break
           }
-          if (label === name) inside = true
+          if (item.label === name) inside = true
         } else if (inside) {
-          // The list is virtualized and overscans: one topic can be rendered in several windows,
-          // so keep the first sighting only. Duplicates would inflate the membership count.
-          if (!rows.includes(item.value)) rows.push(item.value)
+          rows.add(item.value)
         }
       }
       if (ended) break
-      const moved = await list.evaluate((element) => {
-        const next = Math.min(element.scrollTop + element.clientHeight * 0.8, element.scrollHeight)
-        if (next <= element.scrollTop) return false
-        element.scrollTop = next
-        return true
-      })
-      if (!moved) break
-      await page.waitForTimeout(200)
+      if (!(await scrollForward())) return [...rows]
     }
-    return rows
+    expect(inside, `${name} group header must be included in the collected windows`).toBe(true)
+    return [...rows]
   }
   const ownedIn = (values: string[]) =>
     values.filter((value) => topics.some((topic) => value.includes(topic.id) || value.includes(topic.name)))
@@ -145,6 +169,21 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
       expect(response.status).toBe(201)
       topics.push({ id: TopicSchema.parse(response.data).id, name, daysAgo })
     }
+    // Put the owned Today rows beyond the 50-row cap and force overlapping virtual windows.
+    for (let index = 0; index < 55; index += 1) {
+      const response = await page.evaluate(
+        ({ name, assistantId }) =>
+          window.api.dataApi.request({
+            id: 'mp45-background',
+            method: 'POST',
+            path: '/topics',
+            body: { name, assistantId }
+          }),
+        { name: app.resourceName(`Grouping background ${index}`), assistantId: assistantIds[0] }
+      )
+      expect(response.status).toBe(201)
+      backgroundTopicIds.push(TopicSchema.parse(response.data).id)
+    }
 
     // Topic timestamps are read-only in DataApi; seed only these run-owned rows in the real database.
     // Branch launches relocate userData beneath the dev profile root, so ask the app where its data lives.
@@ -156,6 +195,13 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     const db = new DatabaseSync(databasePath)
     try {
       const update = db.prepare('UPDATE topic SET last_activity_at = ?, created_at = ?, updated_at = ? WHERE id = ?')
+      const backgroundDate = new Date()
+      backgroundDate.setHours(23, 59, 0, 0)
+      for (const id of backgroundTopicIds) {
+        expect(
+          update.run(backgroundDate.getTime(), backgroundDate.getTime(), backgroundDate.getTime(), id).changes
+        ).toBe(1)
+      }
       for (const topic of topics) {
         const date = new Date()
         date.setDate(date.getDate() - topic.daysAgo)
@@ -168,6 +214,7 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     await setMode('Time')
+    for (const name of ['Today', 'Yesterday', 'Earlier']) await expand(name)
     await showAllRows()
     for (const [name, daysAgo, count] of [
       ['Today', 0, 2],
@@ -207,6 +254,7 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
 
     await setMode('Assistant')
     const verifyAssistantGroups = async () => {
+      for (const name of [...assistantNames, 'Unlinked Assistant']) await expand(name)
       await showAllRows()
       for (const [name, members] of [
         [assistantNames[0], topics.slice(0, 2)],
@@ -245,23 +293,26 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
     await page.evaluate(
       async ({ originalMode, topicIds, assistantIds }) => {
         await window.api.preference.set('topic.tab.display_mode', originalMode)
+        const errors: string[] = []
         if (topicIds.length) {
-          const permanentlyDeletedTopics = (await window.api.ipcApi.request('trash.topic.delete_permanently', {
+          const result = (await window.api.ipcApi.request('trash.topic.delete_permanently', {
             topicIds
           })) as IpcResult<{ deletedCount: number }>
-          if (!permanentlyDeletedTopics.ok || permanentlyDeletedTopics.data.deletedCount !== new Set(topicIds).size)
-            throw new Error('cleanup left case topics in the trash')
+          if (!result.ok) errors.push(result.error.message)
+          else if (result.data.deletedCount !== new Set(topicIds).size)
+            errors.push('cleanup left case topics in the trash')
         }
         for (const assistantId of assistantIds) {
-          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+          const result = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
             assistantId,
             deleteTopics: true
           })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
-            throw new Error('cleanup left the case assistant in the trash')
+          if (!result.ok) errors.push(result.error.message)
+          else if (!result.data.deleted) errors.push('cleanup left the case assistant in the trash')
         }
+        if (errors.length) throw new Error(`MP-45 cleanup failed: ${errors.join('; ')}`)
       },
-      { originalMode, topicIds: topics.map(({ id }) => id), assistantIds }
+      { originalMode, topicIds: [...topics.map(({ id }) => id), ...backgroundTopicIds], assistantIds }
     )
   }
 }
