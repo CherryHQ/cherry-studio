@@ -5075,7 +5075,7 @@
   "settings.power.prevent_sleep_when_busy": "Menține sistemul activ cât timp rulează sarcinile",
   "settings.privacy.enable_privacy_mode": "Raportare anonimă a erorilor și statisticilor",
   "settings.privacy.title": "Setări confidențialitate",
-  "settings.profile.title": "Informații personale",
+  "settings.profile.title": "Cont",
   "settings.prompts.add": "Adaugă Prompt",
   "settings.prompts.binding.bind": "Asociază promptul",
   "settings.prompts.binding.globalDescription": "Prompturile globale sunt disponibile în toate conversațiile și se gestionează în Setări.",

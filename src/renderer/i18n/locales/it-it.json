@@ -5075,7 +5075,7 @@
   "settings.power.prevent_sleep_when_busy": "Mantieni attivo il sistema durante l'esecuzione delle attività",
   "settings.privacy.enable_privacy_mode": "Invio anonimo di errori e statistiche",
   "settings.privacy.title": "Impostazioni della privacy",
-  "settings.profile.title": "Informazioni personali",
+  "settings.profile.title": "Account",
   "settings.prompts.add": "Aggiungi prompt",
   "settings.prompts.binding.bind": "Collega prompt",
   "settings.prompts.binding.globalDescription": "I prompt globali sono disponibili in ogni conversazione e si gestiscono nelle Impostazioni.",

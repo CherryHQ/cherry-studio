@@ -5075,7 +5075,7 @@
   "settings.power.prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy",
   "settings.privacy.enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
   "settings.privacy.title": "Cài đặt quyền riêng tư",
-  "settings.profile.title": "Thông tin cá nhân",
+  "settings.profile.title": "Tài khoản",
   "settings.prompts.add": "Thêm Lời Nhắc",
   "settings.prompts.binding.bind": "Liên kết lời nhắc",
   "settings.prompts.binding.globalDescription": "Lời nhắc toàn cục có thể dùng trong mọi cuộc trò chuyện và được quản lý trong Cài đặt.",

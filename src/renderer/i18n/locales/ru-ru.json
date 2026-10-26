@@ -5075,7 +5075,7 @@
   "settings.power.prevent_sleep_when_busy": "Не давайте системе переходить в спящий режим, пока выполняются задачи.",
   "settings.privacy.enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
   "settings.privacy.title": "Настройки конфиденциальности",
-  "settings.profile.title": "Личная информация",
+  "settings.profile.title": "Учётная запись",
   "settings.prompts.add": "Добавить промпт",
   "settings.prompts.binding.bind": "Привязать промпт",
   "settings.prompts.binding.globalDescription": "Глобальные промпты доступны во всех диалогах и управляются в настройках.",

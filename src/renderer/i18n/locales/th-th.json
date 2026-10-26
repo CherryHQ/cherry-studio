@@ -5075,7 +5075,7 @@
   "settings.power.prevent_sleep_when_busy": "ให้ระบบตื่นอยู่ขณะทำงาน",
   "settings.privacy.enable_privacy_mode": "รายงานข้อผิดพลาดและสถิติแบบไม่ระบุตัวตน",
   "settings.privacy.title": "การตั้งค่าความเป็นส่วนตัว",
-  "settings.profile.title": "ข้อมูลส่วนตัว",
+  "settings.profile.title": "บัญชี",
   "settings.prompts.add": "เพิ่มพรอมต์",
   "settings.prompts.binding.bind": "ผูกพรอมต์",
   "settings.prompts.binding.globalDescription": "พรอมต์แบบ Global พร้อมใช้งานในทุกบทสนทนา และจัดการได้จากหน้าการตั้งค่า",

@@ -5075,7 +5075,7 @@
   "settings.power.prevent_sleep_when_busy": "Görevler çalışırken sistemi uyanık tut",
   "settings.privacy.enable_privacy_mode": "Hataların ve istatistiklerin anonim olarak bildirilmesi",
   "settings.privacy.title": "Gizlilik Ayarları",
-  "settings.profile.title": "Kişisel Bilgiler",
+  "settings.profile.title": "Hesap",
   "settings.prompts.add": "İstem Ekle",
   "settings.prompts.binding.bind": "İstemi bağla",
   "settings.prompts.binding.globalDescription": "Genel istemler tüm konuşmalarda kullanılabilir ve Ayarlar bölümünden yönetilir.",

@@ -5075,7 +5075,7 @@
   "settings.power.prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες",
   "settings.privacy.enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
   "settings.privacy.title": "Ρυθμίσεις Απορρήτου",
-  "settings.profile.title": "Προσωπικές πληροφορίες",
+  "settings.profile.title": "Λογαριασμός",
   "settings.prompts.add": "Προσθήκη Prompt",
   "settings.prompts.binding.bind": "Σύνδεση προτροπής",
   "settings.prompts.binding.globalDescription": "Οι καθολικές προτροπές είναι διαθέσιμες σε κάθε συνομιλία και διαχειρίζονται στις Ρυθμίσεις.",

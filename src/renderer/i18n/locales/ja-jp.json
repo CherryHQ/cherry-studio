@@ -5075,7 +5075,7 @@
   "settings.power.prevent_sleep_when_busy": "タスクが実行されている間はシステムをスリープさせない",
   "settings.privacy.enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
   "settings.privacy.title": "プライバシー設定",
-  "settings.profile.title": "個人情報",
+  "settings.profile.title": "アカウント",
   "settings.prompts.add": "プロンプトを追加",
   "settings.prompts.binding.bind": "プロンプトを関連付ける",
   "settings.prompts.binding.globalDescription": "グローバルプロンプトはすべての会話で利用でき、設定で管理できます。",
