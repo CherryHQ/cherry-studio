@@ -562,11 +562,32 @@ describe('migrateDisabledToolsForServerRename', () => {
 describe('migrateAgentDisabledToolsForServerRename', () => {
   const RESERVED = ['skills', 'assistant', 'agent-memory']
 
-  it('keeps a Pi display-name alias whose string becomes another server key after the rename', () => {
+  it('does not keep a name-keyed denial whose key the renamed server takes over', () => {
+    // A (`other`) mounts before B (`docs`); disabling B.run saved `mcp__docs__run`. Renaming A
+    // to `docs` hands the key to A and bumps B onto its id — the display-name alias must not
+    // keep the original: post-rename the string is A's registered identity, and keeping it
+    // denies A's previously enabled tool in B's place. B's restriction travels through its
+    // stable id instead.
+    const migrated = migrateAgentDisabledToolsForServerRename(['mcp__docs__run'], {
+      mountedServers: [
+        { mcpId: 'srv-a', name: 'other' },
+        { mcpId: 'srv-b', name: 'docs' }
+      ],
+      renamedServerId: 'srv-a',
+      toName: 'docs',
+      reservedKeys: RESERVED
+    })
+    expect(migrated).toContain('mcp__srv-b__run')
+    expect(migrated).not.toContain('mcp__docs__run')
+  })
+
+  it('drops the display-name alias whose string the renamed server claims, keeping the stable-id forms', () => {
     // A (`other`) mounts first; B (`docs`) is displaced onto its id when A renames to `docs`.
-    // The saved `mcp__docs__getTime` is B's Pi display-name alias — B's configured name did not
-    // change, so Pi still resolves B's denial through it — while the rewritten id forms copy
-    // the camelized tool fragment and can never regenerate it. The alias must survive.
+    // The saved `mcp__docs__getTime` spells a CURRENT configured name (B keeps `docs`), but its
+    // ownership did not survive the change: the string is A's registered key the moment the
+    // rename lands, so keeping the alias would deny A's previously enabled tool in B's place.
+    // B's restriction travels through its stable id forms (Pi matches `mcp__<id>__tool`
+    // verbatim at any tool length, raw and camelized tool segment alike).
     const migrated = migrateAgentDisabledToolsForServerRename(['mcp__docs__getTime'], {
       mountedServers: [
         { mcpId: 'srv-a', name: 'other' },
@@ -576,9 +597,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       toName: 'docs',
       reservedKeys: RESERVED
     })
-    expect(migrated).toContain('mcp__docs__getTime')
-    expect(migrated).toContain('mcp__srv-b__getTime')
-    expect(migrated).toContain('mcp__srv-b__gettime')
+    expect(migrated).toEqual(['mcp__srv-b__getTime', 'mcp__srv-b__gettime'])
   })
 
   it('leaves rules alone when the agent does not mount the renamed server', () => {
@@ -704,10 +723,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
 
   it('follows a sibling whose allocated key the rename displaces', () => {
     // A (`docs`) mounts before B (`github`); disabling B saved `mcp__github__run`. Renaming A
-    // to `github` moves the key to A and bumps B onto its id — B's denial must follow B, or
-    // B's tool executes under the identity A now owns. The original string also stays: B's
-    // configured name is still `github`, so the string remains B's Pi display-name alias
-    // (over-blocking A's identically-named tool is the fail-closed side).
+    // to `github` moves the key to A and bumps B onto its id — B's denial must follow B and
+    // the original must go: post-rename the string is A's registered identity, and keeping it
+    // would deny A's previously enabled tool in B's place.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__github__run', 'mcp__other__run'], {
         mountedServers: [
@@ -718,7 +736,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__github__run', 'mcp__srv-b__run', 'mcp__other__run'])
+    ).toEqual(['mcp__srv-b__run', 'mcp__other__run'])
   })
 
   it('migrates the renamed server and a displaced sibling in one pass', () => {
@@ -732,7 +750,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__github__x', 'mcp__github__run', 'mcp__srv-b__run'])
+    ).toEqual(['mcp__github__x', 'mcp__srv-b__run'])
   })
 
   it('rewrites a hashed plain-key entry onto the 50-char stripped base of the new allocation', () => {
@@ -824,10 +842,11 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
 
   it('keeps every replacement when another original occupies its destination', () => {
     // A (`docs`) mounts before B (`github`); both run tools are disabled. Renaming A to
-    // `github` hands the `github` key to A and bumps B onto its id. Deduping replacements
-    // against the ORIGINAL list suppresses A's replacement (B's original occupies it) while
-    // B's original itself moves away — leaving A's executable `mcp__github__run` undenied.
-    // All rewrites must be planned first and the final output deduped afterwards.
+    // `github` hands the `github` key to A and bumps B onto its id. The name-keyed original no
+    // longer survives (the key changed hands), so the output is A's replacement plus B's
+    // stable-id copy. Originals that DO survive the migration (hashed or id-native keeps) can
+    // still occupy another entry's replacement destination — all rewrites must be planned
+    // first and the final output deduped afterwards.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__docs__run', 'mcp__github__run'], {
         mountedServers: [

@@ -457,13 +457,15 @@ interface AgentKeyRewrite {
    */
   fromIsId?: boolean
   /**
-   * The owner is leaving the mount set: its configured-name key is being RELEASED, and the
-   * saved string spells the next claimant's runtime name the moment the key changes hands.
-   * The rewrite moves the denial onto the departing server's stable id and the name-keyed
-   * original is dropped — keeping it would deny the claimant in the departed server's place
-   * (the display-name alias protection does not apply to a key nobody keeps).
+   * The old key's segment no longer names this server after the change: another mounted
+   * server's post-change key takes the segment over (a rename claim, a displacement, a
+   * reorder), or the owner is departing and the configured-name key is released to the next
+   * claimant. The saved strings spelled under the segment become the new owner's registered
+   * identity the moment the change lands, so keeping a display-name alias would deny the new
+   * owner's tool in this server's place — this server's restriction travels through its
+   * stable-id forms instead.
    */
-  departing?: boolean
+  aliasOwnershipLost?: boolean
 }
 
 /**
@@ -526,7 +528,8 @@ export function migrateAgentDisabledToolsForServerRename(
       fromKey: oldKey,
       toKey: newKey,
       camelToKey,
-      fromIsId: oldKey === sanitizeAgentServerKey(mcpId)
+      fromIsId: oldKey === sanitizeAgentServerKey(mcpId),
+      aliasOwnershipLost: keyClaimedByOtherServer(newKeys, mcpId, oldKey)
     })
   }
   return applyAgentKeyRewrites(
@@ -593,7 +596,7 @@ export function migrateAgentDisabledToolsForAllocationChange(
       // rewrite below).
       const stableKey = sanitizeAgentServerKey(mcpId)
       if (oldKey !== stableKey) {
-        rewrites.push({ fromKey: oldKey, toKey: stableKey, fromIsId: false, departing: true })
+        rewrites.push({ fromKey: oldKey, toKey: stableKey, fromIsId: false, aliasOwnershipLost: true })
       }
       continue
     }
@@ -610,7 +613,8 @@ export function migrateAgentDisabledToolsForAllocationChange(
       fromKey: oldKey,
       toKey: newKey,
       camelToKey,
-      fromIsId: oldKey === sanitizeAgentServerKey(mcpId)
+      fromIsId: oldKey === sanitizeAgentServerKey(mcpId),
+      aliasOwnershipLost: keyClaimedByOtherServer(newKeys, mcpId, oldKey)
     })
   }
   if (rewrites.length === 0) return undefined
@@ -655,6 +659,21 @@ function collectDisplayNameSegments(names: ReadonlyArray<string | undefined>): S
     if (name) segments.add(toCamelCase(name))
   }
   return segments
+}
+
+/**
+ * Whether another mounted server's post-change key takes over the old key's SDK segment. The
+ * allocator keeps claimed keys segment-unique, so segment equality pins the takeover: every
+ * string spelled under the old key becomes the new owner's registered identity, and a
+ * display-name alias kept for the old owner would deny the new owner's tool in its place.
+ */
+function keyClaimedByOtherServer(newKeys: ReadonlyMap<string, string>, ownerId: string, oldKey: string): boolean {
+  const segment = toSdkMcpServerSegment(oldKey)
+  for (const [mcpId, key] of newKeys) {
+    if (mcpId === ownerId) continue
+    if (toSdkMcpServerSegment(key) === segment) return true
+  }
+  return false
 }
 
 /**
@@ -757,18 +776,18 @@ function applyAgentKeyRewrites(
           // still that other server's native id form, and an id is never reassigned to a
           // different server, so the kept original cannot over-block.
           // A segment spelling a CURRENT configured name (camelized) is a Pi display-name
-          // alias of that server — a displaced server keeps its configured name through the
-          // rename that displaced it, so the alias still resolves its denial ("docs" stays
-          // `docs` while its key moves to the id) and must survive too: the rewritten copies
-          // carry only the camelized tool fragment, which cannot regenerate the alias.
-          // A DEPARTING rewrite skips the display-name protection: its key is being released,
-          // so the alias spells the CLAIMANT's registered name — keeping the original would
-          // deny the claimant in the departed server's place. Id-native segments above still
-          // keep their originals (an id form survives every allocation change).
+          // alias only while its ownership stays valid: a displaced server keeps its
+          // configured name, so when the released key is NOT claimed by anyone the alias
+          // still resolves its own denial and must survive ("docs" stays unclaimed while its
+          // key moves to the id). When another server's post-change key takes the segment
+          // over — or the owner departs and releases the key to the next claimant — the
+          // string names that OTHER server's registered identity, and keeping it would deny
+          // the new owner in this server's place; the restriction travels through the
+          // stable-id forms instead.
           keepOriginal =
             matched.fromIsId === true ||
             idSegments.has(serverPart) ||
-            (matched.departing !== true && displaySegments.has(serverPart))
+            (matched.aliasOwnershipLost !== true && displaySegments.has(serverPart))
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = [
             ...rewriteHashed(toolPart, lossyMatched.toKey),
