@@ -4369,7 +4369,7 @@ describe('cherry-pr-review a5461bcd43 reconciliation follow-ups', () => {
       // Both claims lost to a peer that never dispatches (abandoned grant).
       claimHeadTrigger.mockResolvedValue({ claimed: false })
       const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-        initialProps: { completion: { status: 'streaming' as const, lastCompletedAt: null as number | null } }
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
       })
       // First completion parks the edge and starts the 5s reconcile timer.
       await act(async () => {
