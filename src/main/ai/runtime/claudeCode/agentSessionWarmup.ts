@@ -17,7 +17,8 @@ import {
   type AgentNotificationContext,
   resolveAgentMcpServerKeys,
   resolveAgentNotificationContext,
-  resolveLinkedNotifyChannel
+  resolveLinkedNotifyChannel,
+  resolveMountedAgentMcpServers
 } from '@main/ai/runtime/agentMcpServers'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -123,6 +124,7 @@ function gatewayBypassRule(route: Pick<ClaudeCodeRouteFacts, 'branch' | 'baseUrl
 interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
   mcp: unknown[]
+  mcpAllocation: Array<[string, string]>
   skills: string[]
   notificationContext: AgentNotificationContext
   contextWindow: number | null
@@ -423,6 +425,7 @@ async function deriveConnectionConfigFromSnapshot(
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
+    mcpAllocation: materialized?.mcpAllocation ?? deriveMcpAllocationFacts(agent.mcps),
     notificationContext
   }
   const rebuildFactFingerprints = Object.fromEntries(
@@ -465,6 +468,25 @@ function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots
       headers: Object.entries(server.headers ?? {}).sort(([a], [b]) => a.localeCompare(b))
     }
   })
+}
+
+/**
+ * Sorted id → record-key allocation pairs, derived from the same ordered resolution the runtime
+ * registers servers under. The allocator breaks duplicate configured names by mount order (the
+ * first mount wins the readable key), while the definition facts and the live tool policy sort
+ * mount ids away — so persisting a reorder of same-named mounts changed which server serves
+ * `mcp__<name>__*` without touching any existing fingerprint, and the stale connection kept
+ * invoking the old owner. Sorting the pairs back makes the fact sensitive to exactly the
+ * allocation content (which id owns which key) and insensitive to reorders that change nothing
+ * (distinct names re-swap their identical allocations), so no unrelated rebuild is introduced.
+ */
+function deriveMcpAllocationFacts(
+  mcpIds: string[] | null | undefined,
+  snapshots?: McpServerSnapshotMap
+): Array<[string, string]> {
+  return resolveMountedAgentMcpServers({ mcps: mcpIds ?? [] }, snapshots)
+    .map(({ mcpId, key }): [string, string] => [mcpId, key])
+    .sort(([idA], [idB]) => idA.localeCompare(idB))
 }
 
 function captureMcpServerSnapshots(mcpIds: string[] | null | undefined): McpServerSnapshotMap {
@@ -573,6 +595,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     {
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
+      mcpAllocation: deriveMcpAllocationFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
       notificationContext,
       contextWindow: contextWindow ?? null,

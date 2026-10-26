@@ -1669,6 +1669,64 @@ describe('deriveConnectionConfig', () => {
     expect(instructionsArrived.rebuildSignature).not.toBe(mcpDefinitionChanged.rebuildSignature)
   })
 
+  it('flags a rebuild when a persisted mount reorder hands a duplicate-name key to another server', async () => {
+    // Two mounted servers configured with the same name: allocation order (mount order) decides
+    // who owns the readable `docs` record key, so persisting [B, A] over [A, B] changes which
+    // server serves `mcp__docs__*` — the reorder must invalidate the frozen connection even
+    // though the sorted definition facts and the sorted live policy are untouched.
+    const serverA = { id: 'mcp-a', name: 'docs', type: 'stdio', command: 'npx docs-a' }
+    const serverB = { id: 'mcp-b', name: 'docs', type: 'stdio', command: 'npx docs-b' }
+    mocks.findMcpServerByIdOrName.mockImplementation(
+      (idOrName: string) => (idOrName === 'mcp-a' ? serverA : idOrName === 'mcp-b' ? serverB : undefined) as never
+    )
+    const agentWithMounts = (mcps: string[]) => ({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps,
+      configuration: {}
+    })
+    mocks.getAgent.mockReturnValue(agentWithMounts(['mcp-a', 'mcp-b']))
+    const first = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue(agentWithMounts(['mcp-b', 'mcp-a']))
+    const reordered = await deriveSignature()
+
+    expect(reordered.rebuildSignature).not.toBe(first.rebuildSignature)
+    expect(reordered.rebuildFactFingerprints.mcpAllocation).toBeDefined()
+    expect(
+      Object.keys(first.rebuildFactFingerprints).filter(
+        (name) => first.rebuildFactFingerprints[name] !== reordered.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['mcpAllocation'])
+  })
+
+  it('keeps the rebuild signature stable when a mount reorder leaves the allocation untouched', async () => {
+    // Distinct names never tie, so every reorder hands out the identical id→key allocation:
+    // the ordered-allocation fact must stay order-insensitive to avoid rebuilding connections
+    // for a no-op reordering.
+    const serverA = { id: 'mcp-a', name: 'alpha', type: 'stdio', command: 'npx alpha' }
+    const serverB = { id: 'mcp-b', name: 'beta', type: 'stdio', command: 'npx beta' }
+    mocks.findMcpServerByIdOrName.mockImplementation(
+      (idOrName: string) => (idOrName === 'mcp-a' ? serverA : idOrName === 'mcp-b' ? serverB : undefined) as never
+    )
+    const agentWithMounts = (mcps: string[]) => ({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps,
+      configuration: {}
+    })
+    mocks.getAgent.mockReturnValue(agentWithMounts(['mcp-a', 'mcp-b']))
+    const first = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue(agentWithMounts(['mcp-b', 'mcp-a']))
+    const reordered = await deriveSignature()
+
+    expect(reordered.rebuildSignature).toBe(first.rebuildSignature)
+    expect(reordered.rebuildFactFingerprints.mcpAllocation).toBe(first.rebuildFactFingerprints.mcpAllocation)
+  })
+
   it('fingerprints knowledge-base bindings as a set', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
