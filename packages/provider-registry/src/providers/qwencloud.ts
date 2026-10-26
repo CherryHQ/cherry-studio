@@ -95,6 +95,13 @@ const listedModels = [
   'glm-5.3',
   'kimi-k2.7-code',
   'qwen3.8-2.4t-a95b',
+  'qwen3.8-27b',
+  'qwen3.6-27b',
+  'qwen3.6-35b-a3b',
+  'qwen3.5-27b',
+  'qwen3.5-35b-a3b',
+  'qwen3.5-122b-a10b',
+  'qwen3.5-397b-a17b',
   'qwq-plus',
   'qwen-vl-max',
   'qwen-vl-plus',
@@ -111,14 +118,22 @@ const listedModels = [
  */
 const webSearchModelPrefixes = [
   'qwen3-8-max',
+  'qwen3-8-flash',
   'qwen3-8-2-4t-a95b',
+  'qwen3-8-27b',
   'qwen3-7-max',
   'qwen3-7-plus',
   'qwen3-7-flash',
   'qwen3-6-plus',
   'qwen3-6-flash',
+  'qwen3-6-27b',
+  'qwen3-6-35b-a3b',
   'qwen3-5-plus',
   'qwen3-5-flash',
+  'qwen3-5-27b',
+  'qwen3-5-35b-a3b',
+  'qwen3-5-122b-a10b',
+  'qwen3-5-397b-a17b',
   'qwen3-max'
 ]
 
@@ -126,10 +141,10 @@ const webSearchModelPrefixes = [
  * Responses `web_search` tool lines from the same table — a CLOSED id list, not a family prefix:
  * `deepseek-v4` would also claim flash-vision-exp and `glm-5-2` the -fast variant, neither of
  * which the docs serve search on. kimi-k3 is documented "supported only by the Responses API".
- * Dated snapshots pro-0813/flash-0731 are listed upstream but absent from the catalog; append
- * them here once models.dev carries them.
+ * Dated snapshots 0813/0731/1017 are listed upstream but absent from the catalog; append them
+ * here once models.dev carries them.
  */
-const responsesSearchModelIds = ['deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5-2', 'kimi-k3']
+const responsesSearchModelIds = ['deepseek-v4-1-flash', 'deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5-2', 'kimi-k3']
 
 /** qwen-image-3.0 / -pro serve both t2i and editing off one sync multimodal endpoint. */
 const qwenImage3Mode: ImageModeDef = {
@@ -329,6 +344,16 @@ export default defineProvider({
       }
     },
     {
+      // Current omni generation (docs web-search table); standalone — no models.dev base row yet.
+      // Search on omni rides the multimodal API, so it stays out of the Chat eligibility prefixes.
+      apiModelId: 'qwen3.8-omni-flash',
+      modelId: 'qwen3-8-omni-flash',
+      name: 'Qwen3.8 Omni Flash',
+      reasoningContracts: {
+        'openai-chat-completions': { wire: qwenChatWire }
+      }
+    },
+    {
       modelId: 'kimi-k3',
       // Same passthrough as dashscope: the intl endpoint forwards to Moonshot's backend too.
       parameterSupport: fixedSamplingParameterSupport,
@@ -339,7 +364,7 @@ export default defineProvider({
     // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only — Responses stays the
     // default endpoint so their search is reachable, Chat remains selectable for plain requests. Both
     // endpoints carry their documented Chat/Responses effort ladders (see the constants above).
-    ...(['deepseek-v4-pro', 'deepseek-v4-flash'] as const).map(
+    ...(['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-1-flash'] as const).map(
       (modelId): Partial<ProviderModelOverride> => ({
         modelId,
         endpointTypes: ['openai-responses', 'openai-chat-completions'],

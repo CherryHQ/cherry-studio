@@ -37656,6 +37656,105 @@
     },
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "deepseek-v4-1-flash",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "xhigh"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
       "providerId": "qwencloud",
       "reasoningContracts": {
@@ -38729,6 +38828,26 @@
       "providerId": "qwencloud"
     },
     {
+      "apiModelId": "qwen3.5-122b-a10b",
+      "modelId": "qwen3-5-122b-a10b",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen3.5-27b",
+      "modelId": "qwen3-5-27b",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen3.5-35b-a3b",
+      "modelId": "qwen3-5-35b-a3b",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen3.5-397b-a17b",
+      "modelId": "qwen3-5-397b-a17b",
+      "providerId": "qwencloud"
+    },
+    {
       "apiModelId": "qwen3.5-flash",
       "modelId": "qwen3-5-flash",
       "providerId": "qwencloud",
@@ -38859,6 +38978,16 @@
           }
         }
       }
+    },
+    {
+      "apiModelId": "qwen3.6-27b",
+      "modelId": "qwen3-6-27b",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen3.6-35b-a3b",
+      "modelId": "qwen3-6-35b-a3b",
+      "providerId": "qwencloud"
     },
     {
       "apiModelId": "qwen3.6-flash",
@@ -39262,6 +39391,11 @@
       "providerId": "qwencloud"
     },
     {
+      "apiModelId": "qwen3.8-27b",
+      "modelId": "qwen3-8-27b",
+      "providerId": "qwencloud"
+    },
+    {
       "apiModelId": "qwen3.8-flash",
       "modelId": "qwen3-8-flash",
       "name": "Qwen3.8 Flash",
@@ -39386,6 +39520,73 @@
                   "target": "reasoning_effort",
                   "value": {
                     "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.8-omni-flash",
+      "modelId": "qwen3-8-omni-flash",
+      "name": "Qwen3.8 Omni Flash",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
                   }
                 }
               ]
