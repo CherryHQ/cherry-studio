@@ -58,7 +58,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
   const filesView = () => page.locator('[data-ui~="files.view"]:visible')
   const filePreview = (name: string) => filesView().getByRole('region', { name, exact: true })
   const openLibraryFile = async (name: string) => {
-    await filesView().getByText(name, { exact: true }).filter({ visible: true }).click()
+    await filesView().locator('[data-ui~="files.row"]:visible').getByText(name, { exact: true }).click()
     await expect(filePreview(name)).toBeVisible()
   }
   const assertRichDocument = async (preview: Locator) => {
