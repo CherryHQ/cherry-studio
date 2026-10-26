@@ -249,7 +249,7 @@ patchedDependencies:
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
   motion-dom@12.42.0: 5c9bfe486d8d0472ab803d31133ec3a7e34aa8cadde01fdd9923e2dbbc170014
-  ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
+  ollama-ai-provider-v2@3.3.1: f92a83b531d6517523983f96a4e3368beb9602b5c601b4792d5b5ef254cdc311
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
   rtf.js@3.0.9: 8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24
@@ -1245,7 +1245,7 @@ importers:
         version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       ollama-ai-provider-v2:
         specifier: 3.3.1
-        version: 3.3.1(patch_hash=d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b)(ai@6.0.185(patch_hash=56d1a39268393c1340fbe04c34161d6c00c3bb569b3faf52f4cb6b43dbc98f61)(zod@4.4.3))(zod@4.4.3)
+        version: 3.3.1(patch_hash=f92a83b531d6517523983f96a4e3368beb9602b5c601b4792d5b5ef254cdc311)(ai@6.0.185(patch_hash=56d1a39268393c1340fbe04c34161d6c00c3bb569b3faf52f4cb6b43dbc98f61)(zod@4.4.3))(zod@4.4.3)
       open:
         specifier: ^8.4.2
         version: 8.4.2
@@ -28070,7 +28070,7 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  ollama-ai-provider-v2@3.3.1(patch_hash=d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b)(ai@6.0.185(patch_hash=56d1a39268393c1340fbe04c34161d6c00c3bb569b3faf52f4cb6b43dbc98f61)(zod@4.4.3))(zod@4.4.3):
+  ollama-ai-provider-v2@3.3.1(patch_hash=f92a83b531d6517523983f96a4e3368beb9602b5c601b4792d5b5ef254cdc311)(ai@6.0.185(patch_hash=56d1a39268393c1340fbe04c34161d6c00c3bb569b3faf52f4cb6b43dbc98f61)(zod@4.4.3))(zod@4.4.3):
     dependencies:
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)

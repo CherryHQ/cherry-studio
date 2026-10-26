@@ -95,7 +95,14 @@ export const OllamaTagsResponseSchema = z.object({
  * read first — `/api/tags` carries no context length at all.
  */
 export const OllamaShowResponseSchema = z.looseObject({
-  model_info: z.record(z.string(), z.unknown()).optional()
+  model_info: z.record(z.string(), z.unknown()).optional(),
+  capabilities: z.array(z.string()).optional(),
+  thinking: z
+    .object({
+      values: z.array(z.union([z.boolean(), z.string()])),
+      default: z.union([z.boolean(), z.string()]).optional()
+    })
+    .optional()
 })
 
 // === Gemini ===

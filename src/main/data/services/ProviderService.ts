@@ -98,18 +98,32 @@ export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
   return getAvailableProviderMetadata(row) !== null
 }
 
+function resolveProviderEndpointConfigs(
+  row: Pick<UserProviderRow, 'providerId' | 'presetProviderId' | 'endpointConfigs' | 'defaultChatEndpoint'>
+) {
+  let configs = row.endpointConfigs
+  const previousHost = configs?.['anthropic-messages']?.baseUrl
+  // Before the native default, Ollama's primary host editor saved to the Anthropic slot.
+  // Preserve that destination unless the user already chose a native host or default.
+  if (
+    row.presetProviderId === 'ollama' &&
+    row.defaultChatEndpoint === null &&
+    previousHost !== undefined &&
+    configs?.['ollama-chat']?.baseUrl === undefined
+  ) {
+    configs = { ...configs, 'ollama-chat': { ...configs?.['ollama-chat'], baseUrl: previousHost } }
+  }
+  return getDataService('ProviderRegistryService').mergeEndpointConfigs(configs, row.providerId, row.presetProviderId)
+}
+
 function rowToReasoningProviderContext(
   row: Pick<UserProviderRow, 'providerId' | 'presetProviderId' | 'endpointConfigs' | 'defaultChatEndpoint'>,
   metadata: ProviderDisplayMetadata
 ): ReasoningProviderContext {
-  const providerRegistryService = getDataService('ProviderRegistryService')
-
   return {
     id: row.providerId,
     presetProviderId: row.presetProviderId,
-    endpointConfigs:
-      providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
-      undefined,
+    endpointConfigs: resolveProviderEndpointConfigs(row) ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? metadata.defaultChatEndpoint
   }
 }
@@ -263,7 +277,14 @@ function projectEndpointConfigOverrides(
     const ep = key as EndpointType
     const presetConfig = presetConfigs?.[ep]
     const override: StoredEndpointConfigOverride = {}
-    if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
+    // An explicit native reset must not inherit the old Anthropic-slot host again.
+    const preservesNativeHostChoice =
+      presetProviderId === 'ollama' &&
+      ep === 'ollama-chat' &&
+      (storedConfigs?.['anthropic-messages']?.baseUrl ?? configs['anthropic-messages']?.baseUrl) !== undefined
+    if (config.baseUrl !== undefined && (config.baseUrl !== presetConfig?.baseUrl || preservesNativeHostChoice)) {
+      override.baseUrl = config.baseUrl
+    }
     // Same delta rule per dialect key: a value equal to the registry's is not an override.
     const baselineDialect = resolveEndpointDialect({ endpointConfigs: presetConfigs ?? undefined }, ep)
     const dialect = Object.fromEntries(
@@ -330,9 +351,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
     // (#17096 — the seeder is insert-only, so the row alone goes stale);
     // the row contributes user-owned baseUrl and dialect overrides. Legacy
     // registry-only fields such as `reasoningFormatType` are stripped first.
-    endpointConfigs:
-      providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
-      undefined,
+    endpointConfigs: resolveProviderEndpointConfigs(row) ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
     modelListSource: presetMetadata.modelListSource,
     supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,

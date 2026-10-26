@@ -22,11 +22,13 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { CHERRY_REASONING_EFFORT_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { Provider } from '@shared/data/types/provider'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
@@ -149,6 +151,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
+  const capturedReasoning = ReasoningEffortOptionSchema.safeParse(
+    isInternalRequest && agentSessionId ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER) : undefined
+  )
+  const reasoningEffort = capturedReasoning.success ? capturedReasoning.data : undefined
   // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
   const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
@@ -214,7 +220,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =
-    converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {}
+    reasoningEffort !== undefined
+      ? {}
+      : (converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {})
   const fastModeProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
@@ -377,6 +385,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
+            reasoningEffort,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
             ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
@@ -463,6 +472,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         messages,
         listener,
         callOverrides,
+        reasoningEffort,
         contextOwner: 'caller',
         ...(usageContext ? { usageContext } : {}),
         ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),

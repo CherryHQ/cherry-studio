@@ -12,7 +12,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
@@ -519,7 +519,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
-  const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+  const { baseUrl, endpointType } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
   // capture (the effective model differs from the latest `agent.model`), pin plan/small to it too rather
@@ -568,7 +568,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       agent
     ),
     route,
-    fastModeTransport
+    fastModeTransport,
+    endpointType === ENDPOINT_TYPE.OLLAMA_CHAT ? reasoningEffort : undefined
   )
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
@@ -988,7 +989,8 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
 function mergeRuntimeSettings(
   settings: ClaudeCodeSettings,
   route: ClaudeCodeRuntimeRoute,
-  fastModeTransport?: NonNullable<Provider['fastMode']>['transport']
+  fastModeTransport?: NonNullable<Provider['fastMode']>['transport'],
+  reasoningEffort?: ReasoningEffortOption
 ): ClaudeCodeSettings {
   const fastModeHeaders =
     route.branch === 'gateway' && fastModeTransport === 'openai-priority'
@@ -997,7 +999,10 @@ function mergeRuntimeSettings(
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,
     route.customHeaders,
-    fastModeHeaders
+    fastModeHeaders,
+    route.branch === 'gateway' && reasoningEffort !== undefined
+      ? `${CHERRY_REASONING_EFFORT_HEADER}: ${reasoningEffort}`
+      : undefined
   )
   const env = mergeAgentLoopbackProxyBypass(
     {

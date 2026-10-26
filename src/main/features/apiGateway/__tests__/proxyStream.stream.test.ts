@@ -1,3 +1,4 @@
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,7 +39,12 @@ const {
   mockToAiSdkTools: vi.fn(() => undefined),
   mockExtractStreamOptions: vi.fn(() => ({})),
   mockExtractProviderOptions: vi.fn<
-    (provider: unknown, model: unknown, params: MessageCreateParams, maxOutputTokens?: number) => undefined
+    (
+      provider: unknown,
+      model: unknown,
+      params: MessageCreateParams,
+      maxOutputTokens?: number
+    ) => ProviderOptions | undefined
   >(() => undefined),
   mockLoggerWarn: vi.fn(),
   captured: { listener: undefined as StreamListener | undefined }
@@ -157,6 +163,7 @@ beforeEach(() => {
     captured.listener = opts.listener
   })
   mockResolveAgentSessionUsage.mockReturnValue(undefined)
+  mockExtractProviderOptions.mockReturnValue(undefined)
   mockIsInternalAgentRequest.mockReturnValue(false)
   mockToUIMessages.mockImplementation(convertMockAnthropicMessages)
 })
@@ -572,6 +579,58 @@ describe('processMessage (internal Agent continuation normalization)', () => {
 })
 
 describe('processMessage (streaming)', () => {
+  it.each([
+    { internal: false, selection: 'none' },
+    { internal: true, selection: 'unknown' }
+  ])(
+    'keeps SDK options for an untrusted or invalid reasoning header: $internal / $selection',
+    async ({ internal, selection }) => {
+      mockIsInternalAgentRequest.mockReturnValue(internal)
+      mockExtractProviderOptions.mockReturnValue({ ollama: { think: 'high' } })
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({
+          'x-cherry-agent-session-id': 'session-1',
+          'x-cherry-reasoning-effort': selection
+        })
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const request = mockStreamPrompt.mock.calls[0][0]
+      expect(request.reasoningEffort).toBeUndefined()
+      expect(request.callOverrides.providerOptions).toMatchObject({ ollama: { think: 'high' } })
+      commit(captured.listener!)
+      await captured.listener!.onDone({} as any)
+      await response
+    }
+  )
+
+  it.each([true, false])('honors captured Agent thinking over SDK high defaults (stream=%s)', async (stream) => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockExtractProviderOptions.mockReturnValue({ ollama: { think: 'high' } })
+    for (const selection of ['none', 'default', 'medium'] as const) {
+      captured.listener = undefined
+      mockStreamPrompt.mockClear()
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream, messages: [], reasoning_effort: 'high' },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({
+          'x-cherry-agent-session-id': 'session-1',
+          'x-cherry-reasoning-effort': selection
+        })
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const request = mockStreamPrompt.mock.calls[0][0]
+      expect(request.reasoningEffort).toBe(selection)
+      expect(request.callOverrides.providerOptions).toBeUndefined()
+      commit(captured.listener!)
+      await captured.listener!.onDone({} as any)
+      await response
+    }
+  })
+
   it('passes validated internal agent-session correlation to provider-call usage capture', async () => {
     const usageContext = {
       agentSessionId: 'session-1',
