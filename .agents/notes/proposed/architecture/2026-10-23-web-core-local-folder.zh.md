@@ -17,7 +17,7 @@ Web 版的 Agent 只能在浏览器私有存储里的工作区中工作([Agent S
 桌面端的选择器、登记路由和会话宿主都不改;由 Web 版应答文件夹对话框,并把所选文件夹挂载到 Worker 的文件系统中。所有改动都在 `packages/web-core` 内。
 
 1. **选择文件夹。** 页面自己应答 `IpcChannel.File_SelectFolder`,就在发起请求的那次点击里调用 `showDirectoryPicker({ mode: 'readwrite' })`,再把句柄交给 Worker,由 Worker 返回文件夹路径。用户取消时返回 `null`,与桌面端对话框一致。浏览器没有选择框时,弹出提示说明本地文件夹需要 Chrome 或 Edge,并返回 `null`。
-2. **文件夹文件系统。** Worker 中新增一个 ZenFS 后端 `LocalFolderFS`,每个调用都在发生时直接作用于目录句柄:不预读、不缓存、不建索引,所以用户在其他程序里改动的文件总是最新的。只实现异步调用;同步调用以 `ENOTSUP` 失败。文件工具和审批策略(`realpath`)只用异步调用;Worker 的 `fs.promises.rename` 为了避开 ZenFS 异步重命名的缺陷而使用同步重命名,在本地文件夹上改用异步重命名。
+2. **文件夹文件系统。** Worker 中新增一个 ZenFS 后端 `LocalFolderFS`,每个调用都在发生时直接作用于目录句柄:不预读、不缓存、不建索引,所以用户在其他程序里改动的文件总是最新的。只实现异步调用;同步调用以 `ENOTSUP` 失败。文件工具和审批策略(`realpath`)只用异步调用,Worker 的 `fs.promises.rename` 也是。
 3. **路径和存储。** 文件夹挂载在 `/local/<id>/<文件夹名>`,并以这个路径登记为用户工作区,所以输入框、会话和审批策略对待它的方式与桌面端对待用户所选文件夹一致。句柄按账号保存在 IndexedDB(`cherry-studio-local-folders`)中,账号打开时挂载。再次选择已保存的文件夹(`isSameEntry`)会沿用原来的 id,因而保留原来的工作区。`ai.agent.workspace.register` 只接受已保存文件夹的路径。
 4. **重新加载后的权限。** 账号打开时,权限不是 `granted` 的文件夹挂载为不可用:每个调用都以 `EACCES` 失败,并提示需要重新允许访问,因此不会有内容被写到别处。第一次出现这种调用时,Worker 请页面弹出一条带"允许"按钮的警告提示;点击按钮会调用 `requestPermission`,随后 Worker 挂载该文件夹。重新选择这个文件夹也能恢复访问。
 5. **Agent 提示词。** 基础提示词告诉模型,它的工作区是在浏览器私有存储里,还是用户电脑上的文件夹。

@@ -21,8 +21,8 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 
 1. **Worker 里的文件系统。** `fs` 和 `fs/promises` 解析到 ZenFS 及其 OPFS 后端。账号打开时,把账号的 OPFS 目录挂载到 `/web`(`application.getPath` 的根目录),关闭时卸载。
    - ZenFS 会在内存里保留一份挂载内容的副本,所以调用 `existsSync`、`readFileSync` 的桌面端代码也能工作。异步写入要等 OPFS 写好后才返回。
-   - ZenFS 的异步 `rename` 在目标路径不存在时,文件其实已经改名了,却会报 `ENOENT`。所以兼容层把它转给同步的 rename。
-2. **桌面端 Agent 会话宿主跑在 Worker 里。** `AgentSessionRuntimeService` 随账号启动。`AgentChatContextProvider` 和工作区解析不再被替换。工作区存储服务(用户自选工作区)和生命周期服务(删除和归档,需要工作区打包)仍然替换掉。会话分叉换成替身,答复 Web 版不支持该功能。
+   - ZenFS 靠堆栈里的函数名 `__patched__` 认出自己的嵌套调用,所以 Worker 构建在压缩时保留函数名。这个名字被改掉时,异步 `rename` 会让 OPFS 和内存中的副本对不上。
+2. **桌面端 Agent 会话宿主跑在 Worker 里。** `AgentSessionRuntimeService` 随账号启动。`AgentChatContextProvider` 和工作区解析不再被替换。生命周期服务和工作区存储服务也一起运行,用于归档和删除(第 7 项)。会话分叉换成替身,答复 Web 版不支持该功能。
 3. **一个以 `pi` 类型注册的浏览器运行时驱动**,替换 `registerDrivers.ts`。新建的 Agent 本来就默认是 Pi 类型,所以 Agent 界面、权限模式和工具卡片都不用改,Agent 数据也和桌面端兼容。每一轮:
    - 读取会话里保存的消息,用 `buildAgentRuntimePrompt` 构建提示词;
    - 用会话选定的模型运行桌面端的 AI SDK Agent 循环(`ai/runtime/aiSdk` 里的 `Agent`),服务商解析方式和对话一样;
@@ -43,11 +43,14 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
    规则里防止访问 Cherry SQLite 文件的检查被替换掉:数据库是 `/web` 以外的一个 OPFS 文件,文件工具碰不到它。Python 也碰不到:它运行在沙箱 iframe 的不透明源里。JavaScript 碰不到:QuickJS 不给脚本任何浏览器 API。
 5. **预置一个 Web 版 Cherry 小助手。** 一个 Web 专用的 seeder 创建一个名为 Cherry 小助手的 Pi 类型 Agent,带一个系统工作区和第一个会话。桌面端的 Cherry 小助手和 Cherry Support seeder 不运行。
 6. **界面。** Web 版侧边栏加上 Agent。构建时替换两个 `src/shared` 模块,让运行时能力表只提供 Pi,为它隐藏心跳、技能、知识库和 MCP,并在 Agent 编辑器里列出浏览器里的工具。
-7. **测试。** 模拟服务商学会用工具调用来回复;`e2e/agent.spec.ts` 在 Chromium、WebKit 和 Firefox 中驱动 Agent 页面。
+7. **归档和删除。** Agent 列表里的归档操作和「设置 → 归档」调用的生命周期路由都开放了:Agent 和会话的归档、恢复和彻底删除。设置菜单里显示「归档」。
+   - 归档会话时,把它的系统工作区打成 gzip 压缩的 tar 包,恢复时再解开。node-tar 需要 Node 流和 zlib,所以 Worker 里的 `tar` 是一个小模块,用 `modern-tar` 和浏览器的 `CompressionStream` 生成和读取同样的 tar 包。
+   - IM 频道、定时任务和 Agent 之间的消息投递只有桌面端有,所以负责它们的服务换成替身,没有需要暂停、排空或重新同步的内容。
+8. **测试。** 模拟服务商学会用工具调用来回复;`e2e/agent.spec.ts` 在 Chromium、WebKit 和 Firefox 中驱动 Agent 页面。
 
 实现放在一个 PR 里,接在本 Spec 之上。
 
-不在本 Spec 范围内:来自 `configurations` 的远程 MCP、技能、定时和心跳运行、IM 频道、会话分叉、删除和归档 Agent 及会话、附件,以及把工作区文件纳入备份(M4 阶段)。用户自选工作区见[本地文件夹 Spec](2026-10-23-web-core-local-folder.md)。
+不在本 Spec 范围内:来自 `configurations` 的远程 MCP、技能、定时和心跳运行、IM 频道、会话分叉、归档的自动清理(它依赖桌面端的任务调度)、附件,以及把工作区文件纳入备份(M4 阶段)。用户自选工作区见[本地文件夹 Spec](2026-10-23-web-core-local-folder.md)。
 
 ## Alternatives considered
 
@@ -56,6 +59,8 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 - **自己写一个 OPFS 文件系统。** 可以不把挂载内容放进内存,但要重新实现 Node `fs` 的语义,包括同步调用。ZenFS 有人维护,并且在三种浏览器中通过了写入、同步读取、列目录、改名和刷新后读取的检查。
 - **用 IndexedDB 存文件。** OPFS 已经存放了数据库,也能直接处理文件内容。
 - **让 Pyodide 和应用同源。** 这样不需要 iframe,但 Python 就能打开账号的 OPFS 目录,包括数据库。
+- **通过 Node 兼容层使用 node-tar。** 只为一个调用方,就要把流和 zlib 的兼容层带进 Worker。
+- **用 `nanotar` 打包。** 它更小,但会截断超过 100 个字符的条目名,工作区里层级较深的文件恢复后会用错的名字。
 - **在页面里运行 Agent 循环。** Worker 已经负责 AI 层和数据库;放在页面里,运行工具时会卡住界面。
 
 ## Acceptance criteria
@@ -65,6 +70,7 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 - AC3 — 用户拒绝审批时,这次工具调用以拒绝结束,文件不会被写入。在工作区里调用 `read`、`ls`、`find` 和 `grep` 不需要审批。(verification: 打包产物)
 - AC4 — `python_execute` 在页面的 Pyodide 中运行 Python 并返回输出,而且这段 Python 打不开应用的 OPFS。`js_execute` 返回脚本的结果,并在超时时停止死循环。(verification: 打包产物)
 - AC5 — 现有的 Web Core 测试仍然通过,Worker 构建中没有 Node 内置模块、Electron 或原生模块的引用,`src/main`、`src/preload`、`src/renderer` 和 `src/shared` 下没有文件被修改。记录 Worker 首次下载增加的大小和 QuickJS 模块的大小。(verification: 打包产物及变更范围报告,结果记入 implemented 笔记)
+- AC6 — 在 Agent 列表里归档一个会话,会话和它的工作区文件一起消失。在「设置 → 归档」里恢复,会话和文件都回来,包括路径超过 100 个字符的文件;在那里彻底删除,文件也被删掉。连同会话一起归档的 Agent,恢复时会话也一起回来。(verification: 打包产物)
 
 ## Risks
 
@@ -75,4 +81,6 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 - **数据里是 Pi 类型。** 如果以后 Web 数据同步到桌面端,桌面端会用真正的 Pi 运行这些 Agent,而它还有 `bash`。
 - **Python 仍然能联网。** 沙箱拿走的是应用的存储,不是网络:被允许的 Python 代码可以把它拿到的内容(脚本和上下文)发给任何允许 CORS 的服务器。
 - **Pyodide 从 CDN 加载。** 页面从 jsDelivr 加载它;跨域隔离的页面要求 jsDelivr 一直返回 CORS 头,私有部署可能需要自己托管。
+- **归档内容不会自动清理。** 在 Web 版能运行定时任务之前,归档页的自动清理间隔不起作用;内容会一直保留,直到用户手动删除。
+- **Worker 里保留函数名。** 为 ZenFS 保留函数名,会让 Worker 的代码块变大约 3.5%(gzip 后 29 KB)。
 - **工作区文件还没有备份。** 在备份(M4)完成之前,清除网站数据会丢失这些文件。
