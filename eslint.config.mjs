@@ -268,7 +268,13 @@ const collectIndexTs = (dir, out = []) => {
   }
   return out
 }
-const RUNTIME_PACKAGES = ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable']
+const RUNTIME_PACKAGES = [
+  'agent-runtime',
+  'agent-behavior',
+  'agent-runtime-pi',
+  'agent-runtime-pi-durable',
+  'agent-runtime-claude-code'
+]
 const RUNTIME_SOURCE_DIRS = RUNTIME_PACKAGES.map((name) => path.join(RENDERER_DIRNAME, 'packages', name, 'src'))
 const BARREL_DIRS = new Set()
 for (const idx of [SRC_DIR, ...RUNTIME_SOURCE_DIRS].flatMap((dir) => collectIndexTs(dir))) {

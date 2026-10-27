@@ -40,11 +40,19 @@ describe('validation selection', () => {
   it.each([
     [
       'packages/agent-runtime/src/contracts.ts',
-      ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main']
+      [
+        'agent-runtime',
+        'agent-behavior',
+        'agent-runtime-pi',
+        'agent-runtime-pi-durable',
+        'agent-runtime-claude-code',
+        'main'
+      ]
     ],
     ['packages/agent-behavior/src/index.ts', ['agent-behavior', 'agent-runtime-pi', 'main']],
     ['packages/agent-runtime-pi/src/runtime.ts', ['agent-runtime-pi', 'main']],
     ['packages/agent-runtime-pi-durable/src/runtime.ts', ['agent-runtime-pi-durable']],
+    ['packages/agent-runtime-claude-code/src/runtime.ts', ['agent-runtime-claude-code']],
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
