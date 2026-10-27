@@ -385,7 +385,7 @@ export const REGRESSION_CASES = [
     title: 'Attach files and images',
     tasks: ['chat-core'],
     phase: 'chatCore',
-    capabilities: ['desktopAutomation']
+    capabilities: ['desktopAutomation', 'screenCapture']
   },
   { id: 'MP-10', title: 'Web search', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
   {

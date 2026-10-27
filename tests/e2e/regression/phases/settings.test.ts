@@ -1005,6 +1005,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
   const assistantName = app.resourceName('Shortcut assistant')
   const topicName = app.resourceName('Shortcut starting topic')
   let assistantId: string | undefined
+  let startingTopicId: string
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -1030,7 +1031,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
-    await chat.getByTestId('topic-list-row').filter({ hasText: topicName }).click()
+    await chat.locator(`#resource-list-option-${startingTopicId}`).click()
     return chat
   }
   try {
@@ -1063,6 +1064,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
       { assistantId, name: topicName }
     )
     expect(topic.status).toBe(201)
+    startingTopicId = TopicSchema.parse(topic.data).id
     await page.reload()
     await showStartingTopic()
     await openShortcut()
@@ -1073,25 +1075,46 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await screenshot('MP-109 custom shortcut saved')
 
     const chat = await showStartingTopic()
-    const topics = chat.getByTestId('topic-list-row')
-    const nameCreatedTopic = async (name: string) => {
+    const readTopicIds = () =>
+      page.evaluate(async (assistantId) => {
+        const ids: string[] = []
+        let cursor: string | undefined
+        do {
+          const response = await window.api.dataApi.request({
+            id: 'mp109-topics',
+            method: 'GET',
+            path: '/topics',
+            params: { limit: 200, ...(cursor ? { cursor } : {}) }
+          })
+          if (response.status !== 200) throw new Error('Could not read persisted topics')
+          const data = response.data as { items: { id: string; assistantId: string | null }[]; nextCursor?: string }
+          ids.push(...data.items.filter((topic) => topic.assistantId === assistantId).map(({ id }) => id))
+          cursor = data.nextCursor
+        } while (cursor)
+        return ids.sort()
+      }, assistantId)
+    const createWithShortcut = async (shortcut: string) => {
+      const previous = new Set(await readTopicIds())
+      await page.keyboard.press(shortcut)
+      await expect.poll(async () => (await readTopicIds()).filter((id) => !previous.has(id))).toHaveLength(1)
+      const id = (await readTopicIds()).find((id) => !previous.has(id))!
+      await expect(chat.locator(`#resource-list-option-${id}`)).toHaveAttribute('aria-selected', 'true')
+      return id
+    }
+    const nameCreatedTopic = async (id: string, name: string) => {
       // Named conversations are retained; unnamed empty placeholders are intentionally reused by the app.
       await page.keyboard.press('Escape')
-      await topics
-        .filter({ has: page.getByText('New Chat', { exact: true }) })
-        .getByText('New Chat', { exact: true })
-        .dblclick()
+      const topic = chat.locator(`#resource-list-option-${id}`)
+      await topic.getByText('New Chat', { exact: true }).dblclick()
       const input = page.getByRole('textbox', { name: 'Edit conversation name', exact: true })
       await input.fill(app.resourceName(name))
       await input.press('Enter')
-      await expect(topics.filter({ hasText: app.resourceName(name) })).toBeVisible()
+      await expect(topic).toContainText(app.resourceName(name))
     }
-    let count = await topics.count()
-    await page.keyboard.press(`${primary}+Shift+Y`)
-    await expect(topics).toHaveCount(count + 1)
+    let createdId = await createWithShortcut(`${primary}+Shift+Y`)
     await expect(chat.getByRole('heading', { name: 'What should we talk about today?', exact: true })).toBeVisible()
     await screenshot('MP-109 custom shortcut creates conversation immediately')
-    await nameCreatedTopic('Custom shortcut conversation')
+    await nameCreatedTopic(createdId, 'Custom shortcut conversation')
 
     await openShortcut()
     await row.locator('kbd').first().locator('..').click()
@@ -1106,30 +1129,27 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await expect.poll(readShortcut).toEqual(defaults)
     await expect(row.locator('kbd').last()).toHaveText('N')
     await showStartingTopic()
-    count = await topics.count()
-    await page.keyboard.press(`${primary}+N`)
-    await expect(topics).toHaveCount(count + 1)
+    createdId = await createWithShortcut(`${primary}+N`)
     await screenshot('MP-109 default shortcut restored and working')
-    await nameCreatedTopic('Default shortcut conversation')
+    await nameCreatedTopic(createdId, 'Default shortcut conversation')
 
     await openShortcut()
     await row.getByRole('switch').click()
     await expect(row.getByRole('switch')).not.toBeChecked()
     await expect.poll(readShortcut).toEqual({ ...defaults, enabled: false })
     await showStartingTopic()
-    count = await topics.count()
+    const beforeDisabledShortcut = await readTopicIds()
     await page.keyboard.press(`${primary}+N`)
     await page.waitForTimeout(1_000)
-    await expect(topics).toHaveCount(count)
-    await expect(topics.filter({ hasText: topicName })).toHaveAttribute('aria-selected', 'true')
+    expect(await readTopicIds()).toEqual(beforeDisabledShortcut)
+    await expect(chat.locator(`#resource-list-option-${startingTopicId}`)).toHaveAttribute('aria-selected', 'true')
     await screenshot('MP-109 disabled shortcut does not create conversation')
 
     await openShortcut()
     await row.getByRole('switch').click()
     await expect.poll(readShortcut).toEqual(defaults)
     await showStartingTopic()
-    await page.keyboard.press(`${primary}+N`)
-    await expect(topics).toHaveCount(count + 1)
+    await createWithShortcut(`${primary}+N`)
   } finally {
     await page.evaluate(
       async ({ original, assistantId }) => {

@@ -94,6 +94,12 @@ it.each(['outside', 'missing'] as const)('rejects an %s path before any OS autom
   expect(execFileSync).not.toHaveBeenCalled()
 })
 
+it('rejects native saves outside the evidence directory before any OS automation', () => {
+  const { paths, filePath } = nativeFixture()
+  expect(() => automation.saveNativeFile('macos', paths, filePath)).toThrow('outside the regression test directories')
+  expect(execFileSync).not.toHaveBeenCalled()
+})
+
 it('uses locale-independent macOS 27 selection and keeps path and PID exclusively in argv', () => {
   const { paths, filePath } = nativeFixture()
   execFileSync.mockImplementation((command) => (command === 'sw_vers' ? '27.0.1\n' : undefined))

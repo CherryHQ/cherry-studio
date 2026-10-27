@@ -1,9 +1,8 @@
-import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
 import { readFile, readdir, mkdir, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
-import { basename, dirname, join } from 'node:path'
+import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 import JSZip from 'jszip'
@@ -236,39 +235,9 @@ export async function exportTopicFiles(app: RegressionApp, page: Page, testInfo:
     expect(markdown.indexOf('MP47 paragraph 001')).toBeLessThan(markdown.indexOf('MP47 paragraph 090'))
     await testInfo.attach('MP-47 exported Markdown', { path: markdownPath, contentType: 'text/markdown' })
 
-    const saveExport = (path: string): string | void => {
-      if (app.record.platform !== 'macos') return saveNativeFile(app.record.platform, app.paths, path)
-      execFileSync(
-        'osascript',
-        [
-          '-e',
-          [
-            'on run argv',
-            'tell application "System Events"',
-            'set frontmost of first application process whose unix id is (item 3 of argv as integer) to true',
-            'delay 2',
-            'keystroke "g" using {command down, shift down}',
-            'delay 1',
-            'keystroke (item 1 of argv)',
-            'key code 36',
-            'delay 1',
-            'keystroke "a" using command down',
-            'keystroke (item 2 of argv)',
-            'key code 36',
-            'end tell',
-            'end run'
-          ].join('\n'),
-          '--',
-          dirname(path),
-          basename(path),
-          String(app.record.electronPid)
-        ],
-        { timeout: 15_000 }
-      )
-    }
     await exportAs('Export as Word')
     const wordPath = join(output, 'MP47.docx')
-    saveExport(wordPath)
+    saveNativeFile(app.record.platform, app.paths, wordPath)
     await expect.poll(async () => await readdir(output)).toContain('MP47.docx')
     const docx = await JSZip.loadAsync(await readFile(wordPath))
     expect(docx.file('[Content_Types].xml')).not.toBeNull()
@@ -300,21 +269,20 @@ export async function exportTopicFiles(app: RegressionApp, page: Page, testInfo:
     await expect(progress).toBeVisible()
     await attachScreenshot('MP-47 image export progress')
     const imagePath = join(output, 'MP47.png')
-    saveExport(imagePath)
+    saveNativeFile(app.record.platform, app.paths, imagePath)
     await expect(page.getByText('Image saved successfully', { exact: true })).toBeVisible({ timeout: 60_000 })
     await expect(progress).toBeHidden()
     const exportedImages = (await readdir(output)).filter((name) => /\.png$/i.test(name))
-    for (const name of exportedImages) {
-      const image = sharp(await readFile(join(output, name)))
-      const metadata = await image.metadata()
-      expect(metadata.width).toBeGreaterThan(100)
-      expect(metadata.height).toBeGreaterThan(100)
-      const stats = await image.stats()
-      expect(stats.channels.some(({ stdev }) => stdev > 1)).toBe(true)
-      await testInfo.attach(`MP-47 ${name}`, { path: join(output, name), contentType: 'image/png' })
-    }
+    expect(exportedImages).toEqual(['MP47.png'])
+    const image = sharp(await readFile(imagePath))
+    const metadata = await image.metadata()
+    expect(metadata.width).toBeGreaterThan(100)
+    const viewportPixels = await page.evaluate(() => window.innerHeight * window.devicePixelRatio)
+    expect(metadata.height!, 'Export must extend beyond the visible viewport').toBeGreaterThan(viewportPixels)
+    const stats = await image.stats()
+    expect(stats.channels.some(({ stdev }) => stdev > 1)).toBe(true)
+    await testInfo.attach('MP-47 long conversation image', { path: imagePath, contentType: 'image/png' })
     await attachScreenshot('MP-47 image export complete')
-    expect(exportedImages.length, 'A long conversation must be exported as multiple image pages').toBeGreaterThan(1)
   } finally {
     await server.close()
     images.closeAllConnections()

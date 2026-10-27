@@ -132,6 +132,12 @@ describe('regression execution plan', () => {
     expect(missingCapabilities('C-02', {})).toEqual(['desktopAutomation'])
     expect(missingCapabilities('C-02', { desktopAutomation: { available: true } })).toEqual([])
     expect(missingCapabilities('N-01', {})).toEqual([])
+    expect(
+      missingCapabilities('MP-09', {
+        desktopAutomation: { available: true },
+        screenCapture: { available: false }
+      })
+    ).toEqual(['screenCapture'])
   })
 
   it('keeps macOS-only scenarios out of Windows runs and leaves cross-platform cases applicable', () => {

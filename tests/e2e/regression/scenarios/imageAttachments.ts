@@ -7,6 +7,7 @@ import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
+import { isVisionModel } from '@shared/utils/model'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -23,12 +24,13 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
   const preferences = await page.evaluate(async () => ({
     namingEnabled: await window.api.preference.get('topic.naming.enabled'),
     menuMode: await window.api.preference.get('menu.presentation_mode'),
-    language: await window.api.preference.get('app.language')
+    language: await window.api.preference.get('app.language'),
+    ocr: await window.api.preference.get('feature.file_processing.default_image_to_text')
   }))
   const config = app.config.customProvider
   const providerId = `regression-mp32-${Date.now()}`
-  const topicName = app.resourceName('Image attachments')
-  const assistantName = app.resourceName('Image attachments assistant')
+  const topicName = app.resourceName(`Image attachments ${providerId}`)
+  const assistantName = app.resourceName(`Image attachments assistant ${providerId}`)
   let assistantId: string | undefined
 
   try {
@@ -80,7 +82,7 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
       { providerId, ids: listing.data.models.map((model) => model.apiModelId!) }
     )
     expect(resolved.status).toBe(200)
-    const visionModels = (resolved.data as Model[]).filter((model) => model.inputModalities?.includes('image'))
+    const visionModels = (resolved.data as Model[]).filter(isVisionModel)
     await testInfo.attach('MP-32 available vision models', {
       body: JSON.stringify(visionModels.map(({ id, name, inputModalities }) => ({ id, name, inputModalities }))),
       contentType: 'application/json'
@@ -92,9 +94,7 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
     if (!vision?.id) throw new Error('UNCOVERED: configured account exposes no vision model')
     const textModels = (resolved.data as Model[]).filter(
       (model) =>
-        model.inputModalities?.includes('text') &&
-        !model.inputModalities.includes('image') &&
-        !model.capabilities.includes('embedding')
+        model.inputModalities?.includes('text') && !isVisionModel(model) && !model.capabilities.includes('embedding')
     )
     const textModel = textModels.find((model) => model.id.endsWith(`::${config.chatModel}`)) ?? textModels[0]
     if (!textModel) throw new Error('UNCOVERED: configured account exposes no non-vision chat model')
@@ -167,26 +167,28 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('MP32 Vision')
     const composer = chat.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
     // Real PNG bytes and real provider inference; the prompt contains neither the OCR answer nor the scene.
-    const png = await page.evaluate(() => {
-      const canvas = document.createElement('canvas')
-      canvas.width = 900
-      canvas.height = 500
-      const context = canvas.getContext('2d')!
-      context.fillStyle = 'white'
-      context.fillRect(0, 0, 900, 500)
-      context.fillStyle = 'black'
-      context.font = 'bold 72px Arial'
-      context.fillText('canary-seven', 100, 130)
-      context.fillStyle = 'red'
-      context.fillRect(140, 220, 180, 180)
-      context.fillStyle = 'blue'
-      context.beginPath()
-      context.arc(600, 310, 90, 0, Math.PI * 2)
-      context.fill()
-      return canvas.toDataURL('image/png').split(',')[1]
-    })
+    const makePng = (label: string) =>
+      page.evaluate((label) => {
+        const canvas = document.createElement('canvas')
+        canvas.width = 900
+        canvas.height = 500
+        const context = canvas.getContext('2d')!
+        context.fillStyle = 'white'
+        context.fillRect(0, 0, 900, 500)
+        context.fillStyle = 'black'
+        context.font = 'bold 72px Arial'
+        context.fillText(label, 100, 130)
+        context.fillStyle = 'red'
+        context.fillRect(140, 220, 180, 180)
+        context.fillStyle = 'blue'
+        context.beginPath()
+        context.arc(600, 310, 90, 0, Math.PI * 2)
+        context.fill()
+        return canvas.toDataURL('image/png').split(',')[1]
+      }, label)
+    const png = await makePng('canary-seven')
     await testInfo.attach('images/sample.png', { body: Buffer.from(png, 'base64'), contentType: 'image/png' })
-    const uploadImage = async (name: string) => {
+    const uploadImage = async (name: string, image = png) => {
       await composer.evaluate(
         (element, { png, name }) => {
           const bytes = Uint8Array.from(atob(png), (char) => char.charCodeAt(0))
@@ -194,7 +196,7 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
           clipboardData.items.add(new File([bytes], name, { type: 'image/png' }))
           element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }))
         },
-        { png, name }
+        { png: image, name }
       )
     }
     await composer.fill('图片里写的 OCR 关键字是什么？请同时描述画面中的颜色和形状。')
@@ -249,17 +251,40 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
 
     await selectChatModel(page, textModelId)
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('MP32 Text Only')
-    await page.evaluate(() => window.api.preference.set('app.language', 'zh-CN'))
-    await uploadImage('second.png')
-    await attachScreenshot('MP-32 non-vision image upload outcome')
-    await expect(page.getByText('当前模型不支持图片上传，仅可上传文档', { exact: true })).toBeVisible()
-    await expect(chat.locator('[data-ui~="chat.composer"] [data-composer-token-kind="file"]')).toHaveCount(0)
-    await attachScreenshot('MP-32 non-vision upload explicitly rejected')
+    const effectiveModel = await page.evaluate(
+      (id) => window.api.dataApi.request({ id: 'mp32-effective-text-model', method: 'GET', path: `/models/${id}` }),
+      createUniqueModelId(providerId, textModelId)
+    )
+    expect(effectiveModel.status).toBe(200)
+    expect(isVisionModel(effectiveModel.data as Model), 'The fallback turn must not send a native image').toBe(false)
+    await page.evaluate(() => window.api.preference.set('feature.file_processing.default_image_to_text', 'system'))
+    const fallbackCode = String(Date.now()).slice(-6)
+    await composer.fill('Quote the full label and numeric code in the newly attached image. Do not search the web.')
+    await uploadImage('second.png', await makePng(`FALLBACK ${fallbackCode}`))
+    await expect(chat.locator('[data-ui~="chat.composer"] [data-composer-token-kind="file"]')).toHaveCount(1)
+    await attachScreenshot('MP-32 non-vision image accepted for OCR')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect(answer).toContainText('FALLBACK', { timeout: 120_000 })
+    await expect(answer).toContainText(fallbackCode)
+    const fallbackId = await answer.getAttribute('data-message-id')
+    expect(fallbackId).not.toBe(answerId)
+    await expect
+      .poll(async () => {
+        const result = await page.evaluate(
+          (id) => window.api.dataApi.request({ id: 'mp32-fallback-result', method: 'GET', path: `/messages/${id}` }),
+          fallbackId
+        )
+        expect(result.status).toBe(200)
+        return (result.data as { status: string }).status
+      })
+      .toBe('success')
+    await attachScreenshot('MP-32 non-vision model reads System OCR text')
   } finally {
     await page.evaluate(
       async ({ assistantId, providerId, preferences }) => {
         await window.api.preference.setMultiple({
           'app.language': preferences.language,
+          'feature.file_processing.default_image_to_text': preferences.ocr,
           'topic.naming.enabled': preferences.namingEnabled,
           'menu.presentation_mode': preferences.menuMode
         })

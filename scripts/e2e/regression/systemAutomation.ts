@@ -513,27 +513,93 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
   mkdirSync(directory, { recursive: true })
   const electronPid = readAppRecord(paths).electronPid
   if (platform === 'macos') {
+    macProductMajor ??= Number.parseInt(
+      execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8', timeout: 5_000 }).trim(),
+      10
+    )
+    if (!Number.isInteger(macProductMajor)) throw new Error('Could not determine macOS product version')
     const script = [
       'on run argv',
       'tell application "System Events"',
-      'set frontmost of first application process whose unix id is (item 3 of argv as integer) to true',
-      'delay 2',
-      'keystroke "g" using {command down, shift down}',
-      'delay 1',
-      'keystroke (item 1 of argv)',
-      'key code 36',
-      'delay 1',
-      'keystroke "a" using command down',
-      'keystroke (item 2 of argv)',
-      'key code 36',
+      'tell (first application process whose unix id is (item 3 of argv as integer))',
+      'set frontmost to true',
+      ...(macProductMajor >= 27
+        ? [
+            'set deadline to (current date) + 50',
+            'repeat',
+            'try',
+            'set saveWindowName to name of (first window whose subrole is "AXStandardWindow")',
+            'exit repeat',
+            'end try',
+            'if (current date) > deadline then error "Native save window was not found"',
+            'delay 0.1',
+            'end repeat',
+            'repeat until exists splitter group 1 of sheet 1 of window saveWindowName',
+            'if (current date) > deadline then error "Native save panel was not found"',
+            'delay 0.1',
+            'end repeat',
+            'keystroke "g" using {command down, shift down}',
+            'repeat until exists text field 1 of sheet 1 of sheet 1 of window saveWindowName',
+            'if (current date) > deadline then error "Save directory input was not found"',
+            'delay 0.1',
+            'end repeat',
+            'click text field 1 of sheet 1 of sheet 1 of window saveWindowName',
+            'keystroke "a" using command down',
+            'keystroke (item 1 of argv)',
+            'delay 0.3',
+            'key code 36',
+            'repeat while exists sheet 1 of sheet 1 of window saveWindowName',
+            'if (current date) > deadline then error "Save directory navigation did not finish"',
+            'delay 0.3',
+            'if exists text field 1 of sheet 1 of sheet 1 of window saveWindowName then key code 36',
+            'end repeat',
+            'repeat',
+            'try',
+            'if exists text field 2 of splitter group 1 of sheet 1 of window saveWindowName then exit repeat',
+            'end try',
+            'if (current date) > deadline then error "Save filename input was not found"',
+            'delay 0.1',
+            'end repeat',
+            'click text field 2 of splitter group 1 of sheet 1 of window saveWindowName',
+            'keystroke "a" using command down',
+            'keystroke (item 2 of argv)',
+            'repeat',
+            'tell application "System Events" to set saved to exists disk item (item 4 of argv)',
+            'if saved then exit repeat',
+            'if (current date) > deadline then error "Native save did not finish"',
+            'set frontmost to true',
+            'try',
+            'if exists sheet 1 of window saveWindowName then',
+            'if enabled of last button of splitter group 1 of sheet 1 of window saveWindowName then',
+            'click last button of splitter group 1 of sheet 1 of window saveWindowName',
+            'else',
+            'key code 36',
+            'end if',
+            'end if',
+            'end try',
+            'delay 0.3',
+            'end repeat'
+          ]
+        : [
+            'delay 2',
+            'keystroke "g" using {command down, shift down}',
+            'delay 1',
+            'keystroke (item 1 of argv)',
+            'key code 36',
+            'delay 1',
+            'keystroke "a" using command down',
+            'keystroke (item 2 of argv)',
+            'key code 36'
+          ]),
+      'end tell',
       'end tell',
       'end run'
     ].join('\n')
     const extension = extname(filePath)
-    const saveName = extension ? basename(filePath, extension) : basename(filePath)
-    execFileSync('osascript', ['-e', script, '--', directory, saveName, String(electronPid)], {
-      stdio: 'ignore',
-      timeout: 15_000
+    const saveName = macProductMajor >= 27 || !extension ? basename(filePath) : basename(filePath, extension)
+    execFileSync('osascript', ['-e', script, '--', directory, saveName, String(electronPid), filePath], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      timeout: 55_000
     })
   } else {
     const script = [

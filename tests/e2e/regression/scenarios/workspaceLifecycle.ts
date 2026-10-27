@@ -1,9 +1,10 @@
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { type AgentWorkspaceEntity, AgentWorkspaceEntitySchema } from '@shared/data/api/schemas/agentWorkspaces'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -26,7 +27,6 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     displayMode: await window.api.preference.get('agent.session.display_mode'),
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
-  await page.evaluate(() => window.api.preference.set('menu.presentation_mode', 'cherry'))
   const originalName = `MP53 original ${suffix}`
   const renamedName = `MP53 renamed ${suffix}`
   const emptyName = `MP53 empty ${suffix}`
@@ -34,10 +34,6 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
   const originalPath = join(app.paths.workspace, `original-${suffix}`)
   const emptyPath = join(app.paths.workspace, `empty-${suffix}`)
   const targetPath = join(app.paths.workspace, `target-${suffix}`)
-  await mkdir(originalPath)
-  await writeFile(join(originalPath, 'baseline.txt'), 'MP53 original workspace')
-  await mkdir(emptyPath)
-  expect(await readdir(emptyPath)).toEqual([])
   const register = async (path: string, name: string) => {
     const result = (await page.evaluate(
       ({ path, name }) => window.api.ipcApi.request('ai.agent.workspace.register', { path, name }),
@@ -46,8 +42,6 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     expect(result.ok).toBe(true)
     return AgentWorkspaceEntitySchema.parse(result.data)
   }
-  const original = await register(originalPath, originalName)
-  const empty = await register(emptyPath, emptyName)
   const readWorkspaces = async () => {
     const response = await page.evaluate(() =>
       window.api.dataApi.request({ id: 'MP53-workspaces', method: 'GET', path: '/agent-workspaces' })
@@ -56,7 +50,16 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     return response.data as AgentWorkspaceEntity[]
   }
 
+  const agentName = app.resourceName(`Workspace Agent ${suffix}`)
+  const ownedPaths = [originalPath, emptyPath, targetPath]
   try {
+    await page.evaluate(() => window.api.preference.set('menu.presentation_mode', 'cherry'))
+    await mkdir(originalPath)
+    await writeFile(join(originalPath, 'baseline.txt'), 'MP53 original workspace')
+    await mkdir(emptyPath)
+    expect(await readdir(emptyPath)).toEqual([])
+    const original = await register(originalPath, originalName)
+    const empty = await register(emptyPath, emptyName)
     // A real provider and runtime execute the relative-path write; no successful tool result is injected.
     await ensureCustomChatProvider(app, page)
     await closeSettings(page)
@@ -64,7 +67,6 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
     await view.getByRole('button', { name: 'Display mode', exact: true }).click()
     await page.getByRole('button', { name: 'Agent', exact: true }).click()
-    const agentName = app.resourceName(`Workspace Agent ${suffix}`)
     await createAgent(page, {
       name: agentName,
       runtime: 'Pi',
@@ -162,12 +164,54 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     await screenshot('MP-53 workspace removed and disk directory preserved')
   } finally {
     await page.evaluate(
-      async (previous) =>
-        window.api.preference.setMultiple({
+      async ({ previous, agentName, ownedPaths }) => {
+        await window.api.preference.setMultiple({
           'agent.session.display_mode': previous.displayMode,
           'menu.presentation_mode': previous.menuMode
-        }),
-      previousPreferences
+        })
+        const agents = await window.api.dataApi.request({
+          id: 'mp53-cleanup-agents',
+          method: 'GET',
+          path: '/agents',
+          params: { limit: 500 }
+        })
+        if (agents.status !== 200) throw new Error('Could not list the case Agent for cleanup')
+        for (const agent of (agents.data as { items: { id: string; name: string }[] }).items.filter(
+          ({ name }) => name === agentName
+        )) {
+          const deleted = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
+            agentId: agent.id,
+            deleteSessions: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!deleted.ok || !deleted.data.deleted) throw new Error('Case Agent cleanup failed')
+        }
+        const workspaces = await window.api.dataApi.request({
+          id: 'mp53-cleanup-workspaces',
+          method: 'GET',
+          path: '/agent-workspaces'
+        })
+        if (workspaces.status !== 200) throw new Error('Could not list case workspaces for cleanup')
+        for (const workspace of (workspaces.data as AgentWorkspaceEntity[]).filter(({ path }) =>
+          ownedPaths.includes(path)
+        )) {
+          const removed = (await window.api.ipcApi.request('ai.agent.workspace.delete', {
+            workspaceId: workspace.id
+          })) as IpcResult<{ deletedIds: string[] }>
+          if (!removed.ok) throw new Error('Case workspace cleanup failed')
+        }
+        const remaining = await window.api.dataApi.request({
+          id: 'mp53-cleanup-verify',
+          method: 'GET',
+          path: '/agent-workspaces'
+        })
+        if (
+          remaining.status !== 200 ||
+          (remaining.data as AgentWorkspaceEntity[]).some(({ path }) => ownedPaths.includes(path))
+        )
+          throw new Error('Case workspace registrations remain after cleanup')
+      },
+      { previous: previousPreferences, agentName, ownedPaths }
     )
+    await Promise.all(ownedPaths.map((path) => rm(path, { recursive: true, force: true })))
   }
 }
