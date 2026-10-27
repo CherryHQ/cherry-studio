@@ -15,10 +15,18 @@ export const hostFeatures = {
   devTools: true,
   /** Storing uploaded images, such as a provider's logo. */
   imageUploads: true,
+  /** Files attached to messages, copied into the app's file storage. */
+  attachments: true,
+  /** Reading a Word document's text, with the desktop's document parser. */
+  documentText: true,
   /** Notes, kept as files in a folder on the computer. */
   notes: true,
   /** Knowledge bases, which index files with the desktop's native libraries. */
   knowledgeBases: true,
+  /** Mini apps, websites the desktop shows in its own web views. */
+  miniApps: true,
+  /** Dictation and reading replies aloud, which run speech models in the desktop app. */
+  voice: true,
   /** Diagnostics (Doctor) and problem reports, which check and collect the install, logs and network. */
   diagnostics: true,
   /** The built-in browser pane, a web view that agents can drive. */

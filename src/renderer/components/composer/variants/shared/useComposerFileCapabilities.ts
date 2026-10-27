@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
 import { anyFileExt } from '@renderer/utils/file'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { isAudioModel, isAudioModels, isVideoModel, isVideoModels } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
@@ -58,6 +59,7 @@ export function useComposerFileCapabilities(
   const { models, fallbackModel } = isChatSurface ? input : { models: EMPTY_MODELS, fallbackModel: input }
 
   return useMemo(() => {
+    if (!hostFeatures.attachments) return { canAddImageFile: false, canAddTextFile: false, supportedExts: [] }
     // Agent reads attachments from disk by path → all file types, any active model.
     if (!isChatSurface) {
       const enabled = fallbackModel != null

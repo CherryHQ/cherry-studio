@@ -37,6 +37,7 @@ import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
@@ -254,7 +255,9 @@ function AssistantEditDialogContent({
         label: t('library.config.dialogs.edit.tools_tab'),
         children: [
           { id: 'tools.builtin', label: t('settings.skills.tabs.builtin') },
-          { id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') },
+          ...(hostFeatures.knowledgeBases
+            ? [{ id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') }]
+            : []),
           { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') }
         ]
       }

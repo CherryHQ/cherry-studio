@@ -20,6 +20,7 @@ import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'
 
@@ -101,12 +102,14 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
         </DialogHeader>
 
         <ItemGroup className="gap-3 px-2">
-          <FeedbackOption
-            icon={<Bot className="size-5" />}
-            title={t('settings.about.feedback.agent.title')}
-            description={t('settings.about.feedback.agent.description')}
-            onSelect={() => selectOption(openAgentFeedback)}
-          />
+          {hostFeatures.diagnostics && (
+            <FeedbackOption
+              icon={<Bot className="size-5" />}
+              title={t('settings.about.feedback.agent.title')}
+              description={t('settings.about.feedback.agent.description')}
+              onSelect={() => selectOption(openAgentFeedback)}
+            />
+          )}
           <FeedbackOption
             icon={<Github className="size-5" />}
             title={t('settings.about.feedback.github.title')}

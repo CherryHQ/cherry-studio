@@ -28,7 +28,7 @@ Firefox and Safari.
 
 | Feature | Web edition | Notes |
 | --- | --- | --- |
-| Chat: topics, messages, streaming, assistants | Yes | A reply cut off by a reload is kept and marked interrupted. |
+| Chat: topics, messages, streaming, assistants | Yes | A reply cut off by a reload is kept and marked interrupted. Cited web pages show no preview, as a page cannot read other sites. |
 | Model providers | Yes | Requests go from the browser, so the provider must allow CORS from the app's origin. Fetching the model list and checking a model work for every provider except Vertex AI. |
 | CherryIN sign-in, Cherry account, the built-in CherryAI model | No | First-run setup offers provider setup only; CherryIN works with an API key. |
 | Saving and exporting messages | Markdown and image downloads | Notes, knowledge bases, Word and note apps are desktop-only. |
@@ -197,7 +197,9 @@ general, appearance, archive and about sections, creating an agent shows Pi as i
 instead of a choice, and the Pyodide worker starts in a sandboxed iframe. The launchpad, the
 composer's tools, the message menu, the user menu and first-run setup keep only the entries the
 Web edition serves, and the help menu, dictation and the read-aloud bar are left out. The provider
-panels leave out sign-in popups and the OVMS installer, while API keys still work.
+panels leave out sign-in popups and the OVMS installer, while API keys still work. The button that
+opens a path in the computer's apps is left out, keeping only a label it shows, such as a session's
+folder. A quoted selection goes to the page's own composer (`src/page/browserShell.ts`).
 `src/page/tailwind.css` points Tailwind at the renderer, since the Vite root here is `app/`.
 Saving a message or an image becomes a browser download (`src/page/fileDownloads.ts`), and the
 assistant presets the desktop reads from `resources/data` and pdf.js's character maps and fonts
@@ -206,7 +208,8 @@ are fetched from the app's own copy (`src/page/bundledData.ts`).
 The renderer itself changes in two places. First-run setup's `enableCherryInLogin` switch is off
 here. `src/renderer/utils/hostFeatures.ts` says what the app around the renderer can do: more
 windows, opening paths in the computer's apps, app zoom, updates, developer tools, stored image
-uploads, notes, knowledge bases, diagnostics (Doctor and problem reports), the agent browser,
+uploads, attachments, reading Word documents' text, notes, knowledge bases, mini apps, dictation and
+reading aloud, diagnostics (Doctor, problem reports and the feedback assistant), the agent browser,
 computer use, the desktop program's own settings (start at login, tray, proxy, GPU and power use,
 native menus) and provider sign-ins through a CLI, an app login or GitHub's device login. The
 desktop has all of them; `src/page/hostFeatures.ts` has none, so the entries for them, and their
@@ -267,8 +270,8 @@ once per account that the browser may delete the data.
   `WebPreferenceDefaultsSeeder` runs first and writes the preferences whose Web default
   differs (the sidebar offers only agents and chat); the desktop seeders skip existing rows.
   Desktop-only features with no Web settings page (the agent browser, links opening in it,
-  exports to Word and note apps) are turned off on every `open` (`fixedWebPreferences`), also in
-  workspaces created before they were.
+  exports to Word and note apps, native menus and developer mode) are turned off on every `open`
+  (`fixedWebPreferences`), also in workspaces created before they were.
 
 ## Tests
 
@@ -280,5 +283,8 @@ directory stands in for a picked folder). `harness/bridge.html` loads the deskto
 Worker for `e2e/bridge.spec.ts`. `e2e/app.spec.ts` and `e2e/agent.spec.ts` drive the Web app (port 4320). `e2e/mockProvider.ts` is the
 OpenAI-compatible endpoint the chat and agent tests talk to; `call <tool> <json>` makes it call tools.
 `WEB_CORE_SCALE=1` adds the 50k-message timing run.
+`e2e/rendererCalls.spec.ts` reads the renderer's sources: every IpcApi route and `window.api` call
+in them must be served by the Worker, answered in the page, or listed in its `unreachable` table
+with the reason the Web page never makes it.
 Both preview servers send the CSP with a `report-uri` to the mock provider (`WEB_CORE_CSP_REPORT_URI`),
 and every test fails on a violation report from the page, its frames or its Workers.

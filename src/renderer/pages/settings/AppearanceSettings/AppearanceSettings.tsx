@@ -385,7 +385,7 @@ const AppearanceSettings: FC = () => {
             </Select>
           </SelectorRow>
         </SettingRow>
-        {isLinux && (
+        {hostFeatures.desktopApp && isLinux && (
           <>
             <SettingDivider />
             <SettingRow>

@@ -300,16 +300,23 @@ test('runs JavaScript in a sandbox and stops an endless loop at its timeout', as
 /** The composer's work directory selector, which shows the session's folder. */
 const workspaceSelector = (page: Page) => page.getByRole('button', { name: /work directory|^picked-/ }).first()
 
-test('works in a folder the user picks and keeps it across a reload', async ({ page, browserName }, testInfo) => {
-  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
-  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
-  // The picker's folder is an OPFS directory: the same handle API as a folder on disk, without the dialog.
+/** Makes the folder picker return an OPFS directory: the same handle API as a folder on disk, without the dialog. */
+async function pickOpfsFolder(page: Page, name: string) {
   await page.addInitScript((name) => {
     Object.assign(window, {
       showDirectoryPicker: async () =>
         (await navigator.storage.getDirectory()).getDirectoryHandle(name, { create: true })
     })
   }, name)
+}
+
+const removeOpfsFolder = (page: Page, name: string) =>
+  page.evaluate(async (name) => (await navigator.storage.getDirectory()).removeEntry(name, { recursive: true }), name)
+
+test('works in a folder the user picks and keeps it across a reload', async ({ page, browserName }, testInfo) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
+  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
+  await pickOpfsFolder(page, name)
   const readPicked = () =>
     page.evaluate(async (name) => {
       const folder = await (await navigator.storage.getDirectory()).getDirectoryHandle(name)
@@ -333,14 +340,40 @@ test('works in a folder the user picks and keeps it across a reload', async ({ p
   await expect(page.getByText(/^tools said:/)).toBeVisible()
   expect(await readPicked()).toEqual({ 'from-agent.txt': 'written in the picked folder' })
 
+  // A session with messages keeps its folder, which it shows by name.
   await gotoApp(page, 'Work')
-  await expect(workspaceSelector(page)).toHaveText(name)
+  await expect(page.getByText(name, { exact: true })).toBeVisible()
   await send(page, 'please call read {"path":"from-agent.txt"}')
   await expect(page.getByText(/^tools said: written in the picked folder/)).toBeVisible()
-  await page.evaluate(
-    async (name) => (await navigator.storage.getDirectory()).removeEntry(name, { recursive: true }),
-    name
-  )
+  await removeOpfsFolder(page, name)
+})
+
+test("finds a file by name in the file pane and in the composer's mentions", async ({
+  page,
+  browserName
+}, testInfo) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
+  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
+  await pickOpfsFolder(page, name)
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+  await workspaceSelector(page).click()
+  await page.getByText('Add new work directory').click()
+  await expect(workspaceSelector(page)).toHaveText(name)
+  await send(page, 'please call write {"path":"deep/inner/target-file.txt","content":"nested"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+
+  // The search finds the file in folders the tree has not opened.
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByPlaceholder('Search files...').fill('target')
+  await expect(page.getByText('target-file.txt', { exact: true })).toBeVisible()
+
+  await composerInput(page).click()
+  await page.keyboard.type('@target')
+  await expect(page.getByRole('button', { name: 'target-file.txt deep/inner/target-file.txt' })).toBeVisible()
+  await removeOpfsFolder(page, name)
 })
 
 test('tells a browser without the folder picker to use Chrome or Edge', async ({ page }) => {

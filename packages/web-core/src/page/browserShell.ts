@@ -1,4 +1,6 @@
-import { answerInPage, shell } from './electron'
+import { IpcChannel } from '@shared/IpcChannel'
+
+import { answerInPage, handleInPage, sendToPage, shell } from './electron'
 import { platform } from './electronToolkitPreload'
 
 /** Schemes the desktop hands to the system; editor links open files on disk, which a page has none of. */
@@ -17,4 +19,6 @@ export function installBrowserShell(): void {
   answerInPage('system.get_device_type', () => ({ darwin: 'mac', win32: 'windows', linux: 'linux' })[platform()])
   // A page cannot list installed fonts without asking (Chrome) or at all; the font setting keeps its presets.
   answerInPage('system.get_fonts', () => [])
+  // The page is the main window, so a quoted selection goes to its own composer.
+  handleInPage(IpcChannel.App_QuoteToMain, async (text) => sendToPage(IpcChannel.App_QuoteToMain, [text]))
 }

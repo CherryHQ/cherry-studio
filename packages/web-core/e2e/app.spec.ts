@@ -91,10 +91,17 @@ test('leaves out the entries a browser tab cannot carry out', async ({ page }) =
   await expect(page.getByText('Theme', { exact: true })).toBeVisible()
   await expect(page.getByText('Page Zoom', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Context menu style', { exact: true })).toHaveCount(0)
+  // Messages take no attachments, so long text is not pasted as a file either.
+  await expect(page.getByText('Paste long text as file', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'About & Feedback', exact: true }).click()
   await expect(page.getByText('Official Website', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Check Update' })).toHaveCount(0)
   await expect(page.getByText('Debug', { exact: true })).toHaveCount(0)
+  // The feedback assistant runs the desktop's diagnostics.
+  await page.getByRole('button', { name: 'Feedback', exact: true }).click()
+  await expect(page.getByRole('dialog').getByText('GitHub Issue', { exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').getByText('Feedback assistant', { exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
 
   // The browser, not the app, starts with the computer and sets the proxy, GPU and power use.
   await page.getByRole('button', { name: 'General', exact: true }).click()
@@ -131,6 +138,32 @@ test("shows a failed reply's error without the desktop's diagnostics", async ({ 
   expect(unsupported).toEqual([])
 })
 
+test('creates an assistant without the knowledge bases the Web edition lacks', async ({ page }) => {
+  await gotoApp(page)
+  await page.getByRole('button', { name: 'Add Assistant' }).click()
+  await page.getByRole('dialog').getByText('New Assistant', { exact: true }).click()
+  const wizard = page.getByRole('dialog', { name: 'New Assistant' })
+  await expect(wizard.getByText('System Prompt', { exact: true })).toBeVisible()
+  await expect(wizard.getByText('Knowledge', { exact: true })).toHaveCount(0)
+})
+
+test('quotes the selected text of a reply in the composer', async ({ page }) => {
+  const run = Date.now().toString(36)
+  await gotoApp(page)
+  await useMockProvider(page, run)
+  await gotoApp(page)
+  await send(page, `quote me ${run}`)
+  const reply = page.getByText(`echo: quote me ${run}`)
+  await reply.click({ clickCount: 3 })
+  await reply.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Quote', exact: true }).click()
+  await composerInput(page).click()
+  await page.keyboard.type('about this')
+  await page.keyboard.press('Enter')
+  // The message sent carries the quote, which its echo shows as a Markdown quote.
+  await expect(page.locator('blockquote').filter({ hasText: `echo: quote me ${run}` })).toBeVisible()
+})
+
 test('adds an assistant from the presets bundled with the app', async ({ page }) => {
   await gotoApp(page)
   await page.getByRole('button', { name: 'Add Assistant' }).click()
@@ -162,24 +195,31 @@ test('gives pdf.js the character maps and fonts the desktop ships', async ({ pag
   }
 })
 
-test('keeps the agent browser off in a workspace that had it on', async ({ page }) => {
+test('keeps desktop-only settings off in a workspace that had them on', async ({ page }) => {
   type PreferenceApi = {
     preference: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }
   }
-  const keys = ['app.browser.agent_control.enabled', 'app.browser.open_links_in_browser']
-  await gotoApp(page)
   // As a workspace created before the Web edition turned these off has them.
-  await page.evaluate(async (keys) => {
-    for (const key of keys) await (window.api as unknown as PreferenceApi).preference.set(key, true)
-  }, keys)
+  const desktopValues: Record<string, unknown> = {
+    'app.browser.agent_control.enabled': true,
+    'app.browser.open_links_in_browser': true,
+    'app.developer_mode.enabled': true,
+    'menu.presentation_mode': 'native'
+  }
+  await gotoApp(page)
+  await page.evaluate(async (desktopValues) => {
+    for (const [key, value] of Object.entries(desktopValues)) {
+      await (window.api as unknown as PreferenceApi).preference.set(key, value)
+    }
+  }, desktopValues)
 
   await page.reload()
   await composerInput(page).waitFor()
   const values = await page.evaluate(
     (keys) => Promise.all(keys.map((key) => (window.api as unknown as PreferenceApi).preference.get(key))),
-    keys
+    Object.keys(desktopValues)
   )
-  expect(values).toEqual([false, false])
+  expect(values).toEqual([false, false, false, 'cherry'])
 })
 
 test('saves a reply as a Markdown download', async ({ page }) => {

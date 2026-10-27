@@ -157,7 +157,7 @@ const pageModuleReplacements: Record<string, string> = {
   'assets/styles/tailwind.css': page('tailwind.css'),
   'components/settingsMenu.ts': page('settingsMenu.ts'),
   'components/AgentRuntimeOption.tsx': page('AgentRuntimeOption.tsx'),
-  'components/OpenTarget/OpenTargetButton.tsx': page('OpenTargetButton.ts'),
+  'components/OpenTarget/OpenTargetButton.tsx': page('OpenTargetButton.tsx'),
   'components/UserAccountPanel.tsx': page('UserAccountPanel.tsx'),
   'components/VoicePlaybackHost.tsx': page('VoicePlaybackHost.ts'),
   'components/chat/messages/frame/messageMenuBarActions.tsx': page('messageMenuBarActions.ts'),

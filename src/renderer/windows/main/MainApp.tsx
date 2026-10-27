@@ -28,6 +28,7 @@ import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRe
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
@@ -132,7 +133,7 @@ export function MainWindowContent(): React.ReactElement {
           <McpInteractionHost />
           <PopupHost />
           <ToastHost />
-          <DictationShortcutHost />
+          {hostFeatures.voice && <DictationShortcutHost />}
           <VoicePlaybackHost />
           {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
         </MandatoryGateProvider>

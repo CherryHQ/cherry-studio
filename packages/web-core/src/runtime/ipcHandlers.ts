@@ -77,6 +77,16 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   // Attachments are not served, so no session has selected any; nor can a model run on OVMS.
   'ai.agent.attachment_selections.list': async () => [],
   'ovms.is_supported': async () => false,
+  // The Web edition has no Cherry Cloud account, so no Cherry Cloud model is available.
+  'cherry_cloud.models.sync': async () => ({
+    entitledModelIds: [],
+    freeModelIds: [],
+    availableModelIds: { agent: [], general: [] },
+    quotaExhaustedModelIds: []
+  }),
+  // A page cannot read other sites, so a citation has no preview, as when the desktop fails to fetch one.
+  'citation.fetch_preview': async () => ({ content: '' }),
+  'citation.cancel_previews': async () => undefined,
   'trash.topic.archive': trashHandlers['trash.topic.archive'],
   'trash.topic.delete_permanently': trashHandlers['trash.topic.delete_permanently'],
   'trash.assistant_topics.archive': trashHandlers['trash.assistant_topics.archive'],

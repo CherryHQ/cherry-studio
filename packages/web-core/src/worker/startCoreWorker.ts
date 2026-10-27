@@ -17,6 +17,7 @@ import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeMana
 import { PythonService } from '@main/services/PythonService'
 import { TrashService } from '@main/services/trash'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { DirectoryListOptions } from '@shared/types/file'
 
 import { mountBuiltinAgentTemplates } from '../agent/builtinAgentTemplates'
 import { addLocalFolder, allowLocalFolder, mountLocalFolders, unmountLocalFolders } from '../agent/localFolders'
@@ -27,6 +28,7 @@ import { fixedWebPreferences, WebPreferenceDefaultsSeeder } from '../database/We
 import { unsupportedService } from '../disabled/unsupported'
 import { application } from '../runtime/application'
 import { connectPage, ipcMain } from '../runtime/electron'
+import { listDirectoryEntries } from '../runtime/fileTreeSearch'
 import { installNodeGlobals } from '../runtime/nodeGlobals'
 import { WebWindowManager } from '../services/WebWindowManager'
 import type { CommandMessage, CoreCommands, SerializedError, WorkerMessage } from './protocol'
@@ -60,6 +62,10 @@ async function startPageServices(hooks: CoreWorkerHooks) {
   ipcMain.handle(IpcChannel.App_LogToMain, () => undefined)
   // The file preview's text; the desktop also detects encodings other than UTF-8.
   ipcMain.handle(IpcChannel.Fs_ReadText, (_event, path) => readFile(String(path), 'utf-8'))
+  // The agent file pane's folders and search, and the composer's file mentions.
+  ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_event, dirPath, options) =>
+    listDirectoryEntries(String(dirPath), options as DirectoryListOptions | undefined)
+  )
   for (const [name, service] of [
     ['CacheService', new CacheService()],
     ['DataApiService', hooks.createDataApiService?.() ?? new DataApiService()],

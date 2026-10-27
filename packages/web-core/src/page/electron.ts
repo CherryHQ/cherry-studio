@@ -67,13 +67,18 @@ export const ipcRenderer = {
   }
 }
 
+/** Delivers `channel` to the page's `ipcRenderer.on` listeners, as the main process's `webContents.send` does. */
+export function sendToPage(channel: string, args: unknown[]): void {
+  const event: IpcRendererEvent = { sender: ipcRenderer, ports: [] }
+  for (const listener of [...(listeners.get(channel) ?? [])]) listener(event, ...args)
+}
+
 /** Connects `ipcRenderer` to the page's Core Worker; the Worker's `webContents.send` reaches `on` listeners. */
 export function connectCore(client: CoreClient): void {
-  const event: IpcRendererEvent = { sender: ipcRenderer, ports: [] }
   client.onBroadcast((channel, args) => {
     if (channel === PageChannel.Relaunch) location.reload()
     else if (channel === PageChannel.OpenExternal) void shell.openExternal(args[0] as string)
-    for (const listener of [...(listeners.get(channel) ?? [])]) listener(event, ...args)
+    sendToPage(channel, args)
   })
   connect(client)
 }
