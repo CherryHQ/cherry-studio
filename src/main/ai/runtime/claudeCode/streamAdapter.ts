@@ -1248,6 +1248,47 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  /**
+   * Step the container-ancestry mask state over newly emitted visible text.
+   * A fence still open at the end of an advance span must not be stepped
+   * piecemeal: a later span starting inside the fence would read its closing
+   * marker as a NEW opener and mask every following line away from the
+   * stepped state (round-18 fence-continuity regression, review probe
+   * "plain paragraph + fence + indented line"). Hold the raw fence text in
+   * the unstepped tail instead; when the closer arrives the whole fence masks
+   * and steps as a single placeholder line, exactly as an undivided delivery
+   * would. Cost: while a fence stays open, each advance re-masks the growing
+   * held fence - O(fence length) per delta, same order as the streaming
+   * remainder's re-scan.
+   */
+  private advanceScratchpadMaskState(emit: string, ctx: StreamContext): void {
+    const maskAdvanceInput = ctx.scratchpadMaskStateUnstepped + emit
+    const maskAdvanceCut = this.steppedLineEndOffset(maskAdvanceInput)
+    if (maskAdvanceCut <= 0) {
+      ctx.scratchpadMaskStateUnstepped = maskAdvanceInput
+      return
+    }
+    const span = maskAdvanceInput.slice(0, maskAdvanceCut)
+    const maskedAdvance = maskCodeFences(span, {
+      initialContainerPrefix: fenceContainerPrefixFromState(ctx.scratchpadMaskState) || undefined
+    })
+    const lastFenceToken = `${maskedAdvance.placeholderBase}CODE_FENCE_${maskedAdvance.fences.length - 1}\uE001`
+    if (maskedAdvance.fences.length > 0 && maskedAdvance.text.endsWith(lastFenceToken)) {
+      const fenceStart = maskedAdvance.text.length - lastFenceToken.length
+      const beforeFence = maskedAdvance.text.slice(0, fenceStart)
+      // Masked and raw text are byte-identical before the fence, so this line
+      // start is the same offset in the raw span.
+      const holdFrom = Math.max(beforeFence.lastIndexOf('\n'), beforeFence.lastIndexOf('\r')) + 1
+      if (holdFrom > 0) {
+        advanceIndentedMaskState(ctx.scratchpadMaskState, maskedAdvance.text.slice(0, holdFrom))
+      }
+      ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(holdFrom)
+      return
+    }
+    advanceIndentedMaskState(ctx.scratchpadMaskState, maskedAdvance.text)
+    ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(maskAdvanceCut)
+  }
+
   private filterScratchpadFromOngoingDelta(text: string, ctx: StreamContext): string {
     if (!ctx.filterParentlessScratchpadText || !ctx.textPartStarted || ctx.textStartDeferred) {
       return text
@@ -1374,14 +1415,6 @@ export class ClaudeCodeStreamAdapter {
     // steps a truncated line once the completing chunk lands and corrupts
     // the container ancestry (round-17 multi-chunk partition finding). The
     // raw tail is carried and the whole pending span re-masked per advance.
-    const maskAdvanceInput = ctx.scratchpadMaskStateUnstepped + emit
-    const maskAdvanceCut = this.steppedLineEndOffset(maskAdvanceInput)
-    if (maskAdvanceCut > 0) {
-      advanceIndentedMaskState(ctx.scratchpadMaskState, maskCodeFences(maskAdvanceInput.slice(0, maskAdvanceCut)).text)
-      ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(maskAdvanceCut)
-    } else {
-      ctx.scratchpadMaskStateUnstepped = maskAdvanceInput
-    }
     return emit
   }
 
@@ -1931,6 +1964,10 @@ export class ClaudeCodeStreamAdapter {
     ctx.accumulatedText += visible
     ctx.streamedTextLength += visible.length
     this.noteVisibleAnswerText(visible, ctx)
+    // The deferred block start is visible answer text: it must step the mask
+    // state like filter-path emissions, or later open-line verdicts classify
+    // against a state missing these lines (round-18 fence-continuity family).
+    this.advanceScratchpadMaskState(visible, ctx)
     this.endCompactionArtifactGrace()
   }
 
@@ -2073,6 +2110,10 @@ export class ClaudeCodeStreamAdapter {
       })
       ctx.textPartStarted = true
     }
+    // Step the mask state over exactly what is about to be emitted: deferral
+    // and flush paths emit text the filter's internal step never saw, leaving
+    // the state behind the visible stream (round-18 fence-continuity finding).
+    this.advanceScratchpadMaskState(text, ctx)
 
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
     ctx.textStreamedViaContentBlock = true
