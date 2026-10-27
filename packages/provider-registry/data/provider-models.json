@@ -18016,6 +18016,7 @@
       "providerId": "longcat"
     },
     {
+      "apiModelId": "mimo-v2.5",
       "modelId": "mimo-v2-5",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18115,6 +18116,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.5-pro",
       "modelId": "mimo-v2-5-pro",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18214,6 +18216,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.5-pro-ultraspeed",
       "modelId": "mimo-v2-5-pro-ultraspeed",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18244,6 +18247,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-flash",
       "modelId": "mimo-v2-6-flash",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18343,6 +18347,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-pro",
       "modelId": "mimo-v2-6-pro",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18442,6 +18447,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-pro-ultraspeed",
       "modelId": "mimo-v2-6-pro-ultraspeed",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -41904,5 +41910,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e2fb4a4b563d0f27"
+  "version": "ba29c50494050a86"
 }

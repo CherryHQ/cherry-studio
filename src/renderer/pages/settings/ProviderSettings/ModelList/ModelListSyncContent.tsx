@@ -25,6 +25,7 @@ interface ModelListSyncContentCommonProps {
 interface ModelListSyncManageContentProps extends ModelListSyncContentCommonProps {
   mode: 'manage'
   localModelIds: Set<UniqueModelId>
+  localWireKeys: Set<string>
   removableModelIds: Set<UniqueModelId>
   defaultModelIds: Set<UniqueModelId>
   onAddModels: (models: Model[]) => void | Promise<void>
@@ -110,6 +111,7 @@ export default function ModelListSyncContent(props: ModelListSyncContentProps) {
           provider={provider}
           modelGroups={view.filteredGroups}
           localModelIds={props.localModelIds}
+          localWireKeys={props.localWireKeys}
           removableModelIds={props.removableModelIds}
           defaultModelIds={props.defaultModelIds}
           staleModelIds={view.staleModelIdSet}

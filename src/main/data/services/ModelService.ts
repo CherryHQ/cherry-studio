@@ -460,12 +460,12 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
   }
 }
 
-function applyStoredModelState(model: Model, row: UserModelRow): Model {
+function applyStoredModelState(model: Model, row: UserModelRow, apiModelId = row.modelId): Model {
   return {
     ...model,
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
-    apiModelId: row.modelId,
+    apiModelId,
     presetModelId: row.presetModelId,
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
@@ -742,7 +742,11 @@ class ModelService {
           )
           const resolved = applyStoredPresetDeltas(baseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
-          return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
+          const apiModelId =
+            registryOverride?.modelId === row.modelId && registryOverride.apiModelId
+              ? registryOverride.apiModelId
+              : row.modelId
+          return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row, apiModelId)
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
             providerId: row.providerId,

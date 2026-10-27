@@ -130,6 +130,20 @@ const allModels: Model[] = [
 
 const localModels = [allModels[2]]
 
+const savedMimoModel: Model = {
+  ...allModels[0],
+  id: 'mimo::mimo-v2-6-pro',
+  providerId: 'mimo',
+  apiModelId: 'mimo-v2.6-pro',
+  presetModelId: 'mimo-v2-6-pro',
+  name: 'MiMo V2.6 Pro'
+}
+const remoteMimoModel: Model = {
+  ...savedMimoModel,
+  id: 'mimo::mimo-v2.6-pro',
+  presetModelId: null
+}
+
 function renderDrawer(props: Partial<React.ComponentProps<typeof ModelListSyncDrawer>> = {}) {
   return render(
     <ModelListSyncDrawer
@@ -261,6 +275,95 @@ describe('ModelListSyncDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
 
     expect(onRemoveModels).toHaveBeenCalledWith(['openai::legacy-model'])
+  })
+
+  it('renders one added MiMo row and removes its saved persistent id', async () => {
+    const user = userEvent.setup()
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [savedMimoModel, remoteMimoModel],
+      localModels: [savedMimoModel],
+      removableModelIds: [savedMimoModel.id],
+      onRemoveModels
+    })
+
+    expect(screen.getAllByText('MiMo V2.6 Pro')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'button.add' })).not.toBeInTheDocument()
+    const removeButton = screen.getByRole('button', { name: 'settings.models.manage.remove_model' })
+    expect(removeButton).toBeEnabled()
+    await user.click(removeButton)
+    expect(onRemoveModels.mock.calls).toEqual([[[savedMimoModel.id]]])
+
+    onRemoveModels.mockClear()
+    await user.click(screen.getByRole('button', { name: 'settings.models.manage.remove_whole_group' }))
+    expect(onRemoveModels.mock.calls).toEqual([[[savedMimoModel.id]]])
+
+    onRemoveModels.mockClear()
+    const bulkRemove = screen.getByRole('button', { name: 'settings.models.manage.remove_listed' })
+    expect(bulkRemove).toHaveTextContent('settings.models.manage.remove_listed')
+    await user.click(bulkRemove)
+    expect(onRemoveModels.mock.calls).toEqual([[['mimo::mimo-v2-6-pro']]])
+  })
+
+  it('bulk-adds the remote MiMo row once and reaches the all-added state', async () => {
+    const user = userEvent.setup()
+    const onAddModels = vi.fn()
+    const props = {
+      allModels: [savedMimoModel, remoteMimoModel],
+      removableModelIds: [],
+      onAddModels
+    }
+    const { rerender } = renderDrawer({ ...props, localModels: [] })
+
+    expect(screen.getAllByText('MiMo V2.6 Pro')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'button.add' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'settings.models.manage.add_listed.label' }))
+    expect(onAddModels.mock.calls).toEqual([[[remoteMimoModel]]])
+
+    rerender(
+      <ModelListSyncDrawer
+        {...props}
+        open
+        localModels={[remoteMimoModel]}
+        removableModelIds={[remoteMimoModel.id]}
+        isLoading={false}
+        isApplying={false}
+        onRemoveModels={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByText('MiMo V2.6 Pro')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'button.add' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' })).toBeEnabled()
+  })
+
+  it('keeps models with empty wire ids separately removable', async () => {
+    const user = userEvent.setup()
+    const onRemoveModels = vi.fn()
+    const customModels: Model[] = ['a', 'b'].map((suffix) => ({
+      ...savedMimoModel,
+      id: `mimo::custom-${suffix}`,
+      apiModelId: '',
+      presetModelId: null,
+      name: `Custom ${suffix}`
+    }))
+    renderDrawer({
+      allModels: customModels,
+      localModels: customModels,
+      removableModelIds: customModels.map((model) => model.id),
+      onRemoveModels
+    })
+
+    expect(screen.getByText('Custom a')).toBeInTheDocument()
+    expect(screen.getByText('Custom b')).toBeInTheDocument()
+    const removeButtons = screen.getAllByRole('button', { name: 'settings.models.manage.remove_model' })
+    expect(removeButtons).toHaveLength(2)
+    for (const button of removeButtons) {
+      expect(button).toBeEnabled()
+      await user.click(button)
+    }
+    expect(onRemoveModels.mock.calls).toEqual([[['mimo::custom-a']], [['mimo::custom-b']]])
   })
 
   it('removes locally added remote models even when the remote row has no preset model id', () => {

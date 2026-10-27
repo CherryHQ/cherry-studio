@@ -142,6 +142,32 @@ describe('useProviderModelPullReconcile', () => {
     expect(result.current.allModels).toEqual([discovered])
   })
 
+  it('keeps the saved MiMo row when the remote persistent ID changes but the wire ID matches', async () => {
+    const saved = {
+      ...localModel,
+      id: 'mimo::mimo-v2-6-pro',
+      providerId: 'mimo',
+      apiModelId: 'mimo-v2.6-pro',
+      presetModelId: 'mimo-v2-6-pro'
+    }
+    const remote = { ...saved, id: 'mimo::mimo-v2.6-pro' }
+    useModelsMock.mockReturnValue({ models: [saved] })
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models: [remote] })
+    const { result } = renderHook(() => useProviderModelPullReconcile('mimo'))
+
+    await act(async () => {
+      await result.current.reloadModels()
+    })
+
+    expect(result.current.staleModelIds).toEqual([])
+    await act(async () => {
+      await result.current.addModels([remote as any])
+    })
+    expect(createModelsMock.mock.calls).toEqual([])
+    expect(result.current.allModels).toContainEqual(saved)
+    expect(result.current.allModels).toEqual([saved])
+  })
+
   it('does not mark custom local models as stale when they are missing remotely', async () => {
     useModelsMock.mockReturnValue({
       models: [

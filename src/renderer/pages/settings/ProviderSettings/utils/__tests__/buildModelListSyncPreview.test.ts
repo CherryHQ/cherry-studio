@@ -21,6 +21,30 @@ describe('buildModelListSyncPreview', () => {
     vi.clearAllMocks()
   })
 
+  it('matches saved and remote MiMo rows by exact wire identity while keeping distinct variants', async () => {
+    const saved = {
+      id: 'mimo::mimo-v2-6-pro',
+      providerId: 'mimo',
+      apiModelId: 'mimo-v2.6-pro',
+      presetModelId: 'mimo-v2-6-pro',
+      name: 'MiMo V2.6 Pro',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }
+    const dated = { ...saved, id: 'mimo::dated', apiModelId: 'mimo-v2.6-pro-dated' }
+    vi.mocked(dataApiService.get).mockResolvedValue([saved, dated])
+    vi.mocked(fetchResolvedProviderModels).mockResolvedValue({
+      models: [{ ...saved, id: 'mimo::mimo-v2.6-pro' }]
+    })
+
+    const preview = await buildModelListSyncPreview({ providerId: 'mimo' })
+
+    expect(preview.added).toEqual([])
+    expect(preview.missing).toEqual([{ model: dated, removalReason: 'missing_from_provider' }])
+  })
+
   it('uses API-provided presetModelId to include only preset-owned missing models', async () => {
     vi.mocked(dataApiService.get).mockResolvedValue([
       {
