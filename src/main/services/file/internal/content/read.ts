@@ -6,8 +6,11 @@
  * wrapper.
  */
 
+import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import type { FileEntryId } from '@shared/data/types/file'
 
+import { classifyFileFailure } from '../../failureFacts'
 import type { ReadResult } from '../../FileManager'
 import {
   type Base64ReadOptions,
@@ -19,6 +22,8 @@ import {
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
+
+const logger = loggerService.withContext('file/internal/read')
 
 export async function read(
   deps: FileManagerDeps,
@@ -42,7 +47,12 @@ export async function read(
 ): Promise<ReadResult<string | Uint8Array>> {
   const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
-  return observeExternalAccess(deps, entry, physicalPath, () => readByPath(physicalPath, options))
+  try {
+    return await observeExternalAccess(deps, entry, physicalPath, () => readByPath(physicalPath, options))
+  } catch (error) {
+    logFailure(logger, 'File read failed', error, 'file.read', classifyFileFailure(error, entry.origin === 'external'))
+    throw error
+  }
 }
 
 export async function readChunk(
@@ -53,5 +63,10 @@ export async function readChunk(
 ): Promise<ReadResult<Uint8Array>> {
   const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
-  return observeExternalAccess(deps, entry, physicalPath, () => readChunkByPath(physicalPath, offset, length))
+  try {
+    return await observeExternalAccess(deps, entry, physicalPath, () => readChunkByPath(physicalPath, offset, length))
+  } catch (error) {
+    logFailure(logger, 'File read failed', error, 'file.read', classifyFileFailure(error, entry.origin === 'external'))
+    throw error
+  }
 }

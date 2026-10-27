@@ -7,6 +7,7 @@ import {
   classifyFileFailure,
   dispatchHandle,
   getMetadataByPath,
+  isInsideManagedStorage,
   readByPath,
   readChunkByPath,
   safeOpen,
@@ -14,7 +15,7 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
-import { copyNew, PathStaleVersionError } from '@main/utils/file'
+import { copyNew, PathStaleVersionError, probeReadable } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -173,7 +174,21 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     // Side-effecting route: refuse trusted-but-unmanaged senders (ipc-overview.md §Caller Identity).
     if (senderId == null) throw new Error('file.copy requires a managed window sender')
     await assertOutsideManagedStorageMutation(destPath)
-    await copyNew(sourcePath, destPath)
+    const managedSource = await isInsideManagedStorage(sourcePath)
+    try {
+      await copyNew(sourcePath, destPath)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      let external = !managedSource
+      if (managedSource && ['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes(code ?? '')) {
+        // copyFile reports both paths; probe the source before blaming the external destination.
+        external = (await probeReadable(sourcePath)) === 'readable'
+      } else if (['EEXIST', 'ENOSPC', 'EROFS'].includes(code ?? '')) {
+        external = true
+      }
+      logFailure(logger, 'File copy failed', error, 'file.copy', classifyFileFailure(error, external))
+      throw error
+    }
   },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')
@@ -212,7 +227,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
 }
 
 function usesExternalPath(route: string, input: unknown): boolean {
-  if (['file.copy', 'file.tree.create', 'file.tree.rename'].includes(route)) return true
+  if (['file.tree.create', 'file.tree.rename'].includes(route)) return true
   if (!input || typeof input !== 'object') return false
   const handle = 'handle' in input ? input.handle : input
   return !!handle && typeof handle === 'object' && 'kind' in handle && handle.kind === 'path'

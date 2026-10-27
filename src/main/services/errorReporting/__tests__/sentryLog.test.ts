@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Writable } from 'node:stream'
@@ -428,6 +428,99 @@ describe('file reporting through IPC', () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it.each(
+    ['full', 'range', 'write'].flatMap((operation) => ['internal', 'external'].map((origin) => ({ operation, origin })))
+  )('preserves $origin ownership for missing entry content during $operation', async ({ operation, origin }) => {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'content.md'))
+    await writeFile(target, 'base')
+    const entry =
+      origin === 'external'
+        ? await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+        : await files.createInternalEntry({
+            source: 'bytes',
+            data: new TextEncoder().encode('base'),
+            name: 'content',
+            ext: 'md',
+            cleanupPolicy: 'manual'
+          })
+    const expectedVersion = await files.getVersion(entry.id)
+    await rm(files.getPhysicalPath(entry.id))
+    const handle = { kind: 'entry' as const, entryId: entry.id }
+    const result =
+      operation === 'write'
+        ? fileHandlers['file.write_if_unchanged'](
+            { handle, data: new TextEncoder().encode('next'), expectedVersion },
+            context
+          )
+        : fileHandlers['file.read'](
+            {
+              handle,
+              options:
+                operation === 'range' ? { mode: 'range', offset: 0, length: 4 } : { mode: 'full', encoding: 'binary' }
+            },
+            context
+          )
+    await expect(result).rejects.toMatchObject({ code: 'ENOENT', reportingHandled: true })
+    await drainLogs()
+    expect(captureExceptionMock.mock.calls).toHaveLength(origin === 'internal' ? 1 : 0)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    if (origin === 'internal') expect(captureExceptionMock.mock.calls[0][1].tags['failure.kind']).toBe('reliability')
+  })
+
+  it('keeps a rename collision local and preserves both files', async () => {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'note.md'))
+    const occupied = path.join(root, 'occupied.md')
+    await writeFile(target, 'original')
+    await writeFile(occupied, 'other')
+    const entry = await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+    await expect(fileHandlers['file.rename']({ id: entry.id, newName: 'occupied' }, context)).rejects.toMatchObject({
+      code: 'EEXIST',
+      reportingHandled: true
+    })
+    await drainLogs()
+    expect(captureExceptionMock.mock.calls).toHaveLength(0)
+    expect(await readFile(target, 'utf8')).toBe('original')
+    expect(await readFile(occupied, 'utf8')).toBe('other')
+    expect(fileEntryService.getById(entry.id)).toMatchObject({ externalPath: target })
+  })
+
+  it.each(['managed-source', 'managed-source-alias', 'external-source', 'destination-parent', 'destination-exists'])(
+    'classifies the failing copy endpoint: %s',
+    async (scenario) => {
+      const entry = await files.createInternalEntry({
+        source: 'bytes',
+        data: new TextEncoder().encode('base'),
+        name: 'content',
+        ext: 'md',
+        cleanupPolicy: 'manual'
+      })
+      let sourcePath =
+        scenario === 'external-source'
+          ? AbsoluteFilePathSchema.parse(path.join(root, 'missing.md'))
+          : files.getPhysicalPath(entry.id)
+      const missingManaged = scenario.startsWith('managed-source')
+      if (missingManaged) await rm(sourcePath)
+      if (scenario === 'managed-source-alias') {
+        const alias = path.join(root, 'alias')
+        await symlink(path.join(root, 'managed'), alias, 'junction')
+        sourcePath = AbsoluteFilePathSchema.parse(path.join(alias, path.basename(sourcePath)))
+      }
+      const destPath = AbsoluteFilePathSchema.parse(
+        path.join(root, scenario === 'destination-parent' ? 'missing/dest.md' : 'dest.md')
+      )
+      if (scenario === 'destination-exists') await writeFile(destPath, 'keep')
+      await expect(fileHandlers['file.copy']({ sourcePath, destPath }, context)).rejects.toMatchObject({
+        code: scenario === 'destination-exists' ? 'EEXIST' : 'ENOENT',
+        reportingHandled: true
+      })
+      await drainLogs()
+      expect(captureExceptionMock.mock.calls).toHaveLength(missingManaged ? 1 : 0)
+      expect(captureEventMock.mock.calls).toHaveLength(0)
+      if (scenario === 'destination-exists') expect(await readFile(destPath, 'utf8')).toBe('keep')
+      if (missingManaged) expect(captureExceptionMock.mock.calls[0][1].tags['failure.kind']).toBe('reliability')
+    }
+  )
+
   it('keeps a missing external file local when renaming by entry ID', async () => {
     const target = AbsoluteFilePathSchema.parse(path.join(root, 'note.md'))
     await writeFile(target, 'base')
@@ -566,8 +659,7 @@ describe('file reporting through IPC', () => {
     expect(captureExceptionMock.mock.calls).toHaveLength(origin === 'internal' ? 1 : 0)
     expect(captureEventMock.mock.calls).toHaveLength(0)
     if (origin === 'internal') {
-      const [reported, sentryContext] = captureExceptionMock.mock.calls[0]
-      expect(reported.message).toBe('file_edit_missing')
+      const [, sentryContext] = captureExceptionMock.mock.calls[0]
       expect(sentryContext.tags['failure.kind']).toBe('reliability')
       expect(JSON.stringify(sentryContext)).not.toContain(target)
     }

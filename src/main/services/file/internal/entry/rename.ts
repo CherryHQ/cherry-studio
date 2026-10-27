@@ -67,7 +67,7 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
       // Both names can resolve to the same inode on case-insensitive filesystems;
       // allow fsMove to apply that case-only rename.
       if (!(await isSameFile(target, oldPath))) {
-        throw new Error(`rename: target path already exists: ${target}`)
+        throw Object.assign(new Error(`rename: target path already exists: ${target}`), { code: 'EEXIST' })
       }
     }
     await fsMove(oldPath, target)

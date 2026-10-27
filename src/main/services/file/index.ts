@@ -85,7 +85,7 @@ export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/con
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.
-export { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
+export { assertOutsideManagedStorageMutation, isInsideManagedStorage } from './utils/managedStorageGuard'
 export { getMetadataByPath } from './utils/metadata'
 export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 

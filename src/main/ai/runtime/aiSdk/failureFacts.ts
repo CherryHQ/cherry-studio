@@ -10,6 +10,7 @@ import {
 } from 'ai'
 
 import { providerFailureFacts } from '@main/ai/errorReporting'
+import { ProviderTransportError } from '@main/ai/utils/customFetch'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { isCancellation } from '@shared/utils/errorReporting'
 
@@ -25,6 +26,9 @@ export function classifyAiSdkFailure(error: unknown, depth = 0): FailureFacts {
   }
   if (isCancellation(error)) return { ...facts, kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
   if (RetryError.isInstance(error) && depth < 3) return classifyAiSdkFailure(error.lastError, depth + 1)
+  if (error instanceof ProviderTransportError) {
+    return { ...facts, source: 'environment', kind: 'expected', reason: error.reason }
+  }
   if (APICallError.isInstance(error)) {
     return { ...facts, source: 'provider', ...providerFailureFacts(error) }
   }

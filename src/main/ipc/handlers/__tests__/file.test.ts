@@ -62,6 +62,7 @@ vi.mock('@main/services/file', async () => {
         super('DirectoryTreeManager stopped during in-flight builder creation')
       }
     },
+    isInsideManagedStorage: vi.fn().mockResolvedValue(false),
     assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
     getMetadataByPath: getMetadataByPathMock,

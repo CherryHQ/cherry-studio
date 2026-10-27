@@ -6,6 +6,9 @@ sources:
   - src/main/data/failureFacts.ts
   - src/main/services/file/failureFacts.ts
   - src/main/services/file/FileEditService.ts
+  - src/main/services/file/internal/content
+  - src/main/services/file/internal/entry/rename.ts
+  - src/main/ipc/handlers/file.ts
   - src/main/services/remoteStorage/failureFacts.ts
   - src/renderer/services/LoggerService.ts
   - src/main/services/errorReporting/sentry.ts
@@ -14,6 +17,7 @@ sources:
   - src/shared/utils/sentry.ts
   - src/main/ai/errorReporting.ts
   - src/main/ai/runtime/aiSdk/failureFacts.ts
+  - src/main/ai/utils/customFetch.ts
   - src/main/ai/mcp/failureFacts.ts
 ---
 
@@ -76,7 +80,10 @@ ownership so renderer logging and global capture do not recapture the failure.
 Ordinary chat classifies AI SDK failures at the Agent boundary, before stream
 management or IPC projects them. Typed provider authentication, quota, rate
 limit, model availability, context limits and network/server failures stay
-local, including exhausted retry wrappers. Unclassified HTTP 400 failures,
+local, including exhausted retry wrappers. The provider fetch boundary wraps
+recognized Chromium network, connection-loss and proxy/TLS errors with their
+transport category; the original error remains its cause. Ordinary application
+errors with similar text do not acquire that classification. Unclassified HTTP 400 failures,
 response/schema parsing failures and native programming errors remain eligible.
 Tool-input rejection and the configured tool-loop limit are expected outcomes.
 The AI helper preserves the SDK's original thrown value and applies the same
@@ -105,7 +112,11 @@ preboot migration log the same facts, but cannot report before consent is ready.
 File IPC classifies at its domain boundary. Missing or unwritable user-selected
 paths stay local; missing managed files and metadata failures after a content
 commit remain eligible. Metadata lookups still return null on failure, while
-unexpected faults are recorded. File editing classifies normalized `FILE_EDIT_*`
+unexpected faults are recorded. Entry reads and conditional writes classify with
+the resolved entry origin; rename collisions retain `EEXIST`. Copy distinguishes
+a missing or unreadable managed source from an external destination failure;
+source probes that cannot establish readability retain managed-file reporting.
+File editing classifies normalized `FILE_EDIT_*`
 codes in `FileEditService`, where each lease retains whether its target is an
 external file or managed storage. This includes external library entries and
 read/write requests carrying only an `editId`; IPC propagates reporting ownership.
