@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.8
+
+### Patch Changes
+
+- [#22711](https://github.com/CherryHQ/cherry-studio/pull/22711) [`c43e512`](https://github.com/CherryHQ/cherry-studio/commit/c43e512322b7a878dcc828514991da99c393aa50) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT-6.1 Terra with API pricing, long-context tiers, Responses tools, and Codex-specific context and reasoning limits.
+
 ## 0.2.7
 
 ### Patch Changes
