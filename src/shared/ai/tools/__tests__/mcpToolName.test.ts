@@ -906,6 +906,24 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     ).toEqual(['mcp__srv-1__get_time', 'mcp__docs__get_time', 'mcp__docs__getTime'])
   })
 
+  it('resolves a Pi-saved camelized denial to its raw tool when the renamed key camelizes differently', () => {
+    // Pi SAVES denials through `buildFunctionCallToolName`, which camelizes the raw tool: with
+    // raw tool `get_time` the persisted rule is `mcp__docs__getTime` — already camelized, so
+    // re-camelizing the fragment degenerates (`gettime`) and names nothing. The rename onto the
+    // mixed-case `GitHub` must resolve the fragment against the server's actual tool list and
+    // emit the raw spelling the runtimes keep: the SDK serves `mcp__GitHub__get_time`, and Pi
+    // resolves `buildFunctionCallToolName('GitHub', 'get_time')` = `mcp__github__getTime`.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__docs__getTime'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
+        renamedServerId: 'srv-1',
+        toName: 'GitHub',
+        reservedKeys: RESERVED,
+        toolNamesByServerId: new Map([['srv-1', ['get_time']]])
+      })
+    ).toEqual(['mcp__GitHub__getTime', 'mcp__github__gettime', 'mcp__GitHub__get_time', 'mcp__github__getTime'])
+  })
+
   it('carries a truncated DSH identity onto the renamed key fragment', () => {
     // A 60-char lowercase server name truncates the lossy DSH runtime name before the `__`
     // delimiter, fusing key and tool into one unparseable prefix. The saved denial must still
@@ -1142,6 +1160,70 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
     const denied = translateLegacyMcpToolRules(persisted, serverNameById)
     expect(denied).toContain(`mcp__${toSdkMcpServerSegment(idA)}__run`)
     expect(denied).not.toContain('mcp__docs__run')
+  })
+
+  it('resolves a departing server camelized denial to its raw tool on the stable id', () => {
+    // The bot's P1 trigger: Pi saves the denial through `buildFunctionCallToolName`, which
+    // camelizes the raw tool — server `docs` + raw `get_time` persists `mcp__docs__getTime`.
+    // Unmounting releases the configured-name key (aliasOwnershipLost), so the rewrite lands on
+    // the stable id — but a camelized fragment under the id names nothing: Pi registers the raw
+    // tool and matches `mcp__<id>__get_time` verbatim, so both camelized copies let the
+    // disabled tool execute under Full Access after remount. The fragment must resolve against
+    // the server's actual tool list and emit the raw stable-id form.
+    const unmounted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
+      oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+      newMountedServers: [],
+      reservedKeys: RESERVED,
+      toolNamesByServerId: new Map([[idA, ['get_time', 'search_docs']]])
+    })
+    // The camelized forms stay (existing semantics; `gettime` also matches a raw tool literally
+    // named `gettime`), the raw stable-id form joins them, and the name-keyed original is still
+    // dropped — the released key spells the next claimant's identity.
+    expect(unmounted).toEqual([`mcp__${idA}__getTime`, `mcp__${idA}__gettime`, `mcp__${idA}__get_time`])
+  })
+
+  it('keeps the camelized fragments unchanged when the departing server has no tool catalog entry', () => {
+    // A cold tool cache (or a stale list missing the tool) cannot resolve the camelized
+    // fragment. The migration must keep the camelized spellings — fail-closed over-block —
+    // rather than guess a raw tool name it has never seen.
+    expect(
+      migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
+        oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+        newMountedServers: [],
+        reservedKeys: RESERVED
+      })
+    ).toEqual([`mcp__${idA}__getTime`, `mcp__${idA}__gettime`])
+  })
+
+  it('emits every raw spelling a camelized fragment resolves to (fail-closed)', () => {
+    // `get_time` and `get.time` both camelize to `getTime`, so the saved string is ambiguous:
+    // resolving only one spelling could re-enable the other. Every matching raw tool
+    // contributes its stable-id form.
+    expect(
+      migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
+        oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+        newMountedServers: [],
+        reservedKeys: RESERVED,
+        toolNamesByServerId: new Map([[idA, ['get_time', 'get.time', 'other']]])
+      })
+    ).toEqual([`mcp__${idA}__getTime`, `mcp__${idA}__gettime`, `mcp__${idA}__get_time`, `mcp__${idA}__get.time`])
+  })
+
+  it('resolves the camelized denial onto the raw stable id when a mount change displaces the owner', () => {
+    // The displacement path builds its rewrites at the same engine, so the same contract
+    // applies: mounting a server whose id claims `docs` displaces A onto its id and drops the
+    // name-keyed alias — the raw stable-id form is then the only identity Pi still matches.
+    expect(
+      migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
+        oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+        newMountedServers: [{ mcpId: 'docs', name: 'docs' }],
+        reservedKeys: RESERVED,
+        toolNamesByServerId: new Map([
+          [idA, ['get_time']],
+          ['docs', ['search']]
+        ])
+      })
+    ).toEqual([`mcp__${idA}__getTime`, `mcp__${idA}__gettime`, `mcp__${idA}__get_time`])
   })
 })
 

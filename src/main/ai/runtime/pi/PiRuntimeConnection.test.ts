@@ -2079,6 +2079,37 @@ describe('PiRuntimeConnection', () => {
         gateHandler()({ type: 'tool_call', toolName: nativeName, toolCallId: 'blocked', input: {} }, {})
       ).resolves.toMatchObject({ block: true })
     })
+
+    it('enforces the raw stable-id form the camelized-alias migration emits', async () => {
+      // The unmount migration resolves Pi's camelized saved denial (server `docs` + raw
+      // `get_time` persisted as `mcp__docs__getTime`) onto the stable id. Pi registers the raw
+      // tool and matches `mcp__<id>__get_time` verbatim — the camelized copies under the id name
+      // nothing — so the raw form the migration emits is the identity that must block.
+      const serverId = '12345678-1234-4234-8234-123456789abc'
+      const serverName = 'docs'
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: [`mcp__${serverId}__getTime`, `mcp__${serverId}__gettime`, `mcp__${serverId}__get_time`]
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: 'get_time' }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverId, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverId, 'get_time')
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
     it('preserves a migrated built-in MCP prohibition', async () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',

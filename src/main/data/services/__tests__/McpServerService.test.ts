@@ -2,6 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -9,6 +10,7 @@ import { McpServerService, mcpServerService } from '@data/services/McpServerServ
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { translateLegacyMcpToolRules } from '@shared/ai/tools/mcpToolName'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { McpTool } from '@shared/types/mcp'
 
 describe('McpServerService', () => {
   const dbh = setupTestDatabase()
@@ -197,6 +199,37 @@ describe('McpServerService', () => {
       const [untouched] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-2'))
       // agent-2 does not mount the server: a name match alone must never steal its rules.
       expect(untouched.disabledTools).toEqual(['mcp__other__run'])
+    })
+
+    it('resolves a camelized agent denial to its raw tool and Pi alias when the server is renamed', async () => {
+      // Pi saves denials through `buildFunctionCallToolName`, which camelizes the raw tool:
+      // server `docs` + raw `get_time` persists `mcp__docs__getTime`. Renaming onto the
+      // mixed-case `GitHub` must resolve the fragment against the server's tool catalog (the
+      // shared `mcp.tools.<serverId>` cache) and emit the raw spelling the SDK serves
+      // (`mcp__GitHub__get_time`) plus the alias Pi resolves
+      // (`buildFunctionCallToolName('GitHub', 'get_time')` = `mcp__github__getTime`).
+      await seedServer({ id: 'srv-camel', name: 'docs' })
+      application.get('CacheService').setShared(`mcp.tools.srv-camel`, [{ name: 'get_time' } as unknown as McpTool])
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-camelized-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__getTime']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-camel' })
+
+      mcpServerService.update('srv-camel', { name: 'GitHub' })
+
+      const [renamed] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(renamed.disabledTools).toEqual([
+        'mcp__GitHub__getTime',
+        'mcp__github__gettime',
+        'mcp__GitHub__get_time',
+        'mcp__github__getTime'
+      ])
     })
 
     it('leaves rules of agents that mount a same-named sibling untouched when the unmounted server is renamed', async () => {

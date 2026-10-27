@@ -13,6 +13,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
+import { mountedServerToolNames } from '@data/services/utils/mcpToolCatalogCache'
 import { loggerService } from '@logger'
 import { CHERRY_MCP_SERVER } from '@main/utils/agentMcpIdentities'
 import {
@@ -243,7 +244,10 @@ export class McpServerService {
             reservedKeys: [
               ...Object.values(CHERRY_MCP_SERVER),
               ...mountedServers.map(({ mcpId }) => sanitizeAgentServerKey(mcpId))
-            ]
+            ],
+            // Raw tool spellings let the migration resolve Pi's camelized saved denials onto
+            // the identities that keep the raw tool fragment.
+            toolNamesByServerId: mountedServerToolNames(mountedServers.map(({ mcpId }) => mcpId))
           })
           if (migrated) {
             agentService.updateDisabledToolsTx(tx, agent.id, migrated)

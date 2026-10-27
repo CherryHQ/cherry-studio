@@ -18,6 +18,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
+import { mountedServerToolNames } from '@data/services/utils/mcpToolCatalogCache'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -832,7 +833,10 @@ export class AgentService {
                 reservedKeys: [...Object.values(CHERRY_MCP_SERVER)],
                 nonCandidateIds: new Set(
                   [...oldMountedRefs, ...newMountedRefs].flatMap(({ browser, mcpId }) => (browser ? [mcpId] : []))
-                )
+                ),
+                // Raw tool spellings let the migration resolve Pi's camelized saved denials
+                // onto the stable-id/SDK forms that keep the raw tool fragment.
+                toolNamesByServerId: mountedServerToolNames([...oldMountedServers, ...newMcps])
               })
               if (migrated) updateData.disabledTools = migrated
             }
@@ -1256,7 +1260,10 @@ export class AgentService {
         oldMountedServers: oldMountedRefs,
         newMountedServers: oldMountedRefs.filter(({ mcpId }) => mcpId !== mcpServerId),
         reservedKeys: [...Object.values(CHERRY_MCP_SERVER)],
-        nonCandidateIds: new Set(oldMountedRefs.flatMap(({ browser, mcpId }) => (browser ? [mcpId] : [])))
+        nonCandidateIds: new Set(oldMountedRefs.flatMap(({ browser, mcpId }) => (browser ? [mcpId] : []))),
+        // Raw tool spellings let the migration resolve Pi's camelized saved denials onto the
+        // stable-id forms that keep the raw tool fragment.
+        toolNamesByServerId: mountedServerToolNames(oldMountedIds)
       })
       if (migrated) {
         this.updateDisabledToolsTx(tx, agentId, migrated)

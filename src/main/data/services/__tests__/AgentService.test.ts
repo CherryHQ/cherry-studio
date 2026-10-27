@@ -35,6 +35,7 @@ import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/service
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { McpTool } from '@shared/types/mcp'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -1046,6 +1047,32 @@ describe('AgentService', () => {
       expect(reloaded?.mcps).toEqual(['srv-b', 'srv-a'])
       expect(reloaded?.disabledTools).toEqual(['mcp__srv-a__run'])
       expect(reloaded?.disabledTools).not.toContain('mcp__docs__run')
+    })
+
+    it('resolves a camelized Pi denial onto the raw stable-id form when unmounting releases the name', async () => {
+      // Pi saves the denial through `buildFunctionCallToolName`, which camelizes the raw tool:
+      // server `docs` + raw `get_time` persists `mcp__docs__getTime`. Unmounting releases the
+      // configured-name key, so the rewrite lands on the stable id — and a camelized fragment
+      // under the id names nothing (Pi registers the raw tool and matches
+      // `mcp__<id>__get_time` verbatim). The migration reads the server's tool catalog from the
+      // shared cache and emits the raw stable-id form alongside the camelized copies.
+      await insertMcpServer('srv-a', 'docs')
+      application.get('CacheService').setShared(`mcp.tools.srv-a`, [{ name: 'get_time' } as unknown as McpTool])
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Camelized Alias Unmount',
+        model: TEST_MODEL_ID,
+        mcps: ['srv-a'],
+        disabledTools: ['mcp__docs__getTime']
+      })
+
+      agentService.updateAgent(created.id, { mcps: [] })
+
+      expect(agentService.getAgent(created.id)?.disabledTools).toEqual([
+        'mcp__srv-a__getTime',
+        'mcp__srv-a__gettime',
+        'mcp__srv-a__get_time'
+      ])
     })
 
     it('reads same-timestamp mount rows in mcpServerId order', async () => {

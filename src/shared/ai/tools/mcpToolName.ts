@@ -435,6 +435,13 @@ export interface AgentServerRenameMigrationInput {
   toName: string
   /** Keys no user server may claim (built-in server names plus the sanitized mounted ids). */
   reservedKeys: readonly string[]
+  /**
+   * Raw tool names per mounted server id, from the server's tool catalog at migration time.
+   * Without a server's entry (or with an empty one) its camelized fragments cannot be
+   * reverse-mapped, and the migration keeps their camelized spellings — fail-closed — rather
+   * than guessing a raw tool name.
+   */
+  toolNamesByServerId?: ReadonlyMap<string, readonly string[]>
 }
 
 interface AgentKeyRewrite {
@@ -466,6 +473,14 @@ interface AgentKeyRewrite {
    * stable-id forms instead.
    */
   aliasOwnershipLost?: boolean
+  /**
+   * This server's raw tool names from its tool catalog at migration time. Pi saves denials
+   * through `buildFunctionCallToolName`, which camelizes the raw tool (`get_time` → `getTime`),
+   * while the identities a rewrite can land on keep the raw spelling (Pi's stable-id
+   * `mcp__<id>__<raw tool>` match, the SDK's served `mcp__<key>__<raw tool>`) — the raw
+   * fragment is only recoverable by reverse-mapping the camelized fragment against this list.
+   */
+  toolNames?: readonly string[]
 }
 
 /**
@@ -529,7 +544,8 @@ export function migrateAgentDisabledToolsForServerRename(
       toKey: newKey,
       camelToKey,
       fromIsId: oldKey === sanitizeAgentServerKey(mcpId),
-      aliasOwnershipLost: keyClaimedByOtherServer(newKeys, mcpId, oldKey)
+      aliasOwnershipLost: keyClaimedByOtherServer(newKeys, mcpId, oldKey),
+      toolNames: input.toolNamesByServerId?.get(mcpId)
     })
   }
   return applyAgentKeyRewrites(
@@ -559,6 +575,13 @@ export interface AgentAllocationChangeInput {
    * reserved only in the sets it is mounted in, and it never claims a configured name.
    */
   nonCandidateIds?: ReadonlySet<string>
+  /**
+   * Raw tool names per mounted server id, from the server's tool catalog at migration time.
+   * Without a server's entry (or with an empty one) its camelized fragments cannot be
+   * reverse-mapped, and the migration keeps their camelized spellings — fail-closed — rather
+   * than guessing a raw tool name.
+   */
+  toolNamesByServerId?: ReadonlyMap<string, readonly string[]>
 }
 
 /**
@@ -596,7 +619,13 @@ export function migrateAgentDisabledToolsForAllocationChange(
       // rewrite below).
       const stableKey = sanitizeAgentServerKey(mcpId)
       if (oldKey !== stableKey) {
-        rewrites.push({ fromKey: oldKey, toKey: stableKey, fromIsId: false, aliasOwnershipLost: true })
+        rewrites.push({
+          fromKey: oldKey,
+          toKey: stableKey,
+          fromIsId: false,
+          aliasOwnershipLost: true,
+          toolNames: input.toolNamesByServerId?.get(mcpId)
+        })
       }
       continue
     }
@@ -614,7 +643,8 @@ export function migrateAgentDisabledToolsForAllocationChange(
       toKey: newKey,
       camelToKey,
       fromIsId: oldKey === sanitizeAgentServerKey(mcpId),
-      aliasOwnershipLost: keyClaimedByOtherServer(newKeys, mcpId, oldKey)
+      aliasOwnershipLost: keyClaimedByOtherServer(newKeys, mcpId, oldKey),
+      toolNames: input.toolNamesByServerId?.get(mcpId)
     })
   }
   if (rewrites.length === 0) return undefined
@@ -719,17 +749,24 @@ function applyAgentKeyRewrites(
     return [...targets].map((target) => `mcp__${target}__${fragment}`.slice(0, 50) + tail)
   }
 
-  // A `_12hex` tail is also the shape a plain literal tool name can spell (`a`*38 +
-  // `_123456789abc`), indistinguishable from a legacy hashed identity by its suffix alone. The
-  // literal interpretation moves the COMPLETE tool segment onto the new key's namespace — the
-  // raw form the SDK serves, Pi's camelized-tool alias (`buildFunctionCallToolName`), and the
-  // SDK-normalized key segment. Emitting only the truncated hashed copies would clip a long
-  // literal past the 50-char base (37 of 38 `a`s) while the runtime serves the full name, so
-  // neither persisted rule matches and the explicitly disabled tool executes.
-  const literalInterpretations = (rewrite: AgentKeyRewrite, toolPart: string): string[] => {
+  // Every destination also resolves the fragment against the owning server's raw tool list: a
+  // Pi-saved denial camelizes the raw tool (`get_time` → `getTime`), while the identities the
+  // copies land on keep the raw spelling — Pi matches `mcp__<id>__<raw tool>` verbatim and the
+  // SDK serves `mcp__<key>__<raw tool>` — so a camelized fragment alone names no registered
+  // tool. Each raw tool whose camelization equals the saved fragment contributes its raw,
+  // camelized-tool and SDK-segment forms; a fragment matching several raw spellings contributes
+  // all of them (fail-closed). No catalog entry means no resolution — the camelized forms pass
+  // through rather than guessing a spelling.
+  const targetForms = (rewrite: AgentKeyRewrite, toolPart: string): string[] => {
     const targets = new Set<string>([`mcp__${rewrite.toKey}__${toolPart}`])
     targets.add(`mcp__${rewrite.camelToKey ?? rewrite.toKey}__${toCamelCase(toolPart)}`)
     targets.add(`mcp__${toSdkMcpServerSegment(rewrite.toKey)}__${toolPart}`)
+    for (const raw of rewrite.toolNames ?? []) {
+      if (toCamelCase(raw) !== toolPart) continue
+      targets.add(`mcp__${rewrite.toKey}__${raw}`)
+      targets.add(`mcp__${rewrite.camelToKey ?? rewrite.toKey}__${toCamelCase(raw)}`)
+      targets.add(`mcp__${toSdkMcpServerSegment(rewrite.toKey)}__${raw}`)
+    }
     return [...targets]
   }
 
@@ -752,7 +789,14 @@ function applyAgentKeyRewrites(
           ? undefined
           : rewrites.find(({ fromKey: key }) => serverPart === toCamelCase(key) && toCamelCase(key) !== key)
         if (matched && /_[0-9a-f]{12}$/.test(toolPart)) {
-          replacements = [...rewriteHashed(toolPart, matched.toKey), ...literalInterpretations(matched, toolPart)]
+          // A `_12hex` tail is also the shape a plain literal tool name can spell (`a`*38 +
+          // `_123456789abc`), indistinguishable from a legacy hashed identity by its suffix
+          // alone. The literal interpretation moves the COMPLETE tool segment onto the new
+          // key's namespace (the `targetForms` destinations). Emitting only the truncated
+          // hashed copies would clip a long literal past the 50-char base (37 of 38 `a`s)
+          // while the runtime serves the full name, so neither persisted rule matches and the
+          // explicitly disabled tool executes.
+          replacements = [...rewriteHashed(toolPart, matched.toKey), ...targetForms(matched, toolPart)]
           keepOriginal = true
         } else if (matched) {
           // Pi resolves denials through `buildFunctionCallToolName`, which camelizes BOTH
@@ -763,11 +807,10 @@ function applyAgentKeyRewrites(
           // the key needing no camelization says nothing about the tool segment. The
           // SDK-normalized key segment is emitted alongside the raw form: the SDK invokes
           // `mcp__Docs_MCP__run` for the key `Docs MCP`, so without it neither surviving copy
-          // names a tool the SDK serves.
-          const targets = new Set<string>([`mcp__${matched.toKey}__${toolPart}`])
-          targets.add(`mcp__${matched.camelToKey ?? matched.toKey}__${toCamelCase(toolPart)}`)
-          targets.add(`mcp__${toSdkMcpServerSegment(matched.toKey)}__${toolPart}`)
-          replacements = [...targets]
+          // names a tool the SDK serves. A camelized saved fragment additionally resolves
+          // against the server's raw tool list (see `targetForms`): the stable-id and SDK
+          // destinations keep the raw spelling the camelized copy cannot name.
+          replacements = targetForms(matched, toolPart)
           // An id-keyed original is a native registered identity (Pi registers servers under
           // their id and matches `mcp__<id>__tool` verbatim at any tool length), so it must
           // survive the migration: the copies cannot regenerate a bounded long-tool identity,
@@ -791,7 +834,9 @@ function applyAgentKeyRewrites(
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = [
             ...rewriteHashed(toolPart, lossyMatched.toKey),
-            ...literalInterpretations(lossyMatched, toolPart)
+            // The complete literal destinations, for the same reason as the matched branch
+            // above: the truncated copies alone can clip a real literal tool name.
+            ...targetForms(lossyMatched, toolPart)
           ]
           keepOriginal = true
         }
