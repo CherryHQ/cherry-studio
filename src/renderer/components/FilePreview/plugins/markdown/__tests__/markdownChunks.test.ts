@@ -353,6 +353,17 @@ describe('splitMarkdownChunks', () => {
     expect(joined(chunks)).toBe(content)
   })
 
+  it('reads a run of links in one pass', () => {
+    // Each accepted link queued the rest of the line as a new segment, rebuilding its bracket and
+    // emphasis indexes over the whole suffix: 16,384 links took ~9.9 s inside one synchronous pass,
+    // before virtualization could start.
+    const content = '[a](b)\n'.repeat(16_384) + '===\n\n'
+
+    const started = performance.now()
+    chunksOf(content)
+    expect(performance.now() - started).toBeLessThan(500)
+  })
+
   it('reads repeated raw-text openers in one pass', () => {
     // Each opener searched the close list from its head, so a heading of repeated pairs rescanned
     // every closer already passed: 20,000 pairs took over a second and grew quadratically.
@@ -2380,6 +2391,18 @@ describe('document-wide heading slugs', () => {
 
     expect(chunks[0].headingSlugs?.get('title')).toEqual(['title'])
     expect(chunks[2].headingSlugs?.get('title')).toEqual(['title-1'])
+  })
+
+  it('keeps a heading’s emphasis pairing across a link inside it', () => {
+    // `*[x](d)c*c` closes its emphasis after the link. Reading the text past the link as a new
+    // segment lost the opener, so the closer became literal text and the heading was numbered from
+    // `xc-c` while the whole document numbers it `xcc` — the second heading then took `xcc` where
+    // the jump link expects `xcc-1`.
+    const content = ['# *[x](d)c*c', '', 'filler', '', '# xcc', '', '[jump](#xcc-1)'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.flatMap((chunk) => [...(chunk.headingSlugs?.get('xcc') ?? [])])).toEqual(['xcc', 'xcc-1'])
   })
 
   it('counts a heading behind quote markers toward the document-wide numbering', () => {

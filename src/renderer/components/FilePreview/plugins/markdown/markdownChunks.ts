@@ -1551,16 +1551,13 @@ function headingRenderedText(
   definesLabel: (label: string) => boolean,
   footnoteNumber: (label: string) => number | undefined
 ): string {
-  let text = ''
   // Label content read so far, against the budget below.
   let labelChars = 0
-  // The inline segments still to be read, innermost first. A link's label is queued here rather
-  // than read by a recursive call: a heading whose label nests another label tens of thousands deep
-  // would exhaust the call stack, and the renderer has no budget left for it either way.
-  const pending: Array<{ text: string; label: boolean }> = [{ text: source, label: false }]
-  while (pending.length > 0) {
-    const entry = pending.pop() as { text: string; label: boolean }
-    const segment = entry.text
+  // A link's label is inline content of its own, so it is read by a recursive call. Inside a label
+  // a `[` is literal, so the recursion is one level deep — and reading the rest of the segment in
+  // place keeps the indexes built for it instead of rebuilding them once per link.
+  const scanSegment = (segment: string, entryLabel: boolean): string => {
+    let text = ''
     // No `>` after this offset means no tag can close there; scanning the suffix per `<` is what
     // made a line of unterminated `<style ` quadratic.
     const lastCloseAngle = segment.lastIndexOf('>')
@@ -1755,7 +1752,7 @@ function headingRenderedText(
           text += character
           index += 1
         }
-      } else if ((character === '[' && !entry.label) || (character === '!' && segment[index + 1] === '[')) {
+      } else if ((character === '[' && !entryLabel) || (character === '!' && segment[index + 1] === '[')) {
         const open = index + (character === '!' ? 1 : 0)
         const label = bracketRun(open)
         // A link the label holds forbids the one around it, which leaves the outer brackets as text
@@ -1819,12 +1816,9 @@ function headingRenderedText(
           // renderer never shows. An image the document defines nothing for is the literal text
           // above, never this branch. A label cannot hold a link, so reading it is one level deep.
           if (character !== '!') {
-            // The label is read where the link stands and the rest of the segment after it, so the
-            // text keeps its document order: the remainder is queued first, then the label, and
-            // this segment stops here rather than reading on past the link it just found.
-            pending.push({ text: segment.slice(follow), label: false })
-            pending.push({ text: segment.slice(open + 1, label.end - 1), label: true })
-            break
+            // The label renders where the link stands, and the rest of the segment is read on in
+            // place — so this segment's bracket and emphasis indexes are never rebuilt per link.
+            text += scanSegment(segment.slice(open + 1, label.end - 1), true)
           }
           index = follow
         } else if (nested) {
@@ -1843,8 +1837,9 @@ function headingRenderedText(
         index += 1
       }
     }
+    return text
   }
-  return text
+  return scanSegment(source, false)
 }
 
 /** A footnote reference's label: no whitespace and no bracket of either kind, inside `[^…]`. */
