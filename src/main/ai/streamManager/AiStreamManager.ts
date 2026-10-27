@@ -1516,6 +1516,7 @@ export class AiStreamManager extends BaseService {
     if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
     exec.status = 'error'
+    error = { ...error, executionFailure: toExecutionFailure(error, modelId) }
     exec.error = error
     endRootSpan(exec, 'error', error)
 

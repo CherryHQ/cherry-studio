@@ -1,5 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
+import { getExecutionFailureCategory } from '@shared/ai/executionFailure'
 import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
 export type { ErrorCategory } from '@shared/utils/errorCategory'
@@ -124,6 +125,10 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return classify(errorBag.providerErrorCategory)
   }
   const numStatus = getErrorHttpStatus(error)
+  if (numStatus === undefined || numStatus < 500 || numStatus >= 600) {
+    const executionFailureCategory = getExecutionFailureCategory(errorBag.executionFailure)
+    if (executionFailureCategory) return classify(executionFailureCategory)
+  }
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
   let dataText = ''

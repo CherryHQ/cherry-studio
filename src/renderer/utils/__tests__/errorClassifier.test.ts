@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { SerializedError } from '@renderer/types/error'
 
 import { classifyError } from '../errorClassifier'
@@ -50,6 +51,17 @@ function makeCopiedRetry(
     errors: attempts,
     ...wrapper
   })
+}
+
+const QUOTA_FAILURE: ExecutionFailure = {
+  message: '402 status code (no body)',
+  retryable: false,
+  failure: {
+    version: 1,
+    reasonCode: 'quota',
+    source: { layer: 'provider' },
+    context: { statusCode: 402 }
+  }
 }
 
 describe('classifyError', () => {
@@ -751,5 +763,96 @@ describe('classifyError', () => {
   it('prioritizes finishReason over status code', () => {
     const result = classifyError(makeError({ finishReason: 'content-filter', statusCode: 500 }))
     expect(result.category).toBe('content')
+  })
+})
+
+describe('execution failure diagnosis', () => {
+  it.each(['402 status code (no body)', 'pi prompt failed 402 status code (no body)'])(
+    'recovers the quota heading and provider settings from the snapshot for %s',
+    (message) => {
+      expect(classifyError(makeError({ message, executionFailure: QUOTA_FAILURE }), 'silicon')).toEqual({
+        category: 'quota',
+        i18nKey: 'error.diagnosis.quota',
+        navTarget: '/settings/provider?id=silicon'
+      })
+      expect(classifyError(makeError({ message })).category).toBe('unknown')
+    }
+  )
+
+  it.each([undefined, { statusCode: 429 }])('uses the quota reason rather than context %j', (context) => {
+    const failure = { ...QUOTA_FAILURE.failure }
+    if (context) failure.context = context
+    else delete failure.context
+
+    expect(
+      classifyError(
+        makeError({
+          executionFailure: { ...QUOTA_FAILURE, failure }
+        })
+      ).category
+    ).toBe('quota')
+  })
+
+  it('ignores a malformed snapshot and still diagnoses outer text', () => {
+    expect(
+      classifyError(
+        makeError({
+          message: 'invalid_api_key',
+          executionFailure: { ...QUOTA_FAILURE, failure: { ...QUOTA_FAILURE.failure, version: 2 } }
+        })
+      ).category
+    ).toBe('auth')
+  })
+
+  it.each([
+    ['internal', 'fetch failed', 'network', 'host'],
+    ['unknown', 'invalid_api_key', 'auth', 'runtime'],
+    ['timeout', 'MCP timeout', 'mcp', 'tool'],
+    ['invalid_input', 'MCP timeout', 'mcp', 'runtime'],
+    ['tool_limit', 'MCP timeout', 'mcp', 'tool'],
+    ['tool_failed', 'MCP timeout', 'mcp', 'tool'],
+    ['internal', 'MCP timeout', 'mcp', 'host'],
+    ['unknown', 'MCP timeout', 'mcp', 'runtime']
+  ] as const)('keeps text recovery for %s (%s)', (reasonCode, message, category, layer) => {
+    expect(
+      classifyError(
+        makeError({
+          message,
+          executionFailure: {
+            ...QUOTA_FAILURE,
+            failure: { ...QUOTA_FAILURE.failure, reasonCode, source: { layer } }
+          }
+        })
+      ).category
+    ).toBe(category)
+  })
+
+  it.each([
+    [{ claudeCodeExitCategory: 'network', providerErrorCategory: 'auth' }, 'network'],
+    [{ claudeCodeExitCategory: 'unknown', providerErrorCategory: 'auth' }, 'unknown'],
+    [{ providerErrorCategory: 'auth' }, 'auth'],
+    [{ providerErrorCategory: 'unknown' }, 'quota']
+  ] as const)('preserves explicit category precedence (%j)', (explicit, category) => {
+    expect(classifyError(makeError({ executionFailure: QUOTA_FAILURE, ...explicit })).category).toBe(category)
+  })
+
+  it.each([503, '503'])('keeps terminal HTTP %s and SAFETY ahead of a conflicting auth snapshot', (statusCode) => {
+    const executionFailure: ExecutionFailure = {
+      ...QUOTA_FAILURE,
+      failure: { ...QUOTA_FAILURE.failure, reasonCode: 'auth' }
+    }
+    const error = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ statusCode })], { executionFailure })
+    expect(classifyError(error).category).toBe('server')
+    expect(classifyError({ ...error, finishReason: 'SAFETY' }).category).toBe('content')
+    expect(classifyError(makeError({ message: 'unauthorized', statusCode, executionFailure })).category).toBe('server')
+  })
+
+  it('does not use an earlier HTTP 503 to veto a snapshot when the terminal status is non-5xx', () => {
+    const error = makeCopiedRetry(
+      'unauthorized',
+      [makeApiCallAttempt({ statusCode: 503 }), makeApiCallAttempt({ statusCode: 429 })],
+      { executionFailure: QUOTA_FAILURE }
+    )
+    expect(classifyError(error).category).toBe('quota')
   })
 })

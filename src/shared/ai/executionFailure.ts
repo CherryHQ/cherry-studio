@@ -27,6 +27,35 @@ const reasons: Partial<Record<ErrorCategory, AiFailureReason>> = {
   unknown: 'unknown'
 }
 
+const FAILURE_CATEGORIES: Readonly<Record<AiFailureReason, ErrorCategory | undefined>> = Object.freeze({
+  auth: 'auth',
+  permission: 'permission',
+  region: 'region',
+  quota: 'quota',
+  rate_limit: 'rate_limit',
+  context_length: 'context_length',
+  network: 'network',
+  mcp: 'mcp',
+  parse: 'parse',
+  model_not_found: 'model',
+  payload_too_large: 'payload',
+  proxy_tls: 'proxy',
+  stream_interrupted: 'stream',
+  content_filter: 'content',
+  provider_unavailable: 'server',
+  timeout: undefined,
+  invalid_input: undefined,
+  tool_limit: undefined,
+  tool_failed: undefined,
+  internal: undefined,
+  unknown: undefined
+})
+
+export function getExecutionFailureCategory(value: unknown): ErrorCategory | undefined {
+  const parsed = executionFailureSchema.safeParse(value)
+  return parsed.success ? FAILURE_CATEGORIES[parsed.data.failure.reasonCode] : undefined
+}
+
 function safeText(value: unknown, limit: number): string | undefined {
   const text = getSafeProviderErrorMessage({ message: value }).replace(
     /(?:\/(?:Users|home|private|tmp|var|Volumes)\/|[A-Za-z]:\\)[^\s"']+/g,
