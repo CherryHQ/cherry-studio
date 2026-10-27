@@ -23,6 +23,8 @@ export interface SettingsSearchEntry {
    * strips the param).
    */
   providerId?: string
+  /** False when this app does not show the row (see `hostFeatures`); search leaves it out. */
+  available?: boolean
 }
 
 export interface SettingsSearchSection {

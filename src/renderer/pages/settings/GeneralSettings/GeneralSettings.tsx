@@ -23,6 +23,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { isValidProxyUrl } from '@renderer/utils/url'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -174,71 +175,81 @@ const GeneralSettings: FC = () => {
 
   return (
     <SettingsContentColumn theme={theme}>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.sections.startup')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow id="setting-general-launch-onboot" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
-          <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-tray-show" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
-          <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-launch-totray" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-tray-onclose" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
-        </SettingRow>
-      </SettingGroup>
+      {hostFeatures.desktopApp && (
+        <SettingGroup theme={theme}>
+          <SettingTitle>{t('settings.general.sections.startup')}</SettingTitle>
+          <SettingDivider />
+          <SettingRow id="setting-general-launch-onboot" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
+            <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-general-tray-show" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
+            <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-general-launch-totray" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
+            <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-general-tray-onclose" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
+            <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
+          </SettingRow>
+        </SettingGroup>
+      )}
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
-          <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
-        </SettingRow>
-        {storeProxyMode === 'custom' && (
+        {hostFeatures.desktopApp && (
           <>
             <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
-              <Input
-                spellCheck={false}
-                placeholder="socks5://127.0.0.1:6153"
-                value={proxyUrl}
-                onChange={(e) => setProxyUrl(e.target.value)}
-                style={{ width: 220 }}
-                onBlur={onSetProxyUrl}
-                type="url"
+            <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
+              <Selector
+                value={storeProxyMode}
+                onChange={(mode) => void setProxyMode(mode)}
+                options={proxyModeOptions}
               />
             </SettingRow>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span>{t('settings.proxy.bypass')}</span>
-                <InfoTooltip
-                  content={t('settings.proxy.tip')}
-                  placement="right"
-                  iconProps={{ className: 'cursor-pointer' }}
-                />
-              </SettingRowTitle>
-              <Input
-                spellCheck={false}
-                placeholder={defaultByPassRules}
-                value={proxyBypassRules}
-                onChange={(e) => setProxyBypassRules(e.target.value)}
-                style={{ width: 220 }}
-                onBlur={onSetProxyBypassRules}
-              />
-            </SettingRow>
+            {storeProxyMode === 'custom' && (
+              <>
+                <SettingDivider />
+                <SettingRow>
+                  <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
+                  <Input
+                    spellCheck={false}
+                    placeholder="socks5://127.0.0.1:6153"
+                    value={proxyUrl}
+                    onChange={(e) => setProxyUrl(e.target.value)}
+                    style={{ width: 220 }}
+                    onBlur={onSetProxyUrl}
+                    type="url"
+                  />
+                </SettingRow>
+                <SettingDivider />
+                <SettingRow>
+                  <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>{t('settings.proxy.bypass')}</span>
+                    <InfoTooltip
+                      content={t('settings.proxy.tip')}
+                      placement="right"
+                      iconProps={{ className: 'cursor-pointer' }}
+                    />
+                  </SettingRowTitle>
+                  <Input
+                    spellCheck={false}
+                    placeholder={defaultByPassRules}
+                    value={proxyBypassRules}
+                    onChange={(e) => setProxyBypassRules(e.target.value)}
+                    style={{ width: 220 }}
+                    onBlur={onSetProxyBypassRules}
+                  />
+                </SettingRow>
+              </>
+            )}
           </>
         )}
         <SettingDivider />
@@ -258,19 +269,24 @@ const GeneralSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.sections.runtime')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow id="setting-general-hardware-acceleration" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
-          <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-prevent-sleep-when-busy" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
-          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
-        </SettingRow>
-      </SettingGroup>
+      {hostFeatures.desktopApp && (
+        <SettingGroup theme={theme}>
+          <SettingTitle>{t('settings.general.sections.runtime')}</SettingTitle>
+          <SettingDivider />
+          <SettingRow id="setting-general-hardware-acceleration" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
+            <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-general-prevent-sleep-when-busy" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
+            <Switch
+              checked={preventSleepWhenBusy}
+              onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)}
+            />
+          </SettingRow>
+        </SettingGroup>
+      )}
 
       <ContextManagementSettings />
 
@@ -386,67 +402,69 @@ const GeneralSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.sections.developer')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow id="setting-general-enable-developer-mode" className="scroll-mt-6">
-          <Flex className="items-center gap-1">
-            <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
-            <InfoTooltip content={t('settings.developer.help')} />
-          </Flex>
-          <Switch
-            checked={enableDeveloperMode}
-            disabled={isSavingDeveloperSettings}
-            onCheckedChange={(checked) => void handleDeveloperModeChange(checked)}
-            aria-label={t('settings.developer.enable_developer_mode')}
-          />
-        </SettingRow>
-        {enableDeveloperMode && (
-          <>
-            <SettingDivider />
-            <SettingRow id="setting-general-remote-debugging" className="scroll-mt-6 items-start gap-6">
-              <div className="min-w-0 flex-1">
-                <SettingRowTitle>{t('settings.developer.cdp.title')}</SettingRowTitle>
-                <SettingDescription className="mt-1.5 leading-5">
-                  {t('settings.developer.cdp.description', { address: `127.0.0.1:${remoteDebuggingPort}` })}
-                </SettingDescription>
-              </div>
-              <Switch
-                checked={remoteDebuggingEnabled}
-                disabled={isSavingDeveloperSettings}
-                onCheckedChange={(checked) => void handleRemoteDebuggingChange(checked)}
-                aria-label={t('settings.developer.cdp.title')}
-              />
-            </SettingRow>
-            <SettingDivider />
-            <SettingRow id="setting-general-remote-debugging-port" className="scroll-mt-6">
-              <SettingRowTitle>{t('settings.developer.cdp.port')}</SettingRowTitle>
-              <div className="w-28 shrink-0">
-                <InputNumber
-                  value={remoteDebuggingPort}
-                  disabled={!remoteDebuggingEnabled || isSavingDeveloperSettings}
-                  aria-label={t('settings.developer.cdp.port')}
-                  onBlur={handleRemoteDebuggingPortChange}
+      {hostFeatures.devTools && (
+        <SettingGroup theme={theme}>
+          <SettingTitle>{t('settings.general.sections.developer')}</SettingTitle>
+          <SettingDivider />
+          <SettingRow id="setting-general-enable-developer-mode" className="scroll-mt-6">
+            <Flex className="items-center gap-1">
+              <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
+              <InfoTooltip content={t('settings.developer.help')} />
+            </Flex>
+            <Switch
+              checked={enableDeveloperMode}
+              disabled={isSavingDeveloperSettings}
+              onCheckedChange={(checked) => void handleDeveloperModeChange(checked)}
+              aria-label={t('settings.developer.enable_developer_mode')}
+            />
+          </SettingRow>
+          {enableDeveloperMode && (
+            <>
+              <SettingDivider />
+              <SettingRow id="setting-general-remote-debugging" className="scroll-mt-6 items-start gap-6">
+                <div className="min-w-0 flex-1">
+                  <SettingRowTitle>{t('settings.developer.cdp.title')}</SettingRowTitle>
+                  <SettingDescription className="mt-1.5 leading-5">
+                    {t('settings.developer.cdp.description', { address: `127.0.0.1:${remoteDebuggingPort}` })}
+                  </SettingDescription>
+                </div>
+                <Switch
+                  checked={remoteDebuggingEnabled}
+                  disabled={isSavingDeveloperSettings}
+                  onCheckedChange={(checked) => void handleRemoteDebuggingChange(checked)}
+                  aria-label={t('settings.developer.cdp.title')}
                 />
-              </div>
-            </SettingRow>
-          </>
-        )}
-        {enableDeveloperMode && clientId ? (
-          <>
-            <SettingDivider />
-            <SettingRow className="gap-3">
-              <SettingRowTitle>{t('settings.developer.client_id')}</SettingRowTitle>
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="select-text break-all text-right font-mono text-foreground-tertiary text-xs">
-                  {clientId}
-                </span>
-                <CopyButton textToCopy={clientId} successFeedback="icon" />
-              </div>
-            </SettingRow>
-          </>
-        ) : null}
-      </SettingGroup>
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow id="setting-general-remote-debugging-port" className="scroll-mt-6">
+                <SettingRowTitle>{t('settings.developer.cdp.port')}</SettingRowTitle>
+                <div className="w-28 shrink-0">
+                  <InputNumber
+                    value={remoteDebuggingPort}
+                    disabled={!remoteDebuggingEnabled || isSavingDeveloperSettings}
+                    aria-label={t('settings.developer.cdp.port')}
+                    onBlur={handleRemoteDebuggingPortChange}
+                  />
+                </div>
+              </SettingRow>
+            </>
+          )}
+          {enableDeveloperMode && clientId ? (
+            <>
+              <SettingDivider />
+              <SettingRow className="gap-3">
+                <SettingRowTitle>{t('settings.developer.client_id')}</SettingRowTitle>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="select-text break-all text-right font-mono text-foreground-tertiary text-xs">
+                    {clientId}
+                  </span>
+                  <CopyButton textToCopy={clientId} successFeedback="icon" />
+                </div>
+              </SettingRow>
+            </>
+          ) : null}
+        </SettingGroup>
+      )}
     </SettingsContentColumn>
   )
 }

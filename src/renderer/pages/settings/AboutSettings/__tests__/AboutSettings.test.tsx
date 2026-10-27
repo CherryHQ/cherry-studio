@@ -93,11 +93,13 @@ describe('AboutSettings diagnostics entry', () => {
 
     const diagnosticsEntry = entries.find((entry) => entry.anchorId === 'diagnostics')
     expect(diagnosticsEntry).toBeUndefined()
-    expect(entries).toContainEqual({
-      anchorId: 'debug-tools',
-      titleKey: 'settings.about.debug.title',
-      groupKey: 'settings.about.label'
-    })
+    expect(entries).toContainEqual(
+      expect.objectContaining({
+        anchorId: 'debug-tools',
+        titleKey: 'settings.about.debug.title',
+        groupKey: 'settings.about.label'
+      })
+    )
   })
 
   it('keeps system diagnostics out of About and opens the existing debug panel action', async () => {

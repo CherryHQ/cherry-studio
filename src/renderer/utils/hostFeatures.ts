@@ -24,5 +24,9 @@ export const hostFeatures = {
   /** The built-in browser pane, a web view that agents can drive. */
   agentBrowser: true,
   /** Computer use: agents see and control the computer's apps. */
-  computerUse: true
+  computerUse: true,
+  /** Settings of the desktop program: start at login, tray, its own proxy, GPU and power use, native menus. */
+  desktopApp: true,
+  /** Provider sign-ins through a CLI, an app login or GitHub's device login, which report back to the app. */
+  providerSignIn: true
 }

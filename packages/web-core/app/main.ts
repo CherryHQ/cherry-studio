@@ -2,6 +2,7 @@ import '../src/page/preload'
 import { CoreClient } from '../src/client/CoreClient'
 import { installBrowserShell } from '../src/page/browserShell'
 import { checkBrowserSupport } from '../src/page/browserSupport'
+import { installBundledData } from '../src/page/bundledData'
 import { connectCore } from '../src/page/electron'
 import { installFileDownloads } from '../src/page/fileDownloads'
 import { installLocalFolders } from '../src/page/localFolders'
@@ -23,6 +24,7 @@ async function start(): Promise<void> {
   installLocalFolders(client)
   installFileDownloads()
   installBrowserShell()
+  installBundledData()
   reportNativeTheme()
   await client.open(LOCAL_ACCOUNT)
 }

@@ -443,16 +443,20 @@ const AppearanceSettings: FC = () => {
             </SettingRow>
           </>
         )}
-        <SettingDivider />
-        <SettingRow id="setting-appearance-menu-presentation-mode" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
-          <SegmentedControl<MenuPresentationMode>
-            value={menuPresentationMode}
-            onValueChange={handleMenuPresentationModeChange}
-            options={menuPresentationModeOptions}
-            size="sm"
-          />
-        </SettingRow>
+        {hostFeatures.desktopApp && (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-appearance-menu-presentation-mode" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
+              <SegmentedControl<MenuPresentationMode>
+                value={menuPresentationMode}
+                onValueChange={handleMenuPresentationModeChange}
+                options={menuPresentationModeOptions}
+                size="sm"
+              />
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow id="setting-appearance-chat-list-position" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.display.list_position.chat')}</SettingRowTitle>

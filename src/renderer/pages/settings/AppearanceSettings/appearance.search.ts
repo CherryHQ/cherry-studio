@@ -1,3 +1,5 @@
+import { hostFeatures } from '@renderer/utils/hostFeatures'
+
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
 // Indexed rows = statically visible actionable rows (D8). Platform-gated rows
@@ -29,11 +31,13 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'zoom',
+    available: hostFeatures.appZoom,
     titleKey: 'settings.zoom.title',
     groupKey: 'settings.general.common.sections.display_language'
   },
   {
     anchorId: 'menu-presentation-mode',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.general.common.menu.presentation_mode.title',
     groupKey: 'settings.general.common.sections.display_language'
   },

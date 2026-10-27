@@ -171,7 +171,6 @@ const pageModuleReplacements: Record<string, string> = {
     page('providerSpecificSettings.ts'),
   'services/sentry.ts': page('sentry.ts'),
   'utils/hostFeatures.ts': page('hostFeatures.ts'),
-  'utils/providerSettings.ts': page('providerSettings.ts'),
   'windows/main/onboarding/OnboardingPage.tsx': page('OnboardingPage.tsx'),
   'workers/pyodide.worker.ts?worker': page('pyodideWorker.ts')
 }

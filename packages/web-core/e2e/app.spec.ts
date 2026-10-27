@@ -40,6 +40,11 @@ test('leaves out the entries for desktop and Cherry account services', async ({ 
   const panel = page.getByRole('dialog')
   await expect(panel.getByRole('button')).toHaveText(['Enter your name', 'Settings'])
   await expect(panel.getByRole('radio')).toHaveCount(3)
+  // An uploaded avatar would be stored as a file, and the Web edition stores none.
+  await panel.getByRole('button').filter({ hasText: 'Enter your name' }).click()
+  await page.getByRole('button', { name: 'Avatar', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Emoji Picker' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Image Upload' })).toHaveCount(0)
 })
 
 test('leaves out the entries a browser tab cannot carry out', async ({ page }) => {
@@ -82,10 +87,25 @@ test('leaves out the entries a browser tab cannot carry out', async ({ page }) =
   await page.getByRole('button', { name: 'Appearance', exact: true }).click()
   await expect(page.getByText('Theme', { exact: true })).toBeVisible()
   await expect(page.getByText('Page Zoom', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Context menu style', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'About & Feedback', exact: true }).click()
   await expect(page.getByText('Official Website', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Check Update' })).toHaveCount(0)
   await expect(page.getByText('Debug', { exact: true })).toHaveCount(0)
+
+  // The browser, not the app, starts with the computer and sets the proxy, GPU and power use.
+  await page.getByRole('button', { name: 'General', exact: true }).click()
+  await expect(page.getByText('Enable retry', { exact: true })).toBeVisible()
+  for (const row of ['Start Automatically on Boot', 'Proxy Mode', 'Disable Hardware Acceleration']) {
+    await expect(page.getByText(row, { exact: true })).toHaveCount(0)
+  }
+  await expect(page.getByText('Enable Developer Mode', { exact: true })).toHaveCount(0)
+  // Settings search finds only the rows the page shows.
+  await page.getByRole('button', { name: 'Search settings' }).click()
+  await page.getByRole('combobox').fill('retry')
+  await expect(page.getByRole('option').filter({ hasText: 'Enable retry' })).toBeVisible()
+  await page.getByRole('combobox').fill('Hardware Acceleration')
+  await expect(page.getByText('No matching settings')).toBeVisible()
 })
 
 test("shows a failed reply's error without the desktop's diagnostics", async ({ page }) => {
@@ -106,6 +126,14 @@ test("shows a failed reply's error without the desktop's diagnostics", async ({ 
   await expect(dialog.getByRole('button', { name: 'Report a problem' })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'AI consultation' })).toHaveCount(0)
   expect(unsupported).toEqual([])
+})
+
+test('adds an assistant from the presets bundled with the app', async ({ page }) => {
+  await gotoApp(page)
+  await page.getByRole('button', { name: 'Add Assistant' }).click()
+  await page.getByRole('dialog').getByText('Product Manager', { exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Product Manager' }).first()).toBeVisible()
 })
 
 test('keeps the agent browser off in a workspace that had it on', async ({ page }) => {

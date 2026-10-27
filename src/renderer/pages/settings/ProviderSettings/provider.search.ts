@@ -1,3 +1,5 @@
+import { hostFeatures } from '@renderer/utils/hostFeatures'
+
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
 // Indexed rows = the provider detail column, which always mounts for the
@@ -26,12 +28,14 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'auth-claude-code',
+    available: hostFeatures.providerSignIn,
     titleKey: 'provider.claude-code',
     providerId: 'claude-code',
     aliases: ['claude code', 'cli', 'oauth', '登录']
   },
   {
     anchorId: 'auth-openai-codex',
+    available: hostFeatures.providerSignIn,
     titleKey: 'provider.openai-codex',
     descriptionKey: 'settings.provider.codex.description',
     providerId: 'openai-codex',
@@ -39,12 +43,14 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'auth-copilot',
+    available: hostFeatures.providerSignIn,
     titleKey: 'provider.copilot',
     providerId: 'copilot',
     aliases: ['copilot', 'github copilot', 'oauth', '登录']
   },
   {
     anchorId: 'auth-grok-cli',
+    available: hostFeatures.providerSignIn,
     titleKey: 'provider.grok-cli',
     providerId: 'grok-cli',
     aliases: ['grok', 'cli', 'oauth', '登录']

@@ -197,17 +197,20 @@ general, appearance, archive and about sections, creating an agent shows Pi as i
 instead of a choice, and the Pyodide worker starts in a sandboxed iframe. The launchpad, the
 composer's tools, the message menu, the user menu and first-run setup keep only the entries the
 Web edition serves, and the help menu, dictation and the read-aloud bar are left out. The provider
-list leaves out the providers that sign in through a CLI, an app login or GitHub Copilot, and the
-provider panels leave out sign-in popups and the OVMS installer, while API keys still work.
+panels leave out sign-in popups and the OVMS installer, while API keys still work.
 `src/page/tailwind.css` points Tailwind at the renderer, since the Vite root here is `app/`.
-Saving a message or an image becomes a browser download (`src/page/fileDownloads.ts`).
+Saving a message or an image becomes a browser download (`src/page/fileDownloads.ts`), and the
+assistant presets the desktop reads from `resources/data` are fetched from the app's own copy
+(`src/page/bundledData.ts`).
 
 The renderer itself changes in two places. First-run setup's `enableCherryInLogin` switch is off
 here. `src/renderer/utils/hostFeatures.ts` says what the app around the renderer can do: more
 windows, opening paths in the computer's apps, app zoom, updates, developer tools, stored image
-uploads, notes, knowledge bases, diagnostics (Doctor and problem reports), the agent browser and
-computer use. The desktop has all of them; `src/page/hostFeatures.ts` has
-none, so the entries for them are hidden in the page.
+uploads, notes, knowledge bases, diagnostics (Doctor and problem reports), the agent browser,
+computer use, the desktop program's own settings (start at login, tray, proxy, GPU and power use,
+native menus) and provider sign-ins through a CLI, an app login or GitHub's device login. The
+desktop has all of them; `src/page/hostFeatures.ts` has none, so the entries for them, and their
+settings search results, are hidden in the page.
 
 ## Editions
 

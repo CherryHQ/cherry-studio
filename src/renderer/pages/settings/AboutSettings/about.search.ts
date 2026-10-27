@@ -1,3 +1,5 @@
+import { hostFeatures } from '@renderer/utils/hostFeatures'
+
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
 export const route = '/settings/about'
@@ -8,12 +10,14 @@ export const route = '/settings/about'
 export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'auto-check-update',
+    available: hostFeatures.appUpdates,
     titleKey: 'settings.general.auto_check_update.title',
     groupKey: 'settings.about.label',
     aliases: ['update', '更新']
   },
   {
     anchorId: 'debug-tools',
+    available: hostFeatures.devTools,
     titleKey: 'settings.about.debug.title',
     groupKey: 'settings.about.label'
   }
