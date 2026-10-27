@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Please select the file to upload",
   "notes.no_note_selected": "Please select a note first",
   "notes.no_valid_files": "No valid file was uploaded",
+  "notes.open": "Open note",
   "notes.open_outside": "Open from external",
   "notes.print": "Print",
   "notes.print_failed": "Failed to print note",
