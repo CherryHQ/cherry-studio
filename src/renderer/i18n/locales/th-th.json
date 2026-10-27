@@ -5753,6 +5753,7 @@
   "settings.tool.websearch.provider_description.parallel": "Web search API สำหรับ AI agent ที่ส่งคืนลิงก์ที่จัดอันดับและข้อความที่ดึงมาซึ่งหนาแน่นด้วยโทเค็น",
   "settings.tool.websearch.provider_description.querit": "Querit search and contents APIs สำหรับแอป AI ดึงผลลัพธ์เว็บและเนื้อหาหน้า",
   "settings.tool.websearch.provider_description.searxng": "เมตาเสิร์ชเอนจินอินเทอร์เน็ตฟรีที่ติดตั้งเองได้จากหลายแหล่ง",
+  "settings.tool.websearch.provider_description.serpkite": "SerpKite search API ส่งผลลัพธ์ Google เป็น JSON แบบมีโครงสร้างสำหรับเอเจนต์ AI",
   "settings.tool.websearch.provider_description.serply": "Serply search API ส่งผลลัพธ์ Google เป็น JSON แบบมีโครงสร้างสำหรับแอป AI",
   "settings.tool.websearch.provider_description.tavily": "เสิร์ชเอนจินที่ปรับให้เหมาะกับ LLM",
   "settings.tool.websearch.provider_description.yuanbao": "API ค้นหา Tencent Yuanbao ต้องใช้คีย์ API ของบริการ จำนวนผลลัพธ์เป็นขีดจำกัดสูงสุด โดยบริการอาจส่งคืนผลลัพธ์น้อยกว่านี้",

@@ -138,6 +138,7 @@ export const PROVIDER_ICON_LOADERS = {
   riverflow: () => import('./riverflow').then(({ RiverflowIcon }) => RiverflowIcon),
   runway: () => import('./runway').then(({ RunwayIcon }) => RunwayIcon),
   searxng: () => import('./searxng').then(({ SearxngIcon }) => SearxngIcon),
+  serpkite: () => import('./serpkite/serpkite').then(({ SerpKiteIcon }) => SerpKiteIcon),
   serply: () => import('./serply').then(({ SerplyIcon }) => SerplyIcon),
   sensetime: () => import('./sensetime').then(({ SensetimeIcon }) => SensetimeIcon),
   silicon: () => import('./silicon').then(({ SiliconIcon }) => SiliconIcon),

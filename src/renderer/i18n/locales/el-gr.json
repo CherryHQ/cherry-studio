@@ -5753,6 +5753,7 @@
   "settings.tool.websearch.provider_description.parallel": "API αναζήτησης ιστού για πράκτορες AI, με ταξινομημένους συνδέσμους και πυκνά αποσπάσματα.",
   "settings.tool.websearch.provider_description.querit": "Υπηρεσία αναζήτησης για εφαρμογές AI με αποτελέσματα ανάκτησης από τον ιστό.",
   "settings.tool.websearch.provider_description.searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
+  "settings.tool.websearch.provider_description.serpkite": "API αναζήτησης SerpKite που επιστρέφει αποτελέσματα Google ως δομημένο JSON για πράκτορες AI.",
   "settings.tool.websearch.provider_description.serply": "API αναζήτησης Serply που επιστρέφει αποτελέσματα Google ως δομημένο JSON για εφαρμογές AI.",
   "settings.tool.websearch.provider_description.tavily": "Μηχανή αναζήτησης βελτιστοποιημένη για LLM.",
   "settings.tool.websearch.provider_description.yuanbao": "API αναζήτησης Tencent Yuanbao. Απαιτεί κλειδί API υπηρεσίας. Ο αριθμός αποτελεσμάτων είναι ανώτατο όριο· η υπηρεσία μπορεί να επιστρέψει λιγότερα.",

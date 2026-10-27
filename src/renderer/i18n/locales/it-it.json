@@ -5753,6 +5753,7 @@
   "settings.tool.websearch.provider_description.parallel": "API di ricerca web per agenti IA che restituisce collegamenti ordinati per rilevanza ed estratti ricchi di informazioni per token.",
   "settings.tool.websearch.provider_description.querit": "API di ricerca e contenuti di Querit per app IA, per recuperare risultati web e contenuti delle pagine.",
   "settings.tool.websearch.provider_description.searxng": "Metamotore di ricerca Internet gratuito, installabile su server propri, che consulta molte fonti.",
+  "settings.tool.websearch.provider_description.serpkite": "API di ricerca SerpKite che restituisce i risultati di Google in JSON strutturato per agenti IA.",
   "settings.tool.websearch.provider_description.serply": "API di ricerca Serply che restituisce risultati Google in JSON strutturato per le app IA.",
   "settings.tool.websearch.provider_description.tavily": "Motore di ricerca ottimizzato per LLM.",
   "settings.tool.websearch.provider_description.yuanbao": "API di ricerca Tencent Yuanbao. Richiede una chiave API del servizio. Il numero di risultati è un limite massimo; il servizio potrebbe restituirne meno.",

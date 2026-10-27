@@ -259,6 +259,21 @@
       },
       "default": "./dist/providers/deepseek.mjs"
     },
+    "./providers/serpkite": {
+      "react-native": {
+        "types": "./dist/providers/serpkite.d.mts",
+        "default": "./dist/providers/serpkite.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/serpkite.d.mts",
+        "default": "./dist/providers/serpkite.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/serpkite.d.cts",
+        "default": "./dist/providers/serpkite.cjs"
+      },
+      "default": "./dist/providers/serpkite.mjs"
+    },
     "./tools/config": {
       "react-native": {
         "types": "./dist/tools/config.d.mts",
