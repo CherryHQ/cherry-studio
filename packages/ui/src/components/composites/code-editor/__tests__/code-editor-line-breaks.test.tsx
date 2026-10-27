@@ -28,6 +28,31 @@ async function mount(value = 'a\r\nb', sharedSyntax = true) {
 }
 
 describe('CodeEditor line-break boundaries', () => {
+  it.each([true, false])('initializes mixed newlines as logical lines (shared syntax: %s)', async (sharedSyntax) => {
+    const handle: { current: CodeEditorHandles | null } = { current: null }
+    const host = render(
+      <CodeEditor
+        ref={handle}
+        value={'first\r\nsecond\nthird\r末行 🥟\r\n'}
+        language="text"
+        syntaxHighlightStyle={sharedSyntax ? codeBlockHighlightStyle : undefined}
+      />
+    )
+    await waitFor(() => expect(handle.current).not.toBeNull())
+    const view = EditorView.findFromDOM(host.container.querySelector('.cm-editor')!)!
+    expect(view.state.doc.lines).toBe(5)
+    expect([1, 2, 3, 4, 5].map((number) => view.state.doc.line(number).text)).toEqual([
+      'first',
+      'second',
+      'third',
+      '末行 🥟',
+      ''
+    ])
+    expect(handle.current?.getContent?.()).toBe('first\r\nsecond\r\nthird\r\n末行 🥟\r\n')
+    act(() => view.dispatch({ selection: { anchor: view.state.doc.line(3).from } }))
+    expect(handle.current?.getSelection?.()).toEqual({ from: 13, to: 13, text: '' })
+  })
+
   // A different clipboard separator must not embed raw newlines inside a logical line.
   it.each([
     { separator: '\r\n', pasted: '\nc\rd', sharedSyntax: true },

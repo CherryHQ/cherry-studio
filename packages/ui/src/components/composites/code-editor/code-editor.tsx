@@ -90,7 +90,10 @@ const CodeEditor = ({
     const state =
       retained?.sliceDoc() === initialContent.current
         ? retained
-        : EditorState.create({ doc: initialContent.current, extensions: [EditorState.lineSeparator.of(lineBreak)] })
+        : EditorState.create({
+            doc: toDocumentText(initialContent.current),
+            extensions: [EditorState.lineSeparator.of(lineBreak)]
+          })
     return {
       json: state.toJSON({ history: historyField, folds: foldState }),
       fields: { history: historyField, folds: foldState }

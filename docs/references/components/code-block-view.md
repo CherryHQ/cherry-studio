@@ -122,8 +122,8 @@ its language before mounting; returning to reading seeds visible syntax from the
 until Worker results arrive. Unparsed ranges retain the normal plain-source fallback.
 Application Notes, prompt and configuration editors use the same palette through the shared renderer editor entry. Stored legacy CodeMirror theme values remain unchanged; their separate selector is retired. Copy/save preserve source whitespace;
 CodeMirror uses `sliceDoc` and the source line separator rather than implicitly converting CRLF.
-External replacements and imperative edits normalize incoming LF, CRLF and CR into document lines before
-computing positions. CodeMirror's clipboard input filter applies the same rule to paste and drop; syntax styling
+Initial content, external replacements and imperative edits normalize incoming LF, CRLF and CR into document lines
+before computing positions. CodeMirror's clipboard input filter applies the same rule to paste and drop; syntax styling
 does not select the document's line separator.
 The Markdown adapter removes exactly the structural LF appended by mdast-to-HAST conversion; the code document
 uses the AST code value, preserving authored trailing spaces and blank lines. Saving matches that exact value,
