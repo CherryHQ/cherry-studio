@@ -34,7 +34,7 @@ export type RunEnding = { readonly live: 'completed' | 'error' | 'aborted'; read
 export type Submission = {
   /** A person's text, or the turn input of a key. */
   readonly input: TurnInput | string
-  readonly admission: StartResult | MessageResult
+  admission: StartResult | MessageResult
   state: 'queued' | 'running' | 'settled' | 'withdrawn'
   /** The run that took it. */
   run?: number

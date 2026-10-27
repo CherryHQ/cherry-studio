@@ -1,6 +1,13 @@
 import type { ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 
-import type { BoundPorts, HarnessPorts, Key, LifecycleHandlers, SubagentOrigin } from '@cherrystudio/agent-behavior'
+import type {
+  BoundPorts,
+  HarnessPorts,
+  Key,
+  LifecycleHandlers,
+  MessageResult,
+  SubagentOrigin
+} from '@cherrystudio/agent-behavior'
 import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { CompactionSummarizer } from '../compaction'
@@ -168,20 +175,12 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
           })
       },
       helpers: {
-        message: (child, input, key, run) =>
+        message: (child, input, key) =>
           enter(scope, async () => {
             const conv = conversation(child)
-            const { owner } = conv
-            // H3: once the call that owns the child's first run aborted, its stop may have passed the child already.
-            const ownerAborted =
-              owner !== undefined &&
-              owner.thread === scope.owner?.thread &&
-              owner.run === scope.owner.run &&
-              scope.signal?.aborted === true
-            const accepted = messageChild(adapter, conv, input, key, run, ownerAborted)
+            const accepted = messageChild(adapter, conv, input, key, scope.signal?.aborted === true)
             if (accepted.status !== 'queued') return accepted
-            // H3: a steer answers once a boundary of its run took it, or once it was withdrawn: its run ended first or
-            // the tool call that sent it aborted.
+            // Wait for actual consumption so a message crossing normal completion reports the subsequent run.
             const submission = conv.submissions.get(key)!
             const { signal } = scope
             const abort = () => withdraw(conv, key)
@@ -192,7 +191,12 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
             } finally {
               signal?.removeEventListener('abort', abort)
             }
-            return submission.state === 'withdrawn' ? { run: accepted.run, status: 'withdrawn' } : accepted
+            const result: MessageResult =
+              submission.state === 'withdrawn'
+                ? { run: accepted.run, status: 'withdrawn' }
+                : { run: submission.run!, status: submission.run === accepted.run ? 'queued' : 'started' }
+            submission.admission = result
+            return result
           }),
         awaitAnswer: (child, run, key) => enter(scope, () => awaitAnswer(conversation(child), run, key)),
         // H3: stops run `run` only while it is the child's active run; a child of an earlier process has none (D5).
