@@ -12,6 +12,14 @@ import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap
 import type { CodeEditorProps } from './types'
 import { prepareCodeChanges } from './utils'
 
+function toDocumentText(source: string): Text {
+  return Text.of(source.split(/\r\n?|\n/))
+}
+
+const codeEditorClipboardFilter = EditorView.clipboardInputFilter.of((text, state) =>
+  toDocumentText(text).sliceString(0, undefined, state.lineBreak)
+)
+
 const codeEditorGutterTheme = EditorView.theme({
   '.cm-gutters': {
     backgroundColor: 'transparent',
@@ -82,15 +90,11 @@ const CodeEditor = ({
     const state =
       retained?.sliceDoc() === initialContent.current
         ? retained
-        : syntaxHighlightStyle
-          ? EditorState.create({ doc: initialContent.current, extensions: [EditorState.lineSeparator.of(lineBreak)] })
-          : undefined
-    return state
-      ? {
-          json: state.toJSON({ history: historyField, folds: foldState }),
-          fields: { history: historyField, folds: foldState }
-        }
-      : undefined
+        : EditorState.create({ doc: initialContent.current, extensions: [EditorState.lineSeparator.of(lineBreak)] })
+    return {
+      json: state.toJSON({ history: historyField, folds: foldState }),
+      fields: { history: historyField, folds: foldState }
+    }
   })
   const editorViewRef = useRef<EditorView | null>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -109,7 +113,7 @@ const CodeEditor = ({
     const editorView = editorViewRef.current
     if (!editorView) return false
 
-    editorView.dispatch(editorView.state.replaceSelection(text))
+    editorView.dispatch(editorView.state.replaceSelection(toDocumentText(text)))
     editorView.focus()
     return true
   }, [])
@@ -136,9 +140,10 @@ const CodeEditor = ({
       return false
     }
 
+    const insert = toDocumentText(text)
     editorView.dispatch({
-      changes: { from: range.from, to: range.to, insert: text },
-      selection: { anchor: range.from + text.length }
+      changes: { from: range.from, to: range.to, insert },
+      selection: { anchor: range.from + insert.length }
     })
     editorView.focus()
     return true
@@ -178,10 +183,10 @@ const CodeEditor = ({
     const newContent = options?.stream && !syntaxHighlightStyle ? (value ?? '').trimEnd() : (value ?? '')
     // Serialized CRLF strings have different offsets from CodeMirror's single-position line breaks.
     const currentDoc = editorViewRef.current.state.doc.toString()
-    const nextDoc = Text.of(newContent.split(/\r\n?|\n/))
+    const nextDoc = toDocumentText(newContent)
     const changes = prepareCodeChanges(currentDoc, nextDoc.toString()).map((change) => ({
       ...change,
-      insert: Text.of(change.insert.split('\n'))
+      insert: toDocumentText(change.insert)
     }))
 
     if (changes && changes.length > 0) {
@@ -208,9 +213,9 @@ const CodeEditor = ({
   const customExtensions = useMemo(() => {
     return [
       ...(extensions ?? []),
-      ...(syntaxHighlightStyle
-        ? [syntaxHighlighting(syntaxHighlightStyle), EditorState.lineSeparator.of(lineBreak), EditorState.tabSize.of(2)]
-        : []),
+      EditorState.lineSeparator.of(lineBreak),
+      codeEditorClipboardFilter,
+      ...(syntaxHighlightStyle ? [syntaxHighlighting(syntaxHighlightStyle), EditorState.tabSize.of(2)] : []),
       ...langExtensions,
       ...(wrapped ? [EditorView.lineWrapping] : []),
       codeEditorGutterTheme,
@@ -303,7 +308,7 @@ const CodeEditor = ({
   return (
     <CodeMirror
       // Set to a stable value to avoid triggering CodeMirror reset
-      value={initialState ? String(initialState.json.doc).replaceAll('\r\n', '\n') : initialContent.current}
+      value={String(initialState.json.doc).replaceAll('\r\n', '\n')}
       placeholder={placeholder}
       autoFocus={autoFocus}
       width="100%"
