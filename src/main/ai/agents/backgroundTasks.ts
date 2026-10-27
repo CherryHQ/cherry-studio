@@ -256,38 +256,48 @@ async function killRecordedMembers(storageDir: string, taskId: string, anchorPid
 }
 
 /**
+ * What a descendant capture established. `absent` found no live verified parent to walk, while
+ * `unverified` could not read the table at all — the one answer that must never be read as
+ * "nothing survives".
+ */
+type SurvivorCapture = 'captured' | 'absent' | 'unverified'
+
+/**
  * Discovers and persists the descendants of the recorded survivors before a signal destroys the
  * parent tie that names them. A survivor recorded before a restart can fork while this app is not
  * running: the child is in no ledger and carries no marker, so its descent from a verified parent
  * is the only thing that can attribute it — and the signal erases that chain by killing its way
  * up. Captured here, the identities stay sweepable by pid and start stamp however the signal ends.
  */
-async function captureSurvivorDescendants(storageDir: string, taskId: string): Promise<void> {
-  if (process.platform === 'win32') return
+async function captureSurvivorDescendants(storageDir: string, taskId: string): Promise<SurvivorCapture> {
+  if (process.platform === 'win32') return 'absent'
   const recorded = await readRecordedMembers(storageDir, taskId)
-  if (recorded.length === 0) return
+  if (recorded.length === 0) return 'absent'
   const table = readProcessTable()
-  // An unreadable table establishes nothing, so no identity may be written from it.
-  if (!table) return
+  // An unreadable table establishes nothing, so no identity may be written from it and no
+  // termination may be certified from its silence.
+  if (!table) return 'unverified'
   const members = new Map<number, string>()
   for (const row of table) {
     if (row.zombie) continue
     const stamp = recorded.find((member) => member.pid === row.pid)?.lstart
     if (stamp !== undefined && stamp === row.lstart) members.set(row.pid, row.lstart)
   }
-  if (members.size === 0) return
+  if (members.size === 0) return 'absent'
   adoptDescendants(members, table)
   await recordObservedMembers(
     storageDir,
     taskId,
     [...members].map(([pid, lstart]) => ({ pid, lstart }))
   )
+  return 'captured'
 }
 
 /**
- * Signals the recorded survivors of a task whose group has no verified leader to address. Their
- * descendants are captured and persisted first: the signal destroys the parent chains that name
- * them, and a child forked while this app was closed has no other identity to be swept by.
+ * Signals the recorded survivors of a task whose group has no verified leader to address. The stop
+ * captures their descendants before it reaches either signal path: the signal destroys the parent
+ * chains that name them, and a child forked while this app was closed has no other identity to be
+ * swept by.
  */
 async function signalRecordedSurvivors(
   storageDir: string,
@@ -295,7 +305,6 @@ async function signalRecordedSurvivors(
   anchorPid: number,
   signal: NodeJS.Signals
 ): Promise<void> {
-  await captureSurvivorDescendants(storageDir, taskId)
   for (const member of await liveRecordedSurvivors(storageDir, taskId, anchorPid)) {
     if (getPidStartTime(member.pid) !== member.lstart) continue
     try {
@@ -1888,6 +1897,11 @@ async function stopDetachedBackgroundTaskUnlocked(
     await writeRecord(storageDir, record)
     return undefined
   }
+  // Capture before either signal path. A child a recorded survivor forked while this app was
+  // closed is named only by its parent chain, and after a restart a live supervisor takes the
+  // group path — which never reaches the survivor path's capture — before the sweep kills the
+  // parent that names the child.
+  const survivorCapture = await captureSurvivorDescendants(storageDir, record.id)
   try {
     if (process.platform === 'win32') {
       await execTaskkill(['/PID', String(record.pid), '/T', ...(force ? ['/F'] : [])])
@@ -1932,6 +1946,14 @@ async function stopDetachedBackgroundTaskUnlocked(
     await killRecordedMembers(storageDir, record.id, record.pid)
     if (await hasLiveRecordedSurvivor(storageDir, record.id, record.pid)) {
       return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+    }
+    // A capture that could not read the table leaves any child forked while the app was closed
+    // unrecorded, and its silence proved nothing: the kill may not certify a termination it could
+    // not observe, so the record stays conservative instead of claiming stopped.
+    if (survivorCapture === 'unverified') {
+      const unverified: BackgroundTaskRecord = { ...requested, terminationUnverified: true }
+      await writeRecord(storageDir, unverified)
+      return unverified
     }
     // The pipe is the in-process proof; after a restart the inherited marker is. Survivors are the
     // task's own, so the kill may reach them even though the group could not, and only their

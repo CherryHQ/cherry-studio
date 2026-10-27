@@ -53,6 +53,9 @@ describe('knowledge file preparing migrate-forward', () => {
     const readItems = () => dbh.db.select().from(knowledgeItemTable).orderBy(asc(knowledgeItemTable.id)).all()
     const before = readItems()
 
+    // The journal reset replays everything from 0028 onward, so the simulated previous schema must
+    // also revert what 0029 created, or its CREATE TABLE lands on the existing one.
+    dbh.sqlite.exec('DROP INDEX agent_background_task_agent_started_idx; DROP TABLE agent_background_task')
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
     applyMigrations(dbh.db, migrationsFolder)
 
