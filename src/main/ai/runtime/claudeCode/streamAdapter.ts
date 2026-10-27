@@ -1614,68 +1614,6 @@ export class ClaudeCodeStreamAdapter {
     return indent + markerHead + (paragraph ? 'x' : '') + tail + escapeMarker
   }
 
-  private emittedOpenLinePrefix(accumulatedText: string): string {
-    // A quote-only blank keeps its list container. Retain a bounded quoted
-    // list prefix so continuation indentation is not mistaken for literal code.
-    const quotedList = this.trailingQuotedListPrefix(accumulatedText.slice(-2048))
-    if (quotedList !== null) return quotedList
-    // The remainder starts immediately after emitted text, even when it
-    // spans several lines. Find context BEFORE it, not after its last newline
-    // (inv_8286fc83dcddad15: split '1' + '. ```xml\n').
-    const lineStart = accumulatedText.lastIndexOf('\n') + 1
-    const openLine = accumulatedText.slice(lineStart)
-    if (openLine.trim() === '') {
-      // Preserve the prior block and the current partial indentation together:
-      // a completing delta can finish a list-contained setext heading.
-      if (openLine !== '') return this.emittedOpenLinePrefix(accumulatedText.slice(0, lineStart)) + openLine
-      // A newline can follow any paragraph spelling, including formatting or
-      // non-ASCII text. Keep its bounded context for a following setext line.
-      const previousEnd = Math.max(0, lineStart - 1)
-      const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
-      const previous = accumulatedText.slice(previousStart, previousEnd).replace(/\r$/, '')
-      // A completed fence marker cannot become a synthetic new opener.
-      if (/^ {0,3}(?:`{3,}|~{3,})/.test(previous)) return ''
-      if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(previous)) && previousStart > 0) {
-        const paragraphEnd = previousStart - 1
-        const paragraphStart = accumulatedText.lastIndexOf('\n', paragraphEnd - 1) + 1
-        const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd).replace(/\r$/, '')
-        if (paragraph.trim() !== '') return paragraph.slice(0, 128) + '\n' + previous + '\n'
-      }
-      if (previous.trim() !== '') return previous.slice(0, 128) + '\n'
-      return ''
-    }
-    // A partial setext underline needs the preceding paragraph too; the
-    // underline can arrive one marker at a time across delta boundaries.
-    if (
-      (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(openLine).replace(/\r$/, '')) ||
-        /^ {0,3}(?:> ?)+[ \t]*$/.test(openLine)) &&
-      lineStart > 0
-    ) {
-      const previousEnd = lineStart - 1
-      const previousStart = accumulatedText.lastIndexOf('\n', previousEnd - 1) + 1
-      const previous = accumulatedText.slice(previousStart, previousEnd).replace(/\r$/, '')
-      if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(this.stripMarkdownContainerMarkers(previous)) && previousStart > 0) {
-        const paragraphEnd = previousStart - 1
-        const paragraphStart = accumulatedText.lastIndexOf('\n', paragraphEnd - 1) + 1
-        const paragraph = accumulatedText.slice(paragraphStart, paragraphEnd).replace(/\r$/, '')
-        if (paragraph.trim() !== '') return paragraph.slice(0, 128) + '\n' + previous + '\n' + openLine
-      }
-      if (previous.trim() !== '') return previous.slice(0, 128) + '\n' + openLine
-    }
-    // Completed plain paragraph context needs its block kind and escape
-    // parity, not every already-emitted code span. Unfinished spans/markup
-    // live in the remainder and are appended separately. Keep structured
-    // Markdown lines intact. Complete HTML/inline spans are already emitted;
-    // unfinished markup and scratchpad blocks stay buffered separately.
-    if (openLine.length > 256) {
-      const container = /^(?: {0,3}> ?)*(?: {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+)?/.exec(openLine)?.[0] ?? ''
-      const content = openLine.slice(container.length)
-      if (!/^(?: {4}|\t|#{1,6}[ \t]|`{3,}|~{3,}|<)/.test(content))
-        return container + 'paragraph ' + (openLine.match(/\\+$/)?.[0] ?? '')
-    }
-    return openLine
-  }
-
   private emittedIndentOnlyLinePrefix(text: string): string {
     const lineStart = text.lastIndexOf('\n') + 1
     const openLine = text.slice(lineStart)

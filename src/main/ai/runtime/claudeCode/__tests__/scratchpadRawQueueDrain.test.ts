@@ -109,7 +109,7 @@ function runStream(full: string, splits: number[]): { out: string; log: Log } {
   return { out, log }
 }
 
-function chunkedVsWhole(label: string, full: string, splitSets: number[][]) {
+function chunkedVsWhole(full: string, splitSets: number[][]) {
   const whole = runStream(full, [])
   for (const splits of splitSets) {
     const c = runStream(full, splits)
@@ -200,20 +200,20 @@ describe('raw/stripped buffer boundary accounting (round-18 review)', () => {
 
 describe('fence inside analysis block (round-18 review)', () => {
   it('fence fully inside a stripped block', () => {
-    chunkedVsWhole('3a', 'intro\n<analysis>plan\n```\ncode line\n```\ndone</analysis>\n- item\n    cont\n', [
+    chunkedVsWhole('intro\n<analysis>plan\n```\ncode line\n```\ndone</analysis>\n- item\n    cont\n', [
       ['intro\n<analysis>plan\n```\nco'.length],
       ['intro\n<analysis>plan\n```\ncode line\n'.length, 'intro\n<analysis>plan\n```\ncode line\n```\n'.length],
       [20, 40]
     ])
   })
   it('fence opener inside block, closer outside', () => {
-    chunkedVsWhole('3b', 'intro\n<analysis>\n```\n</analysis>\nfence body\n```\ntail\n', [
+    chunkedVsWhole('intro\n<analysis>\n```\n</analysis>\nfence body\n```\ntail\n', [
       ['intro\n<analysis>\n```\n'.length],
       ['intro\n<analysis>\n```\n</an'.length, 'intro\n<analysis>\n```\n</analysis>\nfence body\n'.length]
     ])
   })
   it('unclosed fence opener inside a block that then closes', () => {
-    chunkedVsWhole('3c', '- item\n<analysis>x\n```\ny\n</analysis>\n    cont\n', [
+    chunkedVsWhole('- item\n<analysis>x\n```\ny\n</analysis>\n    cont\n', [
       ['- item\n<analysis>x\n```\n'.length],
       ['- item\n<analysis>x\n```\ny\n'.length, '- item\n<analysis>x\n```\ny\n</analysis>\n'.length]
     ])

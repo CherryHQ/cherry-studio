@@ -36,7 +36,7 @@ function createAdapter() {
     sink: { enqueue: (part) => parts.push(part) },
     statusSink: { emit: () => {} },
     onSessionId: () => {}
-  } as any)
+  })
   adapter.beginTurn()
   return { adapter, parts }
 }
@@ -79,7 +79,11 @@ describe('round-17 reproduction on published head', () => {
     )
     for (let i = 0; i < answer.length; i += 20)
       adapter.handleMessage(
-        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: answer.slice(i, i + 20) } })
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: answer.slice(i, i + 20) }
+        })
       )
     adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     const elapsed = performance.now() - start
