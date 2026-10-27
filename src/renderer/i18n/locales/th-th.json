@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "กรุณาเลือกไฟล์ที่จะอัปโหลด",
   "notes.no_note_selected": "กรุณาเลือกโน้ตก่อน",
   "notes.no_valid_files": "ไม่มีไฟล์ที่ถูกต้องสำหรับอัปโหลด",
+  "notes.open": "เปิดบันทึก",
   "notes.open_outside": "เปิดจากภายนอก",
   "notes.print": "พิมพ์",
   "notes.print_failed": "ไม่สามารถพิมพ์โน้ต",
