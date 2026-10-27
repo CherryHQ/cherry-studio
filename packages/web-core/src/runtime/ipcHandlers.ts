@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiHandlers } from '@main/ipc/handlers/ai'
+import { translateHandlers } from '@main/ipc/handlers/translate'
 import { trashHandlers } from '@main/ipc/handlers/trash'
 import { dispatchHandle } from '@main/services/file/internal/dispatch'
 import type { TreeOwner } from '@main/services/file/tree/DirectoryTreeManager'
@@ -36,9 +37,9 @@ const pageTreeOwner: TreeOwner = {
 const libraryFiles = unsupported('Library files')
 
 /**
- * IpcApi routes the Web edition serves: chat streams, one-shot text, model listing and checks,
- * agent creation, tool approvals, the agent session runtime, archiving and deleting, workspaces,
- * the agent's file tree and file preview, and Web answers to what the desktop shell asks.
+ * IpcApi routes the Web edition serves: chat streams, one-shot text and translation, model listing
+ * and checks, agent creation, tool approvals, the agent session runtime, archiving and deleting,
+ * workspaces, the agent's file tree and file preview, and Web answers to what the desktop shell asks.
  */
 const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.open': aiHandlers['ai.stream.open'],
@@ -46,10 +47,12 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.detach': aiHandlers['ai.stream.detach'],
   'ai.stream.abort': aiHandlers['ai.stream.abort'],
   'ai.tool.respond_approval': aiHandlers['ai.tool.respond_approval'],
+  'ai.tool.get_result': aiHandlers['ai.tool.get_result'],
   'ai.text.generate': aiHandlers['ai.text.generate'],
   'ai.text.abort': aiHandlers['ai.text.abort'],
   'ai.provider.model.list': aiHandlers['ai.provider.model.list'],
   'ai.provider.model.check': aiHandlers['ai.provider.model.check'],
+  'translate.open': translateHandlers['translate.open'],
   'ai.agent.create': aiHandlers['ai.agent.create'],
   'ai.agent.restore': aiHandlers['ai.agent.restore'],
   'ai.agent.delete': aiHandlers['ai.agent.delete'],

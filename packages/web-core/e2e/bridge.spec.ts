@@ -175,6 +175,46 @@ test("lists a provider's models, checks one and generates text with it", async (
   expect(result).toEqual({ models: ['mock-chat', 'mock-other'], latency: 'number', text: 'Web title' })
 })
 
+test('translates a message with the translation model', async ({ page, account }) => {
+  await gotoBridge(page, account)
+  const translation = await page.evaluate(async (baseUrl) => {
+    const { dataApiService, ipcApi, preferenceService } = bridge
+    const providerId = `mock-${crypto.randomUUID().slice(0, 8)}`
+    await dataApiService.post('/providers', {
+      body: {
+        providerId,
+        name: 'Mock provider',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
+        apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
+      }
+    })
+    await dataApiService.post('/models', {
+      body: [{ providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }]
+    })
+    await preferenceService.set('feature.translate.model_id', `${providerId}::mock-chat`)
+
+    // As the message menu's Translate does (`utils/translate/translateText`).
+    const streamId = `translate:${crypto.randomUUID()}`
+    let text = ''
+    const done = new Promise<void>((resolve, reject) => {
+      bridge.ipcApi.on('ai.stream.chunk', ({ topicId, chunk }) => {
+        if (topicId === streamId && chunk.type === 'text-delta') text += chunk.delta
+      })
+      bridge.ipcApi.on('ai.stream.done', ({ topicId }) => topicId === streamId && resolve())
+      bridge.ipcApi.on(
+        'ai.stream.error',
+        ({ topicId, error }) => topicId === streamId && reject(new Error(error.message))
+      )
+    })
+    await ipcApi.request('translate.open', { streamId, text: 'bonjour', targetLangCode: 'en-us' })
+    await done
+    return text
+  }, MOCK_PROVIDER)
+  // The mock echoes the translation prompt, which carries the text.
+  expect(translation).toMatch(/^echo: [\s\S]*bonjour/)
+})
+
 test('creates an agent and gives it a session, as the new-agent dialog does', async ({ page, account }) => {
   await gotoBridge(page, account)
   const result = await page.evaluate(async () => {

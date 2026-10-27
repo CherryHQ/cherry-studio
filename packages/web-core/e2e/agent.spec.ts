@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 
-import { gotoApp, send, setUpAssistant, test } from './appPage'
+import { composerInput, gotoApp, send, setUpAssistant, test } from './appPage'
 import { expect } from './fixtures'
 
 /** The files in the agents' system workspaces, read from OPFS beside the running app. */
@@ -128,6 +128,57 @@ async function openArchive(page: Page) {
   await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('button', { name: 'Archive', exact: true }).click()
 }
+
+test('reads a tool result too large for the message list after a reload', async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+  // Over the 32 KB above which the message list sends a reference instead of the result.
+  const content = Array.from({ length: 1000 }, (_, line) => `line ${line} of the long file`.padEnd(40, '.')).join('\\n')
+  await composerInput(page).click()
+  await page.keyboard.insertText(`please call write {"path":"long.txt","content":"${content}"}`)
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+  await send(page, 'please call read {"path":"long.txt"}')
+  // The mock's reply repeats the result.
+  await expect(page.getByText('line 999 of the long file').last()).toBeVisible()
+  // A reload before the turn is saved would interrupt it.
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const api = window.api as unknown as { dataApi: { request(request: object): Promise<{ data: any }> } }
+        const get = async (path: string) =>
+          (await api.dataApi.request({ id: crypto.randomUUID(), method: 'GET', path })).data
+        const [session] = (await get('/agent-sessions')).items
+        return (await get(`/agent-sessions/${session.id}/messages`)).items[0].status
+      })
+    )
+    .toBe('success')
+
+  await gotoApp(page, 'Work')
+  const result = await page.evaluate(async () => {
+    const api = window.api as unknown as {
+      dataApi: { request(request: object): Promise<{ data: any }> }
+      ipcApi: { request(route: string, input: unknown): Promise<{ ok: boolean; data: any }> }
+    }
+    const get = async (path: string, params?: object) =>
+      (await api.dataApi.request({ id: crypto.randomUUID(), method: 'GET', path, params })).data
+    const [session] = (await get('/agent-sessions')).items
+    // As the session's message list loads (`useAgentSessionParts`).
+    const { items } = await get(`/agent-sessions/${session.id}/messages`, { deferToolOutputs: true })
+    for (const { data } of items) {
+      for (const part of data.parts ?? []) {
+        const ref = part.output?.$deferredToolResult
+        if (ref) return { response: await api.ipcApi.request('ai.tool.get_result', ref) }
+      }
+    }
+    return null
+  })
+  expect(result?.response.ok).toBe(true)
+  expect(result?.response.data.found).toBe(true)
+  expect(JSON.stringify(result?.response.data.output)).toContain('line 999 of the long file')
+})
 
 test('archives a session with its files and restores it from the archive', async ({ page }) => {
   // Longer than the 100 characters a plain tar header holds for a name.
