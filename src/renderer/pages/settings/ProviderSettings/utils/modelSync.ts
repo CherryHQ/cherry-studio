@@ -139,6 +139,12 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }
+      // A context window the provider itself reports (e.g. TokenLab's `max_input_tokens`, Ollama's
+      // `/api/show`) is specific to that provider's deployment and can be smaller than the global
+      // registry value for the same model id; keep it so context budgeting never exceeds the real cap.
+      if (field === 'contextWindow' && base.contextWindow) {
+        continue
+      }
       if (field === 'name' && keepFetchedName) {
         continue
       }
