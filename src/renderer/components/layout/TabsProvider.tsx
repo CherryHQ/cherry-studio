@@ -383,11 +383,13 @@ export function TabsProvider({
 
   const addTab = useCallback(
     (tab: Tab) => {
-      const exists = projectedTabsRef.current.some((item) => item.id === tab.id)
+      const currentTabs = projectedTabsRef.current
+      const exists = currentTabs.some((item) => item.id === tab.id)
+      const activeIndex = currentTabs.findIndex((item) => item.id === activeTabIdRef.current)
       const refreshed = { ...tab, lastAccessTime: Date.now(), isDormant: false }
       const next = exists
-        ? projectedTabsRef.current.map((item) => (item.id === tab.id ? refreshed : item))
-        : [...projectedTabsRef.current, refreshed]
+        ? currentTabs.map((item) => (item.id === tab.id ? refreshed : item))
+        : currentTabs.toSpliced(activeIndex < 0 ? currentTabs.length : activeIndex + 1, 0, refreshed)
       commitTabs(next, tab.id)
     },
     [commitTabs]
