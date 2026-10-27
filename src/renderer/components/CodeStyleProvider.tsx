@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { getCmThemeByName, getCmThemeNames, type CodeMirrorTheme } from '@cherrystudio/ui'
+import { codeBlockSyntaxCss, getCodeBlockPalette } from '@cherrystudio/ui/code-block'
 import { resolveCodeTheme } from '@cherrystudio/ui/code-highlight'
 import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleContext, CodeStyleThemeCatalogContext } from '@renderer/hooks/useCodeStyle'
@@ -12,7 +13,6 @@ import { CODE_THEME_NAMES, loadCodeTheme } from '@renderer/utils/codeHighlight'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 export function CodeStyleProvider({ children }: PropsWithChildren) {
-  const [codeEditorEnabled] = usePreference('chat.code.editor.enabled')
   const [codeEditorThemeLight] = usePreference('chat.code.editor.theme_light')
   const [codeEditorThemeDark] = usePreference('chat.code.editor.theme_dark')
   const [codeViewerThemeLight] = usePreference('chat.code.viewer.theme_light')
@@ -27,29 +27,35 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
     [codeViewerThemeLight, codeViewerThemeDark]
   )
   const activeCodeTheme = theme === ThemeMode.light ? codeThemes[0] : codeThemes[1]
-  const [themeAppearance, setThemeAppearance] = useState<{ name: string; dark: boolean } | null>(null)
+  const [themeAppearance, setThemeAppearance] = useState<{
+    name: string
+    dark: boolean
+    palette: Record<string, string>
+  } | null>(null)
   const isCodeThemeDark = themeAppearance?.name === activeCodeTheme ? themeAppearance.dark : theme !== ThemeMode.light
 
   useEffect(() => {
     let cancelled = false
     void loadCodeTheme(activeCodeTheme).then((resolved) => {
-      if (!cancelled) setThemeAppearance({ name: activeCodeTheme, dark: resolved.appearance === 'dark' })
+      if (!cancelled)
+        setThemeAppearance({
+          name: activeCodeTheme,
+          dark: resolved.appearance === 'dark',
+          palette: getCodeBlockPalette(resolved)
+        })
     })
     return () => {
       cancelled = true
     }
   }, [activeCodeTheme])
 
-  const themeNames = useMemo(
-    () => (codeEditorEnabled ? cmThemeNames : ['auto', ...CODE_THEME_NAMES]),
-    [codeEditorEnabled, cmThemeNames]
-  )
-  const loadThemeNames = useCallback(async () => {
-    if (!codeEditorEnabled) return ['auto', ...CODE_THEME_NAMES]
+  const themeNames = useMemo(() => ['auto', ...CODE_THEME_NAMES], [])
+  const loadThemeNames = useCallback(async () => themeNames, [themeNames])
+  const loadCmThemeNames = useCallback(async () => {
     const names = await getCmThemeNames()
     setCmThemeNames(names)
     return names
-  }, [codeEditorEnabled])
+  }, [])
 
   // 获取当前使用的 CodeMirror 主题对象（只用于编辑器；异步解析，到位前用基础明暗主题）
   const [activeCmTheme, setActiveCmTheme] = useState<CodeMirrorTheme>(() =>
@@ -63,8 +69,7 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!cmThemeRequested) return
-    // Every CodeMirror consumer (Notes, MCP editors, ArtifactPane, previews) reads this, so it must
-    // not depend on the chat-editor flag. getCmThemeByName already falls back for unknown names.
+    // Remaining CodeMirror consumers also include Notes and configuration editors.
     const codeStyle = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
     let themeName = codeStyle
     if (!themeName || themeName === 'auto') {
@@ -96,18 +101,12 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
     (code: string) => codeHighlightService.renderMarkdown(code, activeCodeTheme),
     [activeCodeTheme]
   )
-  const getCodePreProperties = useCallback(async () => {
-    const resolved = await loadCodeTheme(activeCodeTheme)
-    const { style } = resolved
-    const foreground = style['editor.foreground'] ?? style.text ?? style.foreground ?? 'var(--foreground)'
-    const background = style['editor.background'] ?? style.background ?? 'var(--background)'
-    return { class: 'shiki highlights', style: `color:${foreground};background-color:${background}` }
-  }, [activeCodeTheme])
+  const codeBlockStyle = themeAppearance?.name === activeCodeTheme ? themeAppearance.palette : undefined
   const contextValue = useMemo(
     () => ({
+      codeBlockStyle,
       highlightRange,
       cleanupTokenizers,
-      getCodePreProperties,
       highlightCode,
       renderMarkdown,
       codeThemes,
@@ -117,9 +116,9 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
       requestCmTheme
     }),
     [
+      codeBlockStyle,
       highlightRange,
       cleanupTokenizers,
-      getCodePreProperties,
       highlightCode,
       renderMarkdown,
       codeThemes,
@@ -129,10 +128,16 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
       requestCmTheme
     ]
   )
-  const themeCatalogContextValue = useMemo(() => ({ loadThemeNames, themeNames }), [loadThemeNames, themeNames])
+  const themeCatalogContextValue = useMemo(
+    () => ({ loadThemeNames, themeNames, loadCmThemeNames, cmThemeNames }),
+    [loadThemeNames, themeNames, loadCmThemeNames, cmThemeNames]
+  )
   return (
     <CodeStyleContext value={contextValue}>
-      <CodeStyleThemeCatalogContext value={themeCatalogContextValue}>{children}</CodeStyleThemeCatalogContext>
+      <CodeStyleThemeCatalogContext value={themeCatalogContextValue}>
+        <style>{codeBlockSyntaxCss}</style>
+        {children}
+      </CodeStyleThemeCatalogContext>
     </CodeStyleContext>
   )
 }

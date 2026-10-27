@@ -1,4 +1,4 @@
-import { createContext, use, useEffect } from 'react'
+import { createContext, use, useEffect, type CSSProperties } from 'react'
 
 import type { CodeMirrorTheme } from '@cherrystudio/ui'
 import type { HighlightRange, HighlightResult } from '@renderer/types/codeHighlight'
@@ -6,7 +6,7 @@ import type { HighlightRange, HighlightResult } from '@renderer/types/codeHighli
 interface CodeStyleContextType {
   highlightRange: (code: string, language: string, callerId: string, range: HighlightRange) => Promise<HighlightResult>
   cleanupTokenizers: (callerId: string) => void
-  getCodePreProperties: () => Promise<{ class: string; style: string }>
+  codeBlockStyle?: CSSProperties
   highlightCode: (code: string, language: string) => Promise<string>
   renderMarkdown: (code: string) => Promise<string>
   codeThemes: [string, string]
@@ -19,6 +19,8 @@ interface CodeStyleContextType {
 interface CodeStyleThemeCatalogContextType {
   loadThemeNames: () => Promise<string[]>
   themeNames: string[]
+  loadCmThemeNames: () => Promise<string[]>
+  cmThemeNames: string[]
 }
 
 export const CodeStyleContext = createContext<CodeStyleContextType | null>(null)
