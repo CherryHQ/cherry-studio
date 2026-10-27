@@ -1,3 +1,154 @@
+diff --git a/dist/entries.d.ts b/dist/entries.d.ts
+index 185bd86..5ea3b41 100644
+--- a/dist/entries.d.ts
++++ b/dist/entries.d.ts
+@@ -1,12 +1,12 @@
+ import type { JsonValue } from "@earendil-works/chord";
+ import type { CompactionReason, ToolDiagnostic } from "./harness/types.ts";
+-import type { Entry } from "./types.ts";
++import type { Entry, TaskId } from "./types.ts";
+ /** Define a typed entry kind whose `is()` guard narrows by `EntryRecord.kind`. */
+ export declare function defineEntry<D extends JsonValue = never>(kind: string): Entry<D>;
+ /** User input: `model` is `[UserMessage]`. Written by submissions. */
+ export declare const UserEntry: Entry<never>;
+ /** Provider result with any stop reason: `model` is `[AssistantMessage]`. Written by generation. */
+-export declare const AssistantEntry: Entry<never>;
++export declare const AssistantEntry: Entry<{ runId: TaskId }>;
+ /** Positional prompt and tool change: `model` is `[SystemMessage]` with empty `content`. */
+ export declare const SystemEntry: Entry<never>;
+ /**
+diff --git a/dist/harness/generation.d.ts b/dist/harness/generation.d.ts
+index a54786c..4e266c5 100644
+--- a/dist/harness/generation.d.ts
++++ b/dist/harness/generation.d.ts
+@@ -4,7 +4,7 @@ import type { ConversationId, EntryId, SubmissionId, TaskId, Tx } from "../types
+ import { type LiveState } from "./live.ts";
+ import { type ToolTaskResult } from "./tool.ts";
+ import type { CompactionResult, ConversationStreamOptions, GenerationHooks, ModelRef } from "./types.ts";
+-export type GenerationInput = Record<string, never>;
++export type GenerationInput = { runId?: TaskId };
+ export type GenerationCheckpoint = {
+     phase: "prepare";
+     attempt: number;
+diff --git a/dist/harness/generation.js b/dist/harness/generation.js
+index c088f3c..5ba7218 100644
+--- a/dist/harness/generation.js
++++ b/dist/harness/generation.js
+@@ -473,7 +473,7 @@ async function answer(runtime, message, context) {
+         if (continuation !== undefined && users.length === 0 && !reset) {
+             const user = { role: "user", content: continuation, timestamp: runtime.now() };
+             await tx.appendEntry(UserEntry, conversationId, { model: [user] });
+-            handOver(live, runtime.taskId, await createGeneration(tx, conversationId));
++            handOver(live, runtime.taskId, await createGeneration(tx, conversationId, live.run?.id ?? live.run?.taskId));
+             delete live.generation;
+             return result;
+         }
+@@ -574,9 +574,12 @@ async function finishToolRound(runtime, assistant, tools, context) {
+             else {
+                 delete live.tools;
+                 delete live.nestedTools;
+-                if (live.run?.taskId === runtime.taskId)
++                if (live.run?.taskId === runtime.taskId) {
++                    live.run.id ??= live.run.taskId;
+                     live.run.inputs.push(...users);
+-                handOver(live, runtime.taskId, await createGeneration(tx, conversationId));
++                    for (const id of users) tx.bindSubmissionRun(id, live.run.id);
++                }
++                handOver(live, runtime.taskId, await createGeneration(tx, conversationId, live.run?.id ?? live.run?.taskId));
+             }
+         }
+         return { status: "terminal", outcome: { status: "completed", result: { entryId: assistant } } };
+@@ -588,19 +591,27 @@ async function finishToolRound(runtime, assistant, tools, context) {
+  */
+ async function appendAssistant(tx, conversationId, message) {
+     await recordUsage(tx, conversationId, "models", `${message.provider}/${message.model}`, message.usage);
+-    return tx.appendEntry(AssistantEntry, conversationId, { model: [message] });
++    const live = await tx.doc(LiveDoc, conversationId);
++    const runId = live.run?.id ?? live.run?.taskId;
++    return tx.appendEntry(AssistantEntry, conversationId, {
++        model: [message], ...(runId === undefined ? {} : { data: { runId } })
++    });
+ }
+ /** Start a run for `inputs`, placed input submissions: a new generation takes `pi.live.run`. */
+ export async function startRun(tx, conversationId, live, inputs) {
+-    live.run = { taskId: await createGeneration(tx, conversationId, { submissionIds: inputs }), inputs };
++    const taskId = await createGeneration(tx, conversationId, undefined, { submissionIds: inputs });
++    live.run = { id: taskId, taskId, inputs };
++    for (const id of inputs) tx.bindSubmissionRun(id, taskId);
+ }
+ /** A generation owned by its conversation. */
+-function createGeneration(tx, conversationId, telemetry = {}) {
+-    return tx.createTask(GenerationTask, {}, { ownership: { kind: "conversation" }, conversationId, ...telemetry });
++function createGeneration(tx, conversationId, runId, telemetry = {}) {
++    return tx.createTask(GenerationTask, runId === undefined ? {} : { runId }, { ownership: { kind: "conversation" }, conversationId, ...telemetry });
+ }
+ /** Hand run control from `from` to `to`; the run's inputs move with it. */
+ export function handOver(live, from, to) {
+-    if (live.run?.taskId === from)
++    if (live.run?.taskId === from) {
++        live.run.id ??= from;
+         live.run.taskId = to;
++    }
+ }
+-//# sourceMappingURL=generation.js.map
++//# sourceMappingURL=generation.js.map
+\ No newline at end of file
+diff --git a/dist/harness/live.d.ts b/dist/harness/live.d.ts
+index 0fe5579..307527f 100644
+--- a/dist/harness/live.d.ts
++++ b/dist/harness/live.d.ts
+@@ -76,6 +76,8 @@ export type CompactionFailure = {
+ export type LiveState = {
+     /** Run control: the task that settles the run's inputs, and those inputs; present exactly while busy. */
+     run?: {
++        /** First generation task, stable across tool rounds and retries. */
++        id?: TaskId;
+         taskId: TaskId;
+         inputs: SubmissionId[];
+     };
+diff --git a/dist/session/transaction.d.ts b/dist/session/transaction.d.ts
+index dc84f23..197b632 100644
+--- a/dist/session/transaction.d.ts
++++ b/dist/session/transaction.d.ts
+@@ -86,6 +86,8 @@ export declare class Transaction implements Tx {
+     settleSubmission(id: SubmissionId, settlement: SubmissionSettlement): void;
+     /** Place a queued submission at `entry`; resolved during assembly like `settleSubmission()`. */
+     placeSubmission(id: SubmissionId, entry: EntryId): void;
++    /** Bind a placed input to its consuming run in the same commit; settled inputs retain the identity. */
++    bindSubmissionRun(id: SubmissionId, runId: TaskId): void;
+     /** Internal: replace one task record completely. Tasks change their own state through their runtime. */
+     setTask(value: AnyTaskRecord): void;
+     /** Internal: candidate records of the tasks this transaction created or replaced so far. */
+diff --git a/dist/session/transaction.js b/dist/session/transaction.js
+index ff7deaf..c779bfe 100644
+--- a/dist/session/transaction.js
++++ b/dist/session/transaction.js
+@@ -12,6 +12,13 @@ import { prepareForkDocumentCopies } from "./forks.js";
+ function applySubmissionChange(current, change) {
+     if (current.status === "done" || current.status === "unanswered")
+         return current;
++    if ("runId" in change) {
++        if (current.type !== "input" || current.status !== "placed")
++            throw new Error(`Submission ${current.id} is not a placed input`);
++        if (current.runId !== undefined && current.runId !== change.runId)
++            throw new Error(`Submission ${current.id} already belongs to another run`);
++        return { ...current, runId: change.runId };
++    }
+     if (change.status === "placed") {
+         if (current.status !== "queued")
+             throw new Error(`Submission ${current.id} is not queued`);
+@@ -259,6 +266,11 @@ export class Transaction {
+         this.#hasTableWrite = true;
+         this.#submissionChanges.push({ id, change: { status: "placed", entry } });
+     }
++    bindSubmissionRun(id, runId) {
++        this.#assertOpen();
++        this.#hasTableWrite = true;
++        this.#submissionChanges.push({ id, change: { runId } });
++    }
+     /** Internal: replace one task record completely. Tasks change their own state through their runtime. */
+     setTask(value) {
+         this.#assertOpen();
 diff --git a/dist/storage/sqlite/storage.d.ts b/dist/storage/sqlite/storage.d.ts
 index 436309c..90fc5cc 100644
 --- a/dist/storage/sqlite/storage.d.ts
@@ -48,3 +199,25 @@ index 96e4185..45dd2fb 100644
      async commit(writes, _context) {
          this.assertOpen();
          const documentActions = this.prepareDocumentActions(writes);
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 9640911..b886f35 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -437,6 +437,8 @@ type SubmissionRecordBase = {
+ /** Durable lifecycle of one admitted user input or passive entry write. */
+ export type SubmissionRecord = (SubmissionRecordBase & {
+     readonly type: "input";
++    /** First generation task of the consuming run; absent until placement or on pre-metadata records. */
++    readonly runId?: TaskId;
+ } & ({
+     /** Admitted but not yet represented in the transcript. */
+     readonly status: "queued";
+@@ -874,6 +876,8 @@ export interface Tx {
+      * `settleSubmission()`. Inbox boundaries place the submissions they select.
+      */
+     placeSubmission(id: SubmissionId, entry: EntryId): void;
++    /** Bind a placed input to its consuming run in the same commit; settled inputs retain the identity. */
++    bindSubmissionRun(id: SubmissionId, runId: TaskId): void;
+     doc<T extends JsonObject>(token: SessionDocToken<T>): Promise<Draft<T>>;
+     doc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId): Promise<Draft<T>>;
+     doc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<Draft<T>>;

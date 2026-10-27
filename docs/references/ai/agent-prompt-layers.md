@@ -103,8 +103,8 @@ not force a rebuild every turn.
 ## Implementation map
 
 - `src/main/ai/runtime/agentPrompt.ts` owns shared precedence, variable materialization, and the `{ base, append }` contract.
-- Runtime drivers under `src/main/ai/runtime/{claudeCode,pi}/` map that contract into their SDK/composition.
+- Runtime drivers under `src/main/ai/runtime/{claudeCode,pi,piDurable}/` map that contract into their SDK/composition.
 - `src/main/ai/agents/prompt.ts` owns workspace base selection and persona/memory context.
-- `src/main/ai/runtime/claudeCode/identityHooks.ts` and `src/main/ai/runtime/pi/identityExtension.ts` deliver live identity through native runtime hooks.
+- `src/main/ai/runtime/claudeCode/identityHooks.ts`, `src/main/ai/runtime/pi/identityExtension.ts` and `src/main/ai/runtime/piDurable/durableDesktop.ts` deliver live identity through native hooks or prompt sections.
 - `src/main/ai/agents/bootstrap.ts` owns first-run persona and user onboarding guidance.
 - `src/main/ai/agentSession/AgentSessionRuntimeService.ts` owns next-turn connection reconciliation.

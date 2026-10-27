@@ -6245,43 +6245,61 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it('tears the session down on any turn abort (steer no longer interrupts — abort is always a user Stop)', async () => {
-    const events = createAsyncQueue<any>()
-    const connection = {
-      events: events.iterable,
-      send: vi.fn(),
-      close: vi.fn()
+  it.each(['stop', 'shutdown', 'app-shutdown'] as const)(
+    'retires a durable owner after %s with the correct cancellation state',
+    async (action) => {
+      const events = createAsyncQueue<any>()
+      const cancellation = createDeferred<void>()
+      let cancelled = false
+      let closed: boolean | undefined
+      const connection: AgentRuntimeConnection = {
+        events: events.iterable,
+        send: async () => {},
+        reconcile: async () => 'current',
+        interrupt: async () => {
+          await cancellation.promise
+          cancelled = true
+        },
+        close: () => {
+          closed = cancelled
+        }
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async () => connection,
+        validateSession: async () => {},
+        listAvailableTools: async () => []
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const controller = new AbortController()
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: controller.signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(getEntry(service).connection).toBe(connection))
+      if (action === 'stop') {
+        const connectionLoop = getEntry(service).connectionLoop
+        controller.abort('agent-runtime-interrupt')
+        expect(service.inspect('session-1')).toBeUndefined()
+        events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'tail', delta: 'late output' } })
+        await connectionLoop
+        expect(closed).toBeUndefined()
+        cancellation.resolve()
+        await vi.waitFor(() => expect(closed).toBe(true))
+      } else {
+        if (action === 'app-shutdown') controller.abort('app-shutdown')
+        await service.closeSession('session-1')
+        expect(closed).toBe(false)
+      }
+      await reader.cancel().catch(() => undefined)
     }
-    runtimeDriverRegistry.register({
-      type: 'test-runtime',
-      capabilities: ['agent-session'],
-      connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
-    })
-    const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-    const controller = new AbortController()
-    const stream = service.openTurnStream({
-      sessionId: 'session-1',
-      turnId: handle.turnId,
-      signal: controller.signal
-    })
-    const reader = stream.getReader()
-
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() =>
-      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
-    )
-
-    // Steer no longer interrupts, so the only abort source is a user Stop — which always tears the
-    // session down (closeSession → connection.close), regardless of the signal reason.
-    controller.abort('agent-runtime-interrupt')
-
-    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
-    expect(service.inspect('session-1')).toBeUndefined()
-    await reader.cancel().catch(() => undefined)
-  })
+  )
 
   it('persists errored assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()

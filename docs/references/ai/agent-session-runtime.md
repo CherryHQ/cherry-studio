@@ -13,9 +13,12 @@ sources:
   - src/main/ai/runtime/types.ts
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
+  - src/main/ai/runtime/piDurable
+  - src/main/ai/agentSession/durableNativeContext.ts
   - src/shared/ai/piBuiltinTools.ts
   - packages/agent-behavior/src
   - packages/agent-runtime-pi/src
+  - packages/agent-runtime-pi-durable/src
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
@@ -839,6 +842,26 @@ readable when native access cannot be restored. Child input goes through that ow
 its archive cannot open as an independent writable root. Public projection code consumes
 `ThreadHandle`; Pi history reads and input dispatch stay in the Pi connection.
 
+### Pi Durable behavior host
+
+`PiDurableRuntimeConnection` installs the same `agent-behavior` rules and host ports
+through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
+question cards and tool rendering. Native SQLite owns execution history and task state;
+the existing backend/context tables bind it to product sessions. Strict identity checks
+prevent a missing store from silently becoming a fresh conversation.
+
+Children use the same independent projection/archive and `ai.projection.*` transport.
+Background occupancy retains the owner with `awaitingReply: false`, allowing the parent's
+reply to finish before a child. Result delivery starts a separate autonomous turn. Historical
+input snapshots update saved facts without reassigning old responses to that new turn.
+
+Native submission and assistant metadata carry the consuming run's stable identity.
+Ordinary steer may start a later run after normal completion; it has no run-only constraint.
+Background continuation keeps the child identity. Independent continuation of a completed
+foreground child is rejected because native tool ownership is immutable. Desktop native
+fork/edit checkpoints and `vcc_recall` are not exposed. See the
+[driver README](../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
+
 ### Pi code mode
 
 Pi 1.0 supplies the native `codemode`, `tool_search`, and MCP extensions. Cherry
@@ -952,7 +975,7 @@ For a short idle window it keeps:
 If a new turn arrives during that window, `beginTurn()` reuses the same
 entry and only swaps the current UI turn plus the UI pending queue.
 
-Pi declares `retainWhileIdle`: its in-process owner remains available beyond the idle TTL.
+Pi and Pi Durable declare `retainWhileIdle`: their in-process owners remain available beyond the idle TTL.
 Explicit close, branch replacement, configuration rebuild, and service shutdown still retire it.
 For other connections, when the idle timer expires, the runtime closes the entry:
 
@@ -960,7 +983,10 @@ For other connections, when the idle timer expires, the runtime closes the entry
 - closes the runtime connection;
 - prewarms Claude Code when a latest resume token is known.
 
-Service stop and destroy close all runtime entries.
+Service stop and destroy close all runtime entries. User Stop additionally invokes an
+optional connection `interrupt()` before closing. Durable shutdown preserves ordinary
+unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
+`onOpen` before native resume, disarming goals and stopping interrupted background children.
 Repeated `closeSession()` calls join the in-flight close; if a replacement entry was created meanwhile,
 its close is chained behind the prior one so callers wait for every connection generation to settle.
 An immediate retry may create its entry while that close is still draining, but it cannot connect until

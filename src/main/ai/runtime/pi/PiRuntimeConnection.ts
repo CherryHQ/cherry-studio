@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync, readdirSync, lstatSync } from 'node:fs'
+import { readdirSync, lstatSync } from 'node:fs'
 
 import type { Usage } from '@earendil-works/pi-ai'
 import type { ContextUsage, CreateAgentSessionOptions, ToolDefinition } from '@earendil-works/pi-coding-agent'
@@ -27,13 +27,6 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import {
-  getBinarySearchDirs,
-  getBinaryShimsDir,
-  mergeBinaryExecutionEnv,
-  mergePathSuffixes
-} from '@main/utils/binaryEnv'
-import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -74,6 +67,7 @@ import {
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { loadPiSdk } from './piSdk'
+import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { resolvePiThinkingLevel } from './piThinkingLevel'
 
@@ -81,59 +75,6 @@ const logger = loggerService.withContext('PiRuntimeConnection')
 const childResultSchema = z.object({
   details: z.object({ sessionId: z.string(), background: z.literal(false), outcome: z.string() })
 })
-
-function quoteShellWord(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`
-}
-
-/** Preserve pi's own PATH prefix while appending directories resolved by the user's login shell. */
-export function buildPiLoginPathPrefix(
-  loginPath: string | undefined,
-  platform: NodeJS.Platform = process.platform
-): string | undefined {
-  return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
-}
-
-/** Read the one field Cherry honors from the user's global pi settings; absent or malformed means unset. */
-function readPiShellPathSetting(): string | undefined {
-  try {
-    const settings: unknown = JSON.parse(readFileSync(application.getPath('external.pi.settings_file'), 'utf8'))
-    const shellPath = (settings as Record<string, unknown> | null)?.shellPath
-    return typeof shellPath === 'string' && shellPath.trim() ? shellPath.trim() : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function resolvePiShellPath(): string | undefined {
-  if (process.platform !== 'win32') return undefined
-  const configured = readPiShellPathSetting()
-  if (!configured) return autoDiscoverGitBash() ?? undefined
-
-  const shellPath = validateGitBashPath(configured)
-  if (!shellPath) throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configured}`)
-  return shellPath
-}
-
-function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
-  const definedEnv = Object.fromEntries(
-    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
-  )
-  const binarySearchDirs = getBinarySearchDirs()
-  const managedShimsDir = getBinaryShimsDir()
-  const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
-  const callerOwnsMiseEnvironment = Object.keys(definedEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
-
-  if (callerOwnsMiseEnvironment) {
-    // A generic shell may already be activated against the user's mise installation. Do not
-    // redirect that installation to Cherry's isolated data directory or expose Cherry's shims
-    // under an incompatible MISE_* contract. Bundled standalone binaries remain a safe fallback,
-    // but stay behind the caller's PATH so they cannot replace the user's own tool versions.
-    return mergePathSuffixes(definedEnv, standaloneBinaryDirs, [managedShimsDir])
-  }
-
-  return mergeBinaryExecutionEnv(definedEnv, standaloneBinaryDirs)
-}
 
 export class PiRuntimeConnection implements AgentRuntimeConnection {
   readonly retainWhileIdle = true

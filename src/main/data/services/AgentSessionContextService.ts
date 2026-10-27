@@ -114,6 +114,36 @@ class AgentSessionContextService {
     })
   }
 
+  prepareDurableBranch(sessionId: string, messageId?: string): AgentSessionContextRow {
+    agentSessionService.assertIndependentSession(sessionId)
+    return application.get('DbService').withWriteTx((tx) => {
+      const root = ensureAgentSessionRootTx(tx, sessionId)
+      const existing = this.branchTx(tx, sessionId, messageId ?? root)
+      if (existing) {
+        if (this.backend(existing.backendId).locator.kind !== 'pi-durable')
+          throw new Error('The selected branch belongs to another runtime')
+        return existing
+      }
+      const backend = tx
+        .insert(backends)
+        .values({
+          locator: { version: 1, kind: 'pi-durable', fileName: `${uuid()}.sqlite` },
+          state: 'creating'
+        })
+        .returning()
+        .get()
+      return tx
+        .insert(contexts)
+        .values({
+          sessionId,
+          backendId: backend.id,
+          anchorMessageId: root
+        })
+        .returning()
+        .get()
+    })
+  }
+
   bindBranchTx(
     tx: DbOrTx,
     sessionId: string,

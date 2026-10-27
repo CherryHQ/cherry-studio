@@ -1,5 +1,5 @@
 import { claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
-import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { PI_BUILTIN_TOOLS, PI_TOOL_RECALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
@@ -67,6 +67,38 @@ const PI_BUILTIN_COMMANDS = [
   { command: '/compact', description: 'Compact conversation with optional focus instructions' }
 ] as const satisfies readonly SlashCommand[]
 
+const PI_CAPABILITIES = {
+  labelKey: 'library.config.agent.field.runtime.option.pi',
+  labelFallback: 'Pi',
+  // Pi has no plan mode. Its `auto` is Cherry's own rule-based gate in the pi approval extension,
+  // not Claude's model-side classifier — same user-facing promise, different mechanism.
+  permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
+  modelTiers: false,
+  heartbeat: true,
+  knowledgeBases: true,
+  // Native Pi MCP tools retain Cherry's approval gate.
+  mcp: true,
+  skills: true,
+  claudeRegistryTools: false,
+  slashCommands: PI_BUILTIN_COMMANDS,
+  createDefaults: { permissionMode: 'auto' },
+  // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
+  // config to resolve a wire protocol, so no provider ⇒ not drivable. The managed CherryAI
+  // free-quota default is barred too — like claude, pi must not drive it directly.
+  isModelCompatible: (provider, model) =>
+    !!provider &&
+    isPiCompatibleModel(provider, model) &&
+    !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
+  transport: 'pi-agent',
+  builtinTools: () =>
+    PI_BUILTIN_TOOLS.map((tool) => ({
+      id: tool.name,
+      labelKey: `agent.tools.builtin.${tool.name}.label`,
+      descriptionKey: `agent.tools.builtin.${tool.name}.description`,
+      category: tool.category
+    }))
+} as const satisfies AgentRuntimeCapabilities
+
 export const AGENT_RUNTIME_CAPABILITIES = {
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
@@ -94,35 +126,11 @@ export const AGENT_RUNTIME_CAPABILITIES = {
         category: tool.category
       }))
   },
-  pi: {
-    labelKey: 'library.config.agent.field.runtime.option.pi',
-    labelFallback: 'Pi',
-    // Pi has no plan mode. Its `auto` is Cherry's own rule-based gate in the pi approval extension,
-    // not Claude's model-side classifier — same user-facing promise, different mechanism.
-    permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
-    modelTiers: false,
-    heartbeat: true,
-    knowledgeBases: true,
-    // Native Pi MCP tools retain Cherry's approval gate.
-    mcp: true,
-    skills: true,
-    claudeRegistryTools: false,
-    slashCommands: PI_BUILTIN_COMMANDS,
-    createDefaults: { permissionMode: 'auto' },
-    // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
-    // config to resolve a wire protocol, so no provider ⇒ not drivable. The managed CherryAI
-    // free-quota default is barred too — like claude, pi must not drive it directly.
-    isModelCompatible: (provider, model) =>
-      !!provider &&
-      isPiCompatibleModel(provider, model) &&
-      !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
-    transport: 'pi-agent',
-    builtinTools: () =>
-      PI_BUILTIN_TOOLS.map((tool) => ({
-        id: tool.name,
-        labelKey: `agent.tools.builtin.${tool.name}.label`,
-        descriptionKey: `agent.tools.builtin.${tool.name}.description`,
-        category: tool.category
-      }))
+  pi: PI_CAPABILITIES,
+  'pi-durable': {
+    ...PI_CAPABILITIES,
+    labelKey: 'library.config.agent.field.runtime.option.pi_durable',
+    labelFallback: 'Pi Durable',
+    builtinTools: () => PI_CAPABILITIES.builtinTools().filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
   }
 } as const satisfies Record<AgentType, AgentRuntimeCapabilities>
