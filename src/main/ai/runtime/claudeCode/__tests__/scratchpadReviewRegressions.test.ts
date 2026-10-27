@@ -194,6 +194,11 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
       expect(r.carry).toBeLessThan(input.length * 80)
       expect(r.whole).toBeLessThan(input.length * 3)
     }
+    // doubling ratio: 2x the line must cost at most ~2.3x the scan input
+    const mk = (n: number) => `don't use \`open ${'word '.repeat(n)}\` done\n`
+    const w1 = deliverWithWork(mk(6000), 20).work
+    const w2 = deliverWithWork(mk(12000), 20).work
+    expect(w2 / w1).toBeLessThan(2.3)
   })
 
   it('emits deltas independent of the accumulator (no per-delta parent retention) across tool-protocol hold-back', () => {
@@ -406,6 +411,115 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
       expect(snapshot(fast, partsA).text).toBe(snapshot(slow, partsB).text)
     }
     expect(fastHits).toBeGreaterThan(0)
+  }, 100000)
+
+  it('span-deferred fast path: block-marker completion after an open tick line matches the full scan and fast-hits in every category', () => {
+    const snapshot = (adapter: any, parts: any[]) => {
+      const ctx = adapter.ctx
+      const picked: Record<string, unknown> = {}
+      for (const key of Object.keys(ctx).sort()) {
+        if (
+          /^(scratchpad|ol[A-Z]|accRecent|accumulatedText|accGen|toolProtocol|streamedTextLength|textStreamedViaContentBlock)/.test(
+            key
+          )
+        ) {
+          picked[key] = ctx[key]
+        }
+      }
+      return {
+        picked,
+        text: parts
+          .filter((p) => p.type === 'text-delta')
+          .map((p) => p.delta)
+          .join('')
+      }
+    }
+    const hits = new Map<string, number>()
+    const markers = [
+      '-',
+      '+',
+      '=',
+      '1',
+      '1.',
+      '1)',
+      ' ',
+      '\t',
+      '    ',
+      '- ',
+      '-\t',
+      '  -',
+      '2',
+      '10',
+      '>',
+      '#',
+      '*',
+      '[',
+      '[a](',
+      '![a](',
+      '[a]',
+      '[a](b',
+      '<',
+      ''
+    ]
+    const tails = [' x', '. x', ' x y', ') x', ' (z', '', ' \n', '\n']
+    for (const lead of ['', '> ']) {
+      for (const width of [1, 2, 3]) {
+        for (const lineStart of [true, false]) {
+          for (const marker of markers) {
+            for (const tail of tails) {
+              for (const size of [1, 2, 5, 100]) {
+                const tick = '`'.repeat(width)
+                const input = lineStart
+                  ? `${lead}a ${tick}b c\n${lead}${marker}${tail}`
+                  : `${lead}a ${tick}b c ${marker}${tail}`
+                const partsA: any[] = []
+                const partsB: any[] = []
+                const fast = makeAdapter(partsA) as any
+                const slow = makeAdapter(partsB) as any
+                slow.scratchpadInlineDeferFastPath = false
+                for (let i = 0; i < input.length; i += size) {
+                  const text = input.slice(i, i + size)
+                  for (const a of [fast, slow]) {
+                    a.handleMessage(
+                      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+                    )
+                  }
+                  if (fast.scratchpadScanInputChars < slow.scratchpadScanInputChars) {
+                    for (const k of [
+                      `lead:${lead ? 'quote' : 'plain'}`,
+                      `width:${width}`,
+                      `pos:${lineStart ? 'linestart' : 'midline'}`,
+                      `size:${size}`
+                    ])
+                      hits.set(k, (hits.get(k) ?? 0) + 1)
+                  }
+                  const a = snapshot(fast, partsA)
+                  const b = snapshot(slow, partsB)
+                  const label = JSON.stringify([input, size, i])
+                  expect(a.text, label).toBe(b.text)
+                  expect(a.picked, label).toEqual(b.picked)
+                }
+                for (const a of [fast, slow]) a.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+                expect(snapshot(fast, partsA).text).toBe(snapshot(slow, partsB).text)
+              }
+            }
+          }
+        }
+      }
+    }
+    for (const k of [
+      'lead:quote',
+      'lead:plain',
+      'width:1',
+      'width:2',
+      'width:3',
+      'pos:linestart',
+      'pos:midline',
+      'size:1',
+      'size:2',
+      'size:5'
+    ])
+      expect(hits.get(k) ?? 0, k).toBeGreaterThan(0)
   }, 100000)
 
   it('does linear scan work on a long quote or plain line with a stray unpaired tick', () => {
