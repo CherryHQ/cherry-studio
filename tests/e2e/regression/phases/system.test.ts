@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 
@@ -442,6 +442,7 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(capturePage.getByRole('button', { name: 'Save image', exact: true })).toBeVisible()
 
     const savedPath = join(app.paths.evidence, 'MP-128-annotated.png')
+    await rm(savedPath, { force: true })
     await capturePage.getByRole('button', { name: 'Save image', exact: true }).click()
     saveNativeFile(app.record.platform, app.paths, savedPath)
     await expect.poll(async () => (await readFile(savedPath)).subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')

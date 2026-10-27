@@ -622,7 +622,7 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
   )
   const server = await startTranslationSettingsServer()
   const providerId = `regression-mp86-${Date.now()}`
-  const modelIds = ['mp86-model-a', 'mp86-model-b']
+  const modelIds = [`${providerId}-model-a`, `${providerId}-model-b`]
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addNote } from '@renderer/services/NotesService'
@@ -592,26 +593,32 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(screen.getByTestId('notes-editor')).toBeInTheDocument())
   })
 
-  it('prompts before leaving a dirty note and keeps the draft when cancelled', async () => {
+  it.each(['saving', 'failed'])('switches a dirty note while its save is %s without discarding', async (state) => {
     mocks.sessionIsDirty = true
+    mocks.sessionIsSaving = state === 'saving'
+    mocks.sessionSaveError = state === 'failed' ? new Error('disk full') : undefined
     mocks.sessionDraft = 'unsaved draft'
     mocks.showWorkspace = true
-
+    mocks.flushSession.mockImplementation(() => new Promise(() => {}))
+    const user = userEvent.setup()
     await renderReadyNotesPage()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'unsaved draft')
-    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
-
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
-    expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.title')
-    expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.description')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
-
+    await user.click(screen.getByRole('button', { name: 'select other note' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
     expect(mocks.discardSession).not.toHaveBeenCalled()
-    expect(mocks.flushSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps the composing editor mounted until composition ends', async () => {
+    mocks.showWorkspace = true
+    const user = userEvent.setup()
+    await renderReadyNotesPage()
+    const editor = screen.getByTestId('notes-editor')
+    fireEvent.compositionStart(editor)
+    await user.click(screen.getByRole('button', { name: 'select other note' }))
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
+    fireEvent.compositionEnd(editor)
+    await user.click(screen.getByRole('button', { name: 'select other note' }))
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
   })
 
   it('does not prompt or discard when reselecting the current dirty note', async () => {
@@ -672,46 +679,7 @@ describe('NotesPage print payloads', () => {
     expect(mocks.keepDraftSession).not.toHaveBeenCalled()
   })
 
-  it('waits for an in-flight note save before allowing discard and navigation', async () => {
-    mocks.sessionIsDirty = true
-    mocks.sessionIsSaving = true
-    mocks.sessionDraft = 'unsaved draft'
-    mocks.showWorkspace = true
-    const { rerender } = await renderReadyNotesPage()
-
-    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
-
-    expect(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' })).toBeDisabled()
-    expect(mocks.discardSession).not.toHaveBeenCalled()
-
-    mocks.sessionIsSaving = false
-    rerender(<NotesPage />)
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
-    })
-    expect(mocks.discardSession).toHaveBeenCalledOnce()
-    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
-  })
-
-  it('discards a dirty note before continuing the pending navigation', async () => {
-    mocks.sessionIsDirty = true
-    mocks.sessionDraft = 'unsaved draft'
-    mocks.showWorkspace = true
-
-    await renderReadyNotesPage()
-    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
-    })
-    expect(mocks.discardSession).toHaveBeenCalledOnce()
-    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
-    expect(mocks.discardSession.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.setActiveFilePath.mock.invocationCallOrder[0]
-    )
-    expect(mocks.flushSession).not.toHaveBeenCalled()
-  })
-
-  it('keeps a dirty draft accessible when the active file is removed and leaving is cancelled', async () => {
+  it('keeps a dirty draft accessible when the active file is removed', async () => {
     mocks.sessionIsDirty = true
     mocks.sessionDraft = 'recoverable draft'
     const { rerender } = await renderReadyNotesPage()
@@ -722,12 +690,10 @@ describe('NotesPage print payloads', () => {
     mocks.treeVersion += 1
     rerender(<NotesPage />)
 
-    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.title'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('notes.file_removed_draft'))
     expect(screen.getByRole('alert')).toHaveTextContent('notes.file_removed_draft')
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', '/notes/note.md')
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')

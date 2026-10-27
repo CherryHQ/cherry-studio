@@ -75,7 +75,7 @@ export async function dragDropPasteAttachments(app: RegressionApp, page: Page, t
           id: `${providerId}-model`,
           method: 'POST',
           path: '/models',
-          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+          body: [{ providerId, modelId, contextWindow: 128_000, endpointTypes: ['openai-chat-completions'] }]
         }),
       { providerId, modelId: server.modelId }
     )
@@ -196,11 +196,12 @@ export async function dragDropPasteAttachments(app: RegressionApp, page: Page, t
       await expect(tokens).toHaveCount(0)
     }
     const preview = async (name: string, contents: string) => {
-      await messages
-        .locator('[data-ui~="chat.message-attachments"]')
-        .getByRole('button', { name: 'Preview', exact: true })
-        .last()
-        .click()
+      const attachment = messages.getByRole('button', {
+        name: name === chineseName ? name.replace(/\.txt$/, '') : /Pasted Text/,
+        exact: true
+      })
+      await expect(attachment).toHaveCount(1)
+      await attachment.click()
       const overlay = page.getByRole('dialog')
       await expect(overlay).toBeVisible()
       await expect(overlay.getByRole('heading')).toContainText(

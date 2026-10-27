@@ -80,7 +80,6 @@ const NotesPage: FC = () => {
   )
   const fileSession = useFileEditSession(activeFileHandle, 'notes')
   const {
-    discard: discardFileDraft,
     flush: flushFileDraft,
     prepareMutation,
     notifyExternalChange,
@@ -103,8 +102,7 @@ const NotesPage: FC = () => {
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [showConflict, setShowConflict] = useState(false)
-  const [showDiscardChanges, setShowDiscardChanges] = useState(false)
-  const pendingFileTransitionRef = useRef<(() => void) | null>(null)
+  const composingRef = useRef(false)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
@@ -130,34 +128,9 @@ const NotesPage: FC = () => {
     toast.error(t('notes.tree_load_failed'))
   }, [treeError, notesPath, treeId, t])
 
-  const requestFileTransition = useCallback(
-    (transition: () => void) => {
-      if (fileSession.isDirty) {
-        pendingFileTransitionRef.current = transition
-        setShowDiscardChanges(true)
-        return false
-      }
-      transition()
-      return true
-    },
-    [fileSession.isDirty]
-  )
-
-  const handleDiscardAndContinue = useCallback(async () => {
-    const transition = pendingFileTransitionRef.current
-    try {
-      await discardFileDraft()
-    } catch {
-      return
-    }
-    if (pendingFileTransitionRef.current !== transition) return
-    pendingFileTransitionRef.current = null
-    transition?.()
-  }, [discardFileDraft])
-
-  const handleDiscardChangesOpenChange = useCallback((open: boolean) => {
-    setShowDiscardChanges(open)
-    if (!open) pendingFileTransitionRef.current = null
+  const requestFileTransition = useCallback((transition: () => void) => {
+    // Keep the editor mounted until the input method has committed its text.
+    if (!composingRef.current) transition()
   }, [])
 
   const mergeTreeState = useCallback((nodes: NotesTreeNode[]): NotesTreeNode[] => {
@@ -344,6 +317,7 @@ const NotesPage: FC = () => {
       !isTreeLoading &&
       activeFilePath &&
       !activeNode &&
+      !shouldRetainMissingDraft &&
       !isRenamingRef.current &&
       !isCreatingNoteRef.current
 
@@ -354,7 +328,16 @@ const NotesPage: FC = () => {
       })
       requestFileTransition(() => setActiveFilePath(undefined))
     }
-  }, [notesTree, hasProjectedTree, isTreeLoading, activeFilePath, activeNode, requestFileTransition, setActiveFilePath])
+  }, [
+    notesTree,
+    hasProjectedTree,
+    isTreeLoading,
+    activeFilePath,
+    activeNode,
+    shouldRetainMissingDraft,
+    requestFileTransition,
+    setActiveFilePath
+  ])
 
   // Clear create/rename suppression once the new node appears in the tree.
   // Replaces a 500ms timer that could race chokidar on slow filesystems
@@ -543,7 +526,7 @@ const NotesPage: FC = () => {
     [getTargetFolderPath, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
   )
 
-  // 创建笔记会离开当前编辑会话；用户取消时不创建空文件。
+  // The previous session retains its draft and saves after detachment.
   const handleCreateNote = useCallback(
     async (name: string, targetFolderId?: string) => {
       requestFileTransition(() => void createNote(name, targetFolderId))
@@ -1050,7 +1033,16 @@ const NotesPage: FC = () => {
   }, [activeNode?.id, activeFilePath, notesTree, requestFileTransition, setActiveFilePath])
 
   return (
-    <div data-ui="notes.view" id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <div
+      data-ui="notes.view"
+      id="notes-page"
+      onCompositionStartCapture={() => {
+        composingRef.current = true
+      }}
+      onCompositionEndCapture={() => {
+        composingRef.current = false
+      }}
+      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div id="content-container" className="flex h-full min-h-0 flex-1 flex-row overflow-hidden">
         <AnimatePresence initial={false}>
           {showWorkspace && (
@@ -1160,17 +1152,6 @@ const NotesPage: FC = () => {
             toast.error(t('notes.load_failed'))
           })
         }}
-      />
-      <ConfirmDialog
-        open={showDiscardChanges}
-        onOpenChange={handleDiscardChangesOpenChange}
-        title={t('notes.leave.title')}
-        description={t('notes.leave.description')}
-        confirmText={t('notes.leave.discard_and_continue')}
-        cancelText={t('common.cancel')}
-        destructive
-        confirmLoading={fileSession.isSaving}
-        onConfirm={handleDiscardAndContinue}
       />
     </div>
   )
