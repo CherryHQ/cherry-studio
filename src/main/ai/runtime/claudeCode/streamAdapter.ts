@@ -204,6 +204,31 @@ type StreamContext = {
    * blank lines stripping leaves (round-18 review case 56). */
   scratchpadMaskAdvanceRawQueue: string
   /**
+   * Held open-fence progress for advanceScratchpadMaskState (round-17
+   * retained-fence quadratic, cherry-pr-review inv_50f4adc875e16a2f). While a
+   * fence stays open the held raw text is kept as segments and each delta is
+   * scanned line-by-line - only the NEW text - for the events that can change
+   * the mask outcome: a candidate closing-fence line, a container-boundary
+   * line, or (for a fence inside a scratchpad block) a possible block closing
+   * tag. Absent those events the full re-mask's outcome is unchanged by
+   * construction, so the delta is appended without re-scanning processed
+   * fence content.
+   */
+  scratchpadMaskHeldFence: {
+    fenceChar: '`' | '~'
+    rawContainerPrefix: string
+    enclosedScratchpad: boolean
+    openLine: {
+      phase: 'prefix' | 'run' | 'trailing' | 'dead'
+      runLength: number
+      head: string
+      headDone: boolean
+      startsWithPrefix: boolean
+      hasRealContent: boolean
+    }
+    segments: string[]
+  } | null
+  /**
    * Append-stable open-line carry verdicts, keyed by the open line's absolute
    * start. Recomputed when the line restarts or shrinks (round-17 latency).
    */
@@ -679,6 +704,7 @@ export class ClaudeCodeStreamAdapter {
       scratchpadMaskState: initialIndentedMaskState(),
       scratchpadMaskStateUnstepped: '',
       scratchpadMaskAdvanceRawQueue: '',
+      scratchpadMaskHeldFence: null,
       scratchpadOpenLineCarry: null,
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
@@ -1129,6 +1155,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadMaskState = initialIndentedMaskState()
     ctx.scratchpadMaskStateUnstepped = ''
     ctx.scratchpadMaskAdvanceRawQueue = ''
+    ctx.scratchpadMaskHeldFence = null
     ctx.scratchpadOpenLineCarry = null
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false
@@ -1263,10 +1290,15 @@ export class ClaudeCodeStreamAdapter {
    * "plain paragraph + fence + indented line"). Hold the raw fence text in
    * the unstepped tail instead; when the closer arrives the whole fence masks
    * and steps as a single placeholder line, exactly as an undivided delivery
-   * would. Cost: while a fence stays open, each advance re-masks the growing
-   * held fence - O(fence length) per delta, same order as the streaming
-   * remainder's re-scan.
+   * would. While a fence stays open, advance work is incremental: the held
+   * raw fence text is kept as segments and each delta is scanned for closer,
+   * container-boundary, and scratchpad-block events only - the full re-mask
+   * runs once when such an event arrives instead of re-masking the growing
+   * held fence per delta (cherry-pr-review inv_50f4adc875e16a2f).
    */
+  /** Total characters presented to maskCodeFences by the mask-state advance (test instrumentation). */
+  private scratchpadMaskAdvanceWorkChars = 0
+
   private advanceScratchpadMaskState(emit: string, ctx: StreamContext): void {
     // The scratchpad scan queues the RAW text it consumed per delta; the
     // container machine must advance over that raw structure: advancing over
@@ -1276,13 +1308,36 @@ export class ClaudeCodeStreamAdapter {
     // visible fallback covers only deltas that bypassed the scan.
     const rawAdvance = ctx.scratchpadMaskAdvanceRawQueue
     ctx.scratchpadMaskAdvanceRawQueue = ''
-    const maskAdvanceInput = ctx.scratchpadMaskStateUnstepped + (rawAdvance !== '' ? rawAdvance : emit)
+    const incoming = rawAdvance !== '' ? rawAdvance : emit
+    let maskAdvanceInput: string
+    const heldFence = ctx.scratchpadMaskHeldFence
+    if (heldFence !== null) {
+      // While the fence stays open, each advance below re-masks the whole
+      // held fence - O(fence length) per delta, quadratic over a streamed
+      // fence (cherry-pr-review inv_50f4adc875e16a2f). Skip it when the new
+      // text holds no event that can change the outcome: the slow path below
+      // then leaves every input to the next delta byte-identical, so
+      // appending the segment is exactly equivalent by construction.
+      ctx.scratchpadMaskHeldFence = null
+      if (!this.heldFenceDeltaMayClose(heldFence, incoming)) {
+        heldFence.segments.push(incoming)
+        ctx.scratchpadMaskHeldFence = heldFence
+        return
+      }
+      maskAdvanceInput = heldFence.segments.join('') + incoming
+    } else {
+      maskAdvanceInput = ctx.scratchpadMaskStateUnstepped + incoming
+    }
     const maskAdvanceCut = this.steppedLineEndOffset(maskAdvanceInput)
     if (maskAdvanceCut <= 0) {
       ctx.scratchpadMaskStateUnstepped = maskAdvanceInput
       return
     }
     const span = maskAdvanceInput.slice(0, maskAdvanceCut)
+    // Deterministic work instrumentation (cherry-pr-review
+    // inv_50f4adc875e16a2f): quadratic re-masking of a held fence sums to
+    // O(fence^2 / chunk) characters here; incremental advance stays linear.
+    this.scratchpadMaskAdvanceWorkChars += span.length
     const maskedAdvance = maskCodeFences(span, {
       initialContainerPrefix: fenceContainerPrefixFromState(ctx.scratchpadMaskState) || undefined
     })
@@ -1297,10 +1352,143 @@ export class ClaudeCodeStreamAdapter {
         advanceIndentedMaskState(ctx.scratchpadMaskState, maskedAdvance.text.slice(0, holdFrom))
       }
       ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(holdFrom)
+      if (maskedAdvance.fences.length === 1) {
+        // Single open fence: masked and raw text are byte-identical before
+        // it, so the token position is the raw fence start as well.
+        ctx.scratchpadMaskHeldFence = this.buildHeldFence(ctx.scratchpadMaskStateUnstepped, span, fenceStart, ctx)
+      }
       return
     }
     advanceIndentedMaskState(ctx.scratchpadMaskState, maskedAdvance.text)
     ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(maskAdvanceCut)
+  }
+
+  /**
+   * Initial held-fence progress at hold entry: opener character, raw
+   * container prefix, scratchpad-block enclosure, and the open-line state of
+   * the held tail's final partial line.
+   */
+  private buildHeldFence(
+    heldRaw: string,
+    span: string,
+    fenceStartInSpan: number,
+    ctx: StreamContext
+  ): NonNullable<StreamContext['scratchpadMaskHeldFence']> {
+    const openerEnd = /\r\n|\r|\n/.exec(heldRaw)
+    const openerLine = openerEnd ? heldRaw.slice(0, openerEnd.index) : heldRaw
+    const fenceChar = (/^[ >\t]*([`~])/.exec(openerLine)?.[1] ?? '`') as '`' | '~'
+    // Raw continuation prefix of the fence's container ancestry, mirroring
+    // fenceContainerPrefixFromState with the literal spaces streamed content
+    // lines carry (the symbolic form marks list-marker columns with '-').
+    let rawContainerPrefix = ''
+    let prevCol = 0
+    let prevQuote = 0
+    for (const entry of ctx.scratchpadMaskState.listColumnStack) {
+      while (prevQuote < entry.quoteDepth) {
+        rawContainerPrefix += '> '
+        prevQuote++
+      }
+      const relWidth = entry.column - prevCol
+      if (relWidth <= 0) continue
+      rawContainerPrefix += ' '.repeat(relWidth)
+      prevCol = entry.column
+    }
+    const held: NonNullable<StreamContext['scratchpadMaskHeldFence']> = {
+      fenceChar,
+      rawContainerPrefix,
+      // The stepped state ends exactly at the fence line: an enclosing
+      // scratchpad block must already sit on the scan stack there.
+      enclosedScratchpad: ctx.scratchpadMaskState.scratchpadScan.stack.length > 0,
+      openLine: {
+        phase: 'prefix',
+        runLength: 0,
+        head: '',
+        headDone: rawContainerPrefix === '',
+        startsWithPrefix: rawContainerPrefix === '',
+        hasRealContent: false
+      },
+      segments: [heldRaw]
+    }
+    // A trailing lone CR is a pending CRLF fragment withheld from the stepped
+    // span: its line is still open, so the open line resumes after the last
+    // LF only - the fragment's own line stays in the open-line state.
+    const lastLineStart = heldRaw.lastIndexOf('\n') + 1
+    for (const c of heldRaw.slice(lastLineStart)) this.heldFenceFeedChar(held, c)
+    return held
+  }
+
+  /** Feed one character into the held fence's open-line state. */
+  private heldFenceFeedChar(held: NonNullable<StreamContext['scratchpadMaskHeldFence']>, c: string): void {
+    const st = held.openLine
+    if (!st.headDone) {
+      st.head += c
+      if (st.head.length >= Math.max(held.rawContainerPrefix.length, 4)) {
+        st.headDone = true
+        st.startsWithPrefix = held.rawContainerPrefix === '' || st.head.startsWith(held.rawContainerPrefix)
+      }
+    } else if (c !== ' ' && c !== '\t') {
+      st.hasRealContent = true
+    }
+    switch (st.phase) {
+      case 'prefix':
+        if (c === held.fenceChar) {
+          st.phase = 'run'
+          st.runLength = 1
+        } else if (c !== ' ' && c !== '\t' && c !== '>' && c !== '\r') {
+          st.phase = 'dead'
+        }
+        break
+      case 'run':
+        if (c === held.fenceChar) st.runLength++
+        else if (c === ' ' || c === '\t' || c === '\r') st.phase = 'trailing'
+        else st.phase = 'dead'
+        break
+      case 'trailing':
+        if (c !== ' ' && c !== '\t' && c !== '\r') st.phase = 'dead'
+        break
+    }
+  }
+
+  /**
+   * Whether a delta can change the held fence's mask outcome. Conservative:
+   * any completed line that could be a closing fence (container prefix, up to
+   * three spaces, a run of the fence character, trailing spaces only), any
+   * content line that does not carry the fence's container prefix (a
+   * container boundary may end the fence there), and - for a fence inside a
+   * scratchpad block - any '<' that could start the block's closing tag. The
+   * open-line state advances across deltas so a closer split across chunk
+   * boundaries is still seen.
+   */
+  private heldFenceDeltaMayClose(held: NonNullable<StreamContext['scratchpadMaskHeldFence']>, delta: string): boolean {
+    if (held.enclosedScratchpad && delta.includes('<')) return true
+    const pieces = delta.split(/(\r\n|\r|\n)/)
+    for (let i = 0; i < pieces.length; i += 2) {
+      for (const c of pieces[i]) this.heldFenceFeedChar(held, c)
+      if (i + 1 >= pieces.length) break
+      const st = held.openLine
+      if (!st.headDone) {
+        st.headDone = true
+        st.startsWithPrefix = false
+        if (/[^ \t]/.test(st.head)) st.hasRealContent = true
+      }
+      const closerEvent = (st.phase === 'run' || st.phase === 'trailing') && st.runLength >= 3
+      // A quoted fence ends at any line without its quote marker (blank
+      // lines included); a list fence ends at dedented content but keeps
+      // blank lines (fenceContainerEnd).
+      const quoteEndEvent = held.rawContainerPrefix.includes('>') && !/^ {0,3}>/.test(st.head)
+      const containerEvent =
+        quoteEndEvent || (held.rawContainerPrefix !== '' && st.hasRealContent && !st.startsWithPrefix)
+      if (closerEvent || containerEvent) return true
+      held.openLine = {
+        phase: 'prefix',
+        runLength: 0,
+        head: '',
+        headDone: held.rawContainerPrefix === '',
+        startsWithPrefix: held.rawContainerPrefix === '',
+        hasRealContent: false
+      }
+    }
+    return false
   }
 
   private filterScratchpadFromOngoingDelta(text: string, ctx: StreamContext): string {
@@ -2129,6 +2317,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadMaskState = initialIndentedMaskState()
         ctx.scratchpadMaskStateUnstepped = ''
         ctx.scratchpadMaskAdvanceRawQueue = ''
+        ctx.scratchpadMaskHeldFence = null
         ctx.scratchpadOpenLineCarry = null
         this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
@@ -3274,6 +3463,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadMaskState = initialIndentedMaskState()
     ctx.scratchpadMaskStateUnstepped = ''
     ctx.scratchpadMaskAdvanceRawQueue = ''
+    ctx.scratchpadMaskHeldFence = null
     ctx.scratchpadOpenLineCarry = null
     this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
