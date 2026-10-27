@@ -200,7 +200,13 @@ export function toExecutionFailure(
   const providerId = safeText(error.providerId ?? modelId?.split('::')[0], 128)
   const model = safeText(modelId ?? error.modelId, 128)
   const source = layer ?? (status || error.providerErrorCategory ? 'provider' : 'runtime')
-  const stage = isErrorStage(error.failureStage) ? error.failureStage : deriveStage(error, source, status, category)
+  const stage = isErrorStage(error.failureStage)
+    ? error.failureStage
+    : // A decodable SSE frame that names no HTTP status is the provider failing inside an
+      // already-open response: the request got through, so the stream is the phase that broke.
+      frame !== undefined && status === undefined
+      ? 'stream'
+      : deriveStage(error, source, status, category)
   const value: PersistedExecutionFailure = {
     message,
     retryable: error.isRetryable === true && !['auth', 'permission', 'quota', 'internal'].includes(reasonCode),

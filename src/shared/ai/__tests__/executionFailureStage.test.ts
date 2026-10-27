@@ -196,6 +196,20 @@ describe('execution failure — SSE frame residue', () => {
     expect(failure.failure.stage).toBe('stream')
   })
 
+  it('attributes a framed provider failure that names no status to the stream stage', () => {
+    // The ordinary-chat path hands the API call's own error, not a `StreamError`. The frame is
+    // still the provider failing inside an open response, so the stage must not read `unknown`.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message:
+        'Request failed · event:error data:{"type":"error","error":{"type":"server_error","code":"server_overloaded","message":"The server is overloaded"}}',
+      stack: null
+    })
+
+    expect(failure.failure.stage).toBe('stream')
+    expect(failure.failure.reasonCode).toBe('provider_unavailable')
+  })
+
   it('attributes a provider 504 saying "No response from upstream" to the HTTP stage', () => {
     // The provider rejected the request; its wording must not be read as a silent runtime.
     const failure = toExecutionFailure({
