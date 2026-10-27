@@ -90,6 +90,10 @@ const FENCE_CORPUS: Array<[string, string]> = [
   ],
   ['backticks-in-content', '```\nuse `code` and ``pairs`` here\n```\n'],
   ['four-backtick-with-three-inside', '````\n```\nnot a closer\n````\n'],
+  // Event-dense opener-run hardening: repeated ``` lines inside a ```` fence
+  // are content (run shorter than the opener) and must not wake the re-mask;
+  // only the real run-4 closer does. Chunkings must still match whole.
+  ['four-backtick-event-dense', '````\nconst x = 1\n```\nconst y = 2\n```\nconst z = 3\n```\n````\nafter\n'],
   ['tilde-fence', '~~~\ntilde <thinking>content</thinking>\n~~~\n'],
   ['tilde-in-backtick', '```\n~~~\nnot closer\n```\n'],
   ['closer-with-trailing-spaces', '```\ncode\n```   \nafter\n'],
@@ -116,6 +120,47 @@ const PRESERVE_CASES = new Set([
   'tilde-fence'
 ])
 
+function deliverAdapter(input: string, chunkSize: number | null) {
+  const parts: CherryUIMessageChunk[] = []
+  const adapter = new ClaudeCodeStreamAdapter({
+    modelId: 'sonnet',
+    sessionId: 'session-1',
+    streamOptions: { prompt: [] },
+    sink: { enqueue: (part) => parts.push(part) },
+    statusSink: { emit: () => {} },
+    onSessionId: () => {}
+  })
+  adapter.beginTurn()
+  adapter.handleMessage(
+    streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+  )
+  if (chunkSize === null) {
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: input } })
+    )
+  } else {
+    for (let i = 0; i < input.length; i += chunkSize) {
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: input.slice(i, i + chunkSize) }
+        })
+      )
+    }
+  }
+  adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+  return adapter
+}
+
+const CLOSED_FENCE_CASES = [
+  'closed-then-indented',
+  'closed-then-indented-crlf',
+  'closed-then-list',
+  'closed-at-eof',
+  'closed-chunk-exact'
+]
+
 describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc875e16a2f)', () => {
   for (const [id, input] of FENCE_CORPUS) {
     it(`${id}: whole/1/2/3/5/7/20-char delivery`, () => {
@@ -123,6 +168,19 @@ describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc87
       if (PRESERVE_CASES.has(id)) expect(whole.includes('<thinking>')).toBe(true)
       for (const size of [1, 2, 3, 5, 7, 20]) {
         expect(deliver(input, size)).toBe(whole)
+      }
+    })
+  }
+
+  // Held-state assertion beyond output sameness (cherry-review closed-entry
+  // concern): once the closer completes, the held tracker must be released -
+  // stale held state could misclassify following content without changing the
+  // output on inputs that never re-enter a fence.
+  for (const [id, input] of FENCE_CORPUS.filter(([id]) => CLOSED_FENCE_CASES.includes(id))) {
+    it(`${id}: held fence released after closer`, () => {
+      for (const size of [null, 1, 2, 3, 5, 7, 20]) {
+        const adapter = deliverAdapter(input, size)
+        expect((adapter as any).ctx.scratchpadMaskHeldFence).toBeNull()
       }
     })
   }

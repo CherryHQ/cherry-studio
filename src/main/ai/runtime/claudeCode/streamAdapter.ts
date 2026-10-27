@@ -216,6 +216,7 @@ type StreamContext = {
    */
   scratchpadMaskHeldFence: {
     fenceChar: '`' | '~'
+    openerRunLength: number
     rawContainerPrefix: string
     enclosedScratchpad: boolean
     openLine: {
@@ -1376,7 +1377,14 @@ export class ClaudeCodeStreamAdapter {
   ): NonNullable<StreamContext['scratchpadMaskHeldFence']> {
     const openerEnd = /\r\n|\r|\n/.exec(heldRaw)
     const openerLine = openerEnd ? heldRaw.slice(0, openerEnd.index) : heldRaw
-    const fenceChar = (/^[ >\t]*([`~])/.exec(openerLine)?.[1] ?? '`') as '`' | '~'
+    // The ACTUAL opener run length, parsed from the held raw opener line: a
+    // real closing fence needs a run at least this long (CommonMark), so a
+    // candidate line with a shorter run (``` inside a ```` fence) cannot
+    // change the mask outcome and must not wake the slow path. Fallback 3
+    // keeps the previous any-run->=3 superset when the opener is unparseable.
+    const openerMatch = /^[ >\t]*([`~])(\1*)/.exec(openerLine)
+    const fenceChar = (openerMatch?.[1] ?? '`') as '`' | '~'
+    const openerRunLength = openerMatch ? 1 + openerMatch[2].length : 3
     // Raw continuation prefix of the fence's container ancestry, mirroring
     // fenceContainerPrefixFromState with the literal spaces streamed content
     // lines carry (the symbolic form marks list-marker columns with '-').
@@ -1395,6 +1403,7 @@ export class ClaudeCodeStreamAdapter {
     }
     const held: NonNullable<StreamContext['scratchpadMaskHeldFence']> = {
       fenceChar,
+      openerRunLength,
       rawContainerPrefix,
       // The stepped state ends exactly at the fence line: an enclosing
       // scratchpad block must already sit on the scan stack there.
@@ -1452,7 +1461,8 @@ export class ClaudeCodeStreamAdapter {
   /**
    * Whether a delta can change the held fence's mask outcome. Conservative:
    * any completed line that could be a closing fence (container prefix, up to
-   * three spaces, a run of the fence character, trailing spaces only), any
+   * three spaces, a run of the fence character at least the opener's length,
+   * trailing spaces only), any
    * content line that does not carry the fence's container prefix (a
    * container boundary may end the fence there), and - for a fence inside a
    * scratchpad block - any '<' that could start the block's closing tag. The
@@ -1471,7 +1481,7 @@ export class ClaudeCodeStreamAdapter {
         st.startsWithPrefix = false
         if (/[^ \t]/.test(st.head)) st.hasRealContent = true
       }
-      const closerEvent = (st.phase === 'run' || st.phase === 'trailing') && st.runLength >= 3
+      const closerEvent = (st.phase === 'run' || st.phase === 'trailing') && st.runLength >= held.openerRunLength
       // A quoted fence ends at any line without its quote marker (blank
       // lines included); a list fence ends at dedented content but keeps
       // blank lines (fenceContainerEnd).

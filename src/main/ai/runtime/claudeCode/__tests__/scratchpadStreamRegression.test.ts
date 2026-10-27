@@ -178,4 +178,32 @@ describe('round-17 stale-sibling-ownership (cherry-review P2, CommonMark ex313)'
     expect(work).toBeGreaterThan(0)
     expect(work).toBeLessThan(fence.length * 3)
   })
+
+  // Event-dense opener-run hardening (cherry-review inv_50f4adc875e16a2f
+  // follow-up): a 4-backtick fence whose content carries a 3-backtick line
+  // every ~40 chars fires no closer event (run shorter than the opener), so
+  // the mask advance stays linear. Before the hardening this shape paid one
+  // O(fence) re-mask per candidate line: 5.87M chars presented at 20k input.
+  it('event-dense fence (4-backtick with 3-backtick lines) advance work stays linear', () => {
+    let body = ''
+    while (body.length < 20000 - 14) body += 'const x = computeValue(input)\n```\n'
+    const fence = '````\n' + body.slice(0, 20000 - 14) + '\n````\nafter\n'
+    const { adapter } = createAdapter()
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (let i = 0; i < fence.length; i += 20) {
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: fence.slice(i, i + 20) }
+        })
+      )
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    const work = (adapter as any).scratchpadMaskAdvanceWorkChars as number
+    expect(work).toBeGreaterThan(0)
+    expect(work).toBeLessThan(fence.length * 2)
+  })
 })
