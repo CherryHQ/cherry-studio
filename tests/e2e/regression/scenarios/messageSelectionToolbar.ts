@@ -155,28 +155,44 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       .filter({ has: page.getByRole('button', { name: 'Quote', exact: true }) })
     const selectedText = () => page.evaluate(() => window.getSelection()?.toString() ?? '')
     const textCoordinates = async (target: Locator, length: number) => {
-      await target.evaluate((element) =>
-        element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
-      )
       await target.hover()
-      return target.evaluate((element, length) => {
-        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
-        const node = walker.nextNode()
-        if (!node || (node.textContent?.length ?? 0) < length) throw new Error('Selectable text node is missing')
-        const range = document.createRange()
-        range.setStart(node, 0)
-        range.setEnd(node, length)
-        const rects = Array.from(range.getClientRects())
-        const first = rects[0]
-        const last = rects.at(-1)!
-        return {
-          x: first.x + 0.5,
-          y: first.y + first.height / 2,
-          endX: last.right - 0.5,
-          endY: last.y + last.height / 2,
-          top: first.top
-        }
-      }, length)
+      const measure = () =>
+        target.evaluate((element, length) => {
+          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+          const node = walker.nextNode()
+          if (!node || (node.textContent?.length ?? 0) < length) throw new Error('Selectable text node is missing')
+          const range = document.createRange()
+          range.setStart(node, 0)
+          range.setEnd(node, length)
+          const rects = Array.from(range.getClientRects())
+          const first = rects[0]
+          const last = rects.at(-1)!
+          return {
+            x: first.x + 0.5,
+            y: first.y + first.height / 2,
+            endX: last.right - 0.5,
+            endY: last.y + last.height / 2,
+            top: first.top
+          }
+        }, length)
+      let point = await measure()
+      const hitsTarget = () =>
+        target.evaluate(
+          (element, point) =>
+            element.contains(document.elementFromPoint(point.x, point.y)) &&
+            element.contains(document.elementFromPoint(point.endX, point.endY)),
+          point
+        )
+      if (!(await hitsTarget())) {
+        const height = await page.evaluate(() => innerHeight)
+        await page.mouse.move(point.x, height / 2)
+        await page.mouse.wheel(0, point.y < height / 2 ? -height / 2 : height / 2)
+        await expect.poll(async () => (await measure()).y).not.toBe(point.y)
+        await target.hover()
+        point = await measure()
+      }
+      await expect.poll(hitsTarget).toBe(true)
+      return point
     }
     let selectionAttempt = 0
     const selectReply = async (target = paragraph, text = excerpt) => {
