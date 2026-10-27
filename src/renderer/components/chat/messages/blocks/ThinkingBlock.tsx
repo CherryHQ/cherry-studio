@@ -95,30 +95,44 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const contentId = useId()
   const contentRef = useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = useState(() => {
-    const saved = messageId ? getCachedMessageUiState(messageId).thinkingScroll?.[id] : undefined
+    const state = messageId ? getCachedMessageUiState(messageId) : undefined
+    const saved = state?.thinkingScroll?.[id]
     return {
       position: saved === null || (typeof saved === 'number' && Number.isFinite(saved)) ? saved : undefined,
       pending: true,
       programmed: undefined as number | undefined,
       active: true,
-      owned: !!messageId && saved !== undefined
+      owned: !!messageId && saved !== undefined,
+      epoch: state?.markdownEpoch ?? 0
     }
   })
   const hasContent = !!content
+  const invalidateScroll = useCallback(() => {
+    const epoch = messageId ? (getCachedMessageUiState(messageId).markdownEpoch ?? 0) : 0
+    scroll.active = false
+    scroll.pending = true
+    scroll.position = undefined
+    scroll.owned = false
+    scroll.epoch = epoch
+    setScroll({ position: undefined, pending: true, programmed: undefined, active: true, owned: false, epoch })
+  }, [messageId, scroll])
   useLayoutEffect(() => {
     if (!messageId) return
     const checkScroll = () => {
-      if (scroll.active && scroll.owned && getCachedMessageUiState(messageId).thinkingScroll?.[id] === undefined) {
-        scroll.active = false
-        setScroll({ position: undefined, pending: true, programmed: undefined, active: true, owned: false })
-      }
+      if (!scroll.active || !scroll.owned) return
+      if ((getCachedMessageUiState(messageId).markdownEpoch ?? 0) === scroll.epoch) return
+      invalidateScroll()
     }
     checkScroll()
     return subscribeCachedMessageUiState(messageId, checkScroll)
-  }, [messageId, id, scroll])
+  }, [messageId, id, scroll, invalidateScroll])
   const savePanel = useCallback(
     (panel: HTMLDivElement) => {
       if (!messageId || !scroll.active || scroll.pending || panel.hidden || panel.clientHeight <= 0) return
+      if ((getCachedMessageUiState(messageId).markdownEpoch ?? 0) !== scroll.epoch) {
+        invalidateScroll()
+        return
+      }
       const position = scroll.position
       if (position === undefined) return
       scroll.owned = true
@@ -127,11 +141,15 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         thinkingScroll: { ...current.thinkingScroll, [id]: position }
       }))
     },
-    [messageId, id, scroll]
+    [messageId, id, scroll, invalidateScroll]
   )
   const restorePanel = useCallback(
     (panel: HTMLDivElement) => {
       if (!scroll.active || panel.hidden || panel.clientHeight <= 0) return false
+      if (messageId && (getCachedMessageUiState(messageId).markdownEpoch ?? 0) !== scroll.epoch) {
+        invalidateScroll()
+        return false
+      }
       if (scroll.position === undefined) {
         if (!isStreaming) {
           scroll.pending = false
@@ -148,7 +166,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
       }
       return true
     },
-    [scroll, isStreaming]
+    [messageId, scroll, isStreaming, invalidateScroll]
   )
   useLayoutEffect(() => {
     const panel = contentRef.current

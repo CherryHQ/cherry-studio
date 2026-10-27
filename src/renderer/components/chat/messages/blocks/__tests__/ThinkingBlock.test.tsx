@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Scrollbar } from '@cherrystudio/ui'
@@ -566,6 +567,45 @@ describe('ThinkingBlock', () => {
       view.unmount()
       renderThinkingBlock(createThinkingBlock({ id, status: 'streaming' }))
       expect(getContentContainer()!.scrollTop).toBe(300)
+    })
+
+    it('follows the bottom after a retry that lands while the panel is hidden', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const id = 'scroll-hidden-retry'
+      updateCachedMessageUiState('thinking-owner', {
+        thinkingScroll: { [id]: 25 },
+        disclosures: { [`thinking:${id}`]: true }
+      })
+      const block = createThinkingBlock({ id, status: 'streaming' })
+      const Harness = ({ mode }: { mode: 'visible' | 'hidden' }) => (
+        <Activity mode={mode}>
+          <MessagePartsScopeProvider parts={[]} messageId="thinking-owner">
+            <ThinkingBlock id={id} content={block.content} isStreaming />
+          </MessagePartsScopeProvider>
+        </Activity>
+      )
+      const view = render(<Harness mode="visible" />)
+      const panel = getContentContainer()!
+      panel.scrollTop = 25
+      fireEvent.scroll(panel)
+      view.rerender(<Harness mode="hidden" />)
+
+      act(() =>
+        updateCachedMessageUiState('thinking-owner', (current) => ({
+          ...current,
+          markdownSources: undefined,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
+          thinkingScroll: undefined,
+          disclosures: undefined
+        }))
+      )
+      act(() => updateCachedMessageUiState('thinking-owner', { thinkingScroll: { [id]: null } }))
+
+      view.rerender(<Harness mode="visible" />)
+      panelHeight = 400
+      resize()
+      expect(panel.scrollTop).toBe(300) // Real bottom: scrollHeight (400) - clientHeight (100).
+      expect(getCachedMessageUiState('thinking-owner').thinkingScroll?.[id]).not.toBe(25)
     })
 
     it('keeps zero reading positions and clamped reading mode across growth', () => {
