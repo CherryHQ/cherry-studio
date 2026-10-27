@@ -1049,6 +1049,7 @@ export function ModelSelector(props: ModelSelectorProps) {
               style={{ height: visibleListHeight }}>
               <DynamicVirtualList
                 ref={listRef}
+                enabled={open}
                 list={listItems}
                 size={virtualListHeight}
                 estimateSize={estimateModelSelectorItemSize}

@@ -30,7 +30,7 @@ export const quickAssistantRequestSchemas = {
     output: z.void()
   }),
   /**
-   * macOS only: the bar window keeps transparent headroom above its card, and clicks there
+   * macOS and Windows: the bar keeps transparent headroom above its card, and clicks there
    * must reach whatever is behind it. The renderer hit-tests; main forwards hover meanwhile.
    */
   'quick_assistant.set_pointer_passthrough': defineRoute({

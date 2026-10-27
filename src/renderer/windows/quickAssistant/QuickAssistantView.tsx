@@ -15,7 +15,7 @@ import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { isMac } from '@renderer/utils/platform'
+import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 import ControlBar from './panel/ControlBar'
@@ -112,24 +112,25 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
 
   const windowView: QuickWindowView =
     view === 'panel' ? 'panel' : quickPanel.isVisible || floatingOverlayOpen ? 'quick-panel' : 'bar'
-  const lastWindowViewRef = useRef(windowView)
+  const lastWindowSizeRef = useRef<{ view: QuickWindowView; contentHeight: number } | null>(null)
 
   const applyViewHeight = useCallback((next: QuickWindowView, barHeight: number) => {
-    const previous = lastWindowViewRef.current
-    lastWindowViewRef.current = next
+    // Transparent windows keep headroom so menus never move the native window under the composer.
+    const contentHeight = next === 'bar' && !isMac && !isWin ? barHeight : PANEL_HEIGHT_PX
+    const previous = lastWindowSizeRef.current
+    if (previous?.view === next && previous.contentHeight === contentHeight) return
+    lastWindowSizeRef.current = { view: next, contentHeight }
     void ipcApi.request('quick_assistant.set_view', {
       view: next,
-      // macOS keeps the overlay headroom even as a bar (clicks there pass through), so
-      // opening a menu or popover never resizes the window under the composer.
-      contentHeight: next === 'bar' && !isMac ? barHeight : PANEL_HEIGHT_PX,
+      contentHeight,
       // A tweened grow repaints the bottom-anchored composer a step behind each move.
-      animate: !prefersReducedMotion() && next !== 'quick-panel' && previous !== 'quick-panel'
+      animate: !prefersReducedMotion() && next !== 'quick-panel' && previous?.view !== 'quick-panel'
     })
   }, [])
 
-  // macOS only: the headroom is transparent, so only the root itself may let clicks through.
+  // Only the transparent headroom may let clicks through; cards and popovers stay interactive.
   useEffect(() => {
-    if (!isMac || view === 'panel') return
+    if ((!isMac && !isWin) || view === 'panel') return
     let passThrough: boolean | null = null
     const apply = (next: boolean) => {
       if (next === passThrough) return
@@ -289,9 +290,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
           view === 'bar' && 'justify-end',
           view === 'panel'
             ? 'rounded-[20px] bg-card text-card-foreground'
-            : // Only the macOS window is `transparent` (see windowRegistry); elsewhere the
-              // frame is opaque, so a see-through bar composites against nothing (#20307).
-              isMac
+            : isMac || isWin
               ? 'bg-transparent'
               : 'bg-popover text-popover-foreground',
           draggable ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]'

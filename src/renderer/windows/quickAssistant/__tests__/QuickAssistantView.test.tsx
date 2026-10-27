@@ -22,19 +22,22 @@ const runtime = vi.hoisted(() => ({
   quickPanelVisible: false,
   assistants: [] as { id: string; name: string }[],
   ipcHandlers: new Map<string, () => void>(),
+  resizeCallbacks: new Set<() => void>(),
   /** The latest `onSend` handed to the composer, to read what it reports back. */
   composerOnSend: null as ((text: string) => unknown) | null,
   composerOnPause: null as (() => void) | null
 }))
 
-// The bar's background depends on whether its frame is transparent, which is macOS-only.
 // A live binding, so a case can pick the platform instead of inheriting the host's.
-const platform = vi.hoisted(() => ({ isMac: true }))
+const platform = vi.hoisted(() => ({ isMac: true, isWin: false }))
 
 vi.mock('@renderer/utils/platform', async (importOriginal) => ({
   ...(await importOriginal<typeof PlatformModule>()),
   get isMac() {
     return platform.isMac
+  },
+  get isWin() {
+    return platform.isWin
   }
 }))
 
@@ -168,14 +171,21 @@ describe('QuickAssistantView', () => {
     quickConversation.reset.mockReset()
     quickConversation.save.mockReset()
     runtime.ipcRequest.mockReset()
+    runtime.resizeCallbacks.clear()
     runtime.quickPanelVisible = false
     runtime.assistants = [{ id: 'first-assistant', name: 'Assistant first-assistant' }]
     platform.isMac = true
+    platform.isWin = false
     vi.stubGlobal(
       'ResizeObserver',
       class {
+        constructor(private callback: () => void) {
+          runtime.resizeCallbacks.add(callback)
+        }
         observe() {}
-        disconnect() {}
+        disconnect() {
+          runtime.resizeCallbacks.delete(this.callback)
+        }
       }
     )
   })
@@ -187,9 +197,40 @@ describe('QuickAssistantView', () => {
       .filter(([route]) => route === 'quick_assistant.set_pointer_passthrough')
       .map(([, input]) => input)
 
+  it('resizes the opaque window only when its required height or view changes', async () => {
+    platform.isMac = false
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
+    const { rerender } = render(<QuickAssistantView draggable={false} />)
+    const requestedViews = () =>
+      runtime.ipcRequest.mock.calls.filter(([route]) => route === 'quick_assistant.set_view').map(([, input]) => input)
+    const notifyResize = () => act(() => runtime.resizeCallbacks.forEach((callback) => callback()))
+
+    // Width-only observations used to echo native resizes and amplify Windows DPI rounding.
+    notifyResize()
+    notifyResize()
+    expect(requestedViews()).toEqual([{ view: 'bar', contentHeight: 135, animate: true }])
+
+    offsetHeight.mockReturnValue(155)
+    notifyResize()
+    expect(lastSetView()).toEqual({ view: 'bar', contentHeight: 155, animate: true })
+
+    runtime.quickPanelVisible = true
+    rerender(<QuickAssistantView draggable={false} />)
+    notifyResize()
+    runtime.quickPanelVisible = false
+    rerender(<QuickAssistantView draggable={false} />)
+    notifyResize()
+    expect(requestedViews()).toEqual([
+      { view: 'bar', contentHeight: 135, animate: true },
+      { view: 'bar', contentHeight: 155, animate: true },
+      { view: 'quick-panel', contentHeight: 560, animate: false },
+      { view: 'bar', contentHeight: 155, animate: false }
+    ])
+    offsetHeight.mockRestore()
+  })
+
   it('grows an opaque bar for the quick panel in one step and shrinks it back the same way', async () => {
-    // Off macOS the frame is opaque, so the bar must be exactly its content; a tweened
-    // grow repaints the bottom-anchored composer a step behind every move.
+    // Linux keeps an opaque frame; tweening menu expansion would displace the composer.
     platform.isMac = false
     const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
     const { rerender } = render(<QuickAssistantView draggable={false} />)
@@ -205,7 +246,9 @@ describe('QuickAssistantView', () => {
     offsetHeight.mockRestore()
   })
 
-  it('keeps the macOS bar at overlay height so opening the quick panel never resizes it', async () => {
+  it.each(['macOS', 'Windows'])('keeps the %s bar at overlay height while menus open and close', async (os) => {
+    platform.isMac = os === 'macOS'
+    platform.isWin = os === 'Windows'
     const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
     const { rerender } = render(<QuickAssistantView draggable={false} />)
     await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 560 }))
@@ -213,6 +256,10 @@ describe('QuickAssistantView', () => {
     runtime.quickPanelVisible = true
     rerender(<QuickAssistantView draggable={false} />)
     await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'quick-panel', contentHeight: 560 }))
+
+    runtime.quickPanelVisible = false
+    rerender(<QuickAssistantView draggable={false} />)
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 560 }))
     offsetHeight.mockRestore()
   })
 
@@ -299,7 +346,9 @@ describe('QuickAssistantView', () => {
     await settle()
   })
 
-  it('lets clicks through only over the transparent macOS headroom', () => {
+  it.each(['macOS', 'Windows'])('lets clicks through only over the transparent %s headroom', (os) => {
+    platform.isMac = os === 'macOS'
+    platform.isWin = os === 'Windows'
     const { container } = render(<QuickAssistantView draggable={false} />)
     const root = container.querySelector('[data-ui="quick-assistant.view"]') as HTMLElement
 
@@ -310,7 +359,7 @@ describe('QuickAssistantView', () => {
     expect(passthroughCalls()).toEqual([{ passThrough: true }, { passThrough: false }, { passThrough: true }])
   })
 
-  it('never lets clicks through the opaque bar off macOS', () => {
+  it('never lets clicks through the opaque Linux bar', () => {
     platform.isMac = false
     const { container } = render(<QuickAssistantView draggable={false} />)
 
@@ -453,10 +502,7 @@ describe('QuickAssistantView', () => {
     expect(reported).toBe(true)
   })
 
-  it('gives the bar an opaque surface where the window frame is not transparent', () => {
-    // Only the macOS window is created `transparent`. On every other platform the frame
-    // is opaque, so a see-through bar has nothing behind it to show and the controls lose
-    // their contrast (#20307).
+  it('keeps the Linux bar opaque where the native window is not transparent', () => {
     platform.isMac = false
     const { container } = render(<QuickAssistantView draggable={false} />)
 
@@ -465,10 +511,24 @@ describe('QuickAssistantView', () => {
     expect(root).not.toHaveClass('bg-transparent')
   })
 
-  it('keeps the conversation panel on the card surface off macOS', async () => {
-    // The panel carries its own opaque card; the non-mac bar fallback must not bleed into
-    // it, or the whole panel changes colour on Windows and Linux.
+  it('keeps the Windows bar and tool-panel headroom transparent', () => {
     platform.isMac = false
+    platform.isWin = true
+    const { container, rerender } = render(<QuickAssistantView draggable={false} />)
+
+    const root = container.querySelector('[data-ui="quick-assistant.view"]')
+    expect(root).toHaveClass('bg-transparent')
+    expect(root).not.toHaveClass('bg-popover')
+
+    runtime.quickPanelVisible = true
+    rerender(<QuickAssistantView draggable={false} />)
+    expect(root).toHaveClass('bg-transparent')
+    expect(root).not.toHaveClass('bg-popover')
+  })
+
+  it('keeps the Windows conversation panel opaque after sending', async () => {
+    platform.isMac = false
+    platform.isWin = true
     quickConversation.send.mockReturnValue(true)
     const { container } = render(<QuickAssistantView draggable={false} />)
 

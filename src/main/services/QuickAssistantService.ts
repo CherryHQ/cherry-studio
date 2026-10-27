@@ -436,6 +436,11 @@ export class QuickAssistantService extends BaseService implements Activatable {
     const to = this.resolveBoundsForHeight(window, requested)
     this.requestedHeight = to.height
 
+    if (from.x === to.x && from.y === to.y && from.width === to.width && from.height === to.height) {
+      this.stopViewTween()
+      return
+    }
+
     if (!animate || Math.abs(to.height - from.height) < VIEW_TWEEN_MIN_DELTA_PX) {
       this.stopViewTween()
       window.setBounds(to)
@@ -446,7 +451,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   /** Let clicks on the bar's transparent headroom fall through, while still receiving hover. */
   public setPointerPassthrough(passThrough: boolean): void {
-    if (!isMac) return
+    if (!isMac && !isWin) return
     this.getQuickAssistant()?.setIgnoreMouseEvents(passThrough, { forward: true })
   }
 

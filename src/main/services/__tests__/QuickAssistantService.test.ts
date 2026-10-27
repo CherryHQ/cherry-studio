@@ -8,12 +8,18 @@ const { appGetMock, screenshotSessionRequestedByMock } = vi.hoisted(() => ({
   screenshotSessionRequestedByMock: vi.fn()
 }))
 
-const platform = vi.hoisted(() => ({ isLinux: false }))
+const platform = vi.hoisted(() => ({ isLinux: false, isMac: false, isWin: true }))
 
 vi.mock('@main/core/platform', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   get isLinux() {
     return platform.isLinux
+  },
+  get isMac() {
+    return platform.isMac
+  },
+  get isWin() {
+    return platform.isWin
   }
 }))
 
@@ -74,6 +80,9 @@ describe('QuickAssistantService', () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
+    platform.isLinux = false
+    platform.isMac = false
+    platform.isWin = true
     appGetMock.mockImplementation((name: string) => {
       if (name === 'ScreenshotOverlayService') return { isSessionRequestedBy: screenshotSessionRequestedByMock }
       throw new Error(`Unexpected application.get(${name})`)
@@ -238,6 +247,42 @@ describe('QuickAssistantService', () => {
     }
   }
 
+  it('keeps native bounds unchanged when menus use the existing transparent headroom', () => {
+    Object.assign(screen, {
+      getDisplayMatching: vi.fn(() => ({ id: 2, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
+    })
+    const { window } = createResizableWindow(560)
+    const service = new QuickAssistantService()
+    ;(service as unknown as { windowId: string }).windowId = 'quick-assistant'
+    const bounds = { ...window.getBounds() }
+
+    service.setView({ view: 'bar', contentHeight: 560, animate: true })
+    service.setView({ view: 'quick-panel', contentHeight: 560, animate: false })
+    service.setView({ view: 'bar', contentHeight: 560, animate: false })
+    vi.advanceTimersByTime(250)
+
+    expect(window.getBounds()).toEqual(bounds)
+    expect(window.setBounds).not.toHaveBeenCalled()
+  })
+
+  it.each(['Windows', 'macOS'])('passes headroom clicks through on %s and restores card interaction', (os) => {
+    platform.isMac = os === 'macOS'
+    platform.isWin = os === 'Windows'
+    const { window } = createResizableWindow(560)
+    const setIgnoreMouseEvents = vi.fn()
+    Object.assign(window, { setIgnoreMouseEvents })
+    const service = new QuickAssistantService()
+    ;(service as unknown as { windowId: string }).windowId = 'quick-assistant'
+
+    service.setPointerPassthrough(true)
+    service.setPointerPassthrough(false)
+
+    expect(setIgnoreMouseEvents.mock.calls).toEqual([
+      [true, { forward: true }],
+      [false, { forward: true }]
+    ])
+  })
+
   it('keeps a panel height the user dragged to on Linux, where Electron has no resized event', () => {
     platform.isLinux = true
     Object.assign(screen, {
@@ -289,29 +334,19 @@ describe('QuickAssistantService', () => {
         workArea: { x: 100, y: 50, width: 1440, height: 900 }
       }))
     })
-    const window = {
-      isDestroyed: vi.fn(() => false),
-      getBounds: vi.fn(() => ({ x: 480, y: 799, width: 680, height: 135 })),
-      setBounds: vi.fn(),
-      setHasShadow: vi.fn()
-    }
-    appGetMock.mockImplementation((name: string) => {
-      if (name === 'WindowManager') return { getWindow: () => window }
-      if (name === 'ScreenshotOverlayService') return { isSessionRequestedBy: screenshotSessionRequestedByMock }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
+    const { window } = createResizableWindow(135)
     const service = new QuickAssistantService()
     ;(service as unknown as { windowId: string }).windowId = 'quick-assistant'
 
     service.setView({ view: 'bar', contentHeight: 135, animate: false })
     service.setView({ view: 'quick-panel', contentHeight: 560, animate: false })
-    expect(window.setBounds).toHaveBeenLastCalledWith(expect.objectContaining({ height: 560 }))
+    expect(window.getBounds().height).toBe(560)
     // The transparent expansion is scratch space for a tool menu, so it must not become
     // the height the bar is restored to.
     expect((service as unknown as { barHeight: number }).barHeight).toBe(135)
 
     service.setView({ view: 'bar', contentHeight: 135, animate: false })
-    expect(window.setBounds).toHaveBeenLastCalledWith(expect.objectContaining({ height: 135 }))
+    expect(window.getBounds().height).toBe(135)
     // Only the panel height is remembered across a drag; quick-panel leaves no trace.
     expect((service as unknown as { lastPanelHeight: number | null }).lastPanelHeight).toBeNull()
   })

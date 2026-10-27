@@ -1,3 +1,4 @@
+import { PortalContainerProvider } from '@cherrystudio/ui'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
@@ -39,24 +40,26 @@ function QuickAssistantApp(): React.ReactElement {
     // falls back to the context-free fatal fallback instead of white-screening.
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
       <ThemeProvider>
-        <CodeStyleProvider>
-          <QuickAssistantRuntime />
-          {/* Inner boundary wraps ONLY the L3 content: this window renders AI output
+        <PortalContainerProvider container={document.body}>
+          <CodeStyleProvider>
+            <QuickAssistantRuntime />
+            {/* Inner boundary wraps ONLY the L3 content: this window renders AI output
               (which can be malformed), so a content render crash shows a themed error
               card while the window runtime and popup/toast hosts (siblings, outside this
               boundary) keep running. This window has no TabRouter, so unlike
               main/subWindow it can't rely on the per-tab RouteErrorFallback here. */}
-          <ErrorBoundary>
-            {/* The composer's "/" and "@" panels render through this host. */}
-            <QuickPanelProvider>
-              <QuickAssistantView />
-            </QuickPanelProvider>
-          </ErrorBoundary>
-          <PopupHost />
-          <ToastHost />
-          <DictationShortcutHost />
-          <VoicePlaybackHost />
-        </CodeStyleProvider>
+            <ErrorBoundary>
+              {/* The composer's "/" and "@" panels render through this host. */}
+              <QuickPanelProvider>
+                <QuickAssistantView />
+              </QuickPanelProvider>
+            </ErrorBoundary>
+            <PopupHost />
+            <ToastHost />
+            <DictationShortcutHost />
+            <VoicePlaybackHost />
+          </CodeStyleProvider>
+        </PortalContainerProvider>
       </ThemeProvider>
     </ErrorBoundary>
   )

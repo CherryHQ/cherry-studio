@@ -300,6 +300,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       maximizable: false,
       fullscreenable: false,
       platformOverrides: {
+        win: {
+          transparent: true
+        },
         mac: {
           type: 'panel',
           transparent: true,
