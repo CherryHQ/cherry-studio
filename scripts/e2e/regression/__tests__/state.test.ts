@@ -1,5 +1,15 @@
-import { completeE2eCase, createRun, finalizeRun, getRunVerdict, updatePhase } from '../state'
+import { mkdtempSync, renameSync, rmSync } from 'node:fs'
+import type * as fs from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { completeE2eCase, createRun, finalizeRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
 import type { RegressionRun } from '../types'
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>()
+  return { ...actual, renameSync: vi.fn(actual.renameSync) }
+})
 
 describe('Playwright run state', () => {
   it('initializes every phase selected by a module task without selecting unrelated cases', () => {
@@ -146,5 +156,63 @@ describe('Playwright run state', () => {
       status: 'not_applicable',
       summary: 'Not selected by task startup-smoke'
     })
+  })
+})
+
+describe('atomic run-state writes', () => {
+  let directory: string
+  let filePath: string
+  let next: RegressionRun
+
+  beforeEach(() => {
+    vi.mocked(renameSync).mockReset()
+    directory = mkdtempSync(join(tmpdir(), 'cherry-regression-state-'))
+    filePath = join(directory, 'run.json')
+    const run = createRun({
+      appVersion: 'development',
+      commitSha: 'base',
+      mode: 'branch',
+      platform: 'windows',
+      ref: 'main',
+      runner: 'windows',
+      task: 'startup-smoke'
+    })
+    writeRun(filePath, run)
+    next = { ...run, metadata: { ...run.metadata, commitSha: 'next' } }
+  })
+
+  afterEach(() => {
+    vi.mocked(renameSync).mockReset()
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  it.runIf(process.platform === 'win32')('publishes the new result after a temporary Windows file lock', () => {
+    vi.mocked(renameSync).mockImplementationOnce(() => {
+      throw Object.assign(new Error('File is temporarily in use'), { code: 'EPERM' })
+    })
+
+    writeRun(filePath, next)
+
+    expect(readRun(filePath).metadata.commitSha).toBe('next')
+  })
+
+  it.runIf(process.platform === 'win32')('preserves the old result when a Windows file lock never releases', () => {
+    const error = Object.assign(new Error('File remains in use'), { code: 'EPERM' })
+    vi.mocked(renameSync).mockImplementation(() => {
+      throw error
+    })
+
+    expect(() => writeRun(filePath, next)).toThrow(error)
+    expect(readRun(filePath).metadata.commitSha).toBe('base')
+  })
+
+  it('propagates non-transient filesystem failures without losing the old result', () => {
+    const error = Object.assign(new Error('Device write failed'), { code: 'EIO' })
+    vi.mocked(renameSync).mockImplementation(() => {
+      throw error
+    })
+
+    expect(() => writeRun(filePath, next)).toThrow(error)
+    expect(readRun(filePath).metadata.commitSha).toBe('base')
   })
 })

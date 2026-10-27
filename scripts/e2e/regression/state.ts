@@ -148,7 +148,18 @@ export function readRun(filePath: string): RegressionRun {
 export function writeRun(filePath: string, run: RegressionRun): void {
   const temporaryPath = `${filePath}.tmp-${process.pid}`
   writeFileSync(temporaryPath, `${JSON.stringify(run, null, 2)}\n`, { mode: 0o600 })
-  renameSync(temporaryPath, filePath)
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      renameSync(temporaryPath, filePath)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (process.platform !== 'win32' || !['EACCES', 'EBUSY', 'EPERM'].includes(code ?? '') || attempt >= 5) {
+        throw error
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50 * 2 ** attempt)
+    }
+  }
 }
 
 export function updatePhase(
