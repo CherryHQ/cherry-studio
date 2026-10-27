@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Bitte Datei zum Hochladen auswählen",
   "notes.no_note_selected": "Bitte wählen Sie zuerst eine Notiz aus",
   "notes.no_valid_files": "Keine gültigen Dateien hochgeladen",
+  "notes.open": "Notiz öffnen",
   "notes.open_outside": "Extern öffnen",
   "notes.print": "Drucken",
   "notes.print_failed": "Drucken der Notiz fehlgeschlagen",
