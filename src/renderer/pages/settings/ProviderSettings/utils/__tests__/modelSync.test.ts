@@ -176,6 +176,56 @@ describe('fetchResolvedProviderModels', () => {
   })
 })
 
+describe('provider-reported context window', () => {
+  it('keeps a smaller provider limit through registry enrichment and into the create DTO', async () => {
+    // TokenLab publishes max_input_tokens 30720 for qwen-max; the global registry entry says 131072.
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'tokenlab::qwen-max',
+          providerId: 'tokenlab',
+          apiModelId: 'qwen-max',
+          name: 'qwen-max',
+          contextWindow: 30720
+        }
+      ]
+    })
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'tokenlab::qwen-max',
+        providerId: 'tokenlab',
+        apiModelId: 'qwen-max',
+        presetModelId: 'qwen-max',
+        name: 'Qwen Max',
+        capabilities: [],
+        contextWindow: 131072,
+        maxOutputTokens: 8192,
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+    ])
+
+    const { models } = await fetchResolvedProviderModels('tokenlab')
+
+    expect(models[0]).toMatchObject({ presetModelId: 'qwen-max', contextWindow: 30720, maxOutputTokens: 8192 })
+    expect(toCreateModelDto('tokenlab', models[0]).contextWindow).toBe(30720)
+  })
+
+  it('still uses the registry context window when the provider reports none', async () => {
+    listModelsMock.mockResolvedValueOnce({
+      models: [{ id: 'tokenlab::qwen-max', providerId: 'tokenlab', apiModelId: 'qwen-max', name: 'qwen-max' }]
+    })
+    dataApiGetMock.mockResolvedValueOnce([
+      { id: 'tokenlab::qwen-max', providerId: 'tokenlab', apiModelId: 'qwen-max', contextWindow: 131072 }
+    ])
+
+    const { models } = await fetchResolvedProviderModels('tokenlab')
+
+    expect(models[0].contextWindow).toBe(131072)
+  })
+})
+
 describe('resolveCreateModelEndpointTypes', () => {
   it('keeps endpoint types from the resolved model metadata', () => {
     expect(
