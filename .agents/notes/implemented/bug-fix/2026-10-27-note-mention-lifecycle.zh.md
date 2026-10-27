@@ -2,7 +2,7 @@
 
 Status: implemented
 
-中文 | [English](2026-10-27-note-mention-lifecycle.md)
+[English](2026-10-27-note-mention-lifecycle.md) | 中文
 
 ## 问题
 
@@ -22,7 +22,7 @@ Notes 目录校验器放在 `src/main/utils/notesDirectory.ts`，不属于通用
 
 ## 后果
 
-重新打开会取得新快照，能发现关闭期间创建的笔记。取消的请求返回空结果。不引入持久化格式、偏好设置、凭据访问或新的引用 token 类型。主线的文件 token 来源身份和草稿保护机制继续负责相应行为。
+重新打开会重新取得目录快照；文件发现仍沿用既有异步监听和短暂的 builder 释放宽限期。取消的请求返回空结果。不引入持久化格式、偏好设置、凭据访问或新的引用 token 类型。主线的文件 token 来源身份和草稿保护机制继续负责相应行为。
 
 ## 验证
 

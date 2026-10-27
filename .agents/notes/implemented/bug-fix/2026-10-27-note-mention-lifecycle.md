@@ -22,7 +22,7 @@ The Notes directory validator lives in `src/main/utils/notesDirectory.ts`, outsi
 
 ## Consequences
 
-Reopening takes a fresh snapshot and sees notes created while closed. Cancelled requests return no results. No persistent format, preference, credential access, or new reference-token kind is introduced. Mainline file-token source identities and draft protection remain authoritative.
+Reopening reacquires a directory snapshot; filesystem discovery retains the existing asynchronous watcher and short builder-release grace period. Cancelled requests return no results. No persistent format, preference, credential access, or new reference-token kind is introduced. Mainline file-token source identities and draft protection remain authoritative.
 
 ## Verification
 
