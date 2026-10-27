@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Seleziona il file da caricare",
   "notes.no_note_selected": "Seleziona prima una nota",
   "notes.no_valid_files": "Nessun file valido caricato",
+  "notes.open": "Apri nota",
   "notes.open_outside": "Apri con un'app esterna",
   "notes.print": "Stampa",
   "notes.print_failed": "Impossibile stampare la nota",
