@@ -197,7 +197,7 @@ describe('QuickAssistantView', () => {
       .filter(([route]) => route === 'quick_assistant.set_pointer_passthrough')
       .map(([, input]) => input)
 
-  it('resizes the opaque window only when its required height or view changes', async () => {
+  it('resizes the Linux bar only when its required height or view changes', async () => {
     platform.isMac = false
     const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
     const { rerender } = render(<QuickAssistantView draggable={false} />)
@@ -229,8 +229,8 @@ describe('QuickAssistantView', () => {
     offsetHeight.mockRestore()
   })
 
-  it('grows an opaque bar for the quick panel in one step and shrinks it back the same way', async () => {
-    // Linux keeps an opaque frame; tweening menu expansion would displace the composer.
+  it('grows the Linux bar for the quick panel in one step and shrinks it back the same way', async () => {
+    // Linux lacks hover forwarding, so menus need temporary space above the compact bar.
     platform.isMac = false
     const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
     const { rerender } = render(<QuickAssistantView draggable={false} />)
@@ -359,7 +359,7 @@ describe('QuickAssistantView', () => {
     expect(passthroughCalls()).toEqual([{ passThrough: true }, { passThrough: false }, { passThrough: true }])
   })
 
-  it('never lets clicks through the opaque Linux bar', () => {
+  it('keeps Linux mouse interaction enabled without hover forwarding', () => {
     platform.isMac = false
     const { container } = render(<QuickAssistantView draggable={false} />)
 
@@ -500,15 +500,6 @@ describe('QuickAssistantView', () => {
       reported = runtime.composerOnSend?.('idle')
     })
     expect(reported).toBe(true)
-  })
-
-  it('keeps the Linux bar opaque where the native window is not transparent', () => {
-    platform.isMac = false
-    const { container } = render(<QuickAssistantView draggable={false} />)
-
-    const root = container.querySelector('[data-ui="quick-assistant.view"]')
-    expect(root).toHaveClass('bg-popover', 'text-popover-foreground')
-    expect(root).not.toHaveClass('bg-transparent')
   })
 
   it('keeps the Windows bar and tool-panel headroom transparent', () => {

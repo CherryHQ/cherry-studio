@@ -288,11 +288,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
         className={cn(
           'flex h-full w-full flex-col overflow-hidden',
           view === 'bar' && 'justify-end',
-          view === 'panel'
-            ? 'rounded-[20px] bg-card text-card-foreground'
-            : isMac || isWin
-              ? 'bg-transparent'
-              : 'bg-popover text-popover-foreground',
+          view === 'panel' ? 'rounded-[20px] bg-card text-card-foreground' : 'bg-transparent',
           draggable ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]'
         )}>
         {view === 'panel' && (

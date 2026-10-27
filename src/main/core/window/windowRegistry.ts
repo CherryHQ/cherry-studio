@@ -303,6 +303,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         win: {
           transparent: true
         },
+        linux: {
+          transparent: true
+        },
         mac: {
           type: 'panel',
           transparent: true,
