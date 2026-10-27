@@ -30,7 +30,8 @@ Agent sessions already provide tools, approvals, workspaces, persistence, and ba
 | Compose, empty | Close | Unavailable | Close | Replace this window |
 | Starting or running | Collapse | Collapse | Stop | Open another window |
 | Awaiting approval | Collapse | Collapse | Reject | Open another window |
-| Done or failed | Close | Collapse | Close | Replace this window |
+| Done or failed, no draft | Close | Collapse | Close | Replace this window |
+| Done or failed, with draft | Keep | Collapse | Ignored | Open another window |
 | Collapsed | — | — | — | Open another window |
 
 Pinned windows ignore blur, matching the current action window.
@@ -96,7 +97,7 @@ Pinned windows ignore blur, matching the current action window.
 - AC7 — The conversation window streams replies and tool calls, shows the approval composer for pending approvals, steers input sent while running without queueing it in the window, and continues the same session after completion, using the main-window message rendering. (verification: Electron)
 - AC8 — The window has no system title-bar band and one surface color in both themes. macOS traffic lights sit centred in the 44px header, and Windows and Linux expose collapse and close buttons. (verification: Electron)
 - AC9 — On a started window, the yellow light, Cmd+M, and the Windows/Linux minimize button collapse it into a capsule instead of minimizing to the Dock or taskbar. The compose bar cannot collapse. (verification: Electron)
-- AC10 — With auto-close on, blur collapses starting, running, and awaiting-approval windows, closes done, failed, and empty compose windows, and keeps a compose bar that holds a draft. Pinned windows ignore blur. (verification: renderer)
+- AC10 — With auto-close on, blur collapses starting, running, and awaiting-approval windows, closes done, failed, and empty compose windows that hold no draft, and keeps every window that holds a draft. Pinned windows ignore blur. (verification: renderer)
 - AC11 — Capsules stack upward from the bottom-right of the work area of their window's display without covering the Dock or taskbar. They are ordered approval, running, done or failed, show live status and step count, cap at five plus "+N", and restore the window to its previous bounds on click. (verification: Electron)
 - AC12 — Closing a window or a capsule never stops the turn. The main session list shows running or awaiting approval, approval works from the main window, and only Stop aborts. (verification: Electron)
 - AC13 — "Open in main window" focuses or opens the session in the main window, closes the mini window and its capsule, and the main composer shows the unsent draft. (verification: Electron)
@@ -113,5 +114,5 @@ Pinned windows ignore blur, matching the current action window.
 - **Ownership must stay with the main window.** `navigation.focus_or_open_conversation` asks renderers about ownership. Agent windows must not claim it, so the main window remains the destination.
 - **Steered follow-ups cannot be withdrawn.** Unlike queued items in the main window, a follow-up sent from this window cannot be edited, reordered, or removed after sending. This is accepted until #22824.
 - **Each agent window costs a renderer.** Pool caps bound idle windows, but many simultaneous collapsed sessions each keep one alive.
-- **Agent runtimes start slowly.** Claude Code and Pi have cold-start latency on the first turn, so the window shows a starting state. Agent actions are for doing work, not for instant results.
+- **The first turn pays runtime start-up.** Claude Code prewarms per existing session (`ai.agent.session.prewarm`), but this window creates its session on the first send, so that turn cannot be prewarmed. Pi's connection first waits for the agent's MCP tool catalogs. The window therefore shows a starting state. Agent actions are for doing work, not for instant results.
 - **Built-in Cherry Assistant ships without a model.** New users hit the "no model configured" path until agent onboarding assigns one.
