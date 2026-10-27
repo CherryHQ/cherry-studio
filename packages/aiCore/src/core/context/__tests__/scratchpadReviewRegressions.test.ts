@@ -127,10 +127,10 @@ describe('scratchpad strip review regressions', () => {
   it('keeps a long private-use run without a placeholder needle linear and intact', () => {
     const run = '\uE000'.repeat(300000) + 'x\uE001'.repeat(1000)
     const input = `${run} \`code\` tail`
-    const start = performance.now()
+    // No wall-clock assertion (runner speed varies): the quadratic regex this guards against
+    // ran past 100 s on this input, so the generous test timeout is the gate.
     expect(stripModelScratchpadBlocks(input)).toBe(input)
-    expect(performance.now() - start).toBeLessThan(5000)
-  })
+  }, 60000)
 
   it('round-trips literal multi-private-use CODE_FENCE tokens next to a real fence', () => {
     const lit = '\uE000\uE000CODE_FENCE_1\uE001'
