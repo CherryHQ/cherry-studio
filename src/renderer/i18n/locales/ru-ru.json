@@ -1414,6 +1414,7 @@
   "error.diagnosis.mcp": "Ошибка подключения к серверу MCP, проверьте работу сервиса",
   "error.diagnosis.model": "Модель не найдена или нет доступа",
   "error.diagnosis.model_conflict": "Модель диагностики совпадает с моделью, вызвавшей ошибку",
+  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
   "error.diagnosis.network": "Не удаётся подключиться к серверу, проверьте настройки сети или прокси",
   "error.diagnosis.ocr": "Не удалось извлечь текст через OCR, проверьте настройки OCR в параметрах",
   "error.diagnosis.parse": "ИИ вернул недопустимый ответ, повторите попытку или смените модель",

@@ -1414,6 +1414,7 @@
   "error.diagnosis.mcp": "Αποτυχία σύνδεσης με τον διακομιστή MCP, ελέγξτε αν η υπηρεσία εκτελείται",
   "error.diagnosis.model": "Το μοντέλο δεν βρέθηκε ή δεν έχετε πρόσβαση",
   "error.diagnosis.model_conflict": "Το μοντέλο διάγνωσης είναι ίδιο με το μοντέλο σφάλματος",
+  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
   "error.diagnosis.network": "Αδυναμία σύνδεσης με τον διακομιστή, ελέγξτε τις ρυθμίσεις δικτύου ή proxy",
   "error.diagnosis.ocr": "Η εξαγωγή κειμένου OCR απέτυχε, ελέγξτε τη διαμόρφωση OCR στις ρυθμίσεις",
   "error.diagnosis.parse": "Η τεχνητή νοημοσύνη επέστρεψε μη έγκυρη απάντηση, παρακαλώ δοκιμάστε ξανά ή αλλάξτε μοντέλο",

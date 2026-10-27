@@ -1414,6 +1414,7 @@
   "error.diagnosis.mcp": "MCP sunucusu bağlantısı başarısız oldu; hizmetin çalışıp çalışmadığını kontrol edin",
   "error.diagnosis.model": "Model bulunamadı veya erişim izni yok",
   "error.diagnosis.model_conflict": "Tanılama modeli, hata veren modelle aynı",
+  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
   "error.diagnosis.network": "Sunucuya bağlanılamıyor; ağ veya proxy ayarlarını kontrol edin",
   "error.diagnosis.ocr": "OCR metin çıkarma başarısız oldu, ayarlardan OCR yapılandırmasını kontrol edin",
   "error.diagnosis.parse": "Yapay zekâ geçersiz bir yanıt döndürdü; yeniden deneyin veya modeli değiştirin",

@@ -1414,6 +1414,7 @@
   "error.diagnosis.mcp": "Connessione al server MCP non riuscita, verifica che il servizio sia in esecuzione",
   "error.diagnosis.model": "Modello non trovato o accesso non consentito",
   "error.diagnosis.model_conflict": "Il modello di diagnosi coincide con quello che ha generato l'errore",
+  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
   "error.diagnosis.network": "Impossibile connettersi al server, verifica la rete o le impostazioni del proxy",
   "error.diagnosis.ocr": "Motore OCR non inizializzato, verifica le impostazioni OCR",
   "error.diagnosis.parse": "L'IA ha restituito una risposta non valida, riprova o cambia modello",

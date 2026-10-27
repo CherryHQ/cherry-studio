@@ -1414,6 +1414,7 @@
   "error.diagnosis.mcp": "MCP 服务连接失败，请检查服务是否已启动",
   "error.diagnosis.model": "模型不存在，或你无权访问该模型",
   "error.diagnosis.model_conflict": "诊断模型与出错模型相同，无法进行诊断",
+  "error.diagnosis.model_unavailable": "模型 {{model}} 在应用内已不存在，请重新选择模型",
   "error.diagnosis.network": "无法连接到服务器，请检查网络或代理设置",
   "error.diagnosis.ocr": "OCR 文字提取失败，请检查设置中的 OCR 配置",
   "error.diagnosis.parse": "AI 返回的内容格式无效，请重试或更换模型",

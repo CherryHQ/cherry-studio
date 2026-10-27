@@ -1414,6 +1414,7 @@
   "error.diagnosis.mcp": "MCP server connection failed, check if service is running",
   "error.diagnosis.model": "Model not found or you don't have access",
   "error.diagnosis.model_conflict": "Diagnosis model is the same as the failing model",
+  "error.diagnosis.model_unavailable": "Model {{model}} no longer exists in this app — pick a replacement",
   "error.diagnosis.network": "Cannot connect to server, check network or proxy settings",
   "error.diagnosis.ocr": "OCR text extraction failed, check the OCR configuration in settings",
   "error.diagnosis.parse": "AI returned an invalid response, please retry or switch model",

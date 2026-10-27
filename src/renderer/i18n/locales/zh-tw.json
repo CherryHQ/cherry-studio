@@ -1414,6 +1414,7 @@
   "error.diagnosis.mcp": "MCP 伺服器連線失敗，請檢查服務是否已啟動",
   "error.diagnosis.model": "模型不存在或你沒有存取權限",
   "error.diagnosis.model_conflict": "診斷模型與出錯模型相同，無法進行診斷",
+  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
   "error.diagnosis.network": "無法連線到伺服器，請檢查網路或代理設定",
   "error.diagnosis.ocr": "OCR 文字擷取失敗，請檢查設定中的 OCR 配置",
   "error.diagnosis.parse": "AI 回傳了無效的回應，請重試或切換模型",

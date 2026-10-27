@@ -1414,6 +1414,7 @@
   "error.diagnosis.mcp": "Verbindung zum MCP-Server fehlgeschlagen, prüfen Sie ob der Dienst läuft",
   "error.diagnosis.model": "Modell nicht gefunden oder kein Zugriff",
   "error.diagnosis.model_conflict": "Diagnosemodell ist identisch mit dem fehlerhaften Modell",
+  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
   "error.diagnosis.network": "Verbindung zum Server nicht möglich, Netzwerk- oder Proxy-Einstellungen prüfen",
   "error.diagnosis.ocr": "OCR-Textextraktion fehlgeschlagen, bitte die OCR-Konfiguration in den Einstellungen prüfen",
   "error.diagnosis.parse": "Die KI hat eine ungültige Antwort zurückgegeben, bitte versuchen Sie es erneut oder wechseln Sie das Modell.",
