@@ -51,9 +51,7 @@ function deliver(text: string, chunkSize: number | null): string {
     streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
   )
   if (chunkSize === null) {
-    adapter.handleMessage(
-      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
-    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
   } else {
     for (let i = 0; i < text.length; i += chunkSize) {
       adapter.handleMessage(
@@ -92,11 +90,13 @@ describe('termination and performance bounds (corpus pathologies)', () => {
     ['unclosed fences', Array.from({ length: 2_000 }, (_, i) => '```\ncode ' + i).join('\n')]
   ]
   // Pre-existing perf cliff (round-17 conformance Finding 3): a 5000-marker
-  // quote line reparses per delta. Gated with it.fails until bounded.
-  const KNOWN_SLOW = new Set(['deep quote nesting on one line'])
+  // quote line reparses per delta. No wall-clock assertion for it - a fast
+  // machine would pass an it.fails gate and a slow one would flake a budget;
+  // the vitest timeout is the deterministic termination gate until the cliff
+  // gets a real fix with a reliable bound.
+  const NO_WALLCLOCK = new Set(['deep quote nesting on one line'])
   for (const [name, input] of cases) {
-    const run = KNOWN_SLOW.has(name) ? it.fails : it
-    run(
+    it(
       name,
       () => {
         const start = performance.now()
@@ -104,7 +104,7 @@ describe('termination and performance bounds (corpus pathologies)', () => {
         const elapsed = performance.now() - start
         console.log({ case: name, characters: input.length, elapsed })
         expect(typeof out).toBe('string')
-        expect(elapsed).toBeLessThan(2_000)
+        if (!NO_WALLCLOCK.has(name)) expect(elapsed).toBeLessThan(2_000)
       },
       10_000
     )

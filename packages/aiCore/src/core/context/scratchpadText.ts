@@ -1577,8 +1577,7 @@ export function indentedMaskStep(
           } else if (level.quoteDepth === 0) {
             reached = markers.markerStarts[0] >= level.column
           } else if (level.quoteDepth < markerCount) {
-            reached =
-              markers.markerStarts[level.quoteDepth] - markers.markerEnds[level.quoteDepth - 1] >= level.column
+            reached = markers.markerStarts[level.quoteDepth] - markers.markerEnds[level.quoteDepth - 1] >= level.column
           } else {
             reached = level.column <= columns
           }
@@ -2203,10 +2202,7 @@ export function shouldDeferScratchpadStripping(
 
 /** True when the text opens a fenced code block that has no closing delimiter yet. */
 /** Position of the first code fence still open at the end of `text`, if any. */
-function findUnclosedCodeFence(
-  text: string,
-  initialContainerPrefix?: string
-): { markerStart: number } | null {
+function findUnclosedCodeFence(text: string, initialContainerPrefix?: string): { markerStart: number } | null {
   const inheritedPrefix = inheritedFencePrefixLookup(text, initialContainerPrefix)
   let pos = 0
   while (pos < text.length) {
@@ -2257,10 +2253,7 @@ function findUnclosedCodeFence(
   return null
 }
 
-export function textHasUnclosedCodeFence(
-  text: string,
-  options?: { initialContainerPrefix?: string }
-): boolean {
+export function textHasUnclosedCodeFence(text: string, options?: { initialContainerPrefix?: string }): boolean {
   return findUnclosedCodeFence(text, options?.initialContainerPrefix) !== null
 }
 
@@ -2374,10 +2367,11 @@ export function stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(
     ? fenceContainerPrefixFromState(options.initialMaskState)
     : undefined
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw, { initialContainerPrefix })
-  const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocksStepped(
-    fenceMasked,
-    { initialState: options?.initialMaskState }
-  )
+  const {
+    text: indentedMasked,
+    blocks,
+    placeholderBase: indentedBase
+  } = maskIndentedCodeBlocksStepped(fenceMasked, { initialState: options?.initialMaskState })
   const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
   const stripped = stripKnownModelScratchpadBlocks(inlineMasked)
   const withInline = unmaskInlineCodeSpans(stripped, spans, inlineBase)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import corpus from './corpus-cases.json'
 import { maskIndentedCodeBlocksReference, maskIndentedCodeBlocksStepped } from '../scratchpadText'
+import corpus from './corpus-cases.json'
 
 // Byte-identity gate: the stepped state machine must reproduce the published
 // reference forward scan exactly (mask output, block list, placeholder base)
@@ -27,11 +27,38 @@ describe('stepped = reference identity', () => {
 
   it('line-structured fuzz', () => {
     const atoms = [
-      'text', '# head', '```', '~~~', '- item', '1. item', '> quote', '> - qitem',
-      '    code', '\tcode', '  > q', '>     qcode', '', '   ', '***', '---',
-      '<thinking>', '</thinking>', '<div>', '</div>', '<script>', '</script>',
-      '`tick`', 'a <thinking> b', '> > deep', '  - nested', '    - deepitem',
-      '>    four', '     five', 'para line', '<textarea>', '</textarea>'
+      'text',
+      '# head',
+      '```',
+      '~~~',
+      '- item',
+      '1. item',
+      '> quote',
+      '> - qitem',
+      '    code',
+      '\tcode',
+      '  > q',
+      '>     qcode',
+      '',
+      '   ',
+      '***',
+      '---',
+      '<thinking>',
+      '</thinking>',
+      '<div>',
+      '</div>',
+      '<script>',
+      '</script>',
+      '`tick`',
+      'a <thinking> b',
+      '> > deep',
+      '  - nested',
+      '    - deepitem',
+      '>    four',
+      '     five',
+      'para line',
+      '<textarea>',
+      '</textarea>'
     ]
     let seed = 42
     const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff

@@ -3,11 +3,8 @@
 // CommonMark authors). Regenerate with ./generate-corpus-cases.sh (same dir).
 import { describe, expect, it } from 'vitest'
 
+import { stripKnownModelScratchpadBlocksPreservingCodeFences, stripModelScratchpadBlocks } from '../scratchpadText'
 import cases from './corpus-cases.json'
-import {
-  stripKnownModelScratchpadBlocksPreservingCodeFences,
-  stripModelScratchpadBlocks
-} from '../scratchpadText'
 
 // CommonMark conformance sweep: probe tags injected into spec-derived shapes
 // must survive where the shape makes them visible content ('preserve') and be

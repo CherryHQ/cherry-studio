@@ -2,6 +2,7 @@
 // (whole vs 1-char vs 5-char) for fence/container continuity, sentinel-literal
 // privacy, and HTML opener boundaries (reviewer probes 1, 4, 5).
 import { describe, expect, it, vi } from 'vitest'
+
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 const loggerMocks = vi.hoisted(() => ({ silly: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
@@ -11,8 +12,12 @@ const { ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 function createAdapter() {
   const parts: CherryUIMessageChunk[] = []
   const adapter = new ClaudeCodeStreamAdapter({
-    modelId: 'sonnet', sessionId: 'session-1', streamOptions: { prompt: [] },
-    sink: { enqueue: (part) => parts.push(part) }, statusSink: { emit: () => {} }, onSessionId: () => {}
+    modelId: 'sonnet',
+    sessionId: 'session-1',
+    streamOptions: { prompt: [] },
+    sink: { enqueue: (part) => parts.push(part) },
+    statusSink: { emit: () => {} },
+    onSessionId: () => {}
   })
   adapter.beginTurn()
   return { adapter, parts }
@@ -22,23 +27,40 @@ function streamEvent(event: Record<string, unknown>) {
 }
 function deliver(text: string, chunkSize: number | null): string {
   const { adapter, parts } = createAdapter()
-  adapter.handleMessage(streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }))
+  adapter.handleMessage(
+    streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+  )
   if (chunkSize === null) {
     adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
   } else {
     for (let i = 0; i < text.length; i += chunkSize) {
-      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(i, i + chunkSize) } }))
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: text.slice(i, i + chunkSize) }
+        })
+      )
     }
   }
   adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
-  return parts.filter((p): p is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => p.type === 'text-delta').map((p) => p.delta).join('')
+  return parts
+    .filter((p): p is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => p.type === 'text-delta')
+    .map((p) => p.delta)
+    .join('')
 }
 
 const fenceCases: Array<[string, string]> = [
-  ['fence-close-then-indented', '- item\n\n  ```\n  code\n  ```\n\n      <analysis>PROBE</analysis>\n\n- next <analysis>X</analysis>\n'],
-  ['fence-close-then-list-continuation', '- item\n\n  continuation\n\n  ```\n  code\n  ```\n\n  cont2 <analysis>W</analysis>\n'],
+  [
+    'fence-close-then-indented',
+    '- item\n\n  ```\n  code\n  ```\n\n      <analysis>PROBE</analysis>\n\n- next <analysis>X</analysis>\n'
+  ],
+  [
+    'fence-close-then-list-continuation',
+    '- item\n\n  continuation\n\n  ```\n  code\n  ```\n\n  cont2 <analysis>W</analysis>\n'
+  ],
   ['fence-close-then-indented-code-in-list', '- item\n\n  ```js\n  x\n  ```\n\n      code2 <analysis>Y</analysis>\n'],
-  ['fence-unclosed-then-quote', '```\ncode <analysis>HID</analysis>\n\n> quote <analysis>HID2</analysis>\n'],
+  ['fence-unclosed-then-quote', '```\ncode <analysis>HID</analysis>\n\n> quote <analysis>HID2</analysis>\n']
 ]
 
 describe('fence continuity across advance spans: fence continuity across advance spans', () => {
@@ -73,7 +95,15 @@ describe('sentinel literal never emitted: sentinel literal never emitted', () =>
 })
 
 describe('HTML opener straddling delta boundary: HTML opener straddling delta boundary', () => {
-  const openers = ['<script src="abcdef">', '<script>', '<textarea rows=2>', '<title>t</title>', '<style>', '<!--', '<![CDATA[']
+  const openers = [
+    '<script src="abcdef">',
+    '<script>',
+    '<textarea rows=2>',
+    '<title>t</title>',
+    '<style>',
+    '<!--',
+    '<![CDATA['
+  ]
   for (const opener of openers) {
     for (let split = 1; split < opener.length && split <= 16; split++) {
       it(`${opener.slice(0, 12)} split@${split}`, () => {
@@ -82,15 +112,23 @@ describe('HTML opener straddling delta boundary: HTML opener straddling delta bo
         const pre = input.slice(0, input.indexOf(opener) + split)
         const rest = input.slice(pre.length)
         const { adapter, parts } = createAdapter()
-        adapter.handleMessage(streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }))
-        adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: pre } }))
-        adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: rest } }))
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+        )
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: pre } })
+        )
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: rest } })
+        )
         adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
-        const two = parts.filter((p): p is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => p.type === 'text-delta').map((p) => p.delta).join('')
+        const two = parts
+          .filter((p): p is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => p.type === 'text-delta')
+          .map((p) => p.delta)
+          .join('')
         if (two !== whole) console.log('PROBE3-DIFF', JSON.stringify({ opener, split, whole, two }))
         expect(two).toBe(whole)
       })
     }
   }
 })
-
