@@ -75,6 +75,14 @@ delivery of paired batches; overflow emits a gap and a matching current baseline
 Slow or failing consumers cannot block native execution. Closing drains the final
 queued state before the closed event; releasing explicitly discards that subscriber.
 
+The typed feed also includes native `command_lifecycle` events, which the pinned
+SDK emits but omits from its `SDKMessage` declaration. `queued` proves native
+admission; `started` proves dispatch into native handling, including local commands.
+Neither alone proves model placement. A typed-prompt turn stamps reply correlation
+once, so a later folded input may appear only in the result's complete UUID list.
+The host can arm a continuation from `started` and bind it at the next reply frame.
+Input outcomes are published before the corresponding terminal result batch.
+
 Committed item IDs use transcript UUID and block ordinal. Provisional root blocks
 carry `replaces` when committed; distinct UUIDs sharing an API response ID remain
 distinct. Child output has native complete-block granularity. Aborted content stays

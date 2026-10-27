@@ -90,7 +90,11 @@ export class ClaudeProjection {
       const ref = this.ref(message.uuid, index)
       const completeness = this.aborted.has(message.uuid) ? 'partial' : 'complete'
       let item: ContentItem
-      if (block.type === 'tool_use' && typeof block.id === 'string' && typeof block.name === 'string') {
+      if (
+        (block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use') &&
+        typeof block.id === 'string' &&
+        typeof block.name === 'string'
+      ) {
         item = {
           ref,
           type: 'tool-call',
@@ -99,7 +103,7 @@ export class ClaudeProjection {
           completeness
         }
         this.calls.set(block.id, ref)
-      } else if (block.type === 'tool_result') {
+      } else if (typeof block.tool_use_id === 'string') {
         item = {
           ref,
           type: 'tool-result',
@@ -147,11 +151,12 @@ export class ClaudeProjection {
       const block = event.content_block
       const ref = this.ref(`live:${this.generationId}:${this.stream.generation}:${this.stream.id}`, event.index)
       const item: ContentItem =
-        block.type === 'tool_use'
+        block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use'
           ? { ref, type: 'tool-call', name: block.name, argumentsText: '', completeness: 'partial' }
           : { ref, type: 'message', role: 'assistant', parts: parts([block]), completeness: 'partial' }
       this.stream.blocks.set(event.index, { item, bound: false, stopped: false })
-      if (block.type === 'tool_use') this.calls.set(block.id, ref)
+      if (block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use')
+        this.calls.set(block.id, ref)
       return [{ type: 'item.upsert', item }]
     }
     const block = this.stream.blocks.get(event.index)

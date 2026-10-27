@@ -1,5 +1,20 @@
 import { runtimeId, type BackendId, type RuntimeError, type Thread } from '@cherrystudio/agent-runtime'
 
+import type { ClaudeCommandLifecycle } from './types'
+
+export function isCommandLifecycle(value: unknown): value is ClaudeCommandLifecycle {
+  if (!value || typeof value !== 'object') return false
+  const event = value as Record<string, unknown>
+  return (
+    event.type === 'command_lifecycle' &&
+    typeof event.command_uuid === 'string' &&
+    typeof event.uuid === 'string' &&
+    typeof event.session_id === 'string' &&
+    typeof event.state === 'string' &&
+    ['queued', 'started', 'completed', 'cancelled', 'discarded', 'refused'].includes(event.state)
+  )
+}
+
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i
 
 export function isUuid(value: string): value is `${string}-${string}-${string}-${string}-${string}` {

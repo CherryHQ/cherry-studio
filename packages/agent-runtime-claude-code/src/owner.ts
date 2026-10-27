@@ -23,9 +23,15 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { readArchive } from './archive'
-import { claudeThread, isUuid, rejected, runtimeError } from './identity'
+import { claudeThread, isCommandLifecycle, isUuid, rejected, runtimeError } from './identity'
 import { ClaudeProjection } from './projection'
-import type { ClaudeArchive, ClaudeCodeRuntimeOptions, ClaudeSessionOptions, ClaudeThreadHandle } from './types'
+import type {
+  ClaudeArchive,
+  ClaudeCodeRuntimeOptions,
+  ClaudeCommandLifecycle,
+  ClaudeSessionOptions,
+  ClaudeThreadHandle
+} from './types'
 
 interface Task {
   sessionId: string
@@ -350,7 +356,16 @@ export class ClaudeOwner {
     return false
   }
 
-  private consume(message: SDKMessage): void {
+  private consume(message: SDKMessage | ClaudeCommandLifecycle): void {
+    if (isCommandLifecycle(message)) {
+      const input = this.inputs.get(message.command_uuid)
+      if (input) {
+        if (message.state === 'queued') this.inputFacts(input, ['accepted', 'queued'])
+        else if (message.state === 'started') this.inputFacts(input, ['accepted'])
+        input.projection.publish([], { source: 'live', message })
+      }
+      return
+    }
     if (message.type === 'conversation_reset') {
       this.resetFrom = this.activeSession
       this.projection(this.activeSession).publish([{ type: 'gap', reason: 'mapping-reset' }], {
@@ -412,7 +427,7 @@ export class ClaudeOwner {
     } else if (message.type === 'result') {
       events.push({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
     }
-    projection.publish(events, { source: 'live', message })
+    if (message.type !== 'result') projection.publish(events, { source: 'live', message })
     if (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'result') {
       for (const uuid of message.user_message_uuids ?? (message.user_message_uuid ? [message.user_message_uuid] : [])) {
         const input = this.inputs.get(uuid)
@@ -435,7 +450,10 @@ export class ClaudeOwner {
           })
         }
       }
-      if (message.type === 'result') this.response = undefined
+      if (message.type === 'result') {
+        projection.publish(events, { source: 'live', message })
+        this.response = undefined
+      }
     }
   }
 
