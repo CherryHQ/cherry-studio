@@ -6145,11 +6145,7 @@ describe('AgentSessionRuntimeService', () => {
         continuationTurn: a2
       }) // continuation: the steer was already injected via the hook — never re-sent
       expect(connection.send).toHaveBeenCalledOnce() // user-1 only; A2 sends nothing to the connection
-      expect(mocks.saveMessage).toHaveBeenLastCalledWith({
-        sessionId: 'session-1',
-        parentId: 'user-2',
-        message: { role: 'assistant', status: 'pending', data: { parts: [] }, modelId: baseTurnInput.modelId }
-      })
+      expect(a2.assistantMessageId).not.toBe('assistant-1')
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
 
       // Opening A2's stream replays the buffered post-steer chunk in order, then routes live chunks.
@@ -6174,7 +6170,7 @@ describe('AgentSessionRuntimeService', () => {
           expect.objectContaining({
             requestId: 'claude-agent:post-steer-request',
             context: expect.objectContaining({
-              messageRef: { kind: 'agent-session', id: 'generated-message-id' }
+              messageRef: { kind: 'agent-session', id: a2.assistantMessageId }
             })
           })
         )

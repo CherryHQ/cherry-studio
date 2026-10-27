@@ -407,18 +407,19 @@ model, and usage:
 - abort, error, query close, or connection close commits only steps with
   provider completion evidence and discards the current in-flight step;
 - a committed id is immutable; a late repeat logs an anomaly and is ignored;
-- the driver freezes message association when the SDK assistant event arrives:
-  an active adapter means the current turn, while no adapter means stateless;
-- the host resolves current-turn events to the active assistant message.
-  Stateless events keep `messageRef: null` and the connection's frozen source;
+- native response IDs join invocations to root or child product messages;
+  ownership follows the native output after any steer boundary. Multiple child
+  blocks sharing one API response ID charge its first projected block, not each block;
+- completion may precede ownership. The host retains the immutable invocation
+  until that identity arrives; unresolved invocations are saved with
+  `messageRef: null` when the connection closes;
 - primary/plan/small nested models resolve independently against the frozen
   model map;
 - result-level `modelUsage`, duration, and total cost are reconciliation data,
   not record inputs.
 
-The driver commits pending usage before emitting a steer boundary, so the old
-provider call attaches to the pre-steer message and the next call attaches to
-the continuation.
+The response-to-message mapping survives a product turn roll. Finishing a
+provider call after that roll cannot move its usage onto the newer message.
 
 Historical Pi and DSH invocation records remain available after runtime migration.
 
@@ -426,16 +427,15 @@ Historical Pi and DSH invocation records remain available after runtime migratio
 
 The connection carries `{ owner: 'provider-calls' }`; SDK usage events do not
 create billing records. Pi and Pi Durable always use this path; native usage
-remains available for context and display. Trusted in-process gateway context supplies the active assistant
-message id (or a reserved steer continuation id) and frozen source to the
-normal AiService language middleware.
-When a `PreToolUse` hook actually injects a steer, the driver synchronously
-asks the host to reserve the continuation message id and frozen source before
-the hook returns. The next gateway request therefore captures that reservation;
-the later `steer-boundary` persists A2 with the same id. A turn that ends
-without reaching the boundary discards the unused reservation. If no active
-turn or reservation can be resolved, the provider invocation is still recorded
-as stateless and no association is guessed.
+remains available for context and display. Trusted in-process gateway context supplies the frozen source to
+normal AiService language middleware. For Claude Code, the gateway creates its
+wire response ID before dispatch. Credentials and pricing freeze at request
+start; the completed invocation waits for the adapter to observe that same
+response ID and assign its root or child product message. Either arrival order
+is valid. No current-turn guess, provider response-ID rewrite, or extra
+relationship table is required. On connection close, unresolved and late
+invocations retain their captured attribution and use `messageRef: null`.
+Other runtime routes retain their existing request-time message association.
 
 ## Historical migration
 

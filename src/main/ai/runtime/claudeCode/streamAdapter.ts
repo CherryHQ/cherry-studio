@@ -41,7 +41,12 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
-import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
+import type {
+  CherryUIMessage,
+  CherryUIMessageChunk,
+  CherryUIMessageMetadata,
+  MessageStats
+} from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
@@ -165,18 +170,12 @@ export type ClaudeCodeStreamStatusEvent = Extract<
       | 'compaction-error'
       | 'api-retry'
       | 'background-task-event'
-      | 'background-flow-chunk'
       | 'autonomous-turn-state'
   }
 >
 
 type StatusSink = {
   emit(event: ClaudeCodeStreamStatusEvent): void
-}
-
-type FlowContext = {
-  rootToolCallId: string
-  stream: StreamContext
 }
 
 export type ClaudeCodeStreamAdapterOptions = {
@@ -485,6 +484,41 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
 }
 
 export class ClaudeCodeStreamAdapter {
+  decorateTool(
+    message: CherryUIMessage,
+    block: Pick<ClaudeToolUseBlock, 'id' | 'name' | 'type'> & { server_name?: string },
+    result?: BetaContentBlock | BetaContentBlockParam
+  ): CherryUIMessage {
+    const state: ToolStreamState = {
+      name: block.name,
+      inputStarted: true,
+      inputClosed: true,
+      callEmitted: true,
+      ...this.getToolUseMetadata(block)
+    }
+    this.mergeToolDisplayMetadata(state)
+    const metadata = this.buildToolProviderMetadata(state)
+    return {
+      ...message,
+      parts: message.parts.map((part) => {
+        if (part.type !== 'dynamic-tool') return part
+        const decoration = {
+          toolCallId: block.id,
+          providerExecuted: true as const,
+          title: this.getToolTitle(state),
+          callProviderMetadata: metadata
+        }
+        if (result && 'tool_use_id' in result && part.state === 'output-available')
+          return {
+            ...part,
+            ...decoration,
+            output: this.buildToolOutput(this.normalizeToolResult(result.content), state, result.content),
+            resultProviderMetadata: metadata
+          }
+        return { ...part, ...decoration }
+      })
+    }
+  }
   private ctx: StreamContext
   private readonly modelId: string
   private readonly sessionId: string
@@ -499,13 +533,9 @@ export class ClaudeCodeStreamAdapter {
   private autonomousTurn = false
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
   private backgroundWorkReleasePending = false
-  private awaitingBackgroundReply = false
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
-  /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
-   *  main agent's counters. Their sink is detached from the turn when that turn completes. */
-  private readonly flowContexts: FlowContext[] = []
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
   private turnHasActivity = false
@@ -626,8 +656,6 @@ export class ClaudeCodeStreamAdapter {
       parentToolUseId != null &&
       (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user')
     ) {
-      const flow = this.getOrCreateFlowContext(parentToolUseId)
-      this.handleContentMessage(message, flow.stream)
       return { type: 'continue' }
     }
 
@@ -685,7 +713,6 @@ export class ClaudeCodeStreamAdapter {
         return { type: 'continue' }
       case 'result':
         this.handleResultMessage(message, this.ctx)
-        this.detachFlowContexts()
         this.turnActive = false
         if (this.autonomousTurn) {
           this.autonomousTurn = false
@@ -702,7 +729,6 @@ export class ClaudeCodeStreamAdapter {
   /** Close every active text part so filtering sinks flush buffered marker prefixes before errors escape. */
   finalizeOpenTextParts(): void {
     this.closeActiveTextPart(this.ctx)
-    for (const flow of this.flowContexts) this.closeActiveTextPart(flow.stream)
   }
 
   handleTruncationError(error: unknown): boolean {
@@ -728,53 +754,7 @@ export class ClaudeCodeStreamAdapter {
       finishReason: 'length',
       messageMetadata: this.buildMessageMetadata(this.ctx.usage)
     })
-    this.detachFlowContexts()
     return true
-  }
-
-  private getOrCreateFlowContext(parentToolCallId: string): FlowContext {
-    const existing = this.flowContexts.find(
-      (flow) => flow.rootToolCallId === parentToolCallId || flow.stream.toolStates.has(parentToolCallId)
-    )
-    if (existing) return existing
-
-    const flow: FlowContext = {
-      rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
-    }
-    this.flowContexts.push(flow)
-    return flow
-  }
-
-  private createFlowSink(rootToolCallId: string): StreamSink {
-    return {
-      enqueue: (chunk) => {
-        this.statusSink.emit({ type: 'background-flow-chunk', rootToolCallId, chunk })
-      }
-    }
-  }
-
-  private detachFlowContexts(): void {
-    for (const flow of this.flowContexts) {
-      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow.rootToolCallId)))
-    }
-  }
-
-  private handleContentMessage(
-    message: SDKPartialAssistantMessage | SDKAssistantMessage | SDKUserMessage,
-    ctx: StreamContext
-  ): void {
-    switch (message.type) {
-      case 'stream_event':
-        this.handleStreamEvent(message, ctx)
-        return
-      case 'assistant':
-        this.handleAssistantMessage(message, ctx)
-        return
-      case 'user':
-        this.handleUserMessage(message, ctx)
-        return
-    }
   }
 
   private handleStreamEvent(message: SDKPartialAssistantMessage, ctx: StreamContext): void {
@@ -1319,7 +1299,7 @@ export class ClaudeCodeStreamAdapter {
       case 'task_progress':
       case 'task_updated':
       case 'task_notification':
-        this.handleTaskSystemMessage(message, ctx)
+        this.handleTaskSystemMessage(message)
         return
       case 'status':
         this.handleStatusSystemMessage(message)
@@ -1343,13 +1323,12 @@ export class ClaudeCodeStreamAdapter {
           description: task.description
         }))
         this.publishBackgroundTasks()
-        if (this.hasBackgroundAgents()) this.awaitingBackgroundReply = true
         if (message.tasks.length > 0) {
           this.backgroundWorkReleasePending = false
           this.statusSink.emit({
             type: 'background-work-state',
             active: true,
-            ...(!this.awaitingBackgroundReply ? { awaitingReply: false } : {})
+            awaitingReply: false
           })
         } else {
           this.backgroundWorkReleasePending = true
@@ -1444,14 +1423,8 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
   }
 
-  /**
-   * Task lifecycle describes work the run spawned, which routinely outlives the turn that spawned
-   * it. Inside a turn it stays a hidden message part, so the transcript keeps the full history;
-   * afterwards there is no message to attach to, and the host keeps the latest event per task as
-   * session status instead — otherwise a background task's completion never lands anywhere and its
-   * row stays running forever.
-   */
-  private handleTaskSystemMessage(message: SdkTaskSystemMessage, ctx: StreamContext): void {
+  /** Task lifecycle outlives the parent stream; root projection owns its persisted presentation. */
+  private handleTaskSystemMessage(message: SdkTaskSystemMessage): void {
     const eventData = this.toTaskEventPartData(message)
 
     // Membership and liveness remain owned exclusively by `background_tasks_changed`. A native
@@ -1469,16 +1442,6 @@ export class ClaudeCodeStreamAdapter {
 
     // Keep a process-scoped per-task surface for status history and stop targets.
     this.statusSink.emit({ type: 'background-task-event', data: eventData })
-
-    if (!this.turnActive) {
-      return
-    }
-
-    ctx.sink.enqueue({
-      type: 'data-agent-task-event',
-      id: `task-${eventData.taskId}-${eventData.event}-${message.uuid}`,
-      data: eventData
-    })
   }
 
   /**
@@ -1536,22 +1499,8 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private hasBackgroundAgents(): boolean {
-    return this.backgroundTasks.some((task) => task.type === 'subagent' || task.type === 'local_agent')
-  }
-
   private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
     if (message.state !== 'idle') return
-    // Idle means held-back results and the background-agent loop have drained, so no detached flow
-    // can still stream. Drop the per-flow state instead of retaining it for the connection lifetime;
-    // a late straggler simply gets a fresh context via `getOrCreateFlowContext`.
-    if (!this.turnActive) this.flowContexts.length = 0
-    if (this.awaitingBackgroundReply && !this.hasBackgroundAgents()) {
-      this.awaitingBackgroundReply = false
-      if (this.backgroundTasks.length > 0) {
-        this.statusSink.emit({ type: 'background-work-state', active: true, awaitingReply: false })
-      }
-    }
     if (!this.backgroundWorkReleasePending) return
     this.backgroundWorkReleasePending = false
     this.statusSink.emit({ type: 'background-work-state', active: false })

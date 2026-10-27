@@ -298,11 +298,16 @@ describe('ApiGatewayService internal gateway', () => {
     const scoped = await service.createScopedCredential(CHAT_SCOPE)
     const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
 
-    expect(service.resolveAgentSessionUsage(new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }))).toEqual({
+    expect(
+      service.resolveAgentSessionUsage(
+        new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }),
+        'native-response'
+      )
+    ).toEqual({
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     })
-    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1')
+    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1', 'native-response')
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': scoped.apiKey }))).toBeUndefined()
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
   })

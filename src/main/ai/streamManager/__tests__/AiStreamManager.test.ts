@@ -4,6 +4,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
@@ -130,9 +131,9 @@ function controlledStream(): {
   }
 }
 
-const mockStreamText = vi.fn<(request: AiStreamRequest) => Promise<ReadableStream<UIMessageChunk>>>(async () =>
-  pendingStream()
-)
+const mockStreamText = vi.fn<
+  (request: Parameters<AiService['streamText']>[0]) => Promise<ReadableStream<UIMessageChunk>>
+>(async () => pendingStream())
 
 /**
  * In-memory stand-in for Main's `CacheService`. `AiStreamManager` writes
@@ -346,6 +347,51 @@ describe('AiStreamManager', () => {
     expect(view?.messages[0].parts[0]).toMatchObject({ text: 'visible before completion' })
     if (failWrite) expect(view?.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
     mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
+  // Native retractions must survive the append-only SDK accumulator through the terminal save.
+  it('keeps native replacement parts when later SDK snapshots still contain the old body', async () => {
+    const feed = controlledStream()
+    let sink: Parameters<AiService['streamText']>[0]['runtimeMessageSink']
+    mockStreamText.mockImplementationOnce(async (request) => {
+      sink = request.runtimeMessageSink
+      return feed.stream
+    })
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'native-topic', 'native-subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    const listener = new FakeListener('native-result')
+    startSingle(mgr, { topicId: 'native-topic', modelId: 'p::m', request: req('native-topic'), listeners: [listener] })
+    feed.enqueue({ type: 'start', messageId: 'answer' })
+    feed.enqueue({ type: 'text-start', id: 'text' })
+    feed.enqueue({ type: 'text-delta', id: 'text', delta: 'Withdrawn body' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Withdrawn body' }))
+    const replacement: CherryUIMessage['parts'] = [
+      { type: 'text', text: 'Replacement', state: 'done' },
+      {
+        type: 'data-agent-task-event',
+        id: 'task-child',
+        data: { taskId: 'child', event: 'notification', status: 'completed' }
+      }
+    ]
+    sink!(replacement)
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Replacement' }))
+    feed.enqueue({ type: 'text-delta', id: 'text', delta: ' stale tail' })
+    feed.enqueue({
+      type: 'data-agent-task-event',
+      id: 'task-child',
+      data: { taskId: 'child', event: 'started', status: 'in_progress' }
+    })
+    feed.enqueue({ type: 'text-end', id: 'text' })
+    feed.enqueue({ type: 'finish' })
+    feed.close()
+    await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    expect(listener.doneResults[0].finalMessage?.parts).toEqual(replacement)
+    expect(view?.messages[0].parts).toEqual(replacement)
+    mgr.detachProjection(sender, 'native-subscription')
     sender.emit('destroyed')
   })
 

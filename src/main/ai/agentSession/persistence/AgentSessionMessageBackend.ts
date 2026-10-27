@@ -7,7 +7,10 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import { isDataUIPart } from 'ai'
+
 import type { InputState } from '@cherrystudio/agent-runtime'
+import type { RootProjectionCheckpoint } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -30,6 +33,7 @@ export interface AgentSessionMessageBackendOptions {
   runtimeResumeToken?: string | (() => string | undefined)
   forkAnchor?: () => RuntimeForkAnchor | undefined
   inputResponses?: () => readonly InputState[]
+  projection?: () => { checkpoint: RootProjectionCheckpoint; parts: CherryUIMessage['parts'] } | undefined
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -57,6 +61,19 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       }
     }
     const inputResponses = this.opts.inputResponses?.()
+    const projection = this.opts.projection?.()
+    const parts = projection
+      ? [
+          ...projection.parts,
+          ...(finalMessage?.parts ?? []).filter(
+            (part) =>
+              isDataUIPart(part) &&
+              !projection.parts.some(
+                (native) => isDataUIPart(native) && native.type === part.type && native.id === part.id
+              )
+          )
+        ]
+      : (finalMessage?.parts ?? [])
     const save = (runtimeAnchor?: RuntimeForkAnchor) =>
       agentSessionMessageService.saveMessage(
         {
@@ -68,11 +85,15 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
             id: finalMessage?.id ?? this.opts.assistantMessageId,
             role: 'assistant',
             status,
-            data: { parts: finalMessage?.parts ?? [] },
+            data: { parts },
             modelId: this.opts.modelId
           }
         },
-        { publishDataChange: true, ...(inputResponses?.length ? { inputResponses } : {}) }
+        {
+          publishDataChange: true,
+          projection: projection?.checkpoint,
+          ...(inputResponses?.length ? { inputResponses } : {})
+        }
       )
     let saved
     try {

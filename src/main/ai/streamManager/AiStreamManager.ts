@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
-import { isToolUIPart, type UIMessageChunk } from 'ai'
+import { isDataUIPart, isToolUIPart, type UIMessageChunk } from 'ai'
 
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
@@ -2078,6 +2078,26 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
+    let runtimeParts: CherryUIMessage['parts'] | undefined
+    let accumulated: CherryUIMessage | undefined
+    const publishMessage = () => {
+      const message = accumulated ?? exec.finalMessage ?? ensureTerminalFinalMessage(exec)
+      const parts =
+        runtimeParts === undefined
+          ? message.parts
+          : [
+              ...runtimeParts,
+              ...message.parts.filter(
+                (part) =>
+                  isDataUIPart(part) &&
+                  !runtimeParts?.some(
+                    (native) => isDataUIPart(native) && native.type === part.type && native.id === part.id
+                  )
+              )
+            ]
+      exec.finalMessage = withResolvedApprovals(withCompactionAnchors({ ...message, parts }, exec), exec)
+      this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
+    }
 
     let rawStream: ReadableStream<UIMessageChunk>
     try {
@@ -2088,6 +2108,10 @@ export class AiStreamManager extends BaseService {
         ...request,
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: exec.runtimeTiming.sink,
+        runtimeMessageSink: (parts) => {
+          runtimeParts = parts
+          publishMessage()
+        },
         // Compaction runs deep inside param-build / the tool loop, where the
         // turn's chunk sink isn't reachable; hand it down as a closure (same
         // shape as runtimeTimingSink) so the UI can show "compacting".
@@ -2140,8 +2164,8 @@ export class AiStreamManager extends BaseService {
       },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
-        exec.finalMessage = withResolvedApprovals(withCompactionAnchors(msg, exec), exec)
-        this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
+        accumulated = msg
+        publishMessage()
       }
     })
 

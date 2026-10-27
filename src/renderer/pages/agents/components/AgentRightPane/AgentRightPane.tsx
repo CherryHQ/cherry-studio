@@ -1333,11 +1333,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const status = useAgentRightPaneStatus(active)
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
-  const child = useAgentChildProjection(
-    meta.sessionId ?? '',
-    tab?.toolCallId,
-    active && !!meta.sessionId && (meta.runtimeType === 'pi' || meta.runtimeType === 'pi-durable')
-  )
+  const child = useAgentChildProjection(meta.sessionId ?? '', tab?.toolCallId, active && !!meta.sessionId)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [inputError, setInputError] = useState<string>()
@@ -1442,7 +1438,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
           {inputError ?? child?.error ?? child?.view?.diagnostic}
         </p>
       )}
-      {child?.view?.available && (
+      {child?.view?.canSubmit && (
         <form
           className="flex shrink-0 gap-2 border-t border-border-subtle p-3"
           onSubmit={async (event) => {

@@ -15,7 +15,7 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
-import type { MessageSnapshot } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -112,7 +112,17 @@ export interface AgentRuntimeToolApprovalRequest {
   providerMetadata?: LanguageModelV3ToolApprovalRequest['providerMetadata']
 }
 
+export interface RuntimeMessageProjection {
+  contextId: string
+  messages: readonly CherryUIMessage[]
+  live: readonly string[]
+  replaces: Readonly<Record<string, string>>
+  removed: readonly string[]
+}
+
 export type AgentRuntimeEvent =
+  | { type: 'message-projection'; projection: RuntimeMessageProjection }
+  | { type: 'response-start'; responseId: string; messageId?: string }
   | { type: 'chunk'; chunk: UIMessageChunk }
   | { type: 'input-response'; input: InputState }
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
@@ -121,6 +131,8 @@ export type AgentRuntimeEvent =
       invocation: {
         /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
+        /** Native response identity when message ownership is resolved by observation. */
+        responseId?: string
         model: string
         /** Present only when the driver froze pricing at the provider invocation boundary. */
         pricingSnapshot?: AiUsagePricingSnapshot | null

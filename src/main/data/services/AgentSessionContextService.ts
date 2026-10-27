@@ -17,10 +17,38 @@ const locatorSchema = z.discriminatedUnion('kind', [
     version: z.literal(1),
     kind: z.literal('pi-durable'),
     fileName: z.string().regex(/^[a-zA-Z0-9_-]+\.sqlite$/)
-  })
+  }),
+  z.object({ version: z.literal(1), kind: z.literal('claude-code'), configDir: z.string().refine(path.isAbsolute) })
 ])
 
+export interface RootProjectionCheckpoint {
+  contextId: string
+  root: {
+    version?: 2
+    sources: Record<string, { messageId: string; offset: number; count: number }>
+    removed: string[]
+  }
+}
+
 class AgentSessionContextService {
+  saveRootProjectionTx(tx: DbOrTx, sessionId: string, checkpoint: RootProjectionCheckpoint): void {
+    const context = tx.select().from(contexts).where(eq(contexts.id, checkpoint.contextId)).get()
+    if (context?.sessionId !== sessionId) throw new Error('Projection belongs to another session')
+    tx.update(contexts)
+      .set({ checkpointMapping: { ...context.checkpointMapping, root: checkpoint.root } })
+      .where(eq(contexts.id, context.id))
+      .run()
+  }
+  children(parentContextId: string): AgentSessionContextRow[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(contexts)
+      .where(eq(contexts.parentContextId, parentContextId))
+      .all()
+  }
+
   child(
     parentContextId: string,
     subagentId: string,
@@ -96,6 +124,40 @@ class AgentSessionContextService {
       })
       .where(eq(contexts.id, contextId))
       .run()
+  }
+
+  prepareClaudeBranch(
+    sessionId: string,
+    configDir: string,
+    nativeId?: string,
+    messageId?: string
+  ): AgentSessionContextRow {
+    agentSessionService.assertIndependentSession(sessionId)
+    const locator = locatorSchema.parse({ version: 1, kind: 'claude-code', configDir })
+    return application.get('DbService').withWriteTx((tx) => {
+      const root = ensureAgentSessionRootTx(tx, sessionId)
+      const anchor = messageId ?? root
+      const existing = this.branchTx(tx, sessionId, anchor)
+      if (existing && (!nativeId || (existing.nativeThreadId ?? existing.intendedThreadId) === nativeId)) {
+        const backend = this.backend(existing.backendId)
+        if (backend.locator.kind !== 'claude-code' || backend.locator.configDir !== configDir)
+          throw new Error('The selected branch belongs to another runtime backend')
+        return existing
+      }
+      const backend =
+        tx.select().from(backends).where(eq(backends.locator, locator)).get() ??
+        tx.insert(backends).values({ locator, state: 'bound' }).returning().get()
+      return tx
+        .insert(contexts)
+        .values({
+          sessionId,
+          backendId: backend.id,
+          intendedThreadId: nativeId ?? uuid(),
+          anchorMessageId: existing ? anchor : root
+        })
+        .returning()
+        .get()
+    })
   }
 
   preparePiBranch(sessionId: string, messageId?: string, nativeId?: string): AgentSessionContextRow {
@@ -302,3 +364,4 @@ class AgentSessionContextService {
 }
 
 export const agentSessionContextService = new AgentSessionContextService()
+import path from 'node:path'

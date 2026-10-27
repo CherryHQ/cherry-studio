@@ -271,6 +271,9 @@ importers:
       '@cherrystudio/agent-behavior':
         specifier: workspace:*
         version: link:packages/agent-behavior
+      '@cherrystudio/agent-runtime-claude-code':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-claude-code
       '@cherrystudio/agent-runtime-pi':
         specifier: workspace:*
         version: link:packages/agent-runtime-pi

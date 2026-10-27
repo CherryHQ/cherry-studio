@@ -288,24 +288,34 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         return { state: { ...state, execution }, effects: [] }
       }
       return { state, effects: [] }
-    case 'steer-boundary':
-      if (state.execution.kind !== 'turn' || state.execution.stream !== 'open') return invalid(state, event)
+    case 'steer-boundary': {
+      const execution = state.execution
+      const sourceTurn =
+        execution.kind === 'turn' ? execution.turn : execution.kind === 'idle' ? execution.lastTurn : undefined
+      if (!sourceTurn) return invalid(state, event)
+      const settled = execution.kind === 'idle'
       return {
         state: {
           ...state,
+          ...(settled ? { launch: { kind: 'scheduled', target: 'steer-continuation' } as const } : {}),
           execution: {
             kind: 'steer-transition',
-            sourceTurn: state.execution.turn,
-            sourceStream: 'awaiting-persistence',
+            sourceTurn,
+            sourceStream: settled ? 'settled' : 'awaiting-persistence',
             inputs: event.inputs,
             headless: event.headless,
-            ...(state.execution.reservation ? { reservation: state.execution.reservation } : {}),
+            ...(execution.kind === 'turn' && execution.reservation ? { reservation: execution.reservation } : {}),
             buffer: [],
             stream: 'unopened'
           }
         },
-        effects: [{ type: 'settle-turn', turn: state.execution.turn, outcome: { status: 'success' } }]
+        effects: settled
+          ? [{ type: 'schedule-launch', target: 'steer-continuation' }]
+          : execution.kind === 'turn' && execution.stream === 'open'
+            ? [{ type: 'settle-turn', turn: sourceTurn, outcome: { status: 'success' } }]
+            : []
       }
+    }
     case 'autonomous-turn-state': {
       if (event.state === 'started') {
         if (isAgentSessionRuntimeAwaitingBackground(state) && event.origin.kind === 'background-work') {

@@ -379,6 +379,7 @@ describe('desktop Pi root connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     const access = await connection.childProjection('spawn')
     expect(access).toBeDefined()
+    expect(access!.snapshot().canSubmit).toBe(true)
     const childText = () =>
       access!
         .snapshot()

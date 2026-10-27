@@ -168,9 +168,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
-  const usageContext = config.requestHeaders
-    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
-    : undefined
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     ...logContext,
@@ -255,6 +252,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
+  const usageContext = config.requestHeaders
+    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
+    : undefined
 
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {

@@ -19,6 +19,30 @@ const turn = (id: string): Turn => ({ id })
 const pending = (id: string): PendingTurn => ({ id })
 const reservation = (id: string): Reservation => ({ id })
 describe('agentSessionRuntimeState', () => {
+  // The native queue may place a steer after the previous turn's result or persistence barrier.
+  it.each([false, true])(
+    'receives an already submitted steer across the result boundary (persisted: %s)',
+    (persisted) => {
+      const first = turn('first')
+      let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(first)
+      state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: first }).state
+      state = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } }).state
+      if (persisted)
+        state = transitionAgentSessionRuntime(state, { type: 'turn-terminal', turn: first, status: 'success' }).state
+      const result = transitionAgentSessionRuntime(state, { type: 'steer-boundary', inputs: [], headless: false })
+      expect(result.state.execution).toMatchObject({
+        kind: 'steer-transition',
+        sourceTurn: first,
+        sourceStream: persisted ? 'settled' : 'awaiting-persistence'
+      })
+      expect(result.effects).toEqual(persisted ? [{ type: 'schedule-launch', target: 'steer-continuation' }] : [])
+      const ready = persisted
+        ? result
+        : transitionAgentSessionRuntime(result.state, { type: 'turn-terminal', turn: first, status: 'success' })
+      expect(ready.state.launch).toEqual({ kind: 'scheduled', target: 'steer-continuation' })
+      expect(ready.effects.some((effect) => effect.type === 'settle-turn')).toBe(false)
+    }
+  )
   it.each([false, true])(
     'finishes the reply while a detached command keeps the connection alive (agents first: %s)',
     (agentsFirst) => {
