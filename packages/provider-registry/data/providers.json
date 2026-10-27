@@ -2382,6 +2382,28 @@
       "name": "TokenHub"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TokenLab - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.tokenlab.sh/v1"
+        }
+      },
+      "id": "tokenlab",
+      "metadata": {
+        "website": {
+          "apiKey": "https://tokenlab.sh/?utm_source=cherry-studio",
+          "docs": "https://tokenlab.sh/docs/en/integrations/cherry-studio?utm_source=cherry-studio",
+          "models": "https://tokenlab.sh/en/pricing?utm_source=cherry-studio",
+          "official": "https://tokenlab.sh/?utm_source=cherry-studio"
+        }
+      },
+      "name": "TokenLab",
+      "supplementModelsFromRegistry": true
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Baidu Cloud - AI model provider",
@@ -2937,5 +2959,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7b17f7706c07b778"
+  "version": "fe499e40a8df5ddf"
 }
