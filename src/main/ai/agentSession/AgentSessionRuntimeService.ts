@@ -959,9 +959,9 @@ export class AgentSessionRuntimeService extends BaseService {
           turn.controller = controller
           this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
 
-          // A user Stop is the only abort source now (steer no longer interrupts) — tear the
-          // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => void this.closeSession(entry.sessionId)
+          // Durable shutdown preserves work; user Stop must record cancellation before closing.
+          const onAbort = () =>
+            void this.closeSession(entry.sessionId, !this.isShuttingDown && input.signal.reason !== 'app-shutdown')
           if (input.signal.aborted) {
             onAbort()
             return
@@ -1120,7 +1120,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  closeSession(sessionId: string): Promise<void> {
+  closeSession(sessionId: string, interrupt = false): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
@@ -1128,10 +1128,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
     let closing: Promise<void>
     try {
-      closing = this.closeEntry(entry)
+      closing = this.closeEntry(entry, interrupt)
     } catch (error) {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
-      const fallbackClosings: Promise<unknown>[] = [this.closeRuntimeConnection(fallbackConnection, sessionId)]
+      const fallbackClosings: Promise<unknown>[] = [
+        this.closeRuntimeConnection(fallbackConnection, sessionId, false, interrupt)
+      ]
       if (connectionAttempt) fallbackClosings.push(connectionAttempt)
       closing = Promise.allSettled(fallbackClosings).then(() => undefined)
     }
@@ -1998,8 +2000,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
-      void this.closeRuntimeConnection(connection, entry.sessionId)
       if (this.currentConnection(entry) === connection) {
+        void this.closeRuntimeConnection(connection, entry.sessionId)
         this.resetConnectionRuntimeState(entry, connection)
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
         if (entry.runtimeState.queue.length > 0 && !this.liveTurn(entry)) {
@@ -3583,7 +3585,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return Promise.allSettled(closings).then(() => undefined)
   }
 
-  private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
+  private closeEntry(entry: AgentSessionRuntimeEntry, interrupt = false): Promise<void> {
     this.clearIdleTimer(entry)
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
       const parts = accumulator.latest?.parts
@@ -3617,7 +3619,10 @@ export class AgentSessionRuntimeService extends BaseService {
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    const closings: Promise<unknown>[] = [backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]
+    const closings: Promise<unknown>[] = [
+      backgroundFlowFlush,
+      this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
+    ]
     if (connectionAttempt) closings.push(connectionAttempt)
     return Promise.allSettled(closings).then(() => undefined)
   }
@@ -3651,7 +3656,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private async closeRuntimeConnection(
     connection: AgentRuntimeConnection | undefined,
     sessionId: string,
-    strict = false
+    strict = false,
+    interrupt = false
   ): Promise<void> {
     if (!connection) return
     const entry = this.entries.get(sessionId)
@@ -3663,7 +3669,8 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.trackSessionClosing(sessionId, settled.promise, resumeToken, branchHead)
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
+      const close = () => (connection.closeForEdit ? connection.closeForEdit() : connection.close())
+      const closing = interrupt && connection.interrupt ? connection.interrupt().then(close) : close()
       await Promise.race([
         Promise.resolve(closing).then(() => {
           const failed = this.failedClosures.get(sessionId)

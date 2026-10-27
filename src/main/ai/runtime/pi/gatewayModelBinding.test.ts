@@ -39,7 +39,7 @@ afterEach(() => {
   providerRegistryService.clearCache()
 })
 
-it('uses the internal gateway, wire model route and session attribution with a native provider', async () => {
+it('preserves each model route and usage owner when a child shares the native gateway registry', async () => {
   const requests: {
     url?: string
     authorization?: string
@@ -104,6 +104,15 @@ it('uses the internal gateway, wire model route and session attribution with a n
     model,
     (usage, sessionId) => usages.push({ sessionId, tokens: usage.totalTokens })
   )
+  const child = await createPiGatewayModelBinding(
+    { sessionId: 'session-1', reasoningEffort: 'low' },
+    provider,
+    ModelSchema.parse({ ...model, id: 'local::child', apiModelId: 'child-wire' }),
+    undefined,
+    binding.modelRuntime
+  )
+  expect(binding.modelRuntime.getModel(binding.model.provider, binding.model.id)).toBeDefined()
+  expect(binding.modelRuntime.getModel(child.model.provider, child.model.id)).toBeDefined()
   const answer = await binding.modelRuntime
     .streamSimple(binding.model, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }), {
       sessionId: 'native-child'
@@ -127,6 +136,14 @@ it('uses the internal gateway, wire model route and session attribution with a n
       body: { model: 'local:wire-name', messages: [{ role: 'user', content: 'Hello' }] }
     }
   ])
+  const childAnswer = await child.modelRuntime.completeSimple(
+    child.model,
+    normalizeContext({ messages: [{ role: 'user', content: 'Child task', timestamp: 2 }] }),
+    { sessionId: 'child-session' }
+  )
+  expect(childAnswer.stopReason).toBe('stop')
+  expect(requests[1]).toMatchObject({ reasoning: 'low', body: { model: 'local:child-wire' } })
+  expect(usages).toEqual([{ sessionId: 'native-child', tokens: 15 }])
 })
 
 // A direct-provider replay workaround must not invent a thinking signature from a gateway message ID.

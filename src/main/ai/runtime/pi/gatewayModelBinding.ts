@@ -1,4 +1,5 @@
 import type { Usage } from '@earendil-works/pi-ai'
+import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import { loggerService } from '@logger'
@@ -17,7 +18,8 @@ export async function createPiGatewayModelBinding(
   input: Pick<AgentRuntimeConnectInput, 'sessionId' | 'reasoningEffort' | 'serviceTier' | 'fastMode' | 'trace'>,
   provider: Provider,
   model: Model,
-  onUsage?: (usage: Usage, nativeSessionId: string | undefined) => void
+  onUsage?: (usage: Usage, nativeSessionId: string | undefined) => void,
+  sharedModels?: ModelRuntime
 ) {
   const injection = buildPiGatewayInjection(provider, model, await resolveApiGatewayRuntime(input.sessionId))
   const [{ InMemoryCredentialStore }, { ModelRuntime }, streamSimple] = await Promise.all([
@@ -25,12 +27,16 @@ export async function createPiGatewayModelBinding(
     loadPiSdk(),
     loadPiApiStreamSimple(injection.api)
   ])
-  const modelRuntime = await ModelRuntime.create({
-    credentials: new InMemoryCredentialStore(),
-    modelsPath: null,
-    refreshOnCreate: false
-  })
-  modelRuntime.registerProvider(injection.providerName, {
+  const modelRuntime =
+    sharedModels ??
+    (await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    }))
+  // Native provider re-registration replaces its models and stream handler.
+  const providerName = sharedModels ? `cherry-gateway/${model.id}` : injection.providerName
+  modelRuntime.registerProvider(providerName, {
     ...injection.providerConfig,
     headers: {
       ...injection.providerConfig.headers,
@@ -70,8 +76,8 @@ export async function createPiGatewayModelBinding(
       return stream
     }
   })
-  await modelRuntime.setRuntimeApiKey(injection.providerName, injection.apiKey)
-  const registered = modelRuntime.getModel(injection.providerName, injection.modelId)
+  await modelRuntime.setRuntimeApiKey(providerName, injection.apiKey)
+  const registered = modelRuntime.getModel(providerName, injection.modelId)
   if (!registered) throw new Error(`Pi gateway model ${injection.modelId} was not registered`)
   return { modelRuntime, model: registered }
 }

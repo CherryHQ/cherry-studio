@@ -18,6 +18,8 @@ sources:
 ## Behavior
 
 Pi and Claude Code support **Fork** on completed assistant messages.
+Pi Durable does not yet expose desktop fork checkpoints or **Edit and resend**;
+these operations reject unsupported native history rather than rebuilding it from product messages.
 The operation creates an independent Agent session containing the visible
 history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue

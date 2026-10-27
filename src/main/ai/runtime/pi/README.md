@@ -3,7 +3,9 @@
 `PiRuntimeConnection` connects desktop root sessions through `createPiRuntime` from
 `@cherrystudio/agent-runtime-pi`. Cherry owns product messages and branch bindings; Pi owns
 native history and execution. The connection installs shared `agent-behavior` rules through production
-`HostPorts` and observes each live child independently. Durable desktop integration remains separate work.
+`HostPorts` and observes each live child independently. The
+[Durable desktop driver](../piDurable/README.md) reuses the gateway binding, behavior
+host, approval facts, shell helpers and tool renderer with its own native owner.
 
 The Pi adapter is a production dependency loaded with dynamic `import()`. Keep its ESM-only native
 dependencies outside the bundled CommonJS Main entry; a static import fails during Electron startup.
