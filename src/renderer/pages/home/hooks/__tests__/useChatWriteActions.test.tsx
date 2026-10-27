@@ -24,8 +24,11 @@ vi.mock('@renderer/services/messageUiStateCache', async (importOriginal) => ({
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
-import { streamingAnimationService } from '@cherrystudio/ui/components/composites/markdown/streaming-animation-service'
-import { thinkingScrollService } from '@renderer/services/ThinkingScrollService'
+import {
+  getCachedMessageUiState,
+  updateCachedMessageUiState,
+  invalidateCachedMessageUiStates
+} from '@renderer/services/messageUiStateCache'
 import type { Topic } from '@renderer/types/topic'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -33,13 +36,11 @@ import { useChatWriteActions } from '../useChatWriteActions'
 
 beforeEach(() => {
   cleanup()
-  streamingAnimationService.clear()
-  thinkingScrollService.clear()
+  invalidateCachedMessageUiStates(['a1', 'a2'])
 })
 afterEach(() => {
   cleanup()
-  streamingAnimationService.clear()
-  thinkingScrollService.clear()
+  invalidateCachedMessageUiStates(['a1', 'a2'])
 })
 
 function makeCache() {
@@ -513,6 +514,23 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
+  it.each(['blocked', 'rejected'])('preserves continuity when retry is %s', async (mode) => {
+    const failed = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failed.metadata.modelId = 'provider::model-a'
+    failed.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const state = {
+      markdownSources: { part: { source: 'Alpha' } },
+      thinkingScroll: { part: 0 },
+      disclosures: { 'thinking:part': true }
+    }
+    updateCachedMessageUiState('a1', state)
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), failed])
+    if (mode === 'blocked') streamOpen.mockResolvedValueOnce({ mode: 'blocked', reason: 'busy' })
+    else streamOpen.mockRejectedValueOnce(new Error('offline'))
+    await expect(actions.regenerate('a1')).rejects.toThrow()
+    expect(getCachedMessageUiState('a1')).toEqual(state)
+  })
+
   it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
     const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
     failedAssistant.metadata.modelId = 'provider::model-a'
@@ -535,13 +553,25 @@ describe('useChatWriteActions — regenerate', () => {
     })
     const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
 
-    streamingAnimationService.write('a1-part-0', { source: 'Alpha beta', optionsKey: '{}', blocks: new Map([[0, 10]]) })
-    thinkingScrollService.write('a1-part-1', { scrollTop: 25, following: false, isExpanded: true })
-    seedReservedMessages.mockImplementationOnce(async () => {
-      expect(streamingAnimationService.read('a1-part-0')).toBeUndefined()
-      expect(thinkingScrollService.read('a1-part-1')).toBeUndefined()
+    updateCachedMessageUiState('a1', {
+      markdownSources: { part: { source: 'Alpha' } },
+      thinkingScroll: { part: 25 },
+      disclosures: { 'thinking:part': true },
+      foldSelected: true,
+      useful: true,
+      multiModelMessageStyle: 'grid'
     })
+    updateCachedMessageUiState('a2', { thinkingScroll: { part: 30 } })
     await actions.regenerate('a1')
+    expect(getCachedMessageUiState('a1')).toEqual({
+      markdownSources: undefined,
+      thinkingScroll: undefined,
+      disclosures: undefined,
+      foldSelected: true,
+      useful: true,
+      multiModelMessageStyle: 'grid'
+    })
+    expect(getCachedMessageUiState('a2').thinkingScroll).toEqual({ part: 30 })
 
     expect(regenerate).not.toHaveBeenCalled()
     expect(streamOpen).toHaveBeenCalledWith({

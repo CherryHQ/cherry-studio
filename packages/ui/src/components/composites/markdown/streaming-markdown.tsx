@@ -4,14 +4,8 @@ import type { Pluggable } from 'unified'
 
 import { MarkdownCore } from './internal'
 
-export interface MarkdownAnimationRecovery {
-  id: string
-  source: string
-  isStreaming: boolean
-}
-
 export interface StreamingMarkdownProps {
-  animationRecovery?: MarkdownAnimationRecovery
+  resumeAnimation?: boolean
   /** Stable identity used as heading-ID prefix. */
   id: string
   /** Markdown source (the streaming tail). */
@@ -52,7 +46,7 @@ export function StreamingMarkdown({
   className,
   footnoteLabel,
   animated,
-  animationRecovery,
+  resumeAnimation,
   parseIncompleteMarkdown = true,
   parseMarkdownIntoBlocksFn,
   preserveFileLinkHrefs,
@@ -76,7 +70,7 @@ export function StreamingMarkdown({
       extraRehypePlugins={rehypePlugins}
       extraRemarkPlugins={remarkPlugins}
       animated={resolvedAnimated}
-      animationRecovery={animationRecovery}
+      resumeAnimation={resumeAnimation}
       disallowedElements={disallowedElements}
       className={className}
       footnoteLabel={footnoteLabel}

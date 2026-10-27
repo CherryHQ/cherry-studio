@@ -8,7 +8,7 @@
  * the package stays provider-agnostic.
  */
 
-import { type ReactElement, use, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+import { type ReactElement, use, useCallback, useId, useLayoutEffect, useMemo, useRef } from 'react'
 import remarkDefinitionList, { defListHastHandlers } from 'remark-definition-list'
 import remarkAlert from 'remark-github-blockquote-alert'
 import { remarkMark } from 'remark-mark-highlight'
@@ -17,6 +17,7 @@ import {
   Block,
   type BlockProps,
   type Components,
+  createAnimatePlugin,
   defaultRehypePlugins,
   defaultRemarkPlugins,
   defaultUrlTransform,
@@ -35,8 +36,6 @@ import {
 } from './plugins/rehype-preserve-file-links'
 import { createRelativeImagePreservation } from './plugins/rehype-preserve-relative-images'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
-import { MarkdownAnimationSession } from './streaming-animation-service'
-import type { MarkdownAnimationRecovery } from './streaming-markdown'
 import {
   createMarkdownSanitizeSchema,
   DISALLOWED_ELEMENTS,
@@ -54,22 +53,41 @@ const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).m
 
 function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
   const markdownCtx = useMemo(() => ({ content }), [content])
-  const session = use(MarkdownAnimationContext)
-  const blockPlugin =
-    session && props.animatePlugin && props.rehypePlugins?.includes(props.animatePlugin.rehypePlugin)
-      ? session.getBlock(props.index, content)
-      : props.animatePlugin
+  const recovery = use(MarkdownAnimationContext)
+  const waterline = useRef<number | undefined>(undefined)
+  const parsed = useRef(false)
+  const pluginId = useId()
+  const blockPlugin = useMemo(
+    () => (props.animatePlugin ? createAnimatePlugin(recovery?.current.options) : undefined),
+    [props.animatePlugin, recovery]
+  )
+  const injectWaterline = useMemo(() => {
+    const step = () => () => {
+      blockPlugin?.setPrevContentLength(
+        waterline.current ??
+          (recovery?.current.recovering && props.index < (recovery.current.initialCount ?? 0) ? Infinity : 0)
+      )
+      parsed.current = true
+    }
+    Object.defineProperty(step, 'name', {
+      value: `rehypeResume${pluginId}`
+    })
+    return step
+  }, [blockPlugin, recovery, props.index, pluginId])
   const rehypePlugins = useMemo(
     () =>
-      blockPlugin && props.animatePlugin && blockPlugin !== props.animatePlugin
-        ? props.rehypePlugins?.map((plugin) =>
-            plugin === props.animatePlugin?.rehypePlugin ? blockPlugin.rehypePlugin : plugin
-          )
-        : props.rehypePlugins,
-    [props.rehypePlugins, props.animatePlugin, blockPlugin]
+      props.rehypePlugins?.flatMap((plugin) =>
+        blockPlugin && plugin === props.animatePlugin?.rehypePlugin
+          ? [injectWaterline, blockPlugin.rehypePlugin]
+          : [plugin]
+      ),
+    [props.rehypePlugins, props.animatePlugin, blockPlugin, injectWaterline]
   )
   useLayoutEffect(() => {
-    if (blockPlugin) session?.commit(props.index, blockPlugin)
+    if (!parsed.current || !blockPlugin) return
+    waterline.current = blockPlugin.getLastRenderCharCount()
+    parsed.current = false
+    if (recovery) recovery.current.recovering = false
   })
 
   return (
@@ -142,7 +160,7 @@ export interface MarkdownCoreProps {
   extraRehypePlugins?: Pluggable[]
   /** Caller-supplied extra remark plugins appended after Streamdown defaults + remarkAlert. */
   extraRemarkPlugins?: Pluggable[]
-  animationRecovery?: MarkdownAnimationRecovery
+  resumeAnimation?: boolean
   /** Animation config forwarded to Streamdown's built-in `animated` prop. */
   animated?: AnimateOptions | false
   mode: 'static' | 'streaming'
@@ -166,7 +184,7 @@ export function MarkdownCore({
   extraRehypePlugins,
   extraRemarkPlugins,
   animated,
-  animationRecovery,
+  resumeAnimation,
   mode,
   parseIncompleteMarkdown,
   parseMarkdownIntoBlocksFn,
@@ -176,36 +194,21 @@ export function MarkdownCore({
   preserveFileLinkHrefs = false,
   preserveRelativeImageSrcs = false
 }: MarkdownCoreProps): ReactElement {
-  const sessionRef = useRef<MarkdownAnimationSession | null>(null)
-  const optionsKey = JSON.stringify(animated)
-  const recoveryEnabled = animationRecovery?.isStreaming && animated
-  if (recoveryEnabled && animationRecovery) {
-    const current = sessionRef.current
-    if (
-      !current ||
-      current.id !== animationRecovery.id ||
-      current.optionsKey !== optionsKey ||
-      !current.continues(animationRecovery.source)
-    ) {
-      sessionRef.current = new MarkdownAnimationSession(
-        animationRecovery.id,
-        animationRecovery.source,
-        optionsKey,
-        animated
-      )
-    }
-    sessionRef.current!.updateSource(animationRecovery.source)
-  }
-  const session = recoveryEnabled ? sessionRef.current : null
+  const recovery = useRef({
+    initialCount: undefined as number | undefined,
+    recovering: !!resumeAnimation,
+    options: animated || undefined
+  })
+  recovery.current.options = animated || undefined
   const parseBlocks = useMemo(() => {
-    if (!session) return parseMarkdownIntoBlocksFn
     const parser = parseMarkdownIntoBlocksFn ?? parseMarkdownIntoBlocks
     return (source: string) => {
       const blocks = parser(source)
-      session.captureInitialBlocks(blocks)
+      if (recovery.current.recovering && recovery.current.initialCount === undefined)
+        recovery.current.initialCount = blocks.length
       return blocks
     }
-  }, [session, parseMarkdownIntoBlocksFn])
+  }, [parseMarkdownIntoBlocksFn])
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
   const stableComponents = useStableReference(components, isSameComponents)
   const stableExtraRehypePlugins = useStableReference(extraRehypePlugins, isSamePluggableList)
@@ -275,7 +278,7 @@ export function MarkdownCore({
   const markdownCtx = useMemo(() => ({ content: children }), [children])
 
   return (
-    <MarkdownAnimationContext value={session}>
+    <MarkdownAnimationContext value={recovery}>
       <MarkdownBlockContext value={markdownCtx}>
         <div className={['markdown', className].filter(Boolean).join(' ')}>
           <Streamdown

@@ -1,5 +1,5 @@
 import { isEmpty } from 'es-toolkit/compat'
-import { type FC, useCallback, useMemo } from 'react'
+import { type FC, useCallback, useMemo, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Pluggable } from 'unified'
 
@@ -8,10 +8,16 @@ import {
   useOptionalMessageListActions
 } from '@renderer/components/chat/messages/MessageListProvider'
 import { AppMarkdown, MarkdownHostProvider } from '@renderer/components/markdown'
+import {
+  getCachedMessageUiState,
+  subscribeCachedMessageUiState,
+  updateCachedMessageUiState
+} from '@renderer/services/messageUiStateCache'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isWin } from '@renderer/utils/platform'
 
+import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS } from './ChatMarkdownRenderers'
@@ -34,6 +40,37 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
   const actions = useOptionalMessageListActions()
+  const messageId = useMessagePartsScopeId()
+  const [resetKey, setResetKey] = useState(false)
+  const attempt = useMemo(() => {
+    const previous = messageId ? getCachedMessageUiState(messageId).markdownSources?.[block.id] : undefined
+    return { previous, current: previous, active: true, key: resetKey }
+  }, [messageId, block.id, resetKey])
+  useLayoutEffect(() => {
+    if (!messageId) return
+    const checkSource = () => {
+      if (
+        attempt.active &&
+        attempt.current &&
+        attempt.current !== getCachedMessageUiState(messageId).markdownSources?.[block.id]
+      ) {
+        attempt.active = false
+        setResetKey((key) => !key)
+      }
+    }
+    checkSource()
+    return subscribeCachedMessageUiState(messageId, checkSource)
+  }, [messageId, block.id, attempt])
+  useLayoutEffect(() => {
+    if (!messageId || !attempt.active) return
+    updateCachedMessageUiState(messageId, (current) => {
+      const sources = { ...current.markdownSources }
+      attempt.current = block.status === 'streaming' ? { source: block.content } : undefined
+      if (attempt.current) sources[block.id] = attempt.current
+      else delete sources[block.id]
+      return { ...current, markdownSources: sources }
+    })
+  }, [messageId, block.id, block.content, block.status, attempt])
   const isStreaming = block.status === 'streaming'
   const content =
     block.status === 'paused' && isEmpty(block.content) ? t('message.chat.completion.paused') : block.content
@@ -88,7 +125,14 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
         notifySuccess={actions?.notifySuccess}
         notifyError={actions?.notifyError}>
         <AppMarkdown
+          key={String(attempt.key)}
           id={block.id}
+          resumeAnimation={
+            !!messageId &&
+            !!attempt.previous?.source &&
+            isStreaming &&
+            block.content.startsWith(attempt.previous.source)
+          }
           isStreaming={isStreaming}
           singleDollarMath={mathEnableSingleDollar}
           components={mergedComponents}

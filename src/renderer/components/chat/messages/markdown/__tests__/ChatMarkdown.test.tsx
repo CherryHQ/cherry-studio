@@ -1,10 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Activity, StrictMode, useLayoutEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+import { invalidateCachedMessageUiStates, updateCachedMessageUiState } from '@renderer/services/messageUiStateCache'
 
+import { MessagePartsScopeProvider } from '../../blocks/MessagePartsContext'
 import ChatMarkdown from '../ChatMarkdownRuntime'
 
 const mocks = vi.hoisted(() => ({
@@ -62,4 +65,171 @@ describe('ChatMarkdown adapter', () => {
     expect(openPath).toHaveBeenCalledWith('./docs')
     expect(openArtifactFile).not.toHaveBeenCalled()
   })
+})
+
+function stream(source: string, owner = 'animation-owner') {
+  return (
+    <MessagePartsScopeProvider parts={[]} messageId={owner}>
+      <ChatMarkdown block={{ id: 'part', content: source, status: 'streaming' }} />
+    </MessagePartsScopeProvider>
+  )
+}
+function durations(container: HTMLElement, expected: Record<string, string>) {
+  const spans = [...container.querySelectorAll<HTMLElement>('span[data-sd-animate]')]
+  for (const [word, duration] of Object.entries(expected)) {
+    const matches = spans.filter((span) => span.textContent?.trim() === word)
+    expect(matches.length, word).toBeGreaterThan(0)
+    for (const span of matches) expect(span.style.getPropertyValue('--sd-duration'), word).toBe(duration)
+  }
+}
+describe('message animation continuity', () => {
+  beforeEach(() => {
+    cleanup()
+    invalidateCachedMessageUiStates(['animation-owner', 'other-owner'])
+  })
+  it('restores the same source across remounts and isolates another message', () => {
+    const first = render(stream('Alpha beta\n\nGamma'))
+    durations(first.container, { Alpha: '250ms', beta: '250ms', Gamma: '250ms' })
+    first.unmount()
+    const second = render(stream('Alpha beta\n\nGamma'))
+    durations(second.container, { Alpha: '0ms', beta: '0ms', Gamma: '0ms' })
+    second.unmount()
+    const other = render(stream('Alpha beta\n\nGamma', 'other-owner'))
+    durations(other.container, { Alpha: '250ms', Gamma: '250ms' })
+  })
+  it('restores all words and blocks received while away, then animates only subsequent arrivals', () => {
+    const first = render(stream('Alpha'))
+    first.unmount()
+    const second = render(stream('Alpha beta\n\nGamma delta epsilon'))
+    durations(second.container, { Alpha: '0ms', beta: '0ms', Gamma: '0ms', epsilon: '0ms' })
+    second.rerender(stream('Alpha beta\n\nGamma delta epsilon zeta\n\nNew'))
+    durations(second.container, { Alpha: '0ms', Gamma: '0ms', zeta: '250ms', New: '250ms' })
+  })
+  it('keeps long and short block waterlines separate', () => {
+    const view = render(stream('Alpha beta gamma delta\n\nShort'))
+    view.rerender(stream('Alpha beta gamma delta\n\nShort extra'))
+    durations(view.container, { extra: '250ms' })
+    view.rerender(stream('Alpha beta gamma delta\n\nShort extra more'))
+    durations(view.container, { Short: '0ms', extra: '0ms', more: '250ms' })
+  })
+  it('does not recover an empty cached source', () => {
+    updateCachedMessageUiState('animation-owner', { markdownSources: { part: { source: '' } } })
+    const view = render(stream('Alpha'))
+    durations(view.container, { Alpha: '250ms' })
+  })
+  it('rejects a changed prefix and another part under the same owner', () => {
+    const first = render(stream('Alpha'))
+    first.unmount()
+    const second = render(stream('Replacement'))
+    durations(second.container, { Replacement: '250ms' })
+    second.unmount()
+    const third = render(
+      <MessagePartsScopeProvider messageId="animation-owner" parts={[]}>
+        <ChatMarkdown block={{ id: 'another-part', content: 'Replacement', status: 'streaming' }} />
+      </MessagePartsScopeProvider>
+    )
+    durations(third.container, { Replacement: '250ms' })
+  })
+  it('does not retain streaming recovery after completion', () => {
+    const first = render(stream('Alpha'))
+    first.rerender(
+      <MessagePartsScopeProvider messageId="animation-owner" parts={[]}>
+        <ChatMarkdown block={{ id: 'part', content: 'Alpha', status: 'success' }} />
+      </MessagePartsScopeProvider>
+    )
+    first.unmount()
+    const second = render(stream('Alpha'))
+    durations(second.container, { Alpha: '250ms' })
+  })
+  it('retry revokes a mounted recovery phase before old commits can restore it', () => {
+    const first = render(stream('Alpha'))
+    first.unmount()
+    const view = render(stream('Alpha'))
+    durations(view.container, { Alpha: '0ms' })
+    act(() =>
+      updateCachedMessageUiState('animation-owner', (current) => ({
+        ...current,
+        markdownSources: undefined,
+        thinkingScroll: undefined,
+        disclosures: undefined
+      }))
+    )
+    durations(view.container, { Alpha: '250ms' })
+    view.rerender(stream('Alpha beta'))
+    durations(view.container, { Alpha: '0ms', beta: '250ms' })
+  })
+  it('revokes a source commit already pending when retry clears the cache', () => {
+    const first = render(stream('Alpha'))
+    first.unmount()
+    const view = render(stream('Alpha'))
+    let invalidate = true
+    function RetryOnCommit({ children }: React.ComponentProps<'p'> | Record<string, unknown>) {
+      useLayoutEffect(() => {
+        if (!invalidate) return
+        invalidate = false
+        updateCachedMessageUiState('animation-owner', (current) => ({
+          ...current,
+          markdownSources: undefined,
+          thinkingScroll: undefined,
+          disclosures: undefined
+        }))
+      }, [])
+      return <p>{children as React.ReactNode}</p>
+    }
+    view.rerender(
+      <MessagePartsScopeProvider messageId="animation-owner" parts={[]}>
+        <ChatMarkdown
+          block={{ id: 'part', content: 'Alpha beta', status: 'streaming' }}
+          components={{ p: RetryOnCommit }}
+        />
+      </MessagePartsScopeProvider>
+    )
+    durations(view.container, { Alpha: '250ms', beta: '250ms' })
+  })
+  it('Activity hiding preserves the mounted document and animates later arrivals', () => {
+    const view = render(<Activity mode="visible">{stream('Alpha')}</Activity>)
+    view.rerender(<Activity mode="hidden">{stream('Alpha')}</Activity>)
+    view.rerender(<Activity mode="visible">{stream('Alpha beta')}</Activity>)
+    durations(view.container, { Alpha: '0ms', beta: '250ms' })
+  })
+  it('retry while Activity is hidden revokes the retained recovery phase on reveal', () => {
+    const view = render(<Activity mode="visible">{stream('Alpha')}</Activity>)
+    view.rerender(<Activity mode="hidden">{stream('Alpha')}</Activity>)
+    act(() =>
+      updateCachedMessageUiState('animation-owner', (current) => ({
+        ...current,
+        markdownSources: undefined,
+        thinkingScroll: undefined,
+        disclosures: undefined
+      }))
+    )
+    view.rerender(<Activity mode="visible">{stream('Alpha')}</Activity>)
+    durations(view.container, { Alpha: '250ms' })
+  })
+  it('StrictMode reparses retain old words and animate new words in every block', () => {
+    const view = render(<StrictMode>{stream('Alpha beta\n\nShort')}</StrictMode>)
+    view.rerender(<StrictMode>{stream('Alpha beta gamma\n\nShort extra')}</StrictMode>)
+    durations(view.container, { Alpha: '0ms', beta: '0ms', gamma: '250ms', Short: '0ms', extra: '250ms' })
+  })
+})
+
+it('restores LaTeX-aware blocks before animating the next prose block', () => {
+  const source = String.raw`Before
+
+\[
+a +
+
+b
+\]
+
+After`
+  const first = render(stream(source, 'latex-owner'))
+  first.unmount()
+  const second = render(stream(source, 'latex-owner'))
+  durations(second.container, { Before: '0ms', After: '0ms' })
+  expect(screen.getByRole('math', { hidden: true })).toHaveTextContent('a+b')
+  second.rerender(stream(source + '\n\nLater', 'latex-owner'))
+  durations(second.container, { Later: '250ms' })
+  second.unmount()
+  invalidateCachedMessageUiStates(['latex-owner'])
 })

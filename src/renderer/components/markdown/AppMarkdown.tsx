@@ -1,5 +1,5 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-import { use, useEffect, useId, useMemo, useState } from 'react'
+import { use, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 import type { Pluggable } from 'unified'
@@ -8,8 +8,6 @@ import {
   createCodeHighlightPlugin,
   defaultMarkdownPlugins,
   Markdown,
-  forgetStreamingMarkdownAnimations,
-  type MarkdownAnimationRecovery,
   StreamingMarkdown,
   withMath
 } from '@cherrystudio/ui'
@@ -28,6 +26,7 @@ export interface AppMarkdownProps {
   children: string
   /** Content identity. Changing it resets renderer state and the block parser. */
   id?: string
+  resumeAnimation?: boolean
   isStreaming?: boolean
   singleDollarMath?: boolean
   className?: string
@@ -45,18 +44,13 @@ const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
 export function AppMarkdown(props: AppMarkdownProps) {
   const generatedId = useId()
   const id = props.id ?? generatedId
-  const isStreaming = props.isStreaming ?? false
-  const recovery = props.id ? { id: props.id, source: props.children, isStreaming } : undefined
-  useEffect(() => {
-    if (props.id && !isStreaming) forgetStreamingMarkdownAnimations((candidate) => candidate === props.id)
-  }, [props.id, isStreaming])
-  return <MarkdownContent key={id} {...props} id={id} animationRecovery={recovery} />
+  return <MarkdownContent key={id} {...props} id={id} />
 }
 
 function MarkdownContent({
   children,
   id,
-  animationRecovery,
+  resumeAnimation,
   isStreaming = false,
   singleDollarMath = true,
   className,
@@ -64,7 +58,7 @@ function MarkdownContent({
   remarkPlugins,
   rehypePlugins,
   transformSource = removeSvgEmptyLines
-}: AppMarkdownProps & { id: string; animationRecovery?: MarkdownAnimationRecovery }) {
+}: AppMarkdownProps & { id: string }) {
   const { t } = useTranslation()
   const { openFilePath, resolveImageSrc } = useMarkdownHost()
   const [hasStreamed, setHasStreamed] = useState(isStreaming)
@@ -105,7 +99,7 @@ function MarkdownContent({
       {hasStreamed || isStreaming ? (
         <StreamingMarkdown
           {...commonProps}
-          animationRecovery={animationRecovery}
+          resumeAnimation={resumeAnimation}
           animated={isStreaming && content.length <= MAX_ANIMATED_CONTENT_LENGTH ? undefined : false}
           parseIncompleteMarkdown={isStreaming}
           parseMarkdownIntoBlocksFn={parseMarkdownBlocks}>

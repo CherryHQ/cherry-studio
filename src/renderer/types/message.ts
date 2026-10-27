@@ -28,6 +28,8 @@ export interface MessageUiState {
   foldSelected?: boolean
   multiModelMessageStyle?: string
   useful?: boolean
+  markdownSources?: Record<string, { source: string }>
+  thinkingScroll?: Record<string, number | null>
   disclosures?: Record<string, boolean>
 }
 

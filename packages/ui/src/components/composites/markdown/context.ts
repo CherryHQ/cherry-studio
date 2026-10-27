@@ -1,8 +1,9 @@
 import { createContext, use } from 'react'
+import type { AnimateOptions } from 'streamdown'
 
-import type { MarkdownAnimationSession } from './streaming-animation-service'
-
-export const MarkdownAnimationContext = createContext<MarkdownAnimationSession | null>(null)
+export const MarkdownAnimationContext = createContext<{
+  current: { initialCount?: number; recovering: boolean; options?: AnimateOptions }
+} | null>(null)
 
 /**
  * Carries the raw markdown source to sub-components rendered inside a
