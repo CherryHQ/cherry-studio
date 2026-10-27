@@ -43,6 +43,7 @@ files:
   - "!scripts"
   - "!local"
   - "!docs"
+  - "!migrations/**"
   - "!packages"
   - "!.swc"
   - "!.bin"
@@ -70,6 +71,16 @@ files:
   - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
   - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
   - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
+  - "!**/node_modules/@larksuiteoapi/node-sdk/es/**"
+  - "!**/node_modules/pdf-parse/dist/pdf-parse/web/**"
+  - "!**/node_modules/pdf-parse/dist/pdf-parse/{cjs,esm}/pdf.worker.mjs"
+  - "!**/node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs"
+  - "!**/node_modules/@huggingface/transformers/src/**"
+  - "!**/node_modules/@huggingface/transformers/dist/{transformers{,.min}.js,transformers.web{,.min}.js,transformers.node.min.{cjs,mjs},ort-wasm-*.mjs}"
+  - "!**/node_modules/mediabunny/dist/bundles/mediabunny{,.min}.{cjs,mjs}"
+  - "!**/node_modules/@google/genai/dist/web/**"
+  - "!**/node_modules/@google/genai/dist/index.{cjs,mjs}"
+  - "!**/node_modules/@opentelemetry/semantic-conventions/build/{esm,esnext}/**"
   # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
   # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
   - "!node_modules/selection-hook/build/**"
@@ -112,6 +123,9 @@ extraResources:
     to: "voice-audio/NOTICE.txt"
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
+    filter:
+      - "*.sql"
+      - "meta/_journal.json"
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
@@ -164,6 +178,7 @@ mac:
     - target: dmg
     - target: zip
 dmg:
+  format: ULFO
   writeUpdateInfo: false
 toolsets:
   appimage: "1.0.3"

@@ -11,7 +11,12 @@ const projectRoot = path.resolve(import.meta.dirname, '../..')
 const require = createRequire(import.meta.url)
 const builderRequire = createRequire(require.resolve('electron-builder'))
 const { FileMatcher } = builderRequire('app-builder-lib/out/fileMatcher')
-const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as { files: string[] }
+const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
+  files: string[]
+  extraResources: Array<{ from: string; to: string; filter?: string[] }>
+  mac: { target: Array<{ target: string }> }
+  dmg: { format: string; writeUpdateInfo: boolean }
+}
 const fileStat = statSync(path.join(projectRoot, 'package.json'))
 
 function includesFile(filename: string, patterns = config.files): boolean {
@@ -22,6 +27,110 @@ function includesFile(filename: string, patterns = config.files): boolean {
 }
 
 describe('packaged dependency contents', () => {
+  it('uses ULFO for manual installation while retaining ZIP for macOS updates', () => {
+    expect(config.dmg.format).toBe('ULFO')
+    expect(config.mac.target.map(({ target }) => target)).toEqual(expect.arrayContaining(['dmg', 'zip']))
+    expect(config.dmg.writeUpdateInfo).toBe(false)
+  })
+
+  it.each(['node_modules', 'node_modules/consumer/node_modules'])(
+    'keeps Node dependency entry points under %s without alternate browser builds',
+    (modules) => {
+      for (const file of [
+        '@huggingface/transformers/package.json',
+        '@huggingface/transformers/dist/transformers.node.cjs',
+        '@huggingface/transformers/dist/transformers.node.mjs',
+        'mediabunny/dist/bundles/mediabunny.node.cjs',
+        'mediabunny/dist/modules/src/index.js',
+        '@google/genai/dist/node/index.cjs',
+        '@google/genai/dist/node/index.mjs',
+        '@google/genai/dist/tokenizer/node.cjs',
+        '@google/genai/dist/vertex_internal/index.js',
+        '@opentelemetry/semantic-conventions/build/src/index.js',
+        '@opentelemetry/semantic-conventions/build/src/index-incubating.js'
+      ]) {
+        expect(includesFile(`${modules}/${file}`), file).toBe(true)
+      }
+      for (const file of [
+        '@huggingface/transformers/src/transformers.js',
+        '@huggingface/transformers/dist/transformers.js',
+        '@huggingface/transformers/dist/transformers.min.js',
+        '@huggingface/transformers/dist/transformers.web.js',
+        '@huggingface/transformers/dist/transformers.web.min.js',
+        '@huggingface/transformers/dist/transformers.node.min.cjs',
+        '@huggingface/transformers/dist/transformers.node.min.mjs',
+        '@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.mjs',
+        'mediabunny/dist/bundles/mediabunny.cjs',
+        'mediabunny/dist/bundles/mediabunny.mjs',
+        'mediabunny/dist/bundles/mediabunny.min.cjs',
+        'mediabunny/dist/bundles/mediabunny.min.mjs',
+        '@google/genai/dist/web/index.mjs',
+        '@google/genai/dist/index.cjs',
+        '@google/genai/dist/index.mjs',
+        '@opentelemetry/semantic-conventions/build/esm/index.js',
+        '@opentelemetry/semantic-conventions/build/esnext/index.js'
+      ]) {
+        expect(includesFile(`${modules}/${file}`), file).toBe(false)
+      }
+    }
+  )
+
+  it('ships SQL and its journal once without schema-generation snapshots', () => {
+    const journal = JSON.parse(
+      readFileSync(path.join(projectRoot, 'migrations/sqlite-drizzle/meta/_journal.json'), 'utf8')
+    ) as { entries: Array<{ tag: string }> }
+    const sql = `${journal.entries[0].tag}.sql`
+    expect(includesFile(`migrations/sqlite-drizzle/${sql}`)).toBe(false)
+    const migration = config.extraResources.find((resource) => resource.to === 'migrations/sqlite-drizzle')!
+    const root = path.join(projectRoot, migration.from)
+    const includesMigration = new FileMatcher(root, root, (value: string) => value, migration.filter).createFilter()
+    for (const file of [sql, 'meta/_journal.json']) {
+      expect(includesMigration(path.join(root, file), fileStat), file).toBe(true)
+    }
+    expect(includesMigration(path.join(root, 'meta/0000_snapshot.json'), fileStat)).toBe(false)
+  })
+
+  it.each(['node_modules', 'node_modules/consumer/node_modules'])(
+    'excludes the unused Lark ESM build under %s while preserving its Node entry',
+    (modules) => {
+      expect(includesFile(`${modules}/@larksuiteoapi/node-sdk/es/index.js`)).toBe(false)
+      for (const file of ['package.json', 'lib/index.js']) {
+        expect(includesFile(`${modules}/@larksuiteoapi/node-sdk/${file}`), file).toBe(true)
+      }
+    }
+  )
+
+  it.each(['node_modules', 'node_modules/consumer/node_modules'])(
+    'excludes the PDF browser build under %s while preserving Node workers and rendering resources',
+    (modules) => {
+      for (const file of ['pdf-parse.es.js', 'pdf.worker.mjs']) {
+        expect(includesFile(`${modules}/pdf-parse/dist/pdf-parse/web/${file}`), file).toBe(false)
+      }
+      for (const file of [
+        'pdf-parse/dist/pdf-parse/cjs/pdf.worker.mjs',
+        'pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs',
+        'pdfjs-dist/legacy/build/pdf.worker.min.mjs'
+      ]) {
+        expect(includesFile(`${modules}/${file}`), file).toBe(false)
+      }
+      for (const file of [
+        'pdf-parse/package.json',
+        'pdf-parse/dist/pdf-parse/cjs/index.cjs',
+        'pdf-parse/dist/pdf-parse/esm/index.js',
+        'pdf-parse/dist/worker/cjs/index.cjs',
+        'pdf-parse/dist/worker/esm/index.js',
+        'pdf-parse/dist/worker/pdf.worker.mjs',
+        'pdfjs-dist/legacy/build/pdf.mjs',
+        'pdfjs-dist/legacy/build/pdf.worker.mjs',
+        'pdfjs-dist/cmaps/Adobe-GB1-UCS2.bcmap',
+        'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf',
+        'pdfjs-dist/wasm/openjpeg.wasm'
+      ]) {
+        expect(includesFile(`${modules}/${file}`), file).toBe(true)
+      }
+    }
+  )
+
   it('keeps the Computer Use SDK while its native helpers are installed outside ASAR', () => {
     expect(includesFile('node_modules/@cherrystudio/computer-use/dist/index.cjs')).toBe(true)
     for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
@@ -67,6 +176,8 @@ describe('packaged dependency contents', () => {
           const target = `${targetPlatform}-${targetArch}`
           const keep = targetPlatform === platform && targetArch === arch
           for (const file of [
+            `@esbuild/${target}/package.json`,
+            `@esbuild/${target}/${targetPlatform === 'win32' ? 'esbuild.exe' : 'bin/esbuild'}`,
             `@koromix/koffi-${target}/koffi.node`,
             `node-pty/prebuilds/${target}/pty.node`,
             `selection-hook/prebuilds/${target}/selection.node`
@@ -74,6 +185,12 @@ describe('packaged dependency contents', () => {
             expect(includesFile(`${modules}/${file}`, patterns), file).toBe(keep)
           }
         }
+      }
+      for (const target of ['linux-arm', 'linux-ia32', 'win32-ia32', 'freebsd-x64']) {
+        expect(includesFile(`${modules}/@esbuild/${target}/package.json`, patterns), target).toBe(false)
+      }
+      for (const file of ['package.json', 'lib/main.js', 'bin/esbuild']) {
+        expect(includesFile(`${modules}/esbuild/${file}`, patterns), file).toBe(true)
       }
       for (const target of [
         'darwin-arm64',
