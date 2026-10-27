@@ -1,3 +1,6 @@
+// Conformance corpus: derived from the CommonMark 0.31.2 specification
+// examples (https://spec.commonmark.org/0.31.2/, CC BY-SA 4.0, (c) the
+// CommonMark authors). Regenerate with ./generate-corpus-cases.sh (same dir).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CherryUIMessageChunk } from '@shared/data/types/message'

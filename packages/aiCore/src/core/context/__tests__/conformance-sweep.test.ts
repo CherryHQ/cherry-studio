@@ -1,3 +1,6 @@
+// Conformance corpus: derived from the CommonMark 0.31.2 specification
+// examples (https://spec.commonmark.org/0.31.2/, CC BY-SA 4.0, (c) the
+// CommonMark authors). Regenerate with ./generate-corpus-cases.sh (same dir).
 import { describe, expect, it } from 'vitest'
 
 import cases from './corpus-cases.json'

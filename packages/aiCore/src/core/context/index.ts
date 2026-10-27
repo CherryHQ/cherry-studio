@@ -37,7 +37,6 @@ export {
   MODEL_SCRATCHPAD_TAG_NAMES,
   advanceIndentedMaskState,
   fenceContainerPrefixFromState,
-  cloneIndentedMaskState,
   type IndentedMaskState,
   inlineCodeCarryStart,
   initialIndentedMaskState,
