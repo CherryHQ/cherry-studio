@@ -91,7 +91,6 @@ test('keeps a reply cut off by a reload and says it was interrupted', async ({ p
   await expect(messages.getByText(/^This reply was interrupted because the app closed\./)).toBeVisible()
 })
 
-/** Point every assistant at the mock endpoint; the trial's model source is not decided yet. */
 test('archives a chat topic from the topic list and restores it from Settings', async ({ page }) => {
   const run = Date.now().toString(36)
   const message = `topic to archive ${run}`
@@ -119,6 +118,7 @@ test('archives a chat topic from the topic list and restores it from Settings', 
   await expect.poll(() => topicNames(page)).toContain(message)
 })
 
+/** Point every assistant at the mock endpoint; the trial's model source is not decided yet. */
 async function useMockProvider(page: Page, run: string): Promise<void> {
   await page.evaluate(
     async ({ baseUrl, providerId }) => {
