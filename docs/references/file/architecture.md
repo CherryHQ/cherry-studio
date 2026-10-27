@@ -153,6 +153,10 @@ currently cover binary reads, optimistic writes, metadata, path and dangling-sta
 internal-entry batch creation, trash operations, rename, open/reveal, and the directory-tree
 protocol.
 
+`file.validate_notes_directory` is a transport adapter for the existing Notes-directory selection
+policy in `src/main/utils/notesDirectory.ts`, shared with legacy `FileStorage`. The policy stays
+outside the generic file-service module; Notes path resolution retains its default-directory fallback.
+
 The adapter uses `dispatchHandle` for routes that support both handle kinds:
 
 ```text
