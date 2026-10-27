@@ -534,14 +534,16 @@ function isClosingFenceLine(text: string, markerStart: number, fenceChar: string
 /** One container segment parsed from a fence opener's line prefix. */
 type FenceContainerSegment = { type: 'quote' } | { type: 'list'; contentCol: number }
 
-function parseFenceContainerSegments(prefix: string): FenceContainerSegment[] {
+function parseFenceContainerPrefixDetail(prefix: string): { segments: FenceContainerSegment[]; consumed: number } {
   prefix = expandFencePrefixTabs(prefix)
   const segments: FenceContainerSegment[] = []
   let rest = prefix
+  let consumed = 0
   for (;;) {
     const quote = /^ {0,3}>[ \t]?/.exec(rest)
     if (quote) {
       segments.push({ type: 'quote' })
+      consumed += quote[0].length
       rest = rest.slice(quote[0].length)
       continue
     }
@@ -551,13 +553,36 @@ function parseFenceContainerSegments(prefix: string): FenceContainerSegment[] {
       // (CommonMark 0.31.2 §5.2: one space when the run exceeds four).
       const padding = list[3] === '' ? 1 : Math.min(list[3].length, 4)
       segments.push({ type: 'list', contentCol: list[1].length + list[2].length + padding })
+      consumed += list[0].length
       rest = rest.slice(list[0].length)
       continue
     }
     // Up to three columns of indentation may precede the fence marker itself.
     break
   }
-  return segments
+  return { segments, consumed }
+}
+
+function parseFenceContainerSegments(prefix: string): FenceContainerSegment[] {
+  return parseFenceContainerPrefixDetail(prefix).segments
+}
+
+/**
+ * List columns carried by a marker-line prefix that sits entirely inside the
+ * scanned text (the "1. " in "1. ~~~"), or 0. The container segments must
+ * consume the whole prefix apart from up to three columns of fence-marker
+ * indentation: a prefix with trailing content ("1. text ```") is not a
+ * container line - its backtick run is inline code, not an opener. The
+ * inheritance lookup only rewrites prefixes through containers established
+ * EARLIER in the scan, so without this check a fence opener on a list marker
+ * line is never recognized and its closer reads as a new top-level opener
+ * (round-19 marker-line-fence chunking divergence).
+ */
+function ownMarkerLineListColumns(prefix: string): number {
+  const { segments, consumed } = parseFenceContainerPrefixDetail(prefix)
+  const columns = segments.reduce((sum, segment) => sum + (segment.type === 'list' ? segment.contentCol : 0), 0)
+  if (columns === 0) return 0
+  return /^ {0,3}$/.test(expandFencePrefixTabs(prefix).slice(consumed)) ? columns : 0
 }
 
 /**
@@ -1963,8 +1988,11 @@ export function maskCodeFences(
     // reached, at most three marker-offset columns left) through
     // fenceCloseMatchesContainerContext; an adopted prefix means the fence is
     // a valid continuation whether or not the markers are bare spaces
-    // (cherry-pr-review: quoted-list-fence-content-loss).
-    const listContinuationFence = inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix
+    // (cherry-pr-review: quoted-list-fence-content-loss). A marker line inside
+    // the scanned text itself ("1. ~~~") needs no inheritance: its own prefix
+    // carries the list context (round-19 marker-line-fence divergence).
+    const listContinuationFence =
+      (inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix) || ownMarkerLineListColumns(markerPrefix) > 0
     if (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence) {
       out += text.slice(pos, markerStart + 1)
       pos = markerStart + 1
@@ -2229,7 +2257,8 @@ function findUnclosedCodeFence(text: string, initialContainerPrefix?: string): {
       (sum, segment) => sum + (segment.type === 'list' ? segment.contentCol : 0),
       0
     )
-    const listContinuationFence = inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix
+    const listContinuationFence =
+      (inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix) || ownMarkerLineListColumns(markerPrefix) > 0
     if (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence) {
       pos = markerStart + 1
       continue

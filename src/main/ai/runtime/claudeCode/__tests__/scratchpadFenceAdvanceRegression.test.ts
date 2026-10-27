@@ -112,7 +112,17 @@ const FENCE_CORPUS: Array<[string, string]> = [
   // its closer; a backtick-default fallback would never wake on '~~~'.
   ['list-marker-tilde-fence', '- ~~~\n  tilde\n  ~~~\n\n<thinking>strip</thinking>\n'],
   ['ordered-marker-tilde-fence', '1. ~~~\n   code\n   ~~~\n\n<thinking>strip</thinking>\n'],
-  ['list-marker-backtick-fence', '- ```js\n  const x = 1\n  ```\n\n<thinking>strip</thinking>\n']
+  ['list-marker-backtick-fence', '- ```js\n  const x = 1\n  ```\n\n<thinking>strip</thinking>\n'],
+  // Ordered marker line with a BACKTICK fence: same recognition path as the
+  // tilde variant (the paragraph sentinel must not split marker head and run).
+  ['ordered-marker-backtick-fence', '1. ```\n   code\n   ```\n\n<thinking>strip</thinking>\n'],
+  // Tag INSIDE the fence on a marker line is fence content: chunked delivery
+  // must not strip it (round-19 in-fence content loss regression).
+  ['ordered-marker-tilde-tag-in-fence', '1. ~~~\n   <thinking>in-code</thinking>\n   ~~~\n\ntail\n'],
+  ['ordered-marker-backtick-tag-in-fence', '1. ```\n   <thinking>in-code</thinking>\n   ```\n\ntail\n'],
+  // An inline run after real list text is NOT a fence opener: the own-marker
+  // -line parse must reject it so the post-blank-line tag still strips.
+  ['ordered-inline-run-not-fence', '1. text ``` inline\n\n<thinking>strip</thinking>\n']
 ]
 
 /** Cases whose visible output must keep the literal tag (code-classified). */
@@ -123,7 +133,9 @@ const PRESERVE_CASES = new Set([
   'closed-then-indented-crlf',
   'closed-then-list',
   'closed-chunk-exact',
-  'tilde-fence'
+  'tilde-fence',
+  'ordered-marker-tilde-tag-in-fence',
+  'ordered-marker-backtick-tag-in-fence'
 ])
 
 function deliverAdapter(input: string, chunkSize: number | null, withStop = true) {
@@ -167,19 +179,26 @@ const CLOSED_FENCE_CASES = [
   'closed-chunk-exact',
   'list-marker-tilde-fence',
   'ordered-marker-tilde-fence',
-  'list-marker-backtick-fence'
+  'list-marker-backtick-fence',
+  'ordered-marker-backtick-fence',
+  'ordered-marker-tilde-tag-in-fence',
+  'ordered-marker-backtick-tag-in-fence'
 ]
 
 describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc875e16a2f)', () => {
   for (const [id, input] of FENCE_CORPUS) {
-    // EXPECTED-FAIL TRIPWIRE (inherited lead, not from the held-fence work):
-    // 'ordered-marker-tilde-fence' preserves the post-fence tag at 1/3-char
-    // chunking on the PUBLIC PR head ed1915b1b4 and on c4cf94eb43 - a
-    // chunking-dependent suppression misclassification in the streaming
-    // scratchpad filter introduced between 0d2860cb21 and ed1915b1b4. Held
-    // fence release is correct (assertions below pass). A real fix fires
-    // this tripwire: retire the case and say why.
-    const runner = id === 'ordered-marker-tilde-fence' ? it.fails : it
+    // TRIPWIRE RETIRED: 'ordered-marker-tilde-fence' was an expected-fail
+    // gate for a chunking-dependent suppression misclassification introduced
+    // by this PR's rebuild between 0d2860cb21 and ed1915b1b4 (post-fence tag
+    // preserved at 1/3-char chunking; in-fence tag stripped). Root cause:
+    // the open-line carry's paragraph sentinel ('1. x') split the marker
+    // head from a buffered fence run, so the completed opener scanned as
+    // paragraph text and the closer re-read as a new top-level opener. Fixed
+    // by suppressing the sentinel when a bare marker line's buffered
+    // remainder starts a fence run, plus strict own-marker-line fence
+    // recognition in the scan's container guards. The case now runs as a
+    // normal assertion at every chunking.
+    const runner = it
     runner(`${id}: whole/1/2/3/5/7/20-char delivery`, () => {
       const whole = deliver(input, null)
       if (PRESERVE_CASES.has(id)) expect(whole.includes('<thinking>')).toBe(true)

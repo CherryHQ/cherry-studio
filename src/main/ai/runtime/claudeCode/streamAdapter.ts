@@ -1753,6 +1753,12 @@ export class ClaudeCodeStreamAdapter {
       // fence opener line: its classification depends on the completed line,
       // and the opener must re-enter the next scan whole (round-17 split-21).
       /^[`~]{3,}/.test(remainder) ||
+      // Same for a fence opener on a LIST MARKER line ("1. ~~~"): the
+      // paragraph sentinel would inject 'x' between the marker head and the
+      // run, making the opener unrecognizable to the fence scan and leaving
+      // the closer to read as a new top-level opener (round-19 marker-line
+      // fence chunking divergence / in-fence content loss).
+      /^(?:[-*+]|\d{1,9}[.)])[ \t]+[`~]{3,}/.test(remainder) ||
       /^[`~]+$/.test(remainder) ||
       /^(?:=+|-+)[ \t]*$/.test(remainder) ||
       /^(?:[-*_][ \t]*)+$/.test(remainder) ||
@@ -1786,7 +1792,20 @@ export class ClaudeCodeStreamAdapter {
     }
     const tail = openLine.slice(Math.max(indent.length + markerHead.length, inlineCodeCarryStart(openLine)))
     const escapeMarker = tail === '' && hasOddTrailingBackslashRun(openLine) ? '\\' : ''
-    return indent + markerHead + (paragraph ? 'x' : '') + tail + escapeMarker
+    // A bare marker line whose buffered scan remainder starts a fence run is
+    // a potential marker-line fence opener ("1. " + "~~~" in flight): the
+    // paragraph sentinel must not sit between the marker head and the run, or
+    // the completed opener scans as paragraph text (unrecognizable to the
+    // fence scan) and the closer re-reads as a new top-level opener
+    // (round-19 marker-line fence chunking divergence / in-fence content
+    // loss). A partial run is safe: the scan holds "1. ~"/"1. ~~" as a
+    // potential fence prefix, and "1. ~x" still classifies as paragraph.
+    const suppressParagraphSentinel =
+      paragraph &&
+      markerHead !== '' &&
+      openLine.length === indent.length + markerHead.length &&
+      /^[`~]/.test(ctx.scratchpadStreamRemainder)
+    return indent + markerHead + (paragraph && !suppressParagraphSentinel ? 'x' : '') + tail + escapeMarker
   }
 
   private emittedIndentOnlyLinePrefix(text: string): string {
