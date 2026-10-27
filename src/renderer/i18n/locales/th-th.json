@@ -739,6 +739,7 @@
   "chat.input.reference_panel.session.no_results.description": "ไม่มีเซสชันที่ตรงกับการค้นหาของคุณ",
   "chat.input.reference_panel.session.no_results.label": "ไม่พบเซสชัน",
   "chat.input.reference_panel.session.title": "เซสชัน",
+  "chat.input.reference_panel.title": "การอ้างอิง",
   "chat.input.reference_panel.topic.no_results.description": "ไม่มีหัวข้อที่ตรงกับการค้นหาของคุณ",
   "chat.input.reference_panel.topic.no_results.label": "ไม่พบหัวข้อ",
   "chat.input.reference_panel.topic.title": "หัวข้อ",
