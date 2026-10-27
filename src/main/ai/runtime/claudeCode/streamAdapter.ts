@@ -38,6 +38,7 @@ import type {
 import {
   advanceIndentedMaskState,
   confirmedOpenFenceStreamPrefix,
+  fenceContainerPrefixFromState,
   type IndentedMaskState,
   initialIndentedMaskState,
   inlineCodeCarryStart,
@@ -1294,7 +1295,16 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
 
-    if (shouldDeferScratchpadStripping(combined)) {
+    // Seeded probes: an indented fence opener whose list ancestry was
+    // emitted in an earlier delta still reads as a fence, and a 4-space
+    // wrapper opener continuing a list item is paragraph content to defer,
+    // not code (round-17 spanning-fence / multi-chunk partition findings).
+    const containerPrefix = fenceContainerPrefixFromState(ctx.scratchpadMaskState)
+    const streamSeed = {
+      initialContainerPrefix: containerPrefix === '' ? undefined : containerPrefix,
+      initialMaskState: ctx.scratchpadMaskState
+    }
+    if (shouldDeferScratchpadStripping(combined, streamSeed)) {
       // A confirmed-open code fence (opener line complete, outside any
       // scratchpad block) holds only literal text through its last complete
       // content line: fences are preserved verbatim, so those lines are
@@ -1305,7 +1315,7 @@ export class ClaudeCodeStreamAdapter {
       // carried opener line keeps fence context for the next scan.
       // Inside a carried text element the body is literal: a fence-shaped line
       // there must not arm the fence carry for later real content.
-      const openFence = htmlCarry === '' ? confirmedOpenFenceStreamPrefix(combined) : null
+      const openFence = htmlCarry === '' ? confirmedOpenFenceStreamPrefix(combined, streamSeed) : null
       const stableText =
         openFence && openFence.stableEnd > prefix.length ? combined.slice(prefix.length, openFence.stableEnd) : ''
       // Never emit unreviewed text verbatim: if stripping the stable region
@@ -1328,7 +1338,6 @@ export class ClaudeCodeStreamAdapter {
     // keeping it would prepend a phantom fence that masks later scratchpad
     // text as literal code content.
     ctx.scratchpadStreamFenceCarry = ''
-
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(combined, {
       initialMaskState: ctx.scratchpadMaskState
     })

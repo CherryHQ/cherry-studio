@@ -1332,7 +1332,7 @@ export function maskIndentedCodeBlocksReference(text: string): {
 // ---------------------------------------------------------------------------
 
 /** Cross-line classification state of the indented-code masker. */
-interface IndentedMaskState {
+export interface IndentedMaskState {
   inheritedListColumns: number
   listInsideQuote: boolean
   listColumnStack: Array<{ column: number; quoteDepth: number }>
@@ -2169,34 +2169,63 @@ function textHasIncompleteMarkup(text: string): boolean {
   return false
 }
 
-function textHasUnclosedScratchpad(text: string): boolean {
+function textHasUnclosedScratchpad(
+  text: string,
+  initialContainerPrefix?: string,
+  initialMaskState?: IndentedMaskState
+): boolean {
   if (!/<(?:analysis|assessment|thinking)\b/i.test(text)) return false
-  const fenced = maskCodeFences(text).text
-  const indented = maskIndentedCodeBlocks(fenced).text
+  const fenced = maskCodeFences(text, { initialContainerPrefix }).text
+  // With a carried mask state, container ancestry of already-emitted lines
+  // decides code vs paragraph: a 4-space wrapper opener continuing a list
+  // item is paragraph content (defer and strip), not indented code
+  // (round-17 multi-chunk partition finding).
+  const indented = initialMaskState
+    ? maskIndentedCodeBlocksStepped(fenced, { initialState: initialMaskState }).text
+    : maskIndentedCodeBlocks(fenced).text
   return enclosingScratchpadTag(indented, indented.length) !== null
 }
 
 /** True when scratchpad filtering should wait for more stream input before stripping. */
-export function shouldDeferScratchpadStripping(text: string): boolean {
+export function shouldDeferScratchpadStripping(
+  text: string,
+  options?: { initialContainerPrefix?: string; initialMaskState?: IndentedMaskState }
+): boolean {
+  const seed = options?.initialContainerPrefix
   return (
     textHasIncompleteMarkup(text) ||
-    textHasUnclosedScratchpad(text) ||
-    textHasUnclosedCodeFence(text) ||
+    textHasUnclosedScratchpad(text, seed, options?.initialMaskState) ||
+    textHasUnclosedCodeFence(text, { initialContainerPrefix: seed }) ||
     textEndsWithPartialFenceMarker(text) ||
-    textHasUnclosedInlineCode(/[`~]{3}/.test(text) ? maskCodeFences(text).text : text)
+    textHasUnclosedInlineCode(/[`~]{3}/.test(text) ? maskCodeFences(text, { initialContainerPrefix: seed }).text : text)
   )
 }
 
 /** True when the text opens a fenced code block that has no closing delimiter yet. */
 /** Position of the first code fence still open at the end of `text`, if any. */
-function findUnclosedCodeFence(text: string): { markerStart: number } | null {
-  const inheritedPrefix = inheritedFencePrefixLookup(text)
+function findUnclosedCodeFence(
+  text: string,
+  initialContainerPrefix?: string
+): { markerStart: number } | null {
+  const inheritedPrefix = inheritedFencePrefixLookup(text, initialContainerPrefix)
   let pos = 0
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
     if (rel === -1) return null
     const markerStart = pos + rel
-    if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
+    // Mirror maskCodeFences: an opener indented under a list container
+    // (in the same text, or seeded from the streaming mask state) is a
+    // valid continuation fence (round-17 spanning-fence case).
+    const markerLineStart = lineStartBefore(text, markerStart)
+    const markerPrefix = text.slice(markerLineStart, markerStart)
+    const inheritedMarkerPrefix = inheritedPrefix(markerLineStart, markerPrefix)
+    const inheritedContainer = parseFenceContainerSegments(inheritedMarkerPrefix)
+    const inheritedColumns = inheritedContainer.reduce(
+      (sum, segment) => sum + (segment.type === 'list' ? segment.contentCol : 0),
+      0
+    )
+    const listContinuationFence = inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix
+    if (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence) {
       pos = markerStart + 1
       continue
     }
@@ -2213,7 +2242,7 @@ function findUnclosedCodeFence(text: string): { markerStart: number } | null {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
-    const openerLineStart = fenceLinePrefixStart(text, markerStart)
+    const openerLineStart = listContinuationFence ? markerLineStart : fenceLinePrefixStart(text, markerStart)
     const closeEnd = findCodeFenceClose(
       text,
       afterOpen,
@@ -2228,8 +2257,11 @@ function findUnclosedCodeFence(text: string): { markerStart: number } | null {
   return null
 }
 
-export function textHasUnclosedCodeFence(text: string): boolean {
-  return findUnclosedCodeFence(text) !== null
+export function textHasUnclosedCodeFence(
+  text: string,
+  options?: { initialContainerPrefix?: string }
+): boolean {
+  return findUnclosedCodeFence(text, options?.initialContainerPrefix) !== null
 }
 
 /**
@@ -2257,8 +2289,11 @@ export function textHasUnclosedInlineCodeOutsideCodeBlocks(text: string): boolea
  * inv_4f2b0c2d3f9c4a0b). Only the trailing partial line can still become
  * the closing marker, so it stays buffered.
  */
-export function confirmedOpenFenceStreamPrefix(text: string): { openerLine: string; stableEnd: number } | null {
-  const fence = findUnclosedCodeFence(text)
+export function confirmedOpenFenceStreamPrefix(
+  text: string,
+  options?: { initialContainerPrefix?: string }
+): { openerLine: string; stableEnd: number } | null {
+  const fence = findUnclosedCodeFence(text, options?.initialContainerPrefix)
   if (!fence) return null
   // A fence inside a scratchpad block ends at the block's closer: its
   // content is private and must never stream early.
