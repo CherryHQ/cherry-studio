@@ -1357,7 +1357,7 @@ export class ClaudeCodeStreamAdapter {
       if (maskedAdvance.fences.length === 1) {
         // Single open fence: masked and raw text are byte-identical before
         // it, so the token position is the raw fence start as well.
-        ctx.scratchpadMaskHeldFence = this.buildHeldFence(ctx.scratchpadMaskStateUnstepped, span, fenceStart, ctx)
+        ctx.scratchpadMaskHeldFence = this.buildHeldFence(ctx.scratchpadMaskStateUnstepped, ctx)
       }
       return
     }
@@ -1372,8 +1372,6 @@ export class ClaudeCodeStreamAdapter {
    */
   private buildHeldFence(
     heldRaw: string,
-    span: string,
-    fenceStartInSpan: number,
     ctx: StreamContext
   ): NonNullable<StreamContext['scratchpadMaskHeldFence']> {
     const openerEnd = /\r\n|\r|\n/.exec(heldRaw)
