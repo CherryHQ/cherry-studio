@@ -274,6 +274,23 @@ const closeTabToolDefinition = {
   inputSchema: CloseTabSchema
 }
 
+export const MarkTabSchema = z.object({
+  tabId: z.string().describe('Tab ID to mark'),
+  retention: z
+    .enum(['temporary', 'deliverable', 'handoff'])
+    .describe(
+      'temporary frees the tab normally; deliverable keeps it for reuse soon and handoff keeps it across work units. Marked tabs survive budget pressure longer and are frozen after two idle minutes to save resources; the next action thaws them.'
+    ),
+  privateMode: z.boolean().optional().describe('Target private window (default: false)')
+})
+
+const markTabToolDefinition = {
+  name: 'mark_tab',
+  description:
+    'Mark a tab as temporary, deliverable or handoff. Marking changes eviction order under budget pressure and enables idle freezing; it does not scope the tab to a turn.',
+  inputSchema: MarkTabSchema
+}
+
 export const toolDefinitions = [
   openToolDefinition,
   executeToolDefinition,
@@ -282,6 +299,7 @@ export const toolDefinitions = [
   listTabsToolDefinition,
   switchTabToolDefinition,
   closeTabToolDefinition,
+  markTabToolDefinition,
   resetToolDefinition,
   dialogToolDefinition,
   ...interactionToolDefinitions,

@@ -31,6 +31,7 @@ const logger = loggerService.withContext('BrowserSessionService')
 const MAX_GUESTS_PER_OWNER = 4
 const MAX_GUESTS_GLOBAL = 8
 const TEMPORARY_IDLE_MS = 5 * 60_000
+const RETAINED_IDLE_MS = 2 * 60_000
 
 interface SessionEntry {
   session: GuestSession
@@ -413,15 +414,19 @@ export class BrowserSessionService extends BaseService {
       if (!entry.active && Date.now() - entry.lastUsed >= TEMPORARY_IDLE_MS)
         void entry.server.close().catch((error) => logger.warn('Failed to release idle topic browser', { error }))
     }
+    const freezes: Promise<void>[] = []
     for (const [id, entry] of this.sessions) {
-      if (
-        entry.ownership.ownership === 'managed' &&
-        entry.session.retention === 'temporary' &&
-        !entry.session.busy &&
-        Date.now() - entry.session.lastActive >= TEMPORARY_IDLE_MS
-      )
-        this.remove(id, true)
+      if (entry.ownership.ownership !== 'managed') continue
+      if (entry.session.retention !== 'temporary') {
+        if (entry.session.freezable && Date.now() - entry.session.lastActive >= RETAINED_IDLE_MS)
+          freezes.push(
+            entry.session.freeze().catch((error) => logger.warn('Failed to freeze retained browser tab', { error }))
+          )
+        continue
+      }
+      if (!entry.session.busy && Date.now() - entry.session.lastActive >= TEMPORARY_IDLE_MS) this.remove(id, true)
     }
+    if (freezes.length) void Promise.allSettled(freezes)
   }
 
   private remove(id: number, close: boolean): void {

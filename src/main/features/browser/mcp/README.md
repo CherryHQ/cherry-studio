@@ -16,7 +16,7 @@ Shutdown failures are reported after remaining guest leases are released.
 ## Visible Agent host
 
 The `browser` server mounted by Agent runtimes uses `AgentBrowserController`, bound to a trusted
-Agent/Session and its visible right-pane guest. It exposes 18 tools: `switch_tab`, `close_tab` and
+Agent/Session and its visible right-pane guest. It exposes 18 tools: `switch_tab`, `close_tab`, `mark_tab` and
 `reset` are absent. `open` reveals/navigates that page; private/new-tab requests are rejected.
 `list_tabs` returns only that session's target. Ordinary HTTP(S) popup links navigate the same visible
 page. Unsupported destinations, POST popups and isolated preview/artifact popups remain blocked;
@@ -70,7 +70,7 @@ parallel work; operations on a single tab run serially.
 | `go_back`, `go_forward` | — | Tab history navigation |
 | `wait_for` | `text?`, `ref?`, `gone?`, `timeoutMs?` | At least text or ref; waits up to 30 seconds for snapshot presence/absence |
 | `handle_dialog` | `accept`, `promptText?` | Resolves the pending page dialog without replaying the blocked action |
-| `list_tabs`, `switch_tab`, `close_tab`, `reset` | Existing inputs | List, select or release tabs/windows |
+| `list_tabs`, `switch_tab`, `close_tab`, `mark_tab`, `reset` | Existing inputs | List, select, release or retention-mark tabs/windows; `mark_tab` records `temporary` / `deliverable` / `handoff`, which changes eviction order and enables idle freezing |
 
 Snapshot and action results are JSON text with `ok`, `tabId`, `url`, `title`,
 `navigated`, and `snapshot` on success. Covered fallback clicks include

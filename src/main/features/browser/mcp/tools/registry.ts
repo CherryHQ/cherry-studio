@@ -10,7 +10,7 @@ import { handleOpen } from './open'
 import { handleReset } from './reset'
 import { handleScreenshot } from './screenshot'
 import { handleSnapshot } from './snapshot'
-import { handleCloseTab, handleListTabs, handleSwitchTab } from './tabs'
+import { handleCloseTab, handleListTabs, handleMarkTab, handleSwitchTab } from './tabs'
 import { handleListWebTools, handleCallWebTool } from './webMcp'
 
 export const toolHandlers: Record<
@@ -24,6 +24,7 @@ export const toolHandlers: Record<
   list_tabs: handleListTabs,
   switch_tab: handleSwitchTab,
   close_tab: handleCloseTab,
+  mark_tab: handleMarkTab,
   reset: handleReset,
   handle_dialog: handleDialog,
   click: (c, a, s) => handleInteraction('click', c, a, s),

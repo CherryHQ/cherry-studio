@@ -10,6 +10,7 @@ import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
+import type { TabRetention } from '../browserUse'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import { BrowserPageController } from './BrowserPageController'
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
@@ -814,9 +815,26 @@ export class CdpBrowserController extends BrowserPageController {
       this.updateViewBounds(windowInfo)
     }
 
+    const session = this.service.get(tab.view.webContents.id)
+    if (session?.frozen)
+      session.thaw().catch((error) => logger.debug('Failed to thaw switched browser tab', { error }))
+
     this.syncAudioState(windowInfo)
     this.touchTab(windowKey, tabId)
     this.sendTabBarUpdate(windowInfo)
     logger.info('Switched active tab', { windowKey, tabId, privateMode })
+  }
+
+  public async markTab(privateMode: boolean, tabId: string, retention: TabRetention) {
+    const windowKey = this.getWindowKey(privateMode)
+    const windowInfo = this.windows.get(windowKey)
+    if (!windowInfo) throw new Error(`Window not found for ${privateMode ? 'private' : 'normal'} mode`)
+
+    const tab = windowInfo.tabs.get(tabId)
+    if (!tab) throw new Error(`Tab ${tabId} not found`)
+
+    const session = this.service.get(tab.view.webContents.id)
+    if (!session) throw new BrowserSessionError('not_allowed')
+    session.retention = retention
   }
 }

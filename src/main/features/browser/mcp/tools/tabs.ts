@@ -1,4 +1,4 @@
-import { ListTabsSchema, SwitchTabSchema, CloseTabSchema } from '@main/ai/mcp/browserToolDefinitions'
+import { ListTabsSchema, SwitchTabSchema, CloseTabSchema, MarkTabSchema } from '@main/ai/mcp/browserToolDefinitions'
 
 import { BrowserSessionError } from '../../session/BrowserSessionError'
 import type { BrowserController } from '../browserController'
@@ -42,6 +42,20 @@ export async function handleCloseTab(controller: BrowserController, args: unknow
     return successResponse(JSON.stringify({ closed: tabId }))
   } catch (error) {
     logger.error('Close tab failed', { error })
+    return errorResponse(error instanceof Error ? error : String(error))
+  }
+}
+
+// --- mark_tab ---
+
+export async function handleMarkTab(controller: BrowserController, args: unknown) {
+  try {
+    const { tabId, retention, privateMode } = MarkTabSchema.parse(args)
+    if (!controller.markTab) throw new BrowserSessionError('not_allowed')
+    await controller.markTab(privateMode ?? false, tabId, retention)
+    return successResponse(JSON.stringify({ marked: tabId, retention }))
+  } catch (error) {
+    logger.error('Mark tab failed', { error })
     return errorResponse(error instanceof Error ? error : String(error))
   }
 }
