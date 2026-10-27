@@ -1711,6 +1711,8 @@ export class ClaudeCodeStreamAdapter {
     // (capped at 2) is recovered, so the verdict falls back to the block slice.
     ctx.olPrev1 = null
     ctx.olPrev2 = null
+    // lastIndexOf with a negative start clamps to 0, so a count of 2 can come out with olPrev2 null:
+    // the verdict's `known` check then falls back to the (counted) block slice.
     let done = 0
     for (let at = start; done < 2 && at > ctx.textBlockContextStart; done++) {
       at = acc.lastIndexOf('\n', at - 2) + 1

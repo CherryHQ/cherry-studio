@@ -262,4 +262,64 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
     expect(r.whole).toBeLessThan(input.length)
     expect(r.carry).toBeLessThan(input.length * 80)
   })
+
+  it('previous-line verdict from the two-line window equals the full-block verdict on random documents', () => {
+    // isLeafBlockBoundaryLine reads the previous line and, only for a setext-looking underline, the one line before it;
+    // the paragraph-open decision is made from that second line alone, so a two-line window suffices.
+    const adapter = makeAdapter([]) as any
+    const pool = [
+      '',
+      '   ',
+      'text',
+      '# H',
+      '#',
+      '===',
+      '---',
+      '- - -',
+      '***',
+      '___',
+      '- item',
+      '1. item',
+      '> quote',
+      '>',
+      '> ---',
+      '> # h',
+      '```',
+      '~~~',
+      '    code',
+      '\tcode',
+      '  - nested',
+      '-',
+      '=',
+      'a'.repeat(1500),
+      '    ' + 'b'.repeat(1200)
+    ]
+    let seed = 0x7ee7
+    const r = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0
+      return seed / 4294967296
+    }
+    for (let n = 0; n < 3000; n++) {
+      const count = 2 + Math.floor(r() * 6)
+      const lines = Array.from({ length: count }, () => {
+        const l = pool[Math.floor(r() * pool.length)]
+        return r() < 0.15 ? `${l}\r` : l
+      })
+      const text = lines.join('\n') + '\n'
+      let start = 0
+      const starts: number[] = []
+      for (const l of lines) {
+        starts.push(start)
+        start += l.length + 1
+      }
+      for (let i = 1; i <= lines.length; i++) {
+        const lineStart = i === lines.length ? text.length : starts[i]
+        const full = adapter.indentCarryAllowedByPreviousLine(text, lineStart)
+        const window = (i >= 2 ? `${lines[i - 2]}\n` : '') + `${lines[i - 1]}\n`
+        expect(adapter.indentCarryAllowedByPreviousLine(window, window.length), JSON.stringify(lines.slice(0, i))).toBe(
+          full
+        )
+      }
+    }
+  })
 })
