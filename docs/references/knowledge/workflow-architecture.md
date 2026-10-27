@@ -35,9 +35,9 @@ Helpers may own source planning, lifecycle writes, knowledge-owned raw files, an
 
 `addItems`, `deleteItems`, and `reindexItems` are async workflow entry points. API resolution means the durable workflow has been accepted, not that every physical side effect has finished.
 
-- `addItems` resolves after root rows are created and first Knowledge jobs are queued.
+- `addItems` resolves after root rows are created and first Knowledge jobs are queued. A file (or a url restored with a snapshot) has only its `raw/` name reserved at that point; its bytes land later through `knowledge.copy-sources`. Restore passes `copyInline` to copy inside the call and keep its all-or-nothing rollback.
 - `deleteItems` resolves after top-level target subtrees are marked `deleting` and `knowledge.delete-subtree` is queued.
-- `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and `knowledge.reindex-subtree` is queued.
+- `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and one `knowledge.reindex-subtree` job per root is queued.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
 
@@ -60,6 +60,8 @@ scheduleItem(baseId, itemId)
 
 Job handlers do not decide whether an item is a root, nested container, direct leaf, or FileProcessing candidate. They perform their current stage and re-enter the workflow service.
 
+A newly added item that still owes bytes (a file, or a url restored with a snapshot) is not passed to `scheduleItem` by `addItems`. `addItems` enqueues `knowledge.copy-sources` instead, and that job calls `scheduleItem` once the bytes are committed, so source planning and FileProcessing never see a file that has not landed.
+
 ## Recursive Container Expansion
 
 `knowledge.prepare-root` expands a `directory` item and creates or replaces its child rows. Expansion results must not assume every child is a leaf:
@@ -77,10 +79,11 @@ If a child is another `directory`, `scheduleItem` queues another `knowledge.prep
 
 Registered job types:
 
-- `knowledge.prepare-root`: expand a container and schedule each child.
+- `knowledge.copy-sources`: stream an added item's source bytes into temp files beside its reserved `raw/` names off the lock, then under the lock confirm the item is live and commit the renames, then call `scheduleItem`. A failed copy fails only that item; a delete that lands mid-copy discards the temp files.
+- `knowledge.prepare-root`: pin the container's `raw/` prefix under the lock, scan and copy the tree off it, create the child rows under it, and schedule each child.
 - `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source. Empty reader results or zero chunks still write an empty vector set and complete the item.
 - `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, delete base-directory files, then delete resolved item ids with `deleteItemsByIds`. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
-- `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
+- `knowledge.reindex-subtree`: for terminal subtrees only, activate the selected roots under the lock, re-acquire their bytes off it (an active root is invisible to search, so its old index is never served against new bytes), then under the lock again delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
 
 - `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
 

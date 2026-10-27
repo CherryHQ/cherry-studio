@@ -208,6 +208,15 @@ or declare a local `vi.mock('node:fs', ...)` with the
 
 ### better-sqlite3 native module ABI
 
+Use the Node version pinned in `.node-version` and `.nvmrc` when installing or
+rebuilding native modules. Node 24.19.0 headers introduced an `ObjectWrap`
+cleanup-hook regression that can abort during allocation-driven garbage
+collection with `RemoveEnvironmentCleanupHook` and `Assertion failed: (env) != nullptr`
+([upstream issue](https://github.com/nodejs/node/issues/65446)). Changing only the
+runtime does not repair an addon compiled with those headers: switch to the
+repository's pinned Node version and run `pnpm rebuild:node` before rerunning
+the affected tests.
+
 better-sqlite3 is a native module, and unlike the repo's other natives it is
 NOT N-API — so it is ABI-specific and must be compiled for whichever runtime
 loads it. A native `.node` has a single build slot / one ABI, and the app

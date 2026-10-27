@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
   "agent.session.workspace_status.missing": "Calea către spațiul de lucru nu există: {{path}}",
   "agent.session.workspace_status.not_directory": "Calea spațiului de lucru nu este un director: {{path}}",
+  "agent.tools.to_markdown.unsupported_windows_arm64": "to_markdown nu este acceptat pe Windows ARM64 deoarece convertorul de documente inclus nu are o versiune nativă pentru această platformă. Reinstalarea dependențelor nu va rezolva această limitare.",
   "apiGateway.docs.description": "API HTTP Cherry Studio compatibil cu OpenAI, Anthropic și Gemini, plus endpoint-urile proprii Cherry (modele, baze de cunoștințe)",
   "apiGateway.docs.language_switcher_label": "Limba documentației",
   "apiGateway.docs.operations.chat_completions": "Creează o completare de conversație. Corpurile cererii și răspunsului respectă formatul OpenAI Chat Completions; cu `stream: true` rezultatul este transmis incremental.",

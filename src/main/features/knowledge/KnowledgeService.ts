@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type {
@@ -15,6 +14,7 @@ import type {
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
@@ -28,6 +28,7 @@ import type {
 import { KnowledgeConceptService } from './query/KnowledgeConceptService'
 import { KnowledgeQueryService } from './query/KnowledgeQueryService'
 import { createCheckFileProcessingResultJobHandler } from './tasks/checkFileProcessingResultJobHandler'
+import { createCopySourcesJobHandler } from './tasks/copySourcesJobHandler'
 import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
@@ -52,6 +53,10 @@ export class KnowledgeService extends BaseService {
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
+    jobManager.registerHandler(
+      'knowledge.copy-sources',
+      createCopySourcesJobHandler(this.knowledgeLockManager, this.ingestionService)
+    )
     jobManager.registerHandler(
       'knowledge.prepare-root',
       createPrepareRootJobHandler(this.knowledgeLockManager, this.ingestionService)

@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
   "agent.session.workspace_status.missing": "ワークスペースパスが存在しません: {{path}}",
   "agent.session.workspace_status.not_directory": "ワークスペースパスがフォルダーではありません: {{path}}",
+  "agent.tools.to_markdown.unsupported_windows_arm64": "同梱のドキュメント変換ツールにはこのプラットフォーム向けのネイティブビルドがないため、Windows ARM64 では to_markdown を利用できません。依存関係を再インストールしても、この制限は解消されません。",
   "apiGateway.docs.description": "OpenAI・Anthropic・Gemini 互換の Cherry Studio HTTP API と、Cherry 独自のエンドポイント（モデル、ナレッジベース）",
   "apiGateway.docs.language_switcher_label": "ドキュメントの言語",
   "apiGateway.docs.operations.chat_completions": "チャット補完を作成します。リクエストとレスポンスの形式は OpenAI Chat Completions と同じで、`stream: true` を指定すると逐次出力になります。",

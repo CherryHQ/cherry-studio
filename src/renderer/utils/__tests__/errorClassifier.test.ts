@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '@renderer/types/error'
 
-import { classifyError } from '../errorClassifier'
+import { classifyError, getLocalModelResolutionFailure } from '../errorClassifier'
 import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
@@ -331,6 +331,19 @@ describe('classifyError', () => {
     expect(result.navTarget).toBe('/settings/provider?id=gateway%26fallback%23beta')
   })
 
+  // The provider rejected the request body (#22164). That is a request-side failure, so it
+  // must not be diagnosed as "AI returned an invalid response, retry or switch model".
+  it('diagnoses a rejected request body as a request failure, not invalid AI content', () => {
+    const result = classifyError(
+      makeError({ statusCode: 400, message: 'Failed to parse request body', responseBody: 'Bad Request' }),
+      'openai'
+    )
+
+    expect(result.category).toBe('bad_request')
+    expect(result.i18nKey).toBe('error.diagnosis.bad_request')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
   // Auth
   it('classifies 401 as auth', () => {
     const result = classifyError(makeError({ statusCode: 401 }))
@@ -422,11 +435,41 @@ describe('classifyError', () => {
     expect(result.category).toBe('model')
   })
 
+  it('classifies a stale assistant model resolution failure as model', () => {
+    const result = classifyError(
+      makeError({ message: 'Cannot resolve modelId: not in request and assistant has no model' })
+    )
+
+    expect(result.category).toBe('model')
+  })
+
   it('classifies a missing configured model id as model', () => {
     const result = classifyError(makeError({ message: "Model with id 'provider/model' not found" }))
 
     expect(result.category).toBe('model')
     expect(result.i18nKey).toBe('error.diagnosis.model')
+  })
+
+  // #22571: main rejects a stale assistant-bound model before calling the provider. Falling through
+  // to the unknown-text fallback labelled it `bad_request` ("check your request parameters").
+  it.each([
+    ['Cannot resolve modelId: not in request and assistant has no model'],
+    ['Cannot resolve providerId: not in request and assistant has no model']
+  ])('classifies the local model resolution failure %s as model', (message) => {
+    const result = classifyError(makeError({ message }))
+
+    expect(result.category).toBe('model')
+    expect(result.i18nKey).toBe('error.diagnosis.model')
+    expect(result.navTarget).toBe('/settings/provider')
+  })
+
+  // Format 4: DataApiErrorFactory.notFound('Model', 'provider/model')
+  it('classifies DataApiError notFound for model as model with extracted id', () => {
+    const result = classifyError(makeError({ message: "Model with id 'ollama/qwen2.5-14b-instruct' not found" }))
+
+    expect(result.category).toBe('model')
+    expect(result.i18nKey).toBe('error.diagnosis.model')
+    expect(result.navTarget).toBe('/settings/provider')
   })
 
   // Rate limit
@@ -738,5 +781,32 @@ describe('classifyError', () => {
   it('prioritizes finishReason over status code', () => {
     const result = classifyError(makeError({ finishReason: 'content-filter', statusCode: 500 }))
     expect(result.category).toBe('content')
+  })
+})
+
+describe('getLocalModelResolutionFailure', () => {
+  it.each([
+    'Cannot resolve modelId: not in request and assistant has no model',
+    'Cannot resolve providerId: not in request and assistant has no model'
+  ])('does not invent an identifier for %s', (message) => {
+    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual({})
+    expect(classifyError(makeError({ message }), 'openai')).toEqual({
+      category: 'model',
+      i18nKey: 'error.diagnosis.model',
+      navTarget: '/settings/provider?id=openai'
+    })
+  })
+
+  it.each([
+    ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
+    ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
+    ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
+    ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]
+  ])('preserves identifiers supplied by %s', (message, expected) => {
+    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual(expected)
+  })
+
+  it('does not mistake a provider response for a local resolution failure', () => {
+    expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
   })
 })

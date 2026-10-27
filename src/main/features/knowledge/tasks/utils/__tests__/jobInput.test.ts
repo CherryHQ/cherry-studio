@@ -75,6 +75,18 @@ describe('narrowKnowledgeJobInput', () => {
     ).toBeNull()
   })
 
+  it('rejects copy-sources snapshots whose copies are malformed', () => {
+    expect(
+      narrowKnowledgeJobInput({ type: 'knowledge.copy-sources', input: { baseId: 'kb-1', itemId: 'file-1' } })
+    ).toBeNull()
+    expect(
+      narrowKnowledgeJobInput({
+        type: 'knowledge.copy-sources',
+        input: { baseId: 'kb-1', itemId: 'file-1', copies: [{ from: '/docs/a.pdf' }] }
+      })
+    ).toBeNull()
+  })
+
   it('rejects index-documents snapshots with invalid payload fields', () => {
     expect(
       narrowKnowledgeJobInput({

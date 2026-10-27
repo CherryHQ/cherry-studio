@@ -9,7 +9,7 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode, RenameNote } from '@renderer/types/note'
 
 const logger = loggerService.withContext('UseNotesMenu')
 
@@ -17,7 +17,7 @@ interface UseNotesMenuProps {
   renamingNodeIds: Set<string>
   onCreateNote: (name: string, targetFolderId?: string) => void
   onCreateFolder: (name: string, targetFolderId?: string) => void
-  onRenameNode: (nodeId: string, newName: string) => void
+  onRenameNode: RenameNote
   onToggleStar: (nodeId: string) => void
   onDeleteNode: (nodeId: string) => void
   onSelectNode: (node: NotesTreeNode) => void
