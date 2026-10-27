@@ -132,7 +132,8 @@ function ControlledServiceTier({ model, initialTier }: { model: Model; initialTi
 describe('ModelSpeedControl UI', () => {
   it.each([
     ['max', 'xhigh'],
-    ['high', 'high']
+    ['high', 'high'],
+    ['low', 'low']
   ] as const)('projects stored %s onto the declared tier %s', (stored, expected) => {
     const model: Model = {
       ...codexModel,
@@ -182,6 +183,44 @@ describe('ModelSpeedControl UI', () => {
     expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
+  })
+
+  it.each(['low', 'minimal', 'max', 'ultra'] as const)(
+    'displays and submits Default for stored %s on a toggle-only model',
+    (stored) => {
+      const model: Model = {
+        ...codexModel,
+        reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+      }
+
+      expect(resolveSupportedReasoningEffort(model, stored)).toBe('default')
+      render(<ControlledSpeedControl model={model} initialEffort={stored} />)
+      expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+        'assistants.settings.reasoning_effort.default'
+      )
+    }
+  )
+
+  it.each(['low', 'max'] as const)('submits Default for stored %s when only Off is supported', (stored) => {
+    const model: Model = {
+      ...codexModel,
+      reasoning: { selectableEfforts: ['none'] }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, stored)).toBe('default')
+  })
+
+  it.each([
+    ['minimal', 'minimal'],
+    ['max', 'ultra'],
+    ['high', 'ultra']
+  ] as const)('projects stored %s onto sparse intensity tier %s', (stored, expected) => {
+    const model: Model = {
+      ...codexModel,
+      reasoning: { selectableEfforts: ['minimal', 'ultra'] }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, stored)).toBe(expected)
   })
 
   it.each(['none', 'auto'] as const)('preserves a native toggle selection of %s for submission', (stored) => {

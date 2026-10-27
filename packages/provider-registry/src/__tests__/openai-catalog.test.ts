@@ -322,7 +322,7 @@ describe('OpenAI catalog', () => {
     }
   )
 
-  it('restores the documented Max tier only in the official Luna Responses contract', () => {
+  it('restores the documented Max tier in both OpenAI preset Luna endpoint contracts', () => {
     const override = loader.findOverride('openai', 'gpt-5-6-luna')
     const values = ['none', 'low', 'medium', 'high', 'xhigh', 'max']
 
@@ -331,6 +331,12 @@ describe('OpenAI catalog', () => {
       modelId: 'gpt-5-6-luna',
       reasoningContracts: {
         'openai-responses': {
+          support: {
+            controls: [{ kind: 'effort', values }],
+            supportedEfforts: values
+          }
+        },
+        'openai-chat-completions': {
           support: {
             controls: [{ kind: 'effort', values }],
             supportedEfforts: values

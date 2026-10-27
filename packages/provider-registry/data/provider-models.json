@@ -21828,6 +21828,17 @@
       "modelId": "gpt-5-6-luna",
       "providerId": "openai",
       "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        },
         "openai-responses": {
           "support": {
             "controls": [
@@ -41831,5 +41842,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "58ca02269c4d10fa"
+  "version": "e4e24646ca2425c4"
 }
