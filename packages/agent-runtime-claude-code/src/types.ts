@@ -1,4 +1,11 @@
-import type { Options, SDKMessage, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  Options,
+  Query,
+  SDKMessage,
+  SDKUserMessage,
+  SessionMessage,
+  WarmQuery
+} from '@anthropic-ai/claude-agent-sdk'
 
 import type {
   AgentRuntime,
@@ -18,7 +25,6 @@ import type {
 export type ClaudeSessionOptions = Omit<
   Options,
   | 'continue'
-  | 'sessionId'
   | 'resume'
   | 'resumeSessionAt'
   | 'resumeDropsTurn'
@@ -71,6 +77,11 @@ export interface ClaudeThreadHandle extends ThreadHandle {
   readonly claude: {
     readonly sessionId: string
     readonly agentId?: string
+    /** Start the native connection without submitting input; a warm handoff transfers sole ownership. */
+    start(warm?: { query: WarmQuery; exited: Promise<void> }): OperationResult<void>
+    supportedCommands(): Promise<OperationResult<Awaited<ReturnType<Query['supportedCommands']>>>>
+    contextUsage(): Promise<OperationResult<Awaited<ReturnType<Query['getContextUsage']>>>>
+    setPermissionMode(mode: Parameters<Query['setPermissionMode']>[0]): Promise<OperationResult<void>>
     submit(inputId: InputId, content: SDKUserMessage['message']['content'], whenBusy: BusyPolicy): Promise<SubmitResult>
     observe(sink: ClaudeObservationSink): Promise<OperationResult<Observation>>
     archive(): Promise<OperationResult<ClaudeArchive>>

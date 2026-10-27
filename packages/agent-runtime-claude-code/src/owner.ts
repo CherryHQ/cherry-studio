@@ -25,7 +25,7 @@ import {
 import { readArchive } from './archive'
 import { claudeThread, isUuid, rejected, runtimeError } from './identity'
 import { ClaudeProjection } from './projection'
-import type { ClaudeArchive, ClaudeCodeRuntimeOptions, ClaudeSessionOptions } from './types'
+import type { ClaudeArchive, ClaudeCodeRuntimeOptions, ClaudeSessionOptions, ClaudeThreadHandle } from './types'
 
 interface Task {
   sessionId: string
@@ -110,46 +110,83 @@ export class ClaudeOwner {
     }
   }
 
-  private start(): void {
+  connect(
+    projection: ClaudeProjection,
+    warm?: Parameters<ClaudeThreadHandle['claude']['start']>[0]
+  ): OperationResult<void> {
+    if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
+      return rejected('start', 'closed')
+    if (warm && this.sdk) return rejected('start', 'already-started')
+    try {
+      this.start(warm)
+      return { status: 'confirmed', value: undefined }
+    } catch (error) {
+      this.report(error)
+      return rejected('start', 'native-start-failed')
+    }
+  }
+
+  async control<T>(
+    projection: ClaudeProjection,
+    operation: string,
+    invoke: (query: Query) => Promise<T>
+  ): Promise<OperationResult<T>> {
+    const started = this.connect(projection)
+    if (started.status !== 'confirmed') return rejected(operation, 'closed')
+    try {
+      return { status: 'confirmed', value: await invoke(this.sdk!) }
+    } catch (error) {
+      this.report(error)
+      return { status: 'unknown', error: runtimeError(operation, 'native-error') }
+    }
+  }
+
+  private start(warm?: Parameters<ClaudeThreadHandle['claude']['start']>[0]): void {
     if (this.sdk) return
     const nativeSpawn = this.config.spawnClaudeCodeProcess
-    this.sdk = query({
-      prompt: this.inputStream(),
-      options: {
-        ...this.config,
-        env: { ...this.config.env, CLAUDE_CONFIG_DIR: this.runtime.configDir },
-        permissionMode: this.config.permissionMode ?? 'default',
-        sessionId: this.fresh ? this.activeSession : undefined,
-        resume: this.fresh ? undefined : this.activeSession,
-        persistSession: true,
-        includePartialMessages: true,
-        forwardSubagentText: true,
-        spawnClaudeCodeProcess: (options) => {
-          const child = nativeSpawn
-            ? nativeSpawn(options)
-            : spawn(options.command, options.args, {
-                cwd: options.cwd,
-                env: options.env,
-                signal: options.signal,
-                stdio: ['pipe', 'pipe', 'pipe'],
-                windowsHide: true
+    if (warm)
+      this.exit = warm.exited.then(() => {
+        this.exited = true
+      })
+    this.sdk = warm
+      ? warm.query.query(this.inputStream())
+      : query({
+          prompt: this.inputStream(),
+          options: {
+            ...this.config,
+            env: { ...this.config.env, CLAUDE_CONFIG_DIR: this.runtime.configDir },
+            permissionMode: this.config.permissionMode ?? 'default',
+            sessionId: this.fresh ? this.activeSession : undefined,
+            resume: this.fresh ? undefined : this.activeSession,
+            persistSession: true,
+            includePartialMessages: true,
+            forwardSubagentText: true,
+            spawnClaudeCodeProcess: (options) => {
+              const child = nativeSpawn
+                ? nativeSpawn(options)
+                : spawn(options.command, options.args, {
+                    cwd: options.cwd,
+                    env: options.env,
+                    signal: options.signal,
+                    stdio: ['pipe', 'pipe', 'pipe'],
+                    windowsHide: true
+                  })
+              if (!nativeSpawn && 'stderr' in child) {
+                const stderr = child.stderr as NodeJS.ReadableStream
+                stderr.on('data', (data: Buffer) => this.config.stderr?.(data.toString()))
+              }
+              this.exit = new Promise<void>((resolve) => {
+                const finish = () => {
+                  this.exited = true
+                  resolve()
+                }
+                if (child.exitCode !== null || child.signalCode) finish()
+                else child.once('exit', finish)
               })
-          if (!nativeSpawn && 'stderr' in child) {
-            const stderr = child.stderr as NodeJS.ReadableStream
-            stderr.on('data', (data: Buffer) => this.config.stderr?.(data.toString()))
-          }
-          this.exit = new Promise<void>((resolve) => {
-            const finish = () => {
-              this.exited = true
-              resolve()
+              return child
             }
-            if (child.exitCode !== null || child.signalCode) finish()
-            else child.once('exit', finish)
-          })
-          return child
-        }
-      }
-    })
+          }
+        })
     this.pump = (async () => {
       try {
         for await (const message of this.sdk!) {

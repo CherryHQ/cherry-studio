@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import type { Observation, OperationResult, ShutdownReceipt, Thread } from '@cherrystudio/agent-runtime'
 
-import { nativeIdentity, rejected, runtimeError } from './identity'
+import { isUuid, nativeIdentity, rejected, runtimeError } from './identity'
 import { ClaudeOwner } from './owner'
 import type { ClaudeProjection } from './projection'
 import type {
@@ -90,6 +90,22 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
       claude: {
         sessionId,
         agentId,
+        start: (warm) =>
+          released || agentId
+            ? rejected('start', agentId ? 'child-control' : 'released')
+            : owner.connect(projection, warm),
+        supportedCommands: () =>
+          released || agentId
+            ? Promise.resolve(rejected('supportedCommands', agentId ? 'child-control' : 'released'))
+            : owner.control(projection, 'supportedCommands', (query) => query.supportedCommands()),
+        contextUsage: () =>
+          released || agentId
+            ? Promise.resolve(rejected('contextUsage', agentId ? 'child-control' : 'released'))
+            : owner.control(projection, 'contextUsage', (query) => query.getContextUsage()),
+        setPermissionMode: (mode) =>
+          released || agentId
+            ? Promise.resolve(rejected('setPermissionMode', agentId ? 'child-control' : 'released'))
+            : owner.control(projection, 'setPermissionMode', (query) => query.setPermissionMode(mode)),
         submit,
         observe,
         archive: () => (released ? Promise.resolve(rejected('archive', 'released')) : owner.archive(projection)),
@@ -105,7 +121,8 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
     async create(config) {
       if (closed) return rejected('create', 'closed')
       try {
-        const sessionId = randomUUID()
+        const sessionId = config.sessionId ?? randomUUID()
+        if (!isUuid(sessionId) || owners.has(sessionId)) return rejected('create', 'invalid-session-id')
         const owner = build(config, sessionId, true)
         owners.set(sessionId, Promise.resolve(owner))
         return { status: 'confirmed', value: access(owner, owner.projection(sessionId), sessionId) }

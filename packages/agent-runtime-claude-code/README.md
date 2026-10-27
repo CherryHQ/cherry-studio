@@ -19,6 +19,13 @@ modes and native hooks/callbacks pass through. `open(thread)` validates the back
 and existing native storage. Opening and observing do not run a model. The first
 root submission starts or resumes its Query. Concurrent opens share that owner.
 
+The host may supply a reserved `sessionId` to `create`. `claude.start()` initializes
+the connection without model input, optionally taking exclusive ownership of a
+matching SDK `WarmQuery` and its process-exit Promise. The host must match its
+captured configuration and credentials. Command discovery, context usage and
+permission-mode updates use typed native methods on `claude`, without exposing
+the Query iterator to a second reader.
+
 `claudeThread(backendId, sessionId, agentId?)` constructs a reference from established
 native identity. Hosts store the opaque `Thread.id`; they do not parse its encoding.
 A child is a native root session plus stable agent ID, independent of run ID and
