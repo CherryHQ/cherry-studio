@@ -1,4 +1,6 @@
+import { once } from 'node:events'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -81,6 +83,10 @@ function nativeFixture() {
       schemaVersion: 1,
       ownership: 'regression-driver',
       policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'windows',
+      targetRoot: directory,
+      cdpPort: 9222,
       runnerPid: 123,
       electronPid: 456,
       targetUrl: 'http://localhost:5173',
@@ -100,10 +106,52 @@ it.each(['outside', 'missing'] as const)('rejects an %s path before any OS autom
   expect(execFileSync).not.toHaveBeenCalled()
 })
 
-it('rejects native saves outside the evidence directory before any OS automation', () => {
+it('rejects native saves outside the evidence directory before any OS automation', async () => {
   const { paths, filePath } = nativeFixture()
-  expect(() => automation.saveNativeFile('macos', paths, filePath)).toThrow('outside the regression test directories')
+  await expect(automation.saveNativeFile('macos', paths, filePath)).rejects.toThrow(
+    'outside the regression test directories'
+  )
   expect(execFileSync).not.toHaveBeenCalled()
+})
+
+it('serves fixture images while waiting for the native save dialog', async () => {
+  const { paths } = nativeFixture()
+  execFileSync.mockImplementation((_file, args) => {
+    const script = args.at(-1)!
+    if (script.includes('CommandLine')) return `electron ${directory}`
+    if (script.includes('Get-NetTCPConnection')) return '456'
+  })
+  let served = false
+  const server = createServer((_request, response) => {
+    served = true
+    response.end('fixture image')
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address() as { port: number }
+  execFile.mockImplementation((_file, _args, _options, callback) => {
+    void fetch(`http://127.0.0.1:${address.port}`)
+      .then(async (response) => {
+        expect(await response.text()).toBe('fixture image')
+        callback(null)
+      })
+      .catch(callback)
+  })
+  try {
+    const output = join(paths.evidence, 'export.png')
+    await expect(automation.saveNativeFile('windows', paths, output)).resolves.toBe(output)
+    expect(served).toBe(true)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+  }
+})
+
+it('does not cancel a file dialog after the recorded process identity changes', async () => {
+  const { paths } = nativeFixture()
+  execFileSync.mockReturnValue('unrelated application')
+  await expect(automation.cancelNativeFileDialogs('windows', paths)).rejects.toThrow('command no longer matches')
+  expect(execFile).not.toHaveBeenCalled()
 })
 
 it('uses locale-independent macOS 27 selection and keeps path and PID exclusively in argv', () => {

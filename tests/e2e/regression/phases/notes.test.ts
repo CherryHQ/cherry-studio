@@ -410,7 +410,7 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     const pdfPath = join(directory, 'MP-77.pdf')
     await rm(pdfPath, { force: true })
     await menuAction('Export to PDF')
-    saveNativeFile('macos', app.paths, pdfPath)
+    await saveNativeFile('macos', app.paths, pdfPath)
     await expect.poll(async () => (await stat(pdfPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
     const pdf = await getDocument({ data: new Uint8Array(await readFile(pdfPath)), useSystemFonts: true }).promise
@@ -441,7 +441,7 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     const wordPath = join(directory, 'MP-77.docx')
     await rm(wordPath, { force: true })
     await menuAction('Export to Word')
-    saveNativeFile('macos', app.paths, wordPath)
+    await saveNativeFile('macos', app.paths, wordPath)
     await expect.poll(async () => (await stat(wordPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
     const xml = execFileSync('unzip', ['-p', wordPath, 'word/document.xml'], { encoding: 'utf8' })
     expect(xml).toContain('<w:tbl>')

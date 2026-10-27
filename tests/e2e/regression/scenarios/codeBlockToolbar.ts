@@ -200,7 +200,7 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
       ).trim()
       expect(extname(suggestedName)).toBe('.py')
     } else {
-      saveNativeFile(app.record.platform, app.paths, output)
+      await saveNativeFile(app.record.platform, app.paths, output)
     }
     await expect.poll(() => readFile(output, 'utf8').catch(() => null)).toBe(`${code}\n`)
     await testInfo.attach('MP-40 downloaded Python source', { path: output, contentType: 'text/x-python' })

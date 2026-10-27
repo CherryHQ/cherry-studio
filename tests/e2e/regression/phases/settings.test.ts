@@ -143,12 +143,13 @@ test(...caseDefinition('MP-06'), async ({ app }, testInfo) => {
         .getByRole('button', { name: /Back|กลับ|ย้อนกลับ/, exact: true })
         .first()
         .click()
-      await expect(page.locator('[data-ui~="app.shell"]')).toContainText(/[\u0e00-\u0e7f]/)
+      await expect(page.locator('[data-ui~="app.shell"]').first()).toContainText(/[\u0e00-\u0e7f]/)
       await screenshot('MP-06 Thai main sidebar')
       await page
         .getByRole('button', { name: /Settings|ตั้งค่า|การตั้งค่า/, exact: true })
         .first()
         .click()
+      await navigation().getByText('ลักษณะที่ปรากฏ', { exact: true }).click()
       await languagePicker().click()
       await page.getByRole('option', { name: /English/ }).click()
       await expect(navigation().getByText('Appearance', { exact: true })).toBeVisible()
@@ -220,11 +221,13 @@ test(...caseDefinition('MP-06'), async ({ app }, testInfo) => {
       await page.keyboard.press('Escape')
       await page.evaluate(async (original) => {
         await window.api.preference.setMultiple({
+          'app.language': 'en-US',
           'ui.theme_mode': original.theme,
           'app.tray.on_close': original.onClose,
           'app.tray.enabled': original.tray
         })
       }, original)
+      await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
       await openSettingsSection(page, 'General')
       await expect(closeSwitch()).toBeChecked({ checked: original.onClose })
       await screenshot('MP-06 original tray setting restored')
@@ -1469,7 +1472,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
     await confirmation.getByRole('checkbox').check()
     await confirmation.getByRole('button', { name: 'Export', exact: true }).click()
     const output = join(app.paths.evidence, 'downloads', `MP-114-diagnostics-${Date.now()}.zip`)
-    saveNativeFile(app.record.platform, app.paths, output)
+    await saveNativeFile(app.record.platform, app.paths, output)
     await expect(page.getByText('Diagnostic bundle exported', { exact: true })).toBeVisible({ timeout: 60_000 })
     const archiveSize = (await stat(output)).size
     expect(archiveSize).toBeGreaterThan(0)

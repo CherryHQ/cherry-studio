@@ -100,7 +100,7 @@ async function generateAndSaveImage(
   await rm(output, { force: true })
   await image.click({ button: 'right' })
   await page.getByText('Save As', { exact: true }).click()
-  saveNativeFile(app.record.platform, app.paths, output)
+  await saveNativeFile(app.record.platform, app.paths, output)
   await expect
     .poll(async () => {
       try {

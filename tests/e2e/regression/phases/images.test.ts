@@ -99,7 +99,7 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
   const output = join(app.paths.evidence, 'downloads', 'MP-90-original.png')
   await rm(output, { force: true })
   await preview.getByRole('button', { name: 'Save As', exact: true }).click()
-  saveNativeFile(app.record.platform, app.paths, output)
+  await saveNativeFile(app.record.platform, app.paths, output)
   await expect
     .poll(async () =>
       validateFileEvidence(output, { type: 'image' })

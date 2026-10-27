@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 import { dismissTransientDialogs, selectSidebarApp } from './helpers/navigation'
 
@@ -14,5 +14,6 @@ export async function prepareScenario(page: Page): Promise<void> {
       'feature.selection.enabled': false
     })
   })
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
   await selectSidebarApp(page, 'Chat')
 }

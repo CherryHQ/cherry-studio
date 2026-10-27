@@ -14,6 +14,7 @@ import {
   type AppRecord
 } from '../../../scripts/e2e/regression/lifecycle'
 import { getRunPaths, type RunPaths } from '../../../scripts/e2e/regression/paths'
+import { cancelNativeFileDialogs } from '../../../scripts/e2e/regression/systemAutomation'
 import type { TestProfile } from '../../../scripts/e2e/regression/types'
 import { dismissTransientDialogs } from './helpers/navigation'
 
@@ -110,6 +111,7 @@ export class RegressionApp {
   }
 
   async cleanupTransientUi(mainWindow: Page): Promise<void> {
+    await cancelNativeFileDialogs(this.record.platform, this.paths)
     await dismissTransientDialogs(mainWindow)
     const browser = await this.connect()
     const transientPages = browser

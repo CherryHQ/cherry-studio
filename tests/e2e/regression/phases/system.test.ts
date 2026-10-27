@@ -449,7 +449,7 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     const savedPath = join(app.paths.evidence, 'MP-128-annotated.png')
     await rm(savedPath, { force: true })
     await capturePage.getByRole('button', { name: 'Save image', exact: true }).click()
-    saveNativeFile(app.record.platform, app.paths, savedPath)
+    await saveNativeFile(app.record.platform, app.paths, savedPath)
     await expect
       .poll(() =>
         readFile(savedPath).then(

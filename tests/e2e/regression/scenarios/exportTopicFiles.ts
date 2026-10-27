@@ -237,9 +237,12 @@ export async function exportTopicFiles(app: RegressionApp, page: Page, testInfo:
 
     await exportAs('Export as Word')
     const wordPath = join(output, 'MP47.docx')
-    saveNativeFile(app.record.platform, app.paths, wordPath)
+    await saveNativeFile(app.record.platform, app.paths, wordPath)
     await expect.poll(async () => await readdir(output)).toContain('MP47.docx')
-    const docx = await JSZip.loadAsync(await readFile(wordPath))
+    let docx!: JSZip
+    await expect(async () => {
+      docx = await JSZip.loadAsync(await readFile(wordPath), { checkCRC32: true })
+    }).toPass({ timeout: 10_000 })
     expect(docx.file('[Content_Types].xml')).not.toBeNull()
     const xml = await docx.file('word/document.xml')!.async('text')
     const text = xml.replace(/<[^>]+>/g, '')
@@ -269,7 +272,7 @@ export async function exportTopicFiles(app: RegressionApp, page: Page, testInfo:
     await expect(progress).toBeVisible()
     await attachScreenshot('MP-47 image export progress')
     const imagePath = join(output, 'MP47.png')
-    saveNativeFile(app.record.platform, app.paths, imagePath)
+    await saveNativeFile(app.record.platform, app.paths, imagePath)
     await expect(page.getByText('Image saved successfully', { exact: true })).toBeVisible({ timeout: 60_000 })
     await expect(progress).toBeHidden()
     const exportedImages = (await readdir(output)).filter((name) => /\.png$/i.test(name))

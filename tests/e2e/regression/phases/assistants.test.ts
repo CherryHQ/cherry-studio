@@ -760,7 +760,7 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
         { timeout: 15000 }
       )
     } else {
-      saveNativeFile(app.record.platform, app.paths, exportedPath)
+      await saveNativeFile(app.record.platform, app.paths, exportedPath)
     }
     // Poll the parsed payload, not just file size: a leftover file from an earlier invocation would
     // satisfy a nonempty check and then fail the name assertion against stale output.
@@ -909,9 +909,16 @@ test(...caseDefinition('MP-25'), async ({ app, mainWindow }, testInfo) => {
   const expand = async (name: string, expanded: boolean) => {
     const header = chat().locator('[data-ui~="chat.group-header"]').filter({ hasText: name }).first()
     await expect(header).toBeVisible()
-    await header.hover()
-    const button = header.getByRole('button', { name: expanded ? 'Expand' : 'Collapse', exact: true })
-    if (await button.isVisible()) await button.click()
+    await header.getByText(name, { exact: true }).hover()
+    const button = header.getByRole('button', {
+      name: expanded ? 'Expand' : 'Collapse',
+      exact: true,
+      includeHidden: true
+    })
+    if (await button.count()) await button.click()
+    await expect(
+      header.getByRole('button', { name: expanded ? 'Collapse' : 'Expand', exact: true, includeHidden: true })
+    ).toHaveAttribute('aria-expanded', String(expanded))
   }
 
   try {
@@ -1067,11 +1074,12 @@ test(...caseDefinition('MP-25'), async ({ app, mainWindow }, testInfo) => {
     await expect.poll(async () => (await readTopic()).assistantId).toBe(assistantIds[1])
 
     const assertMoved = async () => {
-      await expand(names[1], false)
       await expand(names[0], true)
       await expect(row(anchors[0].name)).toBeVisible()
-      await expect(row(topicName)).toHaveCount(0)
       await row(anchors[0].name).click()
+      await expand(names[1], false)
+      await screenshot('MP-25 source selected and destination collapsed')
+      await expect(row(topicName)).toHaveCount(0)
       await expect(messages()).toHaveCount(0)
       await expand(names[1], true)
       await expect(row(anchors[1].name)).toBeVisible()

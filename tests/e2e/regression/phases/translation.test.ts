@@ -288,7 +288,7 @@ test(...caseDefinition('MP-82'), async ({ app, mainWindow: page }, testInfo) => 
 
 test(...caseDefinition('MP-83'), async ({ app, mainWindow: page }, testInfo) => {
   // Catches lost OCR text, translations unrelated to the image, and silent empty OCR results.
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp83-assets-'))
+  const root = await mkdtemp(join(app.paths.workspace, 'mp83-assets-'))
   const images = root
   const sample = app.fixturesPath('images', 'sample.png')
   const blank = join(images, 'no-text.png')

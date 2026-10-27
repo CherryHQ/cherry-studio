@@ -110,6 +110,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     expect(topic.status).toBe(201)
     TopicSchema.parse(topic.data)
 
+    await setOwnedMainWindowFocus(app.record, true)
     await page.bringToFront()
     await page.keyboard.press('Escape')
     await page.reload()
@@ -263,6 +264,34 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     }
     await editor.fill('')
 
+    const caret = await textCoordinates(paragraph, 1)
+    await page.mouse.click(caret.x - 30, caret.y)
+    await page.mouse.move(caret.x, caret.y)
+    await page.mouse.down()
+    await page.mouse.move(caret.endX, caret.endY, { steps: 2 })
+    await page.mouse.up()
+    await expect.poll(selectedText).toBe(excerpt[0])
+    await page.keyboard.down('Shift')
+    for (let i = 1; i < excerpt.length; i++) await page.keyboard.press('ArrowRight')
+    await page.keyboard.up('Shift')
+    await expect.poll(selectedText).toBe(excerpt)
+    await testInfo.attach('MP-149 keyboard selection focus', {
+      body: JSON.stringify(
+        await page.evaluate(() => ({
+          documentFocused: document.hasFocus(),
+          activeTag: document.activeElement?.tagName,
+          selection: window.getSelection()?.toString()
+        }))
+      ),
+      contentType: 'application/json'
+    })
+    await expect(toolbar).toBeVisible()
+    await paragraph.click({ button: 'right', position: { x: 20, y: 8 } })
+    await copyAndPaste(page.getByRole('menuitem', { name: 'Copy', exact: true }), excerpt)
+    await selectReply()
+    await paragraph.click({ button: 'right', position: { x: 20, y: 8 } })
+    await quoteAndSend(page.getByRole('menuitem', { name: 'Quote', exact: true }), excerpt)
+
     for (const dismiss of ['escape', 'outside', 'scroll', 'blur']) {
       await selectReply()
       await expect(toolbar).toBeVisible()
@@ -289,24 +318,6 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       await expect(toolbar).toBeHidden()
     }
     await attachScreenshot('MP-149 no residual toolbar after dismissals')
-
-    const caret = await textCoordinates(paragraph, 1)
-    await page.mouse.click(caret.x - 30, caret.y)
-    await page.mouse.move(caret.x, caret.y)
-    await page.mouse.down()
-    await page.mouse.move(caret.endX, caret.endY, { steps: 2 })
-    await page.mouse.up()
-    await expect.poll(selectedText).toBe(excerpt[0])
-    await page.keyboard.down('Shift')
-    for (let i = 1; i < excerpt.length; i++) await page.keyboard.press('ArrowRight')
-    await page.keyboard.up('Shift')
-    await expect.poll(selectedText).toBe(excerpt)
-    await expect(toolbar).toBeVisible()
-    await paragraph.click({ button: 'right', position: { x: 20, y: 8 } })
-    await copyAndPaste(page.getByRole('menuitem', { name: 'Copy', exact: true }), excerpt)
-    await selectReply()
-    await paragraph.click({ button: 'right', position: { x: 20, y: 8 } })
-    await quoteAndSend(page.getByRole('menuitem', { name: 'Quote', exact: true }), excerpt)
 
     await page.evaluate(() => window.api.preference.set('chat.message.multi_model.style', 'grid'))
     await page.getByRole('button', { name: 'Selected models', exact: true }).click()

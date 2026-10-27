@@ -145,7 +145,7 @@ export function sendSystemHotkey(platform: Platform, keys: string[]): void {
 
 function runAsync(file: string, args: string[], timeout: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile(file, args, { timeout }, (error) => (error ? reject(error) : resolve()))
+    execFile(file, args, { timeout, windowsHide: true }, (error) => (error ? reject(error) : resolve()))
   })
 }
 
@@ -511,7 +511,38 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
   return filePath
 }
 
-export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
+export async function cancelNativeFileDialogs(platform: Platform, paths: RunPaths): Promise<void> {
+  if (platform !== 'windows') return
+  const record = readAppRecord(paths)
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeFileDialog { [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+    '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+    `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
+    '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
+    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$cancelCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "2"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"))',
+    '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+    '$dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" })',
+    'foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+    'foreach ($dialog in $dialogs) {',
+    `  if ($dialog.Current.ProcessId -ne ${record.electronPid}) { continue }`,
+    '  if (-not $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)) { continue }',
+    '  $cancel = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cancelCondition)',
+    '  if ($cancel -and $cancel.Current.NativeWindowHandle) { $null = [NativeFileDialog]::SendMessage([IntPtr]$cancel.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
+    '}'
+  ].join('\n')
+  await runAsync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+    15_000
+  )
+}
+
+export async function saveNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): Promise<string> {
   const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
   const directory = dirname(filePath)
   mkdirSync(directory, { recursive: true })
@@ -603,10 +634,7 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
     ].join('\n')
     const extension = extname(filePath)
     const saveName = macProductMajor >= 27 || !extension ? basename(filePath) : basename(filePath, extension)
-    execFileSync('osascript', ['-e', script, '--', directory, saveName, String(electronPid), filePath], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-      timeout: 55_000
-    })
+    await runAsync('osascript', ['-e', script, '--', directory, saveName, String(electronPid), filePath], 55_000)
   } else {
     const script = [
       '$ErrorActionPreference = "Stop"',
@@ -617,7 +645,7 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
       `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
       '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
       '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
-      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+      '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
       '$dialog = $null',
       'do {',
       '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
@@ -639,13 +667,10 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
       'if ($readback.ToString() -cne $filePath) { throw "Native save filename does not match the requested path" }',
       '$null = [NativeSaveDialog]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)'
     ].join('\n')
-    execFileSync(
+    await runAsync(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
-      {
-        stdio: ['ignore', 'ignore', 'pipe'],
-        timeout: 15_000
-      }
+      65_000
     )
   }
   return filePath
