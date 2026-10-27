@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 
 import * as z from 'zod'
 
+import { application } from '@application'
+
 import { selectOption } from './actions/forms'
 import { pressKey, typeText } from './actions/keyboard'
 import { click, hover, scroll } from './actions/mouse'
@@ -55,6 +57,14 @@ const schemas = {
     .object({ role: ref.optional(), name: ref.optional() })
     .strict()
     .refine((value) => value.role || value.name),
+  blockAds: z
+    .object({
+      css: z.string().min(1).max(500).optional(),
+      urlFilter: z.string().min(1).max(500).optional(),
+      note: z.string().max(200).optional()
+    })
+    .strict()
+    .refine((value) => (value.css === undefined) !== (value.urlFilter === undefined)),
   handleDialog: z.object({ accept: z.boolean(), promptText: z.string().optional() }).strict()
 }
 
@@ -81,6 +91,57 @@ export async function executeBrowserOperation(
     focusInput: target.focusInput
   }
   const session = target.session
+  if (name === 'blockAds') {
+    const input = schemas.blockAds.parse(args)
+    const service = application.get('AdblockService')
+    if (!service.isAiRuleWritingEnabled()) {
+      throw Object.assign(new Error('Automatic ad rules are turned off in Settings → Browser.'), {
+        code: 'ADBLOCK_DISABLED',
+        effect: 'none'
+      })
+    }
+    // The rule is scoped to the page the agent is actually looking at. Taking
+    // the domain from the model would let one page's rule hide content on
+    // another host.
+    const pageUrl = session.guest.getURL()
+    let hostname: string
+    try {
+      const parsed = new URL(pageUrl)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('unsupported protocol')
+      hostname = parsed.hostname
+    } catch {
+      throw Object.assign(new Error('Ad rules can only be saved for an HTTP or HTTPS page.'), {
+        code: 'ADBLOCK_UNAVAILABLE',
+        effect: 'none'
+      })
+    }
+    const result = await service.addCustomRule({
+      domain: hostname,
+      kind: input.css ? 'cosmetic' : 'network',
+      value: input.css ?? input.urlFilter!,
+      note: input.note,
+      source: 'ai'
+    })
+    // The rule is stored either way, but both layers that consume it are gated
+    // by the master switch, so an inactive service means "saved, not yet live".
+    const applied = service.isActive()
+    return {
+      value: {
+        tabId: target.tabId,
+        url: sanitizeSnapshotUrl(pageUrl),
+        id: result.rule.id,
+        domain: result.rule.domain,
+        kind: result.rule.kind,
+        value: result.rule.value,
+        updated: result.existing,
+        applied,
+        status: applied ? 'completed' : 'deferred',
+        ...(applied
+          ? {}
+          : { message: 'Rule saved, but ad blocking is off. Turn it on in Settings → Browser to apply it.' })
+      }
+    }
+  }
   if (name === 'evaluate')
     return {
       value: {

@@ -1,0 +1,35 @@
+! Title: Cherry Studio 内置浏览器补充规则
+! Description: Rules the bundled EasyList family does not cover, mostly search-engine ad clicks.
+! Homepage: https://github.com/CherryHQ/cherry-studio
+! Expires: 30 days
+!
+! --- 搜索引擎广告点击（PC） ---
+||google.com/aclk^
+||google.com.hk/aclk^
+||google.co.jp/aclk^
+||google.co.uk/aclk^
+||google.ca/aclk^
+||google.com.au/aclk^
+||google.de/aclk^
+||google.fr/aclk^
+||googleadservices.com^$third-party
+||bing.com/aclick^
+||cn.bing.com/aclick^
+||sogou.com/click?url=
+||so.com/click?url=
+||baidu.com/baidu.php?url=
+!
+! --- 搜索引擎广告点击（移动） ---
+||m.baidu.com/baidu.php?url=
+||m.sogou.com/click?url=
+||m.so.com/click?url=
+!
+! --- 百度推广资源（EasyList China 之外的补充） ---
+||cpro.baidustatic.com^
+||union.baidu.com^
+||mobads.baidu.com^
+!
+! --- 主流中文广告联盟 ---
+||tanx.com^
+||alimama.com^
+||gdt.qq.com^

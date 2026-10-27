@@ -24,6 +24,7 @@ interface Tab {
   scroll(pages: number, ref?: string): Promise<object>
   selectOption(ref: string, values: string[]): Promise<object>
   find(query: { role?: string; name?: string }): Promise<{ matches: Array<{ ref: string; role: string; name: string }>; truncated: boolean }>
+  blockAds(options: { css?: string; urlFilter?: string; note?: string }): Promise<{ id: string; domain: string; kind: 'cosmetic' | 'network'; value: string; updated: boolean; applied: boolean; status: 'completed' | 'deferred'; message?: string }>
   handleDialog(options: { accept: boolean; promptText?: string }): Promise<object>
 }
 ```
@@ -33,6 +34,8 @@ interface Tab {
 `goto` can replace the guest when switching between a local HTML artifact and a website. When its result reports `handleInvalidated: true`, navigation completed but the old handle is invalid; call `browser.getTab()` before continuing. User cancellation still cancels the navigation.
 
 `evaluate` runs JavaScript in the page, not in the host or REPL; prefer dedicated input methods. `waitFor` requires text or ref and emits the matching full observation. Website tools use IDs returned by `listWebTools`; navigation invalidates them. Full-page screenshots are tiled: use the returned `nextCursor` for continuation. Never combine `ref` and `fullPage`.
+
+`blockAds` saves one ad-blocking rule for the host of the current page; the host is read from the page, not from the arguments, so a rule cannot reach another site. Pass exactly one of `css` (a selector, for elements shipped inside the page) or `urlFilter` (a network rule such as `||ads.example.com^`, for ads fetched separately) and an optional `note`. The rule is validated, applies without a reload and can be disabled in Settings → Browser. When the ad-blocking switch is off the rule is still saved, but `applied` is `false` and `status` is `deferred`; do not claim the ad is hidden in that case. Use it for obvious ads, sponsored blocks or sticky promo overlays that cover the content; skip navigation, consent dialogs and merely promotional copy. Inspect the element with `evaluate` first and prefer the narrowest selector that matches only the ad. It requires the AI rule switch in Settings → Browser and fails on non-web pages.
 
 ## Workflow
 
