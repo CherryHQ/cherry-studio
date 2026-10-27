@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Selecione o ficheiro a ser enviado",
   "notes.no_note_selected": "Por favor, selecione uma nota primeiro",
   "notes.no_valid_files": "Nenhum ficheiro válido foi carregado",
+  "notes.open": "Abrir nota",
   "notes.open_outside": "Abrir externamente",
   "notes.print": "Imprimir",
   "notes.print_failed": "Falha ao imprimir nota",
