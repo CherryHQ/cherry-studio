@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Vui lòng chọn tệp để tải lên",
   "notes.no_note_selected": "Vui lòng chọn một ghi chú trước",
   "notes.no_valid_files": "Không có tệp hợp lệ nào được tải lên",
+  "notes.open": "Mở ghi chú",
   "notes.open_outside": "Mở từ bên ngoài",
   "notes.print": "In ấn",
   "notes.print_failed": "Không thể in ghi chú",
