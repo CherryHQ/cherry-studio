@@ -1529,9 +1529,16 @@ export class ClaudeCodeStreamAdapter {
       markerHead = cached.markerHead
       paragraph = cached.paragraph
     } else {
-      markerHead = /^(?:[-*+]|\d{1,9}[.)]) +/.exec(remainder)?.[0] ?? ''
+      markerHead = /^(?:[-*+]|\d{1,9}[.)])[ \t]+/.exec(remainder)?.[0] ?? ''
       paragraph = openLineParagraphContinuation(openLine, state)
-      ctx.scratchpadOpenLineCarry = { key: cacheableKey, openLineLength: openLine.length, markerHead, paragraph }
+      // Only verdicts over a line with real content past the marker head are
+      // append-stable: a bare '1. ' can still grow into '1.     ' (W>=5 ->
+      // indented code, CommonMark ex273) or gain tabs (ex7), changing both
+      // markerHead and the paragraph verdict (round-17 conformance ex273C /
+      // ex274C / ex7C chunked-loss).
+      if (openLine.length > indent.length + markerHead.length) {
+        ctx.scratchpadOpenLineCarry = { key: cacheableKey, openLineLength: openLine.length, markerHead, paragraph }
+      }
     }
     const tail = openLine.slice(Math.max(indent.length + markerHead.length, inlineCodeCarryStart(openLine)))
     const escapeMarker = tail === '' && hasOddTrailingBackslashRun(openLine) ? '\\' : ''

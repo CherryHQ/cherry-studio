@@ -69,16 +69,9 @@ function deliver(text: string, chunkSize: number | null): string {
     .join('')
 }
 
-// Snapshot/delta divergence leads (chunked delivery loses content the whole
-// delivery keeps - cherry-pr-review round-17 conformance Finding-2 class):
-// ex273C/ex274C list-item shapes, ex7C tab shape. it.fails gates each lead:
-// a fix turns the case green and forces this list to shrink.
-const KNOWN_DIVERGENCES = new Set(['ex273C', 'ex274C', 'ex7C'])
-
 describe('commonmark corpus: snapshot/delta delivery consistency', () => {
   for (const c of corpus) {
-    const run = KNOWN_DIVERGENCES.has(c.id) ? it.fails : it
-    run(`${c.id} [${c.section}]`, () => {
+    it(`${c.id} [${c.section}]`, () => {
       const whole = deliver(c.input, null)
       expect(deliver(c.input, 5)).toBe(whole)
       expect(deliver(c.input, 1)).toBe(whole)
