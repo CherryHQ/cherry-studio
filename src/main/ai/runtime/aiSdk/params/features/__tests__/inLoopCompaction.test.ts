@@ -1,12 +1,15 @@
-import type { ModelMessage } from 'ai'
+import type { LanguageModelV3 } from '@ai-sdk/provider'
+import { type ModelMessage, ToolLoopAgent } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import type * as AiCore from '@cherrystudio/ai-core'
 
 const compactModelMessages = vi.fn()
+const createAgent = vi.fn()
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
   ...(await importOriginal<typeof AiCore>()),
-  compactModelMessages: (...args: unknown[]) => compactModelMessages(...args)
+  compactModelMessages: (...args: unknown[]) => compactModelMessages(...args),
+  createAgent: (...args: unknown[]) => createAgent(...args)
 }))
 vi.mock('@main/ai/agentSession/topic', () => ({
   isAgentSessionTopic: (id: string) => id.startsWith('agent-session:')
@@ -15,6 +18,10 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: { hasTopic: (id: string) => id.startsWith('temp:') }
 }))
 
+import { pipeStreamLoop } from '@main/ai/streamManager/pipeStreamLoop'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
+
+import { Agent } from '../../../Agent'
 import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
 
 const CONTEXT_WINDOW = 100_000
@@ -214,6 +221,7 @@ describe('inLoopCompactionFeature', () => {
     // The summarize call is itself window-bound, so it carries its own budgets:
     // output sized from the window, input capped so the request can't overflow it.
     expect(compactModelMessages).toHaveBeenCalledWith(messages, COMPRESSION_LANGUAGE_MODEL, {
+      abortSignal: undefined,
       keepRecentTurns: expect.any(Number),
       maxOutputTokens: expect.any(Number),
       maxInputTokens: expect.any(Number)
@@ -384,8 +392,171 @@ describe('inLoopCompactionFeature', () => {
   it('still propagates a user abort — that IS the turn ending', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
-    const prepareStep = getPrepareStep()
+    const events: Array<{ id: string; data: CompactionAnchorData }> = []
+    const customScope = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
+    customScope.compactionSink = (id: string, data: CompactionAnchorData) => events.push({ id, data })
+    const prepareStep = getPrepareStep(customScope)
     await expect(prepareStep({ messages: [userMessage(90_000)] } as any)).rejects.toThrow('aborted')
+    expect(events.map((event) => event.data.status)).toEqual(['compacting', 'skipped'])
+    expect(events[1].id).toBe(events[0].id)
+    expect(events[1].data.completedAt).toEqual(expect.any(String))
+  })
+
+  it('cancels a pending compaction with the turn signal without failing open on a custom reason', async () => {
+    compactModelMessages.mockClear()
+    const controller = new AbortController()
+    const reason = 'stopped by user'
+    let started = false
+    let cancelled = false
+    let release!: () => void
+    compactModelMessages.mockImplementation(
+      (_messages, _model, options) =>
+        new Promise((resolve, reject) => {
+          started = true
+          release = () => resolve([userMessage(10)])
+          options.abortSignal?.addEventListener(
+            'abort',
+            () => {
+              cancelled = true
+              reject(options.abortSignal.reason)
+            },
+            { once: true }
+          )
+        })
+    )
+    const customScope = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
+    customScope.signal = controller.signal
+    const events: Array<{ id: string; data: CompactionAnchorData }> = []
+    customScope.compactionSink = (id: string, data: CompactionAnchorData) => events.push({ id, data })
+    const pending = Promise.resolve(getPrepareStep(customScope)({ messages: [userMessage(90_000)] } as any)).then(
+      () => ({ error: undefined }),
+      (error) => ({ error })
+    )
+    try {
+      await vi.waitFor(() => expect(started).toBe(true))
+      controller.abort(reason)
+      await vi.waitFor(() => expect(cancelled).toBe(true))
+      expect(await pending).toEqual({ error: reason })
+      expect(events.map((event) => event.data.status)).toEqual(['compacting', 'skipped'])
+      expect(events[1].id).toBe(events[0].id)
+      expect(events[1].data.startedAt).toBe(events[0].data.startedAt)
+      expect(events[1].data.completedAt).toEqual(expect.any(String))
+    } finally {
+      release?.()
+      await pending
+      compactModelMessages.mockReset()
+    }
+  })
+
+  it('rejects an already cancelled turn before compaction or progress events', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const controller = new AbortController()
+    controller.abort('stopped by user')
+    const customScope = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
+    customScope.signal = controller.signal
+    const events: unknown[] = []
+    customScope.compactionSink = (...args: unknown[]) => events.push(args)
+    await expect(getPrepareStep(customScope)({ messages: [userMessage(90_000)] } as any)).rejects.toBe(
+      controller.signal.reason
+    )
+    expect(events).toEqual([])
+    expect(compactModelMessages).not.toHaveBeenCalled()
+  })
+
+  it('rejects cancellation even if the summarizer resolves after Stop', async () => {
+    const controller = new AbortController()
+    let release!: () => void
+    compactModelMessages.mockImplementation(
+      () => new Promise((resolve) => (release = () => resolve([userMessage(10)])))
+    )
+    const customScope = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
+    customScope.signal = controller.signal
+    const events: Array<{ id: string; data: CompactionAnchorData }> = []
+    customScope.compactionSink = (id: string, data: CompactionAnchorData) => events.push({ id, data })
+    const pending = getPrepareStep(customScope)({ messages: [userMessage(90_000)] } as any)
+    controller.abort('stopped by user')
+    release()
+    await expect(pending).rejects.toBe(controller.signal.reason)
+    expect(events.map((event) => event.data.status)).toEqual(['compacting', 'skipped'])
+    expect(events[1].id).toBe(events[0].id)
+    expect(events[1].data.completedAt).toEqual(expect.any(String))
+    compactModelMessages.mockReset()
+  })
+
+  it('drains the agent stream when stopped during a real in-loop summarizer call', async () => {
+    const actualAiCore = await vi.importActual<typeof AiCore>('@cherrystudio/ai-core')
+    compactModelMessages.mockImplementation(actualAiCore.compactModelMessages)
+    const controller = new AbortController()
+    let started = false
+    let cancelled = false
+    let released!: () => void
+    let chatGenerated = false
+    const model: LanguageModelV3 = {
+      specificationVersion: 'v3',
+      provider: 'test',
+      modelId: 'summarizer',
+      supportedUrls: {},
+      async doGenerate(options) {
+        started = true
+        return new Promise((_, reject) => {
+          released = () => reject(new DOMException('test cleanup', 'AbortError'))
+          options.abortSignal?.addEventListener(
+            'abort',
+            () => {
+              cancelled = true
+              reject(options.abortSignal?.reason)
+            },
+            { once: true }
+          )
+        })
+      },
+      async doStream(options) {
+        options.abortSignal?.throwIfAborted()
+        chatGenerated = true
+        throw new Error('The cancelled turn must not generate a reply')
+      }
+    }
+    createAgent.mockImplementation(({ agentSettings }) => new ToolLoopAgent({ ...agentSettings, model }))
+    const customScope = scope({
+      chatId: 'topic-1',
+      contextWindow: CONTEXT_WINDOW,
+      compressionModel: { languageModel: model, contextWindow: CONTEXT_WINDOW }
+    })
+    customScope.signal = controller.signal
+    const agent = new Agent({
+      providerId: 'openai',
+      providerSettings: {},
+      modelId: 'test',
+      hookParts: [inLoopCompactionFeature.contributeHooks!(customScope)]
+    })
+    let drained = false
+    const pending = pipeStreamLoop(
+      agent.stream(
+        [
+          { id: '1', role: 'user', parts: [{ type: 'text', text: 'word '.repeat(40_000) }] },
+          { id: '2', role: 'assistant', parts: [{ type: 'text', text: 'word '.repeat(40_000) }] },
+          { id: '3', role: 'user', parts: [{ type: 'text', text: 'word '.repeat(10_000) }] }
+        ],
+        controller.signal
+      ),
+      controller.signal,
+      { onChunk: () => {} }
+    ).then(() => {
+      drained = true
+    })
+    try {
+      await vi.waitFor(() => expect(started).toBe(true))
+      controller.abort(new DOMException('Stopped by user', 'AbortError'))
+      await vi.waitFor(() => expect(drained).toBe(true))
+      expect(cancelled).toBe(true)
+      expect(chatGenerated).toBe(false)
+    } finally {
+      released?.()
+      await pending
+      compactModelMessages.mockReset()
+      createAgent.mockReset()
+    }
   })
 
   it('returns no override when compactModelMessages returns the same reference (no-op)', async () => {
