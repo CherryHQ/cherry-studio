@@ -127,7 +127,13 @@ export interface ModelBundle {
    * upgrade never re-downloads, and lifted into {@link installSubdir} opportunistically.
    * Removable once the upgrade window has passed. */
   legacyInstallSubdir?: string
+  /** Declared in the order files must be written and, hence, confirmed present: the
+   * frontend files before the weights they drive, so an interrupted download leaves the
+   * bundle visibly incomplete instead of complete-looking and unloadable. */
   files: BundleFile[]
+  /** Index in {@link files} where the independent ones start: from there they may be
+   * fetched concurrently. Omitted when no two files are known to be safe to race. */
+  parallelFetchFrom?: number
   /** Shared runtimes this bundle cannot run without. Also the removal-GC input: a shared
    * artifact outlives a bundle exactly as long as another installed bundle requires it. */
   requires: SharedArtifactId[]

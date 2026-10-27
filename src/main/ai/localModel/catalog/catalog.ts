@@ -31,6 +31,29 @@ const mlxModelReleaseUrl = `https://github.com/${mlxNodeRelease.model.repository
 const mlxRuntimeMirrorUrl = `https://www.modelscope.cn/models/${mlxNodeRelease.runtime.modelscope.repo}/resolve/${mlxNodeRelease.runtime.modelscope.revision}`
 const mlxModelMirrorUrl = `https://www.modelscope.cn/models/${mlxNodeRelease.model.modelscope.repo}/resolve/${mlxNodeRelease.model.modelscope.revision}`
 
+/** Catalog order, as authored in `kokoro-v1.1.json`, is not install order: the files are
+ * listed alphabetically and `model.onnx` sorts after the eSpeak data even though it must
+ * land last. Install order is stated here, not inferred from the JSON. */
+const KOKORO_ORDER = [
+  'lexicon-us-en.txt',
+  'lexicon-zh.txt',
+  'date-zh.fst',
+  'number-zh.fst',
+  'phone-zh.fst',
+  'tokens.txt',
+  'espeak-ng-data/',
+  'model.onnx',
+  'voices.bin',
+  'LICENSE' // last: not required for model loading, but part of the bundle
+]
+
+/** Position in {@link KOKORO_ORDER}; an unlisted path is a catalog mistake, not a rank. */
+const kokoroRank = (relPath: string) => {
+  const rank = KOKORO_ORDER.findIndex((prefix) => relPath.startsWith(prefix))
+  if (rank < 0) throw new Error(`Kokoro bundle file ${relPath} has no install position`)
+  return rank
+}
+
 export const SHARED_ARTIFACTS = {
   'mlx-node': {
     id: 'mlx-node',
@@ -221,18 +244,22 @@ export const LOCAL_MODEL_BUNDLES = {
         }
       }
     },
-    files: kokoroRelease.files.map((file) => ({
-      key: file.relPath,
-      relPath: file.relPath,
-      sha256: file.sha256,
-      sizeBytes: file.sizeBytes,
-      minBytes: file.sizeBytes,
-      weight: Math.max(0.01, file.sizeBytes / 1_000_000),
-      sources: [
-        { source: 'huggingface', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath },
-        { source: 'hf-mirror', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath }
-      ]
-    }))
+    files: [...kokoroRelease.files]
+      .sort((left, right) => kokoroRank(left.relPath) - kokoroRank(right.relPath))
+      .map((file) => ({
+        key: file.relPath,
+        relPath: file.relPath,
+        sha256: file.sha256,
+        sizeBytes: file.sizeBytes,
+        minBytes: file.sizeBytes,
+        weight: Math.max(0.01, file.sizeBytes / 1_000_000),
+        sources: [
+          { source: 'huggingface', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath },
+          { source: 'hf-mirror', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath }
+        ]
+      })),
+    // The two small lexicons, fetched together ahead of the eSpeak data they pair with.
+    parallelFetchFrom: 0
   },
   'qwen3-asr-1.7b-8bit': {
     id: 'qwen3-asr-1.7b-8bit',

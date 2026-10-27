@@ -153,6 +153,59 @@ describe('local model catalog', () => {
     })
   })
 
+  it('ships Kokoro with the eSpeak data its Chinese and English frontend needs', () => {
+    const bundle = LOCAL_MODEL_BUNDLES['kokoro-multi-lang-v1.1']
+    const paths = bundle.files.map((file) => file.relPath)
+
+    expect(paths).toEqual(
+      expect.arrayContaining(['espeak-ng-data/lang/sit/cmn', 'espeak-ng-data/cmn_dict', 'espeak-ng-data/lang/gmw/en-US'])
+    )
+    expect(paths.slice(-3)).toEqual(['model.onnx', 'voices.bin', 'LICENSE'])
+  })
+
+  it('orders every bundle for download: dependencies first, weights last', () => {
+    // The download and the on-disk scan both walk `files` in order, so an interrupted
+    // download leaves the cheap files present and the weights missing — incomplete, and
+    // therefore offered as a resume, not ready-but-unloadable.
+    for (const bundle of bundles) {
+      const weightIndex = bundle.files.findIndex((file) => file.relPath === 'model.onnx')
+      if (weightIndex < 0) continue
+      expect(bundle.files.length - weightIndex).toBeLessThanOrEqual(3)
+      const pf = (bundle as { parallelFetchFrom?: number }).parallelFetchFrom
+      if (pf !== undefined) {
+        expect(pf).toBeGreaterThanOrEqual(0)
+        expect(pf).toBeLessThan(weightIndex)
+      }
+    }
+  })
+
+  it('orders Kokoro files exactly as declared in KOKORO_ORDER', () => {
+    const bundle = LOCAL_MODEL_BUNDLES['kokoro-multi-lang-v1.1']
+    const paths = bundle.files.map((file) => file.relPath)
+    const expected = [
+      'lexicon-us-en.txt',
+      'lexicon-zh.txt',
+      'date-zh.fst',
+      'number-zh.fst',
+      'phone-zh.fst',
+      'tokens.txt',
+      'espeak-ng-data/cmn_dict',
+      'espeak-ng-data/lang/sit/cmn',
+      'espeak-ng-data/lang/gmw/en',
+      'espeak-ng-data/lang/gmw/en-US',
+      'espeak-ng-data/phondata',
+      'espeak-ng-data/phondata-manifest',
+      'espeak-ng-data/phonindex',
+      'espeak-ng-data/phontab',
+      'espeak-ng-data/intonations',
+      'espeak-ng-data/en_dict',
+      'model.onnx',
+      'voices.bin',
+      'LICENSE'
+    ]
+    expect(paths).toEqual(expected)
+  })
+
   it('throws on an unknown file key rather than yielding an undefined path', () => {
     expect(() => bundleFile(defaultBundleForCapability('ocr'), 'nope')).toThrow(/no file with key/)
   })

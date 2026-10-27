@@ -145,6 +145,29 @@ describe('downloadBundleFiles', () => {
     expect(fractions).toContain(0.99)
     expect(fractions.at(-1)).toBe(1)
   })
+
+  it('fetches the files the bundle marks independent together, then the rest in order', async () => {
+    // A platform that retries a rejected connection can hold a whole host off for
+    // minutes, so the frontend files must not queue behind each other; the weights must
+    // never be fetched before them.
+    const first: BundleFile = { ...DICT, key: 'lexicon-a', relPath: 'lexicon-a.txt', derivation: undefined }
+    const second: BundleFile = { ...DICT, key: 'lexicon-b', relPath: 'lexicon-b.txt', derivation: undefined }
+    const parallel: ModelBundle = { ...BUNDLE, files: [first, second, WEIGHTS], parallelFetchFrom: 0 }
+    const started: string[] = []
+    let releaseFirst!: () => void
+    streamToFileVerified.mockImplementation(async (_url, dest) => {
+      started.push(path.basename(dest))
+      if (dest.endsWith('lexicon-a.txt')) await new Promise<void>((resolve) => (releaseFirst = resolve))
+    })
+
+    const done = downloadBundleFiles(parallel, parallel.files, options())
+    await vi.waitFor(() => expect(started).toHaveLength(2))
+    expect([...started].sort()).toEqual(['lexicon-a.txt', 'lexicon-b.txt'])
+
+    releaseFirst()
+    await done
+    expect(started.at(-1)).toBe('model.onnx')
+  })
 })
 
 it('fetches a pinned distribution URL without rewriting it as a model registry URL', async () => {
