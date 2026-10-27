@@ -28,7 +28,7 @@ import {
   useWriteCache
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useConversationTabTitleWriter } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
@@ -390,6 +390,7 @@ export function useTopicMutations() {
   const invalidate = useInvalidateCache()
   const writeCache = useWriteCache()
   const closeConversationTabs = useCloseConversationTabs()
+  const writeConversationTabTitle = useConversationTabTitleWriter()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
     refresh: ['/topics']
@@ -417,10 +418,11 @@ export function useTopicMutations() {
   const updateTopic = useCallback(
     async (topicId: string, dto: UpdateTopicDto): Promise<Topic> => {
       const topic = await updateTrigger({ params: { id: topicId }, body: dto })
+      if (dto.name !== undefined) writeConversationTabTitle('topic', topicId, dto.name)
       logger.info('Updated topic', { id: topicId })
       return topic
     },
-    [updateTrigger]
+    [updateTrigger, writeConversationTabTitle]
   )
 
   const deleteTopic = useCallback(

@@ -27,7 +27,8 @@ const mockIpcRequest = vi.hoisted(() => vi.fn())
 const mockT = vi.hoisted(() => (key: string) => key)
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useCloseConversationTabs: () => mockCloseConversationTabs
+  useCloseConversationTabs: () => mockCloseConversationTabs,
+  useConversationTabTitleWriter: () => () => {}
 }))
 
 vi.mock('@renderer/ipc', () => ({

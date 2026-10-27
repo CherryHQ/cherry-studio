@@ -22,7 +22,7 @@ import {
   useWriteCache
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
-import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useConversationTabTitleWriter } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
@@ -488,6 +488,7 @@ export const useSessions = (
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()
+  const writeConversationTabTitle = useConversationTabTitleWriter()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agent-sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
     // The non-null assertion mirrors useTopic.ts and crashes loud
@@ -506,6 +507,7 @@ export const useUpdateSession = () => {
       try {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { sessionId: id }, body: patch })
+        if (patch.name !== undefined) writeConversationTabTitle('session', id, patch.name)
         if (options?.showSuccessToast ?? true) {
           toast.success(t('common.update_success'))
         }
@@ -515,7 +517,7 @@ export const useUpdateSession = () => {
         return undefined
       }
     },
-    [updateTrigger, t]
+    [updateTrigger, t, writeConversationTabTitle]
   )
 
   /**

@@ -4,6 +4,7 @@ export {
   findClosableConversationTabIds,
   useCloseConversationTabs
 } from './useCloseConversationTabs'
+export { type ConversationTabKind, useConversationTabTitleWriter } from './useConversationTabTitleWriter'
 export { useConversationNavigationOwner } from './useConversationNavigationOwner'
 export { TabIdContext, useCurrentTab, useCurrentTabId, useIsActiveTab } from './useCurrentTab'
 export { useMainWindowNavigation } from './useMainWindowNavigation'
