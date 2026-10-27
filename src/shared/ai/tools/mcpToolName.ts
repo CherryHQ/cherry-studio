@@ -140,6 +140,31 @@ export function buildFunctionCallToolName(serverName: string, toolName: string):
   return `${body}${suffix}`
 }
 
+/**
+ * Whether a saved denial's tool fragment is the bounded form {@link buildFunctionCallToolName}
+ * produces for `raw` under the saved server segment: past the 63-char cap the untruncated
+ * `mcp__<segment>__<camelized raw>` name loses its tail and gains `_<hash(serverName)>`, so the
+ * fragment is the TRUNCATED camelization plus an 8-character suffix and the plain
+ * complete-camelization comparison can never match it. The hash is computed over the ORIGINAL
+ * configured name, which cannot be recovered from the saved string, so the suffix is matched
+ * structurally (`_` + the fixed-width hash) while the body must equal the replayed truncation
+ * exactly — a different raw tool can only collide by sharing the entire truncated prefix, and
+ * emitting both spellings is the same fail-closed direction as any other ambiguous resolution.
+ */
+function isBoundedAliasToolFragment(serverPart: string, toolPart: string, raw: string): boolean {
+  const prefix = `mcp__${serverPart}__`
+  const baseName = `${prefix}${toCamelCase(raw)}`
+  if (baseName.length <= FUNCTION_CALL_TOOL_NAME_MAX_LENGTH) return false
+  const body = truncateToLength(baseName, FUNCTION_CALL_TOOL_NAME_MAX_LENGTH - SERVER_DISAMBIGUATOR_LENGTH - 1).slice(
+    prefix.length
+  )
+  return (
+    toolPart.length === body.length + SERVER_DISAMBIGUATOR_LENGTH + 1 &&
+    toolPart.startsWith(body) &&
+    toolPart.charAt(body.length) === '_'
+  )
+}
+
 export type McpFunctionCallToolNameParts = {
   serverPart: string
   toolPart: string
@@ -616,14 +641,18 @@ export function migrateAgentDisabledToolsForAllocationChange(
       // the departing server's stable id BEFORE the release keeps the denial with its owner
       // instead of denying the claimant in its place. An id key is never reassigned, so a
       // denial already keyed by the id needs no move (an id-keyed original also survives the
-      // rewrite below).
+      // rewrite below). The takeover flag is decided against the CURRENT mount set: a key no
+      // present server holds is released unclaimed, and the saved display-name strings stay
+      // enforceable for a remount under the same name (they name nobody else's registered
+      // identity), while a key a sibling already claims makes those strings that sibling's
+      // registered identity the moment the departure lands.
       const stableKey = sanitizeAgentServerKey(mcpId)
       if (oldKey !== stableKey) {
         rewrites.push({
           fromKey: oldKey,
           toKey: stableKey,
           fromIsId: false,
-          aliasOwnershipLost: true,
+          aliasOwnershipLost: keyClaimedByOtherServer(newKeys, mcpId, oldKey),
           toolNames: input.toolNamesByServerId?.get(mcpId)
         })
       }
@@ -755,19 +784,28 @@ function applyAgentKeyRewrites(
   // SDK serves `mcp__<key>__<raw tool>` — so a camelized fragment alone names no registered
   // tool. Each raw tool whose camelization equals the saved fragment contributes its raw,
   // camelized-tool and SDK-segment forms; a fragment matching several raw spellings contributes
-  // all of them (fail-closed). No catalog entry means no resolution — the camelized forms pass
-  // through rather than guessing a spelling.
-  const targetForms = (rewrite: AgentKeyRewrite, toolPart: string): string[] => {
+  // all of them (fail-closed). A saved fragment past the bounded cap (`buildFunctionCallToolName`
+  // truncates long names and appends the server hash) is resolved by replaying that build against
+  // every raw tool (see {@link isBoundedAliasToolFragment}). No catalog entry means no
+  // resolution — `rawResolved` stays false and the caller keeps the original string (fail-closed)
+  // rather than guessing a spelling.
+  const targetForms = (
+    rewrite: AgentKeyRewrite,
+    toolPart: string,
+    serverPart: string
+  ): { targets: string[]; rawResolved: boolean } => {
     const targets = new Set<string>([`mcp__${rewrite.toKey}__${toolPart}`])
     targets.add(`mcp__${rewrite.camelToKey ?? rewrite.toKey}__${toCamelCase(toolPart)}`)
     targets.add(`mcp__${toSdkMcpServerSegment(rewrite.toKey)}__${toolPart}`)
+    let rawResolved = false
     for (const raw of rewrite.toolNames ?? []) {
-      if (toCamelCase(raw) !== toolPart) continue
+      if (toCamelCase(raw) !== toolPart && !isBoundedAliasToolFragment(serverPart, toolPart, raw)) continue
+      rawResolved = true
       targets.add(`mcp__${rewrite.toKey}__${raw}`)
       targets.add(`mcp__${rewrite.camelToKey ?? rewrite.toKey}__${toCamelCase(raw)}`)
       targets.add(`mcp__${toSdkMcpServerSegment(rewrite.toKey)}__${raw}`)
     }
-    return [...targets]
+    return { targets: [...targets], rawResolved }
   }
 
   const planned = disabledTools.map((entry) => {
@@ -796,7 +834,10 @@ function applyAgentKeyRewrites(
           // hashed copies would clip a long literal past the 50-char base (37 of 38 `a`s)
           // while the runtime serves the full name, so neither persisted rule matches and the
           // explicitly disabled tool executes.
-          replacements = [...rewriteHashed(toolPart, matched.toKey), ...targetForms(matched, toolPart)]
+          replacements = [
+            ...rewriteHashed(toolPart, matched.toKey),
+            ...targetForms(matched, toolPart, serverPart).targets
+          ]
           keepOriginal = true
         } else if (matched) {
           // Pi resolves denials through `buildFunctionCallToolName`, which camelizes BOTH
@@ -810,7 +851,8 @@ function applyAgentKeyRewrites(
           // names a tool the SDK serves. A camelized saved fragment additionally resolves
           // against the server's raw tool list (see `targetForms`): the stable-id and SDK
           // destinations keep the raw spelling the camelized copy cannot name.
-          replacements = targetForms(matched, toolPart)
+          const { targets, rawResolved } = targetForms(matched, toolPart, serverPart)
+          replacements = targets
           // An id-keyed original is a native registered identity (Pi registers servers under
           // their id and matches `mcp__<id>__tool` verbatim at any tool length), so it must
           // survive the migration: the copies cannot regenerate a bounded long-tool identity,
@@ -827,16 +869,35 @@ function applyAgentKeyRewrites(
           // string names that OTHER server's registered identity, and keeping it would deny
           // the new owner in this server's place; the restriction travels through the
           // stable-id forms instead.
+          // When the catalog could NOT resolve the fragment to any raw tool (a cold cache, a
+          // stale list, or a bounded/foreign spelling no entry reproduces) and the fragment's
+          // camelized spelling is not its own raw spelling, none of the replacements is an
+          // identity any runtime registers: the camelized copies match neither Pi's raw
+          // stable-id form nor its configured-name alias (`get_time` persists `getTime`, whose
+          // id-keyed copy names nothing; a fragment that is already its own camelization —
+          // `run` — doubles as the plausible raw spelling, so the plain id copy keeps the
+          // denial enforceable and needs no keep). Dropping the original then removes the
+          // last enforceable restriction, so the original survives — but only while the old
+          // key segment stays unclaimed: it is owner-bound precisely because no other mounted
+          // server registers under it, so the kept string can over-block only a FUTURE
+          // claimant that takes the released key while owning a same-camelization tool, the
+          // same fail-closed direction this engine already takes for ambiguous resolutions,
+          // and it stays enforceable — a remount under the same configured name re-registers
+          // exactly this string as Pi's display-name alias. When another server's post-change
+          // key claims the segment (aliasOwnershipLost), the string names that other server's
+          // registered identity and keeping it would deny the new owner in this server's
+          // place, so the original still moves off it (the ownership rule above).
           keepOriginal =
             matched.fromIsId === true ||
             idSegments.has(serverPart) ||
-            (matched.aliasOwnershipLost !== true && displaySegments.has(serverPart))
+            (matched.aliasOwnershipLost !== true && displaySegments.has(serverPart)) ||
+            (!rawResolved && matched.aliasOwnershipLost !== true && toCamelCase(toolPart) !== toolPart)
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = [
             ...rewriteHashed(toolPart, lossyMatched.toKey),
             // The complete literal destinations, for the same reason as the matched branch
             // above: the truncated copies alone can clip a real literal tool name.
-            ...targetForms(lossyMatched, toolPart)
+            ...targetForms(lossyMatched, toolPart, serverPart).targets
           ]
           keepOriginal = true
         }

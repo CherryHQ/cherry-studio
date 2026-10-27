@@ -1185,14 +1185,76 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
   it('keeps the camelized fragments unchanged when the departing server has no tool catalog entry', () => {
     // A cold tool cache (or a stale list missing the tool) cannot resolve the camelized
     // fragment. The migration must keep the camelized spellings — fail-closed over-block —
-    // rather than guess a raw tool name it has never seen.
+    // rather than guess a raw tool name it has never seen. The name-keyed original also
+    // survives: none of the replacements matches a Pi identity (Pi matches the raw `get_time`
+    // stable-id form or the configured-name alias), so dropping the original would leave the
+    // explicit denial unenforceable once the server remounts. The original is owner-bound —
+    // the released key is pinned to this server's identity in the persisted agent record, and
+    // only a server that later claims the `docs` key while owning a tool camelizing to
+    // `getTime` could be over-blocked, the same fail-closed direction every ambiguous
+    // resolution in this engine already takes.
     expect(
       migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
         oldMountedServers: [{ mcpId: idA, name: 'docs' }],
         newMountedServers: [],
         reservedKeys: RESERVED
       })
-    ).toEqual([`mcp__${idA}__getTime`, `mcp__${idA}__gettime`])
+    ).toEqual(['mcp__docs__getTime', `mcp__${idA}__getTime`, `mcp__${idA}__gettime`])
+  })
+
+  it('resolves a bounded Pi alias to its raw tool against the catalog', () => {
+    // Pi saves denials through `buildFunctionCallToolName`, which truncates the name past 63
+    // chars and appends `_<hash(serverName)>`: raw `get_` + 90 a's persists a bounded alias
+    // whose tool fragment is the TRUNCATED camelization plus the server hash. Comparing the
+    // complete camelization with that fragment never matches — even with the raw tool sitting
+    // in the catalog — so the migration dropped the working alias and emitted only bounded
+    // camelized fragments, none of which is a Pi identity. Replaying the bounded build
+    // (camelization + truncation) against the catalog identities identifies the owning raw
+    // tool and emits its stable-id rule.
+    const raw = `get_${'a'.repeat(90)}`
+    const bounded = buildFunctionCallToolName('docs', raw)
+    expect(bounded.length).toBeLessThanOrEqual(63)
+    expect(bounded).not.toBe(`mcp__docs__${toCamelCase(raw)}`)
+    const migrated = migrateAgentDisabledToolsForAllocationChange([bounded], {
+      oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+      newMountedServers: [],
+      reservedKeys: RESERVED,
+      toolNamesByServerId: new Map([[idA, [raw, 'other_tool']]])
+    })
+    expect(migrated).toContain(`mcp__${idA}__${raw}`)
+  })
+
+  it('resolves a bounded alias on the rename path onto the raw spelling', () => {
+    // The rename migration builds its rewrites at the same engine, so the bounded-alias
+    // resolution must hold there too: the truncated hashed alias has to resolve against the
+    // catalog identities and emit the raw forms the destinations keep.
+    const raw = `get_${'a'.repeat(90)}`
+    const bounded = buildFunctionCallToolName('docs', raw)
+    expect(
+      migrateAgentDisabledToolsForServerRename([bounded], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
+        renamedServerId: 'srv-1',
+        toName: 'GitHub',
+        reservedKeys: RESERVED,
+        toolNamesByServerId: new Map([['srv-1', [raw]]])
+      })
+    ).toContain(`mcp__GitHub__${raw}`)
+  })
+
+  it('keeps a bounded alias it cannot resolve to any catalog identity', () => {
+    // A bounded fragment that no catalog entry reproduces (a stale or foreign alias) gets the
+    // same cold-catalog treatment as an unresolvable camelized fragment: the original stays,
+    // because the bounded camelized replacements match no Pi identity and dropping the
+    // original would leave the denial unenforceable.
+    const raw = `get_${'a'.repeat(90)}`
+    const bounded = buildFunctionCallToolName('docs', raw)
+    const migrated = migrateAgentDisabledToolsForAllocationChange([bounded], {
+      oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+      newMountedServers: [],
+      reservedKeys: RESERVED,
+      toolNamesByServerId: new Map([[idA, ['search_docs']]])
+    })
+    expect(migrated).toContain(bounded)
   })
 
   it('emits every raw spelling a camelized fragment resolves to (fail-closed)', () => {
