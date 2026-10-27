@@ -8,7 +8,7 @@ import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import type { ConfigDraft } from '../types'
 
-const mocks = vi.hoisted(() => ({ readCliConfigFiles: vi.fn() }))
+const mocks = vi.hoisted(() => ({ readCliConfigFiles: vi.fn(), providerAlias: undefined as string | undefined }))
 
 vi.mock('@renderer/pages/code/cliConfig', async (importOriginal) => {
   // oxlint-disable-next-line consistent-type-imports
@@ -64,6 +64,7 @@ const initialDraftSeed: ConfigDraft = {
 describe('loadInitialConfigDraft (cherry gateway)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.providerAlias = undefined
     // The managed rebuild batch-reads the on-disk fixture through
     // code_cli.read_config; loadInitialConfigDraft's other reads go through the
     // mocked readCliConfigFiles barrel below.
@@ -79,17 +80,20 @@ describe('loadInitialConfigDraft (cherry gateway)', () => {
       }
     })
     mocks.readCliConfigFiles.mockResolvedValue(gatewayWrittenFiles)
-    // Expose the real provider key through DataApi: if the initial load ever
-    // resolves the real provider, the leak shows up in the assertions below.
+    // Metadata supplies the alias; the real provider key must never enter a gateway config.
     vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
       if (path === '/models/deepseek::deepseek-chat') return { id: 'deepseek-chat', apiModelId: 'deepseek-chat' }
       if (path === '/providers/deepseek/api-keys') return { keys: [{ id: 'k1', key: 'sk-REAL', isEnabled: true }] }
-      if (path === '/providers/deepseek') return { id: 'deepseek', name: 'DeepSeek' }
+      if (path === '/providers/deepseek') return { id: 'deepseek', name: 'DeepSeek', alias: mocks.providerAlias }
       return undefined
     })
   })
 
-  it('rebuilds the initial preview through the gateway without reading the real provider api-key', async () => {
+  it.each([
+    { alias: undefined, model: 'deepseek:deepseek-chat' },
+    { alias: 'company', model: 'company:deepseek-chat' }
+  ])('rebuilds the gateway preview as $model without reading the real provider api-key', async ({ alias, model }) => {
+    mocks.providerAlias = alias
     const draft = await loadInitialConfigDraft({
       cliTool: CodeCli.CLAUDE_CODE,
       providerId: CLI_API_GATEWAY_PROVIDER_ID,
@@ -102,7 +106,6 @@ describe('loadInitialConfigDraft (cherry gateway)', () => {
       gateway
     })
 
-    expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
     expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek/api-keys')
 
     expect(draft.mode).toBe('managed')
@@ -110,7 +113,7 @@ describe('loadInitialConfigDraft (cherry gateway)', () => {
     const settings = draft.files.find((file) => file.target === 'claude-settings')
     const env = JSON.parse(settings!.content).env
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
-    expect(env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-chat')
+    expect(env.ANTHROPIC_MODEL).toBe(model)
     expect(settings!.content).not.toContain('sk-REAL')
   })
 

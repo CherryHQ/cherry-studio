@@ -95,6 +95,7 @@ resets the mocks.
 
 ```typescript
 export interface TestDatabaseOptions {
+  beforeMigration?: string
   seeders?: ISeeder[]
 }
 ```
@@ -108,6 +109,20 @@ import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSee
 
 setupTestDatabase({ seeders: [new PresetProviderSeeder()] })
 ```
+
+## Testing a historical schema upgrade
+
+Use `setupTestDatabase({ beforeMigration: '0027_knowledge_base_order' })` to
+initialize the database with production migrations strictly before that journal
+tag. Populate the old schema, then call `applyMigrations(dbh.db, migrationsFolder)`
+with the full production migration directory and verify data preservation and
+new constraints. Use raw inserts when the current Drizzle schema includes
+columns that did not exist at the baseline.
+
+Do not delete migration journal entries from an already-current schema: later
+migrations would replay against tables they have already changed. The harness
+preserves schema between tests, so give each upgrade scenario its own describe
+scope; use a separate default harness for latest-schema idempotence tests.
 
 ## Migration Recipes
 

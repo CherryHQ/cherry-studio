@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -16,6 +16,8 @@ import { resolveMigrationsPath } from './internal/migrationsPath'
 import { truncateAll } from './internal/truncate'
 
 export interface TestDatabaseOptions {
+  /** Initialize with production migrations strictly before this journal tag. */
+  beforeMigration?: string
   /** Seeders to run after schema init. Default: none. */
   seeders?: ISeeder[]
 }
@@ -90,7 +92,23 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     sqlite.pragma('synchronous = NORMAL')
 
     // Same migration path as DbService.onInit(): migrations first, then custom SQL.
-    applyMigrations(db, resolveMigrationsPath())
+    let migrationsFolder = resolveMigrationsPath()
+    if (options.beforeMigration) {
+      const source = migrationsFolder
+      const journal = JSON.parse(readFileSync(join(source, 'meta/_journal.json'), 'utf8')) as {
+        entries: Array<{ tag: string }>
+      }
+      const targetIndex = journal.entries.findIndex((entry) => entry.tag === options.beforeMigration)
+      if (targetIndex < 0) throw new Error(`Migration not found: ${options.beforeMigration}`)
+      const entries = journal.entries.slice(0, targetIndex)
+      migrationsFolder = join(tempDir, 'migrations')
+      mkdirSync(join(migrationsFolder, 'meta'), { recursive: true })
+      writeFileSync(join(migrationsFolder, 'meta/_journal.json'), JSON.stringify({ ...journal, entries }))
+      for (const { tag } of entries) {
+        copyFileSync(join(source, `${tag}.sql`), join(migrationsFolder, `${tag}.sql`))
+      }
+    }
+    applyMigrations(db, migrationsFolder)
 
     if (options.seeders?.length) {
       new SeedRunner(db).runAll(options.seeders)
