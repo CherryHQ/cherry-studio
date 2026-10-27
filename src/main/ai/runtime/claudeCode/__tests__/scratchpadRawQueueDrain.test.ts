@@ -72,6 +72,14 @@ function makeAdapter(parts: CherryUIMessageChunk[], log: Log) {
           `raw-queue accounting violated: growth=${growth} want=${want} rem=${JSON.stringify(rem)} text=${JSON.stringify(text)} remAfter=${JSON.stringify(remAfter)}`
         )
       }
+      // The re-buffered remainder must be the byte-identical raw tail: the
+      // normal-path slice drops buffer.length RAW bytes, so a stripped-measured
+      // buffer that is not the raw tail would corrupt the queue.
+      if (remAfter !== '' && !(rem + text).endsWith(remAfter)) {
+        throw new Error(
+          `re-buffered remainder is not the raw tail: rem=${JSON.stringify(rem)} text=${JSON.stringify(text)} remAfter=${JSON.stringify(remAfter)}`
+        )
+      }
     }
     return out
   }

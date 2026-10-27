@@ -1417,9 +1417,20 @@ export class ClaudeCodeStreamAdapter {
     }
     const { emit, buffer } = this.splitIncompleteTagSuffix(scanned)
     // Raw consumed this scan: the carried remainder plus this delta, less
-    // the re-buffered suffix (a partial tag survives stripping byte-identical,
-    // so the boundary holds in raw terms).
+    // the re-buffered suffix. A partial tag survives stripping byte-identical
+    // only when stripping did not touch text inside the buffer's raw extent:
+    // an incomplete tag can span newlines, so a scratchpad block that closes
+    // inside that span leaves a stripped buffer shorter than its raw extent
+    // and a length-only cut would queue still-pending raw bytes (round-18
+    // review buffer-alignment finding). When the buffer is not the raw tail,
+    // hold the whole raw scan input instead: queue nothing, emit nothing, and
+    // let the completing delta re-scan it whole.
     const scanRaw = scanRemainder + text
+    if (buffer !== '' && !scanRaw.endsWith(buffer)) {
+      ctx.scratchpadStreamRemainder = scanRaw
+      ctx.scratchpadStreamEscapeCarry = hasOddTrailingBackslashRun(ctx.accumulatedText)
+      return ''
+    }
     ctx.scratchpadMaskAdvanceRawQueue += scanRaw.slice(0, scanRaw.length - buffer.length)
     ctx.scratchpadStreamRemainder = buffer
     // Escape context belongs to the emit/buffer boundary, not the stripped tail: a

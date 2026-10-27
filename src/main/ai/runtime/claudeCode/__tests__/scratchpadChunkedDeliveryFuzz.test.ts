@@ -1,5 +1,6 @@
-// LOCAL REVIEW PROBE (not intended for publication): discriminating probes for the
-// round-17 independent review hypotheses. whole vs 1-char vs 5-char delivery equality.
+// Seeded whole-vs-chunked delivery fuzz for the scratchpad streaming filter.
+// Generator: mulberry32(0xc0ffee) over the PIECES corpus below, 400 cases,
+// each delivered whole and at chunk sizes 1/2/3/5/8; outputs must match.
 import { describe, expect, it, vi } from 'vitest'
 
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
@@ -62,20 +63,20 @@ const fenceCases: Array<[string, string]> = [
   ['fence-unclosed-then-quote', '```\ncode <analysis>HID</analysis>\n\n> quote <analysis>HID2</analysis>\n']
 ]
 
-describe('review probe 1: fence continuity across advance spans', () => {
+describe('fence continuity across advance spans', () => {
   for (const [id, input] of fenceCases) {
     it(id, () => {
       const whole = deliver(input, null)
       const c1 = deliver(input, 1)
       const c5 = deliver(input, 5)
-      console.log('PROBE1', id, JSON.stringify({ whole, c1, c5 }))
+      console.log('FENCE-CONTINUITY-DIFF', id, JSON.stringify({ whole, c1, c5 }))
       expect(c5).toBe(whole)
       expect(c1).toBe(whole)
     })
   }
 })
 
-describe('review probe 2: sentinel literal never emitted', () => {
+describe('sentinel literal never emitted', () => {
   const inputs = [
     '- alpha beta <analysis>HID</analysis> tail\n',
     '1. alpha beta <analysis>HID</analysis> tail\nnext line\n',
@@ -93,7 +94,7 @@ describe('review probe 2: sentinel literal never emitted', () => {
   }
 })
 
-describe('review probe 3: HTML opener straddling delta boundary', () => {
+describe('HTML opener straddling delta boundary', () => {
   const openers = [
     '<script src="abcdef">',
     '<script>',
@@ -125,7 +126,7 @@ describe('review probe 3: HTML opener straddling delta boundary', () => {
           .filter((p): p is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => p.type === 'text-delta')
           .map((p) => p.delta)
           .join('')
-        if (two !== whole) console.log('PROBE3-DIFF', JSON.stringify({ opener, split, whole, two }))
+        if (two !== whole) console.log('OPENER-BOUNDARY-DIFF', JSON.stringify({ opener, split, whole, two }))
         expect(two).toBe(whole)
       })
     }
@@ -172,7 +173,7 @@ const PIECES = [
 // it.fails and forces this list to shrink (conformance-sweep precedent).
 const KNOWN_INHERITED = new Set([2, 111, 138, 203, 237, 256, 264, 300, 334, 339, 375, 384])
 
-describe('review probe 4: seeded fuzz whole-vs-chunked', () => {
+describe('seeded fuzz whole-vs-chunked delivery', () => {
   const rnd = mulberry32(0xc0ffee)
   for (let caseNo = 0; caseNo < 400; caseNo++) {
     const n = 3 + Math.floor(rnd() * 6)
@@ -186,7 +187,7 @@ describe('review probe 4: seeded fuzz whole-vs-chunked', () => {
       const whole = deliver(input, null)
       for (const size of [1, 2, 3, 5, 8]) {
         const chunked = deliver(input, size)
-        if (chunked !== whole) console.log('PROBE4-DIFF', caseNo, size, JSON.stringify({ input, whole, chunked }))
+        if (chunked !== whole) console.log('FUZZ-DIFF', caseNo, size, JSON.stringify({ input, whole, chunked }))
         expect(chunked).toBe(whole)
       }
     })
