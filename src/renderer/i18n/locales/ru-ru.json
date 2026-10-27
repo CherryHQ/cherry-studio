@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Пожалуйста, выберите файл для загрузки",
   "notes.no_note_selected": "Пожалуйста, сначала выберите заметку",
   "notes.no_valid_files": "Не загружен действительный файл",
+  "notes.open": "Открыть заметку",
   "notes.open_outside": "открыть снаружи",
   "notes.print": "Печать",
   "notes.print_failed": "Не удалось напечатать заметку",
