@@ -932,6 +932,17 @@
                   }
                 ]
               },
+              "default": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              },
               "off": {
                 "operations": [
                   {
