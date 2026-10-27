@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createWebSearchClient } from '../createWebSearchClient'
 import { bocha } from '../providers/bocha'
+import { contextfetch } from '../providers/contextfetch'
 import { crawl4ai } from '../providers/crawl4ai'
 import { deepseek } from '../providers/deepseek'
 import { exa } from '../providers/exa'
@@ -55,6 +56,13 @@ function search(providerId: WebSearchCall['providerId']): WebSearchCall {
 describe('portable provider contracts', () => {
   it.each([
     [exa, 'exa-response.json', '/search', { query: 'hello', numResults: 4, contents: { text: true } }, 'Exa Content'],
+    [
+      contextfetch,
+      'exa-response.json',
+      '/search',
+      { query: 'hello', numResults: 4, contents: { text: true } },
+      'Exa Content'
+    ],
     [tavily, 'tavily-response.json', '/search', { query: 'hello', max_results: 4 }, 'Tavily Content'],
     [bocha, 'bocha-response.json', '/v1/web-search', { query: 'hello', count: 4, summary: true }, 'Bocha Content'],
     [
@@ -79,9 +87,9 @@ describe('portable provider contracts', () => {
     expect(requests[0].method).toBe('POST')
     expect(JSON.parse(requests[0].body!)).toEqual(body)
     const auth = new Headers(requests[0].headers)
-    expect(auth.get(['exa', 'parallel'].includes(provider.metadata.id) ? 'x-api-key' : 'authorization')).toBe(
-      ['exa', 'parallel'].includes(provider.metadata.id) ? 'test-key' : 'Bearer test-key'
-    )
+    expect(
+      auth.get(['exa', 'contextfetch', 'parallel'].includes(provider.metadata.id) ? 'x-api-key' : 'authorization')
+    ).toBe(['exa', 'contextfetch', 'parallel'].includes(provider.metadata.id) ? 'test-key' : 'Bearer test-key')
     expect(result.results[0]).toMatchObject({ content, sourceInput: 'hello' })
   })
 

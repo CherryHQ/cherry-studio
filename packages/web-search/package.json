@@ -259,6 +259,21 @@
       },
       "default": "./dist/providers/deepseek.mjs"
     },
+    "./providers/contextfetch": {
+      "react-native": {
+        "types": "./dist/providers/contextfetch.d.mts",
+        "default": "./dist/providers/contextfetch.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/contextfetch.d.mts",
+        "default": "./dist/providers/contextfetch.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/contextfetch.d.cts",
+        "default": "./dist/providers/contextfetch.cjs"
+      },
+      "default": "./dist/providers/contextfetch.mjs"
+    },
     "./tools/config": {
       "react-native": {
         "types": "./dist/tools/config.d.mts",
