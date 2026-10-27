@@ -311,6 +311,17 @@ describe('OpenAI catalog', () => {
     })
   })
 
+  it.each([['gpt-5-6-luna', ['none', 'low', 'medium', 'high', 'xhigh']]] as const)(
+    'caps the base %s reasoning vocabulary at xhigh',
+    (id, values) => {
+      const model = loader.findModel(id)
+
+      expect(model?.reasoning?.controls).toEqual([{ kind: 'effort', values }])
+      expect(model?.reasoning?.supportedEfforts).toEqual(values)
+      expect(loader.findModel('gpt-5.6-luna')).toEqual(model)
+    }
+  )
+
   // The base catalog infers the platform-API ladder for gpt-5.6 (`none`…`xhigh`), which the Codex
   // backend neither accepts (`none`) nor is limited to (`max`/`ultra`); each SKU carries its own.
   it.each([

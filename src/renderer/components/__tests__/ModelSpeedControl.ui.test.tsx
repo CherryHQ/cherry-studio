@@ -130,6 +130,25 @@ function ControlledServiceTier({ model, initialTier }: { model: Model; initialTi
 }
 
 describe('ModelSpeedControl UI', () => {
+  it.each([
+    ['max', 'xhigh'],
+    ['high', 'high']
+  ] as const)('projects stored %s onto the declared tier %s', (stored, expected) => {
+    const model: Model = {
+      ...codexModel,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }],
+        selectableEfforts: ['none', 'low', 'medium', 'high', 'xhigh']
+      }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, stored)).toBe(expected)
+  })
+
+  it('falls back to Default when the model declares no reasoning vocabulary', () => {
+    expect(resolveSupportedReasoningEffort({ ...codexModel, reasoning: undefined }, 'max')).toBe('default')
+  })
+
   it('preserves a stored Default for a multi-tier slider model', () => {
     expect(resolveSupportedReasoningEffort(codexModel, 'default')).toBe('default')
   })

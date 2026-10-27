@@ -386,6 +386,16 @@ export default defineCreator({
       name: 'GPT 5.1 Thinking',
       capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
       outputModalities: ['text']
+    },
+    {
+      id: 'gpt-5-6-luna',
+      name: 'GPT 5.6 Luna',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1050000,
+      maxOutputTokens: 128000,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }] }
     }
   ]
 })
