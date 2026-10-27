@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "請選擇要上傳的檔案",
   "notes.no_note_selected": "請先選擇一個筆記",
   "notes.no_valid_files": "沒有上傳有效的檔案",
+  "notes.open": "開啟筆記",
   "notes.open_outside": "從外部開啟",
   "notes.print": "列印",
   "notes.print_failed": "列印筆記失敗",
