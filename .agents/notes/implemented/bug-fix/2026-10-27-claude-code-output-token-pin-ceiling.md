@@ -34,5 +34,5 @@ Catalog caps above 65,536 no longer reach the wire; grok-4.6 requests 65,536 ins
 
 ## Verification
 
-- Regression — `vitest run --project main src/main/ai/runtime/claudeCode/__tests__/settingsBuilder.test.ts src/main/ai/runtime/claudeCode/__tests__/agentSessionWarmup.test.ts`: 228 tests pass. New: a 500K catalog cap on a 500K window pins `65536` while the compaction window stays above 400K (the #22332 case, which pinned `128000` before); a `CLAUDE_CODE_MAX_OUTPUT_TOKENS=500000` override keeps its value in the env while the budget subtracts the clamped `65536`, and `48000` subtracts `48000`; `393_216` still pins the ceiling; `16_384` still pins its declared cap.
+- Regression — `vitest run --project main src/main/ai/runtime/claudeCode/__tests__/settingsBuilder.test.ts src/main/ai/runtime/claudeCode/__tests__/agentSessionWarmup.test.ts`: 228 tests pass. New: a 500K catalog cap on a 500K window pins `65536` while the compaction window stays above 400K (the #22332 case, which pinned `128000` before); a `CLAUDE_CODE_MAX_OUTPUT_TOKENS=500000` override is normalized in the subprocess env to the clamped `65536` it is budgeted for, and `48000` passes through intact; `393_216` still pins the ceiling; `16_384` still pins its declared cap.
 - `oxlint --deny-warnings` and `oxfmt` pass on both changed files.

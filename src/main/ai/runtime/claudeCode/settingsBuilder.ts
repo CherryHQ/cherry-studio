@@ -304,7 +304,10 @@ export async function buildClaudeCodeSessionSettings(
   )
   const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens)
   // Only pin the request when we also budget for it; otherwise the CLI's own default applies.
-  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
+  // An explicit override is normalized to the same resolved value: the subprocess must receive
+  // what the compaction budget reserved, or an override above the ceiling would keep requesting
+  // the oversized amount while the budget only subtracts the clamped figure (#22332 review).
+  if (autoCompactWindow !== undefined) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(requestedOutputTokens)
   }
   // Undocumented, and the only way to declare a third-party model's window — without it every

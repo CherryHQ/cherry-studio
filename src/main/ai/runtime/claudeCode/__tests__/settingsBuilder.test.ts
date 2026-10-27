@@ -717,8 +717,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 1_000_000, maxOutputTokens: 500_000 }
     )
 
-    // The agent's own value still wins over the catalog-derived pin; only its bound changes.
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: override })
+    // The subprocess env carries the value actually requested and budgeted: an override above
+    // the endpoint maximum is normalized to the clamped figure, not passed through raw while
+    // the budget reserves less (#22332 review: 128000 reached the wire against a 65536 budget).
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: expected })
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(
       Math.floor((1_000_000 - Number(expected)) * 0.98)
     )
