@@ -306,9 +306,9 @@ only, so neither messaging nor stopping redirects to another child with the same
 a separate operation that creates a new child. The shared contract tests continuation history and run identity,
 stale stops and parent cancellation on both the fake and Pi. A child absent from the harness's facts is refused before
 writing a continuation record or report job; a stored parent record alone does not establish an available context.
-Durable's behavior adapter is not implemented; its
-immutable conversation ownership remains a limitation to resolve or reject before writing the continuation's run
-record and report job, without silently forking.
+The [Durable adapter](../agent-runtime-pi-durable/README.md#shared-behavior) implements these ports. Its immutable
+conversation ownership still prevents independent continuation of a completed foreground child; the adapter rejects
+that continuation before writing its run record or report job, without silently forking.
 
 Each schema carries the constraints today's tools have. The rules check the arguments again themselves, so a harness
 that does not validate against the schema loses nothing.
@@ -412,9 +412,10 @@ needs (tools, jobs, tool gate, context filter, request meter, lifecycle). The ha
 | `restart()`               | Lose everything in memory and reopen from storage: install runs again, `abandon` jobs are dropped, `onOpen(thread, { reopened: true }, ports)` runs for every conversation, then runs and `resume` jobs continue.     |
 | `close()`                 | Call `onClose` for every conversation, then shut down.                                                                                                                                                                  |
 
-A harness may skip only the cases whose `needs` it lacks, and `needs` has two values:
+A harness may skip only the cases whose `needs` it lacks:
 
 - `restart`: coding-agent skips these, because its runs do not resume.
+- `foreground-continuation`: Durable skips this because a completed foreground child's native owner cannot be detached.
 - `context-filter`: Durable skips this, because it never consults `ContextFilter` (H10, a declared difference: a round
   withdrawn after it started, or cut by a restart before its admission, stays visible to later model requests there).
 
