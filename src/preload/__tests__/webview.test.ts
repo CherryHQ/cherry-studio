@@ -259,11 +259,13 @@ describe('stealth evasions and client hints delegation in webview preload', () =
     // Verify reading native WebIDL getters preserves the target receiver (no TypeError: Illegal invocation)
     expect(testNav.userAgentData?.mobile).toBe(false)
     expect(testNav.userAgentData?.platform).toBe('Windows')
-    const json = (testNav.userAgentData?.toJSON as () => Record<string, unknown>)()
+    const userAgentData = testNav.userAgentData!
+    const toJSON = userAgentData.toJSON as () => Record<string, unknown>
+    const json = toJSON()
     expect(json.platform).toBe('Windows')
     expect(json.mobile).toBe(false)
 
-    const getHighEntropyValues = testNav.userAgentData?.getHighEntropyValues as (
+    const getHighEntropyValues = userAgentData.getHighEntropyValues as (
       hints: string[]
     ) => Promise<Record<string, unknown>>
 
