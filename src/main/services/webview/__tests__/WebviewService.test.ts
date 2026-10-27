@@ -223,10 +223,10 @@ const input = (documentSessionId: string, annotations: WebviewAnnotation[] = [an
 
 describe('WebviewService request identity', () => {
   it.each([
-    ['https://accounts.google.com/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
-    ['https://accounts.google.com/v3/signin/identifier', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
-    ['https://accounts.google.com/o/oauth2/v2/auth', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
-    ['https://ACCOUNTS.GOOGLE.COM/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+    ['https://accounts.google.com/', 'Browser/1.0'],
+    ['https://accounts.google.com/v3/signin/identifier', 'Browser/1.0'],
+    ['https://accounts.google.com/o/oauth2/v2/auth', 'Browser/1.0'],
+    ['https://ACCOUNTS.GOOGLE.COM/', 'Browser/1.0'],
     ['https://google.com/', 'Browser/1.0'],
     ['https://aistudio.google.com/', 'Browser/1.0'],
     [

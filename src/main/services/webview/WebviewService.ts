@@ -154,27 +154,60 @@ export class WebviewService extends BaseService {
   }
 
   /**
-   * Initialize the useragent of the webview session.
-   * Removes CherryStudio and Electron from the useragent.
+   * Initialize the useragent of the webview sessions (both mini-app sites and agent browser).
+   * Removes CherryStudio and Electron from useragent and client hints,
+   * ensuring Google OAuth (accounts.google.com) and other bot-detection systems
+   * treat this as a standard Google Chrome browser without triggering embedded webview blocks.
    */
   private initSessionUserAgent() {
-    const wvSession = session.fromPartition(WEBVIEW_PARTITION)
-    const originUA = wvSession.getUserAgent()
-    const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
+    const targetPartitions = [WEBVIEW_PARTITION, getWebviewPartition(WebviewSecurityProfile.AgentBrowser)]
 
-    wvSession.setUserAgent(newUA)
-    wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
-      const language = getAppLanguage()
-      // Only sign-in needs the native identity; application APIs must match the page UA.
-      const isGoogleSignIn = new URL(details.url).hostname === 'accounts.google.com'
-      const headers = {
-        ...details.requestHeaders,
-        'User-Agent': isGoogleSignIn ? originUA : newUA,
-        'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
+    const chromeMajor = process.versions?.chrome ? process.versions.chrome.split('.')[0] : '132'
+    const chromeFull = process.versions?.chrome || '132.0.6834.196'
+    const platformName = process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux'
+
+    for (const partition of targetPartitions) {
+      const wvSession = session.fromPartition(partition)
+      if (typeof wvSession.getUserAgent !== 'function' || !wvSession.webRequest?.onBeforeSendHeaders) {
+        continue
       }
-      cb({ requestHeaders: headers })
-    })
-    this.registerDisposable(() => wvSession.webRequest.onBeforeSendHeaders(null))
+      const originUA = wvSession.getUserAgent()
+      const cleanUA = originUA.replace(/CherryStudio\/\S+\s*/g, '').replace(/Electron\/\S+\s*/g, '')
+
+      wvSession.setUserAgent(cleanUA)
+      wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
+        const language = getAppLanguage()
+        const headers: Record<string, string> = {}
+
+        // Case-insensitive mapping and cleaning
+        for (const [key, val] of Object.entries(details.requestHeaders)) {
+          const lower = key.toLowerCase()
+          if (lower === 'user-agent') {
+            headers[key] = cleanUA
+          } else if (lower === 'sec-ch-ua') {
+            headers[key] = `"Chromium";v="${chromeMajor}", "Google Chrome";v="${chromeMajor}", "Not:A-Brand";v="24"`
+          } else if (lower === 'sec-ch-ua-full-version-list') {
+            headers[key] = `"Chromium";v="${chromeFull}", "Google Chrome";v="${chromeFull}", "Not:A-Brand";v="24.0.0.0"`
+          } else if (lower === 'sec-ch-ua-platform') {
+            headers[key] = `"${platformName}"`
+          } else if (lower === 'sec-ch-ua-mobile') {
+            headers[key] = '?0'
+          } else {
+            headers[key] = val
+          }
+        }
+
+        if (!Object.keys(headers).some((k) => k.toLowerCase() === 'user-agent')) {
+          headers['User-Agent'] = cleanUA
+        }
+        if (!Object.keys(headers).some((k) => k.toLowerCase() === 'accept-language')) {
+          headers['Accept-Language'] = `${language}, en;q=0.9, *;q=0.5`
+        }
+
+        cb({ requestHeaders: headers })
+      })
+      this.registerDisposable(() => wvSession.webRequest.onBeforeSendHeaders(null))
+    }
   }
 
   private initWebviews() {

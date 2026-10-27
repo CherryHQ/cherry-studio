@@ -282,8 +282,8 @@ describe('configureChromiumFlags', () => {
       configureChromiumFlags()
 
       expect(disableHardwareAccelerationMock).not.toHaveBeenCalled()
-      // Only the unconditional enable-features call: 1 total.
-      expect(appendSwitchMock).toHaveBeenCalledTimes(1)
+      // Unconditional calls: disable-blink-features and enable-features
+      expect(appendSwitchMock).toHaveBeenCalledWith('disable-blink-features', 'AutomationControlled')
       expect(appendSwitchMock).toHaveBeenCalledWith(
         'enable-features',
         'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
