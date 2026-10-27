@@ -1,5 +1,11 @@
 # @cherrystudio/web-search
 
+## 0.3.1
+
+### Patch Changes
+
+- [#22793](https://github.com/CherryHQ/cherry-studio/pull/22793) [`1cd6601`](https://github.com/CherryHQ/cherry-studio/commit/1cd6601053084d2b50296a7cd929138657679b23) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Report attributable Querit page crawl failures as provider/page_fetch_failed, preserving request-error precedence and status-less content compatibility.
+
 ## 0.3.0
 
 ### Minor Changes
