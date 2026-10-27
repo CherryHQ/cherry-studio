@@ -9,6 +9,7 @@ import { promisify } from 'node:util'
 
 import {
   type HookInput,
+  type Options,
   query,
   type SDKMessage,
   type SDKUserMessage,
@@ -45,6 +46,10 @@ function modelReply(res: ServerResponse, id: string, model: string) {
   return {
     id,
     closed,
+    startText(text: string) {
+      send('content_block_start', { index, content_block: { type: 'text', text: '' } })
+      send('content_block_delta', { index, delta: { type: 'text_delta', text } })
+    },
     block(block: ReplyBlock) {
       if (block.type === 'text') {
         send('content_block_start', { index, content_block: { type: 'text', text: '' } })
@@ -80,13 +85,13 @@ async function bounded<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
-async function nativeProbe() {
+async function nativeProbe(options: Pick<Options, 'agents'> = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-contract-'))
   const cwd = path.join(directory, 'work')
   const config = path.join(directory, 'config')
   await mkdir(cwd)
   await mkdir(config)
-  const input = new AsyncEventQueue<SDKUserMessage>()
+  let input = new AsyncEventQueue<SDKUserMessage>()
   const requests = new AsyncEventQueue<{ reply: ReturnType<typeof modelReply>; body: { messages: unknown[] } }>()
   const incoming = requests[Symbol.asyncIterator]()
   const responses = new Set<ServerResponse>()
@@ -111,65 +116,82 @@ async function nativeProbe() {
   })
   const hooks: HookInput[] = []
   const events: SDKMessage[] = []
-  const sdk = query({
-    prompt: input,
-    options: {
-      cwd,
-      env: {
-        PATH: process.env.PATH,
-        TMPDIR: process.env.TMPDIR,
-        CLAUDE_CONFIG_DIR: config,
-        ANTHROPIC_BASE_URL: server.url,
-        ANTHROPIC_API_KEY: 'local-contract-test',
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-      },
-      settingSources: [],
-      model: 'claude-sonnet-4-6',
-      systemPrompt: 'Local runtime contract test.',
-      tools: ['Agent'],
-      allowedTools: ['Agent'],
-      agents: {
-        probe: {
-          description: 'Contract probe child',
-          prompt: 'Return the requested probe content.',
-          tools: [],
-          model: 'inherit'
+  const createQuery = (resume?: string) =>
+    query({
+      prompt: input,
+      options: {
+        cwd,
+        env: {
+          PATH: process.env.PATH,
+          TMPDIR: process.env.TMPDIR,
+          CLAUDE_CONFIG_DIR: config,
+          ANTHROPIC_BASE_URL: server.url,
+          ANTHROPIC_API_KEY: 'local-contract-test',
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+        },
+        settingSources: [],
+        permissionMode: 'default',
+        model: 'claude-sonnet-4-6',
+        systemPrompt: 'Local runtime contract test.',
+        tools: ['Agent', 'SendMessage'],
+        allowedTools: ['Agent', 'SendMessage'],
+        agents: {
+          probe: {
+            description: 'Contract probe child',
+            prompt: 'Return the requested probe content.',
+            tools: [],
+            model: 'inherit'
+          }
+        },
+        ...options,
+        resume,
+        includePartialMessages: true,
+        forwardSubagentText: true,
+        maxTurns: 5,
+        hooks: {
+          SubagentStart: [
+            {
+              hooks: [
+                async (event) => {
+                  hooks.push(event)
+                  return {}
+                }
+              ]
+            }
+          ],
+          SubagentStop: [
+            {
+              hooks: [
+                async (event) => {
+                  hooks.push(event)
+                  return {}
+                }
+              ]
+            }
+          ]
         }
-      },
-      includePartialMessages: true,
-      forwardSubagentText: true,
-      maxTurns: 5,
-      hooks: {
-        SubagentStart: [
-          {
-            hooks: [
-              async (event) => {
-                hooks.push(event)
-                return {}
-              }
-            ]
-          }
-        ],
-        SubagentStop: [
-          {
-            hooks: [
-              async (event) => {
-                hooks.push(event)
-                return {}
-              }
-            ]
-          }
-        ]
       }
-    }
-  })
-  const pump = (async () => {
-    for await (const event of sdk) events.push(event)
-  })().catch((error) => failures.push(error))
+    })
+  let sdk = createQuery()
+  const consume = () =>
+    (async () => {
+      for await (const event of sdk) events.push(event)
+    })().catch((error) => failures.push(error))
+  let pump = consume()
   return {
-    sdk,
+    get sdk() {
+      return sdk
+    },
     events,
     hooks,
+    async restart(sessionId: string) {
+      input.close()
+      sdk.close()
+      await bounded(pump)
+      input = new AsyncEventQueue<SDKUserMessage>()
+      sdk = createQuery(sessionId)
+      pump = consume()
+    },
     send(text: string, priority?: SDKUserMessage['priority']) {
       const uuid = randomUUID()
       input.push({
@@ -208,7 +230,11 @@ async function nativeProbe() {
           timeout: timeoutMs
         }
       )
-      return JSON.parse(result.stdout) as { root: SessionMessage[]; children: Record<string, SessionMessage[]> }
+      return JSON.parse(result.stdout) as {
+        root: SessionMessage[]
+        children: Record<string, SessionMessage[]>
+        entries: { uuid?: string }[]
+      }
     },
     async close() {
       input.close()
@@ -252,6 +278,7 @@ it('keeps child blocks independently observable and joins live identities to nat
     parent.reply.block({ type: 'text', text: 'Parent completed' })
     parent.reply.finish()
     const result = await probe.event((event) => event.type === 'result')
+    if (result.type !== 'result') throw new Error('Missing root result')
     expect(result).toMatchObject({ is_error: false, user_message_uuid: inputId, result: 'Parent completed' })
     const childBlocks = probe.events
       .filter((event) => event.type === 'assistant')
@@ -274,7 +301,6 @@ it('keeps child blocks independently observable and joins live identities to nat
     )
     const toolResult = probe.events.find((event) => event.type === 'user' && event.tool_use_result)
     expect(toolResult).toMatchObject({ tool_use_result: { agentId: nativeId, status: 'completed' } })
-    if (result.type !== 'result') throw new Error('Missing root result')
     const history = await probe.history(result.session_id)
     expect(history.root).toContainEqual(expect.objectContaining({ uuid: inputId }))
     expect(
@@ -436,6 +462,7 @@ it('places next-priority input at the parent tool boundary with both input ident
     parent.reply.block({ type: 'text', text: 'Parent used revised requirement' })
     parent.reply.finish()
     const result = await probe.event((event) => event.type === 'result')
+    if (result.type !== 'result') throw new Error('Missing root result')
     expect(result).toMatchObject({ is_error: false, user_message_uuids: expect.arrayContaining([firstId, nextId]) })
   } finally {
     await probe.close()
@@ -460,6 +487,282 @@ it('runs next-priority input as a follow-up when the active answer ends without 
       is_error: false,
       result: 'Follow-up answer'
     })
+  } finally {
+    await probe.close()
+  }
+})
+
+it('routes a grandchild to its immediate parent in live events and native history', async () => {
+  const probe = await nativeProbe({
+    agents: {
+      probe: { description: 'Nested probe', prompt: 'Run the requested child.', tools: ['Agent'], model: 'inherit' }
+    }
+  })
+  try {
+    probe.send('Run a nested child')
+    const root = await probe.request()
+    root.reply.block(spawn('toolu_parent'))
+    root.reply.finish('tool_use')
+    const child = await probe.request()
+    child.reply.block(spawn('toolu_grandchild'))
+    child.reply.finish('tool_use')
+    const grandchild = await probe.request()
+    grandchild.reply.block({ type: 'text', text: 'Grandchild answer' })
+    grandchild.reply.finish()
+    const childResult = await probe.request()
+    childResult.reply.block({ type: 'text', text: 'Child answer' })
+    childResult.reply.finish()
+    const rootResult = await probe.request()
+    rootResult.reply.block({ type: 'text', text: 'Root answer' })
+    rootResult.reply.finish()
+    const result = await probe.event((event) => event.type === 'result')
+    if (result.type !== 'result') throw new Error('Missing root result')
+    const tasks = probe.events.filter((event) => event.type === 'system' && event.subtype === 'task_started')
+    const parent = tasks.find((task) => task.tool_use_id === 'toolu_parent')!
+    const nested = tasks.find((task) => task.tool_use_id === 'toolu_grandchild')!
+    expect(nested).toMatchObject({ task_type: 'local_agent', parent_task_id: parent.task_id, spawn_depth: 2 })
+    expect(probe.events).toContainEqual(
+      expect.objectContaining({
+        type: 'assistant',
+        agent_id: nested.task_id,
+        parent_tool_use_id: 'toolu_grandchild',
+        message: expect.objectContaining({ content: [{ type: 'text', text: 'Grandchild answer' }] })
+      })
+    )
+    const history = await probe.history(result.session_id)
+    expect(history.children[nested.task_id]).toContainEqual(
+      expect.objectContaining({
+        type: 'assistant',
+        parent_agent_id: parent.task_id,
+        message: expect.objectContaining({ content: [{ type: 'text', text: 'Grandchild answer' }] })
+      })
+    )
+    expect(
+      history.children[parent.task_id].some((message) => JSON.stringify(message.message).includes('Grandchild answer'))
+    ).toBe(true)
+  } finally {
+    await probe.close()
+  }
+})
+
+it('closes an interrupted partial text block and retains its native identity', async () => {
+  const probe = await nativeProbe()
+  try {
+    const inputId = probe.send('Generate a partial answer')
+    const request = await probe.request()
+    request.reply.startText('Unfinished text')
+    await probe.event((event) => event.type === 'stream_event' && event.event.type === 'content_block_delta')
+    await probe.sdk.interrupt()
+    await bounded(request.reply.closed)
+    const result = await probe.event((event) => event.type === 'result' && event.user_message_uuid === inputId)
+    if (result.type !== 'result') throw new Error('Missing root result')
+    const partial = probe.events.find((event) => event.type === 'assistant' && event.aborted)
+    expect(partial).toMatchObject({ message: { content: [{ type: 'text', text: 'Unfinished text' }] } })
+    const types = probe.events.filter((event) => event.type === 'stream_event').map((event) => event.event.type)
+    expect(types).toContain('content_block_stop')
+    expect(types.at(-1)).toBe('message_stop')
+    expect(types.indexOf('content_block_stop')).toBeLessThan(types.indexOf('message_stop'))
+    const history = await probe.history(result.session_id)
+    expect(history.root).toContainEqual(expect.objectContaining({ uuid: partial!.uuid }))
+  } finally {
+    await probe.close()
+  }
+})
+
+it.each([false, true])('preserves child identity but starts a new run on SendMessage (restart=%s)', async (restart) => {
+  const probe = await nativeProbe()
+  try {
+    const firstId = probe.send('Start a child')
+    const root = await probe.request()
+    root.reply.block(spawn('toolu_original'))
+    root.reply.finish('tool_use')
+    const child = await probe.request()
+    child.reply.block({ type: 'text', text: 'Original child answer' })
+    child.reply.finish()
+    const parent = await probe.request()
+    parent.reply.block({ type: 'text', text: 'Original parent answer' })
+    parent.reply.finish()
+    const result = await probe.event((event) => event.type === 'result' && event.user_message_uuid === firstId)
+    if (result.type !== 'result') throw new Error('Missing root result')
+    const original = probe.events.find((event) => event.type === 'system' && event.subtype === 'task_started')!
+    if (original.type !== 'system' || original.subtype !== 'task_started') throw new Error('Missing child task')
+    if (restart) await probe.restart(result.session_id)
+    probe.send('Ask the same child another question')
+    const followup = await probe.request()
+    followup.reply.block({
+      type: 'tool_use',
+      id: 'toolu_continue',
+      name: 'SendMessage',
+      input: { to: original.task_id, message: 'Continue with the original context', summary: 'Child follow-up' }
+    })
+    followup.reply.finish('tool_use')
+    const pending = [await probe.request(), await probe.request()]
+    const resumed = pending.find(({ body }) => JSON.stringify(body.messages).includes('Original child answer'))!
+    const resumedParent = pending.find((request) => request !== resumed)!
+    expect(JSON.stringify(resumed.body.messages)).toContain('Continue with the original context')
+    resumedParent.reply.block({ type: 'text', text: 'Parent need not wait for continuation' })
+    resumedParent.reply.finish()
+    resumed.reply.block({ type: 'text', text: 'Continued child answer' })
+    resumed.reply.finish()
+    const newRun = await probe.event(
+      (event) =>
+        event.type === 'system' &&
+        event.subtype === 'task_started' &&
+        event.task_id === original.task_id &&
+        event.run_id !== original.run_id
+    )
+    if (newRun.type !== 'system' || newRun.subtype !== 'task_started') throw new Error('Missing resumed task')
+    expect(original.run_id).toBeTruthy()
+    expect(newRun.run_id! > original.run_id!).toBe(true)
+    expect(newRun.is_backgrounded).toBe(true)
+    await probe.event(
+      (event) =>
+        event.type === 'system' &&
+        event.subtype === 'task_notification' &&
+        event.task_id === original.task_id &&
+        event.run_id === newRun.run_id &&
+        event.status === 'completed'
+    )
+    const answer = probe.events.find(
+      (event) =>
+        event.type === 'assistant' &&
+        event.message.content.some((block) => block.type === 'text' && block.text === 'Continued child answer')
+    )
+    expect(answer).toMatchObject({ agent_id: original.task_id })
+    const history = await probe.history(result.session_id)
+    expect(Object.keys(history.children)).toEqual([original.task_id])
+    expect(JSON.stringify(history.children[original.task_id])).toContain('Original child answer')
+    expect(JSON.stringify(history.children[original.task_id])).toContain('Continue with the original context')
+    expect(history.children[original.task_id]).toContainEqual(expect.objectContaining({ uuid: answer!.uuid }))
+  } finally {
+    await probe.close()
+  }
+})
+
+it('compacts through native commands without deleting the retained conversation', async () => {
+  const probe = await nativeProbe()
+  try {
+    const firstId = probe.send('Retain the original decision. ' + 'Additional context. '.repeat(500))
+    const first = await probe.request()
+    first.reply.block({ type: 'text', text: 'Original decision retained' })
+    first.reply.finish()
+    const result = await probe.event((event) => event.type === 'result' && event.user_message_uuid === firstId)
+    if (result.type !== 'result') throw new Error('Missing root result')
+    const before = await probe.history(result.session_id)
+    probe.send('/compact Preserve the original decision')
+    const compact = await probe.request()
+    compact.reply.block({ type: 'text', text: '<summary>Summary: original decision retained.</summary>' })
+    compact.reply.finish()
+    await probe.event((event) => event.type === 'system' && event.subtype === 'compact_boundary')
+    const after = await probe.history(result.session_id)
+    expect(JSON.stringify(after.root)).toContain('Summary: original decision retained.')
+    for (const message of before.root) {
+      expect(after.entries).toContainEqual(expect.objectContaining({ uuid: message.uuid }))
+    }
+    await probe.restart(result.session_id)
+    const nextId = probe.send('Continue after compact')
+    const next = await probe.request()
+    expect(JSON.stringify(next.body.messages)).toContain('Summary: original decision retained.')
+    next.reply.block({ type: 'text', text: 'Post-compaction answer' })
+    next.reply.finish()
+    expect(await probe.event((event) => event.type === 'result' && event.user_message_uuid === nextId)).toMatchObject({
+      is_error: false,
+      result: 'Post-compaction answer'
+    })
+  } finally {
+    await probe.close()
+  }
+})
+
+it('reports a new native session identity for clear while retaining the old archive', async () => {
+  const probe = await nativeProbe()
+  try {
+    const firstId = probe.send('Original conversation')
+    const first = await probe.request()
+    first.reply.block({ type: 'text', text: 'Old conversation answer' })
+    first.reply.finish()
+    const old = await probe.event((event) => event.type === 'result' && event.user_message_uuid === firstId)
+    if (old.type !== 'result') throw new Error('Missing old session result')
+    const clearId = probe.send('/clear')
+    const reset = await probe.event((event) => event.type === 'conversation_reset')
+    if (reset.type !== 'conversation_reset') throw new Error('Missing reset')
+    expect(reset).toMatchObject({ trigger: 'clear', user_message_uuid: clearId })
+    const cleared = await probe.event((event) => event.type === 'result' && event.user_message_uuid === clearId)
+    if (cleared.type !== 'result') throw new Error('Missing clear result')
+    expect(cleared.is_error).toBe(false)
+    expect(cleared.session_id).not.toBe(old.session_id)
+    expect(probe.events).toContainEqual(
+      expect.objectContaining({ type: 'system', subtype: 'init', session_id: cleared.session_id })
+    )
+    const nextId = probe.send('New conversation')
+    const next = await probe.request()
+    expect(JSON.stringify(next.body.messages)).not.toContain('Old conversation answer')
+    next.reply.block({ type: 'text', text: 'New conversation answer' })
+    next.reply.finish()
+    expect(await probe.event((event) => event.type === 'result' && event.user_message_uuid === nextId)).toMatchObject({
+      session_id: cleared.session_id,
+      result: 'New conversation answer'
+    })
+    const history = await probe.history(old.session_id)
+    expect(JSON.stringify(history.root)).toContain('Old conversation answer')
+    const newHistory = await probe.history(cleared.session_id)
+    expect(JSON.stringify(newHistory.root)).toContain('New conversation answer')
+    expect(JSON.stringify(newHistory.root)).not.toContain('Old conversation answer')
+    await probe.restart(cleared.session_id)
+    const resumedId = probe.send('Continue the new conversation')
+    const resumed = await probe.request()
+    expect(JSON.stringify(resumed.body.messages)).toContain('New conversation answer')
+    expect(JSON.stringify(resumed.body.messages)).not.toContain('Old conversation answer')
+    resumed.reply.block({ type: 'text', text: 'Resumed new conversation' })
+    resumed.reply.finish()
+    expect(
+      await probe.event((event) => event.type === 'result' && event.user_message_uuid === resumedId)
+    ).toMatchObject({
+      session_id: cleared.session_id,
+      is_error: false
+    })
+  } finally {
+    await probe.close()
+  }
+})
+
+it('keeps a fork child archive separate while preserving its inherited context', async () => {
+  const probe = await nativeProbe()
+  try {
+    probe.send('Original root context for the fork')
+    const root = await probe.request()
+    root.reply.block({ type: 'text', text: 'Root context before fork' })
+    root.reply.block({
+      type: 'tool_use',
+      id: 'toolu_fork',
+      name: 'Agent',
+      input: {
+        description: 'Fork probe',
+        prompt: 'Answer with inherited context',
+        subagent_type: 'fork',
+        run_in_background: false
+      }
+    })
+    root.reply.finish('tool_use')
+    const child = await probe.request()
+    expect(JSON.stringify(child.body.messages)).toContain('Original root context for the fork')
+    child.reply.block({ type: 'text', text: 'Fork child answer' })
+    child.reply.finish()
+    const parent = await probe.request()
+    parent.reply.block({ type: 'text', text: 'Parent after fork' })
+    parent.reply.finish()
+    const result = await probe.event((event) => event.type === 'result')
+    if (result.type !== 'result') throw new Error('Missing root result')
+    const answer = probe.events.find(
+      (event) =>
+        event.type === 'assistant' &&
+        event.agent_id &&
+        event.message.content.some((block) => block.type === 'text' && block.text === 'Fork child answer')
+    )!
+    if (answer.type !== 'assistant') throw new Error('Missing fork reply')
+    const history = await probe.history(result.session_id)
+    expect(history.children[answer.agent_id!]).toContainEqual(expect.objectContaining({ uuid: answer.uuid }))
+    expect(history.root.some((message) => message.uuid === answer.uuid)).toBe(false)
   } finally {
     await probe.close()
   }
