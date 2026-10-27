@@ -5,7 +5,7 @@ import type { Browser, Page } from '@playwright/test'
 import { chromium } from '@playwright/test'
 
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/e2e/regression/config'
-import { prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
+import { assertOwnedAppIsolation, prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
 import {
   adoptRelaunchedApp,
   ensureProfile,
@@ -61,6 +61,7 @@ export class RegressionApp {
   private async connect(): Promise<Browser> {
     if (this.browser?.isConnected()) return this.browser
     const record = this.record
+    await assertOwnedAppIsolation(record, join(this.paths.profiles, record.profile, 'home'))
     const { cdpPort } = record
     this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, {
       isLocal: true,

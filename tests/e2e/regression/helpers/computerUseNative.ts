@@ -45,7 +45,7 @@ export async function computerUseMain<T>(app: RegressionApp, body: string): Prom
   return evaluateCdpExpression<T>(
     target.webSocketDebuggerUrl,
     `(async () => {
-      const application = Object.values(process.mainModule.require.cache)
+      const application = Object.values(process.mainModule.require('node:module')._cache)
         .map(module => module.exports?.application).find(candidate => candidate?.get)
       if (!application) throw new Error('UNCOVERED: application service inspection is unavailable')
       const service = application.get('ComputerUseService')

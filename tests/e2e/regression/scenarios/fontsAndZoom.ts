@@ -13,6 +13,7 @@ import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function fontsAndZoom(app: RegressionApp, mainWindow: Page, testInfo: TestInfo): Promise<void> {
@@ -53,7 +54,10 @@ export async function fontsAndZoom(app: RegressionApp, mainWindow: Page, testInf
   const openTopic = async () => {
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+    if (await showSidebar.isVisible()) await showSidebar.click()
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), group)
     await expect(group).toBeVisible()
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })

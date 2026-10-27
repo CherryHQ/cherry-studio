@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { join } from 'node:path'
+import { posix, win32 } from 'node:path'
 
 import type { AppRecord } from './lifecycle'
 import type { Platform } from './types'
@@ -67,7 +67,12 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
       ? record.executablePath
       : kind === 'electron'
         ? record.targetRoot
-        : join(record.targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')
+        : (record.platform === 'windows' ? win32 : posix).join(
+            record.targetRoot,
+            'node_modules',
+            'dotenv-cli',
+            'cli.js'
+          )
   if (!expected || !command.toLowerCase().includes(expected.toLowerCase())) {
     throw new Error(`Refusing to terminate stale ${kind} PID ${pid}; its command no longer matches the owned run`)
   }

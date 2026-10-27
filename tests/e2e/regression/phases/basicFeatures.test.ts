@@ -14,7 +14,7 @@ test(...caseDefinition('APP-01'), async ({ mainWindow: page }) => {
   await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible()
 
   await selectSidebarApp(page, 'Chat')
-  await page.getByRole('button', { name: 'Apps', exact: true }).click()
+  await page.getByRole('button', { name: 'Apps', exact: true }).last().click()
   await miniApp.click()
   await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible({ timeout: 30_000 })
 })
@@ -28,7 +28,10 @@ test(...caseDefinition('N-01'), async ({ app, mainWindow }) => {
   const existing = page.getByText('Cherry Regression Note 31415', { exact: true })
   if (!(await existing.isVisible().catch(() => false))) {
     await notesView.getByRole('button', { name: 'Create a new note', exact: true }).first().click()
-    const title = notesView.locator('input')
+    const createdNote = notesView.getByRole('treeitem', { selected: true })
+    await createdNote.click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
+    const title = createdNote.getByRole('textbox')
     await title.fill('Cherry Regression Note 31415')
     await title.press('Enter')
     const editor = page.locator('[data-ui~="notes.editor"][data-file-edit] [contenteditable="true"]')

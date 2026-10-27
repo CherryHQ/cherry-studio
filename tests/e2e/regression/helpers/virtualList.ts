@@ -6,8 +6,9 @@ import type { Locator, Page } from '@playwright/test'
  */
 export async function collectVirtualizedText(page: Page, scroller: Locator): Promise<string> {
   const windows: string[] = []
-  await scroller.evaluate((element) => {
+  await scroller.evaluate(async (element) => {
     element.scrollTop = 0
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
   for (let step = 0; step < 100; step += 1) {
     windows.push(await scroller.evaluate((element) => (element as HTMLElement).innerText))
@@ -32,7 +33,10 @@ export async function revealVirtualized(page: Page, scroller: Locator, target: L
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
   for (let step = 0; step < 100; step += 1) {
-    if ((await target.count()) > 0 && (await target.first().isVisible())) return
+    if ((await target.count()) > 0 && (await target.first().isVisible())) {
+      await target.first().scrollIntoViewIfNeeded()
+      return
+    }
     const moved = await scroller.evaluate((element) => {
       const previous = element.scrollTop
       element.scrollTop = Math.min(previous + element.clientHeight * 0.8, element.scrollHeight - element.clientHeight)

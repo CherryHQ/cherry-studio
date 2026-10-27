@@ -51,6 +51,12 @@ so package-manager subprocesses cannot escape the owned process group. Each prof
 `CS_DEV_PROFILE_ROOT` inside the run directory to isolate boot configuration, migration
 state, user data, and logs from developer instances. Launches disable occluded-window
 backgrounding so Playwright actionability checks keep receiving animation frames.
+Both branch and installer launches give the child a profile-owned home, Claude config
+directory, Codex home, and temporary directory. Windows AppData directories are created there too. Code Mate
+configuration writes therefore use the isolated profile's credentials
+and settings rather than the developer's CLI configuration. Before each UI connection,
+the controller verifies the owned process's home, temporary and CLI configuration paths
+and Windows AppData path. It rejects an older running instance whose paths escape the profile.
 
 The workflow keeps one separately timed step per phase (21 today). Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
 `cases.ts` is the execution manifest. Each case declares `tasks`: the first entry is

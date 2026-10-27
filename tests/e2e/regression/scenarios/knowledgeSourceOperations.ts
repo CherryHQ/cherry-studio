@@ -72,6 +72,7 @@ export async function knowledgeSourceOperations(app: RegressionApp, page: Page, 
         timeout: 120_000
       })
       .toEqual(['completed', 'completed'])
+    await page.reload()
     await selectSidebarApp(page, 'Knowledge Base')
     await page.locator('[data-ui~="knowledge.navigation"]').getByText(base.name, { exact: true }).click()
     const panel = page.locator('[data-ui~="knowledge.content"]')
@@ -117,6 +118,8 @@ export async function knowledgeSourceOperations(app: RegressionApp, page: Page, 
     const preview = panel.getByRole('region', { name: basename(paths[0]), exact: true })
     await expect(preview).toContainText(firstMarker)
     await expect(preview).toContainText('Cherry Studio knowledge source operations preserve document provenance.')
+    await preview.hover()
+    await page.mouse.wheel(0, 1_000_000)
     await expect(preview).toContainText(lastMarker)
     await screenshot('MP-65 original document preview')
     await panel.getByRole('button', { name: 'Back', exact: true }).click()

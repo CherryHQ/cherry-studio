@@ -11,11 +11,12 @@ import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { setOwnedMainWindowFocus } from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { selectSidebarApp } from '../helpers/navigation'
 import type { RegressionApp } from '../RegressionApp'
 
-export async function globalSearch(_app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
+export async function globalSearch(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   const token = `MP129Search${Date.now()}`
   const assistantName = `${token} Assistant`
   const topicName = `${token} Conversation`
@@ -36,9 +37,31 @@ export async function globalSearch(_app: RegressionApp, page: Page, testInfo: Te
   const search = page.getByRole('dialog', { name: 'Open global search', exact: true })
   const input = search.getByRole('combobox')
   const openSearch = async () => {
+    await setOwnedMainWindowFocus(app.record, true)
+    await page.bringToFront()
     await page.keyboard.press('ControlOrMeta+Shift+F')
     await expect(search).toBeVisible()
-    await expect(input).toBeFocused()
+    try {
+      await expect(input).toBeFocused()
+    } catch (error) {
+      const focusState = await page.evaluate(() => ({
+        documentFocused: document.hasFocus(),
+        activeTag: document.activeElement?.tagName,
+        activeRole: document.activeElement?.getAttribute('role'),
+        activeLabel: document.activeElement?.getAttribute('aria-label'),
+        dialogs: [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')]
+          .filter((element) => element.getClientRects().length)
+          .map((element) => ({
+            state: element.getAttribute('data-state'),
+            title: document.getElementById(element.getAttribute('aria-labelledby') ?? '')?.textContent
+          }))
+      }))
+      await testInfo.attach('MP-129 focus diagnostics', {
+        body: JSON.stringify(focusState),
+        contentType: 'application/json'
+      })
+      throw error
+    }
   }
   const group = (label: string, count: number) =>
     search.locator('[role="presentation"]').filter({ hasText: new RegExp(`^${label}\\s*·\\s*${count}$`) })
@@ -185,15 +208,16 @@ export async function globalSearch(_app: RegressionApp, page: Page, testInfo: Te
       'aria-selected',
       'true'
     )
-    await expect(chat.locator(`[data-message-id="${messageId}"]`)).toContainText(marker)
+    await expect(chat.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)).toContainText(marker)
 
     await openSearch()
     await input.fill(taskName)
     await expect(group('Task', 1)).toBeVisible()
     await search.getByRole('option').filter({ hasText: taskName }).click()
     await expect(search).toBeHidden()
-    await expect(page.locator('[data-ui~="agent.view"]:visible')).toBeVisible()
-    await expect(page.getByText(taskName, { exact: true }).first()).toBeVisible()
+    const agentView = page.locator('[data-ui~="agent.view"]:visible')
+    await expect(agentView).toBeVisible()
+    await expect(agentView.getByText(taskName, { exact: true }).filter({ visible: true }).first()).toBeVisible()
     const gatewayDialog = page.getByRole('dialog', { name: 'Enable the API Gateway?', exact: true })
     if (await gatewayDialog.isVisible())
       await gatewayDialog.getByRole('button', { name: 'Cancel', exact: true }).click()

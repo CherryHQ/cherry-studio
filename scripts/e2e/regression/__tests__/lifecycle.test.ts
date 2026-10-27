@@ -1,7 +1,7 @@
 import type * as ChildProcess from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 
 import { afterEach, vi } from 'vitest'
 
@@ -31,11 +31,11 @@ describe('owned application lifecycle', () => {
     ensureRunDirectories(paths)
     const mainPid = 42_000
     const rendererPid = 42_001
-    const executablePath = join(directory, 'Cherry Studio.app/Contents/MacOS/Cherry Studio')
+    const executablePath = posix.join(directory, 'Cherry Studio.app/Contents/MacOS/Cherry Studio')
     const alive = new Set([mainPid, rendererPid])
     let relaunched = false
     let command = executablePath
-    let helperCommand = join(
+    let helperCommand = posix.join(
       directory,
       'Cherry Studio.app/Contents/Frameworks/Cherry Studio Helper.app/Contents/MacOS/Cherry Studio Helper'
     )

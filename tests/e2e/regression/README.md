@@ -11,7 +11,7 @@ The separate [Playwright config](../../../playwright.regression.config.ts) uses 
 - `fixtures/` contains test data, sample skills, and HTTP/MCP servers. Executable Node servers may use `.mjs`; sample skills retain their required `SKILL.md` convention.
 - `fixture.ts` validates required capabilities and owns each test's CDP connection and failure evidence.
 - `RegressionApp.ts` locates windows and delegates process operations. Connecting or locating a window does not change application preferences.
-- `setup.ts` explicitly establishes English locale, onboarding/telemetry settings, and disabled desktop assistants before each non-startup scenario.
+- `setup.ts` explicitly establishes English locale, onboarding/telemetry settings, a visible conversation sidebar, and disabled desktop assistants before each non-startup scenario.
 - Domain helpers such as `helpers/models.ts`, `helpers/knowledge.ts`, and `helpers/agents.ts` express reusable user workflows.
 - `helpers/navigation.ts` and `helpers/settings.ts` own shared navigation; `helpers/chat.ts` owns chat interactions and response assertions.
 - The controller owns `RegressionReporter.ts` and its unit tests.

@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 import {
@@ -13,6 +13,7 @@ import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutom
 import type { RegressionApp } from '../RegressionApp'
 import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
+import { revealVirtualized } from './virtualList'
 
 /**
  * Resolve the seeded built-in assistant Agent by identity rather than by its
@@ -34,10 +35,22 @@ export async function builtinAssistantAgent(page: Page): Promise<BuiltinAssistan
   )
 }
 
-export async function selectAgent(page: Page, name: string): Promise<void> {
+async function showAgentList(page: Page): Promise<Locator> {
   await selectSidebarApp(page, 'Work')
   const view = page.locator('[data-ui~="agent.view"]:visible')
   await expect(view).toHaveCount(1, { timeout: 30_000 })
+  const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
+  if (await showSidebar.isVisible()) await showSidebar.click()
+  const displayMode = view.getByRole('button', { name: 'Display mode', exact: true })
+  if (await displayMode.isVisible()) {
+    await displayMode.click()
+    await page.locator('[data-slot="menu-item"]').getByText('Agent', { exact: true }).click()
+  }
+  return view
+}
+
+export async function selectAgent(page: Page, name: string): Promise<void> {
+  const view = await showAgentList(page)
   const entry = view
     .locator('div[class~="group/resource-list-group"]')
     .filter({
@@ -53,6 +66,7 @@ export async function selectAgent(page: Page, name: string): Promise<void> {
         includeHidden: true
       })
     })
+  await revealVirtualized(page, view.locator('[data-virtual-scrolling]').first(), entry)
   await expect(entry).toHaveCount(1)
   const header = entry.getByRole('button', {
     name,
@@ -99,17 +113,7 @@ export async function createAgent(
   page: Page,
   options: { name: string; runtime: string; model: string; permission?: string }
 ): Promise<void> {
-  await selectSidebarApp(page, 'Work')
-  const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
-  await expect(agentView).toBeVisible({ timeout: 30_000 })
-  // Sessions only render "Add Agent" in Agent display mode; a previous case can leave work-directory
-  // or time mode behind, so establish the mode this helper needs instead of inheriting it.
-  const displayMode = agentView.getByRole('button', { name: 'Display mode', exact: true })
-  if (await displayMode.isVisible().catch(() => false)) {
-    await displayMode.click()
-    const agentMode = page.getByRole('button', { name: 'Agent', exact: true })
-    if (await agentMode.isVisible().catch(() => false)) await agentMode.click()
-  }
+  const agentView = await showAgentList(page)
   const agents = await page.evaluate(() =>
     window.api.dataApi.request({
       id: 'existing-regression-agent',

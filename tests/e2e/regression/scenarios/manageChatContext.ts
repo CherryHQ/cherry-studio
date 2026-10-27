@@ -196,7 +196,9 @@ export async function manageChatContext(app: RegressionApp, page: Page, testInfo
       'Chat must deliver a slash command as ordinary text instead of opening a context dialog'
     ).toEqual({ role: 'user', content: '/context' })
     slashRequest.complete('Slash command received as chat text.')
-    await expect(chat.getByText('Slash command received as chat text.', { exact: true })).toBeVisible()
+    await expect(
+      chat.locator('[data-ui~="chat.message"]').getByText('Slash command received as chat text.', { exact: true })
+    ).toBeVisible()
     await expect(editor).toBeEditable()
     await attachScreenshot('MP-30 slash command delivered as chat text')
   } finally {

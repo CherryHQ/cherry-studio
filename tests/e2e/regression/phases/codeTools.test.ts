@@ -12,7 +12,11 @@ import { verifyCodeMatePermissions } from '../scenarios/codeMatePermissions'
 
 async function openCodeTool(page: Page, name: string): Promise<void> {
   await openLaunchpadApp(page, 'Code Mate')
-  await page.getByRole('button', { name, exact: true }).first().click()
+  await page
+    .locator('[data-ui~="code.view"]:visible')
+    .getByRole('button', { name: new RegExp(`^${name}(?:\\s|$)`) })
+    .first()
+    .click()
 }
 
 async function configureTool(page: Page, model: string, provider: string): Promise<void> {
@@ -33,25 +37,28 @@ async function configureTool(page: Page, model: string, provider: string): Promi
   const search = dialog.getByRole('textbox').last()
   if (await search.isVisible().catch(() => false)) await search.fill(model)
   await page.getByRole('option').filter({ hasText: model }).first().click()
-  await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+  const save = dialog.getByRole('button', { name: 'Save', exact: true })
+  await dialog.getByRole('button', { name: (await save.isEnabled()) ? 'Save' : 'Cancel', exact: true }).click()
   await expect(dialog).toBeHidden()
+  const disable = providerCard.getByRole('button', { name: 'Disable', exact: true })
+  if (await disable.isVisible()) await disable.click()
   const enable = providerCard.getByRole('button', { name: 'Enable', exact: true }).first()
-  if (await enable.isVisible().catch(() => false)) await enable.click()
+  await enable.click()
 }
 
 async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Launch', exact: true }).click()
-  const selectFolder = page.getByText('Select Folder', { exact: true })
-  if (await selectFolder.isVisible().catch(() => false)) {
-    await selectFolder.click()
-    await page.waitForTimeout(1_000)
-    chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
-    const dialog = page.getByRole('dialog')
-    await expect(dialog.getByRole('textbox', { name: 'Select working directory', exact: true })).toHaveValue(
-      app.paths.workspace
-    )
-    await dialog.getByRole('button', { name: 'Launch', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: 'Select Folder', exact: true }).click()
+  await page.waitForTimeout(1_000)
+  chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
+  await expect(dialog.getByPlaceholder('Select working directory', { exact: true })).toHaveValue(app.paths.workspace)
+  if (app.record.platform === 'windows') {
+    await dialog.getByRole('combobox').click()
+    await page.getByRole('option', { name: 'Command Prompt', exact: true }).click()
   }
+  await dialog.getByRole('button', { name: 'Launch', exact: true }).click()
 }
 
 test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {

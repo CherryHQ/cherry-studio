@@ -15,7 +15,7 @@ import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp, dismissOnboarding } from '../helpers/navigation'
-import { collectVirtualizedText } from '../helpers/virtualList'
+import { collectVirtualizedText, revealVirtualized } from '../helpers/virtualList'
 import { exportTopicFiles } from '../scenarios/exportTopicFiles'
 import { topicGrouping } from '../scenarios/topicGrouping'
 
@@ -95,11 +95,25 @@ test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
       "SELECT id, name FROM agent_session WHERE deleted_at IS NULL AND type = 'conversation' ORDER BY id"
     ) as { id: string; name: string }[]
     await selectSidebarApp(page, 'Work')
-    const headers = page.locator('[data-ui~="chat.group-header"]:visible')
-    for (const header of await headers.all()) {
-      await header.hover()
-      const expand = header.getByRole('button', { name: 'Expand', exact: true })
-      if (await expand.isVisible()) await expand.click()
+    const view = page.locator('[data-ui~="agent.view"]:visible')
+    const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
+    if (await showSidebar.isVisible()) await showSidebar.click()
+    const displayMode = view.getByRole('button', { name: 'Display mode', exact: true })
+    await displayMode.click()
+    await page.locator('[data-slot="menu-item"]').getByText('Agent', { exact: true }).click()
+    await displayMode.click()
+    const collapseAll = page.getByRole('button', { name: 'Collapse all', exact: true })
+    if (await collapseAll.isVisible()) {
+      await collapseAll.click()
+      await displayMode.click()
+    }
+    await page.getByRole('button', { name: 'Expand all', exact: true }).click()
+    const sessionScroller = view.locator('[data-virtual-scrolling]').first()
+    const showMore = view.getByRole('button', { name: 'Show more', exact: true }).first()
+    for (let step = 0; step < sessions.length; step += 1) {
+      await revealVirtualized(page, sessionScroller, showMore)
+      if (!(await showMore.isVisible())) break
+      await showMore.click()
     }
     // The session list renders only its visible window, so every stored session is
     // matched against the text the list shows while it is scrolled.

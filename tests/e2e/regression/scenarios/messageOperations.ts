@@ -161,7 +161,9 @@ export async function messageOperations(app: RegressionApp, page: Page, testInfo
     const firstReply = messages.filter({ hasText: 'MP28 original reply.' })
     await firstReply.hover()
     await firstReply.getByRole('button', { name: 'Copy', exact: true }).click()
-    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(firstAnswer)
+    await expect
+      .poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
+      .toBe(firstAnswer)
 
     await attachScreenshot('MP-28 four-message conversation and copied reply')
     await page.evaluate(async () => {

@@ -130,7 +130,7 @@ export async function knowledgeNotes(app: RegressionApp, page: Page, testInfo: T
     await openNotesSource()
     await dialog.getByRole('radio', { name: 'New note', exact: true }).click()
     await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(newTitle)
-    await dialog.getByRole('textbox', { name: 'Content', exact: true }).fill(notes[1].content)
+    await dialog.getByLabel('Content', { exact: true }).fill(notes[1].content)
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(dialog).toBeHidden()
 
@@ -222,7 +222,7 @@ export async function knowledgeNotes(app: RegressionApp, page: Page, testInfo: T
     const savedTopic = TopicSchema.parse(topic.data)
     await page.reload()
     await selectSidebarApp(page, 'Chat')
-    const group = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: seeded.assistantName })
+    const group = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: seeded.assistantName }).first()
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()

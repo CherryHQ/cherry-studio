@@ -282,7 +282,7 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
     await expect(navigation.getByRole('button', { name: '模型服务', exact: true })).toBeVisible()
 
     // Soft checks preserve every requirement while allowing later steps to collect independent evidence.
-    for (const group of ['快捷入口', '偏好', '工具', '系统']) {
+    for (const group of ['效率', '偏好', '工具', '系统']) {
       await expect.soft(navigation.getByText(group, { exact: true })).toBeVisible({ timeout: 3_000 })
     }
     for (const section of ['模型服务', '数据', '快捷键', '关于我们']) {

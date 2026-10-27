@@ -8,11 +8,13 @@ import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { setOwnedMainWindowFocus } from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function messageSelectionToolbar(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
@@ -34,7 +36,11 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
 
   try {
     await page.evaluate(() =>
-      window.api.preference.setMultiple({ 'topic.naming.enabled': false, 'menu.presentation_mode': 'cherry' })
+      window.api.preference.setMultiple({
+        'topic.naming.enabled': false,
+        'menu.presentation_mode': 'cherry',
+        'chat.message.multi_model.style': 'vertical'
+      })
     )
     const provider = await page.evaluate(
       ({ providerId, baseUrl }) =>
@@ -109,7 +115,10 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+    if (await showSidebar.isVisible()) await showSidebar.click()
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), group)
     await expect(group).toBeVisible()
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
@@ -132,16 +141,22 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       ])
     }
     await expect(editor).toHaveText('')
-    const source = messages.filter({ has: page.locator('.message-assistant') }).last()
-    const sourceId = await source.getAttribute('data-message-id')
+    const sourceId = await messages
+      .filter({ has: page.locator('.message-assistant') })
+      .last()
+      .getAttribute('data-message-id')
+    expect(sourceId).toBeTruthy()
+    const source = chat.locator(`[data-ui~="chat.message"][data-message-id="${sourceId}"]`)
     const paragraph = source.getByText(excerpt, { exact: true })
     const toolbar = page
-      .locator('[role="toolbar"], [data-ui~="selection.toolbar"]')
+      .getByRole('dialog')
       .filter({ has: page.getByRole('button', { name: 'Copy', exact: true }) })
       .filter({ has: page.getByRole('button', { name: 'Quote', exact: true }) })
     const selectedText = () => page.evaluate(() => window.getSelection()?.toString() ?? '')
     const textCoordinates = async (target: Locator, length: number) => {
-      await target.scrollIntoViewIfNeeded()
+      await target.evaluate((element) =>
+        element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
+      )
       return target.evaluate((element, length) => {
         const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
         const node = walker.nextNode()
@@ -149,8 +164,16 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
         const range = document.createRange()
         range.setStart(node, 0)
         range.setEnd(node, length)
-        const rect = range.getBoundingClientRect()
-        return { x: rect.x + 0.5, y: rect.y + rect.height / 2, endX: rect.right - 0.5, top: rect.top }
+        const rects = Array.from(range.getClientRects())
+        const first = rects[0]
+        const last = rects.at(-1)!
+        return {
+          x: first.x + 0.5,
+          y: first.y + first.height / 2,
+          endX: last.right - 0.5,
+          endY: last.y + last.height / 2,
+          top: first.top
+        }
       }, length)
     }
     const selectReply = async (target = paragraph, text = excerpt) => {
@@ -158,7 +181,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       await page.mouse.click(point.x, point.y)
       await page.mouse.move(point.x, point.y)
       await page.mouse.down()
-      await page.mouse.move(point.endX, point.y, { steps: 15 })
+      await page.mouse.move(point.endX, point.endY, { steps: 15 })
       await page.mouse.up()
       await attachScreenshot('MP-149 selected reply')
       await expect.poll(selectedText).toBe(text)
@@ -193,8 +216,11 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       ])
       await expect(messages).toHaveCount(previous + 2)
       const sent = messages.filter({ has: page.locator('.message-user') }).last()
-      await expect(sent.locator('blockquote')).toContainText(text)
-      await expect(chat.locator(`[data-message-id="${sourceId}"]`)).toContainText(excerpt)
+      const sentQuote = sent.locator('[data-composer-token-kind="quote"]')
+      await expect(sentQuote).toBeVisible()
+      await sentQuote.hover()
+      await expect(page.getByRole('tooltip').filter({ hasText: text })).toBeVisible()
+      await expect(messages.and(page.locator(`[data-message-id="${sourceId}"]`))).toContainText(excerpt)
       await expect(quote).toHaveCount(0)
       await attachScreenshot('MP-149 sent quote and original source')
     }
@@ -221,7 +247,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       const [start, end] = reverse ? [editorPoint, messagePoint] : [messagePoint, editorPoint]
       await page.mouse.move(start.x, start.y)
       await page.mouse.down()
-      await page.mouse.move(end.endX, end.y, { steps: 20 })
+      await page.mouse.move(end.endX, end.endY, { steps: 20 })
       await page.mouse.up()
       await expect
         .poll(() =>
@@ -245,17 +271,18 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       if (dismiss === 'scroll') {
         const before = await paragraph.boundingBox()
         await paragraph.hover()
-        await page.mouse.wheel(0, 300)
+        await page.mouse.wheel(0, -300)
         await expect.poll(async () => (await paragraph.boundingBox())?.y).not.toBe(before?.y)
       }
       if (dismiss === 'blur') {
-        const other = await page.context().newPage()
+        const focusSession = await page.context().newCDPSession(page)
         try {
-          await other.bringToFront()
-          await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
+          await focusSession.send('Emulation.setFocusEmulationEnabled', { enabled: false })
+          await expect.poll(async () => (await setOwnedMainWindowFocus(app.record, false)).focused).toBe(false)
           await expect(toolbar).toBeHidden()
         } finally {
-          await other.close()
+          await focusSession.detach()
+          await setOwnedMainWindowFocus(app.record, true)
           await page.bringToFront()
         }
       }
@@ -263,10 +290,15 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     }
     await attachScreenshot('MP-149 no residual toolbar after dismissals')
 
-    const caret = await textCoordinates(paragraph, excerpt.length)
-    await page.mouse.click(caret.x, caret.y)
+    const caret = await textCoordinates(paragraph, 1)
+    await page.mouse.click(caret.x - 30, caret.y)
+    await page.mouse.move(caret.x, caret.y)
+    await page.mouse.down()
+    await page.mouse.move(caret.endX, caret.endY, { steps: 2 })
+    await page.mouse.up()
+    await expect.poll(selectedText).toBe(excerpt[0])
     await page.keyboard.down('Shift')
-    for (let i = 0; i < excerpt.length; i++) await page.keyboard.press('ArrowRight')
+    for (let i = 1; i < excerpt.length; i++) await page.keyboard.press('ArrowRight')
     await page.keyboard.up('Shift')
     await expect.poll(selectedText).toBe(excerpt)
     await expect(toolbar).toBeVisible()

@@ -151,7 +151,9 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     const more = block.getByRole('button', { name: 'More', exact: true })
     if (await more.isVisible()) await more.click()
     await block.getByRole('button', { name: 'Copy Source Code', exact: true }).click()
-    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(code)
+    await expect
+      .poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
+      .toBe(code)
     await attachScreenshot('MP-40 Python code copied with indentation')
 
     const output = join(app.paths.evidence, `MP40-code-${Date.now()}.py`)

@@ -3,10 +3,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import which from 'which'
 import { parse } from 'yaml'
 
 const workflow = parse(readFileSync('.github/workflows/e2e-regression-test.yml', 'utf8'))
 const steps = workflow.jobs.aggregate.steps as Array<{ name: string; run?: string }>
+const bash =
+  which.sync('bash', { nothrow: true }) ??
+  (process.platform === 'win32' ? join(dirname(which.sync('git')), '..', 'bin', 'bash.exe') : 'bash')
 
 describe('single regression artifact bundle', () => {
   it('requires a resolved target and a non-skipped test job while retaining failed-run reports', () => {
@@ -22,7 +26,7 @@ describe('single regression artifact bundle', () => {
     writeFileSync(target, content)
   }
   const runStep = (name: string, result = 'success') =>
-    spawnSync('bash', ['-e', '-o', 'pipefail', '-c', steps.find((step) => step.name === name)!.run!], {
+    spawnSync(bash, ['-e', '-o', 'pipefail', '-c', steps.find((step) => step.name === name)!.run!], {
       cwd: directory,
       encoding: 'utf8',
       env: { ...process.env, TEST_RESULT: result }

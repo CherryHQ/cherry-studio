@@ -39,7 +39,10 @@ export async function topicGrouping(app: RegressionApp, page: Page, testInfo: Te
   // not mounted, and a header scrolls away from rows deeper inside its own group.
   const scroller = () => chat().locator('[data-virtual-scrolling]').first()
   const reveal = async (target: Locator) => {
-    if ((await target.count()) > 0 && (await target.first().isVisible())) return
+    if ((await target.count()) > 0 && (await target.first().isVisible())) {
+      await target.first().scrollIntoViewIfNeeded()
+      return
+    }
     await revealVirtualized(page, scroller(), target)
   }
   const expand = async (name: string) => {

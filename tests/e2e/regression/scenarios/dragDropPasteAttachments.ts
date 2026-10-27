@@ -212,7 +212,9 @@ export async function dragDropPasteAttachments(app: RegressionApp, page: Page, t
       await content.click()
       await content.press('ControlOrMeta+a')
       await content.press('ControlOrMeta+c')
-      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(contents)
+      await expect
+        .poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
+        .toBe(contents)
       await attachScreenshot(`MP-33 preview ${name}`)
       await overlay.getByRole('button', { name: 'Close', exact: true }).click()
       await expect(overlay).toBeHidden()

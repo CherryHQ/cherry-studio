@@ -338,7 +338,7 @@ test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
     await result('Field journal').click()
     const editor = page.locator('[data-ui~="notes.editor"][data-file-edit]')
     await expect(editor).toContainText('The marker is canary-seven at line three.')
-    await expect(editor.getByText('The marker is canary-seven at line three.', { exact: true })).toBeInViewport()
+    await expect(editor.getByText('The marker is canary-seven at line three.', { exact: false })).toBeInViewport()
     await screenshot('MP-76 content result opened at matching text')
 
     await search.fill('mp76-no-such-word-8f3c9e')

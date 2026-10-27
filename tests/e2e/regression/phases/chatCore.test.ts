@@ -213,19 +213,22 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
     ]) {
       await upload(path)
       await expect(fileToken(name)).toBeVisible()
-      await fileToken(name).click({ button: 'right' })
-      await page.getByRole('menuitem', { name: /Preview|预览/, exact: true }).click()
+      await fileToken(name).click()
       if (name === imageName) {
         const preview = page.getByRole('dialog', { name: 'Preview', exact: true })
+        await expect(preview).toBeVisible()
         await expect(preview.locator('img').first()).toBeVisible()
-        await page.keyboard.press('Escape')
+        await preview.getByRole('button', { name: 'Close Preview', exact: true }).click()
         await expect(preview).toBeHidden()
       } else {
-        await expect(page.getByText(documentText, { exact: false }).last()).toBeVisible()
-        await selectSidebarApp(page, 'Chat')
+        const preview = page.getByTestId('artifact-file-preview-overlay')
+        await expect(preview).toBeVisible()
+        await expect(preview).toContainText(documentText)
+        await page.getByTestId('artifact-pane-header').getByRole('button', { name: 'Back', exact: true }).click()
+        await expect(preview).toBeHidden()
       }
-      await fileToken(name).click({ button: 'right' })
-      await page.getByRole('menuitem', { name: /Delete|Remove|删除/, exact: true }).click()
+      await fileToken(name).hover()
+      await fileToken(name).getByRole('button', { name: 'Delete', exact: true }).click()
       await expect(fileToken(name)).toHaveCount(0)
     }
     await sendChatMarker(page, '这是一条不带附件的新消息。请只回复 MP09_NO_ATTACHMENT。', 'MP09_NO_ATTACHMENT')

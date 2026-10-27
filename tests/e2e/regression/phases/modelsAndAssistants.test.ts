@@ -21,7 +21,9 @@ test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
   let page = mainWindow
   await ensureCustomChatProvider(app, page)
   await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
-  await expect(page.getByText(app.config.customProvider.chatModel, { exact: true }).last()).toBeVisible()
+  await expect(
+    page.getByTestId('provider-model-list').getByText(app.config.customProvider.chatModel, { exact: true }).last()
+  ).toBeVisible()
 
   await closeSettings(page)
   await selectChatModel(page, app.config.customProvider.chatModel)

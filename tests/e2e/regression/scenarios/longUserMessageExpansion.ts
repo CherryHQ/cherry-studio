@@ -10,6 +10,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function longUserMessageExpansion(
@@ -43,15 +44,19 @@ export async function longUserMessageExpansion(
     const navigation = page.locator('[data-ui~="settings.navigation"]')
     await screenshot('MP-147 message settings navigation')
     await expect(navigation.getByText('偏好', { exact: true })).toBeVisible({ timeout: 5_000 })
-    await navigation.getByRole('button', { name: '消息设置', exact: true }).click()
+    await navigation.getByRole('button', { name: '外观', exact: true }).click()
     await expect(toggle()).toBeVisible()
-    await expect(page.getByText(description, { exact: true })).toBeVisible()
+    await page.locator('#setting-appearance-user-message-default-expanded [data-slot="tooltip-trigger"]').hover()
+    await expect(page.getByRole('tooltip')).toHaveText(description)
   }
   const openTopic = async (name = topicName) => {
     await page.evaluate(() => window.api.preference.set('app.language', 'en-US'))
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+    if (await showSidebar.isVisible()) await showSidebar.click()
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), group)
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()

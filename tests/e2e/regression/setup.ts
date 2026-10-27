@@ -9,6 +9,7 @@ export async function prepareScenario(page: Page): Promise<void> {
       'app.language': 'en-US',
       'app.onboarding.provider_setup.status': 'skipped',
       'app.privacy.data_collection.enabled': false,
+      'topic.tab.show': true,
       'feature.quick_assistant.enabled': false,
       'feature.selection.enabled': false
     })

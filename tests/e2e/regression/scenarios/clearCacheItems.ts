@@ -48,7 +48,7 @@ export async function clearCacheItems(app: RegressionApp, page: Page, testInfo: 
     return evaluateCdpExpression<string>(
       target.webSocketDebuggerUrl,
       `(async () => {
-        const application = Object.values(process.mainModule.require.cache)
+        const application = Object.values(process.mainModule.require('node:module')._cache)
           .map(module => module.exports?.application).find(candidate => candidate?.getPath)
         if (!application) throw new Error('UNCOVERED: application path inspection is unavailable')
         return application.getPath('app.logs')

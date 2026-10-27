@@ -231,7 +231,9 @@ export async function chatEfficiency(app: RegressionApp, page: Page, testInfo: T
     await expect(copySource).toBeVisible()
     await screenshot('MP-18 sent attachment context menu')
     await copySource.click()
-    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(attachmentSource)
+    await expect
+      .poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
+      .toBe(attachmentSource)
 
     const messageId = await sendChatMarker(
       page,

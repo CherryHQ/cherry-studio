@@ -101,8 +101,8 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     await expect(card).toContainText('Every 5 minutes')
     await expect(card).toContainText('Next Run')
     await screenshot('MP-58 saved task with next run')
+    const taskId = new URL((await card.getAttribute('href'))!, page.url()).pathname.split('/').pop()!
     await card.click()
-    const taskId = new URL(page.url()).hash.split('/').pop() || new URL(page.url()).pathname.split('/').pop()!
     const readTask = async () => {
       const response = await page.evaluate(
         (taskId) => window.api.dataApi.request({ id: 'mp58-read', method: 'GET', path: `/agent-tasks/${taskId}` }),
@@ -153,6 +153,7 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     const beforePause = await readTask()
     const toggle = page.getByRole('switch', { name: 'Active', exact: true })
     await toggle.click()
+    await page.mouse.move(0, 0)
     await expect(toggle).not.toBeChecked()
     await expect.poll(async () => (await readTask()).status).toBe('paused')
     expect((await readTask()).nextRun).toBeNull()

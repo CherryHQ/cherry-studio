@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { appendFileSync, closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 import type { InstallationRecord } from './installation'
@@ -89,6 +89,31 @@ async function waitForCdp(
   throw new Error(`Timed out waiting for Cherry Studio CDP: ${lastError}`)
 }
 
+export function createProfileEnvironment(paths: RunPaths, profile: TestProfile): NodeJS.ProcessEnv {
+  const homeDirectory = join(paths.profiles, profile, 'home')
+  const tempDirectory = join(homeDirectory, 'temp')
+  mkdirSync(tempDirectory, { recursive: true })
+  const windowsDirectories =
+    process.platform === 'win32'
+      ? {
+          APPDATA: join(homeDirectory, 'AppData', 'Roaming'),
+          LOCALAPPDATA: join(homeDirectory, 'AppData', 'Local')
+        }
+      : {}
+  for (const directory of Object.values(windowsDirectories)) mkdirSync(directory, { recursive: true })
+  return {
+    ...process.env,
+    ...windowsDirectories,
+    HOME: homeDirectory,
+    USERPROFILE: homeDirectory,
+    TEMP: tempDirectory,
+    TMP: tempDirectory,
+    TMPDIR: tempDirectory,
+    CLAUDE_CONFIG_DIR: join(homeDirectory, '.claude'),
+    CODEX_HOME: join(homeDirectory, '.codex')
+  }
+}
+
 function getLaunchSpec(
   paths: RunPaths,
   mode: RunMode,
@@ -98,6 +123,7 @@ function getLaunchSpec(
   locale?: string
 ): Pick<AppRecord, 'args' | 'command' | 'cwd' | 'executablePath' | 'logPath'> & { environment: NodeJS.ProcessEnv } {
   const logPath = join(paths.logs, `electron-${profile}.log`)
+  const environment = createProfileEnvironment(paths, profile)
   if (mode === 'branch') {
     const args = [
       join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js'),
@@ -116,7 +142,7 @@ function getLaunchSpec(
       args,
       cwd: targetRoot,
       environment: {
-        ...process.env,
+        ...environment,
         CS_DEV_PROFILE_ROOT: join(paths.profiles, profile),
         CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}`
       },
@@ -135,7 +161,7 @@ function getLaunchSpec(
       ...(locale ? [`--lang=${locale}`] : [])
     ],
     cwd: dirname(installation.executablePath),
-    environment: { ...process.env },
+    environment,
     executablePath: installation.executablePath,
     logPath
   }
@@ -337,7 +363,9 @@ export async function restartApp(paths: RunPaths, profile?: TestProfile): Promis
 }
 
 export async function ensureProfile(paths: RunPaths, profile: TestProfile): Promise<AppRecord> {
-  const current = readAppRecord(paths)
-  if (current.profile === profile && isAlive(current.electronPid)) return current
+  const current = readOwnedRecord(paths)
+  if (current.profile === profile && current.electronPid && current.targetUrl && isAlive(current.electronPid)) {
+    return { ...current, electronPid: current.electronPid, targetUrl: current.targetUrl }
+  }
   return restartApp(paths, profile)
 }

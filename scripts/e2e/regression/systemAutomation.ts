@@ -203,24 +203,28 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
     '$ErrorActionPreference = "Stop"',
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeMessageBox { [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
     '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
     '$dialog = $null',
     'do {',
     '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-    '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
+    `  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq '${escapePowerShell(title)}' } | Select-Object -Last 1`,
     '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
     '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
     'if (-not $dialog) { throw "Native message box was not found" }',
-    '$buttonCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "OK")',
+    '$buttonCondition = [System.Windows.Automation.OrCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CommandButton_1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"))',
     '$button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
-    'if (-not $button) { throw "Native message box OK button was not found" }',
-    '$invoke = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)',
-    '$invoke.Invoke()',
+    'if (-not $button -or -not $button.Current.NativeWindowHandle) { throw "Native message box confirmation button was not found" }',
+    '$null = [NativeMessageBox]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
     'Start-Sleep -Milliseconds 500'
   ].join('\n')
-  return runAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], 90_000)
+  return runAsync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+    90_000
+  )
 }
 
 export function openExternalText(platform: Platform, paths: RunPaths, candidatePath: string): string {
@@ -511,7 +515,9 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
   const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
   const directory = dirname(filePath)
   mkdirSync(directory, { recursive: true })
-  const electronPid = readAppRecord(paths).electronPid
+  const record = readAppRecord(paths)
+  const electronPid = record.electronPid
+  assertOwnedProcess(record, electronPid, 'electron')
   if (platform === 'macos') {
     macProductMajor ??= Number.parseInt(
       execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8', timeout: 5_000 }).trim(),
@@ -603,18 +609,44 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
     })
   } else {
     const script = [
-      '$shell = New-Object -ComObject WScript.Shell',
-      `$null = $shell.AppActivate(${electronPid})`,
-      'Start-Sleep -Milliseconds 500',
-      '$shell.SendKeys("%n")',
-      'Start-Sleep -Milliseconds 250',
-      `$shell.SendKeys('${escapePowerShell(filePath)}')`,
-      '$shell.SendKeys("{ENTER}")'
-    ].join('; ')
-    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-      stdio: 'ignore',
-      timeout: 15_000
-    })
+      '$ErrorActionPreference = "Stop"',
+      'Add-Type -AssemblyName UIAutomationClient',
+      'Add-Type -AssemblyName UIAutomationTypes',
+      `Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public static class NativeSaveDialog { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string text); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder text); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+      '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+      `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
+      '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+      '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
+      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+      '$dialog = $null',
+      'do {',
+      '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+      '  $dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" })',
+      '  foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+      `  $dialog = $dialogs | Where-Object { $_.Current.ProcessId -eq ${electronPid} -and $_.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition) } | Select-Object -Last 1`,
+      '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
+      '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
+      'if (-not $dialog) { throw "Native save dialog was not found" }',
+      '$null = [NativeSaveDialog]::SetForegroundWindow([IntPtr]$dialog.Current.NativeWindowHandle)',
+      '$filenameControl = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
+      '$buttonCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"))',
+      '$button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
+      'if (-not $filenameControl.Current.NativeWindowHandle -or -not $button -or -not $button.Current.NativeWindowHandle) { throw "Native save controls are unavailable" }',
+      `$filePath = '${escapePowerShell(filePath)}'`,
+      'if ([NativeSaveDialog]::SetText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $filePath) -eq [IntPtr]::Zero) { throw "Native save filename could not be set" }',
+      '$readback = [System.Text.StringBuilder]::new(32768)',
+      '$null = [NativeSaveDialog]::ReadText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000D, [IntPtr]$readback.Capacity, $readback)',
+      'if ($readback.ToString() -cne $filePath) { throw "Native save filename does not match the requested path" }',
+      '$null = [NativeSaveDialog]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)'
+    ].join('\n')
+    execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+      {
+        stdio: ['ignore', 'ignore', 'pipe'],
+        timeout: 15_000
+      }
+    )
   }
   return filePath
 }

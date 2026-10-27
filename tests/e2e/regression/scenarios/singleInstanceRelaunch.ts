@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { createProfileEnvironment } from '../../../../scripts/e2e/regression/lifecycle'
 import { findListeningPid } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { selectSidebarApp } from '../helpers/navigation'
@@ -34,7 +35,7 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
   const args =
     record.mode === 'branch' ? [record.targetRoot] : [`--user-data-dir=${app.paths.profiles}/${record.profile}`]
   const environment: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...createProfileEnvironment(app.paths, record.profile),
     CS_DEV_PROFILE_ROOT: `${app.paths.profiles}/${record.profile}`,
     CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}`,
     ...(record.mode === 'branch'

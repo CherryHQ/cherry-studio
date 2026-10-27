@@ -20,14 +20,8 @@ export async function selectVisibleModel(page: Page, model: string): Promise<voi
 }
 
 async function addModel(page: Page, model: string): Promise<void> {
-  if (
-    await page
-      .getByText(model, { exact: true })
-      .last()
-      .isVisible()
-      .catch(() => false)
-  )
-    return
+  const modelRow = page.getByTestId('provider-model-list').getByText(model, { exact: true }).last()
+  if (await modelRow.isVisible().catch(() => false)) return
   await page.getByRole('button', { name: 'Add model manually', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Add Model' })
   const modelId = dialog.getByRole('textbox', { name: 'Model ID', exact: true })
@@ -35,7 +29,7 @@ async function addModel(page: Page, model: string): Promise<void> {
   await dialog.getByRole('button', { name: 'More Settings', exact: true }).click()
   await dialog.getByRole('button', { name: 'Tool', exact: true }).click()
   await dialog.getByRole('button', { name: 'Add Model', exact: true }).click()
-  await expect(page.getByText(model, { exact: true }).last()).toBeVisible()
+  await expect(modelRow).toBeVisible()
   await closeOpenSettingsDrawer(page)
 }
 

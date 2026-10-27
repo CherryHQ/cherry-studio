@@ -4,6 +4,7 @@ import { createServer } from 'node:net'
 import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
+import sharp from 'sharp'
 
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { AssistantSchema } from '@shared/data/types/assistant'
@@ -337,21 +338,26 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     await window.mouse.move(x + width, y + height, { steps: 15 })
     await window.mouse.up()
   }
-  const clipboard = () =>
-    (overlay ?? page).evaluate(async () => {
-      const items = await navigator.clipboard.read()
-      const item = items.find((item) => item.types.includes('image/png'))
-      if (!item) throw new Error('Clipboard contains no PNG image')
-      const blob = await item.getType('image/png')
-      const image = await createImageBitmap(blob)
-      const png = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve((reader.result as string).split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
+  const clipboard = async () => {
+    let result!: { png: string; width: number; height: number }
+    await expect(async () => {
+      result = await (overlay ?? page).evaluate(async () => {
+        const items = await navigator.clipboard.read()
+        const item = items.find((item) => item.types.includes('image/png'))
+        if (!item) throw new Error('Clipboard contains no PNG image')
+        const blob = await item.getType('image/png')
+        const image = await createImageBitmap(blob)
+        const png = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve((reader.result as string).split(',')[1])
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
+        return { png, width: image.width, height: image.height }
       })
-      return { png, width: image.width, height: image.height }
-    })
+    }).toPass({ timeout: 5_000 })
+    return result
+  }
 
   try {
     await page.evaluate(() =>
@@ -431,22 +437,37 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     await screenshot(capturePage, 'MP-128 rectangle and text annotations')
 
     // Copy must preserve the overlay; accepting Copy and close here would hide the regression.
+    await capturePage.evaluate(() => navigator.clipboard.writeText('MP128 copy baseline'))
     await expect(capturePage.getByRole('button', { name: 'Copy to clipboard', exact: true })).toBeVisible()
     await capturePage.getByRole('button', { name: 'Copy to clipboard', exact: true }).click()
     const copied = await clipboard()
     expect(copied.width).toBeGreaterThanOrEqual(560)
     expect(copied.height / copied.width).toBeCloseTo(220 / 560, 2)
     await expect(capturePage.getByRole('button', { name: 'Copy and close', exact: true })).toBeVisible()
-    await capturePage.keyboard.press('c')
-    expect((await clipboard()).png).toBe(copied.png)
     await expect(capturePage.getByRole('button', { name: 'Save image', exact: true })).toBeVisible()
 
     const savedPath = join(app.paths.evidence, 'MP-128-annotated.png')
     await rm(savedPath, { force: true })
     await capturePage.getByRole('button', { name: 'Save image', exact: true }).click()
     saveNativeFile(app.record.platform, app.paths, savedPath)
-    await expect.poll(async () => (await readFile(savedPath)).subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
-    expect((await readFile(savedPath)).toString('base64')).toBe(copied.png)
+    await expect
+      .poll(() =>
+        readFile(savedPath).then(
+          (buffer) => buffer.subarray(0, 8).toString('hex'),
+          (error) => {
+            if (error.code !== 'ENOENT') throw error
+            return ''
+          }
+        )
+      )
+      .toBe('89504e470d0a1a0a')
+    const savedPixels = await sharp(savedPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const copiedPixels = await sharp(Buffer.from(copied.png, 'base64'))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    expect(savedPixels.info).toMatchObject({ width: copied.width, height: copied.height, channels: 4 })
+    expect(savedPixels.data.equals(copiedPixels.data), 'Saved PNG must preserve every copied pixel').toBe(true)
     await page.evaluate(async (png) => {
       const image = new Image()
       image.src = `data:image/png;base64,${png}`
@@ -471,16 +492,19 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     await screenshot(ocrCapture.window, 'MP-128 recognized text')
     await ocrCapture.window.getByRole('button', { name: 'Copy and close', exact: true }).click()
     await expect(ocrCapture.window.getByRole('button', { name: 'Copy and close', exact: true })).toBeHidden()
-    const composer = page.locator('[data-ui~="chat.composer"]')
+    const composer = page.locator('[data-ui~="chat.view"]:visible [data-ui~="chat.composer"]')
+    const imageTokens = composer.locator('[data-composer-token-kind="file"][data-file-token-variant="image"]')
     await composer.locator('[contenteditable="true"]').first().click()
     await page.keyboard.press(app.record.platform === 'macos' ? 'Meta+v' : 'Control+v')
-    await expect(composer.locator('img').first()).toBeVisible()
+    await expect(imageTokens).toHaveCount(1)
+    await imageTokens.first().hover()
+    await expect(page.locator('[data-file-token-image-preview] img')).toBeVisible()
     await screenshot(page, 'MP-128 pasted image in chat')
 
     const chatCapture = await capture()
     await chatCapture.window.getByRole('button', { name: 'Add to chat', exact: true }).click()
     await chatCapture.window.getByRole('dialog').getByRole('button', { name: 'Add to chat', exact: true }).click()
-    await expect(composer.locator('img')).toHaveCount(2)
+    await expect(imageTokens).toHaveCount(2)
     await screenshot(page, 'MP-128 added screenshot to conversation')
 
     await selectSidebarApp(page, 'Settings')

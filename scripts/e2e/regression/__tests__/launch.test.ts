@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,7 +7,7 @@ import { vi } from 'vitest'
 const { execFileSync, spawn } = vi.hoisted(() => ({ execFileSync: vi.fn(), spawn: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync, spawn }))
 
-import { launchApp, readAppRecord, restartApp, stopOwnedApp } from '../lifecycle'
+import { ensureProfile, launchApp, readAppRecord, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 beforeEach(() => vi.clearAllMocks())
@@ -19,6 +19,9 @@ it.each(['macos', 'windows'] as const)(
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
     vi.stubEnv('CS_DEV_PROFILE_ROOT', '/unrelated/developer-profile')
+    for (const key of ['HOME', 'USERPROFILE', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'APPDATA', 'LOCALAPPDATA']) {
+      vi.stubEnv(key, `/unrelated/developer-${key}`)
+    }
     let launched = false
     execFileSync.mockImplementation(() => (launched ? '42001' : ''))
     spawn.mockImplementation(() => {
@@ -54,7 +57,25 @@ it.each(['macos', 'windows'] as const)(
       ])
       expect(options.detached).toBe(true)
       expect(options.env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
+      const isolatedHome = join(paths.profiles, 'authenticated', 'home')
+      expect(options.env.HOME).toBe(isolatedHome)
+      expect(options.env.USERPROFILE).toBe(isolatedHome)
+      expect(options.env.TEMP).toBe(join(isolatedHome, 'temp'))
+      expect(options.env.TMP).toBe(join(isolatedHome, 'temp'))
+      expect(options.env.TMPDIR).toBe(join(isolatedHome, 'temp'))
+      expect(existsSync(options.env.TEMP)).toBe(true)
+      expect(options.env.CLAUDE_CONFIG_DIR).toBe(join(isolatedHome, '.claude'))
+      expect(options.env.CODEX_HOME).toBe(join(isolatedHome, '.codex'))
+      expect(existsSync(isolatedHome)).toBe(true)
+      if (process.platform === 'win32') {
+        expect(options.env.APPDATA).toBe(join(isolatedHome, 'AppData', 'Roaming'))
+        expect(options.env.LOCALAPPDATA).toBe(join(isolatedHome, 'AppData', 'Local'))
+        expect(existsSync(options.env.APPDATA)).toBe(true)
+        expect(existsSync(options.env.LOCALAPPDATA)).toBe(true)
+      }
       expect(options.cwd).toBe(directory)
+      expect(process.env.CODEX_HOME).toBe('/unrelated/developer-CODEX_HOME')
+      expect(process.env.USERPROFILE).toBe('/unrelated/developer-USERPROFILE')
       expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
       expect(record).toMatchObject({ electronPid: 42001, restartCount: 1, profile: 'authenticated' })
     } finally {
@@ -97,6 +118,16 @@ it('starts Windows installers with both owned inspector and renderer CDP ports',
       runKey: 'test'
     })
     expect(record.electronPid).toBe(42001)
+    const isolatedHome = join(paths.profiles, 'authenticated', 'home')
+    expect(spawn.mock.calls[0][2].env).toMatchObject({
+      HOME: isolatedHome,
+      USERPROFILE: isolatedHome,
+      TEMP: join(isolatedHome, 'temp'),
+      TMP: join(isolatedHome, 'temp'),
+      TMPDIR: join(isolatedHome, 'temp'),
+      CLAUDE_CONFIG_DIR: join(isolatedHome, '.claude'),
+      CODEX_HOME: join(isolatedHome, '.codex')
+    })
     expect(spawn.mock.calls[0][1]).toEqual([
       '--inspect=9229',
       '--remote-debugging-port=9222',
@@ -206,7 +237,7 @@ it.each([true, false])(
   }
 )
 
-it('restarts the isolated profile after an owned pre-main launch has exited', async () => {
+it('recovers the requested isolated profile after an owned pre-main launch has exited', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-restart-'))
   const paths = getRunPaths(directory)
   ensureRunDirectories(paths)
@@ -243,7 +274,7 @@ it('restarts the isolated profile after an owned pre-main launch has exited', as
   }))
   try {
     expect(() => readAppRecord(paths)).toThrow('has not finished launching')
-    const ready = await restartApp(paths)
+    const ready = await ensureProfile(paths, 'authenticated')
     expect(ready).toMatchObject({ electronPid: 42001, profile: 'authenticated', runKey: 'promotion', restartCount: 2 })
     expect(spawn.mock.calls[0][2].env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
   } finally {

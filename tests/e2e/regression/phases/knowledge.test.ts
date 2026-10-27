@@ -64,16 +64,19 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
     await ensureCustomAssistant(app, page)
     await page.getByRole('button', { name: `Edit Assistant: ${customAssistantName(app)}`, exact: true }).click()
     await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
+    const assistantDialog = page.getByRole('dialog').last()
     if (
-      !(await page
+      !(await assistantDialog
         .getByText(knowledgeName(app), { exact: true })
         .isVisible()
         .catch(() => false))
     ) {
       await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-      await page.getByText(knowledgeName(app), { exact: true }).click()
+      await page
+        .getByRole('option')
+        .filter({ has: page.getByText(knowledgeName(app), { exact: true }) })
+        .click()
     }
-    const assistantDialog = page.getByRole('dialog').last()
     await expect(assistantDialog.getByText(knowledgeName(app), { exact: true })).toBeVisible()
     await assistantDialog.getByRole('button', { name: 'Close', exact: true }).click()
 
@@ -321,8 +324,8 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
     const entries: Array<{ status: string; text: string; elapsedMs: number }> = []
     const started = performance.now()
     const record = () => {
-      const row = Array.from(document.querySelectorAll('[role="row"]')).find((element) =>
-        element.textContent?.includes('sample-chinese.md')
+      const row = Array.from(document.querySelectorAll('[data-ui~="knowledge.content"] [role="row"]')).find(
+        (element) => element.getClientRects().length > 0 && element.textContent?.includes('sample-chinese.md')
       )
       if (!row || !row.getBoundingClientRect().height) return
       const text = row.textContent ?? ''

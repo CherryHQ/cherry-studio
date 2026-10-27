@@ -1,6 +1,7 @@
 import { evaluateCdpExpression } from './cdpClient'
 import { CHERRYIN_CALLBACK } from './cherryInOauth'
 import { type AppRecord, readCdpTargets } from './lifecycle'
+import { isPathInside } from './paths'
 import { assertOwnedProcess, findListeningPid, isAlive, MAIN_INSPECTOR_PORT } from './process'
 
 interface InspectorTarget {
@@ -46,6 +47,50 @@ export async function inspectOwnedAppEnvironment(record: AppRecord): Promise<{
     const { app } = process.mainModule.require('electron')
     return { version: app.getVersion(), locale: app.getLocale(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }
   })()`
+  )
+}
+
+export async function assertOwnedAppIsolation(record: AppRecord, homeDirectory: string): Promise<void> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const directories = await evaluateCdpExpression<Record<string, string | undefined>>(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+      const application = Object.values(process.mainModule.require('node:module')._cache)
+        .map(module => module.exports?.application).find(candidate => candidate?.getPath)
+      return {
+        home: application.getPath('sys.home'), temp: application.getPath('sys.temp'),
+        appData: application.getPath('sys.appdata'),
+        claude: process.env.CLAUDE_CONFIG_DIR, codex: process.env.CODEX_HOME
+      }
+    })()`
+  )
+  const required = ['home', 'temp', 'claude', 'codex']
+  if (record.platform === 'windows') required.push('appData')
+  for (const key of required) {
+    const directory = directories[key]
+    if (!directory || !isPathInside(homeDirectory, directory)) {
+      throw new Error(`Regression ${key} directory is outside the isolated profile; restart the regression app`)
+    }
+  }
+}
+
+export async function setOwnedMainWindowFocus(record: AppRecord, focused: boolean): Promise<{ focused: boolean }> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+      const { BrowserWindow } = process.mainModule.require('electron')
+      const window = BrowserWindow.getAllWindows().find(candidate =>
+        new URL(candidate.webContents.getURL()).pathname.endsWith(${JSON.stringify(MAIN_WINDOW_PATH)}))
+      if (!window) throw new Error('Owned main window is unavailable')
+      if (${JSON.stringify(focused)}) {
+        window.focus()
+        window.webContents.focus()
+      } else {
+        window.blur()
+      }
+      return { focused: window.isFocused() }
+    })()`
   )
 }
 

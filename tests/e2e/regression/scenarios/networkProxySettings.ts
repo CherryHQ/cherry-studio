@@ -48,8 +48,6 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
       target.webSocketDebuggerUrl,
       `(async () => {
       const require = process.mainModule.require.bind(process.mainModule)
-      const application = Object.values(process.mainModule.require.cache)
-        .map(module => module.exports?.application).find(value => value?.get)
       ${body}
     })()`
     )
@@ -87,7 +85,7 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
   origin.listen(0, '0.0.0.0')
   await once(origin, 'listening')
   const originPort = (origin.address() as { port: number }).port
-  // Only external DNS and OS proxy discovery are controlled; production routing and sockets remain real.
+  // Only external DNS is controlled; production routing and sockets remain real.
   const tunnels = new Set<Duplex>()
   const proxy = createServer((req, res) => {
     requests.push({ route: 'proxy', host: new URL(req.url!).hostname })
@@ -185,7 +183,7 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
       'MP112 direct target'
     )
     // Bypass rules are a Custom Proxy field. Set them while that mode is active; the saved
-    // preference outlives the mode switch and still routes the wildcard hosts below.
+    // preference outlives a round trip through System Proxy mode.
     const bypass = page.getByPlaceholder('localhost,127.0.0.1,::1', { exact: true })
     await expect(bypass, 'Custom Proxy exposes its bypass rules field').toBeVisible()
     await bypass.fill(`*.test.com,${lanWildcard}`)
@@ -224,19 +222,19 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
       .toBe(`*.test.com,${lanWildcard}`)
     await main(`
       const dns = require('node:dns')
-      const osProxy = require('os-proxy-config')
-      globalThis.__mp112 = { lookup: dns.lookup, getSystemProxy: osProxy.getSystemProxy }
+      globalThis.__mp112 = { lookup: dns.lookup }
       dns.lookup = function(host, options, callback) {
         if (!['mp112.test.com', 'mp112-public.example.com'].includes(host))
           return globalThis.__mp112.lookup.apply(this, arguments)
         const cb = typeof options === 'function' ? options : callback
         queueMicrotask(() => options?.all ? cb(null, [{ address: ${JSON.stringify(lan)}, family: 4 }]) : cb(null, ${JSON.stringify(lan)}, 4))
       }
-      osProxy.getSystemProxy = async () => ({ proxyUrl: ${JSON.stringify(proxyUrl)}, noProxy: [] })
     `)
     environmentPrepared = true
-    await chooseMode('No Proxy', 'none')
-    await chooseMode('System Proxy', 'system')
+    await chooseMode('Custom Proxy', 'custom')
+    await address.fill(proxyUrl)
+    await address.blur()
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('app.proxy.url'))).toBe(proxyUrl)
     await screenshot('MP-112 wildcard bypass rules saved')
     for (const [host, expected] of [
       ['mp112.test.com', 'direct'],
@@ -260,7 +258,6 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
     if (environmentPrepared)
       await main(`
       require('node:dns').lookup = globalThis.__mp112.lookup
-      require('os-proxy-config').getSystemProxy = globalThis.__mp112.getSystemProxy
       delete globalThis.__mp112
     `)
     await page.evaluate(

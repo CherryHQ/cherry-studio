@@ -24,6 +24,7 @@ export async function dismissOnboarding(page: Page): Promise<void> {
 
 export async function openLaunchpad(page: Page): Promise<void> {
   await dismissOnboarding(page)
+  if (await page.getByRole('heading', { name: 'Apps', exact: true }).isVisible()) return
   await page.getByRole('button', { name: 'Launchpad', exact: true }).last().click()
   await expect(page.getByRole('heading', { name: 'Apps', exact: true })).toBeVisible()
 }

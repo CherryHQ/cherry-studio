@@ -4,7 +4,7 @@ import { closeSync, existsSync, openSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import type { TaskSelection } from './cases'
 import type { RunPaths } from './paths'
@@ -84,10 +84,14 @@ export async function startMockProvider(paths: RunPaths): Promise<MockRecord> {
   }
   const token = randomUUID()
   const log = openSync(join(paths.logs, 'aimock.log'), 'a', 0o600)
-  const child = spawn(process.execPath, ['--import', require.resolve('tsx'), worker, paths.root, token], {
-    detached: true,
-    stdio: ['ignore', log, log]
-  })
+  const child = spawn(
+    process.execPath,
+    ['--import', pathToFileURL(require.resolve('tsx')).href, worker, paths.root, token],
+    {
+      detached: true,
+      stdio: ['ignore', log, log]
+    }
+  )
   closeSync(log)
   let spawnError: Error | undefined
   child.on('error', (error) => {

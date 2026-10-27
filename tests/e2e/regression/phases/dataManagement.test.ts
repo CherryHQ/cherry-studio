@@ -389,7 +389,9 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     await header.hover()
     const expand = header.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
-    await expect(page.getByTestId('topic-list-row').filter({ hasText: topicName })).toBeVisible()
+    const restoredTopic = page.locator(`[id="resource-list-option-${topicId}"]`)
+    await expect(restoredTopic).toBeVisible()
+    await expect(restoredTopic).toContainText(topicName)
     await attachScreenshot('MP-116 topic and settings restored')
     // The manager is the surface this case restores through, so its own outcome is what can be
     // asserted: after the relaunch it still lists the archive it restored from.

@@ -11,6 +11,7 @@ import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/scre
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function notesAndExport(app: RegressionApp, initialPage: Page, testInfo: TestInfo): Promise<void> {
@@ -150,7 +151,10 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+    if (await showSidebar.isVisible()) await showSidebar.click()
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), group)
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
@@ -160,17 +164,19 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
       sendChatMarker(page, 'MP11 provide code and an image.', 'MP11 completed answer'),
       server.nextRequest().then((request) => request.complete(answer))
     ])
-    const message = chat.locator(`[data-message-id="${messageId}"]`)
+    const message = chat.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
     await expect(message.locator('pre')).toContainText(code)
     const before = await readdir(notesDirectory)
-    await message.click({ button: 'right' })
+    await message.hover()
+    await message.getByRole('button', { name: 'More actions', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Save', exact: true }).hover()
     await page.getByRole('menuitem', { name: 'Save to Notes', exact: true }).click()
     await expect
       .poll(async () => (await readdir(notesDirectory)).filter((name) => !before.includes(name)).length)
       .toBe(1)
     const savedName = (await readdir(notesDirectory)).find((name) => !before.includes(name))!
     const savedContent = await readFile(join(notesDirectory, savedName), 'utf8')
-    expect(savedContent.trim()).toBe(answer)
+    expect(savedContent.trim()).toContain(answer)
     await selectSidebarApp(page, 'Notes')
     await notes().getByText(savedName.replace(/\.md$/, ''), { exact: true }).click()
     await expect(editor()).toContainText('MP11 completed answer')

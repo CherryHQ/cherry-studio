@@ -105,7 +105,9 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   await overlay.getByRole('radio', { name: 'Preview', exact: true }).click()
   await expect(overlay.getByRole('heading', { name: 'MP19 preview', exact: true })).toBeVisible()
   await header.getByRole('button', { name: 'Copy Content', exact: true }).click()
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(markdown)
+  await expect
+    .poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
+    .toBe(markdown)
   await writeFile(join(app.paths.fixtures, markdownName), `${markdown}\nMP19 refreshed content\n`)
   await header.getByRole('button', { name: 'Refresh', exact: true }).click()
   await expect(overlay).toContainText('MP19 refreshed content')
