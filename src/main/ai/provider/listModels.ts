@@ -76,6 +76,7 @@ import {
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
   TokenDanceModelsResponseSchema,
+  TokenLabModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
@@ -691,6 +692,32 @@ const tokenDanceFetcher: ModelFetcher = {
   }
 }
 
+// TokenLab's /v1/models also lists image, video, audio, embedding and other
+// non-chat models (marked by `tokenlab.category`). Only chat models are imported
+// so non-chat entries are never routed to /v1/chat/completions.
+const tokenLabFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.tokenlab),
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `${formatApiHost(getBaseUrl(provider))}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: TokenLabModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    return listing(
+      dedup(response.data, (m) => m.id)
+        .filter((m) => (m.tokenlab?.category ?? 'chat') === 'chat')
+        .map((m) =>
+          toModel(m.id, provider, {
+            ownedBy: m.owned_by,
+            ...(m.tokenlab?.max_input_tokens ? { contextWindow: m.tokenlab.max_input_tokens } : {})
+          })
+        )
+    )
+  }
+}
+
 const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
   fetch: async (provider, signal, options) => {
@@ -1162,6 +1189,7 @@ const fetchers: ModelFetcher[] = [
   togetherFetcher,
   newApiFetcher,
   tokenDanceFetcher,
+  tokenLabFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
