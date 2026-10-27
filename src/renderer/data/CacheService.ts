@@ -697,6 +697,9 @@ export class CacheService {
     this.persistCache.set(key, nextValue)
     this.notifySubscribers(key)
 
+    // A subscriber may have synchronously published a newer value.
+    if (this.persistCache.get(key) !== nextValue) return
+
     // Broadcast to other windows — the resolved value, never the updater itself
     this.broadcastSync({
       type: 'persist',
@@ -1209,6 +1212,7 @@ export class CacheService {
         this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
+        if (isEqual(this.persistCache.get(message.key as RendererPersistCacheKey), message.value)) return
         // Update persist cache (other windows only update memory, not localStorage)
         this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
         this.notifySubscribers(message.key)

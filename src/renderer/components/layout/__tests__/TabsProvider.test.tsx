@@ -668,7 +668,11 @@ describe('TabsProvider', () => {
     )
 
     expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home')
-    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([{ ...PINNED_FILES_TAB, isDormant: true }]))
+    const persisted = setPinnedTabsMock.mock.calls.reduce<Tab[]>(
+      (current, [action]) => (typeof action === 'function' ? action(current) : action),
+      pinnedTabsValue
+    )
+    expect(persisted).toEqual([{ ...PINNED_FILES_TAB, isDormant: true }])
   })
 
   // Reviewer B7: OpenClaw's sidebar entry + /app/openclaw route were removed (folded into Code), so a
@@ -684,12 +688,14 @@ describe('TabsProvider', () => {
     )
 
     expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/code,/app/files,/app/chat')
-    await waitFor(() =>
-      expect(setPinnedTabsMock).toHaveBeenCalledWith([
-        { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code', isDormant: true },
-        { ...PINNED_FILES_TAB, isDormant: true }
-      ])
+    const persisted = setPinnedTabsMock.mock.calls.reduce<Tab[]>(
+      (current, [action]) => (typeof action === 'function' ? action(current) : action),
+      pinnedTabsValue
     )
+    expect(persisted).toEqual([
+      { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code', isDormant: true },
+      { ...PINNED_FILES_TAB, isDormant: true }
+    ])
   })
 
   it('closes active and adjacent tabs atomically when closing a batch', async () => {
