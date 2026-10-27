@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Writable } from 'node:stream'
@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
 
 import { application } from '@application'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { PersistenceListener, TerminalPersistenceError } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { BaseService } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
@@ -425,6 +426,50 @@ describe('file reporting through IPC', () => {
     MockApplicationUtils.resetServices()
     vi.restoreAllMocks()
     await rm(root, { recursive: true, force: true })
+  })
+
+  it('keeps a missing external file local when renaming by entry ID', async () => {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'note.md'))
+    await writeFile(target, 'base')
+    const entry = await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+    await rm(target)
+
+    await expect(fileHandlers['file.rename']({ id: entry.id, newName: 'renamed' }, context)).rejects.toMatchObject({
+      code: 'ENOENT',
+      reportingHandled: true
+    })
+    await drainLogs()
+    expect(captureExceptionMock.mock.calls).toHaveLength(0)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    expect(fileEntryService.getById(entry.id)).toMatchObject({ name: entry.name, externalPath: target })
+  })
+
+  it.each(['internal', 'external'])('retains unexpected metadata faults when renaming an %s entry', async (origin) => {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'note.md'))
+    await writeFile(target, 'base')
+    const entry =
+      origin === 'external'
+        ? await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+        : await files.createInternalEntry({
+            source: 'bytes',
+            data: new TextEncoder().encode('base'),
+            name: 'note',
+            ext: 'md',
+            cleanupPolicy: 'manual'
+          })
+    const error = new TypeError('metadata update failed')
+    vi.spyOn(fileEntryService, origin === 'external' ? 'setExternalPathAndName' : 'update').mockImplementationOnce(
+      () => {
+        throw error
+      }
+    )
+    await expect(fileHandlers['file.rename']({ id: entry.id, newName: 'renamed' }, context)).rejects.toBe(error)
+    await drainLogs()
+    expect(captureExceptionMock.mock.calls).toHaveLength(1)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    expect(captureExceptionMock.mock.calls[0][1].tags['failure.kind']).toBe('defect')
+    expect(fileEntryService.getById(entry.id).name).toBe(entry.name)
+    expect(await readFile(files.getPhysicalPath(entry.id), 'utf8')).toBe('base')
   })
 
   it.each(

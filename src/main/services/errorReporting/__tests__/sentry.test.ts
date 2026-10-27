@@ -170,7 +170,6 @@ describe('Sentry consent gate', () => {
     }
     expect(options.beforeSend(classified)).not.toBeNull()
     expect(options.beforeSend(unclassified)).toBeNull()
-    for (let i = 0; i < 4; i++) expect(options.beforeSend(classified)).not.toBeNull()
     expect(options.beforeSend(classified)).toBeNull()
     const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60 * 1000 + 1)
     try {
@@ -180,6 +179,36 @@ describe('Sentry consent gate', () => {
       now.mockRestore()
     }
   })
+
+  it.each(['storage.write', 'window.renderer.exit'])(
+    'keeps the first classified sample without exhausting capacity for a distinct failure: %s',
+    (operation) => {
+      grantConsent()
+      const options = initOptions()
+      const event = (reason: string, message: string) => ({
+        tags: {
+          operation,
+          'failure.source': 'application',
+          'failure.kind': 'reliability',
+          'failure.reason': reason,
+          'failure.outcome': 'failed'
+        },
+        exception: { values: [{ type: 'Error', value: message }] }
+      })
+      const samples = Array.from({ length: 10 }, (_, i) =>
+        options.beforeSend(event(i % 2 ? 'second_fault' : 'first_fault', `occurrence ${i}`))
+      )
+      expect(options.beforeSend(event('third_fault', 'different failure'))).not.toBeNull()
+      expect(samples.filter(Boolean)).toHaveLength(2)
+      const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60 * 1000 + 1)
+      try {
+        expect(options.beforeSend(event('first_fault', 'next window'))).not.toBeNull()
+        expect(options.beforeSend(event('first_fault', 'duplicate'))).toBeNull()
+      } finally {
+        now.mockRestore()
+      }
+    }
+  )
 
   it.each([
     {

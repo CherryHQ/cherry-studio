@@ -124,8 +124,8 @@ SQL text, parameters, remote responses and file contents are not reporting field
 These helpers do not resolve lifecycle services or depend on Sentry.
 
 Unmigrated error logs with stacks retain compatibility capture. In the main
-process, each unknown/legacy signature gets at most one event per ten minutes;
-other signatures get at most five. Two independent hourly budgets each admit at
+process, each signature, including classified failures, retains only its first
+sample per ten minutes. Two independent hourly budgets each admit at
 most ten events: one for critical stability failures and one for other eligible
 unexpected failures. Critical events are fatal or unhandled exceptions, renderer
 process exits, React render failures, and failures at the database/migration

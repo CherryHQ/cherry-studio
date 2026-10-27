@@ -29,7 +29,7 @@ const logger = loggerService.withContext('ErrorReportingService')
 @DependsOn(['PreferenceService'])
 export class ErrorReportingService extends BaseService {
   private observed = new WeakSet<Error>()
-  private readonly buckets = new LRUCache<string, { count: number; expires: number }>({ max: 256 })
+  private readonly buckets = new LRUCache<string, number>({ max: 256 })
   private totals = {
     critical: { count: 0, expires: 0 },
     unexpected: { count: 0, expires: 0 }
@@ -92,7 +92,6 @@ export class ErrorReportingService extends BaseService {
       runtime: tags['failure.runtime']
     })
     if (facts && !shouldReportFailure(facts)) return null
-    const unknown = !facts || facts.kind === 'unknown'
     const critical =
       event.level === 'fatal' ||
       CRITICAL_OPERATIONS.has(String(tags.operation)) ||
@@ -116,12 +115,9 @@ export class ErrorReportingService extends BaseService {
       this.totals[budget] = { count: 0, expires: now + BUDGET_WINDOW_MS }
     }
     const total = this.totals[budget]
-    const previous = this.buckets.get(key)
-    const bucket = previous && previous.expires > now ? previous : { count: 0, expires: now + WINDOW_MS }
-    if (total.count >= EVENTS_PER_BUDGET || bucket.count >= (unknown ? 1 : 5)) return null
-    bucket.count++
+    if (total.count >= EVENTS_PER_BUDGET || (this.buckets.get(key) ?? 0) > now) return null
     total.count++
-    this.buckets.set(key, bucket)
+    this.buckets.set(key, now + WINDOW_MS)
     event.event_id ??= randomUUID().replaceAll('-', '')
     logger.info('Error report accepted for delivery', {
       reportId: event.event_id,

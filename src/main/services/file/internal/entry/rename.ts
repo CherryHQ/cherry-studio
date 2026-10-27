@@ -11,11 +11,13 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
+import { classifyFileFailure } from '../../failureFacts'
 import { runPathMutationExclusive } from '../../pathMutationLock'
 import type { FileManagerDeps } from '../deps'
 
@@ -60,17 +62,19 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
   if (target === entry.externalPath) {
     return entry
   }
-  if (await exists(target)) {
-    // On case-insensitive filesystems (macOS APFS / Windows NTFS) a
-    // `Foo.pdf → foo.pdf` rename hits this branch because `exists` reports
-    // the file under its on-disk case. If both paths resolve to the same
-    // inode it's a legitimate case-only rename — fall through to `fsMove`,
-    // which the OS treats as an in-place case fix.
-    if (!(await isSameFile(target, oldPath))) {
-      throw new Error(`rename: target path already exists: ${target}`)
+  try {
+    if (await exists(target)) {
+      // Both names can resolve to the same inode on case-insensitive filesystems;
+      // allow fsMove to apply that case-only rename.
+      if (!(await isSameFile(target, oldPath))) {
+        throw new Error(`rename: target path already exists: ${target}`)
+      }
     }
+    await fsMove(oldPath, target)
+  } catch (error) {
+    logFailure(logger, 'File rename failed', error, 'file.rename', classifyFileFailure(error, true))
+    throw error
   }
-  await fsMove(oldPath, target)
   const canonical = target
   // Single atomic DB write — `setExternalPathAndName` is the only sanctioned
   // mutation site for `externalPath`. Doing both column changes in one
