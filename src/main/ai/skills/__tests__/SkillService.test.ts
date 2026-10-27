@@ -4304,6 +4304,94 @@ describe('SkillService', () => {
       ).toMatchObject([{ id: SKILL_ID_1, folderName: 'content' }])
     })
 
+    describe('unresolved migration conflict (old and new rows both catalogued)', () => {
+      const seedConflict = async () => {
+        vi.mocked(parseSkillMetadata).mockImplementation(async (_dir, name) => skillMeta(name))
+        const marker = path.join(dataSkillsRoot, '.content.migrating-to.my-skill.bak')
+        await fs.promises.mkdir(marker, { recursive: true })
+        await fs.promises.writeFile(path.join(marker, 'SKILL.md'), '# only copy')
+        await writeLibrarySkill('my-skill')
+        await dbh.db.insert(agentGlobalSkillTable).values([
+          {
+            id: SKILL_ID_1,
+            name: 'Repo',
+            folderName: 'content',
+            source: 'marketplace',
+            sourceUrl: 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md',
+            contentHash: 'a',
+            isEnabled: false
+          },
+          {
+            id: SKILL_ID_2,
+            name: 'my-skill',
+            folderName: 'my-skill',
+            source: 'marketplace',
+            sourceUrl: 'https://raw.githubusercontent.com/other/repo/refs/heads/main/SKILL.md',
+            contentHash: 'b',
+            isEnabled: false
+          }
+        ])
+        return marker
+      }
+      const expectBackupIntact = async (marker: string) => {
+        await expect(fs.promises.readFile(path.join(marker, 'SKILL.md'), 'utf8')).resolves.toBe('# only copy')
+        const rows = await dbh.db.select().from(agentGlobalSkillTable)
+        expect(rows.map((row) => row.folderName).sort()).toContain('content')
+      }
+
+      it('keeps the only backup across two consecutive reconcileSkills rounds', async () => {
+        const marker = await seedConflict()
+        await skillService.reconcileSkills()
+        await skillService.reconcileSkills()
+        await expectBackupIntact(marker)
+      })
+
+      it('keeps the only backup when a scoped reconcile of the old id precedes a full reconcile', async () => {
+        const marker = await seedConflict()
+        await skillService.reconcileSkill(SKILL_ID_1)
+        await skillService.reconcileSkills()
+        await expectBackupIntact(marker)
+      })
+
+      it('keeps the old skill backup when the unrelated replacement-named skill is uninstalled', async () => {
+        const marker = await seedConflict()
+        const target = agentGlobalSkillService.getById(SKILL_ID_2)!
+        await skillService.uninstall(target.id)
+        await expectBackupIntact(marker)
+      })
+    })
+
+    it('reconcileSkills preserves an unindexed user folder at the replacement name instead of deleting it', async () => {
+      vi.mocked(parseSkillMetadata).mockImplementation(async (_dir, name) => skillMeta(name))
+      const marker = path.join(dataSkillsRoot, '.content.migrating-to.my-skill.bak')
+      await fs.promises.mkdir(marker, { recursive: true })
+      await fs.promises.writeFile(path.join(marker, 'SKILL.md'), '# old')
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'my-skill'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'my-skill', 'SKILL.md'), '# user authored')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Repo',
+        folderName: 'content',
+        source: 'marketplace',
+        sourceUrl: 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md',
+        contentHash: 'a',
+        isEnabled: false
+      })
+
+      await skillService.reconcileSkills()
+
+      await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), 'utf8')).resolves.toBe(
+        '# old'
+      )
+      const preserved = (await fs.promises.readdir(dataSkillsRoot)).filter((name) =>
+        name.startsWith('.my-skill.conflict-')
+      )
+      expect(preserved).toHaveLength(1)
+      await expect(fs.promises.readFile(path.join(dataSkillsRoot, preserved[0], 'SKILL.md'), 'utf8')).resolves.toBe(
+        '# user authored'
+      )
+    })
+
     it('reconcileSkills drops an empty migration marker and the uncommitted replacement', async () => {
       vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('content'))
       // Empty marker: the old folder was already gone when the migration started, so there is

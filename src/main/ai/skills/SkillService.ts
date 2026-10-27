@@ -963,6 +963,13 @@ export class SkillService {
       stats = await fs.promises.lstat(skillDir)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (await this.installer.hasPendingMigrationBackup(storageRoot, skill.folderName)) {
+        logger.warn('Keeping Skill row: its files live in an unresolved migration backup', {
+          skillId,
+          folderName: skill.folderName
+        })
+        return
+      }
       agentGlobalSkillService.deleteById(skillId)
       await this.unlinkMirror(skill.folderName)
       agentGlobalSkillService.notifySkillMembershipChange(skillId)
@@ -1351,6 +1358,14 @@ export class SkillService {
           continue
         }
       }
+      // A non-empty migration backup still owns this row's only files (e.g. an unresolved
+      // conflict); pruning the row would let a later pass treat the migration as committed.
+      if (await this.installer.hasPendingMigrationBackup(storageRoot, skill.folderName)) {
+        logger.warn('Keeping skill row: its files live in an unresolved migration backup', {
+          folderName: skill.folderName
+        })
+        continue
+      }
       agentGlobalSkillService.deleteById(skill.id)
       await this.unlinkMirror(skill.folderName)
       logger.info('Pruned skill whose library folder was removed', { folderName: skill.folderName })
@@ -1681,7 +1696,7 @@ export class SkillService {
     await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, skill.folderName, isFolderTracked)
     // Markers must be gone before the replacement folder and catalog row: a surviving rollback
     // marker would let recovery resurrect an uninstalled skill after the row is deleted.
-    await this.installer.removeMigrationMarkersStrict(skillsRoot, skill.folderName)
+    await this.installer.removeMigrationMarkersStrict(skillsRoot, skill.folderName, isFolderTracked)
     const skillPath = this.getSkillStoragePath(skill.folderName)
     await this.installer.uninstall(skillPath)
     await this.unlinkMirror(skill.folderName)

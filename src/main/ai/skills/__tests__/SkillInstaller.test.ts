@@ -241,20 +241,18 @@ describe('SkillInstaller', () => {
     expect(mockFsRename).not.toHaveBeenCalled()
   })
 
-  it('aborts recovery when an uncommitted migration replacement survives cleanup', async () => {
+  it('aborts recovery when the unindexed replacement folder cannot be moved aside', async () => {
     mockFsReaddir.mockResolvedValue([
       { name: '.old.migrating-to.new.bak', isDirectory: () => true },
       { name: 'new', isDirectory: () => true }
     ])
     mockPathExists.mockResolvedValue(true)
-    mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
+    mockFsRename.mockRejectedValue(new Error('locked'))
 
     // Failing loud keeps reconcile from adopting the survivor and pruning the original row; the
-    // intact marker lets the next boot retry this recovery.
-    await expect(installer.recoverInterruptedInstalls('/global-skills', () => false)).rejects.toThrow(
-      'survived cleanup'
-    )
-    expect(mockFsRename).not.toHaveBeenCalled()
+    // intact marker lets the next boot retry this recovery. Nothing is ever deleted.
+    await expect(installer.recoverInterruptedInstalls('/global-skills', () => false)).rejects.toThrow('locked')
+    expect(mockDeleteDirectoryRecursive).not.toHaveBeenCalled()
   })
 
   it('recovers a pending outbound migration marker instead of deleting it on settle', async () => {
@@ -269,14 +267,17 @@ describe('SkillInstaller', () => {
     })
     let barExists = true
     mockPathExists.mockImplementation(async (target: string) => target === '/global-skills/bar' && barExists)
-    mockDeleteDirectoryRecursive.mockImplementation(async (target: string) => {
-      if (target === '/global-skills/bar') barExists = false
+    mockFsRename.mockImplementation(async (from: string) => {
+      if (from === '/global-skills/bar') barExists = false
     })
-    mockFsRename.mockResolvedValue(undefined)
 
     await installer.settleMigrationMarkersBeforeRename('/global-skills', 'foo', () => false)
 
-    expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/bar')
+    expect(mockDeleteDirectoryRecursive).not.toHaveBeenCalled()
+    expect(mockFsRename).toHaveBeenCalledWith(
+      '/global-skills/bar',
+      expect.stringMatching(/^\/global-skills\/\.bar\.conflict-\d+$/)
+    )
     expect(mockFsRename).toHaveBeenCalledWith('/global-skills/.foo.migrating-to.bar.bak', '/global-skills/foo')
   })
 
