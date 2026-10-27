@@ -2310,6 +2310,9 @@ export function shouldDeferScratchpadStripping(
  * no incomplete markup, unclosed scratchpad block, unclosed fence or partial fence marker. Appending text
  * with no backtick, tilde, angle bracket, ampersand, backslash or line ending cannot change that verdict,
  * which lets a streaming caller extend a deferred remainder without rescanning it.
+ *
+ * @internal Exported from the package root only because the Claude Code stream adapter imports its scratchpad
+ * predicates from there; not a stable public API.
  */
 export function deferralIsInlineCodeOnly(
   text: string,
