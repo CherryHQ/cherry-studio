@@ -395,7 +395,7 @@ describe('Sentry log reporting', () => {
   })
 })
 
-describe('file editing reporting through IPC', () => {
+describe('file reporting through IPC', () => {
   setupTestDatabase()
   let root: string
   let files: FileManager
@@ -425,6 +425,55 @@ describe('file editing reporting through IPC', () => {
     MockApplicationUtils.resetServices()
     vi.restoreAllMocks()
     await rm(root, { recursive: true, force: true })
+  })
+
+  it.each(
+    ['single', 'batch'].flatMap((route) => ['path', 'external', 'internal'].map((origin) => ({ route, origin })))
+  )('preserves $origin provenance for missing metadata through $route lookup', async ({ route, origin }) => {
+    let target = AbsoluteFilePathSchema.parse(path.join(root, 'missing.md'))
+    const healthyPath = AbsoluteFilePathSchema.parse(path.join(root, 'healthy.md'))
+    await writeFile(target, 'base')
+    await writeFile(healthyPath, 'base')
+    let handle: FileHandle = { kind: 'path', path: target }
+    if (origin !== 'path') {
+      const entry =
+        origin === 'external'
+          ? await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+          : await files.createInternalEntry({
+              source: 'bytes',
+              data: new TextEncoder().encode('base'),
+              name: 'managed',
+              ext: 'md',
+              cleanupPolicy: 'manual'
+            })
+      handle = { kind: 'entry', entryId: entry.id }
+      target = files.getPhysicalPath(entry.id)
+    }
+    await rm(target)
+    if (route === 'single') {
+      await expect(fileHandlers['file.get_metadata'](handle, context)).resolves.toBeNull()
+    } else {
+      await expect(
+        fileHandlers['file.batch_get_metadata'](
+          {
+            items: [
+              { key: 'missing', handle },
+              { key: 'healthy', handle: { kind: 'path', path: healthyPath } }
+            ]
+          },
+          context
+        )
+      ).resolves.toMatchObject({ missing: null, healthy: { size: 4 } })
+    }
+    await drainLogs()
+    expect(captureExceptionMock.mock.calls).toHaveLength(origin === 'internal' ? 1 : 0)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    if (origin === 'internal') {
+      const [reported, sentryContext] = captureExceptionMock.mock.calls[0]
+      expect(reported.message).toBe('enoent')
+      expect(sentryContext.tags['failure.kind']).toBe('reliability')
+      expect(JSON.stringify(sentryContext)).not.toContain(target)
+    }
   })
 
   it.each([
