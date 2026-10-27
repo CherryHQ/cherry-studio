@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "請使用以下格式（以換行分隔）\n模式比對：*://*.example.com/*\n規則運算式：/example\\.(net|org)/",
   "settings.tool.websearch.check": "檢查",
   "settings.tool.websearch.check_failed": "驗證失敗",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit 已回應，但無法擷取測試頁面（{{url}}）。URL 擷取功能尚未通過驗證。",
   "settings.tool.websearch.check_success": "驗證成功",
   "settings.tool.websearch.compression.cutoff.limit.label": "截斷長度",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "輸入長度",

@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "กรุณาใช้รูปแบบต่อไปนี้ (คั่นด้วยบรรทัดใหม่)\nการจับคู่รูปแบบ: *://*.example.com/*\nนิพจน์ทั่วไป: /example\\.(net|org)/",
   "settings.tool.websearch.check": "ตรวจสอบ",
   "settings.tool.websearch.check_failed": "การตรวจสอบล้มเหลว",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit ตอบกลับแล้ว แต่ไม่สามารถดึงหน้าเว็บทดสอบ ({{url}}) ได้ จึงยังไม่ได้ยืนยันความสามารถในการดึงข้อมูลจาก URL",
   "settings.tool.websearch.check_success": "การตรวจสอบสำเร็จ",
   "settings.tool.websearch.compression.cutoff.limit.label": "ขีดจำกัดตัดทอน",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "ป้อนความยาว",

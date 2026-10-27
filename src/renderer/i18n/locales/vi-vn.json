@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Vui lòng dùng định dạng sau (mỗi mục một dòng)\nKhớp mẫu: *://*.example.com/*\nBiểu thức chính quy: /example\\.(net|org)/",
   "settings.tool.websearch.check": "Kiểm tra",
   "settings.tool.websearch.check_failed": "Xác minh thất bại",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit đã phản hồi nhưng không thể tải trang thử nghiệm ({{url}}). Chức năng tải nội dung từ URL chưa được xác minh.",
   "settings.tool.websearch.check_success": "Xác minh thành công",
   "settings.tool.websearch.compression.cutoff.limit.label": "Giới hạn cắt",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Nhập chiều dài",

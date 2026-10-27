@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Te rugăm să folosești următorul format (separate prin linie nouă)\nPotrivire model: *://*.exemplu.com/*\nExpresie regulată: /exemplu\\.(net|org)/",
   "settings.tool.websearch.check": "Verifică",
   "settings.tool.websearch.check_failed": "Verificare eșuată",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit a răspuns, dar nu a putut prelua pagina de test ({{url}}). Preluarea URL-urilor nu a fost verificată.",
   "settings.tool.websearch.check_success": "Verificare reușită",
   "settings.tool.websearch.compression.cutoff.limit.label": "Limită trunchiere",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Introdu lungimea",

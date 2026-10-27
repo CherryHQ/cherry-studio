@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "以下の形式を使用してください（改行区切り）\nパターンマッチ: *://*.example.com/*\n正規表現: /example\\.(net|org)/",
   "settings.tool.websearch.check": "チェック",
   "settings.tool.websearch.check_failed": "検証に失敗しました",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit から応答がありましたが、テストページ（{{url}}）を取得できませんでした。URL 取得機能は検証できていません。",
   "settings.tool.websearch.check_success": "検証に成功しました",
   "settings.tool.websearch.compression.cutoff.limit.label": "切り捨て長",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "長さを入力",

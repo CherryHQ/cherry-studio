@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Usa il seguente formato (una voce per riga)\nCorrispondenza con schema: *://*.example.com/*\nEspressione regolare: /example\\.(net|org)/",
   "settings.tool.websearch.check": "Verifica",
   "settings.tool.websearch.check_failed": "Verifica non riuscita",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit ha risposto, ma non è riuscito a recuperare la pagina di prova ({{url}}). Il recupero degli URL non è stato verificato.",
   "settings.tool.websearch.check_success": "Verifica riuscita",
   "settings.tool.websearch.compression.cutoff.limit.label": "Limite di troncamento",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Inserisci la lunghezza",

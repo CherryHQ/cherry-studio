@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
   "settings.tool.websearch.check": "Check",
   "settings.tool.websearch.check_failed": "Verification failed",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit responded, but could not fetch the test page ({{url}}). URL fetching was not verified.",
   "settings.tool.websearch.check_success": "Verification successful",
   "settings.tool.websearch.compression.cutoff.limit.label": "Cutoff Limit",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Enter length",

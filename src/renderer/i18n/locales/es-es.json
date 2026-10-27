@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Utilice el siguiente formato (separado por líneas nuevas)\nPatrón de coincidencia: *://*.example.com/*\nExpresión regular: /example\\.(net|org)/",
   "settings.tool.websearch.check": "Comprobar",
   "settings.tool.websearch.check_failed": "Verificación fallida",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit respondió, pero no pudo obtener la página de prueba ({{url}}). No se verificó la obtención de URL.",
   "settings.tool.websearch.check_success": "Verificación exitosa",
   "settings.tool.websearch.compression.cutoff.limit.label": "Longitud de corte",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Longitud de entrada",

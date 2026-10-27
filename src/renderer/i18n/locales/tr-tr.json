@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Lütfen aşağıdaki biçimi kullanın (satır sonlarıyla ayrılmış)\nDesen eşleştirme: *://*.example.com/*\nDüzenli ifade: /example\\.(net|org)/",
   "settings.tool.websearch.check": "Kontrol Et",
   "settings.tool.websearch.check_failed": "Doğrulama başarısız",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit yanıt verdi ancak test sayfasını ({{url}}) getiremedi. URL içeriği getirme işlevi doğrulanamadı.",
   "settings.tool.websearch.check_success": "Doğrulama başarılı",
   "settings.tool.websearch.compression.cutoff.limit.label": "Kesme Sınırı",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Uzunluğu girin",

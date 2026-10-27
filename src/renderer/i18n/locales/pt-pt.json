@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Por favor, utilize o seguinte formato (separado por quebras de linha)\nPadrão de correspondência: *://*.exemplo.com/*\nExpressão regular: /exemplo\\.(net|org)/",
   "settings.tool.websearch.check": "Verificar",
   "settings.tool.websearch.check_failed": "Falha na verificação",
+  "settings.tool.websearch.check_page_fetch_failed": "O Querit respondeu, mas não conseguiu obter a página de teste ({{url}}). A obtenção de URL não foi verificada.",
   "settings.tool.websearch.check_success": "Verificação bem-sucedida",
   "settings.tool.websearch.compression.cutoff.limit.label": "Comprimento do corte",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Comprimento de entrada",

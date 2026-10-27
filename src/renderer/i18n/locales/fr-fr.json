@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Veuillez utiliser le format suivant (séparé par des sauts de ligne)\nModèle de correspondance : *://*.example.com/*\nExpression régulière : /example\\.(net|org)/",
   "settings.tool.websearch.check": "Vérifier",
   "settings.tool.websearch.check_failed": "Échec de la vérification",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit a répondu, mais n’a pas pu récupérer la page de test ({{url}}). La récupération d’URL n’a pas été vérifiée.",
   "settings.tool.websearch.check_success": "Vérification réussie",
   "settings.tool.websearch.compression.cutoff.limit.label": "Longueur de troncature",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Longueur d'entrée",

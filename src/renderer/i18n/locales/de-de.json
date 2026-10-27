@@ -5730,6 +5730,7 @@
   "settings.tool.websearch.blacklist_tooltip": "Verwenden Sie das folgende Format (Zeilenumbruch getrennt)\nÜbereinstimmungsmodus: *://*.example.com/*\nRegex: /example\\.(net|org)/",
   "settings.tool.websearch.check": "Erkennen",
   "settings.tool.websearch.check_failed": "Erkennung fehlgeschlagen",
+  "settings.tool.websearch.check_page_fetch_failed": "Querit hat geantwortet, konnte die Testseite ({{url}}) jedoch nicht abrufen. Der URL-Abruf wurde nicht verifiziert.",
   "settings.tool.websearch.check_success": "Erkennung erfolgreich",
   "settings.tool.websearch.compression.cutoff.limit.label": "Abschneidelänge",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Eingabegröße",
