@@ -1,18 +1,36 @@
 import type { Message } from '@earendil-works/pi-ai'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
-import { type RuntimeMessage } from '@cherrystudio/agent-runtime'
+import { runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 
 /** Stable committed identities; consumers never decode native entry IDs from these keys. */
 export const entryMessageId = (entry: EntryRecord, index: number): string => `entry:${entry.id}:${index}`
 
 export class ContentProjection {
   readonly messages: RuntimeMessage[] = []
+  get legacy(): Record<string, { messageId: string; parts: number[] }> {
+    const legacy: Record<string, { messageId: string; parts: number[] }> = {}
+    for (const message of this.messages) {
+      const parts: number[] = []
+      message.parts.forEach((part, index) => {
+        if (part.type === 'dynamic-tool')
+          legacy[`${message.id}:call:${part.toolCallId}`] = { messageId: message.id, parts: [index] }
+        else parts.push(index)
+      })
+      legacy[message.id] = { messageId: message.id, parts }
+    }
+    return legacy
+  }
   private readonly calls = new Map<string, { message: RuntimeMessage; index: number }>()
 
   entry(entry: EntryRecord): void {
     for (const [index, message] of (entry.model ?? []).entries()) {
       this.message(message, entryMessageId(entry, index), 'complete')
+      const inputId = (entry.data as { cherryInputId?: string })?.cherryInputId
+      if (message.role === 'user' && inputId) {
+        const value = this.messages.at(-1)!
+        value.metadata = { ...value.metadata!, inputId: runtimeId(inputId) }
+      }
     }
   }
 

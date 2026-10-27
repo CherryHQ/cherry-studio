@@ -132,8 +132,102 @@ describe('Pi Durable runtime contract', () => {
     expect(response).toMatchObject({
       parts: [{ type: 'text', text: 'a sufficiently long streaming answer' }]
     })
+    const archive = confirmed(await second.archive())
+    const committed = archive.items.find((item) => item.ref.id === settled.input.response?.id)
+    expect(committed).toEqual(response)
+    const preview = right
+      .flatMap((event) => (event.type === 'snapshot' ? event.items : []))
+      .find((item) => item.type === 'message' && item.role === 'assistant' && item.completeness === 'partial')!
+    expect(archive.aliases[committed!.ref.id]).toBe(preview.ref.id)
     expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
   })
+
+  it('reads committed history across reset and pagination without scheduling a model', async () => {
+    const { runtime, faux } = await setup()
+    const access = confirmed(
+      await runtime.create({
+        ...sessionOptions,
+        async init(tx, id) {
+          for (let index = 0; index < 260; index++) {
+            await tx.appendEntry(id, {
+              kind: 'pi.user',
+              model: [{ role: 'user', content: `message-${index}`, timestamp: index }]
+            })
+            if (index === 130) await tx.appendEntry(id, { kind: 'pi.reset', head: 'self' })
+          }
+        }
+      })
+    )
+    const archive = confirmed(await access.archive())
+    expect(
+      archive.items.flatMap((item) => (item.type === 'message' ? item.parts.map((part) => part.text) : []))
+    ).toEqual(Array.from({ length: 260 }, (_, index) => `message-${index}`))
+    expect(faux.state.callCount).toBe(0)
+    await access.release()
+    expect(await access.archive()).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    const reopened = confirmed(await runtime.open(access.thread))
+    expect(confirmed(await reopened.archive()).items).toEqual(archive.items)
+  })
+
+  it.each(['before', 'after'] as const)(
+    'keeps a steer submitted %s normal completion and answers it once',
+    async (timing) => {
+      const { runtime, faux } = await setup()
+      const entered = gate()
+      const finish = gate()
+      onTestFinished(() => finish.resolve())
+      faux.setResponses([
+        async () => {
+          entered.resolve()
+          await finish.promise
+          return fauxAssistantMessage('first')
+        },
+        (context) => {
+          expect(JSON.stringify(context.messages)).toContain('additional input')
+          return fauxAssistantMessage('continued')
+        }
+      ])
+      const handle = confirmed(await runtime.create(sessionOptions))
+      await handle.input.submit({ ...draft('root'), deduplicationKey: 'root' })
+      await entered.promise
+      if (timing === 'after') {
+        finish.resolve()
+        await expect
+          .poll(() => handle.lookupInput({ by: 'deduplication-key', key: 'root' }))
+          .toMatchObject({
+            status: 'confirmed',
+            value: { found: true, input: { outcome: 'completed' } }
+          })
+      }
+      const input = { ...draft('additional input', 'steer'), deduplicationKey: 'additional' }
+      const receipt = await handle.input.submit(input)
+      expect(receipt.status).toBe('acknowledged')
+      finish.resolve()
+      await expect
+        .poll(() => handle.lookupInput({ by: 'deduplication-key', key: 'additional' }))
+        .toMatchObject({
+          status: 'confirmed',
+          value: { found: true, input: { outcome: 'completed' } }
+        })
+      const root = confirmed(await handle.lookupInput({ by: 'deduplication-key', key: 'root' }))
+      const additional = confirmed(await handle.lookupInput({ by: 'deduplication-key', key: 'additional' }))
+      if (!root.found || !additional.found) throw new Error('Missing input receipt')
+      expect(additional.input.response).not.toEqual(root.input.response)
+      expect(
+        confirmed(await handle.archive()).items.find((item) => item.ref.id === additional.input.response?.id)
+      ).toMatchObject({ type: 'message', parts: [{ type: 'text', text: 'continued' }] })
+      expect(await handle.input.submit(input)).toMatchObject({
+        status: 'acknowledged',
+        nativeInput: receipt.status === 'acknowledged' ? receipt.nativeInput : undefined
+      })
+      expect(
+        confirmed(await handle.archive()).items.filter(
+          (item) => item.type === 'message' && item.parts.some((part) => part.text === input.text)
+        )
+      ).toHaveLength(1)
+      expect(faux.state.callCount).toBe(2)
+    }
+  )
 
   it('deduplicates queued input, rejects busy input without admission, and scopes withdrawal to its session', async () => {
     const { runtime, faux } = await setup()
@@ -267,9 +361,13 @@ describe('Pi Durable runtime contract', () => {
     ])
     const handle = confirmed(await runtime.create(sessionOptions))
     const events = await observe(handle)
-    await handle.input.submit({ ...draft('root'), deduplicationKey: 'root' })
+    const first = await handle.input.submit({ ...draft('root'), deduplicationKey: 'root' })
+    if (first.status !== 'acknowledged' || !first.nativeInput) throw new Error('Missing input reference')
     await executing.promise
-    await handle.input.submit({ ...draft('steering', 'steer'), deduplicationKey: 'steering' })
+    await handle.input.submit({
+      ...draft('steering', 'steer'),
+      deduplicationKey: 'steering'
+    })
     finish.resolve()
     const lookup = async (key: string) => {
       const result = confirmed(await handle.lookupInput({ by: 'deduplication-key', key }))
@@ -285,7 +383,7 @@ describe('Pi Durable runtime contract', () => {
     })
   })
 
-  it('discovers native owned conversations and observes their output independently of the parent', async () => {
+  it('discovers native forks and archives only child-owned output independently of the parent', async () => {
     const { runtime, faux, registry } = await setup()
     registry.install(
       defineExtension({
@@ -297,7 +395,10 @@ describe('Pi Durable runtime contract', () => {
             parameters: Type.Object({}),
             async execute(_args, api, context) {
               const child = await api.commit(async (tx) => {
-                const record = await tx.createConversation({ ownership: { kind: 'task', taskId: api.taskId } })
+                const head = (await tx.scanEntries({ conversationId: api.conversationId }, 1)).items[0]
+                const record = await tx.forkConversation(api.conversationId, head.id, {
+                  ownership: { kind: 'task', taskId: api.taskId }
+                })
                 await configure(tx, record.id, { model: { provider: 'faux', modelId: 'faux-1' }, tools: [] })
                 return record
               }, context)
@@ -334,6 +435,12 @@ describe('Pi Durable runtime contract', () => {
       )
       .toBe(true)
     expect(child.thread).not.toEqual(parent.thread)
+    const archived = confirmed(await child.archive()).items
+    expect(archived.some((item) => item.type === 'message' && item.parts[0]?.text === 'delegate now')).toBe(false)
+    expect(archived.some((item) => item.type === 'tool-call' && item.name === 'delegate')).toBe(false)
+    expect(archived.some((item) => item.type === 'message' && item.parts[0]?.text === 'independent child output')).toBe(
+      true
+    )
     await expect
       .poll(() =>
         current(parentEvents)?.messages.some(
@@ -434,6 +541,15 @@ describe('Pi Durable runtime contract', () => {
         )
       )
       .toBe(true)
+    expect(faux.state.callCount).toBe(before + 1)
+    const archive = confirmed(await access.archive())
+    await reopened.shutdown()
+    const restored = confirmed(await createPiDurableRuntime(options))
+    onTestFinished(async () => {
+      await restored.shutdown()
+    })
+    const restoredAccess = confirmed(await restored.open(session.thread))
+    expect(confirmed(await restoredAccess.archive())).toEqual({ items: archive.items, aliases: {} })
     expect(faux.state.callCount).toBe(before + 1)
   })
 })

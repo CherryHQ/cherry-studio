@@ -4,5 +4,6 @@ export type {
   PiDurableRuntimeOptions,
   PiDurableThreadHandle,
   PiDurableThreadInput,
-  PiDurableSessionOptions
+  PiDurableSessionOptions,
+  PiDurableArchive
 } from './runtime'

@@ -7,6 +7,7 @@ import {
   type ConversationCreateOptions,
   type ConversationId,
   type ConversationRecord,
+  type Cursor,
   type HarnessOptions,
   type Storage,
   type SubmissionId,
@@ -18,6 +19,7 @@ import {
 import {
   runtimeId,
   type AgentRuntime,
+  type ContentItem,
   type BackendId,
   type InputDraft,
   type InputId,
@@ -37,6 +39,7 @@ import {
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
 
+import { ContentProjection } from './content'
 import { DurableProjection } from './projection'
 
 export interface PiDurableRuntimeOptions {
@@ -54,6 +57,13 @@ export interface PiDurableThreadHandle extends ThreadHandle {
   readonly input: PiDurableThreadInput
   lookupInput(query: InputQuery): Promise<OperationResult<InputLookup>>
   retractInput(ref: NativeInputRef): Promise<OperationResult<RetractionReceipt>>
+  /** Committed conversation-owned history, including entries before reset/compaction. Does not resume work. */
+  archive(): Promise<OperationResult<PiDurableArchive>>
+}
+export interface PiDurableArchive {
+  readonly items: readonly ContentItem[]
+  /** Proven committed-to-live identities within this observation source. */
+  readonly aliases: Readonly<Record<string, string>>
 }
 export interface PiDurableRuntime extends AgentRuntime {
   create(options: PiDurableSessionOptions): Promise<OperationResult<PiDurableThreadHandle>>
@@ -292,6 +302,38 @@ export async function createPiDurableRuntime(
     const sameSession = (ref: Thread) => ref.backendId === entry.ref.backendId && ref.id === entry.ref.id
     return {
       thread: entry.ref,
+      archive() {
+        if (unavailable()) return Promise.resolve(rejected('archive', 'closed'))
+        return track(
+          (async (): Promise<OperationResult<PiDurableArchive>> => {
+            try {
+              const content = new ContentProjection(entry.ref)
+              const head = (await entry.conversation.entries({ order: 'descending' }, 1, undefined, context)).items[0]
+              if (!head) return { status: 'confirmed', value: { items: [], aliases: {} } }
+              let cursor: Cursor | undefined
+              do {
+                const page = await entry.conversation.entries(
+                  { maxEntryId: head.id, order: 'ascending' },
+                  256,
+                  cursor,
+                  context
+                )
+                for (const record of page.items)
+                  if (record.conversationId === entry.conversation.id) content.entry(record)
+                cursor = page.next
+              } while (cursor)
+              const included = new Set(content.items.map((item) => item.ref.id as string))
+              const aliases = Object.fromEntries(
+                Object.entries(entry.projection.aliases).filter(([id]) => included.has(id))
+              )
+              return { status: 'confirmed', value: { items: content.items, aliases } }
+            } catch (cause) {
+              report(cause)
+              return { status: 'unknown', error: error('archive', 'native-error') }
+            }
+          })()
+        )
+      },
       input: {
         policies: ['reject', 'steer', 'follow-up'],
         submit(input) {
