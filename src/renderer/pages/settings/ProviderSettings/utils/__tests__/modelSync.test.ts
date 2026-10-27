@@ -212,6 +212,56 @@ describe('provider-reported context window', () => {
     expect(toCreateModelDto('tokenlab', models[0]).contextWindow).toBe(30720)
   })
 
+  it('keeps a provider-reported output cap through registry enrichment and into the create DTO', async () => {
+    // TokenLab publishes max_output_tokens 131072 for grok-4.3; the global registry entry says 1000000.
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'tokenlab::grok-4.3',
+          providerId: 'tokenlab',
+          apiModelId: 'grok-4.3',
+          name: 'grok-4.3',
+          contextWindow: 1000000,
+          maxOutputTokens: 131072
+        }
+      ]
+    })
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'tokenlab::grok-4.3',
+        providerId: 'tokenlab',
+        apiModelId: 'grok-4.3',
+        presetModelId: 'grok-4.3',
+        name: 'Grok 4.3',
+        capabilities: [],
+        contextWindow: 1000000,
+        maxOutputTokens: 1000000,
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+    ])
+
+    const { models } = await fetchResolvedProviderModels('tokenlab')
+
+    expect(models[0]).toMatchObject({ presetModelId: 'grok-4.3', maxOutputTokens: 131072 })
+    expect(toCreateModelDto('tokenlab', models[0])).toMatchObject({ contextWindow: 1000000, maxOutputTokens: 131072 })
+  })
+
+  it('still uses the registry output cap when the provider reports none', async () => {
+    listModelsMock.mockResolvedValueOnce({
+      models: [{ id: 'tokenlab::grok-4.3', providerId: 'tokenlab', apiModelId: 'grok-4.3', name: 'grok-4.3' }]
+    })
+    dataApiGetMock.mockResolvedValueOnce([
+      { id: 'tokenlab::grok-4.3', providerId: 'tokenlab', apiModelId: 'grok-4.3', maxOutputTokens: 1000000 }
+    ])
+
+    const { models } = await fetchResolvedProviderModels('tokenlab')
+
+    expect(models[0].maxOutputTokens).toBe(1000000)
+    expect(toCreateModelDto('tokenlab', models[0]).maxOutputTokens).toBe(1000000)
+  })
+
   it('still uses the registry context window when the provider reports none', async () => {
     listModelsMock.mockResolvedValueOnce({
       models: [{ id: 'tokenlab::qwen-max', providerId: 'tokenlab', apiModelId: 'qwen-max', name: 'qwen-max' }]

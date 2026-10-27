@@ -221,6 +221,14 @@ describe('mergePresetModel + applyUserOverlay', () => {
     expect(model.maxOutputTokens).toBe(16_384)
   })
 
+  it('a persisted provider-reported output cap wins over a larger preset cap', () => {
+    // TokenLab grok-4.3: provider reports max_output_tokens 131072, the global preset says 1000000.
+    const baseline = mergePresetModel({ ...presetModel, maxOutputTokens: 1_000_000 }, null, 'tokenlab')
+    const model = applyUserOverlay(baseline, { maxOutputTokens: 131_072 })
+
+    expect(model.maxOutputTokens).toBe(131_072)
+  })
+
   it('preset fields carry through when user provides null', () => {
     const overlay: UserModelOverlay = {
       name: null,
