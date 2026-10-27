@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "请选择要上传的文件",
   "notes.no_note_selected": "请先选择一个笔记",
   "notes.no_valid_files": "没有上传有效的文件",
+  "notes.open": "打开笔记",
   "notes.open_outside": "从外部打开",
   "notes.print": "打印",
   "notes.print_failed": "打印笔记失败",
