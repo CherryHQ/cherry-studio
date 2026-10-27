@@ -53,6 +53,9 @@ describe('knowledge file preparing migrate-forward', () => {
     const readItems = () => dbh.db.select().from(knowledgeItemTable).orderBy(asc(knowledgeItemTable.id)).all()
     const before = readItems()
 
+    // Replaying from 0028 also replays every later migration; undo the later column adds so they
+    // run against the schema they were generated for instead of failing as duplicates.
+    dbh.sqlite.prepare('ALTER TABLE user_model DROP COLUMN api_key_id').run()
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
     applyMigrations(dbh.db, migrationsFolder)
 

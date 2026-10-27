@@ -36,6 +36,15 @@ export function firstApiKey(keys: ApiKeyEntry[] | undefined): string {
   return keys?.find((k) => k.isEnabled)?.key ?? ''
 }
 
+/**
+ * Key for a model's direct CLI config: its enabled per-model binding, else the first
+ * enabled key (unset, missing, or disabled bindings fall back to automatic selection).
+ */
+export function modelApiKey(keys: ApiKeyEntry[] | undefined, apiKeyId: string | null | undefined): string {
+  const bound = apiKeyId ? keys?.find((k) => k.id === apiKeyId && k.isEnabled) : undefined
+  return bound?.key ?? firstApiKey(keys)
+}
+
 export function asRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' ? (value as Record<string, any>) : {}
 }

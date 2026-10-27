@@ -88,6 +88,44 @@ async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promis
   return readCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::gpt-5', configBlob })
 }
 
+describe('per-model API key binding in direct CLI config', () => {
+  const keyA: ApiKeyEntry = { id: 'ka', key: 'sk-first', isEnabled: true }
+  const keyB: ApiKeyEntry = { id: 'kb', key: 'sk-bound', isEnabled: true }
+  const draftWith = (keys: ApiKeyEntry[], apiKeyId: string | null) => {
+    mockGet({
+      '/providers/deepseek/api-keys': () => ({ keys }),
+      '/providers/deepseek': () => chatProvider,
+      '/models/': () => ({ id: 'deepseek::deepseek-chat', apiModelId: 'deepseek-chat', apiKeyId })
+    })
+    return readCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat', configBlob: {} })
+  }
+  const writtenKey = (files: CliConfigFileDraft[]) =>
+    JSON.parse(files[0].content).provider['cherry-DeepSeek'].options.apiKey
+
+  it('writes the enabled key the model is bound to', async () => {
+    expect(writtenKey(await draftWith([keyA, keyB], 'kb'))).toBe('sk-bound')
+  })
+
+  it('falls back to the first enabled key for a missing or disabled binding', async () => {
+    expect(writtenKey(await draftWith([keyA, { ...keyB, isEnabled: false }], 'kb'))).toBe('sk-first')
+    expect(writtenKey(await draftWith([keyA, keyB], 'gone'))).toBe('sk-first')
+  })
+
+  it('aborts instead of picking the first enabled key when the model read fails', async () => {
+    mockGet({
+      '/providers/deepseek/api-keys': () => ({ keys: [keyA, keyB] }),
+      '/providers/deepseek': () => chatProvider,
+      '/models/': () => {
+        throw new Error('ipc down')
+      }
+    })
+
+    await expect(
+      readCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat', configBlob: {} })
+    ).rejects.toThrow('Failed to load model deepseek::deepseek-chat for credential selection')
+  })
+})
+
 describe('formatCliConfigDraftFile', () => {
   it('pretty-prints JSON drafts (2-space indent, trailing newline)', () => {
     const file: CliConfigFileDraft = {

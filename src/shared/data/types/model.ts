@@ -450,7 +450,13 @@ export const ModelSchema = z.object({
 
   // UI metadata
   /** User notes about this model */
-  notes: z.string().optional()
+  notes: z.string().optional(),
+
+  /**
+   * Provider API-key entry id to use for this model. When unset, the provider's
+   * automatic key selection applies.
+   */
+  apiKeyId: z.string().nullable().optional()
 })
 
 export type Model = z.infer<typeof ModelSchema>
