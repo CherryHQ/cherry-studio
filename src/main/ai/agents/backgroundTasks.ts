@@ -1431,18 +1431,26 @@ async function killMarkerSurvivors(
   record: BackgroundTaskRecord
 ): Promise<'clear' | 'survivors' | 'unknown'> {
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  // A capture that could not read the table leaves this sweep unable to certify a termination,
+  // even after the holders it did see are gone.
+  let captureUnresolved = false
   while (true) {
     const read = readMarkerProcesses(record.id, record.pid)
     if (read.status === 'unknown') return 'unknown'
     if (read.holders.length === 0) {
       // About to certify that nothing is left: the sweep is only conclusive if the environment
       // channel can rule out a row of the task's shape.
-      const unresolved = hasUnreadableEnvironmentCandidate(
-        readCandidateTable,
-        await markerReadContext(storageDir, record)
-      )
+      const unresolved =
+        captureUnresolved ||
+        hasUnreadableEnvironmentCandidate(readCandidateTable, await markerReadContext(storageDir, record))
       return unresolved ? 'unknown' : 'clear'
     }
+    // A holder absent from the ledger can still have forked a child that dropped the marker and
+    // left the group while this app was closed: only the parent chain names it, and the signal
+    // below destroys that chain. Record the holders first, then walk their descendants, so the
+    // child is swept by pid and stamp however the signal ends.
+    await recordObservedMembers(storageDir, record.id, read.holders)
+    if ((await captureSurvivorDescendants(storageDir, record.id)) === 'unverified') captureUnresolved = true
     for (const holder of read.holders) {
       // The pid is only a number: the OS may have handed it to someone else since the read.
       if (getPidStartTime(holder.pid) !== holder.lstart) continue

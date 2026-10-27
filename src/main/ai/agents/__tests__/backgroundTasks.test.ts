@@ -661,6 +661,69 @@ describe('backgroundTasks', () => {
     )
 
     it.skipIf(process.platform === 'win32' || !python3Available)(
+      'captures a vanished holder’s detached child before the marker sweep kills it',
+      async () => {
+        // The daemon keeps the marker but is in no ledger (it was forked after the last evidence
+        // write), and its child drops the environment and leaves the group. Only the parent chain
+        // names the child, so a sweep that kills the holder first erases the evidence and then
+        // certifies a stop while the child keeps working.
+        const childPidFile = path.join(storageDir, 'escaped-child.pid')
+        const daemonScript = path.join(storageDir, 'daemon.py')
+        await writeFile(
+          daemonScript,
+          [
+            'import os, subprocess, sys, time',
+            'os.setsid()',
+            'child = subprocess.Popen(',
+            "    [sys.executable, '-c', 'import time; time.sleep(60)'],",
+            '    start_new_session=True,',
+            '    close_fds=True,',
+            '    env={}',
+            ')',
+            "open(sys.argv[1], 'w').write(str(child.pid))",
+            'time.sleep(60)'
+          ].join('\n') + '\n'
+        )
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `python3 "${daemonScript}" "${childPidFile}" &`,
+          cwd: storageDir
+        })
+        let childPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              childPid = Number((await readFile(childPidFile, 'utf8')).trim())
+              expect(childPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          // The holder is absent from the evidence, and a restart forgets every in-memory entry:
+          // the sweep has nothing but the live marker to start from.
+          await rm(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), { force: true })
+          forgetDetachedTaskOwnershipForTest(record.id)
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+          expect(isPidAlive(childPid)).toBe(true)
+
+          const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(stopped?.status).toBe('stopped')
+          await vi.waitFor(() => expect(isPidAlive(childPid)).toBe(false), { timeout: 10_000 })
+        } finally {
+          try {
+            if (childPid > 0) process.kill(childPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32' || !python3Available)(
       'keeps a worker that closed the liveness pipes holding its task open',
       async () => {
         // Popen's default close_fds=True drops the inherited pipes, and start_new_session leaves the
