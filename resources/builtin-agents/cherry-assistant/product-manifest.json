@@ -70,6 +70,7 @@
       "/settings/data",
       "/settings/dependencies",
       "/settings/device-connections",
+      "/settings/downloads",
       "/settings/file-processing",
       "/settings/general",
       "/settings/local-models",

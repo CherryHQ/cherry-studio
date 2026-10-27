@@ -8,6 +8,8 @@ import { pathToFileURL } from 'node:url'
 import { createMockApplication } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { browserRequestMethods } from '@main/services/download/requestMethods'
+
 // Hoisted state lets individual tests mutate platform flags / preferences without
 // re-mocking modules. The mock factories below read these via getters, preserving
 // live-binding semantics so each test sees the current value.
@@ -34,7 +36,9 @@ const {
     setPermissionRequestHandler: vi.fn(),
     setUserAgent: vi.fn(),
     webRequest: {
-      onBeforeRequest: vi.fn()
+      onBeforeRequest: vi.fn(),
+      onCompleted: vi.fn(),
+      onErrorOccurred: vi.fn()
     }
   })
   const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
@@ -334,6 +338,11 @@ describe('MainWindowService', () => {
     previewSessionMock.setPermissionRequestHandler.mockClear()
     previewSessionMock.setUserAgent.mockClear()
     previewSessionMock.webRequest.onBeforeRequest.mockClear()
+    previewSessionMock.webRequest.onCompleted.mockClear()
+    previewSessionMock.webRequest.onErrorOccurred.mockClear()
+    agentBrowserSessionMock.webRequest.onBeforeRequest.mockClear()
+    agentBrowserSessionMock.webRequest.onCompleted.mockClear()
+    agentBrowserSessionMock.webRequest.onErrorOccurred.mockClear()
     for (const restrictedSession of [agentDevSessionMock, agentArtifactSessionMock]) {
       restrictedSession.getUserAgent.mockClear()
       restrictedSession.on.mockClear()
@@ -342,6 +351,8 @@ describe('MainWindowService', () => {
       restrictedSession.setPermissionRequestHandler.mockClear()
       restrictedSession.setUserAgent.mockClear()
       restrictedSession.webRequest.onBeforeRequest.mockClear()
+      restrictedSession.webRequest.onCompleted.mockClear()
+      restrictedSession.webRequest.onErrorOccurred.mockClear()
     }
     sessionFromPartitionMock.mockClear()
 
@@ -849,6 +860,65 @@ describe('MainWindowService', () => {
       await expect(dispatch('blob:https://example.com/fixture', 'image')).resolves.toEqual({ cancel: false })
       expect(agentBrowserSessionMock.setPermissionCheckHandler.mock.calls[0][0]()).toBe(false)
       expect(agentBrowserSessionMock.on.mock.calls.some(([event]) => event === 'will-download')).toBe(false)
+    })
+
+    it('records request methods for the download takeover while enforcing the policy', async () => {
+      await (svc as any).onInit()
+      const handler = agentBrowserSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]
+      if (!handler) throw new Error('Agent browser request handler was not registered')
+
+      const callback = vi.fn()
+      handler({ url: 'https://example.com/export', resourceType: 'mainFrame', method: 'POST' }, callback)
+
+      expect(callback).toHaveBeenCalledWith({ cancel: false })
+      expect(
+        browserRequestMethods.methodFor(
+          'https://example.com/export',
+          getWebviewPartition(WebviewSecurityProfile.AgentBrowser)
+        )
+      ).toBe('POST')
+    })
+
+    it('stops tracking an outstanding request once Chromium reports its outcome', async () => {
+      await (svc as any).onInit()
+      const requestHandler = agentBrowserSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]
+      const completedHandler = agentBrowserSessionMock.webRequest.onCompleted.mock.calls[0]?.[1]
+      const failedHandler = agentBrowserSessionMock.webRequest.onErrorOccurred.mock.calls[0]?.[1]
+      if (!requestHandler || !completedHandler || !failedHandler) {
+        throw new Error('Request lifecycle handlers were not registered')
+      }
+
+      const finish = vi.spyOn(browserRequestMethods, 'finish')
+      const record = vi.spyOn(browserRequestMethods, 'record')
+      const partition = getWebviewPartition(WebviewSecurityProfile.AgentBrowser)
+      try {
+        requestHandler(
+          {
+            url: 'https://example.com/export',
+            resourceType: 'mainFrame',
+            method: 'POST',
+            id: 1,
+            referrer: 'https://example.com/inbox'
+          },
+          vi.fn()
+        )
+        expect(record).toHaveBeenCalledWith(
+          'https://example.com/export',
+          'POST',
+          1,
+          partition,
+          'https://example.com/inbox'
+        )
+
+        completedHandler({ id: 1, url: 'https://example.com/export' })
+        expect(finish).toHaveBeenCalledWith(1, partition)
+
+        failedHandler({ id: 2, url: 'https://example.com/export', error: 'net::ERR_ABORTED' })
+        expect(finish).toHaveBeenCalledWith(2, partition)
+      } finally {
+        finish.mockRestore()
+        record.mockRestore()
+      }
     })
 
     it('enforces the bound dev origin for programmatic main-frame loads', async () => {

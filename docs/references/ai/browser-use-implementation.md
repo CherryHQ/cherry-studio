@@ -176,6 +176,7 @@ is the planned tool surface, with C-only tools and deferred uploads delivered se
 | `find` | `{ role?: string, name?: string, tabId?, privateMode? }` | PR3: at least one exact AX filter; up to 100 refs including offscreen elements; does not change the diff baseline |
 | `console_messages` | `{ tabId?, privateMode?, level?: 'error'\|'warning'\|'all', clear?: boolean }` | PR3: 200 recent entries per managed tab; clear removes matching levels after reading |
 | `network_requests` | `{ tabId?, privateMode?, clear?: boolean }` | PR3: 200 recent request/redirect entries per managed tab: method, URL, status, type, completion/failure; clear after reading |
+| `list_downloads` | `{ taskId?: string, limit?: number }` | Downloads started by the browser or the agent: state, bytes, live bytes/second, ETA; `limit` defaults to 20 |
 | `list_web_tools` | `{ tabId?, privateMode? }` | C3: capability (`cdp` / `unsupported`) and bounded descriptors with document-bound `toolId` |
 | `call_web_tool` | `{ toolId: string, args: Record<string, unknown>, tabId?, privateMode? }` | C3: use an ID returned by listing; reject stale IDs rather than resolve a name in a later document |
 | `mark_tab` | `{ tabId, retention: TabRetention, privateMode? }` | |

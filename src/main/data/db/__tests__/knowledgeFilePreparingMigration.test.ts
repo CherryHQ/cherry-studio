@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
@@ -24,6 +25,19 @@ describe('knowledge file preparing migrate-forward', () => {
       entries: Array<{ tag: string; when: number }>
     }
     const migration = journal.entries.find((entry) => entry.tag === '0028_slow_ravenous')!
+    // Replay only through the migration under test. Later migrations may add
+    // tables that the harness already created, and additive CREATE TABLE
+    // statements are not replay-safe.
+    const replayFolder = mkdtempSync(join(tmpdir(), 'migrate-0028-'))
+    const replayEntries = journal.entries.filter((entry) => entry.when <= migration.when)
+    cpSync(resolve(migrationsFolder, 'meta'), resolve(replayFolder, 'meta'), { recursive: true })
+    writeFileSync(
+      resolve(replayFolder, 'meta/_journal.json'),
+      JSON.stringify({ ...journal, entries: replayEntries }, null, 2)
+    )
+    for (const entry of replayEntries) {
+      cpSync(resolve(migrationsFolder, `${entry.tag}.sql`), resolve(replayFolder, `${entry.tag}.sql`))
+    }
     dbh.db
       .insert(knowledgeBaseTable)
       .values({ id: BASE_ID, name: 'KB', orderKey: 'a0', status: 'completed', chunkSize: 1024, chunkOverlap: 200 })
@@ -54,7 +68,11 @@ describe('knowledge file preparing migrate-forward', () => {
     const before = readItems()
 
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
-    applyMigrations(dbh.db, migrationsFolder)
+    try {
+      applyMigrations(dbh.db, replayFolder)
+    } finally {
+      rmSync(replayFolder, { recursive: true, force: true })
+    }
 
     expect(readItems()).toEqual(before)
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
