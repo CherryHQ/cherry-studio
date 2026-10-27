@@ -38162,6 +38162,7 @@
       "providerId": "qwencloud"
     },
     {
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "kimi-k3",
       "parameterSupport": {
         "temperature": {

@@ -356,7 +356,10 @@ export default defineProvider({
     {
       modelId: 'kimi-k3',
       // Same passthrough as dashscope: the intl endpoint forwards to Moonshot's backend too.
+      // Responses stays selectable because Kimi K3's native web search is documented
+      // Responses-only ("supported only by the Responses API" in the web-search table).
       parameterSupport: fixedSamplingParameterSupport,
+      endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { support: kimiK3Support, wire: effortChatWire }
       }

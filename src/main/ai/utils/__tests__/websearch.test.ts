@@ -284,8 +284,10 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
       'deepseek-v4-pro-0813',
       'deepseek-v4-flash',
       'deepseek-v4-flash-0731',
+      'deepseek-v4.1-flash',
       'glm-5.2',
-      'glm-5-2'
+      'glm-5-2',
+      'kimi-k3'
     ])('attaches the bare tool for %s', (id) => {
       expect(
         buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, qwencloud(id), preset('qwencloud'))
