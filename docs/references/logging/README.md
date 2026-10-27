@@ -5,6 +5,7 @@ sources:
   - src/main/core/logger/logFailure.ts
   - src/main/data/failureFacts.ts
   - src/main/services/file/failureFacts.ts
+  - src/main/services/file/FileEditService.ts
   - src/main/services/remoteStorage/failureFacts.ts
   - src/renderer/services/LoggerService.ts
   - src/main/services/errorReporting/sentry.ts
@@ -104,7 +105,13 @@ preboot migration log the same facts, but cannot report before consent is ready.
 File IPC classifies at its domain boundary. Missing or unwritable user-selected
 paths stay local; missing managed files and metadata failures after a content
 commit remain eligible. Metadata lookups still return null on failure, while
-unexpected faults are recorded. Word export uses the external-path policy.
+unexpected faults are recorded. File editing classifies normalized `FILE_EDIT_*`
+codes in `FileEditService`, where each lease retains whether its target is an
+external file or managed storage. This includes external library entries and
+read/write requests carrying only an `editId`; IPC propagates reporting ownership.
+Missing, permission-denied and full-disk external targets stay local, while the
+same managed-storage failures and generic editing I/O failures remain eligible.
+Word export uses the external-path policy.
 Backup/restore retain snapshot and integrity failures; busy writers and
 unsupported backup versions stay local. WebDAV/S3 classify at their SDK
 boundaries so authentication, remote availability and network failures do not
@@ -118,12 +125,27 @@ These helpers do not resolve lifecycle services or depend on Sentry.
 
 Unmigrated error logs with stacks retain compatibility capture. In the main
 process, each unknown/legacy signature gets at most one event per ten minutes;
-other signatures get at most five. A process-wide cap of fifty events per ten
-minutes and a bounded 256-entry LRU prevent unbounded noise/state. Signatures
-use module, operation, failure classification and stack frames, never session
-IDs or error messages. Stopping the service releases this state and the logger
-observer; restarting attaches one observer. Sentry SDK listeners remain
-installed, but the stopped service blocks their outbound events too.
+other signatures get at most five. Two independent hourly budgets each admit at
+most ten events: one for critical stability failures and one for other eligible
+unexpected failures. Critical events are fatal or unhandled exceptions, renderer
+process exits, React render failures, and failures at the database/migration
+startup boundaries (`database.open`, `database.migrate`, `migration.open`,
+`migration.check`). Consent, expected-failure filtering and capture ownership
+apply before either budget; ordinary errors cannot consume the critical reserve.
+The conservative ten-plus-ten limits bound a running application's volume while
+preserving capacity to diagnose a crash after an unrelated error burst. All
+windows share the budgets at the main-process boundary.
+
+A bounded 256-entry LRU tracks signatures using budget class, module, operation,
+failure classification and stack frames, never session IDs or error messages.
+Stopping the service releases its counters, signatures and logger observer;
+restarting attaches one observer. Sentry SDK listeners remain installed, but
+the stopped service blocks their outbound events too.
+
+These in-memory limits reset on restart and do not enforce the Sentry project's
+aggregate quota across installations. Project-wide control requires server-side
+quota/rate limits and sampling adjusted to actual volume; it is not provided by
+these client counters.
 
 Reports allow only module/window/process, operation, string error code, failure
 facts and React component stack from log context. Arbitrary business context is

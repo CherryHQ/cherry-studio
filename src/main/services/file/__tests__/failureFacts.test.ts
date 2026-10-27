@@ -7,14 +7,20 @@ import { shouldReportFailure } from '@shared/utils/errorReporting'
 import { classifyFileFailure } from '../failureFacts'
 
 describe('file failure classification', () => {
-  it.each(['ENOENT', 'EACCES', 'EPERM', 'ENOSPC', 'EROFS'])(
-    'keeps %s local for an external path, but reports managed storage failures',
-    (code) => {
-      const error = Object.assign(new Error('private path'), { code })
-      expect(shouldReportFailure(classifyFileFailure(error, true))).toBe(false)
-      expect(shouldReportFailure(classifyFileFailure(error))).toBe(true)
-    }
-  )
+  it.each([
+    'ENOENT',
+    'EACCES',
+    'EPERM',
+    'ENOSPC',
+    'EROFS',
+    fileErrorCodes.EDIT_MISSING,
+    fileErrorCodes.EDIT_PERMISSION,
+    fileErrorCodes.EDIT_NO_SPACE
+  ])('keeps %s local for an external path, but reports managed storage failures', (code) => {
+    const error = Object.assign(new Error('private path'), { code })
+    expect(shouldReportFailure(classifyFileFailure(error, true))).toBe(false)
+    expect(shouldReportFailure(classifyFileFailure(error))).toBe(true)
+  })
 
   it('reports metadata loss after content commit even for external file operations', () => {
     const error = new IpcError(fileErrorCodes.COMMITTED_METADATA_PENDING, 'private entry')
@@ -24,6 +30,11 @@ describe('file failure classification', () => {
 
   it.each([
     fileErrorCodes.STALE_VERSION,
+    fileErrorCodes.EDIT_TARGET_CHANGED,
+    fileErrorCodes.EDIT_LEASE_CLOSED,
+    fileErrorCodes.EDIT_UNSUPPORTED,
+    fileErrorCodes.EDIT_READ_UNSTABLE,
+    fileErrorCodes.EDIT_LIMIT,
     fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE,
     fileErrorCodes.DIRECTORY_TREE_STOPPED
   ])('keeps explicit user conflicts and lifecycle conditions local: %s', (code) => {
@@ -31,6 +42,7 @@ describe('file failure classification', () => {
   })
 
   it('retains defects and unknown errors instead of guessing from their messages', () => {
+    expect(shouldReportFailure(classifyFileFailure(new IpcError(fileErrorCodes.EDIT_IO), true))).toBe(true)
     expect(classifyFileFailure(new TypeError('permission denied'), true).kind).toBe('defect')
     expect(shouldReportFailure(classifyFileFailure(new Error('not found'), true))).toBe(true)
     expect(shouldReportFailure(classifyFileFailure(Object.assign(new Error('disk'), { code: 'EIO' }), true))).toBe(true)

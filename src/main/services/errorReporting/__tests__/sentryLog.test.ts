@@ -1,17 +1,28 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { Writable } from 'node:stream'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
 
+import { application } from '@application'
 import { PersistenceListener, TerminalPersistenceError } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { BaseService } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
 import { ApiServer } from '@main/data/api/core/ApiServer'
 import { messageTable } from '@main/data/db/schemas/message'
 import { classifyDatabaseFailure } from '@main/data/failureFacts'
+import { fileHandlers } from '@main/ipc/handlers/file'
+import { FileEditService, FileManager } from '@main/services/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { FileHandle } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcChannel } from '@shared/IpcChannel'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 const { captureExceptionMock, captureEventMock, preferences, tmpLogsDir } = vi.hoisted(() => {
@@ -381,5 +392,90 @@ describe('Sentry log reporting', () => {
     logger.error('Failed', new Error('second'))
     await drainLogs()
     expect(captureExceptionMock.mock.calls.map(([error]) => error.message)).toEqual(['first', 'second'])
+  })
+})
+
+describe('file editing reporting through IPC', () => {
+  setupTestDatabase()
+  let root: string
+  let files: FileManager
+  let editing: FileEditService
+  const context = { senderId: 'editing-window' }
+
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), 'file-reporting-'))
+    await mkdir(path.join(root, 'managed'))
+    vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      const base = key === 'feature.files.data' ? path.join(root, 'managed') : root
+      return filename ? path.join(base, filename) : base
+    })
+    vi.mocked(application.get('WindowManager').getWindow).mockReturnValue({
+      webContents: { id: 1 }
+    } as Electron.BrowserWindow)
+    files = new FileManager()
+    editing = new FileEditService()
+    MockApplicationUtils.setService('FileManager', files)
+    MockApplicationUtils.setService('FileEditService', editing)
+    await editing._doInit()
+    setConsent(true)
+  })
+
+  afterEach(async () => {
+    await editing._doDestroy()
+    MockApplicationUtils.resetServices()
+    vi.restoreAllMocks()
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it.each([
+    { origin: 'path', operation: 'open' },
+    { origin: 'path', operation: 'read' },
+    { origin: 'path', operation: 'write' },
+    { origin: 'external', operation: 'open' },
+    { origin: 'external', operation: 'read' },
+    { origin: 'external', operation: 'write' },
+    { origin: 'internal', operation: 'open' },
+    { origin: 'internal', operation: 'read' },
+    { origin: 'internal', operation: 'write' }
+  ])('preserves $origin provenance when a missing file fails $operation', async ({ origin, operation }) => {
+    let target = AbsoluteFilePathSchema.parse(path.join(root, 'note.md'))
+    await writeFile(target, 'base')
+    let handle: FileHandle = { kind: 'path', path: target }
+    if (origin !== 'path') {
+      const entry =
+        origin === 'external'
+          ? await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+          : await files.createInternalEntry({
+              source: 'bytes',
+              data: new TextEncoder().encode('base'),
+              name: 'note',
+              ext: 'md',
+              cleanupPolicy: 'manual'
+            })
+      handle = { kind: 'entry', entryId: entry.id }
+      target = files.getPhysicalPath(entry.id)
+    }
+    const resource = operation === 'open' ? undefined : await fileHandlers['file.edit.open']({ handle }, context)
+    const snapshot = resource ? await fileHandlers['file.edit.read'](resource, context) : undefined
+    await rm(target)
+    const result =
+      operation === 'open'
+        ? fileHandlers['file.edit.open']({ handle }, context)
+        : operation === 'read'
+          ? fileHandlers['file.edit.read'](resource!, context)
+          : fileHandlers['file.edit.write'](
+              { editId: resource!.editId, expected: snapshot!.baseline, data: new TextEncoder().encode('new') },
+              context
+            )
+    await expect(result).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MISSING, reportingHandled: true })
+    await drainLogs()
+    expect(captureExceptionMock.mock.calls).toHaveLength(origin === 'internal' ? 1 : 0)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    if (origin === 'internal') {
+      const [reported, sentryContext] = captureExceptionMock.mock.calls[0]
+      expect(reported.message).toBe('file_edit_missing')
+      expect(sentryContext.tags['failure.kind']).toBe('reliability')
+      expect(JSON.stringify(sentryContext)).not.toContain(target)
+    }
   })
 })

@@ -15,6 +15,11 @@ export function classifyFileFailure(error: unknown, externalPath = false): Failu
     (
       [
         fileErrorCodes.STALE_VERSION,
+        fileErrorCodes.EDIT_TARGET_CHANGED,
+        fileErrorCodes.EDIT_LEASE_CLOSED,
+        fileErrorCodes.EDIT_UNSUPPORTED,
+        fileErrorCodes.EDIT_READ_UNSTABLE,
+        fileErrorCodes.EDIT_LIMIT,
         fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE,
         fileErrorCodes.OPEN_TARGET_UNAVAILABLE,
         fileErrorCodes.DIRECTORY_TREE_STOPPED
@@ -25,11 +30,25 @@ export function classifyFileFailure(error: unknown, externalPath = false): Failu
   }
   if (
     typeof code === 'string' &&
-    ['ENOENT', 'EACCES', 'EPERM', 'EEXIST', 'ENOTDIR', 'EISDIR', 'ENOSPC', 'EROFS', 'EIO'].includes(code)
+    [
+      'ENOENT',
+      'EACCES',
+      'EPERM',
+      'EEXIST',
+      'ENOTDIR',
+      'EISDIR',
+      'ENOSPC',
+      'EROFS',
+      'EIO',
+      fileErrorCodes.EDIT_MISSING,
+      fileErrorCodes.EDIT_PERMISSION,
+      fileErrorCodes.EDIT_NO_SPACE,
+      fileErrorCodes.EDIT_IO
+    ].includes(code)
   ) {
     return {
       source: 'environment',
-      kind: externalPath && code !== 'EIO' ? 'expected' : 'reliability',
+      kind: externalPath && code !== 'EIO' && code !== fileErrorCodes.EDIT_IO ? 'expected' : 'reliability',
       reason: code.toLowerCase(),
       outcome: 'failed'
     }

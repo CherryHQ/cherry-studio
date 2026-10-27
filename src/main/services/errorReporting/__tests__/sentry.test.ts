@@ -181,6 +181,64 @@ describe('Sentry consent gate', () => {
     }
   })
 
+  it.each([
+    {
+      tags: {
+        operation: 'window.renderer.exit',
+        'failure.source': 'application',
+        'failure.kind': 'reliability',
+        'failure.reason': 'crashed',
+        'failure.outcome': 'failed'
+      }
+    },
+    { tags: { operation: 'react.render' } },
+    { level: 'fatal' },
+    { exception: { values: [{ type: 'Error', mechanism: { type: 'onuncaughtexception', handled: false } }] } }
+  ])('reserves critical capacity after ordinary reports exhaust their budget: %j', (critical) => {
+    grantConsent()
+    const options = initOptions()
+    const ordinary = Array.from({ length: 50 }, (_, i) => options.beforeSend({ tags: { module: `ordinary${i}` } }))
+    expect(options.beforeSend(critical)).not.toBeNull()
+    expect(ordinary.filter(Boolean)).toHaveLength(10)
+    for (let i = 1; i < 10; i++) {
+      expect(
+        options.beforeSend({
+          ...critical,
+          tags: { ...('tags' in critical ? critical.tags : {}), module: `critical${i}` }
+        })
+      ).not.toBeNull()
+    }
+    expect(
+      options.beforeSend({
+        ...critical,
+        tags: { ...('tags' in critical ? critical.tags : {}), module: 'critical-overflow' }
+      })
+    ).toBeNull()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60 * 1000 + 1)
+    try {
+      expect(options.beforeSend({ tags: { module: 'ordinary-after-ten-minutes' } })).toBeNull()
+      now.mockReturnValue(Date.now() + 50 * 60 * 1000)
+      expect(options.beforeSend({ tags: { module: 'ordinary-after-one-hour' } })).not.toBeNull()
+      expect(options.beforeSend(critical)).not.toBeNull()
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('keeps ordinary capacity independent and resets both budgets on service restart', async () => {
+    grantConsent()
+    const options = initOptions()
+    for (let i = 0; i < 10; i++) {
+      expect(options.beforeSend({ level: 'fatal', tags: { module: `critical${i}` } })).not.toBeNull()
+    }
+    expect(options.beforeSend({ level: 'fatal', tags: { module: 'critical-overflow' } })).toBeNull()
+    expect(options.beforeSend({ tags: { module: 'ordinary' } })).not.toBeNull()
+    await reporting._doStop()
+    await reporting._doInit()
+    expect(options.beforeSend({ level: 'fatal', tags: { module: 'critical0' } })).not.toBeNull()
+    expect(options.beforeSend({ tags: { module: 'ordinary' } })).not.toBeNull()
+  })
+
   it('does not initialize in development even with reporting consent', () => {
     vi.stubEnv('DEV', true)
     grantConsent()

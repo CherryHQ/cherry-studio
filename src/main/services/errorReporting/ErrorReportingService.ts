@@ -12,6 +12,16 @@ import { hasReportingOwner, isCancellation, parseFailureFacts, shouldReportFailu
 import { captureLoggedError } from './sentry'
 
 const WINDOW_MS = 10 * 60 * 1000
+const BUDGET_WINDOW_MS = 60 * 60 * 1000
+const EVENTS_PER_BUDGET = 10
+const CRITICAL_OPERATIONS = new Set([
+  'window.renderer.exit',
+  'react.render',
+  'database.open',
+  'database.migrate',
+  'migration.open',
+  'migration.check'
+])
 const logger = loggerService.withContext('ErrorReportingService')
 
 @Injectable('ErrorReportingService')
@@ -20,7 +30,10 @@ const logger = loggerService.withContext('ErrorReportingService')
 export class ErrorReportingService extends BaseService {
   private observed = new WeakSet<Error>()
   private readonly buckets = new LRUCache<string, { count: number; expires: number }>({ max: 256 })
-  private total = { count: 0, expires: 0 }
+  private totals = {
+    critical: { count: 0, expires: 0 },
+    unexpected: { count: 0, expires: 0 }
+  }
 
   get enabled(): boolean {
     const preferences = application.getExisting('PreferenceService')
@@ -52,7 +65,10 @@ export class ErrorReportingService extends BaseService {
     this.registerDisposable(() => {
       this.observed = new WeakSet()
       this.buckets.clear()
-      this.total = { count: 0, expires: 0 }
+      this.totals = {
+        critical: { count: 0, expires: 0 },
+        unexpected: { count: 0, expires: 0 }
+      }
     })
   }
 
@@ -77,9 +93,15 @@ export class ErrorReportingService extends BaseService {
     })
     if (facts && !shouldReportFailure(facts)) return null
     const unknown = !facts || facts.kind === 'unknown'
+    const critical =
+      event.level === 'fatal' ||
+      CRITICAL_OPERATIONS.has(String(tags.operation)) ||
+      event.exception?.values?.some((value) => value.mechanism?.handled === false)
+    const budget = critical ? 'critical' : 'unexpected'
     const key = createHash('sha256')
       .update(
         JSON.stringify([
+          budget,
           tags.module,
           tags.operation,
           facts?.source,
@@ -90,12 +112,15 @@ export class ErrorReportingService extends BaseService {
       )
       .digest('hex')
     const now = Date.now()
-    if (this.total.expires <= now) this.total = { count: 0, expires: now + WINDOW_MS }
+    if (this.totals[budget].expires <= now) {
+      this.totals[budget] = { count: 0, expires: now + BUDGET_WINDOW_MS }
+    }
+    const total = this.totals[budget]
     const previous = this.buckets.get(key)
     const bucket = previous && previous.expires > now ? previous : { count: 0, expires: now + WINDOW_MS }
-    if (this.total.count >= 50 || bucket.count >= (unknown ? 1 : 5)) return null
+    if (total.count >= EVENTS_PER_BUDGET || bucket.count >= (unknown ? 1 : 5)) return null
     bucket.count++
-    this.total.count++
+    total.count++
     this.buckets.set(key, bucket)
     event.event_id ??= randomUUID().replaceAll('-', '')
     logger.info('Error report accepted for delivery', {
