@@ -7,7 +7,7 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { closeExternalText, openExternalText } from '../../../../scripts/e2e/regression/systemAutomation'
-import { createAgent, selectAgentWorkspace, startNewAgentTask } from '../helpers/agents'
+import { createAgent, openAgentPane, selectAgentWorkspace, startNewAgentTask } from '../helpers/agents'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
@@ -66,7 +66,7 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
     return messages.last()
   }
   const preview = page.getByTestId('artifact-file-preview-overlay')
-  await view.getByRole('button', { name: 'Files', exact: true }).click()
+  await openAgentPane(page, 'Files')
   await expect(page.getByTestId('artifact-pane-header')).toBeVisible()
   await expect(
     page.getByText("Couldn't load workspace files", { exact: true }).or(page.getByRole('treeitem').first())
@@ -88,7 +88,7 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
       .then((lines) => lines.join('\n'))
   await expect.poll(previewText).toBe(original)
   await screenshot('MP-52 original file preview')
-  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await page.getByTestId('artifact-pane-header').getByRole('button', { name: 'Back', exact: true }).click()
 
   const edited = await send(
     'Edit only code/sample.py using the Edit tool: rename add to add_numbers and add exactly one comment line "# Add two numbers." before the function. Preserve all other bytes, including the final newline. Do not create or modify any other files. Reply MP52_EDIT_DONE.'

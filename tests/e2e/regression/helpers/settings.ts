@@ -33,6 +33,7 @@ export async function openSettingsSection(page: Page, section: string): Promise<
 
 export async function closeSettings(page: Page): Promise<void> {
   await closeOpenSettingsDrawer(page)
-  await page.getByRole('button', { name: 'Back', exact: true }).first().click()
+  await page.locator('[data-ui~="app.tab-bar"]').getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(page.locator('[data-ui~="settings.view"]:visible')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Chat', exact: true }).first()).toBeVisible()
 }

@@ -111,11 +111,14 @@ A passing implemented flow does not cover capabilities absent from the current p
 
 | Case | Implemented checks | Uncovered capability |
 | --- | --- | --- |
+| MP-18 | Message queue, hover card, attachment preview, copy source, MCP inline images, URL fallback and Chinese title search | A direct Delete action in the sent-image menu; public tool-result image URL previews; pinyin-initial search |
+| MP-19 | Markdown, DOCX, video, empty PPTX error, pasted-text preview and clipboard round trip | Rendering a nonempty PPTX; external-app fallback; a Quote selection button in plain-text previews |
 | MP-57 | Memory setting persistence and retained snapshots | Memory file-path display; runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
 | MP-69 | File categories, counts and clearing filters | Filename search and result highlighting |
 | MP-72 | Blocked; no executable reference flow | Referencing an existing library file from the composer |
 | MP-74 | Draft persistence and external-edit conflict handling | An explicit Saved status indicator |
 | MP-82 | Document import, size limit, translation and Notes export control | Source character counter, Markdown save-as and translated-file naming |
 | MP-90 | Preview zoom, pan, rotation and saving the original image | Image upscaling or enhancement |
+| MP-107 | Shortcut configuration, paste-as-file, delete confirmation and settings persistence | Live token counting in the draft composer |
 | MP-115 | Backup archive creation and backup-manager visibility | Native notification delivery |
 | MP-150 | Files RTF formatting, encoding, validation, preview switching, links and restart; Chat attachment transport | Ordinary Chat RTF side panel, a 360px side panel, and Shift-JIS/Big5 fixtures |

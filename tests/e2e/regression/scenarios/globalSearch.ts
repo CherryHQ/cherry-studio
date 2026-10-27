@@ -229,8 +229,13 @@ export async function globalSearch(_app: RegressionApp, page: Page, testInfo: Te
       async ({ assistantId, knowledgeId, agentId, providerId, originalShortcut }) => {
         await window.api.preference.set('shortcut.app.search', originalShortcut)
         if (knowledgeId) await window.api.ipcApi.request('knowledge.delete_base', { baseId: knowledgeId })
-        if (agentId)
-          await window.api.ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true, permanent: true })
+        if (agentId) {
+          const deletedAgent = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
+            agentId,
+            deleteSessions: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!deletedAgent.ok || !deletedAgent.data.deleted) throw new Error('cleanup left the case agent active')
+        }
         if (assistantId) {
           const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
             assistantId,

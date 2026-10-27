@@ -35,6 +35,7 @@ export async function startChatEfficiencyServer() {
           toolCalls++
           return {
             content: [
+              { type: 'image', data: efficiencyImage.toString('base64'), mimeType: 'image/png' },
               { type: 'resource_link', name: 'MP-18 image', uri: `${origin}/image.png`, mimeType: 'image/png' },
               { type: 'resource_link', name: 'MP-18 image details', uri: `${origin}/details`, mimeType: 'text/html' }
             ]
@@ -49,8 +50,11 @@ export async function startChatEfficiencyServer() {
       const chunks: Buffer[] = []
       for await (const chunk of req) chunks.push(Buffer.from(chunk))
       const body = JSON.parse(Buffer.concat(chunks).toString())
-      const lastUser = body.messages.findLastIndex((message: { role: string }) => message.role === 'user')
-      if (!JSON.stringify(body.messages[lastUser]).includes('MP18_IMAGE_URL')) {
+      const lastUser = body.messages.findLastIndex(
+        (message: { role: string; content: unknown }) =>
+          message.role === 'user' && JSON.stringify(message.content).includes('MP18_IMAGE_URL')
+      )
+      if (lastUser < 0) {
         const response = await fetch(`${chat.baseUrl}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

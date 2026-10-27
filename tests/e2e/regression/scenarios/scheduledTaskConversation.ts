@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import type { AgentEntity, ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -232,8 +233,13 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
           if (sessionIds.length)
             await window.api.ipcApi.request('ai.agent.session.delete', { sessionIds, permanent: true })
         }
-        if (agentId)
-          await window.api.ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true, permanent: true })
+        if (agentId) {
+          const deletedAgent = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
+            agentId,
+            deleteSessions: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!deletedAgent.ok || !deletedAgent.data.deleted) throw new Error('cleanup left the case agent active')
+        }
       },
       { agentId, name, sessionsBefore }
     )

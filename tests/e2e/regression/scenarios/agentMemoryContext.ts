@@ -8,7 +8,7 @@ import { createFilePathHandle } from '@shared/utils/file'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { startNewAgentTask } from '../helpers/agents'
+import { openAgentPane, startNewAgentTask } from '../helpers/agents'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
@@ -123,7 +123,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
       '我的项目叫什么？只回答项目名。如果没有记忆则只回答 UNKNOWN。不要使用工具或搜索历史会话。'
     )
     await expect(recall).toHaveText('QA-DEMO')
-    await view.getByRole('button', { name: 'Status', exact: true }).click()
+    await openAgentPane(page, 'Status')
     const category = page.getByText('Memory files', { exact: true })
     await expect.soft(category, 'Context panel must classify memory file token usage').toBeVisible({ timeout: 3_000 })
     if (await category.isVisible()) {
@@ -160,7 +160,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
     await expect
       .soft(afterDisable, 'The retained FACT.md identity snapshot still reaches the agent')
       .toContainText('QA-DEMO')
-    await view.getByRole('button', { name: 'Status', exact: true }).click()
+    await openAgentPane(page, 'Status')
     await expect
       .soft(
         page.getByText('Memory files', { exact: true }),
@@ -171,14 +171,14 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
     await screenshot('MP-57 new session with memory disabled')
   } finally {
     if (await pause.isVisible().catch(() => false)) await pause.click()
-    await page.evaluate(
+    const deletedAgent = await page.evaluate(
       (agentId) =>
-        window.api.ipcApi.request('ai.agent.delete', {
+        window.api.ipcApi.request('ai.agent.delete_permanently', {
           agentId,
-          deleteSessions: true,
-          permanent: true
+          deleteSessions: true
         }),
       agentId
     )
+    expect(deletedAgent).toMatchObject({ ok: true, data: { deleted: true } })
   }
 }

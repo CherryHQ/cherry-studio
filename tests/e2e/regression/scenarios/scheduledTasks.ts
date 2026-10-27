@@ -176,11 +176,13 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
         ({ agentId, id }) => window.api.ipcApi.request('ai.agent.task.delete', { agentId, taskId: id }),
         task
       )
-    if (agentId)
-      await page.evaluate(
-        (agentId) => window.api.ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true, permanent: true }),
+    if (agentId) {
+      const deletedAgent = await page.evaluate(
+        (agentId) => window.api.ipcApi.request('ai.agent.delete_permanently', { agentId, deleteSessions: true }),
         agentId
       )
+      expect(deletedAgent).toMatchObject({ ok: true, data: { deleted: true } })
+    }
     await page.evaluate(
       (providerId) =>
         window.api.dataApi.request({ id: 'mp58-delete-provider', method: 'DELETE', path: `/providers/${providerId}` }),

@@ -47,14 +47,15 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
       .isVisible()
       .catch(() => false)
   ) {
-    await page.getByRole('button', { name: 'Back', exact: true }).first().click()
+    await page.locator('[data-ui~="app.tab-bar"]').getByRole('button', { name: 'Back', exact: true }).click()
+    await expect(page.locator('[data-ui~="settings.view"]:visible')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Chat', exact: true }).first()).toBeVisible()
   }
   const sidebarButton = page.getByRole('button', { name, exact: true }).first()
   if (await sidebarButton.isVisible().catch(() => false)) {
     await sidebarButton.click({ noWaitAfter: true })
   } else {
-    const back = page.getByRole('button', { name: 'Back', exact: true }).first()
+    const back = page.locator('[data-ui~="app.tab-bar"]').getByRole('button', { name: 'Back', exact: true })
     if (await back.isVisible().catch(() => false)) {
       await back.click()
       await sidebarButton.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => undefined)

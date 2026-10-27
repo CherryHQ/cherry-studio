@@ -20,8 +20,8 @@ import type { RegressionApp } from '../RegressionApp'
 export async function chatEfficiency(app: RegressionApp, page: Page, testInfo: TestInfo) {
   const server = await startChatEfficiencyServer()
   const providerId = `mp18-${Date.now()}`
-  const assistantName = app.resourceName('Efficiency assistant')
-  const topicName = app.resourceName('会话效率测试')
+  const assistantName = app.resourceName(`Efficiency assistant ${providerId}`)
+  const topicName = app.resourceName(`会话效率测试 ${providerId}`)
   let assistantId: string | undefined
   let serverId: string | undefined
   const preferences = await page.evaluate(async () => ({
@@ -37,7 +37,7 @@ export async function chatEfficiency(app: RegressionApp, page: Page, testInfo: T
   testInfo.annotations.push({
     type: 'data-source',
     description:
-      'Loopback mock chat and MCP image tool; real Electron UI, queue, IPC, persistence, image download and link navigation.'
+      'Loopback mock chat and MCP image tool; real Electron UI, queue, IPC, persistence, image rendering and link navigation.'
   })
   try {
     const seeded = await page.evaluate(
@@ -127,7 +127,7 @@ export async function chatEfficiency(app: RegressionApp, page: Page, testInfo: T
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
-    const row = chat.getByTestId('topic-list-row').filter({ hasText: topicName })
+    const row = chat.locator(`#resource-list-option-${topicId}`)
     await row.click()
     const composer = chat.locator('[data-ui~="chat.composer"]')
     const editor = composer.locator('[contenteditable="true"]').first()
@@ -206,30 +206,32 @@ export async function chatEfficiency(app: RegressionApp, page: Page, testInfo: T
         request.complete('MP18_ATTACHMENT_DONE')
       })()
     ])
-    const attachment = chat.locator('[data-ui~="chat.message"]').getByRole('img').last()
+    const attachment = chat.locator('[data-ui~="chat.message"] [data-ui~="chat.image-block"]').getByRole('img').last()
     await expect(attachment).toBeVisible()
-    await attachment.click({ button: 'right' })
-    const previewAction = page.getByRole('menuitem', { name: /Preview/i })
-    const deleteAction = page.getByRole('menuitem', { name: /Delete|Remove/i })
-    await expect.soft(previewAction, 'Sent attachment context menu must offer Preview').toBeVisible({ timeout: 2000 })
+    const attachmentSource = await attachment.getAttribute('src')
+    await attachment.click()
+    const preview = page.getByRole('dialog')
+    await expect(preview).toBeVisible()
+    await expect(preview.locator('img').first()).toHaveAttribute('src', attachmentSource!)
     await expect
-      .soft(deleteAction, 'Sent attachment context menu must offer Delete or Remove')
-      .toBeVisible({ timeout: 2000 })
+      .poll(() =>
+        preview
+          .locator('img')
+          .first()
+          .evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)
+      )
+      .toBe(true)
+    await screenshot('MP-18 sent attachment preview')
+    await page.keyboard.press('Escape')
+    await expect(preview).toBeHidden()
+    await attachment.click({ button: 'right' })
+    const copySource = page.getByRole('menuitem', { name: 'Copy Image Source', exact: true })
+    await expect(page.getByRole('menuitem', { name: 'Copy as image', exact: true })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Save As', exact: true })).toBeVisible()
+    await expect(copySource).toBeVisible()
     await screenshot('MP-18 sent attachment context menu')
-    if (await previewAction.isVisible()) {
-      await previewAction.click()
-      await expect(page.getByRole('dialog')).toBeVisible()
-      await expect(page.getByRole('dialog').getByRole('img').first()).toBeVisible()
-      await page.keyboard.press('Escape')
-      await attachment.click({ button: 'right' })
-    }
-    if (await deleteAction.isVisible()) {
-      const before = await chat.locator('[data-ui~="chat.message"]').getByRole('img').count()
-      await deleteAction.click()
-      await expect(chat.locator('[data-ui~="chat.message"]').getByRole('img')).toHaveCount(before - 1)
-    } else {
-      await page.keyboard.press('Escape')
-    }
+    await copySource.click()
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(attachmentSource)
 
     const messageId = await sendChatMarker(
       page,
@@ -238,34 +240,44 @@ export async function chatEfficiency(app: RegressionApp, page: Page, testInfo: T
     )
     expect(server.toolCalls).toBe(1)
     const message = chat.locator(`[data-message-id="${messageId}"]`)
-    const tool = message.locator('[data-ui~="part:message-tool"]')
+    await message.getByTestId('completed-process-trigger').click()
+    await message.getByTestId('child-tool-group').getByRole('button', { expanded: false }).first().click()
+    const tool = message.locator('[data-ui~="chat.tool"]')
     await expect(tool).toBeVisible()
     const disclosure = tool.getByRole('button', { expanded: false }).first()
     if (await disclosure.isVisible()) await disclosure.click()
-    const image = tool.getByRole('img', { name: 'MP-18 image', exact: true })
+    const image = tool.getByRole('img', { name: 'Tool output', exact: true })
     await expect(image).toBeVisible()
-    expect(await image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true)
+    await expect
+      .poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0))
+      .toBe(true)
+    await expect(tool.getByRole('link', { name: 'MP-18 image', exact: true })).toHaveAttribute(
+      'href',
+      `${server.origin}/image.png`
+    )
+    testInfo.annotations.push({
+      type: 'uncovered',
+      description:
+        'Public tool-result image URL previews require a public host; loopback image URLs fall back to links.'
+    })
+    await screenshot('MP-18 inline tool image and private URL fallback')
     const currentUrl = page.url()
-    await image.click()
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await screenshot('MP-18 tool image preview')
-    await page.keyboard.press('Escape')
     const link = tool.getByRole('link', { name: 'MP-18 image details', exact: true })
     await expect(link).toHaveAttribute('href', `${server.origin}/details`)
     await link.click()
     await expect.poll(() => server.linkVisits).toBeGreaterThan(0)
     expect(page.url()).toBe(currentUrl)
-    const search = chat.getByPlaceholder('Search conversations...', { exact: true })
-    for (const keyword of ['会话效率', 'hhxl']) {
-      await search.fill(keyword)
-      const matched = await row.isVisible()
-      await screenshot(`MP-18 search ${keyword}`)
-      testInfo.annotations.push({
-        type: matched ? 'search-hit' : '用例预期待确认',
-        description: `${keyword}: ${matched ? 'matched' : 'not matched; current search behavior, not classified as a product defect'}`
-      })
-    }
-    await search.fill('')
+    await page.getByRole('button', { name: 'Open global search', exact: true }).click()
+    const search = page.getByRole('dialog', { name: 'Open global search', exact: true })
+    await search.getByRole('combobox').fill('会话效率')
+    await expect(search.getByRole('option').filter({ hasText: topicName })).toBeVisible()
+    await screenshot('MP-18 search by Chinese conversation title')
+    await page.keyboard.press('Escape')
+    await expect(search).toBeHidden()
+    testInfo.annotations.push({
+      type: 'uncovered',
+      description: 'Conversation search by pinyin initials is not verified.'
+    })
     await screenshot('MP-18 efficiency workflow complete')
   } finally {
     await server.close()

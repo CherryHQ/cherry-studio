@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { DeleteAssistantResult } from '@shared/data/api/schemas/assistants'
@@ -95,9 +96,10 @@ async function generateAndSaveImage(
   await expect(generation).toBeHidden({ timeout: 3 * 60_000 })
   await expect(image).toBeVisible()
 
+  const output = join(app.paths.evidence, 'downloads', outputName)
+  await rm(output, { force: true })
   await image.click({ button: 'right' })
   await page.getByText('Save As', { exact: true }).click()
-  const output = join(app.paths.evidence, 'downloads', outputName)
   saveNativeFile(app.record.platform, app.paths, output)
   await expect
     .poll(async () => {

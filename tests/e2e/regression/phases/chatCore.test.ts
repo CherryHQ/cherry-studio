@@ -146,7 +146,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
     }, imageText)
     await writeFile(imagePath, Buffer.from(image, 'base64'))
     await writeFile(textPath, documentText)
-    await writeFile(unsupportedPath, 'This is intentionally not a supported document format.')
+    await writeFile(unsupportedPath, Buffer.from([0, 255, 0, 255]))
 
     await page.reload()
     await selectSidebarApp(page, 'Chat')
@@ -216,9 +216,10 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
       await fileToken(name).click({ button: 'right' })
       await page.getByRole('menuitem', { name: /Preview|预览/, exact: true }).click()
       if (name === imageName) {
-        const preview = await app.window('/imagePreview/')
-        await expect(preview.getByRole('img').first()).toBeVisible()
-        await preview.keyboard.press('Escape')
+        const preview = page.getByRole('dialog', { name: 'Preview', exact: true })
+        await expect(preview.locator('img').first()).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(preview).toBeHidden()
       } else {
         await expect(page.getByText(documentText, { exact: false }).last()).toBeVisible()
         await selectSidebarApp(page, 'Chat')
@@ -499,7 +500,7 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     await expect(disabledMessage.locator('a[href^="http"]')).toHaveCount(0)
     await expect(disabledMessage.getByRole('button', { name: /^\d+ citations$/ })).toHaveCount(0)
     expect((await readParts(disabledMessageId)).filter((part) => part.type === 'tool-web_search')).toEqual([])
-    await expect(disabledMessage.locator('[data-ui~="part:message-tool"]')).toHaveCount(0)
+    await expect(disabledMessage.locator('[data-ui~="chat.message-web-search-tool"]')).toHaveCount(0)
     await screenshot('MP-10 search disabled comparison')
 
     page = await app.restart()

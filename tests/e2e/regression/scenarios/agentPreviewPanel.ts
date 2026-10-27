@@ -1,5 +1,5 @@
 import { copyFile, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, parse } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 import { Document, Packer, Paragraph } from 'docx'
@@ -8,7 +8,7 @@ import JSZip from 'jszip'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
-import { createAgent, selectAgentWorkspace } from '../helpers/agents'
+import { createAgent, openAgentPane, selectAgentWorkspace, startNewAgentTask } from '../helpers/agents'
 import { openAttachmentPicker } from '../helpers/chat'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
@@ -59,22 +59,27 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   // Preview uses real attachments and the configured provider; no response is injected.
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
+  const agentName = app.resourceName('Preview Agent')
   await createAgent(page, {
-    name: app.resourceName('Preview Agent'),
+    name: agentName,
     runtime: 'Pi',
     model: app.config.customProvider.chatModel,
     permission: 'Full Access'
   })
+  await startNewAgentTask(page, agentName)
   const view = page.locator('[data-ui~="agent.view"]:visible').first()
   await rm(join(app.paths.workspace, 'TASK.md'), { force: true })
   await selectAgentWorkspace(app, page)
-  await view.getByRole('button', { name: 'Files', exact: true }).click()
+  await openAgentPane(page, 'Files')
   await screenshot('MP-19 initial preview panel')
-  await expect(view.getByText('Ready', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('artifact-pane-header')).toBeVisible()
+  await expect(page.getByRole('treeitem', { name: app.workspaceName, exact: true })).toBeVisible()
   const composer = view.locator('[data-ui~="chat.composer"]:visible')
   const editor = composer.locator('[contenteditable="true"]').first()
   const messages = view.locator('[data-ui~="chat.message"]:visible')
   const overlay = page.getByTestId('artifact-file-preview-overlay')
+  const header = page.getByTestId('artifact-pane-header')
+  const attachment = (name: string) => messages.getByRole('button', { name: parse(name).name, exact: true })
   const attachAndSend = async (name: string) => {
     await openAttachmentPicker(page, composer)
     chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, name))
@@ -82,39 +87,37 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
     await editor.press('End')
     await editor.pressSequentially(' Reply with only MP19_RECEIVED; do not use tools.')
     await composer.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect(messages.locator('[data-composer-token-kind="file"]').filter({ hasText: name })).toBeVisible({
-      timeout: 30_000
-    })
+    await expect(attachment(name)).toBeVisible({ timeout: 30_000 })
     await expect(view.getByRole('button', { name: 'Send', exact: true })).toBeVisible({ timeout: 90_000 })
   }
   const open = async (name: string) => {
-    await messages.locator('[data-composer-token-kind="file"]').filter({ hasText: name }).first().click()
+    await attachment(name).click()
     await expect(overlay).toBeVisible()
-    await expect(overlay.getByText(name, { exact: true }).first()).toBeVisible()
+    await expect(page.getByTestId('artifact-pane-header-title')).toHaveText(parse(name).name)
     await expect(overlay.locator('[contenteditable="true"], textarea')).toHaveCount(0)
   }
   await attachAndSend(markdownName)
   await open(markdownName)
   await expect(overlay).toContainText('Selectable preview quotation MP19.')
   await screenshot('MP-19 markdown read-only preview')
-  await overlay.getByRole('button', { name: 'Code', exact: true }).click()
+  await overlay.getByRole('radio', { name: 'Source', exact: true }).click()
   await expect(overlay).toContainText('# MP19 preview')
-  await overlay.getByRole('button', { name: 'Preview', exact: true }).click()
+  await overlay.getByRole('radio', { name: 'Preview', exact: true }).click()
   await expect(overlay.getByRole('heading', { name: 'MP19 preview', exact: true })).toBeVisible()
-  await overlay.getByRole('button', { name: 'Copy Content', exact: true }).click()
+  await header.getByRole('button', { name: 'Copy Content', exact: true }).click()
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(markdown)
   await writeFile(join(app.paths.fixtures, markdownName), `${markdown}\nMP19 refreshed content\n`)
-  await overlay.getByRole('button', { name: 'Refresh', exact: true }).click()
+  await header.getByRole('button', { name: 'Refresh', exact: true }).click()
   await expect(overlay).toContainText('MP19 refreshed content')
-  await overlay.getByRole('button', { name: 'Close preview', exact: true }).click()
+  await header.getByRole('button', { name: 'Back', exact: true }).click()
   await expect(overlay).toBeHidden()
   await attachAndSend(secondName)
   await open(markdownName)
   await open(secondName)
   await open(secondName)
-  await overlay.getByRole('button', { name: 'Back', exact: true }).click()
-  await expect(overlay.getByText(markdownName, { exact: true })).toBeVisible()
-  await overlay.getByRole('button', { name: 'Back', exact: true }).click()
+  await header.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(page.getByTestId('artifact-pane-header-title')).toHaveText(parse(markdownName).name)
+  await header.getByRole('button', { name: 'Back', exact: true }).click()
   await expect(overlay).toBeHidden()
 
   await attachAndSend(docxName)
@@ -128,25 +131,25 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
     window.getSelection()?.addRange(range)
   })
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('MP19 selectable document paragraph 0')
-  const docxScroll = overlay.getByTestId('docx-preview-scroll-region')
+  const docxScroll = overlay.getByRole('region', { name: docxName, exact: true })
   await docxScroll.hover()
   await page.mouse.wheel(0, 300)
   await expect.poll(() => docxScroll.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
   await screenshot('MP-19 selectable DOCX preview')
-  await overlay.getByRole('button', { name: 'Close preview', exact: true }).click()
+  await header.getByRole('button', { name: 'Back', exact: true }).click()
   await attachAndSend(videoName)
   await open(videoName)
   await expect(overlay.locator('video[controls]')).toBeVisible()
   await expect
     .poll(() => overlay.locator('video').evaluate((video: HTMLVideoElement) => video.readyState))
     .toBeGreaterThanOrEqual(1)
-  await overlay.getByRole('button', { name: 'Close preview', exact: true }).click()
+  await header.getByRole('button', { name: 'Back', exact: true }).click()
   await attachAndSend(slidesName)
   await open(slidesName)
-  await expect(overlay.getByText('Opening .pptx files here is not supported yet', { exact: true })).toBeVisible()
-  await overlay.getByRole('button', { name: 'Open with default app', exact: true }).click()
-  await expect(overlay.getByRole('alert')).toHaveCount(0)
-  await overlay.getByRole('button', { name: 'Close preview', exact: true }).click()
+  await expect(overlay.getByRole('region', { name: slidesName, exact: true })).toBeVisible()
+  await expect(overlay.getByRole('alert')).toContainText('Preview failed')
+  await screenshot('MP-19 empty presentation reports a preview error')
+  await header.getByRole('button', { name: 'Back', exact: true }).click()
 
   const preferences = await page.evaluate(async () => ({
     enabled: await window.api.preference.get('chat.input.paste_long_text_as_file'),
@@ -160,17 +163,17 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
       })
     )
     const pasted = Array.from({ length: 20 }, (_, i) => `MP19 pasted line ${i}: text preserved in preview.`).join('\n')
-    await editor.evaluate((node, text) => {
-      const data = new DataTransfer()
-      data.setData('text/plain', text)
-      node.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }))
-    }, pasted)
+    await page.evaluate((text) => navigator.clipboard.writeText(text), pasted)
+    await editor.click()
+    await editor.press('ControlOrMeta+v')
     await expect(composer.locator('[data-composer-token-kind="file"]')).toHaveCount(1)
-    const pastedName = await composer.locator('[data-composer-token-kind="file"]').innerText()
     await composer.getByRole('button', { name: 'Send', exact: true }).click()
-    await messages.locator('[data-composer-token-kind="file"]').filter({ hasText: pastedName }).last().click()
-    await expect(overlay).toContainText(pasted)
-    const text = overlay.getByText('MP19 pasted line 0:', { exact: false }).first()
+    await messages.getByRole('button', { name: /Pasted Text/, exact: true }).click()
+    await expect(overlay.getByText(/^MP19 pasted line \d+: text preserved in preview\.$/)).toHaveText(
+      pasted.split('\n')
+    )
+    const firstLine = pasted.split('\n')[0]
+    const text = overlay.getByText(firstLine, { exact: true })
     await text.evaluate((node) => {
       const range = document.createRange()
       range.selectNodeContents(node)
@@ -178,11 +181,18 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
       window.getSelection()?.addRange(range)
       document.dispatchEvent(new Event('selectionchange'))
     })
-    const selected = await page.evaluate(() => window.getSelection()?.toString())
-    expect(selected).toContain('MP19 pasted line 0:')
-    await overlay.getByRole('button', { name: 'Quote selection', exact: true }).click()
-    await expect(composer).toContainText(selected!)
-    await screenshot('MP-19 pasted text quoted in composer')
+    await page.keyboard.press('ControlOrMeta+c')
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(firstLine)
+    await header.getByRole('button', { name: 'Back', exact: true }).click()
+    await editor.click()
+    await editor.press('ControlOrMeta+v')
+    await expect(composer).toContainText(firstLine)
+    testInfo.annotations.push({
+      type: 'uncovered',
+      description:
+        'The text preview plugin has no Quote selection action; selected text is checked through copy and paste.'
+    })
+    await screenshot('MP-19 selected pasted text copied back to composer')
     await expect(view).toBeVisible()
     expect(errors).toEqual([])
   } finally {

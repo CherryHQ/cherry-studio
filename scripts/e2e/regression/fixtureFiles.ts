@@ -41,14 +41,14 @@ See [sample](${pathToFileURL(join(documents, 'sample-chinese.md')).href}).
 `
   writeFileSync(join(documents, 'sample-note.md'), note)
   writeFileSync(join(vault, 'Welcome.md'), vaultNote)
-  writeFileSync(join(documents, 'unsupported.bin'), 'Unsupported directory import fixture')
+  writeFileSync(join(documents, 'unsupported.bin'), Buffer.from([0, 255, 0, 255]))
   writeFileSync(
     join(translationDocuments, 'sample-chinese.md'),
     '# 春日旅行\n\n今天我们一起去公园散步，欣赏盛开的鲜花。\n\n## 旅行计划\n\n明天我们将参观博物馆，了解这座城市的历史。\n'
   )
   writeFileSync(join(edge, '中文 文件名 带空格.txt'), '中文附件内容 CHINESE_ATTACHMENT_MARKER\n')
   writeFileSync(join(edge, 'long-text-20k.txt'), 'Long attachment text. '.repeat(1100))
-  writeFileSync(join(edge, 'unsupported.exe'), 'MP33_REJECTED_BINARY_CONTENT')
+  writeFileSync(join(edge, 'unsupported.exe'), Buffer.from([0, 255, 0, 255]))
   await sharp(
     Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400"><rect width="1200" height="400" fill="white"/><g font-family="Arial" font-size="48" fill="black"><text x="60" y="140">The red apple is on the table.</text><text x="60" y="240">There are seven blue books.</text></g></svg>'

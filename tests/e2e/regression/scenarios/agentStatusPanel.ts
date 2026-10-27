@@ -5,7 +5,7 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { createAgent, selectAgentWorkspace } from '../helpers/agents'
+import { createAgent, openAgentPane, selectAgentWorkspace } from '../helpers/agents'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
@@ -43,8 +43,8 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
   if (await enableGateway.isVisible()) await enableGateway.click()
   await selectAgentWorkspace(app, page)
   const view = page.locator('[data-ui~="agent.view"]:visible').first()
-  const panel = view.locator('[data-right-pane]:visible').last()
-  await view.getByRole('button', { name: 'Status', exact: true }).click()
+  const panel = page.locator('[data-right-pane]:visible').last()
+  await openAgentPane(page, 'Status')
   await expect(panel.getByRole('heading', { name: 'Context usage', exact: true })).toBeVisible()
 
   const progressSamples: { completed: number; total: number; time: number }[] = []
@@ -101,7 +101,7 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     await expect.soft(messageCards.getByText(file.name, { exact: true }).first()).toBeVisible({ timeout: 10_000 })
     await expect.soft(panel.getByText(file.name, { exact: true })).toHaveCount(1, { timeout: 10_000 })
   }
-  const context = view.locator('section').filter({ has: page.getByRole('heading', { name: 'Context usage' }) })
+  const context = panel.locator('section').filter({ has: page.getByRole('heading', { name: 'Context usage' }) })
   await expect.soft(context).toContainText(/[\d,]+\s*\/\s*[\d,]+\s*\(\d+%\)/, { timeout: 15_000 })
   for (const category of ['System prompt', 'Messages']) {
     const row = context
@@ -112,8 +112,8 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
   }
   await screenshot('MP-55 completed task and context categories')
 
-  await view.getByRole('button', { name: 'Files', exact: true }).click()
-  const tree = view.getByRole('tree')
+  await openAgentPane(page, 'Files')
+  const tree = page.getByRole('tree')
   const folder = tree.getByRole('treeitem').filter({ hasText: folderName })
   await expect(folder).toBeVisible()
   if ((await folder.getAttribute('aria-expanded')) !== 'false') await folder.click()
@@ -123,10 +123,10 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
   await expect(folder).toHaveAttribute('aria-expanded', 'true')
   for (const file of files) await expect(tree.getByRole('treeitem').filter({ hasText: file.name })).toBeVisible()
   await tree.getByRole('treeitem').filter({ hasText: files[0].name }).click()
-  const preview = view.getByTestId('artifact-file-preview-overlay')
+  const preview = page.getByTestId('artifact-file-preview-overlay')
   await expect(preview).toBeVisible()
   await expect(preview).toContainText('The orchard harvested 37 apples.')
-  await expect(view.getByTestId('artifact-pane-header-title')).toHaveAttribute(
+  await expect(page.getByTestId('artifact-pane-header-title')).toHaveAttribute(
     'title',
     join(app.paths.workspace, folderName, files[0].name)
   )

@@ -89,6 +89,12 @@ export async function startNewAgentTask(page: Page, name: string): Promise<void>
   await expect(page.locator('[data-ui~="chat.message"]:visible')).toHaveCount(0, { timeout: 30_000 })
 }
 
+export async function openAgentPane(page: Page, name: 'Files' | 'Status'): Promise<void> {
+  const toggle = page.locator('[data-ui~="agent.view"]:visible').getByRole('button', { name, exact: true })
+  if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+}
+
 export async function createAgent(
   page: Page,
   options: { name: string; runtime: string; model: string; permission?: string }
@@ -104,24 +110,35 @@ export async function createAgent(
     const agentMode = page.getByRole('button', { name: 'Agent', exact: true })
     if (await agentMode.isVisible().catch(() => false)) await agentMode.click()
   }
-  if (
-    await agentView
-      .getByText(options.name, { exact: true })
-      .isVisible()
-      .catch(() => false)
-  ) {
-    await agentView.getByText(options.name, { exact: true }).first().click({ noWaitAfter: true })
+  const agents = await page.evaluate(() =>
+    window.api.dataApi.request({
+      id: 'existing-regression-agent',
+      method: 'GET',
+      path: '/agents',
+      params: { limit: 500 }
+    })
+  )
+  expect(agents.status).toBe(200)
+  if ((agents.data as { items: { name: string }[] }).items.some(({ name }) => name === options.name)) {
+    await selectAgent(page, options.name)
     return
   }
 
   await agentView.getByRole('button', { name: 'Add Agent', exact: true }).click()
-  const dialog = page.getByRole('dialog').last()
+  const dialog = page.getByRole('dialog', { name: 'New Agent', exact: true })
   await dialog.getByPlaceholder('Enter a name', { exact: true }).fill(options.name)
   await dialog.getByLabel('Runtime mode').getByText(options.runtime, { exact: true }).click()
   if (options.permission) {
     const permission = dialog.getByRole('combobox', { name: 'Permission mode', exact: true })
     await permission.click()
-    await dialog.getByText(options.permission, { exact: true }).last().click()
+    await page.getByRole('option').filter({ hasText: options.permission }).click()
+    if (options.permission === 'Full Access') {
+      await page
+        .getByRole('dialog', { name: 'Enable Full Access?', exact: true })
+        .getByRole('button', { name: 'Enable Full Access', exact: true })
+        .click()
+    }
+    await expect(permission).toHaveText(options.permission)
   }
   await dialog.getByRole('button', { name: 'Model', exact: true }).click()
   await selectVisibleModel(page, options.model)

@@ -12,10 +12,9 @@ export async function collectVirtualizedText(page: Page, scroller: Locator): Pro
   for (let step = 0; step < 100; step += 1) {
     windows.push(await scroller.evaluate((element) => (element as HTMLElement).innerText))
     const moved = await scroller.evaluate((element) => {
-      const next = Math.min(element.scrollTop + element.clientHeight * 0.8, element.scrollHeight)
-      if (next <= element.scrollTop) return false
-      element.scrollTop = next
-      return true
+      const previous = element.scrollTop
+      element.scrollTop = Math.min(previous + element.clientHeight * 0.8, element.scrollHeight - element.clientHeight)
+      return element.scrollTop > previous
     })
     if (!moved) break
     await page.waitForTimeout(200)
@@ -35,10 +34,9 @@ export async function revealVirtualized(page: Page, scroller: Locator, target: L
   for (let step = 0; step < 100; step += 1) {
     if ((await target.count()) > 0 && (await target.first().isVisible())) return
     const moved = await scroller.evaluate((element) => {
-      const next = Math.min(element.scrollTop + element.clientHeight * 0.8, element.scrollHeight)
-      if (next <= element.scrollTop) return false
-      element.scrollTop = next
-      return true
+      const previous = element.scrollTop
+      element.scrollTop = Math.min(previous + element.clientHeight * 0.8, element.scrollHeight - element.clientHeight)
+      return element.scrollTop > previous
     })
     if (!moved) return
     await page.waitForTimeout(200)
