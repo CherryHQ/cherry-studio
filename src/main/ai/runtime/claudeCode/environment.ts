@@ -36,11 +36,15 @@ const MAX_AUTO_COMPACT_WINDOW = 1_000_000
  * Widen it if 400s reappear while the reported input sits just under budget.
  */
 const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
-// The CLI's per-request `max_tokens` ceiling and the value it requests when
-// `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is unset. Both measured against the bundled CLI and undocumented,
-// so re-measure them on SDK upgrades.
-const MAX_REQUESTED_OUTPUT_TOKENS = 128_000
+// The value the CLI requests when `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is unset. Measured against the
+// bundled CLI and undocumented, so re-measure it on SDK upgrades.
 const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
+// The model APIs behind the CLI cap `max_tokens` well below the CLI's own 128,000 ceiling — xAI's
+// Anthropic-compatible endpoint rejects anything above 65,536 (#22332). The catalog value states what
+// the model can emit, not what its endpoint accepts, so a pin is held to the accepted maximum rather
+// than to the catalog. Claude Code also clamps here, so pinning higher reserves room no request can
+// consume.
+const MAX_REQUESTED_OUTPUT_TOKENS = 65_536
 /**
  * Percentage of the auto-compact window at which compaction triggers, passed
  * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).
@@ -80,6 +84,7 @@ export function resolveAutoCompactWindow(
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at
 // 128,000 — so their real limit has to come from the catalog. Derived from the primary only: the
 // pin is process-wide, but plan and small fall back to the primary unless explicitly changed.
+// The catalog value only raises the pin; the accepted maximum still bounds it either way.
 export function resolveRequestedOutputTokens(
   contextWindow: number | undefined,
   maxOutputTokens: number | undefined,
