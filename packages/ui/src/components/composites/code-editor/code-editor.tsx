@@ -1,6 +1,6 @@
 import { historyField } from '@codemirror/commands'
 import { foldState, syntaxHighlighting } from '@codemirror/language'
-import { EditorState } from '@codemirror/state'
+import { EditorState, Text } from '@codemirror/state'
 import type { ViewUpdate } from '@codemirror/view'
 import type { BasicSetupOptions } from '@uiw/react-codemirror'
 import CodeMirror, { ExternalChange, EditorView } from '@uiw/react-codemirror'
@@ -176,9 +176,13 @@ const CodeEditor = ({
     if (!editorViewRef.current) return
 
     const newContent = options?.stream && !syntaxHighlightStyle ? (value ?? '').trimEnd() : (value ?? '')
-    const currentDoc = editorViewRef.current.state.sliceDoc()
-
-    const changes = prepareCodeChanges(currentDoc, newContent)
+    // Serialized CRLF strings have different offsets from CodeMirror's single-position line breaks.
+    const currentDoc = editorViewRef.current.state.doc.toString()
+    const nextDoc = Text.of(newContent.split(/\r\n?|\n/))
+    const changes = prepareCodeChanges(currentDoc, nextDoc.toString()).map((change) => ({
+      ...change,
+      insert: Text.of(change.insert.split('\n'))
+    }))
 
     if (changes && changes.length > 0) {
       const shouldScrollToBottom = autoScrollToBottom && !expanded && shouldStickToBottomRef.current
@@ -187,7 +191,7 @@ const CodeEditor = ({
         annotations: [ExternalChange.of(true)],
         ...(shouldScrollToBottom
           ? {
-              effects: EditorView.scrollIntoView(newContent.length, {
+              effects: EditorView.scrollIntoView(nextDoc.length, {
                 y: 'end',
                 x: 'nearest'
               })
