@@ -67,8 +67,11 @@ export async function toolSettings(app: RegressionApp, page: Page, testInfo: Tes
     await expect(page.locator('[data-ui~="settings.view"]:visible')).toHaveCount(0)
     const webSearch = page
       .locator('[data-ui~="chat.composer"]:visible')
-      .getByRole('button', { name: 'Web Search', exact: true })
-    await webSearch.click()
+      .getByRole('button')
+      .filter({ has: page.locator('[data-slot="web-search-provider-icon"]') })
+    await expect(webSearch).toBeVisible()
+    if ((await webSearch.getAttribute('aria-pressed')) !== 'true') await webSearch.click()
+    await expect(webSearch).toHaveAttribute('aria-pressed', 'true')
 
     const assertSearchCount = async (expected: number) => {
       const id = await sendChatMarker(

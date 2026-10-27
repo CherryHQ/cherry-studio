@@ -11,6 +11,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { readTopicMessages } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -106,7 +107,8 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
       { name: topicName, assistantId }
     )
     expect(topic.status).toBe(201)
-    expect(TopicSchema.parse(topic.data).name).toBe(topicName)
+    const createdTopic = TopicSchema.parse(topic.data)
+    expect(createdTopic.name).toBe(topicName)
 
     await page.reload()
     await selectSidebarApp(page, 'Chat')
@@ -133,13 +135,16 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
       return MessageSchema.parse(response.data)
     }
     const send = async (prompt: string) => {
-      const previous = await messages.count()
+      const previous = (await readTopicMessages(page, createdTopic.id)).length
       await chat.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first().fill(prompt)
       await page.getByRole('button', { name: 'Send', exact: true }).click()
-      await expect(messages).toHaveCount(previous + 2)
-      const response = messages.last()
-      const id = (await response.getAttribute('data-message-id'))!
+      await expect.poll(async () => (await readTopicMessages(page, createdTopic.id)).length).toBe(previous + 2)
+      const latest = (await readTopicMessages(page, createdTopic.id)).at(-1)!
+      expect(latest.role).toBe('assistant')
+      const id = latest.id
+      const response = messages.and(page.locator(`[data-message-id="${id}"]`))
       await expect.poll(async () => (await readMessage(id)).status, { timeout: 120_000 }).toMatch(/^(success|error)$/)
+      await expect(response).toBeVisible()
       return { response, message: await readMessage(id) }
     }
     const outputs = (message: Awaited<ReturnType<typeof readMessage>>, tool: string) =>

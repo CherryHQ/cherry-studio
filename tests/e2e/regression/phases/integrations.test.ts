@@ -36,6 +36,7 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
   await openSettingsSection(page, 'MCP')
   if (
     !(await page
+      .locator('[data-ui~="settings.content"]:visible')
       .getByText('everything', { exact: true })
       .isVisible()
       .catch(() => false))
@@ -47,10 +48,7 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
     await page.getByLabel('Arguments').last().fill('-y\n@modelcontextprotocol/server-everything')
     await page.getByRole('button', { name: 'Add', exact: true }).click()
   }
-  await page
-    .getByText(/everything STDIO|everything/, { exact: true })
-    .first()
-    .click()
+  await page.locator('[data-ui~="settings.content"]:visible').getByText('everything', { exact: true }).first().click()
   const enabled = page.getByRole('switch').first()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 2 * 60_000 })
@@ -115,10 +113,7 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await openSettingsSection(page, 'MCP')
-  await page
-    .getByText(/everything STDIO|everything/, { exact: true })
-    .first()
-    .click()
+  await page.locator('[data-ui~="settings.content"]:visible').getByText('everything', { exact: true }).first().click()
   const restartedEnabled = page.getByRole('switch').first()
   if ((await restartedEnabled.getAttribute('aria-checked')) !== 'true') await restartedEnabled.click()
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 2 * 60_000 })

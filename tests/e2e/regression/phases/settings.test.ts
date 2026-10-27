@@ -24,6 +24,7 @@ import { selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp, dismissOnboarding } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { inspectStartup } from '../helpers/startupInspection'
+import { revealVirtualized } from '../helpers/virtualList'
 import { feishuChannelSettings } from '../scenarios/feishuChannelSettings'
 import { fontsAndZoom } from '../scenarios/fontsAndZoom'
 import { longUserMessageExpansion } from '../scenarios/longUserMessageExpansion'
@@ -670,6 +671,7 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), group)
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
@@ -803,6 +805,7 @@ test(...caseDefinition('MP-108'), async ({ app, mainWindow: page }, testInfo) =>
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), group)
     await expect(group).toBeVisible()
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
@@ -1030,6 +1033,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), group)
     await expect(group).toBeVisible()
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })

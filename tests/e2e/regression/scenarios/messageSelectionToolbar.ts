@@ -11,7 +11,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { setOwnedMainWindowFocus } from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
-import { sendChatMarker } from '../helpers/chat'
+import { readTopicMessages, sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp } from '../helpers/navigation'
 import { revealVirtualized } from '../helpers/virtualList'
@@ -108,7 +108,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       { name: topicName, assistantId }
     )
     expect(topic.status).toBe(201)
-    TopicSchema.parse(topic.data)
+    const topicId = TopicSchema.parse(topic.data).id
 
     await setOwnedMainWindowFocus(app.record, true)
     await page.bringToFront()
@@ -158,6 +158,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       await target.evaluate((element) =>
         element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
       )
+      await target.hover()
       return target.evaluate((element, length) => {
         const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
         const node = walker.nextNode()
@@ -202,7 +203,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       await expect(quote).toBeVisible()
       await quote.hover()
       await expect(page.getByRole('tooltip').filter({ hasText: text })).toBeVisible()
-      const previous = await messages.count()
+      const previous = (await readTopicMessages(page, topicId)).length
       await Promise.all([
         page.getByRole('button', { name: 'Send', exact: true }).click(),
         (async () => {
@@ -215,7 +216,9 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
           request.complete('Quote received successfully.')
         })()
       ])
-      await expect(messages).toHaveCount(previous + 2)
+      await expect.poll(async () => (await readTopicMessages(page, topicId)).length).toBe(previous + 2)
+      await expect.poll(async () => (await readTopicMessages(page, topicId)).at(-1)?.status).toBe('success')
+      await expect(messages.last()).toContainText('Quote received successfully.')
       const sent = messages.filter({ has: page.locator('.message-user') }).last()
       const sentQuote = sent.locator('[data-composer-token-kind="quote"]')
       await expect(sentQuote).toBeVisible()
@@ -325,7 +328,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     await selectVisibleModel(page, 'mock-grid')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('mock-grid')
-    const beforeGrid = await messages.count()
+    const beforeGrid = (await readTopicMessages(page, topicId)).length
     await Promise.all([
       sendChatMarker(page, 'Describe a grid garden', 'Grid orchid petals shine.'),
       (async () => {
@@ -334,7 +337,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
         for (const request of requests) request.complete('Grid orchid petals shine.')
       })()
     ])
-    await expect(messages).toHaveCount(beforeGrid + 3)
+    await expect.poll(async () => (await readTopicMessages(page, topicId)).length).toBe(beforeGrid + 3)
     const gridText = messages
       .filter({ has: page.locator('.message-assistant') })
       .last()

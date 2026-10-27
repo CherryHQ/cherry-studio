@@ -1,7 +1,23 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
+import { type BranchMessagesResponse, MessageSchema } from '@shared/data/types/message'
+
 import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
+
+export async function readTopicMessages(page: Page, topicId: string) {
+  const response = await page.evaluate(
+    (id) =>
+      window.api.dataApi.request({
+        id: `regression-topic-messages-${Date.now()}`,
+        method: 'GET',
+        path: `/topics/${id}/messages`
+      }),
+    topicId
+  )
+  expect(response.status).toBe(200)
+  return (response.data as BranchMessagesResponse).items.map(({ message }) => MessageSchema.parse(message))
+}
 
 export async function openAttachmentPicker(page: Page, composer: Locator): Promise<void> {
   const direct = composer.getByRole('button', { name: 'Upload attachment', exact: true })
