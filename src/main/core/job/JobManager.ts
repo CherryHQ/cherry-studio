@@ -21,7 +21,7 @@ import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
 import { computeCatchUpAction } from './runtime/catchUp'
 import { DispatchQueue } from './runtime/DispatchQueue'
-import { runStartupRecovery } from './runtime/recovery'
+import { abandonLeftovers, runStartupRecovery } from './runtime/recovery'
 import {
   type EnqueueOptions,
   JOB_PROGRESS_KEY_PREFIX,
@@ -162,7 +162,8 @@ export class JobManager extends BaseService {
    * Non-terminal rows a previous launch left behind, read in `onInit` before
    * any service can enqueue (every one depends on JobManager). Startup recovery
    * reconciles only these: a row this launch enqueued is never a leftover,
-   * whatever its status when the sweep fires.
+   * whatever its status when the sweep fires. The ones a handler abandons are
+   * cancelled once that handler registers, before anything can read them.
    */
   private leftoverJobIds: ReadonlySet<string> = new Set()
   private readonly scheduleDisposables = new Map<string, Disposable>()
@@ -280,6 +281,8 @@ export class JobManager extends BaseService {
 
   protected override onInit(): void {
     this.leftoverJobIds = new Set(jobService.getStaleActive().map((row) => row.id))
+    // Covers handlers registered before the snapshot; `registerHandler` covers later ones.
+    for (const [type, handler] of this.handlers) abandonLeftovers(type, handler, this.leftoverJobIds)
     logger.info('JobManager initialized', { leftoverJobs: this.leftoverJobIds.size })
   }
 
@@ -351,7 +354,8 @@ export class JobManager extends BaseService {
    * Step order is significant:
    *
    *   1. `runStartupRecovery` resets non-terminal rows per handler strategy
-   *      (abandon / retry / singleton) and honours `cancelRequested` overrides,
+   *      (retry / singleton; abandon leftovers were cancelled when their handler
+   *      registered) and honours `cancelRequested` overrides,
    *      on the previous launch's leftovers only (`leftoverJobIds`), minus any
    *      this process is already executing (`inFlightExecuted`). A job enqueued
    *      during the quiet window is neither cancelled nor re-dispatched.
@@ -589,6 +593,9 @@ export class JobManager extends BaseService {
    * Do not defer registration to `onAllReady`: those hooks may start async work
    * without the lifecycle manager awaiting completion, while startup recovery
    * later treats non-terminal jobs for an unregistered type as orphans.
+   * Registering cancels the type's `abandon` leftovers on the spot, so no
+   * enqueue can deduplicate against, or dispatch claim, a row that died with the
+   * previous launch.
    *
    * @param type - JobRegistry key (compile-time validated via declaration merging)
    * @param handler - Handler implementation; `recovery` is required
@@ -599,6 +606,7 @@ export class JobManager extends BaseService {
       throw new Error(`JobManager: handler for type "${type}" is already registered`)
     }
     this.handlers.set(type, handler as JobHandler)
+    abandonLeftovers(type, handler as JobHandler, this.leftoverJobIds)
     logger.info('Handler registered', { type, recovery: handler.recovery })
   }
 

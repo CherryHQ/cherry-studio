@@ -515,6 +515,90 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('abandon: never runs a leftover, even when a quiet-window enqueue dispatches its queue', async () => {
+      // Resumed by its handler but enqueued to be abandoned, like the conversions Knowledge starts.
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const [leftover] = await dbh
+        .insert(jobTable)
+        .values({
+          type: 'claimed.abandon',
+          status: 'pending',
+          queue: 'claimed.abandon',
+          scheduledAt: Date.now() - 1000,
+          recovery: 'abandon',
+          input: { message: 'leftover' }
+        })
+        .returning()
+      const executedIds: string[] = []
+      const handler: JobHandler<SlowInput> = {
+        recovery: 'retry',
+        defaultConcurrency: 1,
+        async execute(ctx) {
+          executedIds.push(ctx.jobId)
+          return { echoed: ctx.input.message } satisfies SlowOutput
+        }
+      }
+
+      let fresh!: JobHandle
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['claimed.abandon', handler as JobHandler]],
+        beforeRecovery: async (jm) => {
+          fresh = jm.enqueue('claimed.abandon' as never, { message: 'fresh' } as never)
+          await drainAllQueues(jm)
+        }
+      })
+
+      expect((await fresh.finished).status).toBe('completed')
+      expect(jobService.getById(leftover.id)?.status).toBe('cancelled')
+      expect(executedIds).toEqual([fresh.id])
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('abandon: gives a quiet-window enqueue its own job when a leftover holds its idempotency key', async () => {
+      // A crash leaves the row running; joining it would wait on work that died with the previous launch.
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const [leftover] = await dbh
+        .insert(jobTable)
+        .values({
+          type: 'keyed.abandon',
+          status: 'running',
+          queue: 'keyed.abandon',
+          idempotencyKey: 'keyed.abandon:item',
+          scheduledAt: Date.now() - 1000,
+          startedAt: Date.now() - 800,
+          input: { message: 'leftover' }
+        })
+        .returning()
+      const executedIds: string[] = []
+      const handler: JobHandler<SlowInput> = {
+        recovery: 'abandon',
+        async execute(ctx) {
+          executedIds.push(ctx.jobId)
+          return { echoed: ctx.input.message } satisfies SlowOutput
+        }
+      }
+
+      let fresh!: JobHandle
+      const { scheduler, jobManager } = await bootstrapManager({
+        beforeRecovery: async (jm) => {
+          // After onInit, as a dependent service's onInit registers it.
+          jm.registerHandler('keyed.abandon' as never, handler)
+          fresh = jm.enqueue('keyed.abandon' as never, { message: 'fresh' } as never, {
+            idempotencyKey: 'keyed.abandon:item'
+          })
+          await drainAllQueues(jm)
+        }
+      })
+
+      expect(fresh.id).not.toBe(leftover.id)
+      expect((await fresh.finished).status).toBe('completed')
+      expect(jobService.getById(leftover.id)?.status).toBe('cancelled')
+      expect(executedIds).toEqual([fresh.id])
+
+      await teardownManager(scheduler, jobManager)
+    })
+
     it('singleton: keeps the newest non-terminal, cancels older ones', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
 

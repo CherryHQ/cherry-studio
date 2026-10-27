@@ -15,11 +15,47 @@ export interface RecoveryStats {
   singletonKept: number
 }
 
+const cancelledByRecovery: JobError = {
+  code: JOB_ERROR_CODES.CANCELLED,
+  message: 'Cancelled by startup recovery',
+  retryable: false
+}
+
+/** A job's startup recovery strategy: its own override, else its handler's. */
+function strategyOf(row: JobRow, handler: JobHandler): RecoveryStrategy {
+  return row.recovery ?? handler.recovery
+}
+
+/**
+ * Cancels the previous launch's rows of one type that recover by `abandon`.
+ * JobManager runs it as soon as both the leftover snapshot and the type's
+ * handler exist. A type can be neither enqueued nor executed before its handler
+ * registers, so no code of this launch has claimed these rows, deduplicated an
+ * enqueue against them, or awaited them yet: a bare cancel leaves nobody
+ * waiting. `runStartupRecovery` reconciles the other strategies later.
+ *
+ * @param leftoverJobIds - Rows that were non-terminal when JobManager initialized
+ */
+export function abandonLeftovers(type: string, handler: JobHandler, leftoverJobIds: ReadonlySet<string>): void {
+  try {
+    const ids = jobService
+      .getActiveByType(type)
+      .filter((row) => leftoverJobIds.has(row.id) && strategyOf(row, handler) === 'abandon')
+      .map((row) => row.id)
+    if (ids.length === 0) return
+    jobService.cancelByIds(ids, cancelledByRecovery)
+    logger.info('Abandon recovery: cancelled leftovers', { type, count: ids.length })
+  } catch (err) {
+    logger.error('Abandon recovery failed', err as Error, { type })
+  }
+}
+
 /**
  * Per-processor declarative recovery. Walks the registered handlers, applies
- * each type's `recovery` strategy to its non-terminal jobs (a job enqueued with
- * its own `recovery` uses that instead), then handles orphan running jobs whose
- * handler is no longer registered.
+ * each type's `retry` or `singleton` strategy to its non-terminal jobs (a job
+ * enqueued with its own `recovery` uses that instead), then handles orphan
+ * running jobs whose handler is no longer registered. `abandon` leftovers are
+ * already cancelled by `abandonLeftovers` when their handler registered.
  *
  * Current-launch exclusion: rows the CURRENT process owns (reported via
  * `isOwnedByCurrentLaunch`) are filtered out up front, before any strategy or
@@ -28,11 +64,10 @@ export interface RecoveryStats {
  * process whether it is running, queued behind its concurrency cap, or waiting
  * out a retry backoff when the sweep fires, and so is a leftover this process
  * already picked up. Touching either breaks it: the retry/singleton reset would
- * re-dispatch a running job (running it twice), abandon/cancelRequested would race
- * a second terminal write against its live handler (#16291), and abandon would
- * cancel a queued one behind JobManager's back, so its `finished` never settles.
- * `cancel()` already owns cancellation of this process's jobs, so excluding them
- * from every branch is safe.
+ * re-dispatch a running job (running it twice), and cancelRequested would race a
+ * second terminal write against its live handler (#16291). `cancel()` already
+ * owns cancellation of this process's jobs, so excluding them from every branch
+ * is safe.
  *
  * Step order matters: cancelRequested=true overrides any strategy — those
  * jobs are cancelled regardless. The strategy then applies to the rest.
@@ -55,11 +90,6 @@ export function runStartupRecovery(
   isOwnedByCurrentLaunch: (jobId: string) => boolean
 ): RecoveryStats {
   const stats: RecoveryStats = { cancelled: 0, pendingReset: 0, delayedKept: 0, singletonKept: 0 }
-  const cancelledByRecovery: JobError = {
-    code: JOB_ERROR_CODES.CANCELLED,
-    message: 'Cancelled by startup recovery',
-    retryable: false
-  }
 
   for (const [type, handler] of handlers) {
     const rows = jobService.getActiveByType(type)
@@ -89,17 +119,9 @@ export function runStartupRecovery(
     const remaining = active.filter((r) => !cancelRequestedSet.has(r.id))
 
     // 2. Apply each row's strategy to the rest: the job's own override, else its handler's.
-    const strategyOf = (row: JobRow): RecoveryStrategy => row.recovery ?? handler.recovery
-    const abandoned = remaining.filter((r) => strategyOf(r) === 'abandon')
-    const retried = remaining.filter((r) => strategyOf(r) === 'retry')
-    const singletons = remaining.filter((r) => strategyOf(r) === 'singleton')
+    const retried = remaining.filter((r) => strategyOf(r, handler) === 'retry')
+    const singletons = remaining.filter((r) => strategyOf(r, handler) === 'singleton')
 
-    if (abandoned.length) {
-      const ids = abandoned.map((r) => r.id)
-      jobService.cancelByIds(ids, cancelledByRecovery)
-      stats.cancelled += ids.length
-      logger.info('Abandon recovery: cancelled non-terminal', { type, count: ids.length })
-    }
     if (retried.length) {
       const runningIds = retried.filter((r) => r.status === 'running').map((r) => r.id)
       const delayedCount = retried.filter((r) => r.status === 'delayed').length
@@ -115,7 +137,7 @@ export function runStartupRecovery(
     if (singletons.length) {
       // An instance this launch owns supersedes every leftover. Otherwise keep the newest one:
       // singletons keep the createdAt DESC order of the jobService read.
-      const ownsInstance = rows.some((r) => isOwnedByCurrentLaunch(r.id) && strategyOf(r) === 'singleton')
+      const ownsInstance = rows.some((r) => isOwnedByCurrentLaunch(r.id) && strategyOf(r, handler) === 'singleton')
       const keep = ownsInstance ? undefined : singletons[0]
       if (keep?.status === 'running') {
         jobService.resetToPendingByIds([keep.id])
