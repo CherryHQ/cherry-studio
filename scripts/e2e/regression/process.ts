@@ -22,7 +22,7 @@ export function isAlive(pid: number): boolean {
   }
 }
 
-function processCommand(pid: number, platform: Platform): string {
+export function processCommand(pid: number, platform: Platform): string {
   try {
     return platform === 'windows'
       ? execFileSync(

@@ -553,6 +553,9 @@ importers:
       '@codemirror/view':
         specifier: 6.39.16
         version: 6.39.16
+      '@copilotkit/aimock':
+        specifier: 1.46.0
+        version: 1.46.0(vitest@5.0.1)
       '@dagrejs/dagre':
         specifier: ^3.0.0
         version: 3.0.0
@@ -3108,6 +3111,19 @@ packages:
   '@colors/colors@1.6.0':
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
     engines: {node: '>=0.1.90'}
+
+  '@copilotkit/aimock@1.46.0':
+    resolution: {integrity: sha512-53x0HL1o2z0MHVF+RovjiLois9giU03QUbyBzKkOHUSHXLaq4RDhwIqLO2UWxMMDYYeawm2QKCEdLKTg+o5m6g==}
+    engines: {node: '>=20.15.0'}
+    hasBin: true
+    peerDependencies:
+      jest: '>=29'
+      vitest: '>=3'
+    peerDependenciesMeta:
+      jest:
+        optional: true
+      vitest:
+        optional: true
 
   '@croct/json5-parser@0.2.2':
     resolution: {integrity: sha512-0NJMLrbeLbQ0eCVj3UoH/kG2QckUgOASfwmfDTjyW1xAYPyTNJXcWVT/dssJdTJd0pRchW+qF0VFWQHcxs1OVw==}
@@ -17291,6 +17307,10 @@ snapshots:
       w3c-keyname: 2.2.8
 
   '@colors/colors@1.6.0': {}
+
+  '@copilotkit/aimock@1.46.0(vitest@5.0.1)':
+    optionalDependencies:
+      vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
 
   '@croct/json5-parser@0.2.2':
     dependencies:

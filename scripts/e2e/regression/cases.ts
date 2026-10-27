@@ -553,7 +553,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-86',
     title: 'Translation settings (model, auto-copy, detection method)',
-    tasks: ['translation'],
+    tasks: ['translation', 'translation-settings'],
     phase: 'translation',
     capabilities: []
   },

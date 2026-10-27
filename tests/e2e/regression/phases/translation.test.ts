@@ -9,6 +9,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { TranslateHistorySchema, type TranslateHistory } from '@shared/data/types/translate'
 
+import packageJson from '../../../../package.json'
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -621,6 +622,10 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
     keys
   )
   const server = await startTranslationSettingsServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description: `aiMock ${packageJson.devDependencies['@copilotkit/aimock']}; mock model responses and usage, real Electron translation UI, clipboard, database and restart. Not model-quality acceptance.`
+  })
   const providerId = `regression-mp86-${Date.now()}`
   const modelIds = [`${providerId}-model-a`, `${providerId}-model-b`]
   const screenshot = async (name: string) => {
@@ -796,6 +801,10 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
     ).toBeChecked()
     await screenshot('MP-86 settings persisted after restart')
   } finally {
+    await testInfo.attach('MP-86 aiMock request journal', {
+      body: JSON.stringify(server.requests, null, 2),
+      contentType: 'application/json'
+    })
     await server.close()
     page = await app.mainWindow()
     await page.evaluate(

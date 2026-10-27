@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -73,6 +73,7 @@ describe('regression execution plan', () => {
   })
 
   it('selects only the requested task within its workflow phase', () => {
+    expect(selectCases('translation-settings', 'translation').map(({ id }) => id)).toEqual(['MP-86'])
     expect(selectCases('knowledge-smoke', 'knowledge').map(({ id }) => id)).toEqual(['K-01'])
     expect(selectCases('code-cli', 'codeTools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
     expect(selectCases('notes', 'modelsAndAssistants')).toEqual([])
@@ -102,23 +103,6 @@ describe('regression execution plan', () => {
 
   it('keeps execution order out of selectable task names', () => {
     for (const task of TASK_SELECTIONS) expect(task).not.toMatch(/^\d/)
-  })
-
-  it('limits mock fixtures to focused smoke tasks instead of expanded module tasks', () => {
-    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
-    const step = workflow.jobs.test.steps.find((step: { id?: string }) => step.id === 'mock')
-    const guard = step.run.slice(0, step.run.indexOf('PORT=4010'))
-    for (const [task, expected] of [
-      ['notes-smoke', 0],
-      ['translation-smoke', 0],
-      ['mini-app-smoke', 0],
-      ['notes', 1],
-      ['translation', 1],
-      ['mini-app', 1]
-    ] as const) {
-      const result = spawnSync('bash', ['-c', guard.replaceAll('${{ inputs.task }}', task)], { encoding: 'utf8' })
-      expect(result.status, result.stdout + result.stderr).toBe(expected)
-    }
   })
 
   it('prepares the MCP server package for both the module and focused MCP tasks', () => {

@@ -7,6 +7,7 @@ import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './con
 import { createFixtures } from './fixtureFiles'
 import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
+import { assertMockTask, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { runPhase } from './phases'
 import { createRedactor } from './redaction'
@@ -84,6 +85,8 @@ async function initializeCommand(): Promise<void> {
   const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
   const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
   const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
+  const providerMode = oneOf(argument('provider-mode', false) ?? 'real', ['real', 'mock'] as const, 'provider mode')
+  if (providerMode === 'mock') assertMockTask(task)
   const ref = argument('ref') ?? ''
   const sha = argument('sha') ?? ''
   const runner = argument('runner') ?? ''
@@ -95,7 +98,8 @@ async function initializeCommand(): Promise<void> {
     platform,
     ref,
     runner,
-    task
+    task,
+    providerMode
   })
   await createFixtures(paths)
   run = setCapabilities(run, probeCapabilities(platform, paths))
@@ -104,7 +108,12 @@ async function initializeCommand(): Promise<void> {
 
 async function preflightCommand(): Promise<void> {
   const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
-  if (task === 'chat-stream-failure') return
+  const directory = argument('run-dir', false)
+  if (directory && readRun(getRunPaths(directory).runState).metadata.providerMode === 'mock') {
+    assertMockTask(task)
+    await verifyMockProvider(getRunPaths(directory))
+  }
+  if (task === 'chat-stream-failure' || task === 'translation-settings') return
   loadTestConfig()
   const redacted = createRedactor(getSensitiveConfigValues())
   process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
@@ -162,9 +171,13 @@ async function aggregateCommand(): Promise<void> {
   const output = resolve(argument('output') ?? '')
   const modeValue = argument('mode', false)
   const expectedMode = modeValue ? oneOf(modeValue, RUN_MODES, 'mode') : undefined
+  const providerModeValue = argument('provider-mode', false)
+  const expectedProviderMode = providerModeValue
+    ? oneOf(providerModeValue, ['real', 'mock'] as const, 'provider mode')
+    : undefined
   const resultFiles = findFiles(input, 'results.json')
   const runs = resultFiles.map(readRun)
-  const report = aggregateRuns(runs, expectedMode)
+  const report = aggregateRuns(runs, expectedMode, expectedProviderMode)
   mkdirSync(output, { recursive: true })
   const markdown = renderAggregateMarkdown(report)
   writeFileSync(join(output, 'combined-results.json'), `${JSON.stringify(report, null, 2)}\n`)
@@ -186,12 +199,31 @@ async function aggregateGateCommand(): Promise<void> {
 
 async function cleanupCommand(): Promise<void> {
   const paths = runDirectory()
-  await stopOwnedApp(paths)
+  try {
+    await stopOwnedApp(paths)
+  } finally {
+    await stopMockProvider(paths)
+  }
+}
+
+async function mockStartCommand(): Promise<void> {
+  const record = await startMockProvider(runDirectory())
+  outputLine('base_url', `http://127.0.0.1:${record.port}/v1`)
+  outputLine('anthropic_base_url', `http://127.0.0.1:${record.port}`)
+  outputLine('api_key', 'mock-key-not-checked')
+  outputLine('chat_model', 'mock-chat')
+  outputLine('embedding_model', 'mock-embedding')
 }
 
 async function main(): Promise<void> {
   const command = process.argv[2]
   switch (command) {
+    case 'mock-start':
+      await mockStartCommand()
+      break
+    case 'mock-stop':
+      await stopMockProvider(runDirectory())
+      break
     case 'resolve-ref':
       await resolveRefCommand()
       break

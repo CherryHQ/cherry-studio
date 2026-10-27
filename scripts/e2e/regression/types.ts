@@ -7,6 +7,7 @@ export type Platform = (typeof PLATFORMS)[number]
 export type RunMode = (typeof RUN_MODES)[number]
 export type CaseStatus = (typeof CASE_STATUSES)[number]
 export type TestProfile = 'authenticated' | 'clean' | 'translation-history'
+export type ProviderMode = 'real' | 'mock'
 
 export interface CaseResult {
   id: string
@@ -15,6 +16,7 @@ export interface CaseResult {
   startedAt?: string
   finishedAt?: string
   artifacts?: string[]
+  dataSources?: string[]
 }
 
 export interface RunMetadata {
@@ -27,6 +29,8 @@ export interface RunMetadata {
   task: TaskSelection
   artifactName?: string
   artifactSha256?: string
+  providerMode?: ProviderMode
+  mockVersion?: string
 }
 
 export interface CapabilityResult {
@@ -45,6 +49,10 @@ export interface RegressionRun {
 }
 
 export type RunVerdict =
+  | 'mock_pass'
+  | 'mock_failed'
+  | 'mock_blocked'
+  | 'mock_not_applicable'
   | 'development_pass'
   | 'development_failed'
   | 'development_blocked'
@@ -58,6 +66,7 @@ export interface AggregateReport {
   verdict: RunVerdict
   runs: RegressionRun[]
   missingPlatforms: Platform[]
+  errors: string[]
 }
 
 export interface PhaseResult {

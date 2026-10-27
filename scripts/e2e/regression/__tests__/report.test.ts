@@ -2,6 +2,63 @@ import { aggregateRuns, renderAggregateMarkdown, renderJUnit, renderMarkdown } f
 import { completeE2eCase, createRun, finalizeRun, updatePhase } from '../state'
 
 describe('regression report gate', () => {
+  const backendRun = (platform: 'macos' | 'windows', providerMode: 'real' | 'mock') => {
+    const run = createRun({
+      appVersion: 'test',
+      commitSha: 'sha',
+      mode: 'tag',
+      platform,
+      ref: 'vtest',
+      runner: platform,
+      task: 'translation-settings',
+      providerMode,
+      ...(providerMode === 'mock' ? { mockVersion: '1.46.0' } : {})
+    })
+    return finalizeRun(
+      updatePhase(
+        completeE2eCase(
+          run,
+          'MP-86',
+          'passed',
+          'Translation verified',
+          [],
+          ['aiMock: fixed model responses; real clipboard']
+        ),
+        'translation',
+        'passed'
+      )
+    )
+  }
+
+  it('labels mock success separately from release acceptance in platform, aggregate and JUnit reports', () => {
+    const runs = [backendRun('macos', 'mock'), backendRun('windows', 'mock')]
+    const aggregate = aggregateRuns(runs)
+    expect(aggregate.verdict).toBe('mock_pass')
+    expect(renderAggregateMarkdown(aggregate)).toContain('Mock tests passed (not real-provider acceptance)')
+    const platform = renderMarkdown(runs[0])
+    expect(platform).toContain('| Configured provider backend | mock |')
+    expect(platform).toContain('| aiMock version | 1.46.0 |')
+    expect(platform).toContain('MP-86 data source:')
+    expect(renderJUnit(runs[0])).toContain('name="provider_mode" value="mock"')
+    expect(renderJUnit(runs[0])).toContain('name="aimock_version" value="1.46.0"')
+    expect(renderJUnit(runs[0])).toContain('name="data-source" value="aiMock: fixed model responses; real clipboard"')
+  })
+
+  it('blocks mixed backends and rejects mock evidence when real-provider evidence is requested', () => {
+    const mock = backendRun('macos', 'mock')
+    const real = backendRun('windows', 'real')
+    expect(aggregateRuns([mock, real]).verdict).toBe('mock_blocked')
+    expect(aggregateRuns([mock, backendRun('windows', 'mock')], 'tag', 'real').verdict).toBe('release_blocked')
+    expect(renderAggregateMarkdown(aggregateRuns([mock, real]))).toContain('mixes mock and real')
+  })
+
+  it('does not certify missing provider provenance or a mock run without a pinned service version', () => {
+    const mock = backendRun('macos', 'mock')
+    delete mock.metadata.mockVersion
+    expect(aggregateRuns([mock, backendRun('windows', 'mock')]).verdict).toBe('mock_blocked')
+    delete mock.metadata.providerMode
+    expect(aggregateRuns([mock, backendRun('windows', 'real')]).verdict).toBe('release_blocked')
+  })
   describe.each([
     ['branch', 'development'],
     ['tag', 'release']

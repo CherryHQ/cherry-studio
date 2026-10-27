@@ -91,6 +91,13 @@ while Electron is running, since native dependency rebuilds switch its ABI.
 
 ## Configuration and evidence
 
+`translation-settings` selects only MP-86. The case uses pinned aiMock responses for
+language detection and translation, while exercising the real settings UI, model
+routing, automatic clipboard copy, history and usage storage, and restart persistence.
+Its `data-source` annotation and request-journal attachment identify the mocked model
+boundary. Configured provider mode is recorded independently in the run reports;
+mock-mode success cannot substitute for real-provider acceptance.
+
 The repository variables/secrets are listed in `scripts/e2e/regression/config.ts`; the image model variable is `CHERRY_TEST_CHERRYIN_IMAGE_MODEL`.
 
 Custom chat provider creation fills two required endpoint URLs:

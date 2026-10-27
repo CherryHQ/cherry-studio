@@ -65,7 +65,10 @@ export default class RegressionReporter implements Reporter {
         : result.status === 'skipped'
           ? `Prerequisites not met: ${blocked ?? 'See phase logs'}`
           : 'End-to-end test failed; see phase logs and the HTML report'
-    writeRun(this.paths.runState, completeE2eCase(run, id, status, this.redact(summary), artifacts))
+    const dataSources = result.annotations.flatMap(({ type, description }) =>
+      type === 'data-source' && description ? [this.redact(description)] : []
+    )
+    writeRun(this.paths.runState, completeE2eCase(run, id, status, this.redact(summary), artifacts, dataSources))
   }
 
   onError(error: TestError): void {

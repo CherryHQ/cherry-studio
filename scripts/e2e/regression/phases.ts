@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 
 import { type PhaseId, selectCases, supportsPlatform } from './cases'
+import { verifyMockProvider } from './mockProvider'
 import type { RunPaths } from './paths'
 import { readRun, updatePhase, writeRun } from './state'
 
@@ -11,6 +12,7 @@ export async function runPhase(paths: RunPaths, phase: PhaseId): Promise<void> {
   const run = readRun(paths.runState)
   const selected = selectCases(run.metadata.task, phase).filter(({ id }) => supportsPlatform(id, run.metadata.platform))
   if (selected.length === 0) return
+  if (run.metadata.providerMode === 'mock') await verifyMockProvider(paths)
   writeRun(paths.runState, updatePhase(run, phase, 'running'))
   const args = ['test', '--config', 'playwright.regression.config.ts', `phases/${phase}.test.ts`]
   if (run.metadata.task !== 'all') args.push('--grep', `@${run.metadata.task}(?:\\s|$)`)

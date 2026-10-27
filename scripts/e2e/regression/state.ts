@@ -8,7 +8,7 @@ export function createRun(metadata: RunMetadata): RegressionRun {
   const selectedIds = new Set(selected.map(({ id }) => id))
   return {
     schemaVersion: 2,
-    metadata,
+    metadata: { providerMode: 'real', ...metadata },
     startedAt: new Date().toISOString(),
     capabilities: {},
     phases: Object.fromEntries(
@@ -55,7 +55,8 @@ export function completeE2eCase(
   caseId: string,
   status: Extract<CaseStatus, 'blocked' | 'failed' | 'passed'>,
   summary: string,
-  artifacts: string[] = []
+  artifacts: string[] = [],
+  dataSources: string[] = []
 ): RegressionRun {
   const result = run.cases[caseId]
   if (!result) throw new Error(`Unknown regression case: ${caseId}`)
@@ -69,6 +70,7 @@ export function completeE2eCase(
       [caseId]: {
         ...result,
         artifacts,
+        dataSources,
         status,
         summary: summary.trim(),
         finishedAt: new Date().toISOString()
@@ -113,7 +115,9 @@ export function updateRunMetadata(run: RegressionRun, metadata: Partial<RunMetad
 
 export function getRunVerdict(run: RegressionRun): RunVerdict {
   const applicable = Object.values(run.cases).filter(({ status }) => status !== 'not_applicable')
-  const prefix = run.metadata.mode === 'tag' ? 'release' : 'development'
+  const prefix = run.metadata.providerMode === 'mock' ? 'mock' : run.metadata.mode === 'tag' ? 'release' : 'development'
+  if (!['real', 'mock'].includes(run.metadata.providerMode ?? '')) return `${prefix}_blocked`
+  if (run.metadata.providerMode === 'mock' && !run.metadata.mockVersion) return 'mock_blocked'
   const phases = Object.values(run.phases)
   // A task whose every case is unsupported on this platform has nothing to execute here;
   // excluding it is a correct result, not a blocked one.

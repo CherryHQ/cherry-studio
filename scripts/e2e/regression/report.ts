@@ -7,6 +7,7 @@ import {
   type AggregateReport,
   type CaseStatus,
   type Platform,
+  type ProviderMode,
   PLATFORMS,
   type RegressionRun,
   type RunMode,
@@ -23,6 +24,10 @@ const STATUS_LABELS: Record<CaseStatus, string> = {
 }
 
 const VERDICT_LABELS: Record<RunVerdict, string> = {
+  mock_pass: '✅ Mock tests passed (not real-provider acceptance)',
+  mock_failed: '❌ Mock tests failed',
+  mock_blocked: '⛔ Mock tests blocked',
+  mock_not_applicable: '— No cases apply to this platform (mock)',
   development_pass: '✅ Development tests passed',
   development_failed: '❌ Development tests failed',
   development_blocked: '⛔ Development tests blocked',
@@ -115,6 +120,8 @@ export function renderMarkdown(run: RegressionRun): string {
     `| App version | \`${escapeMarkdown(run.metadata.appVersion)}\` |`,
     `| Run mode | ${MODE_LABELS[run.metadata.mode]} |`,
     `| Task selection | \`${escapeMarkdown(run.metadata.task)}\` |`,
+    `| Configured provider backend | ${run.metadata.providerMode ?? 'unknown (legacy report)'} |`,
+    ...(run.metadata.mockVersion ? [`| aiMock version | ${escapeMarkdown(run.metadata.mockVersion)} |`] : []),
     `| Started at (UTC) | \`${run.startedAt}\` |`,
     ...(run.finishedAt ? [`| Finished at (UTC) | \`${run.finishedAt}\` |`] : []),
     `| Duration | ${formatDuration(run.startedAt, run.finishedAt)} |`,
@@ -134,6 +141,12 @@ export function renderMarkdown(run: RegressionRun): string {
     '| Item | Value |',
     '| --- | --- |',
     ...metadataRows,
+    '',
+    'Provider mode describes the configured backend. Case-owned fixtures are listed below; a mock result does not establish external model quality or real-provider acceptance.',
+    '',
+    ...testCases.flatMap(({ id }) =>
+      (run.cases[id].dataSources ?? []).map((source) => `- **${id} data source:** ${escapeMarkdown(source)}`)
+    ),
     '',
     '## Results overview',
     '',
@@ -190,12 +203,18 @@ export function renderJUnit(run: RegressionRun): string {
     results.filter(({ result }) => ['blocked', 'not_applicable', 'pending', 'running'].includes(result.status)).length
   const cases = results.map(({ testCase, result }) => {
     const name = `${testCase.id} ${testCase.title}`
+    const sources = (result.dataSources ?? [])
+      .map((source) => `<property name="data-source" value="${escapeXml(source)}" />`)
+      .join('')
+    const properties = sources ? `<properties>${sources}</properties>` : ''
     if (result.status === 'failed') {
-      return `    <testcase classname="cherry-regression.${run.metadata.platform}" name="${escapeXml(name)}"><failure message="${escapeXml(result.summary)}" /></testcase>`
+      return `    <testcase classname="cherry-regression.${run.metadata.platform}" name="${escapeXml(name)}">${properties}<failure message="${escapeXml(result.summary)}" /></testcase>`
     }
     if (result.status !== 'passed') {
-      return `    <testcase classname="cherry-regression.${run.metadata.platform}" name="${escapeXml(name)}"><skipped message="${escapeXml(result.summary)}" /></testcase>`
+      return `    <testcase classname="cherry-regression.${run.metadata.platform}" name="${escapeXml(name)}">${properties}<skipped message="${escapeXml(result.summary)}" /></testcase>`
     }
+    if (properties)
+      return `    <testcase classname="cherry-regression.${run.metadata.platform}" name="${escapeXml(name)}">${properties}</testcase>`
     return `    <testcase classname="cherry-regression.${run.metadata.platform}" name="${escapeXml(name)}" />`
   })
 
@@ -203,6 +222,7 @@ export function renderJUnit(run: RegressionRun): string {
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<testsuites tests="${results.length + phaseIssues.length}" failures="${failures}" skipped="${skipped}">`,
     `  <testsuite name="cherry-regression-${run.metadata.platform}" tests="${results.length + phaseIssues.length}" failures="${failures}" skipped="${skipped}">`,
+    `    <properties><property name="provider_mode" value="${run.metadata.providerMode ?? 'unknown'}" /><property name="aimock_version" value="${escapeXml(run.metadata.mockVersion ?? '')}" /></properties>`,
     ...cases,
     ...phaseIssues.map(
       ({ id, failed, message }) =>
@@ -221,12 +241,18 @@ export function writeReports(run: RegressionRun, outputDirectory: string): void 
   writeFileSync(join(outputDirectory, 'junit.xml'), renderJUnit(run))
 }
 
-function aggregateVerdict(runs: RegressionRun[], missingPlatforms: Platform[], expectedMode?: RunMode): RunVerdict {
+function aggregateVerdict(
+  runs: RegressionRun[],
+  missingPlatforms: Platform[],
+  expectedMode?: RunMode,
+  providerMode?: ProviderMode,
+  errors: string[] = []
+): RunVerdict {
   const mode = runs[0]?.metadata.mode ?? expectedMode ?? 'tag'
-  const prefix = mode === 'tag' ? 'release' : 'development'
+  const prefix = providerMode === 'mock' ? 'mock' : mode === 'tag' ? 'release' : 'development'
   const verdicts = runs.map(getRunVerdict)
   if (verdicts.some((verdict) => verdict.endsWith('_failed'))) return `${prefix}_failed`
-  if (missingPlatforms.length > 0 || verdicts.some((verdict) => verdict.endsWith('_blocked'))) {
+  if (errors.length > 0 || missingPlatforms.length > 0 || verdicts.some((verdict) => verdict.endsWith('_blocked'))) {
     return `${prefix}_blocked`
   }
   if (verdicts.length > 0 && verdicts.every((verdict) => verdict.endsWith('_not_applicable'))) {
@@ -235,10 +261,23 @@ function aggregateVerdict(runs: RegressionRun[], missingPlatforms: Platform[], e
   return `${prefix}_pass`
 }
 
-export function aggregateRuns(runs: RegressionRun[], expectedMode?: RunMode): AggregateReport {
+export function aggregateRuns(
+  runs: RegressionRun[],
+  expectedMode?: RunMode,
+  expectedProviderMode?: ProviderMode
+): AggregateReport {
   const presentPlatforms = new Set(runs.map(({ metadata }) => metadata.platform))
   const missingPlatforms = PLATFORMS.filter((platform) => !presentPlatforms.has(platform))
-  return { runs, missingPlatforms, verdict: aggregateVerdict(runs, missingPlatforms, expectedMode) }
+  const providerMode = expectedProviderMode ?? runs[0]?.metadata.providerMode
+  const errors = runs.some((run) => !run.metadata.providerMode || run.metadata.providerMode !== providerMode)
+    ? ['Provider evidence is missing or mixes mock and real backends; run both platforms in the same mode.']
+    : []
+  return {
+    runs,
+    missingPlatforms,
+    errors,
+    verdict: aggregateVerdict(runs, missingPlatforms, expectedMode, providerMode, errors)
+  }
 }
 
 export function renderAggregateMarkdown(report: AggregateReport): string {
@@ -263,6 +302,17 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
     '# Cherry Studio End-to-End Regression Summary',
     '',
     `> **Overall verdict: ${VERDICT_LABELS[report.verdict]}**`,
+    '',
+    '| Platform | Configured provider backend | aiMock version |',
+    '| --- | --- | --- |',
+    ...runs.map(
+      (run) =>
+        `| ${PLATFORM_LABELS[run.metadata.platform]} | ${run.metadata.providerMode ?? 'unknown'} | ${run.metadata.mockVersion ?? '—'} |`
+    ),
+    '',
+    ...report.errors.map((error) => `> **Evidence error:** ${escapeMarkdown(error)}`),
+    '',
+    'Mock results are deterministic fixture checks, not real-provider acceptance. Case-owned fixture details are retained in each platform report.',
     '',
     '| Platform | Passed | Failed | Blocked | Incomplete | Duration | Verdict |',
     '| --- | ---: | ---: | ---: | ---: | --- | --- |',

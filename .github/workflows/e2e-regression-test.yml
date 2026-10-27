@@ -55,6 +55,7 @@ on:
           - agent-basic-task
           - claude-agent-runtime
           - pi-runtime
+          - translation-settings
       provider_mode:
         description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
         required: true
@@ -221,47 +222,15 @@ jobs:
           --sha "$TEST_SHA"
           --runner "$TEST_RUNNER"
           --task "$TEST_TASK"
+          --provider-mode "${{ inputs.provider_mode }}"
 
       - name: Start in-job mock provider
         id: mock
         if: inputs.provider_mode == 'mock'
         shell: bash
-        run: |
-          set -euo pipefail
-          # The fixtures in scripts/e2e/regression/mock-fixtures cover the provider prompts of the
-          # tasks below. Every other task needs the real provider — knowledge asserts semantic
-          # retrieval, the agent runtimes drive multi-leg tool loops, CherryIn and the image case
-          # call their own upstream models — so refuse the run here instead of failing phases that
-          # cannot pass whatever the application does.
-          case "${{ inputs.task }}" in
-            startup-smoke|mini-app-smoke|notes-smoke|custom-provider-chat|provider-model-scroll|custom-assistant|chat-stream-failure|translation-smoke|quick-assistant) ;;
-            *)
-              echo "::error::provider_mode=mock supports: startup-smoke, mini-app-smoke, notes-smoke, custom-provider-chat, provider-model-scroll, custom-assistant, chat-stream-failure, translation-smoke, quick-assistant. Task '${{ inputs.task }}' needs provider_mode=real (see scripts/e2e/regression/mock-fixtures/README.md)."
-              exit 1
-              ;;
-          esac
-          PORT=4010
-          LOG="$RUNNER_TEMP/aimock.log"
-          npx --yes --package=@copilotkit/aimock llmock -p "$PORT" -h 127.0.0.1 \
-            -f scripts/e2e/regression/mock-fixtures > "$LOG" 2>&1 &
-          up=0
-          for _ in $(seq 1 60); do
-            if curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$PORT/__aimock/routes"; then up=1; break; fi
-            sleep 2
-          done
-          if [ "$up" != "1" ]; then
-            echo "Mock provider did not come up on port $PORT"
-            tail -40 "$LOG" || true
-            exit 1
-          fi
-          {
-            echo "base_url=http://127.0.0.1:$PORT/v1"
-            echo "anthropic_base_url=http://127.0.0.1:$PORT"
-            echo "api_key=mock-key-not-checked"
-            echo "chat_model=mock-chat"
-            echo "embedding_model=mock-embedding"
-          } >> "$GITHUB_OUTPUT"
-          echo "Mock provider listening on 127.0.0.1:$PORT (fixtures: scripts/e2e/regression/mock-fixtures)"
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts mock-start
+          --run-dir "$RUN_DIR"
 
       - name: Validate test configuration
         shell: bash
@@ -277,7 +246,7 @@ jobs:
           CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
           CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --task '${{ needs.resolve.outputs.task }}'
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --run-dir "$RUN_DIR" --task '${{ needs.resolve.outputs.task }}'
 
       - name: Install application dependencies
         if: needs.resolve.outputs.mode == 'branch'
@@ -656,6 +625,7 @@ jobs:
           --input platform-reports
           --output combined-report
           --mode "${{ needs.resolve.outputs.mode }}"
+          --provider-mode "${{ inputs.provider_mode }}"
 
       - name: Merge detailed Playwright reports
         env:

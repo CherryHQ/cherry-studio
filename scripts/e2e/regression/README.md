@@ -13,6 +13,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `cli.ts`, `phases.ts` | CLI entry points and one Playwright invocation per selected phase |
 | `installation.ts`, `artifacts.ts` | Release installation, asset selection, and hashing |
 | `lifecycle.ts` | Start, reuse, restart, and stop the owned application |
+| `mockProvider.ts`, `mockWorker.ts` | Start, verify and stop the run-owned aiMock service |
 | `process.ts` | OS process identity, ancestry, ports, and termination |
 | `debugBridge.ts`, `cdpClient.ts` | Explicit main-process debug operations and HTTP callback delivery |
 | `systemAutomation.ts` | Native dialogs, external text selection, and keyboard input |
@@ -76,6 +77,21 @@ Capability requirements belong to cases. Missing required capabilities skip exec
 Capability probes are preflight checks, not evidence that a product interaction succeeded.
 
 ## Combined report
+
+Initialize with `--provider-mode real` (default) or `--provider-mode mock`. Mock runs
+call `mock-start --run-dir ...` before preflight and launch. The controller uses the
+exact aiMock version in `package.json` and `pnpm-lock.yaml`, binds a free loopback
+port, and records PID, token, port and version in `mock.json`. It verifies the worker
+command, listener and authenticated identity before reuse. `mock-stop` and `cleanup`
+stop only the recorded worker, including when application cleanup fails. Workflow
+cleanup runs with `always()`; runner teardown remains the fallback on hard cancellation.
+
+JSON, Markdown and JUnit reports retain the configured provider mode and mock version.
+Mock verdicts use `mock_*`, including tag runs; they are not release acceptance.
+Aggregation blocks missing provider provenance, mixed real/mock platforms, or evidence
+that differs from the requested mode. Older reports without provider provenance must
+be rerun. Cases using their own fixtures record `data-source` annotations, retained in
+JSON and platform Markdown, even when the configured backend is real.
 
 The aggregate job publishes `test-report`. Download and extract
 it, then open `index.html` to browse every platform and phase in one HTML
