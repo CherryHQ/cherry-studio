@@ -38,6 +38,7 @@ import type {
 import {
   advanceIndentedMaskState,
   confirmedOpenFenceStreamPrefix,
+  deferralIsInlineCodeOnly,
   fenceContainerPrefixFromState,
   type IndentedMaskState,
   initialIndentedMaskState,
@@ -260,6 +261,20 @@ type StreamContext = {
   olPrev1: string | null
   olPrev2: string | null
   olDone: number
+  /**
+   * Set when the last scan deferred ONLY because an inline-code span is still unclosed and held its text in
+   * the remainder. While it matches the current state, a delta made only of plain characters extends the
+   * remainder without rescanning it: no backtick, tilde, angle bracket, ampersand, backslash, line ending or
+   * private-use character can pair, close, extend or escape anything, so the scan would defer again with an
+   * identical result. Any other change (remainder, accumulator, block, fence or escape carry) invalidates it.
+   */
+  scratchpadInlineDefer: {
+    accLen: number
+    accGen: number
+    blockStart: number
+    remainderLen: number
+    fenceCarry: string
+  } | null
   olPrevVerdict: { start: number; gen: number; allows: boolean } | null
   /** Bumped whenever accumulatedText is replaced rather than appended. */
   accGen: number
@@ -643,6 +658,8 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
 const QUOTE_LINE_CARRY_HEAD = 256
 /** Open-line head kept by the incremental tracker; lines up to this length are handled without touching the accumulator. */
 const OPEN_LINE_HEAD_MAX = 1024
+/** Characters that cannot pair, close, extend or escape anything in the inline-code deferral (see scratchpadInlineDefer). */
+const PLAIN_DEFER_DELTA = /^[\p{L}\p{N} ,.;:!?'"()\-/%+=@$]*$/u
 const ACC_RECENT_MAX = 256
 
 export class ClaudeCodeStreamAdapter {
@@ -768,6 +785,7 @@ export class ClaudeCodeStreamAdapter {
       olPrev1: null,
       olPrev2: null,
       olDone: 0,
+      scratchpadInlineDefer: null,
       olPrevVerdict: null,
       accGen: 0,
       toolProtocolStripAccumulator: '',
@@ -1436,6 +1454,8 @@ export class ClaudeCodeStreamAdapter {
    * the hot path. Both stay O(delta) on a long tickless quote line.
    */
   private scratchpadCarryWorkChars = 0
+  /** Fast path for plain deltas while an inline-code span holds the remainder; tests turn it off to compare against the full scan. */
+  private scratchpadInlineDeferFastPath = true
   private scratchpadWholeSliceChars = 0
 
   private advanceScratchpadMaskState(emit: string, ctx: StreamContext): void {
@@ -1734,6 +1754,27 @@ export class ClaudeCodeStreamAdapter {
       return text
     }
 
+    const deferState = ctx.scratchpadInlineDefer
+    ctx.scratchpadInlineDefer = null
+    if (
+      this.scratchpadInlineDeferFastPath &&
+      deferState !== null &&
+      text !== '' &&
+      deferState.accLen === ctx.accumulatedText.length &&
+      deferState.accGen === ctx.accGen &&
+      deferState.blockStart === ctx.textBlockContextStart &&
+      deferState.remainderLen === ctx.scratchpadStreamRemainder.length &&
+      deferState.fenceCarry === ctx.scratchpadStreamFenceCarry &&
+      PLAIN_DEFER_DELTA.test(text)
+    ) {
+      // Nothing was emitted since the deferring scan, so the carried prefix, html carry, escape carry and mask
+      // state are exactly what that scan used, and a plain delta cannot change the unclosed-span verdict:
+      // the scan would defer again and store remainder + text.
+      ctx.scratchpadStreamRemainder += text
+      deferState.remainderLen += text.length
+      ctx.scratchpadInlineDefer = deferState
+      return ''
+    }
     // Reattach the escape context of the previous chunk: its trailing backslash was already
     // emitted, so the scanner cannot see it. The synthetic prefix is removed again below.
     // The same applies to Markdown line context: a delta continuing an
@@ -1812,6 +1853,20 @@ export class ClaudeCodeStreamAdapter {
       // The flush path cannot see the emitted text before the remainder, so
       // it needs the escape parity of the character run right before it.
       ctx.scratchpadStreamEscapeCarry = hasOddTrailingBackslashRun(ctx.accumulatedText)
+      if (
+        openFence === null &&
+        !ctx.scratchpadStreamEscapeCarry &&
+        PLAIN_DEFER_DELTA.test(combined.slice(-1)) &&
+        deferralIsInlineCodeOnly(combined, streamSeed)
+      ) {
+        ctx.scratchpadInlineDefer = {
+          accLen: ctx.accumulatedText.length,
+          accGen: ctx.accGen,
+          blockStart: ctx.textBlockContextStart,
+          remainderLen: ctx.scratchpadStreamRemainder.length,
+          fenceCarry: ctx.scratchpadStreamFenceCarry
+        }
+      }
       return ''
     }
     // No unclosed fence remains on this scan, so a carried opener is stale:

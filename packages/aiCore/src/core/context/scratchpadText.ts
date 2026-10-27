@@ -2305,6 +2305,26 @@ export function shouldDeferScratchpadStripping(
   )
 }
 
+/**
+ * True when the ONLY reason {@link shouldDeferScratchpadStripping} defers is an unclosed inline-code span:
+ * no incomplete markup, unclosed scratchpad block, unclosed fence or partial fence marker. Appending text
+ * with no backtick, tilde, angle bracket, ampersand, backslash or line ending cannot change that verdict,
+ * which lets a streaming caller extend a deferred remainder without rescanning it.
+ */
+export function deferralIsInlineCodeOnly(
+  text: string,
+  options?: { initialContainerPrefix?: string; initialMaskState?: IndentedMaskState }
+): boolean {
+  const seed = options?.initialContainerPrefix
+  return (
+    !textHasIncompleteMarkup(text) &&
+    !textHasUnclosedScratchpad(text, seed, options?.initialMaskState) &&
+    !textHasUnclosedCodeFence(text, { initialContainerPrefix: seed }) &&
+    !textEndsWithPartialFenceMarker(text) &&
+    textHasUnclosedInlineCode(/[`~]{3}/.test(text) ? maskCodeFences(text, { initialContainerPrefix: seed }).text : text)
+  )
+}
+
 /** True when the text opens a fenced code block that has no closing delimiter yet. */
 /** Position of the first code fence still open at the end of `text`, if any. */
 function findUnclosedCodeFence(text: string, initialContainerPrefix?: string): { markerStart: number } | null {

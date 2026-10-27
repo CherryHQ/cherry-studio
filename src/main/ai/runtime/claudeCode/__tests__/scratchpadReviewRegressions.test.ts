@@ -322,4 +322,99 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
       }
     }
   })
+
+  it('extends a span-deferred remainder without rescanning and matches the full scan (output and ctx state) after every delta', () => {
+    const snapshot = (adapter: any, parts: any[]) => {
+      const ctx = adapter.ctx
+      const picked: Record<string, unknown> = {}
+      for (const key of Object.keys(ctx).sort()) {
+        if (
+          /^(scratchpad|ol[A-Z]|accRecent|accumulatedText|accGen|toolProtocol|streamedTextLength|textStreamedViaContentBlock)/.test(
+            key
+          )
+        ) {
+          picked[key] = ctx[key]
+        }
+      }
+      return {
+        picked,
+        text: parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part) => part.delta)
+          .join('')
+      }
+    }
+    let seed = 0xfa57
+    const r = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0
+      return seed / 4294967296
+    }
+    const words = ['plain ', 'prose ', "don't ", 'use ', 'it, ', 'x', '12 ', '(ok) ', 'caf\u00e9 ', '\u4e2d\u6587 ']
+    const specials = [
+      '`',
+      '``',
+      '```',
+      '~',
+      '~~~',
+      '<',
+      '>',
+      '&',
+      '&lt;',
+      '\\',
+      '\n',
+      '\r\n',
+      '\n\n',
+      '<thinking>q</thinking>',
+      '<thinking>',
+      '</thinking>',
+      '<b>',
+      '\uE000',
+      '|',
+      '> '
+    ]
+    let fastHits = 0
+    for (let n = 0; n < 150; n++) {
+      let input = r() < 0.5 ? '> ' : ''
+      const pieces = 3 + Math.floor(r() * 7)
+      for (let i = 0; i < pieces; i++) {
+        input += r() < 0.25 ? '`'.repeat(1 + Math.floor(r() * 3)) : ''
+        const runs = 1 + Math.floor(r() * 10)
+        for (let k = 0; k < runs; k++) input += words[Math.floor(r() * words.length)]
+        input += r() < 0.45 ? specials[Math.floor(r() * specials.length)] : ''
+      }
+      const sizes = [1, 2, 3, 7, 20]
+      const size = sizes[Math.floor(r() * sizes.length)]
+      const partsA: any[] = []
+      const partsB: any[] = []
+      const fast = makeAdapter(partsA) as any
+      const slow = makeAdapter(partsB) as any
+      slow.scratchpadInlineDeferFastPath = false
+      for (let i = 0; i < input.length; i += size) {
+        const text = input.slice(i, i + size)
+        const before = fast.ctx.scratchpadStreamRemainder.length
+        for (const a of [fast, slow]) {
+          a.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+        }
+        if (fast.scratchpadScanInputChars < slow.scratchpadScanInputChars) fastHits++
+        const a = snapshot(fast, partsA)
+        const b = snapshot(slow, partsB)
+        expect(a.text, JSON.stringify([input, size, i])).toBe(b.text)
+        expect(a.picked, JSON.stringify([input, size, i])).toEqual(b.picked)
+        void before
+      }
+      for (const a of [fast, slow]) a.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      expect(snapshot(fast, partsA).text).toBe(snapshot(slow, partsB).text)
+    }
+    expect(fastHits).toBeGreaterThan(0)
+  }, 100000)
+
+  it('does linear scan work on a long quote or plain line with a stray unpaired tick', () => {
+    for (const lead of ['> ', '']) {
+      const input = `${lead}don't use \`open ${'word '.repeat(12000)}\` done <thinking>x</thinking> end\n`
+      const r = deliverWithWork(input, 20)
+      expect(r.out).toBe(deliver(input, null))
+      expect(r.work).toBeLessThan(input.length * 40)
+      expect(r.whole).toBeLessThan(input.length * 3)
+    }
+  })
 })
