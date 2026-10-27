@@ -4,6 +4,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
+import { normalizeMcpServedSchema } from '@main/ai/mcp/mcpServedSchema'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { redactToShape } from '@main/ai/utils/redactToShape'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
@@ -40,6 +41,7 @@ function toSdkTool(tool: McpTool): Tool {
   // V2 permits any JSON output and newer schema dialects. Main validates the original
   // schema; advertising it to a v1 client would trigger its incompatible validator.
   const sdkTool: Tool = stripCatalogFields(tool)
+  sdkTool.inputSchema = normalizeMcpServedSchema(sdkTool.inputSchema) as Tool['inputSchema']
   delete sdkTool.outputSchema
   return sdkTool
 }

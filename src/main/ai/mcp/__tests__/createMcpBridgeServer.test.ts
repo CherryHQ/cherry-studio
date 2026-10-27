@@ -213,6 +213,59 @@ describe('createMcpBridgeServer', () => {
     await client.close()
   })
 
+  it('normalizes input subschemas through tools/list without changing cached tools, calls or notifications', async () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        canonical_state: true,
+        forbidden: false,
+        nested: { type: 'object', properties: { child: false } },
+        sequence: { type: 'array', items: [true, false] },
+        alternatives: { anyOf: [true, false] },
+        literal: { default: true, const: true, enum: [true, false] }
+      },
+      additionalProperties: false
+    }
+    const expectedSchema = {
+      type: 'object',
+      properties: {
+        canonical_state: {},
+        forbidden: { not: {} },
+        nested: { type: 'object', properties: { child: { not: {} } } },
+        sequence: { type: 'array', items: [{}, { not: {} }] },
+        alternatives: { anyOf: [{}, { not: {} }] },
+        literal: { default: true, const: true, enum: [true, false] }
+      },
+      additionalProperties: { not: {} }
+    }
+    const cached = [{ ...searchTool(), name: 'boolean_tool', inputSchema: schema, outputSchema: schema }, searchTool()]
+    const original = structuredClone(cached)
+    mocks.listTools.mockReturnValue(cached)
+    mocks.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
+    const client = await connectClient(createMcpBridgeServer('server-1'))
+    try {
+      expect((await client.listTools()).tools).toEqual([
+        { name: 'boolean_tool', description: 'search desc', inputSchema: expectedSchema },
+        { name: 'search', description: 'search desc', inputSchema: searchTool().inputSchema }
+      ])
+      expect(cached).toEqual(original)
+      await expect(client.callTool({ name: 'boolean_tool', arguments: { canonical_state: false } })).resolves.toEqual({
+        content: [{ type: 'text', text: 'done' }]
+      })
+      const notified = new Promise<void>((resolve) => {
+        client.setNotificationHandler('notifications/tools/list_changed', async () => resolve())
+      })
+      mocks.listTools.mockReturnValue([searchTool()])
+      cacheUpdatedListener!({ serverId: 'server-1' })
+      await notified
+      expect((await client.listTools()).tools).toEqual([
+        { name: 'search', description: 'search desc', inputSchema: searchTool().inputSchema }
+      ])
+    } finally {
+      await client.close()
+    }
+  })
+
   it('does not subscribe to cache updates until the session actually initializes', () => {
     createMcpBridgeServer('server-1')
     // A bridge whose query never starts must not leak an emitter subscription.
