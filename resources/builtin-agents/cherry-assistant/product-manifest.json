@@ -877,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "7b17f7706c07b778",
-    "count": 67,
+    "version": "fe499e40a8df5ddf",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -1095,6 +1095,10 @@
       {
         "id": "tokenhub",
         "name": "TokenHub"
+      },
+      {
+        "id": "tokenlab",
+        "name": "TokenLab"
       },
       {
         "id": "baidu-cloud",
