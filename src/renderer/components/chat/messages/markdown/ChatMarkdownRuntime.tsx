@@ -44,29 +44,25 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   const [resetKey, setResetKey] = useState(false)
   const attempt = useMemo(() => {
     const previous = messageId ? getCachedMessageUiState(messageId).markdownSources?.[block.id] : undefined
-    return { previous, hadEntry: previous !== undefined, active: true, key: resetKey }
+    const epoch = messageId ? (getCachedMessageUiState(messageId).markdownEpoch ?? 0) : 0
+    return { previous, epoch, active: true, key: resetKey }
   }, [messageId, block.id, resetKey])
   useLayoutEffect(() => {
     if (!messageId) return
-    const checkSource = () => {
-      if (
-        attempt.active &&
-        attempt.hadEntry &&
-        getCachedMessageUiState(messageId).markdownSources?.[block.id] === undefined
-      ) {
+    const checkEpoch = () => {
+      if (attempt.active && (getCachedMessageUiState(messageId).markdownEpoch ?? 0) !== attempt.epoch) {
         attempt.active = false
         setResetKey((key) => !key)
       }
     }
-    checkSource()
-    return subscribeCachedMessageUiState(messageId, checkSource)
+    checkEpoch()
+    return subscribeCachedMessageUiState(messageId, checkEpoch)
   }, [messageId, block.id, attempt])
   useLayoutEffect(() => {
     if (!messageId || !attempt.active) return
-    attempt.hadEntry = block.status === 'streaming'
     updateCachedMessageUiState(messageId, (current) => {
       const sources = { ...current.markdownSources }
-      if (attempt.hadEntry) sources[block.id] = { source: block.content }
+      if (block.status === 'streaming') sources[block.id] = { source: block.content }
       else delete sources[block.id]
       return { ...current, markdownSources: sources }
     })

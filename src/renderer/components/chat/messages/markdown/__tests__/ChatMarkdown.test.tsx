@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
-import { invalidateCachedMessageUiStates, updateCachedMessageUiState } from '@renderer/services/messageUiStateCache'
+import {
+  getCachedMessageUiState,
+  invalidateCachedMessageUiStates,
+  updateCachedMessageUiState
+} from '@renderer/services/messageUiStateCache'
 
 import { MessagePartsScopeProvider } from '../../blocks/MessagePartsContext'
 import ChatMarkdown from '../ChatMarkdownRuntime'
@@ -70,12 +74,21 @@ describe('ChatMarkdown adapter', () => {
   })
 })
 
-function stream(source: string, owner = 'animation-owner') {
+function stream(source: string, owner = 'animation-owner', status: 'streaming' | 'success' = 'streaming') {
   return (
     <MessagePartsScopeProvider parts={[]} messageId={owner}>
-      <ChatMarkdown block={{ id: 'part', content: source, status: 'streaming' }} />
+      <ChatMarkdown block={{ id: 'part', content: source, status }} />
     </MessagePartsScopeProvider>
   )
+}
+function retryUiState(id: string) {
+  updateCachedMessageUiState(id, (current) => ({
+    ...current,
+    markdownEpoch: (current.markdownEpoch ?? 0) + 1,
+    markdownSources: undefined,
+    thinkingScroll: undefined,
+    disclosures: undefined
+  }))
 }
 function durations(container: HTMLElement, expected: Record<string, string>) {
   const spans = [...container.querySelectorAll<HTMLElement>('span[data-sd-animate]')]
@@ -149,6 +162,60 @@ describe('message animation continuity', () => {
     ).toBe(sourceText)
     expect(sourceText).toBeVisible()
   })
+  it('preserves SVG source view when another Activity completes streaming', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({ 'chat.code.editor.enabled': false })
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Diagram</text></svg>'
+    const source = '```svg\n' + svg + '\n```'
+    const first = render(<Activity mode="visible">{stream(source)}</Activity>, { wrapper: CodeStyleProvider })
+    const second = render(<Activity mode="hidden">{stream(source)}</Activity>, { wrapper: CodeStyleProvider })
+    await user.click(within(first.container).getByRole('button', { name: 'preview.source' }))
+    const sourceText = within(first.container).getByText(svg)
+    expect(sourceText).toBeVisible()
+
+    first.rerender(<Activity mode="hidden">{stream(source)}</Activity>)
+    second.rerender(<Activity mode="visible">{stream(source)}</Activity>)
+    second.rerender(<Activity mode="visible">{stream(source, 'animation-owner', 'success')}</Activity>)
+    expect(getCachedMessageUiState('animation-owner').markdownSources?.part).toBeUndefined()
+    second.rerender(<Activity mode="hidden">{stream(source, 'animation-owner', 'success')}</Activity>)
+    first.rerender(<Activity mode="visible">{stream(source, 'animation-owner', 'success')}</Activity>)
+
+    expect(within(first.container).getByRole('button', { name: 'preview.label' })).toBeVisible()
+    expect(within(first.container).getByText(svg)).toBe(sourceText)
+    expect(sourceText).toBeVisible()
+  })
+  it('preserves SVG source view and wrapping when two visible views complete together', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.wrappable': true,
+      'chat.code.editor.enabled': false
+    })
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Diagram</text></svg>'
+    const source = '```svg\n' + svg + '\n```\n\n```javascript\nconst value = 1\n```'
+    const first = render(<Activity mode="visible">{stream(source)}</Activity>, { wrapper: CodeStyleProvider })
+    const second = render(<Activity mode="visible">{stream(source)}</Activity>, { wrapper: CodeStyleProvider })
+    const sourceNodes: HTMLElement[] = []
+    for (const view of [first, second]) {
+      await user.click(within(view.container).getByRole('button', { name: 'preview.source' }))
+      await user.click(within(view.container).getByRole('button', { name: 'code_block.wrap.off' }))
+      const sourceText = within(view.container).getByText(svg)
+      expect(sourceText).toBeVisible()
+      sourceNodes.push(sourceText)
+    }
+
+    act(() => {
+      first.rerender(<Activity mode="visible">{stream(source, 'animation-owner', 'success')}</Activity>)
+      second.rerender(<Activity mode="visible">{stream(source, 'animation-owner', 'success')}</Activity>)
+    })
+    expect(getCachedMessageUiState('animation-owner').markdownSources?.part).toBeUndefined()
+
+    for (const [index, view] of [first, second].entries()) {
+      expect(within(view.container).getByRole('button', { name: 'preview.label' })).toBeVisible()
+      expect(within(view.container).getByRole('button', { name: 'code_block.wrap.on' })).toBeVisible()
+      expect(within(view.container).getByText(svg)).toBe(sourceNodes[index])
+      expect(sourceNodes[index]).toBeVisible()
+    }
+  })
   it('restores all words and blocks received while away, then animates only subsequent arrivals', () => {
     const first = render(stream('Alpha'))
     first.unmount()
@@ -198,14 +265,7 @@ describe('message animation continuity', () => {
     first.unmount()
     const view = render(stream('Alpha'))
     durations(view.container, { Alpha: '0ms' })
-    act(() =>
-      updateCachedMessageUiState('animation-owner', (current) => ({
-        ...current,
-        markdownSources: undefined,
-        thinkingScroll: undefined,
-        disclosures: undefined
-      }))
-    )
+    act(() => retryUiState('animation-owner'))
     durations(view.container, { Alpha: '250ms' })
     view.rerender(stream('Alpha beta'))
     durations(view.container, { Alpha: '0ms', beta: '250ms' })
@@ -219,12 +279,7 @@ describe('message animation continuity', () => {
       useLayoutEffect(() => {
         if (!invalidate) return
         invalidate = false
-        updateCachedMessageUiState('animation-owner', (current) => ({
-          ...current,
-          markdownSources: undefined,
-          thinkingScroll: undefined,
-          disclosures: undefined
-        }))
+        retryUiState('animation-owner')
       }, [])
       return <p>{children as React.ReactNode}</p>
     }
@@ -247,14 +302,7 @@ describe('message animation continuity', () => {
   it('retry while Activity is hidden revokes the retained recovery phase on reveal', () => {
     const view = render(<Activity mode="visible">{stream('Alpha')}</Activity>)
     view.rerender(<Activity mode="hidden">{stream('Alpha')}</Activity>)
-    act(() =>
-      updateCachedMessageUiState('animation-owner', (current) => ({
-        ...current,
-        markdownSources: undefined,
-        thinkingScroll: undefined,
-        disclosures: undefined
-      }))
-    )
+    act(() => retryUiState('animation-owner'))
     view.rerender(<Activity mode="visible">{stream('Alpha')}</Activity>)
     durations(view.container, { Alpha: '250ms' })
   })

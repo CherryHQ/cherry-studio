@@ -552,6 +552,7 @@ describe('ThinkingBlock', () => {
         updateCachedMessageUiState('thinking-owner', (current) => ({
           ...current,
           markdownSources: undefined,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
           thinkingScroll: undefined,
           disclosures: undefined
         }))
@@ -594,6 +595,7 @@ describe('ThinkingBlock', () => {
         updateCachedMessageUiState('thinking-owner', (current) => ({
           ...current,
           markdownSources: undefined,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
           thinkingScroll: undefined,
           disclosures: undefined
         }))
@@ -626,6 +628,7 @@ describe('ThinkingBlock', () => {
         updateCachedMessageUiState('thinking-owner', (current) => ({
           ...current,
           markdownSources: undefined,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
           thinkingScroll: undefined,
           disclosures: undefined
         }))

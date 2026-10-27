@@ -336,6 +336,7 @@ export function useChatWriteActions(params: Params): Result {
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
         updateCachedMessageUiState(target.id, (current) => ({
           ...current,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
           markdownSources: undefined,
           thinkingScroll: undefined,
           disclosures: undefined

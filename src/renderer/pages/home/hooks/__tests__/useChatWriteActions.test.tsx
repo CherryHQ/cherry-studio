@@ -519,6 +519,7 @@ describe('useChatWriteActions — regenerate', () => {
     failed.metadata.modelId = 'provider::model-a'
     failed.parts = [{ type: 'data-error', data: { message: 'failed' } }]
     const state = {
+      markdownEpoch: 4,
       markdownSources: { part: { source: 'Alpha' } },
       thinkingScroll: { part: 0 },
       disclosures: { 'thinking:part': true }
@@ -531,7 +532,7 @@ describe('useChatWriteActions — regenerate', () => {
     expect(getCachedMessageUiState('a1')).toEqual(state)
   })
 
-  it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
+  it.each([undefined, 4])('retries a failed assistant in place and advances epoch %s', async (epoch) => {
     const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
     failedAssistant.metadata.modelId = 'provider::model-a'
     failedAssistant.metadata.turnOptions = { serviceTier: 'fast' }
@@ -554,6 +555,7 @@ describe('useChatWriteActions — regenerate', () => {
     const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
 
     updateCachedMessageUiState('a1', {
+      markdownEpoch: epoch,
       markdownSources: { part: { source: 'Alpha' } },
       thinkingScroll: { part: 25 },
       disclosures: { 'thinking:part': true },
@@ -564,6 +566,7 @@ describe('useChatWriteActions — regenerate', () => {
     updateCachedMessageUiState('a2', { thinkingScroll: { part: 30 } })
     await actions.regenerate('a1')
     expect(getCachedMessageUiState('a1')).toEqual({
+      markdownEpoch: (epoch ?? 0) + 1,
       markdownSources: undefined,
       thinkingScroll: undefined,
       disclosures: undefined,
