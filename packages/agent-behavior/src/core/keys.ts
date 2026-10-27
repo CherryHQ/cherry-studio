@@ -56,13 +56,12 @@ export const keys = {
   goalCounts: (goalId: string, revision: number, progressRounds: number): Key =>
     mint(`goal-counts:${goalId}:v${revision}:p${progressRounds}`),
   /**
-   * A `message_subagent` call's steer for run `run` of a running child (its request id, and the key of the record
-   * written before it is sent), and the record of a continuation it starts. A decision again after a withdrawn steer
-   * that lands on a later run gets a new key (G-C5).
+   * A message's request id includes the run observed when its intent was recorded. Replays keep that key even if
+   * another run consumed the input. `subagentContinue` records a run the message starts.
    */
   subagentSteer: (call: CallKey, run: number): Key => mint(`subagent-steer:${call}:${run}`),
   subagentContinue: (call: CallKey): Key => mint(`subagent-continue:${call}`),
-  /** The record that no boundary took the steer `subagentSteer(call, run)`, so the call decides afresh (H3). */
+  /** The cancellation record for a pending message; replay must not submit it under another key. */
   subagentSteerWithdrawn: (call: CallKey, run: number): Key => mint(`subagent-steer-withdrawn:${call}:${run}`),
   /** The record that run `run` of `child` was stopped by `by`. */
   subagentStop: (child: ThreadId, run: number, by: SubagentStopper): Key => mint(`subagent-stop:${child}:${run}:${by}`),

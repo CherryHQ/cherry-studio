@@ -63,13 +63,12 @@ export type Effect =
    * stop decided again for a repeated request names the turn it first named.
    */
   | { readonly type: 'stop-turn'; readonly thread: ThreadId; readonly cause: StopCause; readonly turn?: ItemId }
-  /** A steer for run `run` of `child`: it joins that run or is withdrawn, never starting one (G-C5). */
+  /** Message the child; admission reports the run that actually consumes the input. */
   | {
       readonly type: 'message-child'
       readonly child: ThreadId
       readonly input: TurnInput
       readonly key: Key
-      readonly run: number
     }
   | { readonly type: 'stop-child'; readonly child: ThreadId; readonly run: number }
   | { readonly type: 'emit'; readonly event: BehaviorEvent }

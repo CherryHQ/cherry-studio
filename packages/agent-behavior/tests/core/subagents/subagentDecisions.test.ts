@@ -181,7 +181,7 @@ describe('messaging and stopping', () => {
   it('steers a running child and continues a finished one in the background', () => {
     expect(message([runEntry(run('a'))], live)).toMatchObject({
       ops: [{ record: { type: 'subagent-steer', value: { sessionId: 'a', run: 1 } }, key: 'subagent-steer:k1:1' }],
-      effects: [{ type: 'message-child', key: 'subagent-steer:k1:1', run: 1 }]
+      effects: [{ type: 'message-child', key: 'subagent-steer:k1:1' }]
     })
     const interrupted = [runEntry(run('a', { status: 'finished', outcome: 'interrupted' }))]
     const continued = message(interrupted)
@@ -198,8 +198,8 @@ describe('messaging and stopping', () => {
   })
 
   // Catches a rerun of a steer the child took and then finished with (H3): deciding afresh found the child finished
-  // and continued it with the same message, so the child received it twice. Only a withdrawn steer is decided again.
-  it('sends a recorded steer again on a rerun and decides afresh only once it was withdrawn', () => {
+  // and continued it with the same message, so the child received it twice. Cancellation must not turn replay into a new input.
+  it('replays the recorded request key and refuses a cancelled message', () => {
     const steered = message([runEntry(run('a'))], live)
     const finished = [
       ...apply([runEntry(run('a'))], steered),
@@ -209,7 +209,7 @@ describe('messaging and stopping', () => {
     expect(rerun.result).toMatchObject({ kind: 'queued', child: 'a' })
     expect(rerun.effects).toEqual(steered.effects)
     const withdrawn = apply(finished, decideSteerWithdrawn(facts(finished), k))
-    expect(message(withdrawn).result).toMatchObject({ kind: 'continued', child: 'a', run: 2 })
+    expect(message(withdrawn).result).toMatchObject({ kind: 'refused' })
   })
 
   // Catches a finished child continued after its turn's stop was recorded, as a new run nothing stops; a steer to a
@@ -272,7 +272,7 @@ describe('messaging and stopping', () => {
   it('messages and stops the named child when two children share a tool origin', () => {
     const history = [runEntry(run('a')), runEntry(run('b', { parentToolCallId: 'call-a' }))]
     const options = { children: { ...live.children, b: { running: true, runUsage: [usage(0)] } } }
-    expect(message(history, options).effects).toMatchObject([{ type: 'message-child', child: 'a', run: 1 }])
+    expect(message(history, options).effects).toMatchObject([{ type: 'message-child', child: 'a' }])
     expect(decideStop(facts(history, options), inputs({ args: { id: 'a' } })).effects).toEqual([
       { type: 'stop-child', child: 'a', run: 1 }
     ])
@@ -339,8 +339,7 @@ describe('messaging and stopping', () => {
     expect(message(apply(history, budget)).result).toMatchObject({ kind: 'continued', run: 2 })
   })
 
-  // Catches a steer for a run whose first input has not arrived: no run is going to take it, and starting one would
-  // leave a run the parent never records (G-C5).
+  // Catches a message overtaking the report job's first input and starting the child with the wrong task.
   it('refuses a message to a run that has not started yet', () => {
     expect(message([runEntry(run('a'))]).result).toMatchObject({
       kind: 'refused',

@@ -177,9 +177,8 @@ describe('keys', () => {
     expect(keys.subagentStop(child, 2, 'budget')).toBe('subagent-stop:c:1:2:budget')
   })
 
-  // Catches a steer key without its run (G-C5): a decision again after a withdrawn steer that lands on a later run would
-  // reuse the withdrawn key, which the harness keeps answering 'withdrawn', so message_subagent would retry forever.
-  it('keys a steer by its call and the run it joins', () => {
+  // Catches request-key collisions between independently recorded message intents.
+  it('keys a message by its recorded intent', () => {
     const steer = withoutEnvironment(() => keys.subagentSteer(callKeyOf('c:1'), 2))
     expect(steer).toBe('subagent-steer:c:1:2')
     expect(keys.subagentSteer(callKeyOf('c:1'), 2)).toBe(steer)

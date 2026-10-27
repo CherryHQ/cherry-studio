@@ -5,6 +5,7 @@ import type { ModelFacts } from '../../core/hostFacts'
 import type { Key } from '../../core/keys'
 import {
   decideMessage,
+  decideMessageStarted,
   decideSpawn,
   decideSteerWithdrawn,
   decideStop,
@@ -121,10 +122,13 @@ export async function messageSubagent(context: Context, call: ToolCall): Promise
       case 'queued':
         if (executed.messaged?.status === 'withdrawn') {
           await step(context, call.thread, (facts) => decideSteerWithdrawn(facts, call.key))
-          // H3: the turn stopped and its call withdrew the steer; the child runs on, so deciding again would steer it.
-          if (call.signal.aborted) return { status: 'refused', reason: notDeliveredText(decision.child) }
-          // G-C5: the run ended before it took the steer, which started nothing; continue the child instead.
-          continue
+          return { status: 'refused', reason: notDeliveredText(decision.child) }
+        }
+        if (executed.messaged?.status === 'started') {
+          const { run } = executed.messaged
+          const text = stringField(fieldsOf(call.args), 'message')!.trim()
+          await step(context, call.thread, (facts) => decideMessageStarted(facts, call.key, run, text))
+          return { status: 'continued', child: decision.child }
         }
         return { status: 'queued', child: decision.child }
       case 'continued':

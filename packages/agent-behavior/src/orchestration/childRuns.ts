@@ -3,7 +3,7 @@ import type { ThreadId } from '@cherrystudio/agent-runtime'
 import { exceedsThreshold, offloadName } from '../core/context/offload'
 import type { TurnInput } from '../core/decisions'
 import type { CallKey, ToolResultFact } from '../core/facts'
-import { keys } from '../core/keys'
+import { type Key, keys } from '../core/keys'
 import { decideRunEnd, decideSpawnAbandoned } from '../core/subagents/subagentDecisions'
 import { runStopping } from '../core/subagents/subagentLedger'
 import { type RunReport, runReport, TURN_STOPPED } from '../core/subagents/subagentText'
@@ -44,10 +44,10 @@ export async function runChild(
   child: ThreadId,
   run: number,
   input: TurnInput,
-  call: CallKey
+  call: CallKey,
+  key: Key = keys.subagentMessage(child, run)
 ): Promise<ToolResultFact> {
   const { ports } = context
-  const key = keys.subagentMessage(child, run)
   const accepted = await ports.helpers.message(child, input, key)
   // Only a first input from the aborted call that owns the run is withdrawn (H3).
   if (accepted.status === 'withdrawn') return abandonSpawn(context, parent, call)

@@ -4,7 +4,14 @@ import type { ContractHarness, ScriptedReply } from '../contract/harness'
 import type { JobKind, Step } from '../core/decisions'
 import type { ConversationFacts } from '../core/facts'
 import type { Key } from '../core/keys'
-import type { BoundPorts, HarnessPorts, LifecycleHandlers, PortMethod, TransactResult } from '../ports/harness'
+import type {
+  BoundPorts,
+  HarnessPorts,
+  LifecycleHandlers,
+  MessageResult,
+  PortMethod,
+  TransactResult
+} from '../ports/harness'
 import { message, never, resumeRun, retract, type RunHost, start, stopRun, submit, waitFor } from './fakeRuns'
 import {
   addThread,
@@ -133,19 +140,12 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
           )
       },
       helpers: {
-        message: (child, input, key, run) =>
+        message: (child, input, key) =>
           enter(scope, async () => {
             const target = thread(child)
-            const { owner } = target
-            // H3: once the call that owns the child's first run aborted, its stop may have passed the child already.
-            const ownerAborted =
-              owner !== undefined &&
-              owner.thread === scope.owner?.thread &&
-              owner.run === scope.owner.run &&
-              scope.signal?.aborted === true
-            const accepted = message(host, target, input, key, run, ownerAborted)
+            const accepted = message(host, target, input, key, scope.signal?.aborted === true)
             if (accepted.status !== 'queued') return accepted
-            // A steer answers once a boundary took it, or once its run ended first or its tool call aborted (G-C5, H3).
+            // Wait for actual consumption or cancellation, including across normal completion.
             const submission = target.submissions.get(key)!
             const withdraw = () => {
               if (alive(scope.epoch)) retract(host, target, key)
@@ -157,7 +157,12 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
             } finally {
               scope.signal?.removeEventListener('abort', withdraw)
             }
-            return submission.state === 'withdrawn' ? { run: accepted.run, status: 'withdrawn' } : accepted
+            const result: MessageResult =
+              submission.state === 'withdrawn'
+                ? { run: accepted.run, status: 'withdrawn' }
+                : { run: submission.run!, status: submission.run === accepted.run ? 'queued' : 'started' }
+            submission.admission = result
+            return result
           }),
         awaitAnswer: (child, run, key) =>
           enter(scope, async () => {
