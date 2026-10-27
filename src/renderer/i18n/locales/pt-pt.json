@@ -1414,7 +1414,7 @@
   "error.diagnosis.mcp": "Falha na ligação ao servidor MCP, verifique se o serviço está em execução",
   "error.diagnosis.model": "Modelo não encontrado ou sem acesso",
   "error.diagnosis.model_conflict": "O modelo de diagnóstico é igual ao modelo com erro",
-  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
+  "error.diagnosis.model_unavailable": "O modelo {{model}} já não existe nesta aplicação. Escolha outro modelo.",
   "error.diagnosis.network": "Não é possível ligar ao servidor, verifique as definições de rede ou proxy",
   "error.diagnosis.ocr": "A extração de texto por OCR falhou, verifique a configuração de OCR nas definições",
   "error.diagnosis.parse": "A IA retornou uma resposta inválida, tente novamente ou mude de modelo",

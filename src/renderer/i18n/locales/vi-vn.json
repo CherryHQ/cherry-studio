@@ -1414,7 +1414,7 @@
   "error.diagnosis.mcp": "Kết nối máy chủ MCP thất bại, hãy kiểm tra xem dịch vụ có đang chạy không",
   "error.diagnosis.model": "Không tìm thấy mô hình hoặc bạn không có quyền truy cập",
   "error.diagnosis.model_conflict": "Mô hình chẩn đoán giống với mô hình đang gặp lỗi",
-  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
+  "error.diagnosis.model_unavailable": "Mô hình {{model}} không còn tồn tại trong ứng dụng này. Hãy chọn mô hình khác.",
   "error.diagnosis.network": "Không thể kết nối đến máy chủ, hãy kiểm tra cài đặt mạng hoặc proxy",
   "error.diagnosis.ocr": "Trích xuất văn bản OCR thất bại, hãy kiểm tra cấu hình OCR trong cài đặt",
   "error.diagnosis.parse": "AI đã trả về phản hồi không hợp lệ, vui lòng thử lại hoặc chuyển sang mô hình khác",

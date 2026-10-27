@@ -505,4 +505,29 @@ describe('ErrorBlock', () => {
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
+
+  it.each([
+    'Cannot resolve modelId: not in request and assistant has no model',
+    'Cannot resolve providerId: not in request and assistant has no model'
+  ])('shows configuration guidance without inventing a model for %s', (errorMessage) => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('code.select_provider_model', enUS['code.select_provider_model'])
+    mocks.translations.set('error.diagnosis.model_unavailable', enUS['error.diagnosis.model_unavailable'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: errorMessage, stack: null }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['code.select_provider_model'])).toBeInTheDocument()
+    expect(screen.queryByText(/Model not no longer/)).toBeNull()
+    expect(screen.queryByText(errorMessage)).toBeNull()
+    expect(screen.queryByText('error.diagnosis.bad_request')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
 })

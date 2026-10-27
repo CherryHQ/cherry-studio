@@ -1414,7 +1414,7 @@
   "error.diagnosis.mcp": "MCP サーバーへの接続に失敗しました。サービスが実行中か確認してください",
   "error.diagnosis.model": "モデルが見つからないか、アクセス権がありません",
   "error.diagnosis.model_conflict": "診断モデルとエラーモデルが同一のため、診断できません",
-  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
+  "error.diagnosis.model_unavailable": "モデル {{model}} はこのアプリに存在しなくなりました。別のモデルを選択してください。",
   "error.diagnosis.network": "サーバーに接続できません。ネットワークまたはプロキシの設定を確認してください",
   "error.diagnosis.ocr": "OCR のテキスト抽出に失敗しました。設定で OCR 構成を確認してください",
   "error.diagnosis.parse": "AIが無効な応答を返しました。再試行するか、別のモデルに切り替えてください。",

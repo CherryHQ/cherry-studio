@@ -1414,7 +1414,7 @@
   "error.diagnosis.mcp": "Conectarea la serverul MCP a eșuat; verifică dacă serviciul rulează",
   "error.diagnosis.model": "Model negăsit sau fără acces",
   "error.diagnosis.model_conflict": "Modelul de diagnostic este identic cu modelul cu eroare",
-  "error.diagnosis.model_unavailable": "[to be translated]: Model {{model}} no longer exists in this app — pick a replacement",
+  "error.diagnosis.model_unavailable": "Modelul {{model}} nu mai există în această aplicație. Alegeți alt model.",
   "error.diagnosis.network": "Nu se poate realiza conexiunea la server; verifică setările de rețea sau proxy",
   "error.diagnosis.ocr": "Extragerea textului OCR a eșuat, verificați configurația OCR în setări",
   "error.diagnosis.parse": "AI a returnat un răspuns nevalid; încearcă din nou sau schimbă modelul",

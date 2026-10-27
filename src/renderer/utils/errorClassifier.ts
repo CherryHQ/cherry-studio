@@ -101,8 +101,14 @@ function readStructuredStatus(value: unknown): number | undefined {
  */
 export function getLocalModelResolutionFailure(
   error?: SerializedError
-): { providerId?: string; modelId: string } | null {
+): { providerId?: string; modelId?: string } | null {
   const message = typeof error?.message === 'string' ? error.message : ''
+
+  // AiService cannot supply an identifier when neither the request nor assistant has a model.
+  // Keep the local failure recognizable without treating the word "not" as a model ID.
+  if (/^Cannot resolve (?:providerId|modelId): not in request and assistant has no model$/.test(message)) {
+    return {}
+  }
 
   // Format 1: "Cannot resolve modelId: <id>" or "Cannot resolve providerId: <id>"
   if (/^Cannot resolve (?:providerId|modelId)/.test(message)) {

@@ -93,8 +93,8 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     return t(errorKey)
   }
 
-  // The headline already names the model; repeating the main-side message in the description
-  // only adds developer phrasing the user cannot act on.
+  // The headline supplies either the missing model or configuration guidance; the raw local
+  // resolution message adds no useful recovery detail.
   if (localModelFailure) return null
 
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
@@ -138,6 +138,7 @@ const MessageErrorInfo: React.FC<{
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
+      if (!modelId) return t('code.select_provider_model')
       return t('error.diagnosis.model_unavailable', {
         model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
       })
