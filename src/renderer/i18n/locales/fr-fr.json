@@ -3235,7 +3235,6 @@
   "provider.zai": "Z.ai",
   "provider.zhinao": "360AI",
   "provider.zhipu": "BigModel",
-  "quickAssistant.control_bar.open_in_main": "Ouvrir dans la fenêtre principale",
   "quickAssistant.control_bar.save_failed": "Impossible d’enregistrer cette conversation",
   "quickAssistant.control_bar.save_topic": "Enregistrer comme sujet",
   "quickAssistant.control_bar.saved": "Enregistré",

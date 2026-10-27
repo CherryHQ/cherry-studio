@@ -3235,7 +3235,6 @@
   "provider.zai": "Z.ai",
   "provider.zhinao": "360AI",
   "provider.zhipu": "BigModel",
-  "quickAssistant.control_bar.open_in_main": "在主視窗開啟",
   "quickAssistant.control_bar.save_failed": "無法儲存此對話",
   "quickAssistant.control_bar.save_topic": "儲存為對話",
   "quickAssistant.control_bar.saved": "已儲存",

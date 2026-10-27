@@ -1,11 +1,10 @@
-import { CircleArrowLeft, ExternalLink, Loader2, Pin, Save } from 'lucide-react'
+import { CircleArrowLeft, Loader2, Pin, Save } from 'lucide-react'
 import type { ButtonHTMLAttributes, FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 
@@ -35,28 +34,17 @@ const ControlBar: FC<Props> = ({ loading, isPinned, topicId, topicTitle, onEsc, 
   const [saving, setSaving] = useState(false)
 
   const persist = useCallback(async () => {
-    if (saving) return false
+    if (saving) return
     setSaving(true)
     try {
       await onPersist()
-      return true
     } catch (error) {
       logger.error('Failed to persist the quick assistant conversation', error as Error)
       toast.error(t('quickAssistant.control_bar.save_failed'))
-      return false
     } finally {
       setSaving(false)
     }
   }, [onPersist, saving, t])
-
-  const openInMain = useCallback(async () => {
-    // Only a persisted topic exists outside this window, so saving is part of opening.
-    if (!(await persist()) || !topicId) return
-    await ipcApi.request('navigation.focus_or_open_conversation', {
-      target: { conversationType: 'assistant', conversationId: topicId },
-      title: topicTitle
-    })
-  }, [persist, topicId, topicTitle])
 
   const escLabel = t('quickAssistant.footer.esc', {
     action: loading ? t('quickAssistant.footer.esc_pause') : t('quickAssistant.footer.esc_back')
@@ -82,12 +70,6 @@ const ControlBar: FC<Props> = ({ loading, isPinned, topicId, topicTitle, onEsc, 
           onClick={() => void persist()}
           disabled={saving || loading || !topicId}>
           <Save size={14} className="text-foreground" />
-        </Action>
-        <Action
-          label={t('quickAssistant.control_bar.open_in_main')}
-          onClick={() => void openInMain()}
-          disabled={saving || loading || !topicId}>
-          <ExternalLink size={14} className="text-foreground" />
         </Action>
         <Action label={t('quickAssistant.tooltip.pin')} onClick={() => onSetPinned(!isPinned)} aria-pressed={isPinned}>
           <Pin

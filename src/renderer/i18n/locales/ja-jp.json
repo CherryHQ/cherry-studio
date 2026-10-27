@@ -3235,7 +3235,6 @@
   "provider.zai": "Z.ai",
   "provider.zhinao": "360AI",
   "provider.zhipu": "BigModel",
-  "quickAssistant.control_bar.open_in_main": "メインウィンドウで開く",
   "quickAssistant.control_bar.save_failed": "この会話を保存できませんでした",
   "quickAssistant.control_bar.save_topic": "トピックとして保存",
   "quickAssistant.control_bar.saved": "保存済み",
