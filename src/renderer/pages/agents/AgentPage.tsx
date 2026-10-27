@@ -41,6 +41,7 @@ import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
@@ -393,6 +394,9 @@ const AgentPage = () => {
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
+  const visibleAgent = conversationBootstrap.resources.agent
+  // Label this tab with its agent emoji + session name so multiple Work tabs are distinguishable.
+  const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -1126,6 +1130,9 @@ const AgentPage = () => {
   return (
     <>
       <AgentTabRuntime
+        title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
+        emoji={visibleAgent?.configuration?.avatar}
+        preserveVisuals={preserveTabVisuals}
         activeSessionId={activeSession?.id}
         activeSessionSource={activeSessionSource}
         onToggleSidebar={toggleShellPane}
