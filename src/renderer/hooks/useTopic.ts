@@ -568,12 +568,18 @@ export function useTopicMutations() {
 
 /**
  * Listens for `ai.topic.auto_renamed` and invalidates the renamed
- * topic's SWR cache so the new name shows up without manual refetch.
+ * topic's SWR cache so the new name shows up without manual refetch, and
+ * mirrors the name into every tab bound to it — a background tab's page is
+ * not running, so nothing else would relabel it.
  */
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
+  const writeConversationTabTitle = useConversationTabTitleWriter()
 
-  useIpcOn('ai.topic.auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
+  useIpcOn('ai.topic.auto_renamed', ({ topicId, name }) => {
+    void invalidate(['/topics', `/topics/${topicId}`])
+    writeConversationTabTitle('topic', topicId, name)
+  })
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────

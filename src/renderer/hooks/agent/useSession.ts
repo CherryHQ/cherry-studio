@@ -542,13 +542,16 @@ export const useUpdateSession = () => {
 
 /**
  * Listens for `ai.agent.session.auto_renamed` and invalidates the
- * renamed session's SWR cache so the new name appears without manual refetch.
+ * renamed session's SWR cache so the new name appears without manual refetch,
+ * and mirrors the name into every tab bound to it — a background tab's page is
+ * not running, so nothing else would relabel it.
  */
 export function useAgentSessionAutoRenameSync() {
   const invalidate = useInvalidateCache()
+  const writeConversationTabTitle = useConversationTabTitleWriter()
 
-  useIpcOn(
-    'ai.agent.session.auto_renamed',
-    ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
-  )
+  useIpcOn('ai.agent.session.auto_renamed', ({ sessionId, name }) => {
+    void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
+    writeConversationTabTitle('session', sessionId, name)
+  })
 }

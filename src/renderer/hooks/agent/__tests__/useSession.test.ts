@@ -22,13 +22,14 @@ import {
 } from '../useSession'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+const mockWriteConversationTabTitle = vi.hoisted(() => vi.fn())
 const mockUseIpcOn = vi.hoisted(() => vi.fn())
 const mockIpcRequest = vi.hoisted(() => vi.fn())
 const mockT = vi.hoisted(() => (key: string) => key)
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => mockCloseConversationTabs,
-  useConversationTabTitleWriter: () => () => {}
+  useConversationTabTitleWriter: () => mockWriteConversationTabTitle
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -974,11 +975,13 @@ describe('useAgentSessionAutoRenameSync', () => {
     vi.clearAllMocks()
   })
 
-  it('invalidates agent session list and detail caches when a session is auto-renamed', () => {
-    let emitAutoRenamed: ((payload: { sessionId: string }) => void) | undefined
-    mockUseIpcOn.mockImplementation((event: string, handler: (payload: { sessionId: string }) => void) => {
-      if (event === 'ai.agent.session.auto_renamed') emitAutoRenamed = handler
-    })
+  it('invalidates agent session caches and relabels the bound tab when a session is auto-renamed', () => {
+    let emitAutoRenamed: ((payload: { sessionId: string; name: string }) => void) | undefined
+    mockUseIpcOn.mockImplementation(
+      (event: string, handler: (payload: { sessionId: string; name: string }) => void) => {
+        if (event === 'ai.agent.session.auto_renamed') emitAutoRenamed = handler
+      }
+    )
     const invalidate = vi.fn().mockResolvedValue(undefined)
     mockUseInvalidateCache.mockReturnValue(invalidate)
 
@@ -986,9 +989,10 @@ describe('useAgentSessionAutoRenameSync', () => {
 
     expect(mockUseIpcOn).toHaveBeenCalledWith('ai.agent.session.auto_renamed', expect.any(Function))
     act(() => {
-      emitAutoRenamed?.({ sessionId: 'session-1' })
+      emitAutoRenamed?.({ sessionId: 'session-1', name: 'Auto S' })
     })
 
     expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1'])
+    expect(mockWriteConversationTabTitle).toHaveBeenCalledWith('session', 'session-1', 'Auto S')
   })
 })

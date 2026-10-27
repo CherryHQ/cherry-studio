@@ -5,9 +5,9 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
-import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useAgentSessionAutoRenameSync, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useTabsContext } from '@renderer/hooks/tab'
-import { useTopicMutations } from '@renderer/hooks/useTopic'
+import { useTopicAutoRenameSync, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 let normalTabsValue: Tab[] = []
@@ -28,9 +28,15 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
+const { ipcHandlers } = vi.hoisted(() => ({
+  ipcHandlers: new Map<string, (payload: { topicId?: string; sessionId?: string; name?: string }) => void>()
+}))
+
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn() },
-  useIpcOn: vi.fn()
+  useIpcOn: (event: string, handler: (payload: { topicId?: string; sessionId?: string; name?: string }) => void) => {
+    ipcHandlers.set(event, handler)
+  }
 }))
 
 vi.mock('@renderer/hooks/useWindowInitData', () => ({
@@ -93,6 +99,12 @@ function ClearTopicNameButton() {
   )
 }
 
+function AutoRenameSync() {
+  useTopicAutoRenameSync()
+  useAgentSessionAutoRenameSync()
+  return null
+}
+
 function renderShell(extra: React.ReactNode) {
   return render(
     <TabsProvider initialDefaultTab={HOME_TAB}>
@@ -104,6 +116,7 @@ function renderShell(extra: React.ReactNode) {
 
 beforeEach(() => {
   normalTabsValue = []
+  ipcHandlers.clear()
 })
 
 afterEach(() => {
@@ -146,5 +159,29 @@ describe('useConversationTabTitleWriter', () => {
 
     // An untitled conversation falls back to its assistant name, owned by the page.
     await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Original A'))
+  })
+
+  it('relabels a background Chat tab when its conversation is named automatically', async () => {
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Temporary A', 'topic-a'), chatTab('tab-b', 'Other B', 'topic-b')]
+    renderShell(<AutoRenameSync />)
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Temporary A'))
+
+    // The naming job runs in main while tab-a is dormant; its page is not mounted.
+    act(() => ipcHandlers.get('ai.topic.auto_renamed')?.({ topicId: 'topic-a', name: 'Auto A' }))
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Auto A'))
+    expect(screen.getByTestId('labels')).toHaveTextContent('tab-b=Other B')
+  })
+
+  it('relabels a background Work tab when its session is named automatically', async () => {
+    normalTabsValue = [HOME_TAB, workTab('tab-w', 'Temporary S', 'session-a')]
+    renderShell(<AutoRenameSync />)
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-w=Temporary S'))
+
+    act(() => ipcHandlers.get('ai.agent.session.auto_renamed')?.({ sessionId: 'session-a', name: 'Auto S' }))
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-w=Auto S'))
   })
 })
