@@ -184,6 +184,8 @@ export class WebviewService extends BaseService {
           const lower = key.toLowerCase()
           if (lower === 'user-agent') {
             headers[key] = cleanUA
+          } else if (lower === 'accept-language') {
+            headers[key] = `${language}, en;q=0.9, *;q=0.5`
           } else if (lower === 'sec-ch-ua') {
             headers[key] = `"Chromium";v="${chromeMajor}", "Google Chrome";v="${chromeMajor}", "Not:A-Brand";v="24"`
           } else if (lower === 'sec-ch-ua-full-version-list') {

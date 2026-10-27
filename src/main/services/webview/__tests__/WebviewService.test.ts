@@ -261,6 +261,23 @@ describe('WebviewService request identity', () => {
       'Accept-Language': 'en-US, en;q=0.9, *;q=0.5'
     })
   })
+
+  it('overrides incoming Accept-Language with app language preference case-insensitively', () => {
+    const service = new WebviewService()
+    ;(service as unknown as { initSessionUserAgent: () => void }).initSessionUserAgent()
+    const handleRequest = siteSession.webRequest.onBeforeSendHeaders.mock.calls.at(-1)![0]
+    let headers: Record<string, string> = {}
+    handleRequest(
+      {
+        url: 'https://example.com/',
+        requestHeaders: { 'accept-language': 'zh-CN,zh;q=0.9', 'User-Agent': 'Browser/1.0' }
+      },
+      (response: { requestHeaders: Record<string, string> }) => {
+        headers = response.requestHeaders
+      }
+    )
+    expect(headers['accept-language']).toBe('en-US, en;q=0.9, *;q=0.5')
+  })
 })
 
 describe('WebviewService webview ownership', () => {

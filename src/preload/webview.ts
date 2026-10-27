@@ -9,9 +9,10 @@ try {
   const platformVersion = process.platform === 'darwin' ? '15.0.0' : process.platform === 'win32' ? '10.0.0' : '0.0.0'
   const archName = process.arch === 'arm64' ? 'arm' : 'x86'
 
-  webFrame.executeJavaScriptInIsolatedWorld(0, [
-    {
-      code: `
+  void webFrame
+    .executeJavaScriptInIsolatedWorld(0, [
+      {
+        code: `
         (() => {
           try {
             // 1. Mask navigator.webdriver
@@ -119,8 +120,9 @@ try {
           } catch (_) {}
         })();
       `
-    }
-  ])
+      }
+    ])
+    .catch(() => {})
 } catch (_) {}
 
 import {
