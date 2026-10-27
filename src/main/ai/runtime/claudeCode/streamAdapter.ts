@@ -235,6 +235,8 @@ type StreamContext = {
    * start. Recomputed when the line restarts or shrinks (round-17 latency).
    */
   scratchpadOpenLineCarry: { key: number; openLineLength: number; markerHead: string; paragraph: boolean } | null
+  /** Incremental inline-code checkpoint for the bounded carry of a long quote-led open line (key = line start in the text block). */
+  scratchpadQuoteCarry: { key: number; checkpoint: number } | null
   /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
   toolProtocolStripAccumulator: string
   toolProtocolStripEmittedLength: number
@@ -596,6 +598,9 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
   }
 }
 
+/** Head of a long quote-led open line carried verbatim across deltas. */
+const QUOTE_LINE_CARRY_HEAD = 256
+
 export class ClaudeCodeStreamAdapter {
   private ctx: StreamContext
   private readonly modelId: string
@@ -708,6 +713,7 @@ export class ClaudeCodeStreamAdapter {
       scratchpadMaskAdvanceRawQueue: '',
       scratchpadMaskHeldFence: null,
       scratchpadOpenLineCarry: null,
+      scratchpadQuoteCarry: null,
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
       toolProtocolStripLastNonWsIndex: -1,
@@ -1159,6 +1165,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadMaskAdvanceRawQueue = ''
     ctx.scratchpadMaskHeldFence = null
     ctx.scratchpadOpenLineCarry = null
+    ctx.scratchpadQuoteCarry = null
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false
     ctx.textPartParentId = sdkParentToolUseId ?? null
@@ -1300,6 +1307,9 @@ export class ClaudeCodeStreamAdapter {
    */
   /** Total characters presented to maskCodeFences by the mask-state advance (test instrumentation). */
   private scratchpadMaskAdvanceWorkChars = 0
+
+  /** Total characters handed to the scratchpad strip scan across deltas (test instrumentation). */
+  private scratchpadScanInputChars = 0
 
   private advanceScratchpadMaskState(emit: string, ctx: StreamContext): void {
     // The scratchpad scan queues the RAW text it consumed per delta; the
@@ -1549,6 +1559,7 @@ export class ClaudeCodeStreamAdapter {
       (openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix)
     const scanRemainder = ctx.scratchpadStreamRemainder
     const combined = prefix + scanRemainder + text
+    this.scratchpadScanInputChars += combined.length
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
 
@@ -1733,7 +1744,10 @@ export class ClaudeCodeStreamAdapter {
     // Quote-marked open lines also carry whole: quoted container membership
     // of the line's content lives in the line itself, not yet in the stepped
     // state (the open line is never stepped).
-    if (/^\s{0,3}>/.test(openLine)) return openLine
+    if (/^\s{0,3}>/.test(openLine)) {
+      if (openLine.length <= QUOTE_LINE_CARRY_HEAD) return openLine
+      return this.boundedQuoteLineCarry(openLine, ctx, ctx.textBlockContextStart + lineStart)
+    }
     // A line that is entirely a potential block-marker prefix ('1', '-', '#',
     // '=', '```') can still merge with the arriving chunk into a real marker
     // or a setext underline, and a heading/setext line decides whether later
@@ -1813,6 +1827,53 @@ export class ClaudeCodeStreamAdapter {
       return openLine
     }
     return indent + markerHead + (paragraph ? 'x' : '') + tail + escapeMarker
+  }
+
+  /**
+   * Bounded carry for a long quote-led open line (cherry-review quoted-line
+   * scaling). The line's block context (quote markers, indent, list marker
+   * head, heading/fence prefix) sits in its head, so the carry is a bounded
+   * head plus the inline-active tail, with the closed middle dropped:
+   * - the head is cut so it never ends inside a backtick run, a backslash run,
+   *   or an unfinished '<...' token, and never holds an inline span that is
+   *   still unpaired inside the head (such a span, if later closed, lies in the
+   *   dropped middle and is inert);
+   * - the tail starts at the earliest unpaired backtick run (inlineCodeCarryStart
+   *   semantics; empty when there is none), backed up over a preceding
+   *   backslash run so an escaped tick stays escaped. A trailing backtick run
+   *   is always carried because the next delta may extend it;
+   * - a line whose head has no text character (an all marker/rule line such as
+   *   '> ----') is carried whole because later text can change its type.
+   * Pairing state is tracked incrementally from a checkpoint (every backtick
+   * run before it is already paired), so a delta costs O(new text), except
+   * while an unpaired run stays open: its whole span is then carried, as the
+   * non-quote path also does.
+   */
+  private boundedQuoteLineCarry(openLine: string, ctx: StreamContext, key: number): string {
+    let head = openLine.slice(0, QUOTE_LINE_CARRY_HEAD)
+    if (!/[^\s>\-*_=#+.~`()[\]]/.test(head)) return openLine
+    if (openLine.charCodeAt(head.length) === 96) head = head.replace(/`+$/, '')
+    const headSafe = inlineCodeCarryStart(head)
+    if (headSafe < head.length) head = head.slice(0, headSafe)
+    head = head.replace(/\\+$/, '')
+    const lastLt = head.lastIndexOf('<')
+    if (lastLt !== -1 && head.indexOf('>', lastLt) === -1) head = head.slice(0, lastLt)
+    const entityStart = head.search(/&#?[A-Za-z0-9]*$/)
+    if (entityStart !== -1) head = head.slice(0, entityStart)
+    let carry = ctx.scratchpadQuoteCarry
+    if (!carry || carry.key !== key || carry.checkpoint > openLine.length) {
+      carry = { key, checkpoint: 0 }
+    }
+    let tailStart = carry.checkpoint + inlineCodeCarryStart(openLine.slice(carry.checkpoint))
+    const trailing = /`+$/.exec(openLine)
+    if (trailing && trailing.index < tailStart) tailStart = trailing.index
+    // Back up over a preceding backslash run so an escaped tick stays escaped
+    // when the next delta rescans from the checkpoint.
+    while (tailStart > 0 && openLine[tailStart - 1] === '\\') tailStart--
+    carry.checkpoint = tailStart
+    ctx.scratchpadQuoteCarry = carry
+    if (tailStart < head.length) return openLine
+    return head + openLine.slice(tailStart)
   }
 
   private emittedIndentOnlyLinePrefix(text: string): string {
@@ -2361,6 +2422,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadMaskAdvanceRawQueue = ''
         ctx.scratchpadMaskHeldFence = null
         ctx.scratchpadOpenLineCarry = null
+        ctx.scratchpadQuoteCarry = null
         this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
         ctx.suppressCompactionArtifactPart = false
@@ -3507,6 +3569,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadMaskAdvanceRawQueue = ''
     ctx.scratchpadMaskHeldFence = null
     ctx.scratchpadOpenLineCarry = null
+    ctx.scratchpadQuoteCarry = null
     this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false

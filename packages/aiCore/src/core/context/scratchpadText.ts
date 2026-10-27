@@ -234,10 +234,33 @@ const PLACEHOLDER_BASES = ['\uE000', '\uE002', '\uE004', '\uE006']
 // input so generated tokens stay distinguishable, and never delete an
 // unknown-index token on unmask (cherry-pr-review inv_b4be6544122b016d).
 function pickPlaceholderBase(text: string, kind: string): string {
-  for (const base of PLACEHOLDER_BASES) {
-    if (!text.includes(`${base}${kind}_`)) return base
+  // Bounded work: locate each `${kind}_` occurrence with indexOf and walk
+  // backwards over the private-use run directly before it. The runs preceding
+  // distinct occurrences are disjoint (the occurrence text separates them), so
+  // total work is O(text length) - no backtracking regex over long
+  // private-use runs. `used` holds the single-character bases already in use;
+  // `longestRun` the longest run of the first base directly before `${kind}_`.
+  const needle = `${kind}_`
+  const used = new Set<string>()
+  let longestRun = 0
+  for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + needle.length)) {
+    let start = at
+    while (start > 0 && text.charCodeAt(start - 1) >= 0xe000 && text.charCodeAt(start - 1) <= 0xf8ff) start--
+    if (start === at) continue
+    used.add(text[at - 1])
+    let width = 0
+    while (width < at - start && text[at - 1 - width] === PLACEHOLDER_BASES[0]) width++
+    if (width > longestRun) longestRun = width
   }
-  return PLACEHOLDER_BASES[0]
+  for (const base of PLACEHOLDER_BASES) if (!used.has(base)) return base
+  for (let code = 0xe008; code < 0xf8ff; code += 2) {
+    const base = String.fromCharCode(code)
+    if (!used.has(base)) return base
+  }
+  // Every even single-character base precedes `${kind}_` somewhere in the
+  // input: repeat the first base one longer than any run of it before
+  // `${kind}_`, so the chosen base cannot occur in the text.
+  return PLACEHOLDER_BASES[0].repeat(longestRun + 1)
 }
 
 /** Expand indentation tabs at CommonMark's four-column tab stops. */
@@ -357,7 +380,7 @@ function isInlineBlockBoundary(line: string): boolean {
   const content = stripMarkdownContainerMarkers(line)
   return (
     content.trim() === '' ||
-    /^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001/.test(content.trim()) ||
+    /^[\uE000-\uF8FF]+CODE_FENCE_\d+\uE001/.test(content.trim()) ||
     /^ {0,3}(?:<!--|<![A-Z]|<\?|<!\[CDATA\[|<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|source|style|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t>]|$))/i.test(
       content
     ) ||
@@ -1109,6 +1132,45 @@ function quoteMarkerPositions(line: string): { markerStarts: number[]; markerEnd
   return { markerStarts, markerEnds }
 }
 
+/**
+ * Remove inherited list indentation from a container-stripped line, but only
+ * the leading whitespace the line actually has: an unindented heading or
+ * thematic break after a list must keep its first characters so it is still
+ * recognized as a leaf block boundary (CommonMark 0.31.2 §4.2).
+ */
+function stripInheritedListIndent(content: string, inheritedListColumns: number): string {
+  let i = 0
+  while (i < inheritedListColumns && (content[i] === ' ' || content[i] === '\t')) i++
+  return content.slice(i)
+}
+
+/**
+ * Before pushing a list marker that starts inside a blockquote, drop outer
+ * (shallower-quote-depth) list levels whose content column the quote's first
+ * marker does not reach: a blockquote cannot be a lazy continuation, so it
+ * starts outside such a list (CommonMark 0.31.2 §5.1, §5.2).
+ */
+function truncateUnreachedOuterLists(
+  stack: Array<{ column: number; quoteDepth: number }>,
+  line: string,
+  depth: number
+): void {
+  if (depth === 0) return
+  const markers = quoteMarkerPositions(line)
+  for (let k = 0; k < stack.length; k++) {
+    const level = stack[k]
+    if (level.quoteDepth >= depth || level.quoteDepth > markers.markerStarts.length) continue
+    const reached =
+      level.quoteDepth === 0
+        ? markers.markerStarts[0] >= level.column
+        : markers.markerStarts[level.quoteDepth] - markers.markerEnds[level.quoteDepth - 1] >= level.column
+    if (!reached) {
+      stack.length = k
+      return
+    }
+  }
+}
+
 export function maskIndentedCodeBlocksReference(text: string): {
   text: string
   blocks: string[]
@@ -1163,12 +1225,15 @@ export function maskIndentedCodeBlocksReference(text: string): {
   // underline only closes an OPEN paragraph; on its own it is paragraph text.
   const isLeafBlockBoundaryLine = (line: string, paragraphWasOpen: boolean): boolean => {
     const stripped = stripMarkdownContainerMarkers(line)
-    const content = stripped === line && inheritedListColumns > 0 ? stripped.slice(inheritedListColumns) : stripped
+    const content =
+      stripped === line && inheritedListColumns > 0
+        ? stripInheritedListIndent(stripped, inheritedListColumns)
+        : stripped
     if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
     if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
     if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
     if (/^ {0,3}(?:-[ \t]*){3,}$/.test(content)) return true
-    if (/^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001[ \t]*$/.test(content.trim())) return true
+    if (/^[\uE000-\uF8FF]+CODE_FENCE_\d+\uE001[ \t]*$/.test(content.trim())) return true
     if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return true
     return false
   }
@@ -1219,6 +1284,7 @@ export function maskIndentedCodeBlocksReference(text: string): {
       const padding = list[3].length <= 4 ? list[3].length : 1
       const nextColumns = nestedOffset + list[1].length + list[2].length + padding
       const markerColumn = nestedOffset + list[1].length
+      truncateUnreachedOuterLists(listColumnStack, line, depth)
       while (listColumnStack.length) {
         const top = listColumnStack[listColumnStack.length - 1]
         // The new item's column is measured in its own quote segment: only
@@ -1476,12 +1542,13 @@ export function isLeafBlockBoundaryLineFor(
   inheritedListColumns: number
 ): boolean {
   const stripped = stripMarkdownContainerMarkers(l)
-  const content = stripped === l && inheritedListColumns > 0 ? stripped.slice(inheritedListColumns) : stripped
+  const content =
+    stripped === l && inheritedListColumns > 0 ? stripInheritedListIndent(stripped, inheritedListColumns) : stripped
   if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
   if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
   if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
   if (/^ {0,3}(?:-[ \t]*){3,}$/.test(content)) return true
-  if (/^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001[ \t]*$/.test(content.trim())) return true
+  if (/^[\uE000-\uF8FF]+CODE_FENCE_\d+\uE001[ \t]*$/.test(content.trim())) return true
   if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return true
   return false
 }
@@ -1583,6 +1650,7 @@ export function indentedMaskStep(
     const padding = list[3].length <= 4 ? list[3].length : 1
     const nextColumns = nestedOffset + list[1].length + list[2].length + padding
     const markerColumn = nestedOffset + list[1].length
+    truncateUnreachedOuterLists(state.listColumnStack, line, depth)
     while (state.listColumnStack.length) {
       const top = state.listColumnStack[state.listColumnStack.length - 1]
       // See the reference loop: sibling markers at a shallower column end
