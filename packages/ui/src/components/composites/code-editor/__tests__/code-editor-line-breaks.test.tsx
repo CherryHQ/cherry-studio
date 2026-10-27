@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { redo, undo } from '@codemirror/commands'
+import { Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { act, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { codeBlockHighlightStyle } from '../../../../code-block'
@@ -28,6 +30,69 @@ async function mount(value = 'a\r\nb', sharedSyntax = true) {
 }
 
 describe('CodeEditor line-break boundaries', () => {
+  it.each([
+    { name: 'replace', sharedSyntax: true },
+    { name: 'replace all', sharedSyntax: true },
+    { name: 'replace', sharedSyntax: false },
+    { name: 'replace all', sharedSyntax: false }
+  ])('normalizes built-in $name (shared syntax: $sharedSyntax)', async ({ name, sharedSyntax }) => {
+    const original = 'first\r\nx'
+    const expected = 'first\r\nsecond\r\nthird'
+    const { container, view, handle, changes, saved } = await mount(original, sharedSyntax)
+    const user = userEvent.setup()
+    act(() => {
+      view.dispatch({ selection: { anchor: 6, head: 7 } })
+      view.focus()
+    })
+    await user.keyboard('{Control>}f{/Control}')
+    const search = within(container)
+    const find = await search.findByRole('textbox', { name: 'Find' })
+    await user.clear(find)
+    await user.type(find, 'x')
+    await user.type(search.getByRole('textbox', { name: 'Replace' }), 'second\\nthird')
+    await user.click(search.getByRole('button', { name }))
+    expect(view.state.doc.lines).toBe(3)
+    expect(view.state.doc.line(3).text).toBe('third')
+    expect(handle.current?.getContent?.()).toBe(expected)
+    expect(changes).toEqual([expected])
+    act(() => handle.current?.save?.())
+    expect(saved).toEqual([expected])
+    act(() => {
+      undo(view)
+    })
+    expect(handle.current?.getContent?.()).toBe(original)
+    act(() => {
+      redo(view)
+    })
+    expect(handle.current?.getContent?.()).toBe(expected)
+    expect(view.state.doc.lines).toBe(3)
+  })
+
+  it('normalizes multi-range extension insertions and maps the selection through removed CR characters', async () => {
+    const { view, handle } = await mount()
+    act(() =>
+      view.dispatch({
+        changes: [
+          { from: 0, to: 1, insert: Text.of(['first\r\nsecond']) },
+          { from: 2, to: 3, insert: Text.of(['third\nfourth\rfifth']) }
+        ],
+        selection: { anchor: 32 }
+      })
+    )
+    expect(view.state.doc.lines).toBe(5)
+    expect(handle.current?.getContent?.()).toBe('first\r\nsecond\r\nthird\r\nfourth\r\nfifth')
+    expect(handle.current?.getSelection?.()).toEqual({ from: 31, to: 31, text: '' })
+    act(() => {
+      undo(view)
+    })
+    expect(handle.current?.getContent?.()).toBe('a\r\nb')
+    act(() => {
+      redo(view)
+    })
+    expect(view.state.doc.lines).toBe(5)
+    expect(handle.current?.getSelection?.()).toEqual({ from: 31, to: 31, text: '' })
+  })
+
   it.each([true, false])('initializes mixed newlines as logical lines (shared syntax: %s)', async (sharedSyntax) => {
     const handle: { current: CodeEditorHandles | null } = { current: null }
     const host = render(

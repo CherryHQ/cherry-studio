@@ -1,5 +1,6 @@
 import { historyField } from '@codemirror/commands'
 import { foldState, syntaxHighlighting } from '@codemirror/language'
+import type { ChangeSpec } from '@codemirror/state'
 import { EditorState, Text } from '@codemirror/state'
 import type { ViewUpdate } from '@codemirror/view'
 import type { BasicSetupOptions } from '@uiw/react-codemirror'
@@ -16,9 +17,14 @@ function toDocumentText(source: string): Text {
   return Text.of(source.split(/\r\n?|\n/))
 }
 
-const codeEditorClipboardFilter = EditorView.clipboardInputFilter.of((text, state) =>
-  toDocumentText(text).sliceString(0, undefined, state.lineBreak)
-)
+const codeEditorLineBreakFilter = EditorState.transactionFilter.of((transaction) => {
+  const changes: ChangeSpec[] = []
+  transaction.changes.iterChanges((_from, _to, from, to, inserted) => {
+    const normalized = toDocumentText(inserted.toString())
+    if (!inserted.eq(normalized)) changes.push({ from, to, insert: normalized })
+  })
+  return changes.length ? [transaction, { changes, sequential: true }] : transaction
+})
 
 const codeEditorGutterTheme = EditorView.theme({
   '.cm-gutters': {
@@ -116,7 +122,7 @@ const CodeEditor = ({
     const editorView = editorViewRef.current
     if (!editorView) return false
 
-    editorView.dispatch(editorView.state.replaceSelection(toDocumentText(text)))
+    editorView.dispatch(editorView.state.replaceSelection(text))
     editorView.focus()
     return true
   }, [])
@@ -143,7 +149,7 @@ const CodeEditor = ({
       return false
     }
 
-    const insert = toDocumentText(text)
+    const insert = editorView.state.toText(text)
     editorView.dispatch({
       changes: { from: range.from, to: range.to, insert },
       selection: { anchor: range.from + insert.length }
@@ -217,7 +223,7 @@ const CodeEditor = ({
     return [
       ...(extensions ?? []),
       EditorState.lineSeparator.of(lineBreak),
-      codeEditorClipboardFilter,
+      codeEditorLineBreakFilter,
       ...(syntaxHighlightStyle ? [syntaxHighlighting(syntaxHighlightStyle), EditorState.tabSize.of(2)] : []),
       ...langExtensions,
       ...(wrapped ? [EditorView.lineWrapping] : []),

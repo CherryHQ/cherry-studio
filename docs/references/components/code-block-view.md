@@ -126,9 +126,10 @@ its language before mounting; returning to reading seeds visible syntax from the
 until Worker results arrive. Unparsed ranges retain the normal plain-source fallback.
 Generic Notes, prompt and configuration editors retain CodeMirror themes from `chat.code.editor.theme_*`, with a separate editor theme selector. The renderer entry applies shared syntax only when the adopted message or HTML-artifact host explicitly supplies it. Copy/save preserve source whitespace;
 CodeMirror uses `sliceDoc` and the source line separator rather than implicitly converting CRLF.
-Initial content, external replacements and imperative edits normalize incoming LF, CRLF and CR into document lines
-before computing positions. CodeMirror's clipboard input filter applies the same rule to paste and drop; syntax styling
-does not select the document's line separator.
+Initial content and external replacements normalize incoming LF, CRLF and CR into document lines before computing
+positions. A shared transaction filter normalizes inserted text from editing commands, search replacements, paste,
+drop and extension transactions. Corrections compose into the original transaction, mapping selection and effects
+while preserving undo history. Syntax styling does not select the document's serialization separator.
 The Markdown adapter removes exactly the structural LF appended by mdast-to-HAST conversion; the code document
 uses the AST code value, preserving authored trailing spaces and blank lines. Saving matches that exact value,
 so rendering the save echo does not add a newline or reset the retained history.
