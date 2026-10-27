@@ -178,14 +178,33 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
         }
       }, length)
     }
+    let selectionAttempt = 0
     const selectReply = async (target = paragraph, text = excerpt) => {
+      selectionAttempt += 1
       const point = await textCoordinates(target, text.length)
       await page.mouse.click(point.x, point.y)
       await page.mouse.move(point.x, point.y)
       await page.mouse.down()
       await page.mouse.move(point.endX, point.endY, { steps: 15 })
       await page.mouse.up()
-      await attachScreenshot('MP-149 selected reply')
+      const inspectSelection = () =>
+        target.evaluate(
+          (element, point) => ({
+            documentFocused: document.hasFocus(),
+            activeTag: document.activeElement?.tagName,
+            selection: window.getSelection()?.toString(),
+            rect: element.getBoundingClientRect().toJSON(),
+            startHitsTarget: element.contains(document.elementFromPoint(point.x, point.y)),
+            endHitsTarget: element.contains(document.elementFromPoint(point.endX, point.endY))
+          }),
+          point
+        )
+      const beforeScreenshot = await inspectSelection()
+      await attachScreenshot(`MP-149 selected reply ${selectionAttempt}`)
+      await testInfo.attach(`MP-149 selection diagnostics ${selectionAttempt}`, {
+        body: JSON.stringify({ point, beforeScreenshot, afterScreenshot: await inspectSelection() }),
+        contentType: 'application/json'
+      })
       await expect.poll(selectedText).toBe(text)
       return point
     }

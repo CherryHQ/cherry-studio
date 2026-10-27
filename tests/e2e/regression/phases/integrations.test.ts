@@ -1,5 +1,7 @@
 import { join } from 'node:path'
 
+import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
+
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import type { Message } from '../../../../src/shared/data/types/message'
@@ -34,19 +36,24 @@ async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Pr
 
 test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
   await openSettingsSection(page, 'MCP')
-  if (
-    !(await page
-      .locator('[data-ui~="settings.content"]:visible')
-      .getByText('everything', { exact: true })
-      .isVisible()
-      .catch(() => false))
-  ) {
+  const servers = await page.evaluate(() =>
+    window.api.dataApi.request({
+      id: 'regression-mcp-servers',
+      method: 'GET',
+      path: '/mcp-servers',
+      params: { limit: 200 }
+    })
+  )
+  expect(servers.status).toBe(200)
+  const existing = (servers.data as McpServerSchemas['/mcp-servers']['GET']['response']).items
+  if (!existing.some(({ name }) => name === 'everything')) {
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await page.getByText('Quick Create', { exact: true }).click()
     await page.locator('input[name="name"]').fill('everything')
     await page.getByLabel('Command*').fill('npx')
     await page.getByLabel('Arguments').last().fill('-y\n@modelcontextprotocol/server-everything')
     await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
   }
   await page.locator('[data-ui~="settings.content"]:visible').getByText('everything', { exact: true }).first().click()
   const enabled = page.getByRole('switch').first()
