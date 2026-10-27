@@ -21,10 +21,14 @@ describe('provider reasoning contracts', () => {
     expect(wire?.off?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }])
   })
 
-  it('encodes Watt Cloud Off as a literal false on the chat template flag', () => {
+  // Watt's flag is a plain boolean, so `default` must carry the explicit enable:
+  // effort-controlled synced models project to Default/Off only, and a persisted
+  // Auto normalizes to Default — without this mode neither sends the flag.
+  it('encodes Watt Cloud thinking as a boolean chat template flag with an explicit enable', () => {
     const wire = provider('watt-cloud').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
 
     expect(wire).toEqual({
+      default: { operations: [{ target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: true } }] },
       off: { operations: [{ target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: false } }] },
       auto: { operations: [{ target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: true } }] }
     })
