@@ -7,6 +7,8 @@ import { loadCodeTheme } from '@cherrystudio/ui/code-highlight'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
 
+vi.unmock('@cherrystudio/ui')
+
 const themeState = vi.hoisted(() => ({ theme: 'light' as 'light' | 'dark' }))
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: themeState.theme }) }))
 
@@ -32,7 +34,7 @@ describe('shared code appearance', () => {
     themeState.theme = 'light'
   })
 
-  it('uses the selected code palette for editors independently of the retired CodeMirror preference', async () => {
+  it('keeps the message palette independent of the CodeMirror preference', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.code.viewer.theme_light': 'nord',
       'chat.code.editor.theme_light': 'dracula'
@@ -46,7 +48,7 @@ describe('shared code appearance', () => {
     await waitFor(() =>
       expect(appearance().style.getPropertyValue('--code-syntax-keyword')).toBe(palette['--code-syntax-keyword'])
     )
-    expect(screen.getByLabelText('Selected code theme')).toBeInTheDocument()
+    expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('nord')
     expect(screen.getByText('Dark code')).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'dracula' })).toBeInTheDocument()
   })
@@ -89,6 +91,6 @@ describe('shared code appearance', () => {
     await waitFor(() =>
       expect(appearance().style.getPropertyValue('--code-background')).toBe(fallback['--code-background'])
     )
-    expect(screen.getByLabelText('Selected code theme')).toBeInTheDocument()
+    expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('one-light')
   })
 })

@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { getCmThemeByName, getCmThemeNames, type CodeMirrorTheme } from '@cherrystudio/ui'
 import { codeBlockSyntaxCss, getCodeBlockPalette } from '@cherrystudio/ui/code-block'
 import { resolveCodeTheme } from '@cherrystudio/ui/code-highlight'
 import { usePreference } from '@data/hooks/usePreference'
@@ -12,6 +13,8 @@ import { CODE_THEME_NAMES, loadCodeTheme } from '@renderer/utils/codeHighlight'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 export function CodeStyleProvider({ children }: PropsWithChildren) {
+  const [codeEditorThemeLight] = usePreference('chat.code.editor.theme_light')
+  const [codeEditorThemeDark] = usePreference('chat.code.editor.theme_dark')
   const [codeViewerThemeLight] = usePreference('chat.code.viewer.theme_light')
   const [codeViewerThemeDark] = usePreference('chat.code.viewer.theme_dark')
   const { theme } = useTheme()
@@ -45,6 +48,31 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
     }
   }, [activeCodeTheme])
 
+  const [activeCmTheme, setActiveCmTheme] = useState<CodeMirrorTheme>(() =>
+    theme === ThemeMode.light ? 'light' : 'dark'
+  )
+  const [cmThemeRequested, setCmThemeRequested] = useState(false)
+  const requestCmTheme = useCallback(() => setCmThemeRequested(true), [])
+  useEffect(() => {
+    if (!cmThemeRequested) return
+    const selected = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
+    const name = !selected || selected === 'auto' ? (theme === ThemeMode.light ? 'materialLight' : 'dark') : selected
+    let cancelled = false
+    void getCmThemeByName(name).then((resolved) => {
+      if (!cancelled) setActiveCmTheme(resolved)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cmThemeRequested, theme, codeEditorThemeLight, codeEditorThemeDark])
+
+  const [cmThemeNames, setCmThemeNames] = useState<string[]>([])
+  const loadCmThemeNames = useCallback(async () => {
+    const names = await getCmThemeNames()
+    setCmThemeNames(names)
+    return names
+  }, [])
+
   const themeNames = useMemo(() => ['auto', ...CODE_THEME_NAMES], [])
   const loadThemeNames = useCallback(async () => themeNames, [themeNames])
   const highlightRange = useCallback(
@@ -71,7 +99,9 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
       renderMarkdown,
       codeThemes,
       activeCodeTheme,
-      isCodeThemeDark
+      isCodeThemeDark,
+      activeCmTheme,
+      requestCmTheme
     }),
     [
       codeBlockStyle,
@@ -81,10 +111,15 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
       renderMarkdown,
       codeThemes,
       activeCodeTheme,
-      isCodeThemeDark
+      isCodeThemeDark,
+      activeCmTheme,
+      requestCmTheme
     ]
   )
-  const themeCatalogContextValue = useMemo(() => ({ loadThemeNames, themeNames }), [loadThemeNames, themeNames])
+  const themeCatalogContextValue = useMemo(
+    () => ({ loadThemeNames, themeNames, loadCmThemeNames, cmThemeNames }),
+    [loadThemeNames, themeNames, loadCmThemeNames, cmThemeNames]
+  )
   return (
     <CodeStyleContext value={contextValue}>
       <CodeStyleThemeCatalogContext value={themeCatalogContextValue}>

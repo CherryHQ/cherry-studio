@@ -100,6 +100,8 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [codeWrappable, setCodeWrappable] = usePreference('chat.code.wrappable')
   const [codeEditor, setCodeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',
+    themeLight: 'chat.code.editor.theme_light',
+    themeDark: 'chat.code.editor.theme_dark',
     highlightActiveLine: 'chat.code.editor.highlight_active_line',
     foldGutter: 'chat.code.editor.fold_gutter',
     autocompletion: 'chat.code.editor.autocompletion',
@@ -114,7 +116,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const setWideMode = (checked: boolean) => setNarrowMode(!checked)
 
   const { theme } = useTheme()
-  const { loadThemeNames, themeNames } = useCodeStyleThemeCatalog()
+  const { loadThemeNames, themeNames, loadCmThemeNames, cmThemeNames } = useCodeStyleThemeCatalog()
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const { t } = useTranslation()
 
@@ -124,7 +126,8 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
 
   useEffect(() => {
     void loadThemeNames()
-  }, [loadThemeNames])
+    void loadCmThemeNames()
+  }, [loadThemeNames, loadCmThemeNames])
 
   const messageStyleItems = useMemo<SelectOption<'plain' | 'bubble'>[]>(
     () => [
@@ -471,6 +474,26 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                 {codeStyleItems.map((item) => (
                   <SelectItem className="text-sm" key={item.value} value={item.value}>
                     {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-code-editor-style" className="scroll-mt-6">
+            <SettingRowTitleSmall>{t('chat.settings.code_editor.title')}</SettingRowTitleSmall>
+            <Select
+              value={theme === ThemeMode.light ? codeEditor.themeLight : codeEditor.themeDark}
+              onValueChange={(value) =>
+                void setCodeEditor({ [theme === ThemeMode.light ? 'themeLight' : 'themeDark']: value })
+              }>
+              <SelectTrigger aria-label={t('chat.settings.code_editor.title')} size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {cmThemeNames.map((name) => (
+                  <SelectItem className="text-sm" key={name} value={name}>
+                    {name}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -123,7 +123,7 @@ text and line-number alignment, wrapped line heights and the code surface backgr
 Integer vertical padding keeps CodeMirror's gutter baseline aligned with the viewer. The lazy editor waits for
 its language before mounting; returning to reading seeds visible syntax from the retained editor's parsed tree
 until Worker results arrive. Unparsed ranges retain the normal plain-source fallback.
-Application Notes, prompt and configuration editors use the same palette through the shared renderer editor entry. Stored legacy CodeMirror theme values remain unchanged; their separate selector is retired. Copy/save preserve source whitespace;
+Generic Notes, prompt and configuration editors retain CodeMirror themes from `chat.code.editor.theme_*`, with a separate editor theme selector. The renderer entry applies shared syntax only when the adopted message or HTML-artifact host explicitly supplies it. Copy/save preserve source whitespace;
 CodeMirror uses `sliceDoc` and the source line separator rather than implicitly converting CRLF.
 Initial content, external replacements and imperative edits normalize incoming LF, CRLF and CR into document lines
 before computing positions. CodeMirror's clipboard input filter applies the same rule to paste and drop; syntax styling

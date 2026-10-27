@@ -216,11 +216,11 @@ instead of the component entry in workers and editor adapters.
 
 `createCodeHighlightPlugin({ execute, themes })` connects Streamdown to a snapshot executor.
 Standalone Markdown defaults to a shared local executor and GitHub light/dark themes. The app
-injects its renderer worker executor and viewer theme preferences. Application editors use the same selected code palette; standalone UI consumers can still supply their own themes.
+injects its renderer worker executor and viewer theme preferences. Adopted message editors use the same selected code palette; generic CodeMirror editors and standalone UI consumers retain their own themes.
 
 `@cherrystudio/ui/code-block` supplies the shared code-block language loader, semantic
 HighlightStyle, palette variables and incremental parser documents. CodeViewer range jobs
-and Tiptap decorations use it in the existing renderer worker; application editors install the same syntax
+and Tiptap decorations use it in the existing renderer worker; adopted message editors install the same syntax
 classes and palette. Snapshot/HTML/Markdown jobs use its bounded snapshot adapter as well. It does not construct EditorView or import application services.
 `readCodeBlockState` reads an already parsed editor range to preserve syntax on the first
 viewer paint; it returns `null` when that range is not parsed, without starting parsing.

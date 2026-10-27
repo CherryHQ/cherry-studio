@@ -130,7 +130,7 @@ HTML artifact 弹窗在代码、预览和分屏布局之间保留独立的本地
 
 ## 剩余入口迁移
 
-用户于 2026-10-27 批准迁移全部剩余入口。将本方案扩展到 HTML 文件源码、Notes 源码、CLI/MCP/CSS/提示词编辑器、Tiptap 代码装饰以及快照/HTML/Markdown 任务。文件保存、权限、冲突及 ProseMirror 文档历史继续由原宿主管理。应用内 CodeMirror 统一使用共享语义 HighlightStyle 与 viewer 调色板；保留已存储的旧主题值，但不继续提供第二个生效的主题选择器。Tiptap 通过异步共享解析会话装饰自身文档，丢弃过期结果，主题变化不修改文档或历史。快照适配层用相同解析器和调色板保留现有 token/HTML 契约。Pierre 内部的 Highlights 后端仍归库自身管理。Trace/错误详情的截断策略独立保留。不新增持久化、引擎开关、大小截断或 worker 池。对话批准允许本地实现，Spec 生命周期与跨平台验收仍保持 proposed。
+用户于 2026-10-27 批准迁移全部剩余入口。将本方案扩展到 HTML 文件源码、Notes 源码、CLI/MCP/CSS/提示词编辑器、Tiptap 代码装饰以及快照/HTML/Markdown 任务。文件保存、权限、冲突及 ProseMirror 文档历史继续由原宿主管理。消息与 HTML Artifact 代码编辑器使用共享语义 HighlightStyle 与 viewer 调色板。通用 Notes、CLI/MCP/CSS 和提示词编辑器保留独立的 CodeMirror 主题偏好及选择器；共享语言加载器不意味着这些宿主采用消息样式。Tiptap 通过异步共享解析会话装饰自身文档，丢弃过期结果，主题变化不修改文档或历史。快照适配层用相同解析器和调色板保留现有 token/HTML 契约。Pierre 内部的 Highlights 后端仍归库自身管理。Trace/错误详情的截断策略独立保留。不新增持久化、引擎开关、大小截断或 worker 池。对话批准允许本地实现，Spec 生命周期与跨平台验收仍保持 proposed。
 
 - HTML 源码复用 FileEditor；iframe 安全策略与宿主控件不变。
 - 共享语法/配色接入须保留草稿、焦点、选区、历史、表单回调、完整空白及未知语言回退；高度与保存语义继续由宿主决定。
@@ -161,7 +161,7 @@ HTML artifact 弹窗在代码、预览和分屏布局之间保留独立的本地
 - AC9 — macOS 与 Windows 真实 Electron 场景通过原生中文输入法、剪贴板、焦点、模式/主题/历史和消息保存后重开检查；不能以 Unicode 插入替代 IME。（验证：平台 Electron 证据；负责人：桌面验证者）
 - AC10 — 所属双语文档、独立入口/导入边界、受影响测试和必需 CI 检查通过；实现与缺少的运行证据分开报告，所有标准完成前不迁移 Spec 状态。（验证：文档门禁、定向检查、CI 和证据映射；负责人：最终集成者）
 
-- AC11 — 应用内所有 CodeMirror 入口及 Tiptap 代码块共享解析 class 与所选调色板，兼容草稿、选区及历史不被重置。 (verification: renderer and Electron; owner: surface integrator)
+- AC11 — 已接入的消息/HTML Artifact 编辑器与 Tiptap 代码块共享解析 class 与所选调色板，兼容草稿、选区及历史不被重置；通用 CodeMirror 编辑器保留独立主题及控件。 (verification: renderer and Electron; owner: surface integrator)
 - AC12 — 剩余 HTML 文件源码接入 FileEditor，受限预览安全策略及原文件会话所有权不变。 (verification: renderer and Electron; owner: file integrator)
 - AC13 — 快照、HTML 及 Markdown 高亮使用共享解析分类并保留原源码/token/导出契约；过期 Tiptap 异步结果不能装饰已改变或移除的代码块。 (verification: parser/worker/plugin tests and Electron; owner: syntax integrator)
 

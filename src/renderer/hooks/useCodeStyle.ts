@@ -1,5 +1,6 @@
 import { createContext, use, type CSSProperties } from 'react'
 
+import type { CodeMirrorTheme } from '@cherrystudio/ui'
 import type { HighlightRange, HighlightResult } from '@renderer/types/codeHighlight'
 
 interface CodeStyleContextType {
@@ -10,12 +11,16 @@ interface CodeStyleContextType {
   renderMarkdown: (code: string) => Promise<string>
   codeThemes: [string, string]
   activeCodeTheme: string
+  activeCmTheme: CodeMirrorTheme
+  requestCmTheme: () => void
   isCodeThemeDark: boolean
 }
 
 interface CodeStyleThemeCatalogContextType {
   loadThemeNames: () => Promise<string[]>
   themeNames: string[]
+  loadCmThemeNames: () => Promise<string[]>
+  cmThemeNames: string[]
 }
 
 export const CodeStyleContext = createContext<CodeStyleContextType | null>(null)
