@@ -14,6 +14,34 @@ const sourceOf = (result: Awaited<ReturnType<Awaited<ReturnType<typeof createCod
   result.lines.map((line) => line.map((token) => token.content).join('')).join('\n')
 
 describe('Code block syntax contract', () => {
+  it.each([
+    ['jsonc', '{ "greeting": "你好 🥟", "count": 42 }\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['.JSONC', '{ "greeting": "你好 🥟", "count": 42 }\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['shellscript', 'echo "你好 🥟" # comment\r\n', '"你好 🥟"', 'code-syntax-string'],
+    [' SHELLSCRIPT ', 'echo "你好 🥟" # comment\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['scm', '(define enabled #t)\n', '#t', 'code-syntax-keyword']
+  ])('preserves supported %s aliases without losing syntax or source', async (language, code, content, className) => {
+    const doc = await createCodeBlockDocument(code, language)
+    try {
+      const result = await doc.read({ start: 0, end: 2 })
+      expect(sourceOf(result)).toBe(code)
+      expect(result.lines.flat()).toContainEqual(expect.objectContaining({ content, className }))
+    } finally {
+      doc.dispose()
+    }
+  })
+
+  it('honors caller language configuration before a built-in alias', async () => {
+    const support = await loadCodeBlockLanguage('jsonc', {
+      CustomScript: { type: 'programming', aliases: ['jsonc'], extensions: ['.ts'] }
+    })
+    const state = EditorState.create({ doc: 'const answer = 42;', extensions: [support!] })
+    ensureSyntaxTree(state, state.doc.length, 1000)
+    expect(readCodeBlockState(state, { start: 0, end: 1 })?.lines.flat()).toContainEqual(
+      expect.objectContaining({ content: 'const', className: 'code-syntax-keyword' })
+    )
+  })
+
   it('preserves comment classes on the first read from an edited syntax tree', async () => {
     const support = await loadCodeBlockLanguage('ts')
     const state = EditorState.create({

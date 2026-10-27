@@ -1,5 +1,7 @@
 import type { Language, LanguageSupport } from '@codemirror/language'
 
+import { normalizeCodeLanguage } from '../../code-highlight'
+
 /** Language data structure for file extension mapping */
 export interface LanguageData {
   type: string
@@ -213,7 +215,11 @@ export function loadCodeBlockLanguage(language: string, config?: LanguageConfig)
       if (extension === 'dot') return (await import('@viz-js/lang-dot')).dot()
       if (extension === 'mmd' || extension === 'mermaid') return (await import('codemirror-lang-mermaid')).mermaid()
       const { loadLanguage } = await import('@uiw/codemirror-extensions-langs')
-      return loadLanguage(extension as Parameters<typeof loadLanguage>[0])
+      const canonical = normalizeExtension(normalizeCodeLanguage(extension))
+      return (
+        loadLanguage(extension as Parameters<typeof loadLanguage>[0]) ??
+        loadLanguage(canonical as Parameters<typeof loadLanguage>[0])
+      )
     })()
     languages.set(extension, pending)
     void pending.catch(() => languages.delete(extension))

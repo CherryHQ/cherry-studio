@@ -64,7 +64,7 @@ src/renderer/
 └── workers/codeHighlight.worker.ts Lezer range jobs; existing Highlights snapshots
 ```
 
-从现有 CodeEditor hooks 提取实际语言加载代码，不再建立第二份注册表。保留别名、调用方传入的 languageConfig 及 DOT/Mermaid 特殊加载器。已安装加载器返回 LanguageSupport、StreamLanguage 或 null；通过公开 Language/LanguageSupport API 统一处理，不能假定任意 Extension 都具有 language 属性。两端使用相同解析器配置和语言支持扩展；lint 仅由编辑器已有选项启用。不支持或加载失败的语言保留完整纯文本。
+从现有 CodeEditor hooks 提取实际语言加载代码，不再建立第二份注册表。保留别名、调用方传入的 languageConfig 及 DOT/Mermaid 特殊加载器。映射后的扩展名没有对应语法时，使用已有兼容目录解析别名；直接支持的语法和已配置的扩展名映射保留优先级。已安装加载器返回 LanguageSupport、StreamLanguage 或 null；通过公开 Language/LanguageSupport API 统一处理，不能假定任意 Extension 都具有 language 属性。两端使用相同解析器配置和语言支持扩展；lint 仅由编辑器已有选项启用。不支持或加载失败的语言保留完整纯文本。
 
 小型 code-block 模块放在现有 UI lib 分类中，因为 UI CodeEditor 与 renderer/Worker 都需要它。它只负责语言加载、稳定语义 class 定义和公开解析器/范围操作，不导入应用 Preference、IPC、React 组件或文件保存层。增加一个独立构建的公共子路径，并通过仓库导入边界规则封装；不从 UI 根 barrel 重新导出解析运行时。现有 code-highlight 入口继续服务 Highlights 调用方。不引入通用引擎接口、新 Provider、持久化块 ID 或全局编辑器状态仓库。
 

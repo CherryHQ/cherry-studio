@@ -115,6 +115,9 @@ a different external source begins a fresh document epoch. Newly attached editor
 
 The viewer and adopted editor share language loading, semantic HighlightStyle and palette variables from
 `chat.code.viewer.theme_*`. Theme changes update colors without resetting the document or parsing it again.
+The shared loader preserves directly supported grammars and caller-configured extensions, then resolves missing
+aliases through the existing compatibility catalog. This covers aliases such as `jsonc` and `shellscript` in
+document highlighting and HTML/Markdown exports.
 Both modes use two-column tab stops and preserve a full line of height for empty lines. Switching modes preserves
 text and line-number alignment, wrapped line heights and the code surface background.
 Integer vertical padding keeps CodeMirror's gutter baseline aligned with the viewer. The lazy editor waits for
