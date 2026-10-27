@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Te rugăm să selectezi fișierul de încărcat",
   "notes.no_note_selected": "Te rog selectează mai întâi o notă",
   "notes.no_valid_files": "Nu a fost încărcat niciun fișier valid",
+  "notes.open": "Deschide nota",
   "notes.open_outside": "Deschide extern",
   "notes.print": "Tipărire",
   "notes.print_failed": "Nu s-a putut imprima nota",
