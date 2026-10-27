@@ -775,7 +775,8 @@ describe('CodeCliService', () => {
 
       expect(result.success).toBe(true)
       expect(scriptPath).toMatch(/launch_claude-code_\d+_[0-9a-f]{8}\.sh$/)
-      expect(body).toMatch(/^#!\/bin\/sh\n/)
+      // The self-delete prologue runs before the caller's shebang (a comment under `sh`).
+      expect(body).toMatch(/^rm -f -- "\$0"\n#!\/bin\/sh\n/)
       expect(vi.mocked(fs.chmodSync)).toHaveBeenCalledWith(scriptPath, 0o600)
       // The command typed into the terminal must stay far below the AppleEvent
       // text-injection truncation zone that swallowed the old 2KB inline command.

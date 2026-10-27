@@ -91,7 +91,8 @@ describe('writeLaunchScript', () => {
 
     expect(path.basename(scriptPath)).toMatch(/^launch_qwen-code_\d+_[0-9a-f]{8}\.sh$/)
     expect(existsSync(scriptPath)).toBe(true)
-    expect(readFileSync(scriptPath, 'utf8')).toBe(body)
+    // Consumption deletes the script: the .sh body leads with a self-delete prologue.
+    expect(readFileSync(scriptPath, 'utf8')).toBe('rm -f -- "$0"\n' + body)
     expect(statSync(scriptPath).mode & 0o777).toBe(0o600)
   })
 
@@ -104,6 +105,8 @@ describe('writeLaunchScript', () => {
 
     expect(existsSync(scriptPath)).toBe(true)
     expect(path.extname(scriptPath)).toBe('.bat')
+    // Self-delete is sh-only; a running .bat cannot reliably delete itself on Windows.
+    expect(readFileSync(scriptPath, 'utf8')).toBe('@echo off')
   })
 
   it('registers exactly one exit handler across multiple launches and cleans all pending files on exit', async () => {
@@ -121,14 +124,19 @@ describe('writeLaunchScript', () => {
     expect(existsSync(p2)).toBe(false)
   })
 
-  it('deletes the script 60s after creation', async () => {
+  it('keeps an unconsumed script past every plausible consumption delay and reaps it once abandoned', async () => {
     vi.useFakeTimers()
     const { writeLaunchScript } = await importFresh()
 
     const scriptPath = writeLaunchScript('qwen-code', 'body', '.sh')
     expect(existsSync(scriptPath)).toBe(true)
 
+    // Terminal startup, shell init, or an Automation approval may delay execution well
+    // past a minute — the abandonment TTL must not delete out from under it.
     vi.advanceTimersByTime(60_000)
+    expect(existsSync(scriptPath)).toBe(true)
+
+    vi.advanceTimersByTime(60 * 60 * 1000)
     expect(existsSync(scriptPath)).toBe(false)
   })
 
@@ -140,8 +148,8 @@ describe('writeLaunchScript', () => {
     const p2 = writeLaunchScript('qwen-code', 'body2', '.sh')
 
     expect(p1).not.toBe(p2)
-    expect(readFileSync(p1, 'utf8')).toBe('body1')
-    expect(readFileSync(p2, 'utf8')).toBe('body2')
+    expect(readFileSync(p1, 'utf8')).toBe('rm -f -- "$0"\nbody1')
+    expect(readFileSync(p2, 'utf8')).toBe('rm -f -- "$0"\nbody2')
   })
 
   it('keeps a script exit-tracked when the timed deletion fails, so exit retries it', async () => {
@@ -154,7 +162,7 @@ describe('writeLaunchScript', () => {
 
     const scriptPath = writeLaunchScript('qwen-code', 'body', '.sh')
 
-    vi.advanceTimersByTime(60_000)
+    vi.advanceTimersByTime(60 * 60 * 1000)
     // The timed deletion failed; the file must survive, pending an exit retry.
     expect(existsSync(scriptPath)).toBe(true)
 
