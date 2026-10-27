@@ -33,60 +33,71 @@ describe('per-model api key routing migration: upgrade from main', () => {
     root = null
   })
 
-  it('upgrades a populated pre-0028 database, keeping model and knowledge rows and adding a null api_key_id', () => {
-    root = mkdtempSync(join(tmpdir(), 'cs-api-key-migration-'))
-    const sqlite = new Database(join(root, 'old.db'))
-    registerKnowledgeFunctions(sqlite)
-    sqlite.pragma('foreign_keys = ON')
-    const db = drizzle({ client: sqlite, casing: 'snake_case' })
+  // 0028 is main's knowledge_item rebuild; 0029 is this PR's column. Cover both starting points:
+  // a database from before main's 0028, and one already at main's current head (0028 applied).
+  it.each(['0028', '0029'])(
+    'upgrades a populated database stopped before %s, keeping rows and adding a null api_key_id',
+    (stopTag) => {
+      root = mkdtempSync(join(tmpdir(), 'cs-api-key-migration-'))
+      const sqlite = new Database(join(root, 'old.db'))
+      registerKnowledgeFunctions(sqlite)
+      sqlite.pragma('foreign_keys = ON')
+      const db = drizzle({ client: sqlite, casing: 'snake_case' })
 
-    applyMigrations(db, chainBefore(root, '0028'))
-    const modelColumnsBefore = (sqlite.pragma('table_info(user_model)') as Array<{ name: string }>).map((c) => c.name)
-    expect(modelColumnsBefore).not.toContain('api_key_id')
+      applyMigrations(db, chainBefore(root, stopTag))
+      const modelColumnsBefore = (sqlite.pragma('table_info(user_model)') as Array<{ name: string }>).map((c) => c.name)
+      expect(modelColumnsBefore).not.toContain('api_key_id')
 
-    sqlite
-      .prepare(
-        "INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at) VALUES ('p1', 'Provider', 'a0', 1, 1)"
-      )
-      .run()
-    sqlite
-      .prepare(
-        "INSERT INTO user_model (id, provider_id, model_id, preset_model_id, order_key, created_at, updated_at) VALUES ('p1::m1', 'p1', 'm1', 'm1', 'a0', 1, 1)"
-      )
-      .run()
-    sqlite
-      .prepare(
-        "INSERT INTO knowledge_base (id, name, order_key, status, chunk_size, chunk_overlap, created_at, updated_at) VALUES ('kb1', 'KB', 'a0', 'completed', 1024, 200, 1, 1)"
-      )
-      .run()
-    sqlite
-      .prepare(
-        "INSERT INTO knowledge_item (id, base_id, type, data, status, created_at, updated_at) VALUES ('dir1', 'kb1', 'directory', '{\"source\":\"/docs\"}', 'completed', 1, 1)"
-      )
-      .run()
-    sqlite
-      .prepare(
-        "INSERT INTO knowledge_item (id, base_id, group_id, type, data, status, created_at, updated_at) VALUES ('f1', 'kb1', 'dir1', 'file', '{\"source\":\"/docs/a.pdf\"}', 'completed', 1, 1)"
-      )
-      .run()
-    const items = () =>
-      sqlite.prepare('SELECT id, base_id, group_id, type, data, status FROM knowledge_item ORDER BY id').all()
-    const itemsBefore = items()
-    const modelBefore = sqlite.prepare('SELECT * FROM user_model WHERE id = ?').get('p1::m1') as Record<string, unknown>
+      sqlite
+        .prepare(
+          "INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at) VALUES ('p1', 'Provider', 'a0', 1, 1)"
+        )
+        .run()
+      sqlite
+        .prepare(
+          "INSERT INTO user_model (id, provider_id, model_id, preset_model_id, order_key, created_at, updated_at) VALUES ('p1::m1', 'p1', 'm1', 'm1', 'a0', 1, 1)"
+        )
+        .run()
+      sqlite
+        .prepare(
+          "INSERT INTO knowledge_base (id, name, order_key, status, chunk_size, chunk_overlap, created_at, updated_at) VALUES ('kb1', 'KB', 'a0', 'completed', 1024, 200, 1, 1)"
+        )
+        .run()
+      sqlite
+        .prepare(
+          "INSERT INTO knowledge_item (id, base_id, type, data, status, created_at, updated_at) VALUES ('dir1', 'kb1', 'directory', '{\"source\":\"/docs\"}', 'completed', 1, 1)"
+        )
+        .run()
+      sqlite
+        .prepare(
+          "INSERT INTO knowledge_item (id, base_id, group_id, type, data, status, created_at, updated_at) VALUES ('f1', 'kb1', 'dir1', 'file', '{\"source\":\"/docs/a.pdf\"}', 'completed', 1, 1)"
+        )
+        .run()
+      const items = () =>
+        sqlite.prepare('SELECT id, base_id, group_id, type, data, status FROM knowledge_item ORDER BY id').all()
+      const itemsBefore = items()
+      const modelBefore = sqlite.prepare('SELECT * FROM user_model WHERE id = ?').get('p1::m1') as Record<
+        string,
+        unknown
+      >
 
-    applyMigrations(db, MIGRATIONS)
+      applyMigrations(db, MIGRATIONS)
 
-    expect(items()).toEqual(itemsBefore)
-    expect(sqlite.pragma('foreign_key_check')).toEqual([])
-    const modelAfter = sqlite.prepare('SELECT * FROM user_model WHERE id = ?').get('p1::m1') as Record<string, unknown>
-    expect(modelAfter).toEqual({ ...modelBefore, api_key_id: null })
-    expect(sqlite.prepare('SELECT count(*) AS n FROM user_provider').get()).toEqual({ n: 1 })
-    // main's 0028 rebuild ran: file items may now be `preparing`.
-    sqlite
-      .prepare(
-        "INSERT INTO knowledge_item (id, base_id, type, data, status, created_at, updated_at) VALUES ('f2', 'kb1', 'file', '{\"source\":\"/x\"}', 'preparing', 1, 1)"
-      )
-      .run()
-    sqlite.close()
-  })
+      expect(items()).toEqual(itemsBefore)
+      expect(sqlite.pragma('foreign_key_check')).toEqual([])
+      const modelAfter = sqlite.prepare('SELECT * FROM user_model WHERE id = ?').get('p1::m1') as Record<
+        string,
+        unknown
+      >
+      expect(modelAfter).toEqual({ ...modelBefore, api_key_id: null })
+      expect(sqlite.prepare('SELECT count(*) AS n FROM user_provider').get()).toEqual({ n: 1 })
+      // main's 0028 rebuild ran: file items may now be `preparing`.
+      sqlite
+        .prepare(
+          "INSERT INTO knowledge_item (id, base_id, type, data, status, created_at, updated_at) VALUES ('f2', 'kb1', 'file', '{\"source\":\"/x\"}', 'preparing', 1, 1)"
+        )
+        .run()
+      sqlite.close()
+    }
+  )
 })
