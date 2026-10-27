@@ -88,12 +88,14 @@ The owner settled these on 2026-10-18, with the continuation decision revised on
 Decisions recorded while implementing PR-1 (2026-10-19 to 2026-10-20):
 
 - `Waits.untilDone(thread, key)` replaces the run-end wait: the driver waits on the key it submitted, so leftover inputs cannot make it spin.
-- A steer merges only into the running run it names; it is withdrawn when that run ends first or when the tool call that sent it aborts, and it never starts a run. Steer keys are per run.
+- A message to a running child is steered at its next input boundary; if normal completion wins the race, it continues in a subsequent run with the same child id and history. Admission returns the run that actually took the input. Its request key remains stable across that boundary and replay. Explicit cancellation still withdraws unconsumed input.
 - A fork always creates a new conversation; placeholder results are filled only for a fork subagent's own unanswered calls, and unanswered calls get the interrupted result before any run starts.
 - The gate's `before` receives an abort signal; an aborted ask leaves no memo.
 - `onCompacting` is asked before every compaction; a declined compaction compacts nothing; an adapter refuses compactions that would bypass it.
 - One idle driver per conversation, confirmed by the owner; a forked child does not drive itself.
 - Dead fields found by the YAGNI audit were removed (`callWindow`, `GateFacts.lineage`, `LiveFacts.reopened`, the tool-result `blocked` flag, `turn-stop.by`).
+
+The owner removed the run-only input restriction on 2026-10-27. `Helpers.message` addresses a child and a request key, without a target-run parameter. If a late message starts another run, orchestration records that run and ensures its result job using the already accepted input key, so the parent receives its result without sending the input twice. The native `whenBusy: 'steer'` policy is sufficient for Durable; the conditional-submission patch and adapter facet are withdrawn. The separate strict store-opening patch remains. Run identity is still needed for usage, results, and targeted stop, but it does not expire ordinary messages.
 
 ### Capabilities limited by the harness
 
