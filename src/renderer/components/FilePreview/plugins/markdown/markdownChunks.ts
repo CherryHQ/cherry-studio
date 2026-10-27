@@ -849,10 +849,14 @@ function containerOpensBlock(container: string, previous: string): boolean {
       if (held !== '>') return true
       continue
     }
+    // A list marker at a depth the quoted paragraph does not reach leaves the quote: the paragraph
+    // inside it has no lazy continuation into a top-level item, so `> para` followed by
+    // `2. [label]: /url` opens a list even though `2.` could not interrupt a paragraph.
+    if (held === '>') return true
     // A list marker opens an item: a sibling of the list the paragraph sits in interrupts at any
     // number, while a fresh list interrupts only where its own number may start one — `123.` below
     // a paragraph is prose the parser keeps, so a definition shape inside it is not a definition.
-    if (held !== undefined && held !== '>' && held.slice(-1) === marker.slice(-1)) return true
+    if (held !== undefined && held.slice(-1) === marker.slice(-1)) return true
     return !/^\d/.test(marker) || Number.parseInt(marker, 10) === 1
   }
   return false
@@ -2009,11 +2013,15 @@ function wrappedLinkLabel(
   }
 }
 
-function linkDefinition(lines: string[], index: number): { text: string; label: string; lines: number } | null {
-  const start = DEFINITION_CONTAINER.exec(lines[index])
+function linkDefinition(
+  lines: string[],
+  index: number,
+  sourceLine: string = lines[index]
+): { text: string; label: string; lines: number } | null {
+  const start = DEFINITION_CONTAINER.exec(sourceLine)
   // A first marker indented four columns or more — a tab counts as up to four — opens indented
   // code, not a container, so no definition opens behind it.
-  if (start && leadingColumns(lines[index]) >= 4) return null
+  if (start && leadingColumns(sourceLine) >= 4) return null
   // Five columns or more of whitespace after any marker — between two markers, or between the
   // last marker and the label — leave what follows in indented code the container never sees.
   if (start && containerWhitespaceOpensCode(start[0])) return null
@@ -2027,7 +2035,7 @@ function linkDefinition(lines: string[], index: number): { text: string; label: 
   // Without a container the label may sit at up to three columns of indent — the deepest the parser
   // still reads as a definition. A fourth column, or a tab — which spans four of them — leaves the
   // line in indented code, where no definition opens.
-  const definitionSource = start ? lines[index].slice(start[0].length) : lines[index].replace(/^ {1,3}(?=\[)/, '')
+  const definitionSource = start ? sourceLine.slice(start[0].length) : sourceLine.replace(/^ {1,3}(?=\[)/, '')
   const label = LINK_DEFINITION_LABEL.exec(definitionSource)
   let body: string[]
   let tail: string
@@ -2406,6 +2414,9 @@ export function splitMarkdownChunks(
   let inDefinition = false
   let footnoteDefinition = false
   let run: ListRun | null = null
+  // The content column of a top-level empty item on the line just walked, so the line below it —
+  // the item's only content — can be read from the column the item starts at.
+  let pendingEmptyItem: number | null = null
   /**
    * Whether the previous content line left a paragraph open. A link definition cannot interrupt a
    * paragraph, so this decides whether a definition-shaped line is a definition or paragraph text —
@@ -2535,6 +2546,10 @@ export function splitMarkdownChunks(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const blank = isBlankLine(line)
+    // The item above belongs to the line immediately below it: a blank between them ends the item,
+    // and the indented line after it is code the parser reads at the top level.
+    const emptyItemColumn = pendingEmptyItem
+    pendingEmptyItem = null
     bufferChars += line.length + 1
 
     if (fence) {
@@ -2821,8 +2836,19 @@ export function splitMarkdownChunks(
     // paragraph is paragraph text, and hoisting it would shadow the real definition. A container
     // opener that breaks that paragraph — a deeper quote, or a list marker, which opens a fresh
     // item — leaves the definition standing behind it.
+    // An empty item's content sits on the line below it, at the item's own column: `-` then
+    // `    [label]: /url` is a definition inside the item, not the top-level indented code it looks like.
+    const itemSource =
+      emptyItemColumn !== null &&
+      !blank &&
+      leadingColumns(line) >= emptyItemColumn &&
+      leadingColumns(line) < emptyItemColumn + 4
+        ? afterColumns(emptyItemColumn, line)
+        : undefined
     const definition =
-      (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode ? null : linkDefinition(lines, i)
+      (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode
+        ? null
+        : linkDefinition(lines, i, itemSource)
     if (definition) {
       definitionBlocks.push(definitions.length)
       definitions.push(definition.text)
@@ -2903,6 +2929,7 @@ export function splitMarkdownChunks(
     const item = THEMATIC_BREAK.test(line) ? null : LIST_ITEM.exec(line)
     if (item) {
       run = trackListItem(run, item, line)
+      pendingEmptyItem = item[1] === '' && EMPTY_LIST_ITEM.test(line) ? itemContentColumn(line, item) : null
       continue
     }
     if (TOP_LEVEL_BLOCK_START.test(line)) run = null

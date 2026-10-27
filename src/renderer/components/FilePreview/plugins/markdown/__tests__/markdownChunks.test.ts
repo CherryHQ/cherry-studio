@@ -860,6 +860,37 @@ describe('splitMarkdownChunks', () => {
     expect(JSON.stringify(definition)).not.toContain('second')
   })
 
+  it('keeps a definition an ordered item outside the quote opens', () => {
+    // `2. [x]: /right` leaves the quote and opens a list item: the quoted paragraph has no lazy
+    // continuation into it, so the definition stands even though `2.` cannot interrupt a
+    // paragraph. Read as prose it was dropped, and the later `[x]: /fallback` won the label.
+    const content = ['> para', '2. [x]: https://right.example', '', '[x]', '', '[x]: https://fallback.example'].join(
+      '\n'
+    )
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+
+    const chunks = chunksOf(content, 1)
+    expect(chunks.length).toBeGreaterThan(1)
+    // One chunk carries the reference; the definition it resolves through is hoisted into it, and
+    // the first definition the document writes is the one that wins.
+    expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
+  it('carries a definition indented beneath an empty list item', () => {
+    // The item's content column is two, so the four columns of `    [x]` are its content rather
+    // than top-level indented code — remark reads it as a definition, and skipping it left the
+    // reference in every other chunk literal.
+    const content = ['-', '    [x]: https://example.com/inside-item', '', 'see [x]'].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://example.com/inside-item'])
+
+    const chunks = chunksOf(content, 1)
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) expect(chunk.text).toContain('[x]: https://example.com/inside-item')
+    expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://example.com/inside-item'])
+  })
+
   it('keeps the first definition a list item opens after a quote', () => {
     // `- [guide]: /intended` leaves the quote and opens a list item, which interrupts the quoted
     // paragraph; reading the depth decrease as "no block" skipped this definition and let the
