@@ -1075,7 +1075,7 @@ function quoteMarkerPositions(line: string): { markerStarts: number[]; markerEnd
   return { markerStarts, markerEnds }
 }
 
-function maskIndentedCodeBlocks(text: string): {
+export function maskIndentedCodeBlocksReference(text: string): {
   text: string
   blocks: string[]
   placeholderBase: string
@@ -1315,6 +1315,358 @@ function maskIndentedCodeBlocks(text: string): {
   return { text: outLines.join(''), blocks, placeholderBase }
 }
 
+// ---------------------------------------------------------------------------
+// Phase-1 extraction (LOCAL, unpublished): the maskIndentedCodeBlocks loop as
+// an explicit per-line state machine. maskIndentedCodeBlocksStepped must be
+// byte-identical to maskIndentedCodeBlocks; the original stays as the
+// reference implementation until corpus + suite validation proves identity.
+// ---------------------------------------------------------------------------
+
+/** Cross-line classification state of the indented-code masker. */
+interface IndentedMaskState {
+  inheritedListColumns: number
+  listInsideQuote: boolean
+  listColumnStack: Array<{ column: number; quoteDepth: number }>
+  enclosingListStack: Array<{ column: number; quoteDepth: number }>
+  paragraphOpen: boolean
+  quoteDepth: number
+  scratchpadScan: { pos: number; stack: string[] }
+  run: {
+    lines: Array<{ text: string; ending: string }>
+    lastContent: number
+    enclosingListStack: Array<{ column: number; quoteDepth: number }>
+  } | null
+}
+
+export function initialIndentedMaskState(): IndentedMaskState {
+  return {
+    inheritedListColumns: 0,
+    listInsideQuote: false,
+    listColumnStack: [],
+    enclosingListStack: [],
+    paragraphOpen: false,
+    quoteDepth: 0,
+    scratchpadScan: { pos: 0, stack: [] },
+    run: null
+  }
+}
+
+interface IndentedMaskContext {
+  text: string
+  inlineRanges: Array<{ start: number; end: number }>
+  placeholderBase: string
+  blocks: string[]
+  outLines: string[]
+  // Lines of the currently open run that were already emitted by an earlier
+  // incremental scan: the first closed run of this scan drops them from the
+  // masked block so committed text is never re-emitted.
+  committedRunLines?: number
+}
+
+function indentedCodeColumnsFor(
+  line: string,
+  enclosingListStack: Array<{ column: number; quoteDepth: number }>
+): number {
+  const { content } = stripMarkdownContainerMarkersDetailed(line, enclosingListStack)
+  let columns = 0
+  for (let k = 0; k < content.length; k++) {
+    if (content[k] === ' ') columns += 1
+    else if (content[k] === '\t') columns += 4 - (columns % 4)
+    else break
+  }
+  return columns
+}
+
+function isIndentedCodeLineFor(
+  line: string,
+  enclosingListStack: Array<{ column: number; quoteDepth: number }>
+): boolean {
+  return line.trim() !== '' && indentedCodeColumnsFor(line, enclosingListStack) >= 4
+}
+
+/**
+ * Close a buffered indented-code run, mirroring the original forward scan's
+ * emissions exactly.
+ */
+export function closeIndentedMaskRun(state: IndentedMaskState, ctx: IndentedMaskContext): void {
+  const run = state.run
+  if (!run) return
+  const committed = ctx.committedRunLines ?? 0
+  ctx.committedRunLines = 0
+  if (committed > 0) {
+    run.lines = run.lines.slice(committed)
+    run.lastContent -= committed
+  }
+  if (run.lastContent < 0) {
+    // Only trailing blank lines remain after dropping committed lines: they
+    // pass through verbatim and no block is recorded.
+    for (const entry of run.lines) ctx.outLines.push(entry.text + entry.ending)
+    state.run = null
+    return
+  }
+  ctx.blocks.push(
+    run.lines
+      .slice(0, run.lastContent + 1)
+      .map((entry, j) => entry.text + (j < run.lastContent ? entry.ending : ''))
+      .join('')
+  )
+  ctx.outLines.push(
+    `${ctx.placeholderBase}INDENTED_CODE_${ctx.blocks.length - 1}\uE001${run.lines[run.lastContent].ending}`
+  )
+  for (let j = run.lastContent + 1; j < run.lines.length; j++) {
+    ctx.outLines.push(run.lines[j].text + run.lines[j].ending)
+  }
+  state.run = null
+}
+
+/**
+ * One line of the maskIndentedCodeBlocks main loop. `offset` is the line's
+ * absolute start in ctx.text (for the shared scratchpad scan cursor).
+ * Re-derived from the round-16 forward scan: keep in lockstep with
+ * maskIndentedCodeBlocksReference.
+ */
+export function indentedMaskStep(
+  state: IndentedMaskState,
+  line: string,
+  ending: string,
+  offset: number,
+  ctx: IndentedMaskContext
+): void {
+  // Lines consumed into an open code run keep the run-start classification
+  // context, exactly like the original forward scan, which never updates
+  // container or paragraph state for run lines.
+  if (state.run) {
+    if (line.trim() === '' || isIndentedCodeLineFor(line, state.run.enclosingListStack)) {
+      state.run.lines.push({ text: line, ending })
+      if (line.trim() !== '') state.run.lastContent = state.run.lines.length - 1
+      return
+    }
+    closeIndentedMaskRun(state, ctx)
+  }
+
+  const isLeafBlockBoundaryLine = (l: string, paragraphWasOpen: boolean): boolean => {
+    const stripped = stripMarkdownContainerMarkers(l)
+    const content =
+      stripped === l && state.inheritedListColumns > 0 ? stripped.slice(state.inheritedListColumns) : stripped
+    if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
+    if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
+    if (/^ {0,3}(?:-[ \t]*){3,}$/.test(content)) return true
+    if (/^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001[ \t]*$/.test(content.trim())) return true
+    if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return true
+    return false
+  }
+
+  const depth = explicitQuoteDepth(line)
+  const previousListColumns = state.inheritedListColumns
+  const rawExpanded = expandFencePrefixTabs(line)
+  const withoutQuote = rawExpanded.replace(/^(?: {0,3}> ?)+/, '')
+  if (/^ {0,3}(?:[-*+]|\d{1,9}[.)]) +/.test(withoutQuote) && withoutQuote !== rawExpanded) state.listInsideQuote = true
+  if (
+    depth === 0 &&
+    state.listInsideQuote &&
+    line.trim() &&
+    // Lazy paragraph continuation guard (round-14): see the reference loop.
+    (!state.paragraphOpen || isLeafBlockBoundaryLine(line, state.paragraphOpen))
+  ) {
+    state.listInsideQuote = false
+    for (let k = state.listColumnStack.length - 1; k >= 0; k--) {
+      if (state.listColumnStack[k].quoteDepth > 0) state.listColumnStack.splice(k, 1)
+    }
+    state.inheritedListColumns = state.listColumnStack[state.listColumnStack.length - 1]?.column ?? 0
+    state.enclosingListStack = [...state.listColumnStack]
+  }
+  const expanded = state.listInsideQuote ? withoutQuote : rawExpanded
+  const nestedOffset =
+    state.inheritedListColumns > 0 && expanded.startsWith(' '.repeat(state.inheritedListColumns))
+      ? state.inheritedListColumns
+      : 0
+  const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(expanded.slice(nestedOffset))
+  if (list) {
+    const padding = list[3].length <= 4 ? list[3].length : 1
+    const nextColumns = nestedOffset + list[1].length + list[2].length + padding
+    while (state.listColumnStack.length) {
+      const top = state.listColumnStack[state.listColumnStack.length - 1]
+      if (top.quoteDepth > depth || (top.quoteDepth === depth && top.column >= nextColumns)) {
+        state.listColumnStack.pop()
+      } else break
+    }
+    state.enclosingListStack = [...state.listColumnStack]
+    state.listColumnStack.push({ column: nextColumns, quoteDepth: depth })
+    state.inheritedListColumns = nextColumns
+  } else if (expanded.trim() !== '') {
+    const columns = expanded.length - expanded.trimStart().length
+    // Lazy paragraph continuation guard (rounds 14-16): see the reference loop.
+    if (!state.paragraphOpen || explicitQuoteDepth(line) > 0 || isLeafBlockBoundaryLine(line, state.paragraphOpen)) {
+      // Outside-in container-ownership walk (round-16): see the reference loop.
+      const markers = depth > 0 ? quoteMarkerPositions(line) : null
+      if (markers) {
+        const markerCount = markers.markerStarts.length
+        for (let k = 0; k < state.listColumnStack.length; k++) {
+          const level = state.listColumnStack[k]
+          let reached: boolean
+          if (level.quoteDepth > markerCount) {
+            reached = false
+          } else if (level.quoteDepth === 0) {
+            reached = markers.markerStarts[0] >= level.column
+          } else if (level.quoteDepth < markerCount) {
+            reached =
+              markers.markerStarts[level.quoteDepth] - markers.markerEnds[level.quoteDepth - 1] >= level.column
+          } else {
+            reached = level.column <= columns
+          }
+          if (!reached) {
+            state.listColumnStack.length = k
+            break
+          }
+        }
+      } else {
+        while (
+          state.listColumnStack.length &&
+          state.listColumnStack[state.listColumnStack.length - 1].column > columns
+        ) {
+          state.listColumnStack.pop()
+        }
+      }
+      state.inheritedListColumns = state.listColumnStack[state.listColumnStack.length - 1]?.column ?? 0
+      state.enclosingListStack = [...state.listColumnStack]
+    }
+  }
+  // Lazy depth decrease keeps the paragraph (round-16): see the reference loop.
+  const lazyDepthDecrease = state.paragraphOpen && depth > 0 && depth < state.quoteDepth
+  if (
+    (depth > 0 && depth !== state.quoteDepth && !lazyDepthDecrease) ||
+    isListItemStart(line) ||
+    previousListColumns !== state.inheritedListColumns
+  )
+    state.paragraphOpen = false
+  if (depth > 0) state.quoteDepth = depth
+  if (line.trim() === '' || isContainerOnlyLine(line)) {
+    state.paragraphOpen = false
+    if (line.trim() === '') {
+      // A raw blank line ends its blockquote (separate-quote-list-state).
+      state.listInsideQuote = false
+      for (let k = state.listColumnStack.length - 1; k >= 0; k--) {
+        if (state.listColumnStack[k].quoteDepth > 0) state.listColumnStack.splice(k, 1)
+      }
+      state.inheritedListColumns = state.listColumnStack[state.listColumnStack.length - 1]?.column ?? 0
+      state.enclosingListStack = [...state.listColumnStack]
+    }
+    ctx.outLines.push(line + ending)
+    return
+  }
+  if (state.paragraphOpen || !isIndentedCodeLineFor(line, state.enclosingListStack)) {
+    state.paragraphOpen = !isLeafBlockBoundaryLine(line, state.paragraphOpen)
+    ctx.outLines.push(line + ending)
+    return
+  }
+  if (enclosingScratchpadTag(ctx.text, offset, ctx.inlineRanges, state.scratchpadScan) !== null) {
+    state.paragraphOpen = true
+    ctx.outLines.push(line + ending)
+    return
+  }
+  // Run start: buffer instead of forward-scanning; the run closes on its
+  // terminating line or at end of input (flushIndentedMaskRun).
+  state.run = {
+    lines: [{ text: line, ending }],
+    lastContent: 0,
+    enclosingListStack: [...state.enclosingListStack]
+  }
+  state.paragraphOpen = false
+}
+
+/** End-of-input flush: close a run the forward scan would have closed at lines.length. */
+export function flushIndentedMaskRun(state: IndentedMaskState, ctx: IndentedMaskContext): void {
+  closeIndentedMaskRun(state, ctx)
+}
+
+export function cloneIndentedMaskState(state: IndentedMaskState): IndentedMaskState {
+  return {
+    inheritedListColumns: state.inheritedListColumns,
+    listInsideQuote: state.listInsideQuote,
+    listColumnStack: state.listColumnStack.map((entry) => ({ ...entry })),
+    enclosingListStack: state.enclosingListStack.map((entry) => ({ ...entry })),
+    paragraphOpen: state.paragraphOpen,
+    quoteDepth: state.quoteDepth,
+    scratchpadScan: { pos: state.scratchpadScan.pos, stack: [...state.scratchpadScan.stack] },
+    run: state.run
+      ? {
+          lines: state.run.lines.map((line) => ({ ...line })),
+          lastContent: state.run.lastContent,
+          enclosingListStack: state.run.enclosingListStack.map((entry) => ({ ...entry }))
+        }
+      : null
+  }
+}
+
+/**
+ * Advance a carried mask state over newly committed text without producing
+ * masked output. A trailing indented run stays pending (no flush): its
+ * classification resolves when later lines arrive or the stream ends.
+ */
+export function advanceIndentedMaskState(state: IndentedMaskState, text: string): void {
+  const lines = text.split(/\r\n|\r|\n/)
+  const endings = text.match(/\r\n|\r|\n/g) ?? []
+  const ctx: IndentedMaskContext = {
+    text,
+    inlineRanges: maskInlineCodeSpans(text).ranges,
+    placeholderBase: pickPlaceholderBase(text, 'INDENTED_CODE'),
+    blocks: [],
+    outLines: []
+  }
+  let offset = 0
+  // Step complete lines only: the final segment after the last newline is the
+  // still-open line (or an empty artifact of split) and must not be
+  // classified yet - line-based decisions need the whole line.
+  for (let i = 0; i < endings.length; i++) {
+    indentedMaskStep(state, lines[i], endings[i], offset, ctx)
+    offset += lines[i].length + endings[i].length
+  }
+  // Rebase the shared scratchpad cursor onto the next chunk: positions in the
+  // state's scan cursor refer to this chunk's text; the enclosing tag stack
+  // carries over by name.
+  state.scratchpadScan = { pos: 0, stack: state.scratchpadScan.stack }
+}
+
+/** Reference-equal driver: byte-identical to maskIndentedCodeBlocks (validated locally). */
+
+export function maskIndentedCodeBlocks(text: string): {
+  text: string
+  blocks: string[]
+  placeholderBase: string
+} {
+  return maskIndentedCodeBlocksStepped(text)
+}
+export function maskIndentedCodeBlocksStepped(
+  text: string,
+  options?: { initialState?: IndentedMaskState }
+): {
+  text: string
+  blocks: string[]
+  placeholderBase: string
+  state: IndentedMaskState
+} {
+  const placeholderBase = pickPlaceholderBase(text, 'INDENTED_CODE')
+  const blocks: string[] = []
+  const lines = text.split(/\r\n|\r|\n/)
+  const endings = text.match(/\r\n|\r|\n/g) ?? []
+  const inlineRanges = maskInlineCodeSpans(text).ranges
+  const state = options?.initialState ? cloneIndentedMaskState(options.initialState) : initialIndentedMaskState()
+  // Rebase the shared scratchpad cursor onto this scan's text: positions in a
+  // carried state refer to previously scanned text; the enclosing tag stack
+  // carries over by name.
+  state.scratchpadScan = { pos: 0, stack: state.scratchpadScan.stack }
+  const ctx: IndentedMaskContext = { text, inlineRanges, placeholderBase, blocks, outLines: [] }
+  if (options?.initialState?.run) ctx.committedRunLines = options.initialState.run.lines.length
+  let offset = 0
+  for (let i = 0; i < lines.length; i++) {
+    indentedMaskStep(state, lines[i], endings[i] ?? '', offset, ctx)
+    offset += lines[i].length + (endings[i]?.length ?? 0)
+  }
+  flushIndentedMaskRun(state, ctx)
+  return { text: ctx.outLines.join(''), blocks, placeholderBase, state }
+}
+
 function unmaskIndentedCodeBlocks(text: string, blocks: string[], placeholderBase = '\uE000'): string {
   return text.replace(
     new RegExp(`${placeholderBase}INDENTED_CODE_(\\d+)\\uE001`, 'g'),
@@ -1427,7 +1779,7 @@ function enclosingScratchpadTag(
   return stack.length ? stack[stack.length - 1] : null
 }
 
-function maskCodeFences(text: string): {
+export function maskCodeFences(text: string): {
   text: string
   fences: string[]
   placeholderBase: string
@@ -1875,6 +2227,29 @@ export function textStartsWithCompleteNonScratchpadMarkup(text: string): boolean
 }
 
 /** Strips known scratchpad wrappers without touching fenced code blocks. */
+/**
+ * Incremental-strip prototype entry (round-17): identical pipeline to
+ * stripKnownModelScratchpadBlocksPreservingCodeFences, but the indented-code
+ * mask starts from a carried state advanced over previously committed
+ * (fence-masked) text instead of re-deriving container ownership from a
+ * reconstructed prefix. `raw` is the uncommitted tail only.
+ */
+export function stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(
+  raw: string,
+  options?: { initialMaskState?: IndentedMaskState }
+): string {
+  const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
+  const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocksStepped(
+    fenceMasked,
+    { initialState: options?.initialMaskState }
+  )
+  const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
+  const stripped = stripKnownModelScratchpadBlocks(inlineMasked)
+  const withInline = unmaskInlineCodeSpans(stripped, spans, inlineBase)
+  const withIndented = unmaskIndentedCodeBlocks(withInline, blocks, indentedBase)
+  return unmaskCodeFences(withIndented, fences, fenceBase)
+}
+
 export function stripKnownModelScratchpadBlocksPreservingCodeFences(raw: string): string {
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
