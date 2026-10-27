@@ -36,10 +36,17 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
 import {
+  advanceIndentedMaskState,
   confirmedOpenFenceStreamPrefix,
+  type IndentedMaskState,
+  initialIndentedMaskState,
+  inlineCodeCarryStart,
   isPlausiblePartialTag,
+  maskCodeFences,
+  openLineParagraphContinuation,
   shouldDeferScratchpadStripping,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
+  stripKnownModelScratchpadBlocksPreservingCodeFencesStepped,
   stripTrailingToolProtocolClosingFragments,
   textHasUnclosedCodeFence,
   textHasUnclosedInlineCodeOutsideCodeBlocks,
@@ -175,6 +182,27 @@ type StreamContext = {
   scratchpadStreamHtmlCarryScanned: number
   /** textBlockContextStart the carry scan is based on; a shift resets it. */
   scratchpadStreamHtmlCarryBase: number
+  /**
+   * Persistent line-classification state (list/quote container ancestry) advanced over emitted
+   * complete lines only: the open-line carry holds the current line's raw text but cannot hold
+   * its container stack, and rebuilding ancestry per delta misclassifies container-scoped markup
+   * as top-level scratchpad (cherry-pr-review round-17 markdown-container-loss).
+   */
+  scratchpadMaskState: IndentedMaskState
+  /**
+   * Raw emitted text already presented to advanceIndentedMaskState but not yet
+   * line-stepped (the unterminated tail). advanceIndentedMaskState steps
+   * complete lines only and DROPS the partial tail, so feeding it per-delta
+   * emit text loses the line's content: when the completing chunk arrives,
+   * a truncated line steps and the container ancestry corrupts (round-17
+   * multi-chunk partition finding). Re-present this tail with every advance.
+   */
+  scratchpadMaskStateUnstepped: string
+  /**
+   * Append-stable open-line carry verdicts, keyed by the open line's absolute
+   * start. Recomputed when the line restarts or shrinks (round-17 latency).
+   */
+  scratchpadOpenLineCarry: { key: number; openLineLength: number; markerHead: string; paragraph: boolean } | null
   /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
   toolProtocolStripAccumulator: string
   toolProtocolStripEmittedLength: number
@@ -643,6 +671,9 @@ export class ClaudeCodeStreamAdapter {
       scratchpadStreamHtmlCarry: '',
       scratchpadStreamHtmlCarryScanned: 0,
       scratchpadStreamHtmlCarryBase: -1,
+      scratchpadMaskState: initialIndentedMaskState(),
+      scratchpadMaskStateUnstepped: '',
+      scratchpadOpenLineCarry: null,
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
       toolProtocolStripLastNonWsIndex: -1,
@@ -1089,6 +1120,9 @@ export class ClaudeCodeStreamAdapter {
     ctx.textBlockContextStart = ctx.accumulatedText.length
     ctx.textPartId = partId
     ctx.scratchpadTextProbe = ''
+    ctx.scratchpadMaskState = initialIndentedMaskState()
+    ctx.scratchpadMaskStateUnstepped = ''
+    ctx.scratchpadOpenLineCarry = null
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false
     ctx.textPartParentId = sdkParentToolUseId ?? null
@@ -1196,7 +1230,18 @@ export class ClaudeCodeStreamAdapter {
     while (ctx.scratchpadStreamHtmlCarryScanned < ctx.accumulatedText.length) {
       const chunk = ctx.accumulatedText.slice(ctx.scratchpadStreamHtmlCarryScanned)
       const probe = ctx.scratchpadStreamHtmlCarry + chunk
-      if (!/<(textarea|title|script|style)[\s>]|<!--|<!\[CDATA\[/i.test(probe)) break
+      if (!/<(textarea|title|script|style)[\s>]|<!--|<!\[CDATA\[/i.test(probe)) {
+        // No opener in the scanned text: only a bounded tail can still become
+        // a pattern start once more text arrives (the longest pattern prefix
+        // is '<![CDATA['), so keep that overlap window and mark the rest
+        // scanned instead of re-scanning the whole tail per delta (round-17
+        // html-carry-rescan / cherry-review inv_269a650fa555da87).
+        ctx.scratchpadStreamHtmlCarryScanned = Math.max(
+          ctx.scratchpadStreamHtmlCarryScanned,
+          ctx.accumulatedText.length - 16
+        )
+        break
+      }
       ctx.scratchpadStreamHtmlCarry = unclosedHtmlTextElementOpener(probe) ?? unclosedOpaqueMarkupOpener(probe) ?? ''
       ctx.scratchpadStreamHtmlCarryScanned = ctx.accumulatedText.length
     }
@@ -1223,7 +1268,11 @@ export class ClaudeCodeStreamAdapter {
     // normalized with full-block context - appends the mismatched suffix
     // (cherry-pr-review inv_f7b234887ed722ff). The carry holds any trailing
     // backslash literally, subsuming the escape carry.
-    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
+    const openLinePrefix = this.emittedOpenLinePrefixWithState(
+      ctx.accumulatedText.slice(ctx.textBlockContextStart),
+      ctx.scratchpadMaskState,
+      ctx
+    )
     // An HTML text element (script/style/textarea/title) left unclosed by the
     // emitted prefix makes wrapper-shaped markup in later deltas literal
     // character data: carry its opener into the scan so the body is not
@@ -1280,7 +1329,9 @@ export class ClaudeCodeStreamAdapter {
     // text as literal code content.
     ctx.scratchpadStreamFenceCarry = ''
 
-    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(combined)
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(combined, {
+      initialMaskState: ctx.scratchpadMaskState
+    })
     if (stripped.length < combined.length && this.compactionArtifactWatchActive()) {
       ctx.compactionScratchpadStripped = true
     }
@@ -1290,7 +1341,9 @@ export class ClaudeCodeStreamAdapter {
     // (cherry-pr-review inv_f7b234887ed722ff).
     let scanned = stripped
     if (prefix !== '') {
-      const strippedPrefix = stripKnownModelScratchpadBlocksPreservingCodeFences(prefix)
+      const strippedPrefix = stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(prefix, {
+        initialMaskState: ctx.scratchpadMaskState
+      })
       let shared = 0
       const limit = Math.min(strippedPrefix.length, stripped.length)
       while (shared < limit && strippedPrefix[shared] === stripped[shared]) shared++
@@ -1305,6 +1358,21 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadStreamEscapeCarry = buffer
       ? hasOddTrailingBackslashRun(stripped.slice(0, stripped.length - buffer.length))
       : hasOddTrailingBackslashRun(scanned || stripped)
+    // Commit container ancestry for the emitted complete lines. The
+    // unstepped tail (partial open line) must be RE-PRESENTED on every
+    // advance: advanceIndentedMaskState steps complete lines only and drops
+    // the partial tail, so advancing over the per-delta emit delta alone
+    // steps a truncated line once the completing chunk lands and corrupts
+    // the container ancestry (round-17 multi-chunk partition finding). The
+    // raw tail is carried and the whole pending span re-masked per advance.
+    const maskAdvanceInput = ctx.scratchpadMaskStateUnstepped + emit
+    const maskAdvanceCut = this.steppedLineEndOffset(maskAdvanceInput)
+    if (maskAdvanceCut > 0) {
+      advanceIndentedMaskState(ctx.scratchpadMaskState, maskCodeFences(maskAdvanceInput.slice(0, maskAdvanceCut)).text)
+      ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(maskAdvanceCut)
+    } else {
+      ctx.scratchpadMaskStateUnstepped = maskAdvanceInput
+    }
     return emit
   }
 
@@ -1351,6 +1419,22 @@ export class ClaudeCodeStreamAdapter {
    */
 
   /**
+   * Byte offset just past the last line ending advanceIndentedMaskState would
+   * step for `text`: every line with a terminator steps, except that a
+   * chunk-final lone CR leaves its line pending (the CR may pair with a
+   * completing LF next chunk). Mirrors the stepping rule so callers can carry
+   * the unstepped tail forward.
+   */
+  private steppedLineEndOffset(text: string): number {
+    const endings = [...text.matchAll(/\r\n|\r|\n/g)]
+    if (endings.length === 0) return 0
+    const stepped = text.endsWith('\r') ? endings.length - 1 : endings.length
+    if (stepped === 0) return 0
+    const last = endings[stepped - 1]
+    return last.index + last[0].length
+  }
+
+  /**
    * Linear equivalent of the former trailing quoted-list regex
    * `(?:^|\n)( {0,3}> ?(?:[-*+]|\d{1,9}[.)])[^\n]*\n(?: {0,3}>[^\n]*\n)*(?: {0,3}>[^\n]*)?$`:
    * the longest suffix of `window` made of complete quoted lines plus at most
@@ -1376,6 +1460,73 @@ export class ClaudeCodeStreamAdapter {
       pos = lineStart
     }
     return earliestListItemStart === -1 ? null : window.slice(earliestListItemStart)
+  }
+
+  /**
+   * State-composed open-line carry: block ancestry lives in the stepped mask
+   * state, so the carry holds only what the current open (unstepped) line can
+   * still contribute. Lines whose block type is still continuation-decidable
+   * (whitespace/marker-only, quote-led, partial block markers) carry whole;
+   * everything else carries indent + list-marker head + a one-character
+   * paragraph sentinel + the inline-active tail from the earliest backtick
+   * run that can still pair forward. Carrying the whole growing line re-ran
+   * the full strip pipeline over it on every delta (round-17 latency
+   * regression / cherry-review inv_269a650fa555da87).
+   */
+  private emittedOpenLinePrefixWithState(accumulatedText: string, state: IndentedMaskState, ctx: StreamContext): string {
+    const lineStart = accumulatedText.lastIndexOf('\n') + 1
+    const openLine = accumulatedText.slice(lineStart)
+    if (openLine === '') return ''
+    // Whitespace/marker-only open lines carry as-is: their indentation and
+    // container markers are the classification context (round-17).
+    if (openLine.trim() === '') return openLine
+    // Quote-marked open lines also carry whole: quoted container membership
+    // of the line's content lives in the line itself, not yet in the stepped
+    // state (the open line is never stepped).
+    if (/^\s{0,3}>/.test(openLine)) return openLine
+    // A line that is entirely a potential block-marker prefix ('1', '-', '#',
+    // '=', '```') can still merge with the arriving chunk into a real marker
+    // or a setext underline, and a heading/setext line decides whether later
+    // indented lines are code: those carry whole (round-17 split-1 cases).
+    const indent = /^\s*/.exec(openLine)![0]
+    // A chunk-final lone CR is a pending CRLF fragment, not line content:
+    // classify without it while still carrying the raw text (inv_521edae1a6da3ee7).
+    const remainder = openLine.slice(indent.length).replace(/\r$/, '')
+    if (
+      /^[-*+]?$/.test(remainder) ||
+      /^\d{1,9}[.)]?$/.test(remainder) ||
+      /^#{1,6}$/.test(remainder) ||
+      // A run of 3+ fence characters (with a still-growing info string) is a
+      // fence opener line: its classification depends on the completed line,
+      // and the opener must re-enter the next scan whole (round-17 split-21).
+      /^[`~]{3,}/.test(remainder) ||
+      /^[`~]+$/.test(remainder) ||
+      /^(?:=+|-+)[ \t]*$/.test(remainder) ||
+      /^(?:[-*_][ \t]*)+$/.test(remainder) ||
+      /^[<_!]?[a-zA-Z]*$/.test(remainder)
+    ) {
+      return openLine
+    }
+    const cacheableKey = ctx.textBlockContextStart + lineStart
+    const cached = ctx.scratchpadOpenLineCarry
+    let markerHead: string
+    let paragraph: boolean
+    if (cached && cached.key === cacheableKey && cached.openLineLength <= openLine.length) {
+      // Append-stable verdicts: once the line has real non-marker content, no
+      // append can change its indent, list-marker head, or paragraph
+      // classification (round-17 latency: this scan is per delta over a
+      // growing line). A shrink means reconciliation rewrote the line and the
+      // cache is stale.
+      markerHead = cached.markerHead
+      paragraph = cached.paragraph
+    } else {
+      markerHead = /^(?:[-*+]|\d{1,9}[.)]) +/.exec(remainder)?.[0] ?? ''
+      paragraph = openLineParagraphContinuation(openLine, state)
+      ctx.scratchpadOpenLineCarry = { key: cacheableKey, openLineLength: openLine.length, markerHead, paragraph }
+    }
+    const tail = openLine.slice(Math.max(indent.length + markerHead.length, inlineCodeCarryStart(openLine)))
+    const escapeMarker = tail === '' && hasOddTrailingBackslashRun(openLine) ? '\\' : ''
+    return indent + markerHead + (paragraph ? 'x' : '') + tail + escapeMarker
   }
 
   private emittedOpenLinePrefix(accumulatedText: string): string {
@@ -1973,6 +2124,9 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadStreamRemainder = ''
         ctx.scratchpadStreamEscapeCarry = false
         ctx.scratchpadStreamFenceCarry = ''
+        ctx.scratchpadMaskState = initialIndentedMaskState()
+        ctx.scratchpadMaskStateUnstepped = ''
+        ctx.scratchpadOpenLineCarry = null
         this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
         ctx.suppressCompactionArtifactPart = false
@@ -3066,7 +3220,11 @@ export class ClaudeCodeStreamAdapter {
     // a buffered remainder inside an unclosed element or comment loses its
     // context at flush (cherry-pr-review round-12 buffered-html-flush-context).
     this.updateHtmlStreamCarry(ctx)
-    const openLinePrefix = this.emittedOpenLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
+    const openLinePrefix = this.emittedOpenLinePrefixWithState(
+      ctx.accumulatedText.slice(ctx.textBlockContextStart),
+      ctx.scratchpadMaskState,
+      ctx
+    )
     const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
     const prefix =
       fenceCarry +
@@ -3075,10 +3233,14 @@ export class ClaudeCodeStreamAdapter {
     const pending = prefix + ctx.scratchpadStreamRemainder
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
-    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending)
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(pending, {
+      initialMaskState: ctx.scratchpadMaskState
+    })
     let visible = stripped
     if (prefix !== '') {
-      const strippedPrefix = stripKnownModelScratchpadBlocksPreservingCodeFences(prefix)
+      const strippedPrefix = stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(prefix, {
+        initialMaskState: ctx.scratchpadMaskState
+      })
       let shared = 0
       const limit = Math.min(strippedPrefix.length, stripped.length)
       while (shared < limit && strippedPrefix[shared] === stripped[shared]) shared++
@@ -3106,6 +3268,9 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadStreamHtmlCarry = ''
     ctx.scratchpadStreamHtmlCarryScanned = 0
     ctx.scratchpadStreamHtmlCarryBase = -1
+    ctx.scratchpadMaskState = initialIndentedMaskState()
+    ctx.scratchpadMaskStateUnstepped = ''
+    ctx.scratchpadOpenLineCarry = null
     this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false

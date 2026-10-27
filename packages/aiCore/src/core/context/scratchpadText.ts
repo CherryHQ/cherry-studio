@@ -241,7 +241,7 @@ function pickPlaceholderBase(text: string, kind: string): string {
 }
 
 /** Expand indentation tabs at CommonMark's four-column tab stops. */
-function expandFencePrefixTabs(prefix: string): string {
+export function expandFencePrefixTabs(prefix: string): string {
   let expanded = ''
   for (const char of prefix) expanded += char === '\t' ? ' '.repeat(4 - (expanded.length % 4)) : char
   return expanded
@@ -620,8 +620,17 @@ function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: st
 }
 
 /** Precompute list-container extents once instead of scanning every prefix per fence. */
-function inheritedFencePrefixLookup(text: string): (openerStart: number, prefix: string) => string {
+function inheritedFencePrefixLookup(
+  text: string,
+  initialContainerPrefix?: string
+): (openerStart: number, prefix: string) => string {
   const lists: Array<{ start: number; end: number; prefix: string }> = []
+  // Incremental streaming seed: containers opened in text already consumed
+  // before this chunk. The synthetic entry precedes every real line, so it
+  // can never terminate or shadow a later same-chunk container refinement.
+  if (initialContainerPrefix) {
+    lists.push({ start: -1, end: Number.MAX_SAFE_INTEGER, prefix: initialContainerPrefix })
+  }
   // A container stack across lines: a nested item's marker may sit more than
   // three columns from the line start, because enclosing items contribute
   // their content columns first (CommonMark 0.31.2 §5.2; cherry-pr-review
@@ -1377,7 +1386,7 @@ function indentedCodeColumnsFor(
   return columns
 }
 
-function isIndentedCodeLineFor(
+export function isIndentedCodeLineFor(
   line: string,
   enclosingListStack: Array<{ column: number; quoteDepth: number }>
 ): boolean {
@@ -1425,6 +1434,74 @@ export function closeIndentedMaskRun(state: IndentedMaskState, ctx: IndentedMask
  * Re-derived from the round-16 forward scan: keep in lockstep with
  * maskIndentedCodeBlocksReference.
  */
+/**
+ * Whether a line is a leaf block boundary (heading, thematic break, masked
+ * fence, setext underline under an open paragraph). Module-level so the
+ * streaming carry can reuse the exact predicate the stepper uses; the
+ * stepper's closure delegates here (round-17 latency).
+ */
+export function isLeafBlockBoundaryLineFor(
+  l: string,
+  paragraphWasOpen: boolean,
+  inheritedListColumns: number
+): boolean {
+  const stripped = stripMarkdownContainerMarkers(l)
+  const content = stripped === l && inheritedListColumns > 0 ? stripped.slice(inheritedListColumns) : stripped
+  if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
+  if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
+  if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
+  if (/^ {0,3}(?:-[ \t]*){3,}$/.test(content)) return true
+  if (/^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001[ \t]*$/.test(content.trim())) return true
+  if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return true
+  return false
+}
+
+/**
+ * Whether an emitted open line continues a paragraph after the stepped
+ * state, mirroring indentedMaskStep's paragraphOpen outcome for a content
+ * line without running the full mask pipeline (round-17 latency). Callers
+ * must full-carry marker-prefix, quote, and whitespace-only lines instead.
+ */
+export function openLineParagraphContinuation(openLine: string, state: IndentedMaskState): boolean {
+  if (state.run) {
+    if (openLine.trim() === '' || isIndentedCodeLineFor(openLine, state.run.enclosingListStack)) return false
+  }
+  const expanded = expandFencePrefixTabs(openLine)
+  if (/^( {0,3})([-*+]|\d{1,9}[.)])( +)/.test(expanded)) {
+    return !isLeafBlockBoundaryLineFor(openLine, false, state.inheritedListColumns)
+  }
+  if (state.paragraphOpen || !isIndentedCodeLineFor(openLine, state.enclosingListStack)) {
+    return !isLeafBlockBoundaryLineFor(openLine, state.paragraphOpen, state.inheritedListColumns)
+  }
+  return false
+}
+
+/**
+ * Earliest backtick run that can still pair forward into later streamed
+ * text. Reuses the reference pairing (maskInlineCodeSpans): runs inside a
+ * matched span are inline-stable; anything unmatched may still close in a
+ * later chunk and must stay in the streaming carry.
+ */
+export function inlineCodeCarryStart(text: string): number {
+  // No backticks means no span can open or close: the answer is the whole
+  // line without running the full span pipeline (round-17 latency: the
+  // streaming carry asks this per delta over a growing open line).
+  if (text.indexOf('`') === -1) return text.length
+  const { ranges } = maskInlineCodeSpans(text)
+  let rangeIdx = 0
+  let pos = 0
+  for (;;) {
+    const tick = text.indexOf('`', pos)
+    if (tick === -1) return text.length
+    while (rangeIdx < ranges.length && ranges[rangeIdx].end <= tick) rangeIdx++
+    if (rangeIdx < ranges.length && tick >= ranges[rangeIdx].start) {
+      pos = ranges[rangeIdx].end
+      continue
+    }
+    return tick
+  }
+}
+
 export function indentedMaskStep(
   state: IndentedMaskState,
   line: string,
@@ -1444,18 +1521,8 @@ export function indentedMaskStep(
     closeIndentedMaskRun(state, ctx)
   }
 
-  const isLeafBlockBoundaryLine = (l: string, paragraphWasOpen: boolean): boolean => {
-    const stripped = stripMarkdownContainerMarkers(l)
-    const content =
-      stripped === l && state.inheritedListColumns > 0 ? stripped.slice(state.inheritedListColumns) : stripped
-    if (/^ {0,3}#{1,6}(?:[ \t]+|$)/.test(content)) return true
-    if (/^ {0,3}(?:\*[ \t]*){3,}$/.test(content)) return true
-    if (/^ {0,3}(?:_[ \t]*){3,}$/.test(content)) return true
-    if (/^ {0,3}(?:-[ \t]*){3,}$/.test(content)) return true
-    if (/^[\uE000-\uF8FF]CODE_FENCE_\d+\uE001[ \t]*$/.test(content.trim())) return true
-    if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return true
-    return false
-  }
+  const isLeafBlockBoundaryLine = (l: string, paragraphWasOpen: boolean): boolean =>
+    isLeafBlockBoundaryLineFor(l, paragraphWasOpen, state.inheritedListColumns)
 
   const depth = explicitQuoteDepth(line)
   const previousListColumns = state.inheritedListColumns
@@ -1604,6 +1671,33 @@ export function cloneIndentedMaskState(state: IndentedMaskState): IndentedMaskSt
  * masked output. A trailing indented run stays pending (no flush): its
  * classification resolves when later lines arrive or the stream ends.
  */
+/**
+ * Canonical virtual container prefix for an open list stack, matching the
+ * composition inheritedFencePrefixLookup builds from same-text lines:
+ * quote segments as '> ', list segments as '-' followed by (relative width
+ * - 1) spaces, outermost first. Quote-wrapped list columns in the state are
+ * relative to their stripped quote markers, so the quote segments must be
+ * re-emitted before a list segment whose quoteDepth rises. Seeded into
+ * maskCodeFences so a chunk whose container opener was consumed earlier
+ * still classifies indented fence openers as fences (round-17).
+ */
+export function fenceContainerPrefixFromState(state: IndentedMaskState): string {
+  let prefix = ''
+  let prevCol = 0
+  let prevQuote = 0
+  for (const entry of state.listColumnStack) {
+    while (prevQuote < entry.quoteDepth) {
+      prefix += '> '
+      prevQuote++
+    }
+    const relWidth = entry.column - prevCol
+    if (relWidth <= 0) continue
+    prefix += `-${' '.repeat(relWidth - 1)}`
+    prevCol = entry.column
+  }
+  return prefix
+}
+
 export function advanceIndentedMaskState(state: IndentedMaskState, text: string): void {
   const lines = text.split(/\r\n|\r|\n/)
   const endings = text.match(/\r\n|\r|\n/g) ?? []
@@ -1779,7 +1873,10 @@ function enclosingScratchpadTag(
   return stack.length ? stack[stack.length - 1] : null
 }
 
-export function maskCodeFences(text: string): {
+export function maskCodeFences(
+  text: string,
+  options?: { initialContainerPrefix?: string }
+): {
   text: string
   fences: string[]
   placeholderBase: string
@@ -1789,7 +1886,7 @@ export function maskCodeFences(text: string): {
   const inlineRanges = maskInlineCodeSpans(text).ranges
   const scratchpadScan = { pos: 0, stack: [] as string[] }
   let out = ''
-  const inheritedPrefix = inheritedFencePrefixLookup(text)
+  const inheritedPrefix = inheritedFencePrefixLookup(text, options?.initialContainerPrefix)
   let pos = 0
   // HTML comments and CDATA sections are opaque character data: a fence
   // marker inside one is literal text, never a Markdown fence
@@ -2238,7 +2335,10 @@ export function stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(
   raw: string,
   options?: { initialMaskState?: IndentedMaskState }
 ): string {
-  const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
+  const initialContainerPrefix = options?.initialMaskState
+    ? fenceContainerPrefixFromState(options.initialMaskState)
+    : undefined
+  const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw, { initialContainerPrefix })
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocksStepped(
     fenceMasked,
     { initialState: options?.initialMaskState }
