@@ -27,7 +27,10 @@ function makeAdapter(parts: any[]) {
   return adapter
 }
 
-function deliverWithWork(input: string, size: number | null): { out: string; work: number } {
+function deliverWithWork(
+  input: string,
+  size: number | null
+): { out: string; work: number; carry: number; whole: number } {
   const parts: any[] = []
   const adapter = makeAdapter(parts) as any
   const chunks: string[] = []
@@ -41,7 +44,12 @@ function deliverWithWork(input: string, size: number | null): { out: string; wor
     .filter((part) => part.type === 'text-delta')
     .map((part) => part.delta)
     .join('')
-  return { out, work: adapter.scratchpadScanInputChars as number }
+  return {
+    out,
+    work: adapter.scratchpadScanInputChars as number,
+    carry: adapter.scratchpadCarryWorkChars as number,
+    whole: adapter.scratchpadWholeSliceChars as number
+  }
 }
 
 const deliver = (input: string, size: number | null) => deliverWithWork(input, size).out
@@ -119,7 +127,10 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
   it('carries whole when the head has no text character (rule-like line can still change type)', () => {
     const adapter = makeAdapter([]) as any
     const rule = `> ${'-'.repeat(400)}`
-    expect(adapter.emittedOpenLinePrefixWithState(rule, undefined, { textBlockContextStart: 0 })).toBe(rule)
+    adapter.ctx.accumulatedText = rule
+    adapter.ctx.olSyncLen = -1
+    adapter.ctx.textBlockContextStart = 0
+    expect(adapter.emittedOpenLinePrefixWithState(undefined, adapter.ctx)).toBe(rule)
   })
 
   it('keeps span-in-head, mixed tick widths, escapes and multi-line quotes equal to whole delivery', () => {
@@ -160,5 +171,33 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
         expect(out).toBe(whole)
       }
     }
+  })
+
+  it('keeps per-delta work outside the strip scan O(delta) on a long tickless quote line', () => {
+    const input = `> ${'word '.repeat(8000)}`
+    const r = deliverWithWork(input, 20)
+    expect(r.out).toBe(input)
+    // Work counters, not timing: head/tail handled by the carry and whole-accumulator
+    // slices or rebuilds must stay a small multiple of the input, not quadratic.
+    expect(r.work).toBeLessThan(input.length * 20)
+    expect(r.carry).toBeLessThan(input.length * 80)
+    expect(r.whole).toBeLessThan(input.length)
+  })
+
+  it('keeps the same bounds with a tick in the head and past the head, and over many long quote lines', () => {
+    const w = 'word '.repeat(3000)
+    const shapes = [`> a \`b\` ${w}`, `> ${w}\`c\` ${w}`, `> ${w}\n> > ${w}\n> ${w}\nend\n`]
+    for (const input of shapes) {
+      const r = deliverWithWork(input, 20)
+      expect(r.out).toBe(deliver(input, null))
+      expect(r.work).toBeLessThan(input.length * 30)
+      expect(r.carry).toBeLessThan(input.length * 80)
+      expect(r.whole).toBeLessThan(input.length * 3)
+    }
+  })
+
+  it('emits deltas independent of the accumulator (no per-delta parent retention) across tool-protocol hold-back', () => {
+    const input = `> ${'word '.repeat(2000)}<tool_use_end`
+    for (const size of [1, 3, 20]) expect(deliver(input, size)).toBe(deliver(input, null))
   })
 })

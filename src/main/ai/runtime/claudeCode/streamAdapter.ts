@@ -199,6 +199,10 @@ type StreamContext = {
    * multi-chunk partition finding). Re-present this tail with every advance.
    */
   scratchpadMaskStateUnstepped: string
+  /** True while the unstepped tail holds no line ending, so a delta's stepped cut needs only the delta scanned. */
+  scratchpadMaskUnsteppedEolFree: boolean
+  /** Last OPEN_LINE_HEAD_MAX-ish characters of accumulatedText (valid while olSyncLen matches), so tail reads never flatten the accumulator. */
+  accRecent: string
   /** Raw scan-consumed text queued for mask-state advance (suppressed lines
    * included): the container machine must see pre-strip structure, not the
    * blank lines stripping leaves (round-18 review case 56). */
@@ -236,13 +240,44 @@ type StreamContext = {
    */
   scratchpadOpenLineCarry: { key: number; openLineLength: number; markerHead: string; paragraph: boolean } | null
   /** Incremental inline-code checkpoint for the bounded carry of a long quote-led open line (key = line start in the text block). */
-  scratchpadQuoteCarry: { key: number; checkpoint: number } | null
+  scratchpadQuoteCarry: { key: number; checkpoint: number; tail: string; seenLen: number } | null
+  /**
+   * Incremental open-line tracker over accumulatedText (the text after the
+   * last newline, clamped to the current text block), kept by
+   * appendAccumulated so the per-delta carries never re-slice or re-scan the
+   * whole accumulator: olSyncLen is the accumulator length the tracker
+   * describes (-1 = rebuild lazily), olStart the line's absolute start, olLen
+   * its length, olHead its first OPEN_LINE_HEAD_MAX characters and olPending
+   * the text appended since the quote carry last consumed it.
+   */
+  olSyncLen: number
+  olStart: number
+  olLen: number
+  olHead: string
+  olPending: string
+  /** Cached verdict of the previous-line check for an indented open line, keyed by line start and accumulator generation. */
+  olPrevVerdict: { start: number; gen: number; allows: boolean } | null
+  /** Bumped whenever accumulatedText is replaced rather than appended. */
+  accGen: number
   /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
   toolProtocolStripAccumulator: string
   toolProtocolStripEmittedLength: number
   /** Incremental tail memos over the accumulator: index of the last non-whitespace char, and of the last '<'. Kept in lockstep with the accumulator so per-delta suffix checks stay O(delta) over a long whitespace tail (cherry-pr-review perf). */
   toolProtocolStripLastNonWsIndex: number
   toolProtocolStripLastLtIndex: number
+  /**
+   * Accumulator text not yet emitted (accumulator.slice(emittedLength)), kept
+   * incrementally so the emitted piece is built from the small pending text
+   * instead of slicing the growing accumulator: a slice of the accumulator
+   * flattens it per delta and pins a distinct O(block) parent string in every
+   * emitted delta. null once a strip rewrote the stripped coordinates: the
+   * slice path below then takes over for the rest of the block.
+   */
+  toolProtocolStripUnemitted: string | null
+  /** Last non-whitespace char of the accumulator, so the '>' guard needs no indexing of the accumulator. */
+  toolProtocolStripLastNonWsChar: string
+  /** Shape of the text from the last '<': 0 none/not tag-like, 1 '<', 2 '</', 3 tag-like name so far. */
+  toolProtocolStripTagState: number
   suppressActiveTextPart: boolean
   /** Set once a text part is classified as a compaction artifact: its remaining deltas are dropped. */
   suppressCompactionArtifactPart: boolean
@@ -600,6 +635,13 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
 
 /** Head of a long quote-led open line carried verbatim across deltas. */
 const QUOTE_LINE_CARRY_HEAD = 256
+/** Open-line head kept by the incremental tracker; lines up to this length are handled without touching the accumulator. */
+let OPEN_LINE_HEAD_MAX = 1024
+const ACC_RECENT_MAX = 256
+/** Test hook: shrink the tracker head so the long-line paths run on small corpus inputs. */
+export function setOpenLineHeadMaxForTesting(n: number | null): void {
+  OPEN_LINE_HEAD_MAX = n ?? 1024
+}
 
 export class ClaudeCodeStreamAdapter {
   private ctx: StreamContext
@@ -710,14 +752,26 @@ export class ClaudeCodeStreamAdapter {
       scratchpadStreamHtmlCarryBase: -1,
       scratchpadMaskState: initialIndentedMaskState(),
       scratchpadMaskStateUnstepped: '',
+      scratchpadMaskUnsteppedEolFree: true,
+      accRecent: '',
       scratchpadMaskAdvanceRawQueue: '',
       scratchpadMaskHeldFence: null,
       scratchpadOpenLineCarry: null,
       scratchpadQuoteCarry: null,
+      olSyncLen: -1,
+      olStart: 0,
+      olLen: 0,
+      olHead: '',
+      olPending: '',
+      olPrevVerdict: null,
+      accGen: 0,
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
       toolProtocolStripLastNonWsIndex: -1,
       toolProtocolStripLastLtIndex: -1,
+      toolProtocolStripUnemitted: '',
+      toolProtocolStripLastNonWsChar: '',
+      toolProtocolStripTagState: 0,
       suppressActiveTextPart: false,
       suppressCompactionArtifactPart: false,
       compactionScratchpadStripped: false,
@@ -732,6 +786,9 @@ export class ClaudeCodeStreamAdapter {
     ctx.toolProtocolStripEmittedLength = 0
     ctx.toolProtocolStripLastNonWsIndex = -1
     ctx.toolProtocolStripLastLtIndex = -1
+    ctx.toolProtocolStripUnemitted = ''
+    ctx.toolProtocolStripLastNonWsChar = ''
+    ctx.toolProtocolStripTagState = 0
   }
 
   /** Strips tool-protocol closings only once trailing content is known (block may span deltas). */
@@ -741,10 +798,20 @@ export class ClaudeCodeStreamAdapter {
     }
     const appendBase = ctx.toolProtocolStripAccumulator.length
     ctx.toolProtocolStripAccumulator += text
+    if (ctx.toolProtocolStripUnemitted !== null) ctx.toolProtocolStripUnemitted += text
     for (let i = 0; i < text.length; i++) {
       const ch = text[i]
-      if (ch === '<') ctx.toolProtocolStripLastLtIndex = appendBase + i
-      if (!/\s/u.test(ch)) ctx.toolProtocolStripLastNonWsIndex = appendBase + i
+      if (ch === '<') {
+        ctx.toolProtocolStripLastLtIndex = appendBase + i
+        ctx.toolProtocolStripTagState = 1
+      } else if (ctx.toolProtocolStripTagState !== 0) {
+        if (ch === '/' && ctx.toolProtocolStripTagState === 1) ctx.toolProtocolStripTagState = 2
+        else ctx.toolProtocolStripTagState = /[\p{L}\p{N}_|｜-]/u.test(ch) ? 3 : 0
+      }
+      if (!/\s/u.test(ch)) {
+        ctx.toolProtocolStripLastNonWsIndex = appendBase + i
+        ctx.toolProtocolStripLastNonWsChar = ch
+      }
     }
     // The strip is a no-op unless the last non-whitespace character is '>'
     // (its linear guard's first check). Skipping the call then keeps a long
@@ -753,9 +820,10 @@ export class ClaudeCodeStreamAdapter {
     const accumulator = ctx.toolProtocolStripAccumulator
     const lastNonWs = ctx.toolProtocolStripLastNonWsIndex
     const stripped =
-      lastNonWs === -1 || accumulator[lastNonWs] !== '>'
+      lastNonWs === -1 || ctx.toolProtocolStripLastNonWsChar !== '>'
         ? accumulator
         : stripTrailingToolProtocolClosingFragments(accumulator)
+    if (stripped !== accumulator) ctx.toolProtocolStripUnemitted = null
     // Hold back the trailing suffix that further text could still complete into
     // a strippable fragment (a whitespace run, or a partial `<...` tag).
     // Emitting it eagerly rewinds toolProtocolStripEmittedLength when the
@@ -775,14 +843,28 @@ export class ClaudeCodeStreamAdapter {
       // memo indexes the accumulator, not the shortened string, so rescan
       // that (rare) path directly (cherry-pr-review inv_9a2a758db93aa142).
       const tagStart = stripped === accumulator ? ctx.toolProtocolStripLastLtIndex : stripped.lastIndexOf('<')
-      if (tagStart !== -1 && /^<\/?[\p{L}\p{N}_|｜-]*$/u.test(stripped.slice(tagStart))) {
+      const tagLike =
+        tagStart !== -1 &&
+        (stripped === accumulator
+          ? ctx.toolProtocolStripTagState !== 0
+          : /^<\/?[\p{L}\p{N}_|｜-]*$/u.test(stripped.slice(tagStart)))
+      if (tagLike) {
         let holdStart = tagStart
         while (holdStart > 0 && /\s/u.test(stripped[holdStart - 1])) holdStart--
         emitEnd -= stripped.length - holdStart
       }
     }
     if (emitEnd <= ctx.toolProtocolStripEmittedLength) return ''
-    const emit = stripped.slice(ctx.toolProtocolStripEmittedLength, emitEnd)
+    let emit: string
+    if (ctx.toolProtocolStripUnemitted !== null && stripped === accumulator) {
+      const pending = ctx.toolProtocolStripUnemitted
+      const take = emitEnd - ctx.toolProtocolStripEmittedLength
+      emit = pending.slice(0, take)
+      ctx.toolProtocolStripUnemitted = pending.slice(take)
+    } else {
+      this.scratchpadWholeSliceChars += stripped.length
+      emit = stripped.slice(ctx.toolProtocolStripEmittedLength, emitEnd)
+    }
     ctx.toolProtocolStripEmittedLength = emitEnd
     return emit
   }
@@ -809,7 +891,7 @@ export class ClaudeCodeStreamAdapter {
     }
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: remaining })
     ctx.textStreamedViaContentBlock = true
-    ctx.accumulatedText += remaining
+    this.appendAccumulated(ctx, remaining)
     ctx.streamedTextLength += remaining.length
   }
 
@@ -1158,10 +1240,12 @@ export class ClaudeCodeStreamAdapter {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
     ctx.textBlockContextStart = ctx.accumulatedText.length
+    ctx.olSyncLen = -1
     ctx.textPartId = partId
     ctx.scratchpadTextProbe = ''
     ctx.scratchpadMaskState = initialIndentedMaskState()
     ctx.scratchpadMaskStateUnstepped = ''
+    ctx.scratchpadMaskUnsteppedEolFree = true
     ctx.scratchpadMaskAdvanceRawQueue = ''
     ctx.scratchpadMaskHeldFence = null
     ctx.scratchpadOpenLineCarry = null
@@ -1222,7 +1306,7 @@ export class ClaudeCodeStreamAdapter {
     if (!text) return
 
     if (ctx.options.responseFormat?.type === 'json') {
-      ctx.accumulatedText += text
+      this.appendAccumulated(ctx, text)
       ctx.streamedTextLength += text.length
       return
     }
@@ -1271,7 +1355,12 @@ export class ClaudeCodeStreamAdapter {
       return
     }
     while (ctx.scratchpadStreamHtmlCarryScanned < ctx.accumulatedText.length) {
-      const chunk = ctx.accumulatedText.slice(ctx.scratchpadStreamHtmlCarryScanned)
+      this.syncOpenLine(ctx)
+      const recentStart = ctx.accumulatedText.length - ctx.accRecent.length
+      const chunk =
+        ctx.scratchpadStreamHtmlCarryScanned >= recentStart
+          ? ctx.accRecent.slice(ctx.scratchpadStreamHtmlCarryScanned - recentStart)
+          : ctx.accumulatedText.slice(ctx.scratchpadStreamHtmlCarryScanned)
       const probe = ctx.scratchpadStreamHtmlCarry + chunk
       if (!/<(textarea|title|script|style)[\s>]|<!--|<!\[CDATA\[/i.test(probe)) {
         // No opener in the scanned text: only a bounded tail can still become
@@ -1310,6 +1399,14 @@ export class ClaudeCodeStreamAdapter {
 
   /** Total characters handed to the scratchpad strip scan across deltas (test instrumentation). */
   private scratchpadScanInputChars = 0
+  /**
+   * Test instrumentation for per-delta work outside the strip scan: characters
+   * handled by the open-line carry (head, tail and any whole-line slice) and
+   * characters of accumulator/accumulator-sized strings rebuilt or sliced on
+   * the hot path. Both stay O(delta) on a long tickless quote line.
+   */
+  private scratchpadCarryWorkChars = 0
+  private scratchpadWholeSliceChars = 0
 
   private advanceScratchpadMaskState(emit: string, ctx: StreamContext): void {
     // The scratchpad scan queues the RAW text it consumed per delta; the
@@ -1340,9 +1437,21 @@ export class ClaudeCodeStreamAdapter {
     } else {
       maskAdvanceInput = ctx.scratchpadMaskStateUnstepped + incoming
     }
-    const maskAdvanceCut = this.steppedLineEndOffset(maskAdvanceInput)
+    // While the unstepped tail holds no line ending, every ending of the
+    // combined input lies in the new text: scan only that, not the whole
+    // growing partial line.
+    const eolFree = heldFence === null && ctx.scratchpadMaskUnsteppedEolFree
+    let maskAdvanceCut: number
+    if (eolFree) {
+      const incomingCut = this.steppedLineEndOffset(incoming)
+      maskAdvanceCut = incomingCut > 0 ? ctx.scratchpadMaskStateUnstepped.length + incomingCut : 0
+    } else {
+      maskAdvanceCut = this.steppedLineEndOffset(maskAdvanceInput)
+    }
+    const endsWithCr = incoming !== '' ? incoming.endsWith('\r') : maskAdvanceInput.endsWith('\r')
     if (maskAdvanceCut <= 0) {
       ctx.scratchpadMaskStateUnstepped = maskAdvanceInput
+      ctx.scratchpadMaskUnsteppedEolFree = eolFree && !/[\r\n]/.test(incoming)
       return
     }
     const span = maskAdvanceInput.slice(0, maskAdvanceCut)
@@ -1364,6 +1473,7 @@ export class ClaudeCodeStreamAdapter {
         advanceIndentedMaskState(ctx.scratchpadMaskState, maskedAdvance.text.slice(0, holdFrom))
       }
       ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(holdFrom)
+      ctx.scratchpadMaskUnsteppedEolFree = false
       if (maskedAdvance.fences.length === 1) {
         // Single open fence: masked and raw text are byte-identical before
         // it, so the token position is the raw fence start as well.
@@ -1373,6 +1483,7 @@ export class ClaudeCodeStreamAdapter {
     }
     advanceIndentedMaskState(ctx.scratchpadMaskState, maskedAdvance.text)
     ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(maskAdvanceCut)
+    ctx.scratchpadMaskUnsteppedEolFree = !endsWithCr
   }
 
   /**
@@ -1514,6 +1625,52 @@ export class ClaudeCodeStreamAdapter {
     return false
   }
 
+  /** Appends visible text to the accumulator and keeps the open-line tracker in step (O(delta)). */
+  private appendAccumulated(ctx: StreamContext, text: string): void {
+    const prev = ctx.accumulatedText.length
+    ctx.accumulatedText += text
+    if (ctx.olSyncLen !== prev) {
+      ctx.olSyncLen = -1
+      return
+    }
+    ctx.olSyncLen = ctx.accumulatedText.length
+    ctx.accRecent = (ctx.accRecent + text).slice(-ACC_RECENT_MAX)
+    if (text === '') return
+    const nl = text.lastIndexOf('\n')
+    if (nl >= 0) {
+      const line = text.slice(nl + 1)
+      ctx.olStart = prev + nl + 1
+      ctx.olLen = line.length
+      ctx.olHead = line.slice(0, OPEN_LINE_HEAD_MAX)
+      ctx.olPending = line
+    } else {
+      ctx.olLen += text.length
+      if (ctx.olHead.length < OPEN_LINE_HEAD_MAX) ctx.olHead += text.slice(0, OPEN_LINE_HEAD_MAX - ctx.olHead.length)
+      ctx.olPending = ctx.olPending.length > 8192 ? '' : ctx.olPending + text
+    }
+  }
+
+  /** Brings the open-line tracker in sync with the accumulator (a full rebuild only when it was bypassed). */
+  private syncOpenLine(ctx: StreamContext): void {
+    const acc = ctx.accumulatedText
+    if (ctx.olSyncLen === acc.length) return
+    this.scratchpadWholeSliceChars += acc.length
+    const start = Math.max(acc.lastIndexOf('\n') + 1, ctx.textBlockContextStart)
+    ctx.olStart = start
+    ctx.olLen = acc.length - start
+    ctx.olHead = acc.slice(start, start + OPEN_LINE_HEAD_MAX)
+    ctx.olPending = ''
+    ctx.accRecent = acc.slice(-ACC_RECENT_MAX)
+    ctx.olSyncLen = acc.length
+  }
+
+  /** The whole open line: the tracked head when it is complete, otherwise sliced from the accumulator. */
+  private openLineWhole(ctx: StreamContext): string {
+    if (ctx.olLen <= ctx.olHead.length) return ctx.olHead
+    this.scratchpadWholeSliceChars += ctx.olLen
+    return ctx.accumulatedText.slice(ctx.olStart)
+  }
+
   private filterScratchpadFromOngoingDelta(text: string, ctx: StreamContext): string {
     if (!ctx.filterParentlessScratchpadText || !ctx.textPartStarted || ctx.textStartDeferred) {
       return text
@@ -1525,7 +1682,7 @@ export class ClaudeCodeStreamAdapter {
     // indented-code line whose whitespace already emitted would be scanned as
     // column-zero text and lose literal code content (cherry-pr-review
     // inv_b4f675e18911386f).
-    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
+    const indentPrefix = this.emittedIndentOnlyLinePrefixFor(ctx)
     // A delta continues the line the previous chunk left open: carry that
     // line's emitted content so the scanner classifies the combined first
     // line with its real Markdown block context. Without it, a chunk like
@@ -1535,11 +1692,7 @@ export class ClaudeCodeStreamAdapter {
     // normalized with full-block context - appends the mismatched suffix
     // (cherry-pr-review inv_f7b234887ed722ff). The carry holds any trailing
     // backslash literally, subsuming the escape carry.
-    const openLinePrefix = this.emittedOpenLinePrefixWithState(
-      ctx.accumulatedText.slice(ctx.textBlockContextStart),
-      ctx.scratchpadMaskState,
-      ctx
-    )
+    const openLinePrefix = this.emittedOpenLinePrefixWithState(ctx.scratchpadMaskState, ctx)
     // An HTML text element (script/style/textarea/title) left unclosed by the
     // emitted prefix makes wrapper-shaped markup in later deltas literal
     // character data: carry its opener into the scan so the body is not
@@ -1730,14 +1883,14 @@ export class ClaudeCodeStreamAdapter {
    * the full strip pipeline over it on every delta (round-17 latency
    * regression / cherry-review inv_269a650fa555da87).
    */
-  private emittedOpenLinePrefixWithState(
-    accumulatedText: string,
-    state: IndentedMaskState,
-    ctx: StreamContext
-  ): string {
-    const lineStart = accumulatedText.lastIndexOf('\n') + 1
-    const openLine = accumulatedText.slice(lineStart)
-    if (openLine === '') return ''
+  private emittedOpenLinePrefixWithState(state: IndentedMaskState, ctx: StreamContext): string {
+    this.syncOpenLine(ctx)
+    const lineStart = ctx.olStart - ctx.textBlockContextStart
+    if (ctx.olLen === 0) return ''
+    // A quote-led line longer than the tracked head takes the incremental
+    // bounded carry: nothing below slices or scans the whole line per delta.
+    if (ctx.olLen > ctx.olHead.length && /^\s{0,3}>/.test(ctx.olHead)) return this.boundedQuoteLineCarry(ctx)
+    const openLine = this.openLineWhole(ctx)
     // Whitespace/marker-only open lines carry as-is: their indentation and
     // container markers are the classification context (round-17).
     if (openLine.trim() === '') return openLine
@@ -1746,7 +1899,7 @@ export class ClaudeCodeStreamAdapter {
     // state (the open line is never stepped).
     if (/^\s{0,3}>/.test(openLine)) {
       if (openLine.length <= QUOTE_LINE_CARRY_HEAD) return openLine
-      return this.boundedQuoteLineCarry(openLine, ctx, ctx.textBlockContextStart + lineStart)
+      return this.boundedQuoteLineCarry(ctx)
     }
     // A line that is entirely a potential block-marker prefix ('1', '-', '#',
     // '=', '```') can still merge with the arriving chunk into a real marker
@@ -1849,10 +2002,16 @@ export class ClaudeCodeStreamAdapter {
    * while an unpaired run stays open: its whole span is then carried, as the
    * non-quote path also does.
    */
-  private boundedQuoteLineCarry(openLine: string, ctx: StreamContext, key: number): string {
-    let head = openLine.slice(0, QUOTE_LINE_CARRY_HEAD)
-    if (!/[^\s>\-*_=#+.~`()[\]]/.test(head)) return openLine
-    if (openLine.charCodeAt(head.length) === 96) head = head.replace(/`+$/, '')
+  private boundedQuoteLineCarry(ctx: StreamContext): string {
+    this.syncOpenLine(ctx)
+    const key = ctx.olStart
+    // The tracked head always covers the carried head (OPEN_LINE_HEAD_MAX >
+    // QUOTE_LINE_CARRY_HEAD); the whole line is only materialized when the
+    // result is the whole line.
+    const lineHead = ctx.olHead
+    let head = lineHead.slice(0, QUOTE_LINE_CARRY_HEAD)
+    if (!/[^\s>\-*_=#+.~`()[\]]/.test(head)) return this.openLineWhole(ctx)
+    if (lineHead.charCodeAt(head.length) === 96) head = head.replace(/`+$/, '')
     const headSafe = inlineCodeCarryStart(head)
     if (headSafe < head.length) head = head.slice(0, headSafe)
     head = head.replace(/\\+$/, '')
@@ -1860,20 +2019,67 @@ export class ClaudeCodeStreamAdapter {
     if (lastLt !== -1 && head.indexOf('>', lastLt) === -1) head = head.slice(0, lastLt)
     const entityStart = head.search(/&#?[A-Za-z0-9]*$/)
     if (entityStart !== -1) head = head.slice(0, entityStart)
+    // Pairing state is tracked from a checkpoint (every backtick run before it
+    // is already paired), and the text from the checkpoint is kept as `tail`,
+    // extended by the text appended since the last call: a delta costs
+    // O(new text + unpaired span), never O(line).
     let carry = ctx.scratchpadQuoteCarry
-    if (!carry || carry.key !== key || carry.checkpoint > openLine.length) {
-      carry = { key, checkpoint: 0 }
+    let tail: string
+    let base: number
+    if (carry && carry.key === key && carry.checkpoint <= ctx.olLen) {
+      base = carry.checkpoint
+      if (carry.seenLen + ctx.olPending.length === ctx.olLen) tail = carry.tail + ctx.olPending
+      else tail = this.openLineWhole(ctx).slice(base)
+    } else {
+      base = 0
+      tail = this.openLineWhole(ctx)
     }
-    let tailStart = carry.checkpoint + inlineCodeCarryStart(openLine.slice(carry.checkpoint))
-    const trailing = /`+$/.exec(openLine)
-    if (trailing && trailing.index < tailStart) tailStart = trailing.index
+    ctx.olPending = ''
+    this.scratchpadCarryWorkChars += lineHead.length + tail.length
+    let tailStartLocal = inlineCodeCarryStart(tail)
+    const trailing = /`+$/.exec(tail)
+    if (trailing && trailing.index < tailStartLocal) tailStartLocal = trailing.index
     // Back up over a preceding backslash run so an escaped tick stays escaped
     // when the next delta rescans from the checkpoint.
-    while (tailStart > 0 && openLine[tailStart - 1] === '\\') tailStart--
-    carry.checkpoint = tailStart
+    while (tailStartLocal > 0 && tail[tailStartLocal - 1] === '\\') tailStartLocal--
+    const tailStart = base + tailStartLocal
+    const nextTail = tail.slice(tailStartLocal)
+    carry = { key, checkpoint: tailStart, tail: nextTail, seenLen: ctx.olLen }
     ctx.scratchpadQuoteCarry = carry
-    if (tailStart < head.length) return openLine
-    return head + openLine.slice(tailStart)
+    if (tailStart < head.length) return this.openLineWhole(ctx)
+    return head + nextTail
+  }
+
+  /**
+   * Open-line indentation carry from the incremental tracker: the container
+   * prefix and indent come from the tracked head, and the previous-line
+   * verdict is computed once per line (it depends only on text before the
+   * line), so a delta never slices the block or rescans the previous line.
+   */
+  private emittedIndentOnlyLinePrefixFor(ctx: StreamContext): string {
+    this.syncOpenLine(ctx)
+    const complete = ctx.olLen <= ctx.olHead.length
+    const openLine = ctx.olHead
+    const containerPrefix = openLine.match(/^(?: {0,3}>(?: |$)| {0,3}(?:[-*+]|\d{1,9}[.)]) )*/)?.[0] ?? ''
+    const indent = openLine.slice(containerPrefix.length).match(/^[ \t]+/)?.[0]
+    if (!indent) return ''
+    // The head ended inside the prefix/indent run: classify from the full line.
+    if (!complete && containerPrefix.length + indent.length >= openLine.length) {
+      return this.emittedIndentOnlyLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
+    }
+    const carry = containerPrefix + indent
+    if (ctx.olStart === ctx.textBlockContextStart) return carry
+    let verdict = ctx.olPrevVerdict
+    if (!verdict || verdict.start !== ctx.olStart || verdict.gen !== ctx.accGen) {
+      const text = ctx.accumulatedText.slice(ctx.textBlockContextStart)
+      verdict = {
+        start: ctx.olStart,
+        gen: ctx.accGen,
+        allows: this.indentCarryAllowedByPreviousLine(text, ctx.olStart - ctx.textBlockContextStart)
+      }
+      ctx.olPrevVerdict = verdict
+    }
+    return verdict.allows ? carry : ''
   }
 
   private emittedIndentOnlyLinePrefix(text: string): string {
@@ -1899,23 +2105,27 @@ export class ClaudeCodeStreamAdapter {
     const indent = openLine.slice(containerPrefix.length).match(/^[ \t]+/)?.[0]
     if (!indent) return ''
     const carry = containerPrefix + indent
-    if (lineStart === 0) return carry
+    return this.indentCarryAllowedByPreviousLine(text, lineStart) ? carry : ''
+  }
+
+  private indentCarryAllowedByPreviousLine(text: string, lineStart: number): boolean {
+    if (lineStart === 0) return true
     const prevLineEnd = lineStart - 1
     const prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1
     const prevLine = text.slice(prevLineStart, prevLineEnd)
-    if (prevLine.trim() === '') return carry
+    if (prevLine.trim() === '') return true
     // A line holding only blockquote markers is its container's blank line:
     // it closes the paragraph just like an empty line.
-    if (/^ {0,3}(?:>[ ]?)+$/.test(prevLine)) return carry
+    if (/^ {0,3}(?:>[ ]?)+$/.test(prevLine)) return true
     const prevContent = this.stripMarkdownContainerMarkers(prevLine)
-    if (this.leadingIndentColumns(prevContent) >= 4) return carry
+    if (this.leadingIndentColumns(prevContent) >= 4) return true
     // Leaf blocks close a paragraph, so indentation after them opens indented
     // code rather than continuing paragraph text (CommonMark 0.31.2 §4.4;
     // cherry-pr-review inv_cc2d7448049afb39). Without this, an indented
     // literal element following a heading is scanned as column-zero
     // scratchpad and deleted from the stream.
-    if (this.isLeafBlockBoundaryLine(prevContent, text, prevLineStart)) return carry
-    return ''
+    if (this.isLeafBlockBoundaryLine(prevContent, text, prevLineStart)) return true
+    return false
   }
 
   /** Leading indentation of a line in CommonMark columns (tab stops of four). */
@@ -2152,7 +2362,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: pending })
         ctx.textPartStarted = true
         ctx.textStreamedViaContentBlock = true
-        ctx.accumulatedText += pending
+        this.appendAccumulated(ctx, pending)
         ctx.streamedTextLength += pending.length
         this.endCompactionArtifactGrace()
         return
@@ -2170,7 +2380,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: pending })
       ctx.textPartStarted = true
       ctx.textStreamedViaContentBlock = true
-      ctx.accumulatedText += pending
+      this.appendAccumulated(ctx, pending)
       ctx.streamedTextLength += pending.length
       return
     }
@@ -2197,7 +2407,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: visible })
     ctx.textPartStarted = true
     ctx.textStreamedViaContentBlock = true
-    ctx.accumulatedText += visible
+    this.appendAccumulated(ctx, visible)
     ctx.streamedTextLength += visible.length
     this.noteVisibleAnswerText(visible, ctx)
     // The deferred block start is visible answer text: it must step the mask
@@ -2224,7 +2434,7 @@ export class ClaudeCodeStreamAdapter {
     }
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
     ctx.textStreamedViaContentBlock = true
-    ctx.accumulatedText += text
+    this.appendAccumulated(ctx, text)
     ctx.streamedTextLength += text.length
     this.noteVisibleAnswerText(text, ctx)
   }
@@ -2353,7 +2563,7 @@ export class ClaudeCodeStreamAdapter {
 
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
     ctx.textStreamedViaContentBlock = true
-    ctx.accumulatedText += text
+    this.appendAccumulated(ctx, text)
     ctx.streamedTextLength += text.length
     this.noteVisibleAnswerText(text, ctx)
   }
@@ -2368,7 +2578,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.textPartStarted = true
       }
       ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: partialJson })
-      ctx.accumulatedText += partialJson
+      this.appendAccumulated(ctx, partialJson)
       ctx.streamedTextLength += partialJson.length
       ctx.hasStreamedJson = true
       return
@@ -2419,6 +2629,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadStreamFenceCarry = ''
         ctx.scratchpadMaskState = initialIndentedMaskState()
         ctx.scratchpadMaskStateUnstepped = ''
+        ctx.scratchpadMaskUnsteppedEolFree = true
         ctx.scratchpadMaskAdvanceRawQueue = ''
         ctx.scratchpadMaskHeldFence = null
         ctx.scratchpadOpenLineCarry = null
@@ -2625,15 +2836,19 @@ export class ClaudeCodeStreamAdapter {
 
       if (ctx.options.responseFormat?.type === 'json') {
         ctx.accumulatedText = visibleText
+        ctx.olSyncLen = -1
+        ctx.accGen++
         return
       }
       if (deltaText) {
         this.enqueueVisibleTextDelta(deltaText, ctx, providerMetadata)
       }
       ctx.accumulatedText = visibleText
+      ctx.olSyncLen = -1
+      ctx.accGen++
       ctx.streamedTextLength = visibleText.length
     } else if (ctx.options.responseFormat?.type === 'json') {
-      ctx.accumulatedText += visibleText
+      this.appendAccumulated(ctx, visibleText)
     } else {
       this.enqueueVisibleTextDelta(visibleText, ctx, providerMetadata)
     }
@@ -2652,6 +2867,8 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.textPartId) {
       this.closeActiveTextPart(ctx)
       ctx.accumulatedText = ''
+      ctx.olSyncLen = -1
+      ctx.accGen++
       ctx.streamedTextLength = 0
     }
 
@@ -3043,6 +3260,8 @@ export class ClaudeCodeStreamAdapter {
     if (message.status === 'compacting') {
       this.closeActiveTextPart(ctx)
       ctx.accumulatedText = ''
+      ctx.olSyncLen = -1
+      ctx.accGen++
       ctx.streamedTextLength = 0
       this.runtimeCompactionActive = true
       this.compactionPreemptsPendingAnswer = this.hasSeenGenuineUserPrompt && !this.assistantAnswerSinceUserPrompt
@@ -3073,6 +3292,8 @@ export class ClaudeCodeStreamAdapter {
       // closeActiveTextPart on compacting may have cleared textPartId while offsets still
       // reflect pre-compaction streaming; reset so snapshot reconciliation starts fresh.
       ctx.accumulatedText = ''
+      ctx.olSyncLen = -1
+      ctx.accGen++
       ctx.streamedTextLength = 0
       this.statusSink.emit({ type: 'compaction-complete' })
     }
@@ -3108,6 +3329,8 @@ export class ClaudeCodeStreamAdapter {
     // Reset the streaming offsets or its prefix would be sliced against pre-compaction lengths.
     this.closeActiveTextPart(ctx)
     ctx.accumulatedText = ''
+    ctx.olSyncLen = -1
+    ctx.accGen++
     ctx.streamedTextLength = 0
     const metadata = message.compact_metadata
     const anchor: AgentSessionCompactionAnchorData = {
@@ -3516,12 +3739,8 @@ export class ClaudeCodeStreamAdapter {
     // a buffered remainder inside an unclosed element or comment loses its
     // context at flush (cherry-pr-review round-12 buffered-html-flush-context).
     this.updateHtmlStreamCarry(ctx)
-    const openLinePrefix = this.emittedOpenLinePrefixWithState(
-      ctx.accumulatedText.slice(ctx.textBlockContextStart),
-      ctx.scratchpadMaskState,
-      ctx
-    )
-    const indentPrefix = this.emittedIndentOnlyLinePrefix(ctx.accumulatedText.slice(ctx.textBlockContextStart))
+    const openLinePrefix = this.emittedOpenLinePrefixWithState(ctx.scratchpadMaskState, ctx)
+    const indentPrefix = this.emittedIndentOnlyLinePrefixFor(ctx)
     const prefix =
       fenceCarry +
       ctx.scratchpadStreamHtmlCarry +
@@ -3566,6 +3785,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadStreamHtmlCarryBase = -1
     ctx.scratchpadMaskState = initialIndentedMaskState()
     ctx.scratchpadMaskStateUnstepped = ''
+    ctx.scratchpadMaskUnsteppedEolFree = true
     ctx.scratchpadMaskAdvanceRawQueue = ''
     ctx.scratchpadMaskHeldFence = null
     ctx.scratchpadOpenLineCarry = null
