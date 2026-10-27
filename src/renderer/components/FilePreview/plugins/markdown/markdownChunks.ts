@@ -970,25 +970,6 @@ function afterColumns(columns: number, line: string): string {
   return expanded.slice(columns) + line.slice(index)
 }
 
-/**
- * How far a bracketed run that opens at `open` reaches before it closes, and whether it closes at
- * all. Brackets nest and a backslash escapes the character after it, so only an unescaped `]` at
- * the run's own depth ends it. Without a closing bracket the scan runs to the end of the source,
- * and every later bracket in the same run repeats it — so `end` is returned either way, letting the
- * caller skip the stretch it already read instead of rescanning it once per character.
- */
-function pastBracketRun(source: string, open: number): { end: number; closed: boolean } {
-  let depth = 0
-  let index = open
-  for (; index < source.length; index += 1) {
-    const character = source[index]
-    if (character === '\\') index += 1
-    else if (character === '[') depth += 1
-    else if (character === ']' && (depth -= 1) === 0) return { end: index + 1, closed: true }
-  }
-  return { end: index, closed: false }
-}
-
 /** The index past a parenthesised run that opens at `open`, or −1 when it never closes. */
 function pastParenRun(source: string, open: number): number {
   let depth = 0
@@ -1315,8 +1296,7 @@ function decodeEntity(value: string): string | null {
 function holdsLink(source: string): boolean {
   const length = source.length
   // The index just past the delimiter closing the run each `[` or `(` opens, or −1 where it never
-  // closes — the answers `pastBracketRun` and `pastParenRun` give, both of which read a backslash
-  // as escaping the character after it.
+  // closes, a backslash escaping the character after it either way.
   const bracketEnd = new Array<number>(length).fill(-1)
   const parenEnd = new Array<number>(length).fill(-1)
   const brackets: number[] = []
@@ -1619,6 +1599,25 @@ function headingRenderedText(
     let strikes: Set<number> | null = null
     // The highlight markers, matched the same way on their own first use.
     let highlights: Set<number> | null = null
+    // Where the bracket each `[` opens closes, matched in one forward walk: a backslash escapes the
+    // character after it and a `]` closes the nearest bracket still open. Built on first use, so a
+    // segment without brackets never pays, and a run no bracket closes is answered in constant time
+    // rather than rescanned from every bracket inside it.
+    let bracketCloses: Map<number, number> | null = null
+    const bracketRun = (open: number): { end: number; closed: boolean } => {
+      if (!bracketCloses) {
+        bracketCloses = new Map()
+        const stack: number[] = []
+        for (let at = 0; at < segment.length; at += 1) {
+          const character = segment[at]
+          if (character === '\\') at += 1
+          else if (character === '[') stack.push(at)
+          else if (character === ']' && stack.length > 0) bracketCloses.set(stack.pop() as number, at)
+        }
+      }
+      const close = bracketCloses.get(open)
+      return close === undefined ? { end: segment.length, closed: false } : { end: close + 1, closed: true }
+    }
     let index = 0
     while (index < segment.length) {
       const character = segment[index]
@@ -1754,7 +1753,7 @@ function headingRenderedText(
         }
       } else if ((character === '[' && !entry.label) || (character === '!' && segment[index + 1] === '[')) {
         const open = index + (character === '!' ? 1 : 0)
-        const label = pastBracketRun(segment, open)
+        const label = bracketRun(open)
         // A link the label holds forbids the one around it, which leaves the outer brackets as text
         // — so the scan moves one character and reads the inner link where it stands. An image is
         // allowed inside a label, so only a link decides this. Every run is charged what it cost to
@@ -1770,8 +1769,7 @@ function headingRenderedText(
         // read to the end of the segment, and the run cannot be part of a construct at all. One
         // that never closes reads that far again, so the run behind the label is charged the tail
         // it cost too — a heading of `[a](` repeated paid it from every bracket in turn.
-        const reference =
-          segment[label.end] === '[' ? pastBracketRun(segment, label.end) : { end: label.end, closed: true }
+        const reference = segment[label.end] === '[' ? bracketRun(label.end) : { end: label.end, closed: true }
         const follow = label.closed
           ? segment[label.end] === '('
             ? pastParenRun(segment, label.end)
@@ -1829,11 +1827,12 @@ function headingRenderedText(
           text += character
           index += 1
         } else {
-          // A bracket that opens a run no later bracket closes is text, and so is every bracket in
-          // it: the scan has already read as far as `end`, so the run is appended whole rather than
-          // rescanned from each bracket in turn.
-          text += segment.slice(index, label.end)
-          index = label.end
+          // A bracket that opens a run no later bracket closes is text the parser keeps, and what
+          // follows it is still inline content it reads — `[A &amp; B` renders `[A & B` — so only
+          // the bracket is appended and the rest is read where it stands. `bracketRun` answers
+          // the run in constant time, so the line is not scanned once per bracket in turn.
+          text += character
+          index += 1
         }
       } else {
         text += character
@@ -2885,9 +2884,19 @@ export function splitMarkdownChunks(
       if (!paragraphOpen || opensBlock) paragraphStart = i
       // Indented code is a block of its own, so the line under it starts from no open paragraph —
       // which is what lets the definition there stand instead of reading as paragraph text.
-      previousStatus =
+      const status =
         indentedCode || isCompletedBlock(line, container?.[0] ?? null, paragraphOpen) ? 'block' : 'paragraph'
-      paragraphContainer = container?.[0] ?? null
+      // A line that falls short of the container holding the open paragraph continues it lazily,
+      // and the paragraph stays inside that container: the markers below it repeat the paragraph's
+      // rather than open a block, so a definition shape there is still that paragraph's prose.
+      const lazy =
+        paragraphOpen &&
+        status === 'paragraph' &&
+        !opensBlock &&
+        paragraphContainer !== null &&
+        stripDefinitionContainer(line, containerParams(paragraphContainer)) === null
+      if (!lazy) paragraphContainer = container?.[0] ?? null
+      previousStatus = status
     }
 
     // A thematic break carries an item marker at its head but is a block of its own.

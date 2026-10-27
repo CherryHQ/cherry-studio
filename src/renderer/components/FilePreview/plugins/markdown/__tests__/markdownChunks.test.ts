@@ -2460,11 +2460,76 @@ describe('document-wide heading slugs', () => {
     expect(chunkRenderedIds(content)).toEqual(renderedIdsWithHtml(content))
     expect(chunks.at(-1)?.text).toContain('[jump](#alpha-beta)')
   })
+
+  it('decodes an entity behind an unmatched bracket when it numbers a heading', () => {
+    // An unmatched `[` is text the parser keeps, and the rest of the heading is still inline
+    // content it reads: both headings render `[A & B`, so the document numbers `a-b` and `a-b-1`.
+    // Appending the run whole kept `&amp;` in the text and keyed both headings `a-amp-b`, leaving
+    // `[jump](#a-b-1)` — the second heading's own chunk — without a target.
+    const content = `# [A &amp; B\n\n${'filler\n\n'.repeat(3100)}# [A &amp; B\n\n[jump](#a-b-1)\n`
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(renderedIdsWithHtml(content)).toEqual(['chunk--a-b', 'chunk--a-b-1'])
+    expect(chunkRenderedIds(content)).toEqual(renderedIdsWithHtml(content))
+    expect(chunks.at(-1)?.text).toContain('[jump](#a-b-1)')
+  })
 })
 
 describe('a definition shape that is paragraph text', () => {
   // A link definition cannot interrupt a paragraph, so the shape is prose wherever a paragraph is
   // still open — and first-definition precedence means carrying it would redirect every reference.
+  it('does not carry a definition shape a lazy line holds inside the quoted paragraph', () => {
+    // The unmarked second line continues the quoted paragraph lazily, so the `>` below it only
+    // repeats the container that paragraph sits in: `[x]: https://wrong.example` is prose and the
+    // document's definition stays the one below the blank. Carrying the prose copy shadowed it, and
+    // `see [x]` resolved to the wrong destination in every chunk.
+    const content = [
+      '> text',
+      'text',
+      '> [x]: https://wrong.example',
+      '',
+      '[x]: https://right.example',
+      '',
+      'see [x]'
+    ].join('\n')
+
+    expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['https://right.example']))
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) expect(chunk.text.startsWith('[x]: https://wrong.example\n\n')).toBe(false)
+    expect(new Set(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
+      new Set(['https://right.example'])
+    )
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [x]'))
+    expect(referencing).toHaveLength(1)
+    expect(resolvedReferenceUrls(referencing[0].text)).toEqual(['https://right.example'])
+  })
+
+  it('keeps a lazy line’s definition shape prose in a single chunk', () => {
+    // The same document unsplit, so the rendering the split has to reproduce is the one under test:
+    // the paragraph spans the lazy line and the marker line, and only the definition below the
+    // blank belongs to the document.
+    const content = [
+      '> text',
+      'text',
+      '> [x]: https://wrong.example',
+      '',
+      '[x]: https://right.example',
+      '',
+      'see [x]'
+    ].join('\n')
+
+    const chunks = chunksOf(content, 1_000_000)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text.startsWith('[x]: https://right.example\n\n')).toBe(true)
+    expect(referenceTarget(chunks[0].text, 'x')).toBe('https://right.example')
+    expect(new Set(resolvedReferenceUrls(chunks[0].text))).toEqual(new Set(['https://right.example']))
+  })
+
   it('does not carry a definition shape a container marker only continues', () => {
     // `> [label]: /wrong` repeats the marker of the paragraph above it rather than opening a block,
     // so it is one quoted paragraph; micromark renders `[label]: /wrong` as text and `see [label]`
