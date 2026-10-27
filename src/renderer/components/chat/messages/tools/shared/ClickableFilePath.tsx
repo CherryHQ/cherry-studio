@@ -21,6 +21,7 @@ import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import { ipcApi } from '@renderer/ipc'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
@@ -66,7 +67,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const canOpen = Boolean(openArtifactFile || openPath)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
   const { isLoading, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
-    enabled: canOpen && hasAbsoluteTargetPath && actionsMenuOpen
+    enabled: hostFeatures.systemApps && canOpen && hasAbsoluteTargetPath && actionsMenuOpen
   })
   const hasMoreActions = canOpen && hasAbsoluteTargetPath
   const { data: metadata } = useSWR(
@@ -177,30 +178,34 @@ export const ClickableFilePath = memo(function ClickableFilePath({
           <ContextMenuItem onSelect={() => void handleOpen()}>
             <ContextMenuItemContent icon={<FileText />}>{t('common.open')}</ContextMenuItemContent>
           </ContextMenuItem>
-          <ContextMenuSub>
-            <ContextMenuSubTrigger disabled={!isLoading && applicationTargets.length === 0}>
-              {t('chat.input.tools.open_with')}
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-56">
-              {isLoading && applicationTargets.length === 0 && (
-                <ContextMenuItem disabled>{t('common.loading')}</ContextMenuItem>
-              )}
-              {applicationTargets.map((target) => (
-                <ContextMenuItem key={target.id} onSelect={() => handleOpenTarget(target)}>
-                  <ContextMenuItemContent
-                    icon={<OpenTargetIcon target={target} />}
-                    badge={getOpenTargetBadge(target, t)}>
-                    {getOpenTargetLabel(target, t)}
-                  </ContextMenuItemContent>
-                </ContextMenuItem>
-              ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-          <ContextMenuItem onSelect={() => void handleReveal()}>
-            <ContextMenuItemContent icon={<OpenTargetIcon target={{ id: 'file_manager', kind: 'file_manager' }} />}>
-              {revealLabel}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
+          {hostFeatures.systemApps && (
+            <>
+              <ContextMenuSub>
+                <ContextMenuSubTrigger disabled={!isLoading && applicationTargets.length === 0}>
+                  {t('chat.input.tools.open_with')}
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent className="w-56">
+                  {isLoading && applicationTargets.length === 0 && (
+                    <ContextMenuItem disabled>{t('common.loading')}</ContextMenuItem>
+                  )}
+                  {applicationTargets.map((target) => (
+                    <ContextMenuItem key={target.id} onSelect={() => handleOpenTarget(target)}>
+                      <ContextMenuItemContent
+                        icon={<OpenTargetIcon target={target} />}
+                        badge={getOpenTargetBadge(target, t)}>
+                        {getOpenTargetLabel(target, t)}
+                      </ContextMenuItemContent>
+                    </ContextMenuItem>
+                  ))}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              <ContextMenuItem onSelect={() => void handleReveal()}>
+                <ContextMenuItemContent icon={<OpenTargetIcon target={{ id: 'file_manager', kind: 'file_manager' }} />}>
+                  {revealLabel}
+                </ContextMenuItemContent>
+              </ContextMenuItem>
+            </>
+          )}
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => void handleCopy(false)}>
             <ContextMenuItemContent icon={<Copy />}>{t('agent.preview_pane.copy_path')}</ContextMenuItemContent>

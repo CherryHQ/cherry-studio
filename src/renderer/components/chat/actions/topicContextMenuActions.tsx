@@ -76,8 +76,8 @@ export interface TopicActionContext {
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
   onToggleSidebar?: TopicMenuHandler
-  onSaveToKnowledge: TopicMenuHandler
-  onSaveToNotes: TopicMenuHandler
+  onSaveToKnowledge?: TopicMenuHandler
+  onSaveToNotes?: TopicMenuHandler
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
   panePosition?: TopicTabPosition
@@ -187,12 +187,14 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.save-notes',
-  run: ({ onSaveToNotes, topic }) => onSaveToNotes(topic)
+  availability: ({ onSaveToNotes }) => ({ visible: !!onSaveToNotes, enabled: !!onSaveToNotes }),
+  run: ({ onSaveToNotes, topic }) => onSaveToNotes?.(topic)
 })
 
 topicActionRegistry.registerCommand({
   id: 'topic.save-knowledge',
-  run: ({ onSaveToKnowledge, topic }) => onSaveToKnowledge(topic)
+  availability: ({ onSaveToKnowledge }) => ({ visible: !!onSaveToKnowledge, enabled: !!onSaveToKnowledge }),
+  run: ({ onSaveToKnowledge, topic }) => onSaveToKnowledge?.(topic)
 })
 
 topicActionRegistry.registerCommand({

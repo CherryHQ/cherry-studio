@@ -11,6 +11,7 @@ import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -121,11 +122,11 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const [popupMenuOpen, setPopupMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
-  const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
+  const canOpenExternally = hostFeatures.systemApps && AbsoluteFilePathSchema.safeParse(targetPath).success
   const { data, error, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
-    enabled: hasAbsoluteTargetPath && (popupMenuOpen || contextMenuOpen)
+    enabled: canOpenExternally && (popupMenuOpen || contextMenuOpen)
   })
-  const hasOpenActions = Boolean(openArtifactFile || hasAbsoluteTargetPath)
+  const hasOpenActions = Boolean(openArtifactFile || canOpenExternally)
 
   const handlePreview = useCallback(() => {
     if (!openArtifactFile) return
@@ -160,7 +161,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onSelect: handlePreview
       })
     }
-    if (hasAbsoluteTargetPath && targets.length === 0 && !data && !error) {
+    if (canOpenExternally && targets.length === 0 && !data && !error) {
       items.push({
         type: 'item',
         id: 'artifact.open-target.loading',
@@ -196,7 +197,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     handleCopyPath,
     handleOpenTarget,
     handlePreview,
-    hasAbsoluteTargetPath,
+    canOpenExternally,
     openArtifactFile,
     t,
     targets

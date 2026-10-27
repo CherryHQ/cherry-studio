@@ -196,10 +196,17 @@ in the page: Sentry is off, the settings menu keeps the provider, default model,
 general, appearance, archive and about sections, creating an agent shows Pi as its runtime
 instead of a choice, and the Pyodide worker starts in a sandboxed iframe. The launchpad, the
 composer's tools, the message menu, the user menu and first-run setup keep only the entries the
-Web edition serves, and the help menu and dictation are left out. `src/page/tailwind.css` points
-Tailwind at the renderer, since the Vite root here is `app/`. Saving a message or an image
-becomes a browser download (`src/page/fileDownloads.ts`). The one renderer edit is first-run
-setup's `enableCherryInLogin` switch, off here.
+Web edition serves, and the help menu, dictation and the read-aloud bar are left out. The provider
+list leaves out the providers that sign in through a CLI, an app login or GitHub Copilot, and the
+provider panels leave out sign-in popups and the OVMS installer, while API keys still work.
+`src/page/tailwind.css` points Tailwind at the renderer, since the Vite root here is `app/`.
+Saving a message or an image becomes a browser download (`src/page/fileDownloads.ts`).
+
+The renderer itself changes in two places. First-run setup's `enableCherryInLogin` switch is off
+here. `src/renderer/utils/hostFeatures.ts` says what the app around the renderer can do: more
+windows, opening paths in the computer's apps, app zoom, updates, developer tools, stored image
+uploads, notes and knowledge bases. The desktop has all of them; `src/page/hostFeatures.ts` has
+none, so the entries for them are hidden in the page.
 
 ## Editions
 

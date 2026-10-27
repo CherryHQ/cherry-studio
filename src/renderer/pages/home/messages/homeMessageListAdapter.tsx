@@ -46,6 +46,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { isVisionModel } from '@renderer/utils/model'
@@ -850,7 +851,7 @@ export function useHomeMessageListProviderValue({
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       removeMessageErrorPart,
-      openPath,
+      openPath: hostFeatures.systemApps ? openPath : undefined,
       openCitationsPanel,
       showInFolder,
       abortTool,

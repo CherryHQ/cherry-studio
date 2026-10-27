@@ -6,6 +6,7 @@ import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindo
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isConversationRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -172,7 +173,7 @@ export const AppShell = () => {
       reorderTabs={reorderTabs}
       pinTab={pinTab}
       unpinTab={unpinTab}
-      detachTab={handleDetachTab}
+      detachTab={hostFeatures.windows ? handleDetachTab : undefined}
       openTab={openTab}
     />
   )

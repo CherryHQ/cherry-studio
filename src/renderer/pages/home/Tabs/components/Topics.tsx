@@ -101,6 +101,7 @@ import {
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
@@ -1622,7 +1623,7 @@ export function Topics({
             onClearMessages={handleClearMessages}
             onDeleteFromMenu={handleDeleteTopicFromMenu}
             onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
-            onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
+            onOpenInNewWindow={tabs && hostFeatures.windows ? openTopicInNewWindow : undefined}
             onMoveToAssistant={handleMoveTopicToAssistant}
             onPinTopic={handlePinTopic}
             onToggleSidebar={handleToggleTopicSidebar}

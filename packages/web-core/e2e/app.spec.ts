@@ -42,6 +42,52 @@ test('leaves out the entries for desktop and Cherry account services', async ({ 
   await expect(panel.getByRole('radio')).toHaveCount(3)
 })
 
+test('leaves out the entries a browser tab cannot carry out', async ({ page }) => {
+  const run = Date.now().toString(36)
+  await gotoApp(page)
+  await useMockProvider(page, run)
+  await gotoApp(page)
+  await send(page, `topic ${run}`)
+  await expect(page.getByText(`echo: topic ${run}`)).toBeVisible()
+  // The app is one tab: no tab or conversation opens in a window of its own.
+  await expect(page.getByRole('button', { name: 'Open in New Window' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'More' }).first().click()
+  await page
+    .getByTestId('topic-list-row')
+    .filter({ hasText: `topic ${run}` })
+    .click({ button: 'right' })
+  await expect(page.getByRole('menuitem', { name: 'Edit conversation name' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Open in New Window' })).toHaveCount(0)
+  // Notes are files on the computer; knowledge bases index files with the desktop's native libraries.
+  await expect(page.getByRole('menuitem', { name: 'Save to Notes' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Save to Knowledge Base' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Model Provider', exact: true }).click()
+  await page.getByTestId('provider-list-item-cherryin').click()
+  await expect(page.getByText('API Key', { exact: true }).first()).toBeVisible()
+  // Sign-in popups cannot report back to this cross-origin isolated page; CLI logins need a computer.
+  await expect(page.getByRole('button', { name: 'Authorize with CherryIN' })).toHaveCount(0)
+  for (const id of ['claude-code', 'openai-codex', 'grok-cli', 'copilot']) {
+    await expect(page.getByTestId(`provider-list-item-${id}`)).toHaveCount(0)
+  }
+  await page.getByRole('button', { name: 'Add Provider' }).click()
+  const editor = page.getByTestId('provider-editor-dialog')
+  await expect(editor.getByRole('button', { name: 'Builtin avatar' })).toBeVisible()
+  await expect(editor.getByRole('button', { name: 'Image Upload' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // The browser zooms, updates and debugs the page itself.
+  await page.getByRole('button', { name: 'Appearance', exact: true }).click()
+  await expect(page.getByText('Theme', { exact: true })).toBeVisible()
+  await expect(page.getByText('Page Zoom', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'About & Feedback', exact: true }).click()
+  await expect(page.getByText('Official Website', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Check Update' })).toHaveCount(0)
+  await expect(page.getByText('Debug', { exact: true })).toHaveCount(0)
+})
+
 test('keeps the agent browser off in a workspace that had it on', async ({ page }) => {
   type PreferenceApi = {
     preference: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }

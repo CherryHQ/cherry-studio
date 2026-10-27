@@ -5,6 +5,7 @@ import { createActionRegistry } from '@renderer/components/chat/actions/actionRe
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceListGroup } from '@renderer/components/chat/resourceList/base'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { isMac, isWin } from '@renderer/utils/platform'
 
 export interface WorkdirGroupActionContext {
@@ -34,6 +35,7 @@ function getFileManagerName(t: TFunction) {
 
 workdirGroupActionRegistry.registerCommand({
   id: 'workdir-group.open',
+  availability: () => ({ visible: hostFeatures.systemApps }),
   run: ({ onOpen, workdirPath }) => onOpen(workdirPath)
 })
 

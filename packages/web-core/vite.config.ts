@@ -157,7 +157,9 @@ const pageModuleReplacements: Record<string, string> = {
   'assets/styles/tailwind.css': page('tailwind.css'),
   'components/settingsMenu.ts': page('settingsMenu.ts'),
   'components/AgentRuntimeOption.tsx': page('AgentRuntimeOption.tsx'),
+  'components/OpenTarget/OpenTargetButton.tsx': page('OpenTargetButton.ts'),
   'components/UserAccountPanel.tsx': page('UserAccountPanel.tsx'),
+  'components/VoicePlaybackHost.tsx': page('VoicePlaybackHost.ts'),
   'components/chat/messages/frame/messageMenuBarActions.tsx': page('messageMenuBarActions.ts'),
   'components/chat/messages/hooks/useMessageExportActions.ts': page('messageExportActions.ts'),
   'components/composer/ComposerToolRuntime.tsx': page('composerToolRuntime.ts'),
@@ -165,7 +167,11 @@ const pageModuleReplacements: Record<string, string> = {
   'components/composer/variants/shared/ComposerDictationButton.tsx': page('ComposerDictationButton.ts'),
   'components/layout/HelpMenu.tsx': page('HelpMenu.ts'),
   'hooks/useLaunchpadAppOrder.ts': page('launchpadAppOrder.ts'),
+  'pages/settings/ProviderSettings/ProviderSpecific/providerSpecificSettingsRegistry.tsx':
+    page('providerSpecificSettings.ts'),
   'services/sentry.ts': page('sentry.ts'),
+  'utils/hostFeatures.ts': page('hostFeatures.ts'),
+  'utils/providerSettings.ts': page('providerSettings.ts'),
   'windows/main/onboarding/OnboardingPage.tsx': page('OnboardingPage.tsx'),
   'workers/pyodide.worker.ts?worker': page('pyodideWorker.ts')
 }

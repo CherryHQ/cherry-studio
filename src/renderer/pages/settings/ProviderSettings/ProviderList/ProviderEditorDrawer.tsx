@@ -34,6 +34,7 @@ import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { toast } from '@renderer/services/toast'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { checkEntityImageSize } from '@renderer/utils/image'
 import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
@@ -951,10 +952,12 @@ function AvatarSection({
         />
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button variant="outline" onClick={() => uploadInputRef.current?.click()}>
-          <ImagePlus size={16} />
-          {t('settings.general.image_upload')}
-        </Button>
+        {hostFeatures.imageUploads && (
+          <Button variant="outline" onClick={() => uploadInputRef.current?.click()}>
+            <ImagePlus size={16} />
+            {t('settings.general.image_upload')}
+          </Button>
+        )}
         <Popover open={logoPickerOpen} onOpenChange={onLogoPickerOpenChange}>
           <PopoverTrigger asChild>
             <Button variant="outline">{t('settings.general.avatar.builtin')}</Button>
