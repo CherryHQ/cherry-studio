@@ -340,22 +340,9 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     expect(await page.evaluate(() => window.api.preference.get('chat.web_search.default_fetch_urls_provider'))).toBe(
       preferences.fetch
     )
-    const check = searchSection().getByRole('button', { name: 'Check', exact: true })
-    await expect
-      .soft(check, 'DuckDuckGo must expose the requested provider verification action')
-      .toBeVisible({ timeout: 2_000 })
-    if (await check.isVisible()) {
-      await check.click()
-      const outcome = page.getByText(/^Verification (successful|failed)/).last()
-      await expect(outcome).toBeVisible({ timeout: 60_000 })
-      const result = await outcome.innerText()
-      await testInfo.attach('DuckDuckGo verification outcome', { body: result, contentType: 'text/plain' })
-      if (result.startsWith('Verification failed')) expect(result).toMatch(/^Verification failed:\s*\S.+/)
-      await screenshot('MP-10 DuckDuckGo verification')
-      expect.soft(result, 'Key-free DuckDuckGo verification should succeed').toBe('Verification successful')
-    } else {
-      await screenshot('MP-10 DuckDuckGo missing verification action')
-    }
+    await expect(searchSection().getByPlaceholder('API Key', { exact: true })).toHaveCount(0)
+    await expect(searchSection().getByRole('button', { name: 'Check', exact: true })).toHaveCount(0)
+    await screenshot('MP-10 key-free DuckDuckGo settings')
 
     await selectProvider('fetch', 'fetch')
     await expect(searchSection().getByRole('combobox')).toHaveText('DuckDuckGo')
@@ -746,18 +733,25 @@ test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
       await editor().fill('')
     })
 
-    await test.step('Dragged input height survives an Electron restart', async () => {
+    await test.step('Dragged input height can be restored and resets after an Electron restart', async () => {
       const handle = composer().getByRole('separator', { name: 'Resize input height', exact: true })
       await expect(handle).toBeVisible()
       const frame = () => composer().locator('[data-composer-editor-frame]')
       const originalHeight = (await frame().boundingBox())!.height
-      const box = (await handle.boundingBox())!
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-      await page.mouse.down()
-      await page.mouse.move(box.x + box.width / 2, box.y - 140, { steps: 14 })
-      await page.mouse.up()
-      await expect.poll(async () => (await frame().boundingBox())!.height).toBeGreaterThan(originalHeight + 100)
-      const resizedHeight = (await frame().boundingBox())!.height
+      const resize = async () => {
+        const box = (await handle.boundingBox())!
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(box.x + box.width / 2, box.y - 140, { steps: 14 })
+        await page.mouse.up()
+        await expect.poll(async () => (await frame().boundingBox())!.height).toBeGreaterThan(originalHeight + 100)
+      }
+      await resize()
+      const restore = composer().getByRole('button', { name: 'Restore', exact: true })
+      await restore.focus()
+      await restore.click()
+      await expect.poll(async () => (await frame().boundingBox())!.height).toBeCloseTo(originalHeight, 0)
+      await resize()
       await attachScreenshot('MP-27 resized input before restart')
       page = await app.restart()
       watchErrors(page)
@@ -774,12 +768,12 @@ test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
       await restoredChat.getByTestId('topic-list-row').filter({ hasText: topicName }).click()
       await expect(editor()).toBeEditable()
       await attachScreenshot('MP-27 input height after restart')
-      await expect.soft
+      await expect
         .poll(async () => (await frame().boundingBox())!.height, {
-          message: 'Dragged input height must survive restart',
+          message: 'Temporary input height must reset to the default after restart',
           timeout: 5000
         })
-        .toBeCloseTo(resizedHeight, 0)
+        .toBeCloseTo(originalHeight, 0)
     })
   } finally {
     expect

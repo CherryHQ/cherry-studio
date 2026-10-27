@@ -886,8 +886,7 @@ test(...caseDefinition('MP-71'), async ({ app, mainWindow: page }, testInfo) => 
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  const directory = join(app.paths.fixtures, 'MP-71')
-  await mkdir(directory, { recursive: true })
+  const directory = await mkdtemp(join(app.paths.fixtures, 'MP-71-'))
   const source = AbsoluteFilePathSchema.parse(join(directory, 'sample.txt'))
   const renamedPath = join(directory, 'QA-renamed.txt')
   const internalSource = AbsoluteFilePathSchema.parse(join(directory, 'MP71-internal.txt'))
@@ -993,6 +992,7 @@ test(...caseDefinition('MP-71'), async ({ app, mainWindow: page }, testInfo) => 
       },
       { internalId: internal.id, externalId: external.id }
     )
+    await rm(directory, { recursive: true, force: true })
   }
 })
 

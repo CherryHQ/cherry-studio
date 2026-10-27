@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { once } from 'node:events'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -96,8 +96,9 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
 
   await image.click()
   await expect(preview).toBeVisible()
-  await preview.getByRole('button', { name: 'Save As', exact: true }).click()
   const output = join(app.paths.evidence, 'downloads', 'MP-90-original.png')
+  await rm(output, { force: true })
+  await preview.getByRole('button', { name: 'Save As', exact: true }).click()
   saveNativeFile(app.record.platform, app.paths, output)
   await expect
     .poll(async () =>

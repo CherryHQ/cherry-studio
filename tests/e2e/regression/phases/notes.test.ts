@@ -408,6 +408,7 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     await attachScreenshot('MP-77 source note with Chinese code and table')
 
     const pdfPath = join(directory, 'MP-77.pdf')
+    await rm(pdfPath, { force: true })
     await menuAction('Export to PDF')
     saveNativeFile('macos', app.paths, pdfPath)
     await expect.poll(async () => (await stat(pdfPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
@@ -438,6 +439,7 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     await testInfo.attach('Exported PDF', { path: pdfPath, contentType: 'application/pdf' })
 
     const wordPath = join(directory, 'MP-77.docx')
+    await rm(wordPath, { force: true })
     await menuAction('Export to Word')
     saveNativeFile('macos', app.paths, wordPath)
     await expect.poll(async () => (await stat(wordPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
