@@ -57,7 +57,7 @@ vi.mock('@renderer/components/LazyCodeEditor', () => ({
     <textarea
       value={value}
       onChange={(event) => onChange?.(event.currentTarget.value)}
-      placeholder={placeholder}
+      placeholder={typeof placeholder === 'string' ? placeholder : undefined}
       readOnly={editable === false}
     />
   )
