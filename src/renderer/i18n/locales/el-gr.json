@@ -1495,6 +1495,8 @@
   "error.statusCode": "Κωδικός κατάστασης",
   "error.statusText": "Κείμενο κατάστασης",
   "error.stream_paused": "Διακόπηκε",
+  "error.stream_unreadable.description": "Δεν ελήφθησαν αναγνώσιμες λεπτομέρειες σφάλματος. Δοκιμάστε ξανά. Αν συμβεί ξανά, ελέγξτε τα αρχεία καταγραφής.",
+  "error.stream_unreadable.title": "Η απόκριση απέτυχε",
   "error.text": "κείμενο",
   "error.toolInput": "εισαγωγή εργαλείου",
   "error.toolName": "Όνομα εργαλείου",

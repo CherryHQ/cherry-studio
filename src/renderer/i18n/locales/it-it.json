@@ -1495,6 +1495,8 @@
   "error.statusCode": "Codice di stato",
   "error.statusText": "Testo di stato",
   "error.stream_paused": "In pausa",
+  "error.stream_unreadable.description": "Non sono stati ricevuti dettagli leggibili sull'errore. Riprova; se il problema si ripresenta, controlla i log.",
+  "error.stream_unreadable.title": "Risposta non riuscita",
   "error.text": "Testo",
   "error.toolInput": "Input dello strumento",
   "error.toolName": "Nome dello strumento",

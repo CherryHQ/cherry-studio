@@ -1495,6 +1495,8 @@
   "error.statusCode": "รหัสสถานะ",
   "error.statusText": "ข้อความสถานะ",
   "error.stream_paused": "หยุดชั่วคราว",
+  "error.stream_unreadable.description": "ไม่ได้รับรายละเอียดข้อผิดพลาดที่อ่านได้ โปรดลองอีกครั้ง หากเกิดขึ้นอีก โปรดตรวจสอบบันทึก",
+  "error.stream_unreadable.title": "การตอบกลับล้มเหลว",
   "error.text": "ข้อความ",
   "error.toolInput": "อินพุตเครื่องมือ",
   "error.toolName": "ชื่อเครื่องมือ",

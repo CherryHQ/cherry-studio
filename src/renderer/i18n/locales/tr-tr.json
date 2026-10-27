@@ -1495,6 +1495,8 @@
   "error.statusCode": "Durum Kodu",
   "error.statusText": "Durum Metni",
   "error.stream_paused": "Duraklatıldı",
+  "error.stream_unreadable.description": "Okunabilir hata ayrıntıları alınamadı. Lütfen yeniden deneyin; sorun tekrarlanırsa günlükleri kontrol edin.",
+  "error.stream_unreadable.title": "Yanıt başarısız oldu",
   "error.text": "Metin",
   "error.toolInput": "Araç Girdisi",
   "error.toolName": "Araç Adı",

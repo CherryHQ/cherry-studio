@@ -1495,6 +1495,8 @@
   "error.statusCode": "Mã trạng thái",
   "error.statusText": "Văn bản trạng thái",
   "error.stream_paused": "Tạm dừng",
+  "error.stream_unreadable.description": "Không nhận được chi tiết lỗi có thể đọc được. Vui lòng thử lại; nếu lỗi tái diễn, hãy kiểm tra nhật ký.",
+  "error.stream_unreadable.title": "Phản hồi thất bại",
   "error.text": "Văn bản",
   "error.toolInput": "Đầu vào công cụ",
   "error.toolName": "Tên công cụ",

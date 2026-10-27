@@ -5,6 +5,7 @@ import { t } from 'i18next'
 import type * as z from 'zod'
 import { ZodError } from 'zod'
 
+import i18n from '@renderer/i18n/resolver'
 import { type AgentServerError, AgentServerErrorSchema } from '@renderer/types/agent'
 import type {
   AiSdkErrorUnion,
@@ -13,13 +14,21 @@ import type {
   SerializedAiSdkNoSuchToolError,
   SerializedError
 } from '@renderer/types/error'
-import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
+import {
+  isSerializedAiSdkApiCallError,
+  isSerializedAiSdkRetryError,
+  isSerializedAiSdkToolCallRepairError
+} from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
+import { readableStreamText } from '@shared/utils/streamText'
 
+import { classifyError } from './errorClassifier'
 import { formatErrorDetails } from './errorDetails'
 import { parseJSON } from './json'
+
+export { isStreamPlaceholderText } from '@shared/utils/streamText'
 
 export { getErrorDetails } from './errorDetails'
 
@@ -348,6 +357,77 @@ export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
   const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
   return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
+}
+
+function streamFailureChildren(node: SerializedError): unknown[] {
+  return [
+    node.lastError,
+    ...(isSerializedAiSdkRetryError(node) && Array.isArray(node.errors) ? [...node.errors].reverse() : []),
+    ...(isSerializedAiSdkToolCallRepairError(node) ? [node.originalError] : [])
+  ]
+}
+
+function streamFailureNodes(error: unknown, depth = 0, seen = new WeakSet<object>()): SerializedError[] {
+  if (!error || typeof error !== 'object' || Array.isArray(error) || depth > 5 || seen.has(error)) return []
+  seen.add(error)
+  const node = error as SerializedError
+  return [...streamFailureChildren(node).flatMap((child) => streamFailureNodes(child, depth + 1, seen)), node]
+}
+
+export function getStreamFailureText(error: unknown): string {
+  const seen = new WeakSet<object>()
+  const textFrom = (value: unknown, depth: number): string => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || depth > 5 || seen.has(value)) return ''
+    seen.add(value)
+    const node = value as SerializedError
+    const payload = readableStreamText(
+      getSafeProviderErrorMessage({ responseBody: node.responseBody, data: node.data })
+    )
+    if (payload) return payload
+    for (const child of streamFailureChildren(node)) {
+      const text = textFrom(child, depth + 1)
+      if (text) return text
+    }
+    return readableStreamText(getSafeProviderErrorMessage({ message: node.message }))
+  }
+  const text = textFrom(error, 0)
+  if (text) return text
+  for (const node of streamFailureNodes(error)) {
+    for (const value of [node.code, node.providerErrorCode]) {
+      if (typeof value !== 'string' || !value || value.length > 100) continue
+      const code = readableStreamText(getSafeProviderErrorMessage({ message: value }))
+      if (code) return code
+    }
+  }
+  return ''
+}
+
+export function isUnreadableStreamFailure(error: unknown): boolean {
+  if (getStreamFailureText(error)) return false
+  return !streamFailureNodes(error).some((node) => {
+    const hasStatus = [node.statusCode, node.status].some((value) => {
+      const status = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value
+      return typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599
+    })
+    if (hasStatus) return true
+    // Status and wrapper evidence use the bounded checks here, rather than the classifier's lenient parsing.
+    const classification = classifyError({
+      name: node.name,
+      message: node.message,
+      stack: null,
+      responseBody: node.responseBody,
+      data: node.data,
+      finishReason: node.finishReason,
+      providerErrorCategory: node.providerErrorCategory,
+      claudeCodeExitCategory: node.claudeCodeExitCategory
+    })
+    if (classification.category !== 'unknown') return true
+    return [node.i18nKey, node.message, node.detailI18nKey].some((key) => {
+      if (typeof key !== 'string' || !key || key === 'unknown' || key === 'diagnosis.unknown') return false
+      const fullKey = `error.${key}`
+      return i18n.exists(fullKey) && typeof i18n.t(fullKey) === 'string' && !!i18n.t(fullKey).trim()
+    })
+  })
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>

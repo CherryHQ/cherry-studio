@@ -40,6 +40,7 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
+import { readableStreamText } from '@shared/utils/streamText'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
@@ -239,13 +240,6 @@ function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMes
     if (chunk.type === 'tool-input-available' && chunk.toolCallId === toolCallId) return chunk
   }
   return undefined
-}
-
-/** The AI SDK `error` chunk carries only `error.message`, so rebuilding from it drops the
- *  `statusCode`/`responseBody` that classification and the error block need. Prefer the
- *  thrown error whenever it still carries them. */
-function hasHttpMetadata(error: SerializedError): boolean {
-  return error.statusCode != null || error.responseBody != null
 }
 
 /**
@@ -2053,10 +2047,8 @@ export class AiStreamManager extends BaseService {
       } else {
         logger.error('Execution loop error', { topicId, modelId, err: chatErrorContext(result.threw.error) })
       }
-      const serialized =
-        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow)
-          ? errorFromStreamChunk(result.streamErrorText)
-          : fromThrow
+      const chunkText = result.streamErrorText === undefined ? '' : readableStreamText(result.streamErrorText)
+      const serialized = !signal.aborted && chunkText ? { ...fromThrow, message: chunkText } : fromThrow
       await this.onExecutionError(topicId, modelId, serialized, exec)
       return
     }

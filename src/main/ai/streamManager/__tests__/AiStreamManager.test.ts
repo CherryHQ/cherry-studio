@@ -3389,9 +3389,82 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('error')
     })
 
-    it('keeps the thrown error when a lossy error chunk precedes it', async () => {
-      // The chunk carries only `error.message`; rebuilding from it would drop the
-      // status code and safe provider detail that classification and the error block need.
+    it.each([
+      { tags: { code: 'ECONNRESET' }, expected: { providerErrorCode: 'ECONNRESET' }, chunkText: 'socket closed' },
+      { tags: { status: 503 }, expected: { status: 503 }, chunkText: 'upstream unavailable' },
+      { tags: { code: 'ECONNRESET' }, expected: { providerErrorCode: 'ECONNRESET' }, chunkText: undefined }
+    ])(
+      'preserves chunk text and thrown diagnostics, including rejection without a chunk: %j',
+      async ({ tags, expected, chunkText }) => {
+        vi.useRealTimers()
+        const error = Object.assign(new Error('Stream error'), tags)
+        let pulls = 0
+        mockStreamText.mockResolvedValueOnce(
+          new ReadableStream({
+            pull(controller) {
+              if (++pulls === 1 && chunkText !== undefined) controller.enqueue({ type: 'error', errorText: chunkText })
+              else controller.error(error)
+            }
+          })
+        )
+        const listener = new FakeListener('l:a')
+        startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+        await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+        expect(listener.errorResults[0].error).toEqual({
+          name: 'Error',
+          message: chunkText ?? 'Stream error',
+          stack: error.stack,
+          cause: null,
+          ...expected
+        })
+        expect(listener.errorResults[0].status).toBe('error')
+        expect(mgr.inspect('a')!.status).toBe('error')
+      }
+    )
+    it.each(['Stream error', '', '   ', undefined])(
+      'preserves the readable thrown error and diagnostics for chunk text %j',
+      async (chunkText) => {
+        vi.useRealTimers()
+        const apiError = new APICallError({
+          message: 'Forbidden',
+          url: 'https://llm.example.com/v1/chat/completions',
+          requestBodyValues: {},
+          statusCode: 403,
+          responseHeaders: {},
+          responseBody: '{"detail":"no access to this model"}',
+          isRetryable: false
+        })
+        let pulls = 0
+        mockStreamText.mockResolvedValueOnce(
+          new ReadableStream({
+            pull(controller) {
+              if (++pulls === 1 && chunkText !== undefined) controller.enqueue({ type: 'error', errorText: chunkText })
+              else controller.error(apiError)
+            }
+          })
+        )
+        const listener = new FakeListener('l:a')
+        startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+
+        await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+        expect(listener.errorResults[0].error).toEqual({
+          name: 'AI_APICallError',
+          message: 'no access to this model',
+          providerErrorCategory: 'permission',
+          stack: null,
+          cause: null,
+          url: '',
+          requestBodyValues: null,
+          statusCode: 403,
+          responseHeaders: null,
+          responseBody: null,
+          isRetryable: false,
+          data: null
+        })
+      }
+    )
+    it('keeps thrown diagnostics while showing the chunk text', async () => {
       vi.useRealTimers()
 
       const apiError = new APICallError({
@@ -3410,7 +3483,7 @@ describe('AiStreamManager', () => {
         new ReadableStream({
           pull(controller) {
             pulls += 1
-            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' })
+            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Access to this model is denied.' })
             else controller.error(apiError)
           }
         })
@@ -3428,7 +3501,7 @@ describe('AiStreamManager', () => {
 
       expect(listener.errorResults[0].error).toEqual({
         name: 'AI_APICallError',
-        message: 'no access to this model',
+        message: 'Access to this model is denied.',
         providerErrorCategory: 'permission',
         stack: null,
         cause: null,

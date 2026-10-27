@@ -1495,6 +1495,8 @@
   "error.statusCode": "Cod stare",
   "error.statusText": "Text stare",
   "error.stream_paused": "Întrerupt",
+  "error.stream_unreadable.description": "Nu s-au primit detalii lizibile despre eroare. Încercați din nou; dacă problema se repetă, verificați jurnalele.",
+  "error.stream_unreadable.title": "Răspunsul a eșuat",
   "error.text": "Text",
   "error.toolInput": "Intrare instrument",
   "error.toolName": "Nume instrument",
