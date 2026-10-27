@@ -256,6 +256,10 @@ type StreamContext = {
   olHead: string
   olPending: string
   /** Cached verdict of the previous-line check for an indented open line, keyed by line start and accumulator generation. */
+  /** The two completed lines before the open line (null = unknown/longer than the head) and how many lines precede it in the block (capped at 2): the whole input of the previous-line verdict. */
+  olPrev1: string | null
+  olPrev2: string | null
+  olDone: number
   olPrevVerdict: { start: number; gen: number; allows: boolean } | null
   /** Bumped whenever accumulatedText is replaced rather than appended. */
   accGen: number
@@ -278,6 +282,8 @@ type StreamContext = {
   toolProtocolStripLastNonWsChar: string
   /** Shape of the text from the last '<': 0 none/not tag-like, 1 '<', 2 '</', 3 tag-like name so far. */
   toolProtocolStripTagState: number
+  /** A trailing high surrogate not yet paired, with the tag state before it. */
+  toolProtocolStripHighSurrogate: { char: string; state: number } | null
   suppressActiveTextPart: boolean
   /** Set once a text part is classified as a compaction artifact: its remaining deltas are dropped. */
   suppressCompactionArtifactPart: boolean
@@ -636,12 +642,8 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
 /** Head of a long quote-led open line carried verbatim across deltas. */
 const QUOTE_LINE_CARRY_HEAD = 256
 /** Open-line head kept by the incremental tracker; lines up to this length are handled without touching the accumulator. */
-let OPEN_LINE_HEAD_MAX = 1024
+const OPEN_LINE_HEAD_MAX = 1024
 const ACC_RECENT_MAX = 256
-/** Test hook: shrink the tracker head so the long-line paths run on small corpus inputs. */
-export function setOpenLineHeadMaxForTesting(n: number | null): void {
-  OPEN_LINE_HEAD_MAX = n ?? 1024
-}
 
 export class ClaudeCodeStreamAdapter {
   private ctx: StreamContext
@@ -763,6 +765,9 @@ export class ClaudeCodeStreamAdapter {
       olLen: 0,
       olHead: '',
       olPending: '',
+      olPrev1: null,
+      olPrev2: null,
+      olDone: 0,
       olPrevVerdict: null,
       accGen: 0,
       toolProtocolStripAccumulator: '',
@@ -772,6 +777,7 @@ export class ClaudeCodeStreamAdapter {
       toolProtocolStripUnemitted: '',
       toolProtocolStripLastNonWsChar: '',
       toolProtocolStripTagState: 0,
+      toolProtocolStripHighSurrogate: null,
       suppressActiveTextPart: false,
       suppressCompactionArtifactPart: false,
       compactionScratchpadStripped: false,
@@ -789,6 +795,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.toolProtocolStripUnemitted = ''
     ctx.toolProtocolStripLastNonWsChar = ''
     ctx.toolProtocolStripTagState = 0
+    ctx.toolProtocolStripHighSurrogate = null
   }
 
   /** Strips tool-protocol closings only once trailing content is known (block may span deltas). */
@@ -800,18 +807,41 @@ export class ClaudeCodeStreamAdapter {
     ctx.toolProtocolStripAccumulator += text
     if (ctx.toolProtocolStripUnemitted !== null) ctx.toolProtocolStripUnemitted += text
     for (let i = 0; i < text.length; i++) {
-      const ch = text[i]
-      if (ch === '<') {
-        ctx.toolProtocolStripLastLtIndex = appendBase + i
-        ctx.toolProtocolStripTagState = 1
-      } else if (ctx.toolProtocolStripTagState !== 0) {
-        if (ch === '/' && ctx.toolProtocolStripTagState === 1) ctx.toolProtocolStripTagState = 2
-        else ctx.toolProtocolStripTagState = /[\p{L}\p{N}_|｜-]/u.test(ch) ? 3 : 0
+      let ch = text[i]
+      const code = ch.charCodeAt(0)
+      if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
+        // Step by code point so an astral letter classifies as the old whole-string /u regex did.
+        const low = text.charCodeAt(i + 1)
+        if (low >= 0xdc00 && low <= 0xdfff) {
+          ch += text[i + 1]
+        }
+      }
+      const width = ch.length
+      if (ctx.toolProtocolStripHighSurrogate !== null && width === 1 && code >= 0xdc00 && code <= 0xdfff) {
+        // A pair split across deltas: re-classify it as one code point from the state before its high half.
+        const before = ctx.toolProtocolStripHighSurrogate
+        ctx.toolProtocolStripHighSurrogate = null
+        if (before.state !== 0) {
+          ctx.toolProtocolStripTagState = /[\p{L}\p{N}_|｜-]/u.test(before.char + ch) ? 3 : 0
+        }
+      } else {
+        ctx.toolProtocolStripHighSurrogate = null
+        if (code >= 0xd800 && code <= 0xdbff && width === 1 && i + 1 === text.length) {
+          ctx.toolProtocolStripHighSurrogate = { char: ch, state: ctx.toolProtocolStripTagState }
+        }
+        if (ch === '<') {
+          ctx.toolProtocolStripLastLtIndex = appendBase + i
+          ctx.toolProtocolStripTagState = 1
+        } else if (ctx.toolProtocolStripTagState !== 0) {
+          if (ch === '/' && ctx.toolProtocolStripTagState === 1) ctx.toolProtocolStripTagState = 2
+          else ctx.toolProtocolStripTagState = /[\p{L}\p{N}_|｜-]/u.test(ch) ? 3 : 0
+        }
       }
       if (!/\s/u.test(ch)) {
-        ctx.toolProtocolStripLastNonWsIndex = appendBase + i
+        ctx.toolProtocolStripLastNonWsIndex = appendBase + i + width - 1
         ctx.toolProtocolStripLastNonWsChar = ch
       }
+      i += width - 1
     }
     // The strip is a no-op unless the last non-whitespace character is '>'
     // (its linear guard's first check). Skipping the call then keeps a long
@@ -1638,6 +1668,22 @@ export class ClaudeCodeStreamAdapter {
     if (text === '') return
     const nl = text.lastIndexOf('\n')
     if (nl >= 0) {
+      // Lines this append completes feed the previous-line verdict window.
+      const parts = text.split('\n')
+      for (let k = 0; k < parts.length - 1; k++) {
+        let completed: string | null
+        if (k === 0) {
+          completed =
+            ctx.olLen === ctx.olHead.length && ctx.olHead.length + parts[0].length <= OPEN_LINE_HEAD_MAX
+              ? ctx.olHead + parts[0]
+              : null
+        } else {
+          completed = parts[k].length <= OPEN_LINE_HEAD_MAX ? parts[k] : null
+        }
+        ctx.olPrev2 = ctx.olPrev1
+        ctx.olPrev1 = completed
+        ctx.olDone = Math.min(2, ctx.olDone + 1)
+      }
       const line = text.slice(nl + 1)
       ctx.olStart = prev + nl + 1
       ctx.olLen = line.length
@@ -1661,6 +1707,16 @@ export class ClaudeCodeStreamAdapter {
     ctx.olHead = acc.slice(start, start + OPEN_LINE_HEAD_MAX)
     ctx.olPending = ''
     ctx.accRecent = acc.slice(-ACC_RECENT_MAX)
+    // Prior lines of the block are unknown after a rebuild; only their count
+    // (capped at 2) is recovered, so the verdict falls back to the block slice.
+    ctx.olPrev1 = null
+    ctx.olPrev2 = null
+    let done = 0
+    for (let at = start; done < 2 && at > ctx.textBlockContextStart; done++) {
+      at = acc.lastIndexOf('\n', at - 2) + 1
+      if (at < ctx.textBlockContextStart) at = ctx.textBlockContextStart
+    }
+    ctx.olDone = done
     ctx.olSyncLen = acc.length
   }
 
@@ -2071,12 +2127,19 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.olStart === ctx.textBlockContextStart) return carry
     let verdict = ctx.olPrevVerdict
     if (!verdict || verdict.start !== ctx.olStart || verdict.gen !== ctx.accGen) {
-      const text = ctx.accumulatedText.slice(ctx.textBlockContextStart)
-      verdict = {
-        start: ctx.olStart,
-        gen: ctx.accGen,
-        allows: this.indentCarryAllowedByPreviousLine(text, ctx.olStart - ctx.textBlockContextStart)
+      let allows: boolean
+      const known = ctx.olDone >= 1 && ctx.olPrev1 !== null && (ctx.olDone === 1 || ctx.olPrev2 !== null)
+      if (known) {
+        // Only the two lines before the open line can matter (the previous
+        // line and, for a setext underline, the line before it).
+        const window = (ctx.olDone >= 2 ? `${ctx.olPrev2}\n` : '') + `${ctx.olPrev1}\n`
+        allows = this.indentCarryAllowedByPreviousLine(window, window.length)
+      } else {
+        this.scratchpadWholeSliceChars += ctx.accumulatedText.length - ctx.textBlockContextStart
+        const text = ctx.accumulatedText.slice(ctx.textBlockContextStart)
+        allows = this.indentCarryAllowedByPreviousLine(text, ctx.olStart - ctx.textBlockContextStart)
       }
+      verdict = { start: ctx.olStart, gen: ctx.accGen, allows }
       ctx.olPrevVerdict = verdict
     }
     return verdict.allows ? carry : ''

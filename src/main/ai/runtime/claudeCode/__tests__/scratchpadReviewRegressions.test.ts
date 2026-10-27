@@ -200,4 +200,66 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
     const input = `> ${'word '.repeat(2000)}<tool_use_end`
     for (const size of [1, 3, 20]) expect(deliver(input, size)).toBe(deliver(input, null))
   })
+
+  it('tracks the trailing tag shape like the whole-string /u regex, including astral letters and split surrogate pairs', () => {
+    const alphabet = ['<', '/', 'a', 'Z', '7', '_', '|', '\uFF5C', '-', ' ', '>', '\n', '\u{1D49C}', '\u{1F600}']
+    let seed = 0x5eed
+    const rnd = () => {
+      seed = (seed + 0x6d2b79f5) | 0
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+    for (let n = 0; n < 1500; n++) {
+      const len = 1 + Math.floor(rnd() * 12)
+      let text = ''
+      for (let i = 0; i < len; i++) text += alphabet[Math.floor(rnd() * alphabet.length)]
+      const adapter = makeAdapter([]) as any
+      const ctx = adapter.ctx
+      ctx.filterParentlessScratchpadText = true
+      // code-unit chunking, so surrogate pairs are split across calls
+      let at = 0
+      while (at < text.length) {
+        const step = 1 + Math.floor(rnd() * 3)
+        adapter.takeToolProtocolStrippedVisibleDelta(text.slice(at, at + step), ctx)
+        at += step
+      }
+      const acc: string = ctx.toolProtocolStripAccumulator
+      const lt = acc.lastIndexOf('<')
+      const expected = lt !== -1 && /^<\/?[\p{L}\p{N}_|\uFF5C-]*$/u.test(acc.slice(lt))
+      expect(ctx.toolProtocolStripTagState !== 0, JSON.stringify(text)).toBe(expected)
+    }
+  })
+
+  it('computes the stepped cut from the delta alone exactly like the full scan while the unstepped tail has no line ending', () => {
+    // steppedLineEndOffset recognizes only \r\n, \r and \n (/\r\n|\r|\n/g); the fast path's end-of-line flag tests the same set.
+    const adapter = makeAdapter([]) as any
+    const pick = (alpha: string[], len: number, r: () => number) =>
+      Array.from({ length: len }, () => alpha[Math.floor(r() * alpha.length)]).join('')
+    let seed = 0xabc123
+    const r = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0
+      return seed / 4294967296
+    }
+    for (let n = 0; n < 4000; n++) {
+      const unstepped = pick(['a', ' ', '`', '>', '-', '\u2028'], Math.floor(r() * 6), r)
+      const incoming = pick(['a', '\r', '\n', '`', '>', '~', '\u2029'], Math.floor(r() * 8), r)
+      const full = adapter.steppedLineEndOffset(unstepped + incoming)
+      const inc = adapter.steppedLineEndOffset(incoming)
+      expect(inc > 0 ? unstepped.length + inc : 0, JSON.stringify([unstepped, incoming])).toBe(full)
+      const combined = unstepped + incoming
+      const tail = combined.slice(Math.max(full, 0))
+      const flag = !combined.endsWith('\r')
+      if (full > 0) expect(!/[\r\n]/.test(tail)).toBe(flag)
+    }
+  })
+
+  it('keeps the previous-line verdict work bounded over thousands of indented lines', () => {
+    const lines = Array.from({ length: 2500 }, (_, i) => `    code line ${i}`).join('\n')
+    const input = `- item\n\n${lines}\n`
+    const r = deliverWithWork(input, 20)
+    expect(r.out).toBe(deliver(input, null))
+    expect(r.whole).toBeLessThan(input.length)
+    expect(r.carry).toBeLessThan(input.length * 80)
+  })
 })
