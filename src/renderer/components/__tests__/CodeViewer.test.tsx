@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,6 +31,7 @@ let clientWidth = 640
 let measuredRowHeight: (element: HTMLElement) => number = () => 21
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
   captureHighlight.read.mockReset()
   captureHighlight.cleanup.mockReset()
   MockUsePreferenceUtils.resetMocks()
@@ -67,7 +68,12 @@ beforeEach(() => {
     return { top, bottom: top + 300, left: 0, right: 640, width: 640, height: 300, x: 0, y: top, toJSON() {} }
   })
 })
-afterEach(() => {
+afterEach(async () => {
+  cleanup()
+  // Drain the virtualizer's scroll-end debounce before jsdom destroys window.
+  await act(() => vi.runOnlyPendingTimers())
+  expect(vi.getTimerCount()).toBe(0)
+  vi.useRealTimers()
   vi.restoreAllMocks()
   for (const key of ['clientWidth', 'clientHeight', 'offsetWidth', 'offsetHeight', 'scrollHeight', 'scrollTo']) {
     const descriptor = originalDescriptors[key]
