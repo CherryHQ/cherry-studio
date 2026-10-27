@@ -122,6 +122,25 @@ describe('WordFilePreview', () => {
     }
   })
 
+  it('drops the grey mat docx-preview paints around the page', async () => {
+    mocks.renderAsync.mockImplementationOnce(
+      async (_data: Uint8Array, body: HTMLElement, _style: unknown, options: { className: string }) => {
+        body.innerHTML = `<div class="${options.className}-wrapper"><section>Mat page</section></div>`
+      }
+    )
+    render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 7, mocks.fsRead, 9)}
+      />
+    )
+    await screen.findByText('Mat page')
+    const wrapper = screen.getByTestId('docx-preview-content').querySelector<HTMLElement>('.docx-preview-wrapper')
+    expect(wrapper?.style.background).toBe('transparent')
+    expect(wrapper?.style.padding).toBe('0px')
+  })
+
   it('retains zoom, page and scroll on replacement and clamps a shorter document', async () => {
     const user = userEvent.setup()
     const view = (generation: number) => (
