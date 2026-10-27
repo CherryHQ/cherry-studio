@@ -28,6 +28,18 @@ function streamEvent(event: Record<string, unknown>) {
 }
 
 function deliver(input: string, chunkSize: number | null): string {
+  const chunks: string[] = []
+  if (chunkSize === null) {
+    chunks.push(input)
+  } else {
+    for (let i = 0; i < input.length; i += chunkSize) {
+      chunks.push(input.slice(i, i + chunkSize))
+    }
+  }
+  return deliverChunks(chunks)
+}
+
+function deliverChunks(chunks: string[]): string {
   const parts: CherryUIMessageChunk[] = []
   const adapter = new ClaudeCodeStreamAdapter({
     modelId: 'sonnet',
@@ -41,20 +53,10 @@ function deliver(input: string, chunkSize: number | null): string {
   adapter.handleMessage(
     streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
   )
-  if (chunkSize === null) {
+  for (const text of chunks) {
     adapter.handleMessage(
-      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: input } })
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
     )
-  } else {
-    for (let i = 0; i < input.length; i += chunkSize) {
-      adapter.handleMessage(
-        streamEvent({
-          type: 'content_block_delta',
-          index: 0,
-          delta: { type: 'text_delta', text: input.slice(i, i + chunkSize) }
-        })
-      )
-    }
   }
   adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
   return parts
@@ -122,7 +124,26 @@ const FENCE_CORPUS: Array<[string, string]> = [
   ['ordered-marker-backtick-tag-in-fence', '1. ```\n   <thinking>in-code</thinking>\n   ```\n\ntail\n'],
   // An inline run after real list text is NOT a fence opener: the own-marker
   // -line parse must reject it so the post-blank-line tag still strips.
-  ['ordered-inline-run-not-fence', '1. text ``` inline\n\n<thinking>strip</thinking>\n']
+  ['ordered-inline-run-not-fence', '1. text ``` inline\n\n<thinking>strip</thinking>\n'],
+  // Marker variants at their true container content column: the closer
+  // closes the fence inside the item/quote and the tag outside strips.
+  ['ordered-2digit-marker-tilde-fence', '10. ~~~\n    code\n    ~~~\n\n<thinking>strip</thinking>\n'],
+  ['tab-marker-tilde-fence', '1.\t~~~\n    code\n    ~~~\n\n<thinking>strip</thinking>\n'],
+  ['quote-marker-tilde-fence', '> 1. ~~~\n     code\n     ~~~\n\n<thinking>strip</thinking>\n'],
+  // A closer dedented past the item content column ends the item first: the
+  // unclosed fence auto-closes at the container end and the dedented line
+  // RE-OPENS a top-level fence, so the tag stays code (CommonMark).
+  ['dedented-closer-reopens-fence', '1. ~~~\n  code\n  ~~~\n\n<thinking>x</thinking>\n'],
+  ['col0-closer-reopens-fence', '1. ~~~\n   code\n~~~\n\n<thinking>x</thinking>\n'],
+  // Info-string backtick / partial run negatives: not fences at all.
+  ['ordered-info-backtick-not-fence', '1. ``` a`b\n\n<thinking>strip</thinking>\n'],
+  ['ordered-partial-tilde-not-fence', '1. ~x\n\n<thinking>strip</thinking>\n'],
+  // INHERITED (verified): nested marker chain '- 1. ~~~'. Whole delivery
+  // strips; EVERY fixed chunking (1/2/3/5/7/20) preserves the tag
+  // identically on prior PR head 0d2860cb21, on baee30bc8d and here - a
+  // chunk-dependent suppression misclassification that predates this PR's
+  // rebuild. Runner is it.fails below; retire when fixed and say why.
+  ['nested-marker-tilde-fence', '- 1. ~~~\n   code\n   ~~~\n\n<thinking>strip</thinking>\n']
 ]
 
 /** Cases whose visible output must keep the literal tag (code-classified). */
@@ -135,7 +156,9 @@ const PRESERVE_CASES = new Set([
   'closed-chunk-exact',
   'tilde-fence',
   'ordered-marker-tilde-tag-in-fence',
-  'ordered-marker-backtick-tag-in-fence'
+  'ordered-marker-backtick-tag-in-fence',
+  'dedented-closer-reopens-fence',
+  'col0-closer-reopens-fence'
 ])
 
 function deliverAdapter(input: string, chunkSize: number | null, withStop = true) {
@@ -182,7 +205,10 @@ const CLOSED_FENCE_CASES = [
   'list-marker-backtick-fence',
   'ordered-marker-backtick-fence',
   'ordered-marker-tilde-tag-in-fence',
-  'ordered-marker-backtick-tag-in-fence'
+  'ordered-marker-backtick-tag-in-fence',
+  'ordered-2digit-marker-tilde-fence',
+  'tab-marker-tilde-fence',
+  'quote-marker-tilde-fence'
 ]
 
 describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc875e16a2f)', () => {
@@ -198,13 +224,25 @@ describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc87
     // remainder starts a fence run, plus strict own-marker-line fence
     // recognition in the scan's container guards. The case now runs as a
     // normal assertion at every chunking.
-    const runner = it
+    const runner = id === 'nested-marker-tilde-fence' ? it.fails : it
     runner(`${id}: whole/1/2/3/5/7/20-char delivery`, () => {
       const whole = deliver(input, null)
       if (PRESERVE_CASES.has(id)) expect(whole.includes('<thinking>')).toBe(true)
       for (const size of [1, 2, 3, 5, 7, 20]) {
         expect(deliver(input, size)).toBe(whole)
       }
+    })
+  }
+
+  // Bare-marker boundary: the marker line is emitted with an EMPTY buffered
+  // remainder and the whole fence run arrives as one fresh delta (review
+  // probe). The completed opener must still classify as a fence.
+  for (const marker of ['1. ', '- ', '10. ', '1.\t', '+ ']) {
+    it(`bare-marker split then whole run: ${JSON.stringify(marker)}`, () => {
+      const rest = '~~~\n   code\n   ~~~\n\n<thinking>strip</thinking>\n'
+      const whole = deliver(marker + rest, null)
+      const split = deliverChunks([marker, rest])
+      expect(split).toBe(whole)
     })
   }
 
@@ -226,7 +264,18 @@ describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc87
   // that only resolves at stop misclassifies the streamed tail (cherry-review
   // marker-line opener gap: '- ~~~' / '1. ~~~' openers).
   for (const [id, input] of FENCE_CORPUS.filter(([id]) => CLOSED_FENCE_CASES.includes(id) && id !== 'closed-at-eof')) {
-    it(`${id}: held fence released before stop`, () => {
+    // EXPECTED-FAIL TRIPWIRE (inherited, verified): for content-column-4+
+    // markers ('10. ', tab), a closer at the item content column is not
+    // recognized when the streaming span ends exactly at the closer line -
+    // textHasUnclosedCodeFence('10. ~~~\n    code\n    ~~~\n') is true
+    // identically on prior PR head 0d2860cb21 and on baee30bc8d, so the
+    // recognition gap predates this PR; the held tracker (added by this PR)
+    // exposes it as pre-stop stale state. Final output stays correct via the
+    // stop flush. A real closer-recognition fix fires this tripwire: retire
+    // the it.fails and say why.
+    const preStopRunner =
+      id === 'ordered-2digit-marker-tilde-fence' || id === 'tab-marker-tilde-fence' ? it.fails : it
+    preStopRunner(`${id}: held fence released before stop`, () => {
       for (const size of [null, 1, 5, 20]) {
         const adapter = deliverAdapter(input, size, false)
         expect((adapter as any).ctx.scratchpadMaskHeldFence).toBeNull()
