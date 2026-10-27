@@ -1,7 +1,7 @@
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it, vi } from 'vitest'
 
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
 import {

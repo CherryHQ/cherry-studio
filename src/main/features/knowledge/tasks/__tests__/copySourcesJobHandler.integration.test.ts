@@ -4,10 +4,10 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext } from '@main/core/job/types'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
