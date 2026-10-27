@@ -66,6 +66,7 @@ export const SystemProviderIdSchema = z.enum([
   'tokenhub',
   'vertexai',
   'voyageai',
+  'watt-cloud',
   'xirang',
   'zai',
   'zhipu'
@@ -138,6 +139,7 @@ export const SystemProviderIds = {
   tokenhub: 'tokenhub',
   vertexai: 'vertexai',
   voyageai: 'voyageai',
+  'watt-cloud': 'watt-cloud',
   xirang: 'xirang',
   zai: 'zai',
   zhipu: 'zhipu'
