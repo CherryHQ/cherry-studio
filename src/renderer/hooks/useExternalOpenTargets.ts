@@ -14,9 +14,8 @@ export function useExternalOpenTargets(
   pathKind: ExternalOpenTargetPathKind,
   options?: { enabled?: boolean }
 ) {
-  const queryScope = getExternalOpenTargetScope(targetPath, pathKind)
   const query = useSWRImmutable(
-    options?.enabled === false ? null : ['external-open-targets', queryScope],
+    options?.enabled === false ? null : ['external-open-targets', pathKind, targetPath],
     () => externalOpenTargetService.list(targetPath, pathKind),
     { shouldRetryOnError: false }
   )

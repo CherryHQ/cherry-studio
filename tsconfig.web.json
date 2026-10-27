@@ -54,6 +54,7 @@
       "@cherrystudio/web-search/providers/crawl4ai": ["./packages/web-search/src/providers/crawl4ai.ts"],
       "@cherrystudio/web-search/providers/parallel": ["./packages/web-search/src/providers/parallel.ts"],
       "@cherrystudio/web-search/providers/serply": ["./packages/web-search/src/providers/serply.ts"],
+      "@cherrystudio/web-search/providers/yuanbao": ["./packages/web-search/src/providers/yuanbao.ts"],
       "@cherrystudio/web-search/providers/deepseek": ["./packages/web-search/src/providers/deepseek.ts"],
       "@cherrystudio/web-search/tools/config": ["./packages/web-search/src/tools/config.ts"],
       "@cherrystudio/web-search/tools/url-filter": ["./packages/web-search/src/tools/urlFilter.ts"],

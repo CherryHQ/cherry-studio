@@ -9,6 +9,7 @@ import type {
   AgentInteraction,
   AgentParams,
   AgentMessage,
+  AgentMessageListItem,
   AgentPart,
   AgentSession,
   ContentRef
@@ -206,7 +207,7 @@ export function toMessageModel(
   return result.success ? result.data : undefined
 }
 
-export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+function toMessageMetadata(message: AgentSessionMessageEntity) {
   const usage = toMessageUsage(message.stats)
   const model = toMessageModel(message)
   const error = message.data.parts?.find((part) => part.type === 'data-error')
@@ -216,7 +217,6 @@ export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
     ...(model ? { model } : {}),
     revision: revisionOf(message.updatedAt),
     role: message.role,
-    partIds: projectPersistedParts(message).map(({ part }) => part.partId),
     status: message.status,
     ...(message.status === 'error'
       ? {
@@ -229,12 +229,17 @@ export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
   }
 }
 
+export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+  return { ...toMessageMetadata(message), partIds: projectPersistedParts(message).map(({ part }) => part.partId) }
+}
+
 export function listMessages(
   sessionId: string,
   historyRevision: string,
   cursor?: string,
-  limit?: number
-): { items: AgentMessage[]; nextCursor: string | null } {
+  limit?: number,
+  partsMode?: 'paged'
+): { items: AgentMessageListItem[]; nextCursor: string | null } {
   const session = getSession(sessionId)
   if (revisionOf(session.updatedAt) !== historyRevision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'History revision expired')
@@ -242,7 +247,12 @@ export function listMessages(
     const page = notFound(() =>
       agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: attemptLimit })
     )
-    return { items: page.items.map(toMessage), nextCursor: page.nextCursor ?? null }
+    return {
+      items: page.items.map((message) =>
+        partsMode === 'paged' ? { ...toMessageMetadata(message), partsMode } : toMessage(message)
+      ),
+      nextCursor: page.nextCursor ?? null
+    }
   }, limit)
 }
 

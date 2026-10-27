@@ -42,7 +42,8 @@ vi.mock('../modelListHealthContext', () => ({
   useModelListHealthRun: () => ({
     apiKeyEntries: [],
     savingKeyId: null,
-    toggleApiKey: vi.fn()
+    toggleApiKey: vi.fn(),
+    completedModelStatuses: []
   })
 }))
 

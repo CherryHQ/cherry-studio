@@ -20,13 +20,11 @@ import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   resolveDelegationApproval,
-  toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
-import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
@@ -45,15 +43,6 @@ export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
  */
 export const CROSS_SESSION_DELEGATION_HEADLESS_DENIAL =
   'Cross-Session delegation (session_send / session_create) always requires live per-call user approval, which a delivery-, channel-, or scheduled-triggered turn cannot present. The tool call was denied and did not run; do not retry it in this turn. If this turn was started by a delivery with reply "completion", your final assistant output is returned to the sender automatically — finish the turn with your answer as normal output instead.'
-const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
-  'rename',
-  'complete_bootstrap',
-  'reset_bootstrap',
-  'add_channel',
-  'update_channel',
-  'remove_channel',
-  'reconnect_channel'
-])
 export const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
@@ -95,11 +84,6 @@ const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | nu
     signal: ctx.signal
   })
   return decision ? {} : null
-}
-
-const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
-  const action = typeof ctx.input?.action === 'string' ? ctx.input.action : ''
-  return HEADLESS_CONFIG_MUTATION_ACTIONS.has(action) ? {} : null
 }
 
 const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
@@ -203,15 +187,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `This exact Bash command already ran ${hit.evidence} times in a row with byte-identical output — repeating it yields no new information. Diagnose why the output is not changing, vary the command, or report the blocker instead of retrying.`
-  },
-  {
-    id: 'headless-config-mutation',
-    match: { tool: toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME), when: mutatingConfigAction },
-    headless: {
-      predicate: 'turn-headless',
-      reason:
-        'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
-    }
   },
   {
     id: 'interactive-headless',
