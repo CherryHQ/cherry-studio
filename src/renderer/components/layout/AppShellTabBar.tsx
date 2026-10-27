@@ -816,7 +816,7 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
+    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true, position: 'end' })
   }
 
   // ─── Close-in-place freeze/thaw ─────────────────────────────────────────────

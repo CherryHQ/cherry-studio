@@ -382,10 +382,10 @@ export function TabsProvider({
   )
 
   const addTab = useCallback(
-    (tab: Tab) => {
+    (tab: Tab, position: OpenTabOptions['position'] = 'after-active') => {
       const currentTabs = projectedTabsRef.current
       const exists = currentTabs.some((item) => item.id === tab.id)
-      const activeIndex = currentTabs.findIndex((item) => item.id === activeTabIdRef.current)
+      const activeIndex = position === 'end' ? -1 : currentTabs.findIndex((item) => item.id === activeTabIdRef.current)
       const refreshed = { ...tab, lastAccessTime: Date.now(), isDormant: false }
       const next = exists
         ? currentTabs.map((item) => (item.id === tab.id ? refreshed : item))
@@ -453,7 +453,7 @@ export function TabsProvider({
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned, position } = options
 
       if (!forceNew) {
         const existingTab = projectedTabsRef.current.find((t) => t.type === type && t.url === url)
@@ -475,7 +475,7 @@ export function TabsProvider({
         isDormant: false
       }
 
-      addTab(newTab)
+      addTab(newTab, position)
       return newTab.id
     },
     [addTab]
