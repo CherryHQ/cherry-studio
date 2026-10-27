@@ -70,6 +70,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
       else delete sources[block.id]
       return { ...current, markdownSources: sources }
     })
+    attempt.current = getCachedMessageUiState(messageId).markdownSources?.[block.id]
   }, [messageId, block.id, block.content, block.status, attempt])
   const isStreaming = block.status === 'streaming'
   const content =

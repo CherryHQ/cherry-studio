@@ -2,13 +2,18 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Scrollbar } from '@cherrystudio/ui'
-import { invalidateCachedMessageUiStates, updateCachedMessageUiState } from '@renderer/services/messageUiStateCache'
+import {
+  getCachedMessageUiState,
+  invalidateCachedMessageUiStates,
+  updateCachedMessageUiState
+} from '@renderer/services/messageUiStateCache'
 
 import { MessagePartsScopeProvider } from '../MessagePartsContext'
 import ThinkingBlock from '../ThinkingBlock'
 
 // Exercise the real nested scrollbars; the renderer-wide mock only renders a div.
 vi.unmock('@cherrystudio/ui')
+vi.unmock('@data/CacheService')
 
 // Mock dependencies
 const mockUseTranslation = vi.fn()
@@ -434,6 +439,27 @@ describe('ThinkingBlock', () => {
 
     afterEach(() => vi.unstubAllGlobals())
     const resize = () => act(() => resizeCallbacks.forEach((callback) => callback()))
+
+    it.each([
+      ['absent', undefined, 0],
+      ['following', null, 300],
+      ['reading', 75, 75],
+      ['negative reading', -25, 0]
+    ] as const)('opens completed reasoning at its %s position', (_mode, saved, expected) => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      panelHeight = 400
+      const id = 'completed-initial-position'
+      if (saved !== undefined) {
+        updateCachedMessageUiState('thinking-owner', { thinkingScroll: { [id]: saved } })
+      }
+      renderThinkingBlock(createThinkingBlock({ id, status: 'success' }))
+      expect(getContentContainer()!.scrollTop).toBe(expected)
+      resize()
+      expect(getContentContainer()!.scrollTop).toBe(expected)
+      if (saved === undefined) {
+        expect(getCachedMessageUiState('thinking-owner').thinkingScroll?.[id]).toBeUndefined()
+      }
+    })
 
     it('restores reading position and expansion before observer and delayed scroll events', () => {
       const block = createThinkingBlock({ id: 'scroll-reading', status: 'streaming' })

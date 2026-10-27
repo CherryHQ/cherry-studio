@@ -95,9 +95,9 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const contentId = useId()
   const contentRef = useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = useState(() => {
-    const saved = messageId ? getCachedMessageUiState(messageId).thinkingScroll?.[id] : null
+    const saved = messageId ? getCachedMessageUiState(messageId).thinkingScroll?.[id] : undefined
     return {
-      position: typeof saved === 'number' && Number.isFinite(saved) && saved >= 0 ? saved : null,
+      position: saved === null || (typeof saved === 'number' && Number.isFinite(saved)) ? saved : undefined,
       pending: true,
       programmed: undefined as number | undefined,
       active: true,
@@ -110,7 +110,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
     const checkScroll = () => {
       if (scroll.active && scroll.owned && getCachedMessageUiState(messageId).thinkingScroll?.[id] === undefined) {
         scroll.active = false
-        setScroll({ position: null, pending: true, programmed: undefined, active: true, owned: false })
+        setScroll({ position: undefined, pending: true, programmed: undefined, active: true, owned: false })
       }
     }
     checkScroll()
@@ -119,10 +119,12 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const savePanel = useCallback(
     (panel: HTMLDivElement) => {
       if (!messageId || !scroll.active || scroll.pending || panel.hidden || panel.clientHeight <= 0) return
+      const position = scroll.position
+      if (position === undefined) return
       scroll.owned = true
       updateCachedMessageUiState(messageId, (current) => ({
         ...current,
-        thinkingScroll: { ...current.thinkingScroll, [id]: scroll.position }
+        thinkingScroll: { ...current.thinkingScroll, [id]: position }
       }))
     },
     [messageId, id, scroll]
@@ -130,8 +132,16 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const restorePanel = useCallback(
     (panel: HTMLDivElement) => {
       if (!scroll.active || panel.hidden || panel.clientHeight <= 0) return false
+      if (scroll.position === undefined) {
+        if (!isStreaming) {
+          scroll.pending = false
+          return false
+        }
+        scroll.position = null
+      }
       if (scroll.pending || (isStreaming && scroll.position === null)) {
-        const target = scroll.position === null ? getRealBottom(panel) : Math.min(scroll.position, getRealBottom(panel))
+        const target =
+          scroll.position === null ? getRealBottom(panel) : Math.max(0, Math.min(scroll.position, getRealBottom(panel)))
         panel.scrollTop = target
         scroll.programmed = target
         scroll.pending = false

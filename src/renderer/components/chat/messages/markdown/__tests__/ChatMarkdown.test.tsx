@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Activity, StrictMode, useLayoutEffect } from 'react'
@@ -19,6 +20,8 @@ const mocks = vi.hoisted(() => ({
         isDirectory?: (path: string) => Promise<boolean>
       }
 }))
+
+vi.unmock('@data/CacheService')
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 vi.mock('../../MessageListProvider', () => ({
@@ -96,6 +99,28 @@ describe('message animation continuity', () => {
     second.unmount()
     const other = render(stream('Alpha beta\n\nGamma', 'other-owner'))
     durations(other.container, { Alpha: '250ms', Gamma: '250ms' })
+  })
+  it('preserves the code wrapping choice after a same-source remount and another UI cache write', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.wrappable': true,
+      'chat.code.editor.enabled': false
+    })
+    const source = '```javascript\nconst value = 1\n```'
+    const first = render(stream(source), { wrapper: CodeStyleProvider })
+    first.unmount()
+    render(stream(source), { wrapper: CodeStyleProvider })
+    await user.click(screen.getByRole('button', { name: 'code_block.wrap.off' }))
+    expect(screen.getByRole('button', { name: 'code_block.wrap.on' })).toBeVisible()
+
+    act(() =>
+      updateCachedMessageUiState('animation-owner', (current) => ({
+        ...current,
+        disclosures: { ...current.disclosures, 'thinking:another-part': true }
+      }))
+    )
+
+    expect(screen.getByRole('button', { name: 'code_block.wrap.on' })).toBeVisible()
   })
   it('restores all words and blocks received while away, then animates only subsequent arrivals', () => {
     const first = render(stream('Alpha'))
