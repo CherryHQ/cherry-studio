@@ -157,6 +157,29 @@ test('runs no script from HTML in a reply, in its preview or in a link', async (
   expect(await page.evaluate(() => (window as { injected?: string }).injected)).toBeUndefined()
 })
 
+test('opens links in a new tab and answers the device type from the browser', async ({
+  page,
+  context,
+  browserName
+}) => {
+  await context.route('https://cherry-ai.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '' }))
+  await gotoApp(page)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'About & Feedback', exact: true }).click()
+  const opened = context.waitForEvent('page', { timeout: 10_000 })
+  const row = page.getByText('Official Website', { exact: true }).locator('xpath=ancestor::*[.//button][1]')
+  await row.getByRole('button', { name: 'Website', exact: true }).click()
+  await (await opened).waitForURL('https://cherry-ai.com/')
+
+  const deviceType = await page.evaluate(async () => {
+    const api = window.api as unknown as { ipcApi: { request(route: string): Promise<{ data: unknown }> } }
+    return (await api.ipcApi.request('system.get_device_type')).data
+  })
+  // The Desktop Chrome and Firefox profiles present Windows; Desktop Safari presents a Mac.
+  const expected = browserName === 'webkit' ? 'mac' : 'windows'
+  expect(deviceType).toBe(expected)
+})
+
 test('archives a chat topic from the topic list and restores it from Settings', async ({ page }) => {
   const run = Date.now().toString(36)
   const message = `topic to archive ${run}`

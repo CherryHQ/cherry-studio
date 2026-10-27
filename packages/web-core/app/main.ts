@@ -1,5 +1,6 @@
 import '../src/page/preload'
 import { CoreClient } from '../src/client/CoreClient'
+import { installBrowserShell } from '../src/page/browserShell'
 import { checkBrowserSupport } from '../src/page/browserSupport'
 import { connectCore } from '../src/page/electron'
 import { installFileDownloads } from '../src/page/fileDownloads'
@@ -21,6 +22,7 @@ async function start(): Promise<void> {
   connectCore(client)
   installLocalFolders(client)
   installFileDownloads()
+  installBrowserShell()
   reportNativeTheme()
   await client.open(LOCAL_ACCOUNT)
 }

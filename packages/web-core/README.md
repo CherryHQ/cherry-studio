@@ -178,6 +178,11 @@ everything else the main-process ones. Page files are typechecked with
 `sideEffects`; without it the bundler drops the preload import and `window.api` stays
 undefined.
 
+A few IpcApi routes are answered in the page (`answerInPage`), where the browser window and the
+click are: `src/page/browserShell.ts` opens links in a new tab, reloads the page, and reads the
+device type and full screen from the browser. Browsers do not list installed fonts, so the font
+setting offers its presets only.
+
 ## The Web app
 
 `vite.app.config.ts` builds `app/` with the desktop renderer's own Vite config (its defines,
