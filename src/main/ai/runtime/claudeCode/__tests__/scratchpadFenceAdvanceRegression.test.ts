@@ -54,9 +54,7 @@ function deliverChunks(chunks: string[]): string {
     streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
   )
   for (const text of chunks) {
-    adapter.handleMessage(
-      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
-    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
   }
   adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
   return parts
@@ -273,8 +271,7 @@ describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc87
     // exposes it as pre-stop stale state. Final output stays correct via the
     // stop flush. A real closer-recognition fix fires this tripwire: retire
     // the it.fails and say why.
-    const preStopRunner =
-      id === 'ordered-2digit-marker-tilde-fence' || id === 'tab-marker-tilde-fence' ? it.fails : it
+    const preStopRunner = id === 'ordered-2digit-marker-tilde-fence' || id === 'tab-marker-tilde-fence' ? it.fails : it
     preStopRunner(`${id}: held fence released before stop`, () => {
       for (const size of [null, 1, 5, 20]) {
         const adapter = deliverAdapter(input, size, false)

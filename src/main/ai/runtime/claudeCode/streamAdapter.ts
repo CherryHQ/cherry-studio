@@ -1370,10 +1370,7 @@ export class ClaudeCodeStreamAdapter {
    * container prefix, scratchpad-block enclosure, and the open-line state of
    * the held tail's final partial line.
    */
-  private buildHeldFence(
-    heldRaw: string,
-    ctx: StreamContext
-  ): NonNullable<StreamContext['scratchpadMaskHeldFence']> {
+  private buildHeldFence(heldRaw: string, ctx: StreamContext): NonNullable<StreamContext['scratchpadMaskHeldFence']> {
     const openerEnd = /\r\n|\r|\n/.exec(heldRaw)
     const openerLine = openerEnd ? heldRaw.slice(0, openerEnd.index) : heldRaw
     // The ACTUAL opener char and run length, parsed from the held raw opener
@@ -1809,7 +1806,10 @@ export class ClaudeCodeStreamAdapter {
     // marker-line fence chunking divergence / in-fence content loss). A
     // partial run is safe: the scan holds "1. ~"/"1. ~~" as a potential
     // fence prefix, and "1. ~x" still classifies as paragraph.
-    if (/^(?:(?:[-*+]|\d{1,9}[.)])\s+)+$/.test(openLine.slice(indent.length)) && /^[`~]/.test(ctx.scratchpadStreamRemainder)) {
+    if (
+      /^(?:(?:[-*+]|\d{1,9}[.)])\s+)+$/.test(openLine.slice(indent.length)) &&
+      /^[`~]/.test(ctx.scratchpadStreamRemainder)
+    ) {
       return openLine
     }
     return indent + markerHead + (paragraph ? 'x' : '') + tail + escapeMarker
