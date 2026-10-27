@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Activity, StrictMode, useLayoutEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -121,6 +121,33 @@ describe('message animation continuity', () => {
     )
 
     expect(screen.getByRole('button', { name: 'code_block.wrap.on' })).toBeVisible()
+  })
+  it('preserves SVG source view across another tab’s streaming update', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({ 'chat.code.editor.enabled': false })
+    const source = '```svg\n<svg xmlns="http://www.w3.org/2000/svg"><text>Diagram</text></svg>\n```'
+    const nextSource = source + '\n\nAnother chunk'
+    const first = render(<Activity mode="visible">{stream(source)}</Activity>, { wrapper: CodeStyleProvider })
+    const second = render(<Activity mode="hidden">{stream(source)}</Activity>, { wrapper: CodeStyleProvider })
+    await user.click(within(first.container).getByRole('button', { name: 'preview.source' }))
+    expect(within(first.container).getByRole('button', { name: 'preview.label' })).toBeVisible()
+    const sourceText = within(first.container).getByText(
+      '<svg xmlns="http://www.w3.org/2000/svg"><text>Diagram</text></svg>'
+    )
+    expect(sourceText).toBeVisible()
+
+    first.rerender(<Activity mode="hidden">{stream(source)}</Activity>)
+    second.rerender(<Activity mode="visible">{stream(source)}</Activity>)
+    second.rerender(<Activity mode="visible">{stream(nextSource)}</Activity>)
+    expect(within(second.container).getByText('Another')).toBeVisible()
+    second.rerender(<Activity mode="hidden">{stream(nextSource)}</Activity>)
+    first.rerender(<Activity mode="visible">{stream(nextSource)}</Activity>)
+
+    expect(within(first.container).getByRole('button', { name: 'preview.label' })).toBeVisible()
+    expect(
+      within(first.container).getByText('<svg xmlns="http://www.w3.org/2000/svg"><text>Diagram</text></svg>')
+    ).toBe(sourceText)
+    expect(sourceText).toBeVisible()
   })
   it('restores all words and blocks received while away, then animates only subsequent arrivals', () => {
     const first = render(stream('Alpha'))
