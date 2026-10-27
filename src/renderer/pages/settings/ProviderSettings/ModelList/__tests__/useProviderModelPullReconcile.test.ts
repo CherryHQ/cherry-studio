@@ -18,12 +18,12 @@ const deleteModelsMock = vi.fn()
 const enableProviderWhenModelsAvailableMock = vi.fn()
 const fetchResolvedProviderModelsMock = vi.fn()
 const resolveCreateModelEndpointTypesMock = vi.fn()
-const toCreateModelDtoMock = vi.fn((providerId, model, endpointTypes) => ({
-  providerId,
-  modelId: model.apiModelId,
-  name: model.name,
-  group: model.group,
-  endpointTypes
+const toCreateModelDtoMock = vi.fn((...args: any[]) => ({
+  providerId: args[0],
+  modelId: args[1].apiModelId,
+  name: args[1].name,
+  group: args[1].group,
+  endpointTypes: args[2]
 }))
 const enableProviderMock = vi.fn()
 const useModelsMock = vi.fn()
@@ -45,10 +45,11 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/modelSync', () => ({
-  fetchResolvedProviderModels: (providerId: string) => fetchResolvedProviderModelsMock(providerId),
+  fetchResolvedProviderModels: (providerId: string, presetProviderId?: string | null) =>
+    fetchResolvedProviderModelsMock(providerId, presetProviderId),
   resolveCreateModelEndpointTypes: (...args: any[]) => resolveCreateModelEndpointTypesMock(...args),
-  toCreateModelDto: (providerId: string, model: any, endpointTypes: any) =>
-    toCreateModelDtoMock(providerId, model, endpointTypes)
+  toCreateModelDto: (providerId: string, model: any, endpointTypes: any, presetProviderId?: string | null) =>
+    toCreateModelDtoMock(providerId, model, endpointTypes, presetProviderId)
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/providerEnablement', () => ({
@@ -127,7 +128,7 @@ describe('useProviderModelPullReconcile', () => {
     })
     expect(result.current.staleModelCount).toBe(1)
     expect(result.current.staleModelIds).toEqual(['openai::local-model'])
-    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', undefined)
   })
 
   it('uses current discovered metadata when a saved model has the same id', async () => {
@@ -617,5 +618,51 @@ describe('useProviderModelPullReconcile', () => {
     })
 
     expect(result.current.allModels).toEqual([newFetched, localModel])
+  })
+
+  describe('duplicated provider preset identity', () => {
+    const DUPLICATE_ID = '6f1c2a9e-3b7d-4c58-9a10-2d4e8b5f7c31'
+    const liveModel = {
+      id: `${DUPLICATE_ID}::claude-sonnet-5`,
+      providerId: DUPLICATE_ID,
+      apiModelId: 'claude-sonnet-5',
+      presetModelId: 'claude-sonnet-5',
+      name: 'Claude Sonnet 5',
+      group: 'DotHoosh'
+    }
+
+    it.each(['dothoosh', 'openrouter'])('loads models with the %s preset of the provider', async (presetProviderId) => {
+      useProviderMock.mockReturnValue({
+        provider: { id: DUPLICATE_ID, presetProviderId, isEnabled: true },
+        enableProvider: enableProviderMock
+      })
+      const { result } = renderHook(() => useProviderModelPullReconcile(DUPLICATE_ID))
+
+      await act(async () => {
+        await result.current.reloadModels()
+      })
+
+      expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith(DUPLICATE_ID, presetProviderId)
+    })
+
+    it.each(['dothoosh', 'openrouter'])(
+      'creates added models with the %s preset of the provider',
+      async (presetProviderId) => {
+        useProviderMock.mockReturnValue({
+          provider: { id: DUPLICATE_ID, presetProviderId, isEnabled: true },
+          enableProvider: enableProviderMock
+        })
+        useModelsMock.mockReturnValue({ models: [] })
+        const { result } = renderHook(() => useProviderModelPullReconcile(DUPLICATE_ID))
+
+        await act(async () => {
+          await result.current.addModels([liveModel as any])
+        })
+
+        expect(toCreateModelDtoMock).toHaveBeenCalledTimes(1)
+        expect(toCreateModelDtoMock.mock.calls[0][0]).toBe(DUPLICATE_ID)
+        expect(toCreateModelDtoMock.mock.calls[0][3]).toBe(presetProviderId)
+      }
+    )
   })
 })
