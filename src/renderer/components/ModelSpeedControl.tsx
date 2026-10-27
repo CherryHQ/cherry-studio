@@ -147,8 +147,8 @@ function WheelStepControl({ children, className, min, max, value, onValueChange 
 }
 
 /**
- * Project a selection onto the nearest tier this model declares, falling back to
- * provider Default only when it declares none. The control displays this value;
+ * Project intensity selections onto the nearest tier this model declares;
+ * unsupported modes or empty vocabularies fall back to provider Default. The control displays this value;
  * a caller that submits should send the same one so the wire matches the UI.
  * Whether the projected value is written back is the caller's policy.
  */
@@ -156,6 +156,7 @@ export function resolveSupportedReasoningEffort(model: Model, effort: ThinkingOp
   const reasoningOptions = deriveThinkingOptions(model) ?? []
 
   if (reasoningOptions.includes(effort)) return effort
+  if (effort === 'default' || effort === 'auto' || effort === 'none') return 'default'
   return nearestThinkingOption(effort, reasoningOptions) ?? 'default'
 }
 

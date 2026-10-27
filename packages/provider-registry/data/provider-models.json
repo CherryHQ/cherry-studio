@@ -21825,6 +21825,23 @@
       "providerId": "ollama"
     },
     {
+      "modelId": "gpt-5-6-luna",
+      "providerId": "openai",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "gpt-5.3-codex-spark",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-3-codex-spark",
@@ -41814,5 +41831,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "db6d5b322de42c49"
+  "version": "58ca02269c4d10fa"
 }
