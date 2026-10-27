@@ -248,6 +248,9 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
   return {
     skills,
     loading: installed.loading || localLoading || isInitialLocalLoad,
+    // Background revalidation of the installed catalog: cached rows stay visible, so
+    // destructive consumers (draft pruning) must wait it out instead of trusting the stale rows.
+    refreshing: installed.refreshing,
     error: installed.error ?? localError,
     refresh
   }

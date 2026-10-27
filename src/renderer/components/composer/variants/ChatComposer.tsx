@@ -1621,9 +1621,10 @@ const ChatComposerInner = ({
 
   // A skill that becomes unavailable (uninstalled or globally disabled) while its chip sits in
   // the composer must not survive into a later send: prune chips on every refresh of the
-  // installed-skills data, not only after a draft restore.
+  // installed-skills data, not only after a draft restore. Pruning waits out a revalidation —
+  // its cached rows can transiently lack an enabled row, and removal is unrecoverable.
   useEffect(() => {
-    if (isAvailableSkillsLoading || availableSkillsError) return
+    if (isAvailableSkillsLoading || isAvailableSkillsRefreshing || availableSkillsError) return
 
     const stale = selectedSkills.filter((skill) => !skillByFilename.has(skill.filename))
     if (stale.length === 0) return
@@ -1641,6 +1642,7 @@ const ChatComposerInner = ({
     actionsRef,
     availableSkillsError,
     isAvailableSkillsLoading,
+    isAvailableSkillsRefreshing,
     selectedSkills,
     setSelectedSkills,
     setText,

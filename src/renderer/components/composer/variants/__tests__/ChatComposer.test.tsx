@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeBasesLoading: false,
   availableSkills: [] as { name: string; folderName: string; description: string | null }[],
   availableSkillsLoading: false,
+  availableSkillsRefreshing: false,
   availableSkillsError: null as string | null,
   availableSkillsRefresh: vi.fn(),
   assistant: undefined as any,
@@ -549,6 +550,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
     skills: mocks.availableSkills,
     loading: mocks.availableSkillsLoading,
+    refreshing: mocks.availableSkillsRefreshing,
     error: mocks.availableSkillsError,
     refresh: mocks.availableSkillsRefresh
   })
@@ -1767,6 +1769,42 @@ describe('ChatComposer', () => {
 
     expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:b-pdf' }))
     expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:a-pdf')).toBe(false)
+  })
+
+  it('defers pruning while the installed-skills query is revalidating', async () => {
+    // A background revalidation serves cached rows that can transiently lack an enabled row;
+    // pruning from them is unrecoverable, so the chip must survive until it settles.
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: 'Use the pdf skill. continue',
+      tokens: [pdfSkillDraftToken],
+      files: [],
+      knowledgeBaseIds: [],
+      mentionedModelIds: [],
+      modelMultiSelectMode: false
+    })
+    mocks.getDraft.mockReturnValue({ text: 'Use the pdf skill. continue', tokens: [pdfSkillDraftToken] })
+    mocks.availableSkills = [pdfSkill]
+
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(true)
+    })
+
+    mocks.availableSkills = []
+    mocks.availableSkillsRefreshing = true
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(true)
+
+    mocks.availableSkillsRefreshing = false
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(false)
+    })
   })
 
   it('prunes exactly the removed chip when one of two same-name skill chips is deleted', async () => {

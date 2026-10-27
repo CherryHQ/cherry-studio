@@ -909,6 +909,7 @@ const AgentComposerInner = ({
   const {
     skills: availableSkills,
     loading: isAvailableSkillsLoading,
+    refreshing: isAvailableSkillsRefreshing,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
   } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
@@ -935,7 +936,7 @@ const AgentComposerInner = ({
   )
 
   useEffect(() => {
-    if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
+    if (!shouldValidateSkills || isAvailableSkillsLoading || isAvailableSkillsRefreshing || availableSkillsError) return
 
     const draft = { text, tokens: draftTokens }
     const validatedDraft = excludeComposerDraftTokens(draft, (token) => {
@@ -960,6 +961,7 @@ const AgentComposerInner = ({
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
+    isAvailableSkillsRefreshing,
     setText,
     shouldValidateSkills,
     skillByFilename,
