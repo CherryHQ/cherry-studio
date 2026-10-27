@@ -8,7 +8,6 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
-  NoTranscriptGeneratedError,
   type UIMessageChunk
 } from 'ai'
 
@@ -17,15 +16,9 @@ import {
   type AiPlugin,
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
-  generateSpeech as aiCoreGenerateSpeech,
   rerank as aiCoreRerank,
   type RuntimeProviderCallEvent,
-  type RuntimeProviderCallHandler,
-  type SpeechOptions,
-  type SpeechResult,
-  transcribe as aiCoreTranscribe,
-  type TranscriptionOptions,
-  type TranscriptionResult
+  type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
@@ -47,7 +40,6 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
-import type { LocalSpeechModelId, LocalTranscriptionModelId } from '@shared/ai/localVoice'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -109,8 +101,6 @@ import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
-import { createLocalSpeechModel, createLocalTranscriptionModel } from './voice/localAdapters'
-import { VoiceRuntimeError } from './voice/VoiceRuntimeError'
 
 const logger = loggerService.withContext('AiService')
 
@@ -339,6 +329,8 @@ export interface AiImageRequest extends AiRequest {
    * `splitParamValues`.
    */
   paramValues: ParamValues
+  /** Per-attempt provider submit timeout (ms); omitted uses the transport default. */
+  requestTimeoutMs?: number
   /**
    * Cleanup policy stamped on the generated **output** FileEntries. AiService is
    * infrastructure — the calling business feature decides the policy
@@ -421,7 +413,14 @@ export interface AiRerankResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager', 'AutomationReplService'])
+@DependsOn([
+  'McpRuntimeService',
+  'McpCatalogService',
+  'AiStreamManager',
+  'JobManager',
+  'AutomationReplService',
+  'RuntimeActivityService'
+])
 export class AiService extends BaseService {
   // Per-request AbortControllers for the cancellable one-shot routes (`ai.image.generate`,
   // `ai.text.generate`), paired with their `*.abort` routes. Key is the renderer-generated
@@ -778,6 +777,15 @@ export class AiService extends BaseService {
     return agent.stream(preparedMessages, signal)
   }
 
+  private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {
+    const hold = application.get('RuntimeActivityService').begin(reason)
+    try {
+      return await operation()
+    } finally {
+      hold.dispose()
+    }
+  }
+
   private analyticsHookPart(model: Model, source: TokenUsageSource = 'chat'): Partial<AgentLoopHooks> {
     return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage, source))
   }
@@ -925,7 +933,9 @@ export class AiService extends BaseService {
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
-    return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal)
+    return this.withRuntimeActivity('ai:generate-text', () =>
+      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal)
+    )
   }
 
   /**
@@ -1083,38 +1093,44 @@ export class AiService extends BaseService {
       source,
       messageRef: null
     })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      ...imageParams,
-      onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
-    })
+    return this.withRuntimeActivity('ai:generate-image', async () => {
+      const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
+        sdkConfig.providerId,
+        sdkConfig.providerSettings,
+        {
+          ...imageParams,
+          onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
+        }
+      )
 
-    const dataUrls: Base64String[] = []
-    let filteredCount = 0
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        continue
+      const dataUrls: Base64String[] = []
+      let filteredCount = 0
+      for (const image of result.images ?? []) {
+        if (image.base64) {
+          dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+          continue
+        }
+
+        filteredCount += 1
       }
 
-      filteredCount += 1
-    }
-
-    if (filteredCount > 0) {
-      logger.warn('Filtered invalid generated images', {
-        uniqueModelId: request.uniqueModelId,
-        providerId: sdkConfig.providerId,
-        modelId: sdkConfig.modelId,
-        filteredCount
-      })
-    }
-    const fileManager = application.get('FileManager')
-    const files = await Promise.all(
-      dataUrls.map((data) =>
-        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+      if (filteredCount > 0) {
+        logger.warn('Filtered invalid generated images', {
+          uniqueModelId: request.uniqueModelId,
+          providerId: sdkConfig.providerId,
+          modelId: sdkConfig.modelId,
+          filteredCount
+        })
+      }
+      const fileManager = application.get('FileManager')
+      const files = await Promise.all(
+        dataUrls.map((data) =>
+          fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+        )
       )
-    )
 
-    return { files }
+      return { files }
+    })
   }
 
   /**
@@ -1181,6 +1197,7 @@ export class AiService extends BaseService {
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
         ...(modelDescriptor && { modelDescriptor }),
+        ...(request.requestTimeoutMs && { requestTimeoutMs: request.requestTimeoutMs }),
         ...(source && { source }),
         providerParams,
         cleanupPolicy: request.cleanupPolicy
@@ -1233,38 +1250,6 @@ export class AiService extends BaseService {
     throw new Error(snapshot.error?.message || 'Image generation failed')
   }
 
-  // ── Local one-shot voice ──
-
-  async generateSpeech(
-    modelId: LocalSpeechModelId,
-    text: string,
-    options: SpeechOptions,
-    signal: AbortSignal
-  ): Promise<SpeechResult> {
-    signal.throwIfAborted()
-    return aiCoreGenerateSpeech(createLocalSpeechModel(modelId, options), text, options, signal)
-  }
-
-  async transcribe(
-    modelId: LocalTranscriptionModelId,
-    audio: Uint8Array,
-    options: TranscriptionOptions,
-    signal: AbortSignal
-  ): Promise<TranscriptionResult> {
-    signal.throwIfAborted()
-    try {
-      const result = await aiCoreTranscribe(createLocalTranscriptionModel(modelId, options), audio, options, signal)
-      if (!result.text.trim()) throw new VoiceRuntimeError('no_speech')
-      return result
-    } catch (error) {
-      if (NoTranscriptGeneratedError.isInstance(error)) {
-        signal.throwIfAborted()
-        throw new VoiceRuntimeError('no_speech')
-      }
-      throw error
-    }
-  }
-
   // ── Embedding ──
 
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
@@ -1282,19 +1267,18 @@ export class AiService extends BaseService {
     })
 
     const retryPolicy = readRetryPolicy()
-    const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      model: sdkConfig.modelId,
-      values: request.values,
-      // A long document splits into many batches and embedMany defaults to
-      // unbounded parallelism — firing them all at once is the main rate-limit
-      // trigger. Keep the pre-feature default when retry is disabled.
-      ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
-      // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
-      // its prior transient-error resilience (this PR only adds, never removes).
-      maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
-      onProviderCallStart: () => createProviderCallHandler(usageContext()),
-      ...(signal ? { abortSignal: signal } : {})
-    })
+    const result = await this.withRuntimeActivity('ai:embed-many', () =>
+      aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+        model: sdkConfig.modelId,
+        values: request.values,
+        // Bound batch fan-out to avoid embedding rate limits when retries are enabled.
+        ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
+        // Preserve the SDK's default retry count when the global retry policy is disabled.
+        maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
+        onProviderCallStart: () => createProviderCallHandler(usageContext()),
+        ...(signal ? { abortSignal: signal } : {})
+      })
+    )
 
     return { embeddings: result.embeddings, usage: result.usage }
   }
@@ -1337,10 +1321,8 @@ export class AiService extends BaseService {
       ...(signal ? { abortSignal: signal } : {})
     }
 
-    const result = await aiCoreRerank<AppProviderSettingsMap>(
-      sdkConfig.providerId,
-      sdkConfig.providerSettings,
-      rerankParams
+    const result = await this.withRuntimeActivity('ai:rerank', () =>
+      aiCoreRerank<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, rerankParams)
     )
 
     return {

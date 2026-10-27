@@ -41,6 +41,8 @@ vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingError
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
 vi.mock('@renderer/components/PopupHost', () => ({ PopupHost: () => null }))
 vi.mock('@renderer/components/ToastHost', () => ({ default: () => null }))
+// Recovery has its own integration tests; this shell harness intentionally omits its providers.
+vi.mock('@renderer/windows/WindowFileEditRecovery', () => ({ WindowFileEditRecovery: () => null }))
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: () => {
     throw new Error('theme provider boom')

@@ -94,6 +94,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [maxInputTokens, setMaxInputTokens] = useState<number | null>(null)
   const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(null)
   const [apiKeyId, setApiKeyId] = useState<string | null>(null)
+  const [pricing, setPricing] = useState<Model['pricing']>()
   const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
@@ -129,6 +130,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setMaxInputTokens(model.maxInputTokens ?? null)
     setMaxOutputTokens(model.maxOutputTokens ?? null)
     setApiKeyId(model.apiKeyId ?? null)
+    setPricing(model.pricing)
     setInitializedModel(model)
   }, [model, open])
 
@@ -283,6 +285,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const handlePricingCommit = useCallback(
     (pricing: NonNullable<Model['pricing']>) => {
+      setPricing(pricing)
       autoSave({ pricing })
     },
     [autoSave]
@@ -514,7 +517,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.sectionCard}>
                 <ModelPricingFields
                   key={`${providerId}:${model.id}`}
-                  pricing={model.pricing}
+                  pricing={pricing}
                   onCommit={handlePricingCommit}
                 />
               </div>
