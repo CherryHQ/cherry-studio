@@ -770,7 +770,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       { maxOutputTokens: 500_000 }
     )
 
-    expect(settings.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS).toBeUndefined()
+    expect(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS).toBeUndefined()
   })
 
   it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
