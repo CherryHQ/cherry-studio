@@ -12,17 +12,14 @@
 import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
-  type FetchFunction,
-  getFromApi as aiSdkGetFromApi,
   postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
-import * as z from 'zod'
+import type * as z from 'zod'
 
 import { loggerService } from '@logger'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
-import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
 import type { EndpointType, ListedModels, Model } from '@shared/data/types/model'
 import {
@@ -44,7 +41,6 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { customFetch } from '../utils/customFetch'
 import {
   defaultHeaders,
   getBaseUrl,
@@ -52,7 +48,7 @@ import {
   getProviderAppHeaders,
   headersWithoutCredentials
 } from '../utils/provider'
-import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { getCopilotModels, getCopilotSession, copilotEndpointTypes } from './copilot'
 import { listWorkflows } from './custom/comfyui/comfyuiWorkflowDiscovery'
 import { partitionListableWorkflows } from './custom/comfyui/comfyuiWorkflows'
 import {
@@ -65,7 +61,6 @@ import {
 import {
   AIHubMixModelsResponseSchema,
   AnthropicModelsResponseSchema,
-  CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
   LMStudioModelsResponseSchema,
   NewApiModelsResponseSchema,
@@ -79,25 +74,10 @@ import {
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
+import { ApiErrorSchema, type ApiError, getFromApi, modelListFetch } from './modelListApi'
 import { isVertexMaasModelId } from './vertex'
 
 const logger = loggerService.withContext('ModelListService')
-
-/**
- * Provider `fetch` for model listing: Electron `net.fetch` (Chromium) rather than Node's
- * global fetch.
- *
- * Node only trusts its own bundled CA store, while Chromium trusts the OS one and honors
- * the session proxy — so an intercepting corporate root CA that is installed system-wide
- * (and therefore fine for chat, which already goes through `customFetch`) made *listing*
- * fail with a certificate error. Sharing the stack keeps both paths agreeing on trust,
- * proxy and error vocabulary (Chromium `net::ERR_CERT_*`, which `classifyErrorCategory`
- * maps to the proxy/SSL diagnosis).
- *
- * `cache: 'no-store'` because Chromium's HTTP cache would otherwise serve a stale
- * `/models` response on a second pull, resurrecting deleted models.
- */
-const modelListFetch: FetchFunction = (input, init) => customFetch(input, { ...init, cache: 'no-store' })
 
 // ── Types ──
 
@@ -147,44 +127,7 @@ function warnSkippedOpenAIModelEntries(
 
 // ── API Layer ──
 
-const ApiErrorSchema = z.object({
-  error: z
-    .object({
-      message: z.string().optional(),
-      code: z.string().optional()
-    })
-    .optional(),
-  message: z.string().optional()
-})
-
-type ApiError = z.infer<typeof ApiErrorSchema>
 type OpenAIModelResponseItem = z.infer<typeof OpenAIModelsResponseSchema>['data'][number]
-
-async function getFromApi<T>({
-  url,
-  headers,
-  responseSchema,
-  abortSignal
-}: {
-  url: string
-  headers?: Record<string, string>
-  responseSchema: z.ZodType<T>
-  abortSignal?: AbortSignal
-}): Promise<T> {
-  const { value } = await aiSdkGetFromApi({
-    url,
-    headers,
-    successfulResponseHandler: createJsonResponseHandler(zodSchema(responseSchema)),
-    failedResponseHandler: createJsonErrorResponseHandler({
-      errorSchema: zodSchema(ApiErrorSchema),
-      errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
-    }),
-    abortSignal,
-    fetch: modelListFetch
-  })
-
-  return value
-}
 
 /** Build default headers with rotated API key */
 
@@ -473,17 +416,8 @@ const vertexFetcher: ModelFetcher = {
 const copilotFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
-    const copilotHeaders = mergeHeaders(COPILOT_DEFAULT_HEADERS, provider.settings.extraHeaders)
-    // getToken exchanges the stored GitHub OAuth token for a Copilot session token.
-    // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
-    // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
-    const { token } = await copilotService.getToken(null as any, copilotHeaders)
-    const response = await getFromApi({
-      url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
-      headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
-      responseSchema: CopilotModelsResponseSchema,
-      abortSignal: signal
-    })
+    const session = await getCopilotSession(provider, signal)
+    const response = await getCopilotModels(provider, session, { signal, refresh: true })
 
     const filtered = response.data.filter((m) => {
       const modelId = m.id.toLowerCase()
@@ -494,7 +428,14 @@ const copilotFetcher: ModelFetcher = {
       )
     })
 
-    return listing(dedup(filtered, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by })))
+    return listing(
+      dedup(filtered, (m) => m.id).map((m) =>
+        toModel(m.id, provider, {
+          ownedBy: m.owned_by,
+          endpointTypes: copilotEndpointTypes(m.supported_endpoints)
+        })
+      )
+    )
   }
 }
 

@@ -46,8 +46,34 @@ export function resolveAiSdkProviderId(provider, endpointType) {
 }
 ```
 
-One signal, no heuristics. Tested with 54 cases in
-`provider/__tests__/endpoint.test.ts`.
+Ordinary providers use the configured adapter family. Copilot additionally resolves
+account-specific capabilities before building the SDK configuration.
+
+### Copilot model capabilities
+
+Copilot reads `supported_endpoints` from its authenticated `/models` response,
+including for models already saved locally. It prefers `/responses`, then
+`/v1/messages`, then `/chat/completions`. The resolved endpoint drives SDK
+selection, provider options, reasoning and tool serialization together. Responses
+uses the patched Copilot adapter with the `openai` options namespace; Messages
+uses the Anthropic adapter with Bearer authentication; Chat uses the Copilot
+adapter and provider-specific options namespace.
+
+Token exchange uses only Copilot client headers; provider extra headers are
+reserved for the configured model host. The Anthropic SDK patch recognizes
+dotted Claude version aliases for capability checks while preserving the original
+model ID in the request.
+
+The shared in-memory catalog expires after five minutes; an explicit model-list
+refresh bypasses the cached result. Concurrent callers share retrieval, while
+cancelling one caller does not cancel others. Credentials, provider configuration
+and catalog URL scope the cache; credential changes invalidate in-flight results.
+There is no model-storage migration.
+
+Missing capabilities or an unavailable catalog retain the legacy GPT-5/GPT-6
+Responses fallback and Chat for other models. An explicit empty or unknown-only
+endpoint list, disabled policy, HTTP 401/403 or cancellation stops the request.
+Generation failures never trigger a retry on another protocol.
 
 ### New API image endpoints
 

@@ -136,7 +136,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     const keepFetchedName = !!base.name && base.name !== base.apiModelId
 
     for (const field of REGISTRY_FIELDS) {
-      if (field === 'endpointTypes' && base.endpointTypes?.length) {
+      if (field === 'endpointTypes' && base.endpointTypes !== undefined) {
         continue
       }
       if (field === 'name' && keepFetchedName) {

@@ -10,8 +10,6 @@ import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
-import { copilotService } from '@main/services/CopilotService'
-import { mergeHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
@@ -51,7 +49,7 @@ import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ar
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
-import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { resolveCopilotModel } from './copilot'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
@@ -76,6 +74,7 @@ interface BuilderContext {
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
+  copilot?: Awaited<ReturnType<typeof resolveCopilotModel>>
 }
 
 type ApiKeyBuilderContext = BuilderContext & {
@@ -85,11 +84,13 @@ type ApiKeyBuilderContext = BuilderContext & {
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
+  signal?: AbortSignal
 }
 
 export interface ResolvedProviderAiSdkConfig {
   config: ProviderConfig
   credentialReceipt: ServingCredentialReceipt
+  resolvedEndpoint: ResolvedEndpoint
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -198,7 +199,11 @@ export async function resolveProviderAiSdkConfig(
   model: Model,
   options?: ProviderToAiSdkConfigOptions
 ): Promise<ResolvedProviderAiSdkConfig> {
-  const { endpointType, baseUrl } = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
+  const copilot = matchesPreset(provider, SystemProviderIds.copilot)
+    ? await resolveCopilotModel(provider, model, options?.signal)
+    : undefined
+  const resolvedEndpoint = copilot?.endpoint ?? options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
+  const { endpointType, baseUrl } = resolvedEndpoint
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
@@ -217,11 +222,12 @@ export async function resolveProviderAiSdkConfig(
     apiKeyOverride: options?.apiKeyOverride,
     endpointType,
     endpoint,
-    aiSdkProviderId
+    aiSdkProviderId,
+    copilot
   }
 
   const builders: ConfigBuilderEntry[] = [
-    { match: (p) => p.id === SystemProviderIds.copilot, build: withProviderAuth('oauth', buildCopilotConfig) },
+    { match: (p) => matchesPreset(p, SystemProviderIds.copilot), build: withProviderAuth('oauth', buildCopilotConfig) },
     {
       match: (p) => matchesPreset(p, SystemProviderIds.opencode),
       build: withSelectedApiKey(buildOpenCodeGoConfig)
@@ -404,16 +410,22 @@ export async function resolveProviderAiSdkConfig(
 
   return {
     config,
-    credentialReceipt: resolved.credentialReceipt
+    credentialReceipt: resolved.credentialReceipt,
+    resolvedEndpoint
   }
 }
 
 // ── Config Builders ──
 
-async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
-  const storedHeaders = {} // TODO: read from PreferenceService if copilot headers are persisted
-  const headers = mergeHeaders(COPILOT_DEFAULT_HEADERS, storedHeaders)
-  const { token } = await copilotService.getToken(null as any, headers)
+function buildCopilotConfig(ctx: BuilderContext): ProviderConfig {
+  const { token, headers } = ctx.copilot!
+  if (ctx.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    return {
+      providerId: 'anthropic',
+      endpoint: ctx.endpoint,
+      providerSettings: { baseURL: ctx.baseConfig.baseURL, authToken: token, headers }
+    }
+  }
 
   return {
     providerId: 'github-copilot-openai-compatible',
@@ -421,7 +433,8 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
     providerSettings: {
       ...ctx.baseConfig,
       apiKey: token,
-      headers: mergeHeaders(headers, getExtraHeaders(ctx.actualProvider)),
+      headers,
+      api: ctx.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES ? 'responses' : 'chat-completions',
       name: ctx.actualProvider.id
     }
   }

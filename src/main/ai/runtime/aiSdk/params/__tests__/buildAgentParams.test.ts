@@ -6,6 +6,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { createGitHubCopilotOpenAICompatible } from '@opeoginni/github-copilot-openai-compatible'
 import { InvalidToolInputError, type StopCondition, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
@@ -37,7 +38,10 @@ const { preferenceGetMock, resolveProviderAiSdkConfigMock, listMcpServers, listM
   }))
 
 vi.mock('../../../../provider/config', () => ({
-  resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
+  resolveProviderAiSdkConfig: async (...args: [unknown, unknown, { resolvedEndpoint?: unknown }?]) => ({
+    resolvedEndpoint: args[2]?.resolvedEndpoint,
+    ...(await resolveProviderAiSdkConfigMock(...args))
+  })
 }))
 
 vi.mock('@application', () => ({
@@ -2611,4 +2615,64 @@ describe('assistant automation tool selection', () => {
       ...temporary.deferredEntries.map((entry) => entry.name)
     ]).not.toContain('automation_repl')
   })
+})
+
+it('uses runtime Copilot capabilities for reasoning despite a saved Chat endpoint', async () => {
+  resolveProviderAiSdkConfigMock.mockResolvedValue({
+    config: { providerId: 'github-copilot-openai-compatible', providerSettings: {} },
+    credentialReceipt: { attribution: 'provider-auth', authType: 'oauth' },
+    resolvedEndpoint: { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, baseUrl: 'https://api.githubcopilot.com' }
+  })
+  const provider = makeProvider({ id: 'copilot', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
+  const model = makeModel({
+    id: 'copilot::grok-4.5',
+    providerId: 'copilot',
+    apiModelId: 'grok-4.5',
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+    capabilities: [MODEL_CAPABILITY.REASONING],
+    reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }], selectableEfforts: ['low', 'high'] }
+  })
+  const result = await buildAgentParams({
+    request: { conversation: CONVERSATION, reasoningEffort: 'high' },
+    signal: undefined,
+    provider,
+    model
+  })
+  let body: Record<string, unknown> | undefined
+  const sdk = createGitHubCopilotOpenAICompatible({
+    apiKey: 'test',
+    api: 'responses',
+    name: 'copilot',
+    fetch: async (_url, init) => {
+      body = JSON.parse(String(init?.body))
+      return Response.json({
+        id: 'resp-1',
+        created_at: 1,
+        model: 'grok-4.5',
+        status: 'completed',
+        output: [
+          {
+            type: 'function_call',
+            id: 'item-1',
+            call_id: 'call-1',
+            name: 'lookup',
+            arguments: '{}',
+            status: 'completed'
+          }
+        ],
+        usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 }
+      })
+    }
+  }).languageModel('grok-4.5')
+  const response = await sdk.doGenerate({
+    prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+    providerOptions: result.options.providerOptions,
+    tools: [{ type: 'function', name: 'lookup', inputSchema: { type: 'object', properties: {} } }]
+  })
+  expect(body).toMatchObject({ reasoning: { effort: 'high' }, tools: [{ type: 'function', name: 'lookup' }] })
+  expect(body).not.toHaveProperty('messages')
+  expect(response.content).toContainEqual(
+    expect.objectContaining({ type: 'tool-call', toolName: 'lookup', toolCallId: 'call-1' })
+  )
+  expect(response.usage).toMatchObject({ inputTokens: { total: 5 }, outputTokens: { total: 3 } })
 })
