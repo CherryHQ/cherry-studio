@@ -292,7 +292,7 @@ export const childCases: readonly ContractCase[] = [
       await hold.started('c36')
       const steer = send('c36-steer')
       await h.withCall(t, (p) => p.helpers.stop(child, 1))
-      same(await send('c36-again', 2), { run: 2, status: 'started' }, 'a message after the run ended must start run 2')
+      same(await send('c36-again'), { run: 2, status: 'started' }, 'a message after the run ended must start run 2')
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 2, key('c36-again')))
       // Awaited only now, so a harness that carries the steer into run 2 answers it there and fails here.
       same(await steer, { run: 1, status: 'withdrawn' }, 'an explicit stop must withdraw unconsumed input')
