@@ -1,5 +1,7 @@
 import { useCallback } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
+import { useDataChange } from '@renderer/data/hooks/useDataApi'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useOptionalTabsContext } from './useTabsContext'
@@ -46,4 +48,53 @@ export function useConversationTabTitleWriter() {
     },
     [tabs, updateTab]
   )
+}
+
+/** The read model each conversation kind is looked up in. */
+const CONVERSATION_ENDPOINT = {
+  topic: '/topics/:id',
+  session: '/agent-sessions/:sessionId'
+} as const
+
+/**
+ * Follow a rename made in **another** window.
+ *
+ * The manual and automatic rename paths relabel tabs in the window that made the
+ * change. A rename made in a detached window only reaches this one as a DataApi
+ * change notification, which refreshes lists but carries no name — so read the row
+ * back for the conversations this window has bound to a tab and relabel those.
+ */
+export function useConversationTabTitleChangeSync() {
+  const writeConversationTabTitle = useConversationTabTitleWriter()
+  const context = useOptionalTabsContext()
+  const tabs = context?.tabs
+
+  useDataChange([CONVERSATION_ENDPOINT.topic, CONVERSATION_ENDPOINT.session], (effects) => {
+    if (!tabs) return
+    const bound = {
+      topic: new Set(tabs.map((tab) => boundConversationId(tab, CONVERSATION_PARAM.topic))),
+      session: new Set(tabs.map((tab) => boundConversationId(tab, CONVERSATION_PARAM.session)))
+    }
+    for (const effect of effects) {
+      const kind = effect.endpoint === CONVERSATION_ENDPOINT.topic ? 'topic' : 'session'
+      for (const id of effect.entityIds ?? []) {
+        if (!id || !bound[kind].has(id)) continue
+        if (kind === 'topic') {
+          void dataApiService
+            .get(`/topics/${id}`)
+            .then((row) => writeConversationTabTitle('topic', id, row.name))
+            .catch(() => {
+              // A row that vanished under the change needs no label.
+            })
+        } else {
+          void dataApiService
+            .get(`/agent-sessions/${id}`)
+            .then((row) => writeConversationTabTitle('session', id, row.name))
+            .catch(() => {
+              // A row that vanished under the change needs no label.
+            })
+        }
+      }
+    }
+  })
 }

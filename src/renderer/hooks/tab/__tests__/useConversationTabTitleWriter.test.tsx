@@ -4,9 +4,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { useAgentSessionAutoRenameSync, useUpdateSession } from '@renderer/hooks/agent/useSession'
-import { useTabsContext } from '@renderer/hooks/tab'
+import { useConversationTabTitleChangeSync, useTabsContext } from '@renderer/hooks/tab'
 import { useTopicAutoRenameSync, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
@@ -42,6 +43,22 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/hooks/useWindowInitData', () => ({
   useWindowInitData: () => null
 }))
+
+const { changeListeners } = vi.hoisted(() => ({
+  changeListeners: new Map<string, (effects: Array<{ endpoint: string; entityIds?: string[] }>) => void>()
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/data/hooks/useDataApi')>()
+  return {
+    ...actual,
+    useDataChange: (endpoints: string | string[], listener: (effects: never) => void) => {
+      for (const endpoint of Array.isArray(endpoints) ? endpoints : [endpoints]) {
+        changeListeners.set(endpoint, listener as never)
+      }
+    }
+  }
+})
 
 const HOME_TAB: Tab = {
   id: 'home',
@@ -105,6 +122,11 @@ function AutoRenameSync() {
   return null
 }
 
+function CrossWindowRenameSync() {
+  useConversationTabTitleChangeSync()
+  return null
+}
+
 function renderShell(extra: React.ReactNode) {
   return render(
     <TabsProvider initialDefaultTab={HOME_TAB}>
@@ -117,6 +139,7 @@ function renderShell(extra: React.ReactNode) {
 beforeEach(() => {
   normalTabsValue = []
   ipcHandlers.clear()
+  changeListeners.clear()
 })
 
 afterEach(() => {
@@ -172,6 +195,26 @@ describe('useConversationTabTitleWriter', () => {
 
     await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Auto A'))
     expect(screen.getByTestId('labels')).toHaveTextContent('tab-b=Other B')
+  })
+
+  it('relabels a tab when another window renames its conversation', async () => {
+    // A rename in another window only reaches this one as a DataApi change notification, which
+    // carries no name — the label has to follow the row it points at.
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a'), chatTab('tab-b', 'Other B', 'topic-b')]
+    const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a', name: 'Other-window A' } as never)
+    renderShell(<CrossWindowRenameSync />)
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Old A'))
+
+    await act(async () => {
+      changeListeners.get('/topics/:id')?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
+    })
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Other-window A'))
+    expect(screen.getByTestId('labels')).toHaveTextContent('tab-b=Other B')
+    // A conversation this window has no tab for is not read at all.
+    expect(get).toHaveBeenCalledTimes(1)
+    get.mockRestore()
   })
 
   it('relabels a background Work tab when its session is named automatically', async () => {
