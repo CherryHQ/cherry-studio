@@ -1507,35 +1507,6 @@ export class ClaudeCodeStreamAdapter {
     const last = endings[stepped - 1]
     return last.index + last[0].length
   }
-
-  /**
-   * Linear equivalent of the former trailing quoted-list regex
-   * `(?:^|\n)( {0,3}> ?(?:[-*+]|\d{1,9}[.)])[^\n]*\n(?: {0,3}>[^\n]*\n)*(?: {0,3}>[^\n]*)?$`:
-   * the longest suffix of `window` made of complete quoted lines plus at most
-   * one trailing partial quoted line, whose earliest complete line is a
-   * quoted list item. The regex backtracked quadratically over a long
-   * single-line quote run on every streamed delta (cherry-pr-review perf).
-   */
-  private trailingQuotedListPrefix(window: string): string | null {
-    if (window === '') return null
-    // The final (possibly empty) partial line must itself open as a quote.
-    const finalStart = window.lastIndexOf('\n') + 1
-    const finalLine = window.slice(finalStart)
-    if (finalLine !== '' && !/^ {0,3}>/.test(finalLine)) return null
-    // Walk back over the maximal run of complete quoted lines touching the
-    // end; the match begins at the earliest quoted list-item line in the run.
-    let pos = finalStart
-    let earliestListItemStart = -1
-    while (pos > 0) {
-      const lineStart = window.lastIndexOf('\n', pos - 2) + 1
-      const line = window.slice(lineStart, pos - 1)
-      if (!/^ {0,3}>/.test(line)) break
-      if (/^ {0,3}> ?(?:[-*+]|\d{1,9}[.)])/.test(line)) earliestListItemStart = lineStart
-      pos = lineStart
-    }
-    return earliestListItemStart === -1 ? null : window.slice(earliestListItemStart)
-  }
-
   /**
    * State-composed open-line carry: block ancestry lives in the stepped mask
    * state, so the carry holds only what the current open (unstepped) line can
