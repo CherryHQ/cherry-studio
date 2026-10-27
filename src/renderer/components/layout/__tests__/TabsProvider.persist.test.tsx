@@ -231,6 +231,59 @@ describe('pinned persistence with the real store and hook', () => {
     expect(context.tabs.map((tab) => tab.id)).toEqual(['home'])
   })
 
+  // Settled navigation must not exhaust recovery and delete unrelated pins.
+  it('preserves both pins across twelve settled settings navigation updates', async () => {
+    await mount(
+      [pin('settings', { url: '/app/settings/initial' }), pin('files', { url: '/app/files' })],
+      [],
+      'settings'
+    )
+    const { pinnedTabFeedbackService } = await import('../PinnedTabFeedbackService')
+    const { loggerService } = await import('@logger')
+    const warning = vi.spyOn(loggerService.withContext('TabsProvider'), 'warn')
+    const seen: Tab[][] = []
+    disposables.push(service.subscribe(key, () => seen.push(structuredClone(service.getPersist(key)))))
+
+    for (let turn = 0; turn < 12; turn += 1) {
+      await act(async () => {
+        context.updateTab('settings', { url: `/app/settings/${turn}` })
+      })
+    }
+
+    expect(service.getPersist(key).map((tab) => tab.id)).toEqual(['settings', 'files'])
+    expect(service.getPersist(key)[0].url).toBe('/app/settings/11')
+    expect(context.tabs.filter((tab) => tab.isPinned).map((tab) => tab.id)).toEqual(['settings', 'files'])
+    expect(context.activeTabId).toBe('settings')
+    expect(pinnedTabFeedbackService.episode.closed).toBe(false)
+    expect(warning.mock.calls.filter(([message]) => message === 'Pinned cache recovery')).toEqual([])
+    expect(seen.every((pins) => pins.length === 2)).toBe(true)
+  })
+
+  // Pin membership changes must preserve earlier normal-tab updates in the same React batch.
+  it.each(['pin', 'unpin'] as const)(
+    'preserves a queued normal URL update when %sning another tab',
+    async (operation) => {
+      const other: Tab = { id: 'other', type: 'route', url: '/unknown', title: '' }
+      await mount(operation === 'pin' ? [] : [pin('other')], operation === 'pin' ? [home, other] : [home])
+
+      await act(async () => {
+        context.updateTab('home', { url: '/app/chat?topicId=selected' })
+        if (operation === 'pin') context.pinTab('other')
+        else context.unpinTab('other')
+      })
+
+      expect(service.getPersist('ui.tab.normal_tabs')).toEqual([
+        expect.objectContaining({ id: 'home', url: '/app/chat?topicId=selected' }),
+        ...(operation === 'unpin' ? [expect.objectContaining({ id: 'other', url: '/unknown', isPinned: false })] : [])
+      ])
+      expect(service.getPersist(key)).toEqual(
+        operation === 'pin' ? [expect.objectContaining({ id: 'other', url: '/unknown', isPinned: true })] : []
+      )
+      expect(context.tabs.find((tab) => tab.id === 'home')?.url).toBe('/app/chat?topicId=selected')
+      expect(context.tabs).toHaveLength(2)
+    }
+  )
+
   it('contains automatic feedback across async turns, rejects stale work, and permits recovery', async () => {
     await mount([pin()])
     const { loggerService } = await import('@logger')
@@ -347,8 +400,11 @@ describe('pinned persistence with the real store and hook', () => {
     expect(context.tabs.map((tab) => tab.id)).toEqual(['home'])
   })
 
-  it('bounds twelve alternating automatic title updates across async turns', async () => {
+  // The provider has nothing to correct, so nothing is charged; the loop bound
+  // applies to its own reconciliation, not to explicit local updates.
+  it('does not charge settled local updates that need no reconciliation', async () => {
     await mount([pin()], [], 'pin')
+    const { pinnedTabFeedbackService } = await import('../PinnedTabFeedbackService')
     const { loggerService } = await import('@logger')
     const warning = vi.spyOn(loggerService.withContext('TabsProvider'), 'warn')
     for (let turn = 0; turn < 12; turn += 1) {
@@ -357,14 +413,14 @@ describe('pinned persistence with the real store and hook', () => {
         context.updateTab('pin', { title: String(turn % 2) })
       })
     }
-    expect(service.getPersist(key)).toEqual([])
-    expect(context.tabs.some((tab) => tab.id === 'pin')).toBe(false)
-    expect(context.activeTab?.isDormant).toBe(false)
-    expect(warning).toHaveBeenCalledExactlyOnceWith('Pinned cache recovery', {
-      key,
-      reason: 'automatic feedback budget exhausted',
-      count: 8
+    expect(context.tabs.some((tab) => tab.id === 'pin')).toBe(true)
+    expect(pinnedTabFeedbackService.episode.closed).toBe(false)
+    expect(warning.mock.calls.filter(([message]) => message === 'Pinned cache recovery')).toEqual([])
+    expect(service.getPersist(key)).toEqual([expect.objectContaining({ id: 'pin', title: '1', isPinned: true })])
+    await act(async () => {
+      vi.advanceTimersByTime(350)
     })
+    expect(JSON.parse(localStorage.getItem('cs_cache_persist')!)[key]).toEqual(service.getPersist(key))
   })
 
   it('contains an alternating effect source without a React subscriber failure', async () => {

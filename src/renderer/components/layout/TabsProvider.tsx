@@ -6,7 +6,7 @@ import { v4 as uuid } from 'uuid'
 
 import { loggerService } from '@logger'
 import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
-import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { usePersistCache, usePersistCacheReader } from '@renderer/data/hooks/useCache'
 import {
   type CloseConversationTabs,
   CloseConversationTabsContext,
@@ -257,6 +257,7 @@ export function TabsProvider({
   // updates resolved against the latest persisted value, so callers can use
   // `setPinnedTabs(prev => ...)` directly (no manual ref mirroring needed).
   const [pinnedTabs, persistPinnedTabs] = usePersistCache('ui.tab.pinned_tabs')
+  const readPinnedTabs = usePersistCacheReader('ui.tab.pinned_tabs')
 
   // Whether a tab's `isPinned` should route it into the persistent pinned list. The main
   // window surfaces pinned tabs, so it follows the flag. A detached sub-window passes
@@ -427,10 +428,11 @@ export function TabsProvider({
         )
         return next.every((tab, index) => tab === localized[index]) ? restored : next
       }
-      const repair = repairPinnedTabs(pinnedTabs, normalTabsRef.current)
+      const observedPinnedTabs = readPinnedTabs()
+      const repair = repairPinnedTabs(observedPinnedTabs, normalTabsRef.current)
       if (!renderEpisode.closed) {
         const candidate = repairPinnedTabs(preparePins(repair.tabs), normalTabsRef.current).tabs
-        if (pinnedTabFeedbackService.observe(renderEpisode, pinnedTabs, candidate) === 'tripped') {
+        if (pinnedTabFeedbackService.observe(renderEpisode, observedPinnedTabs, candidate) === 'tripped') {
           logger.warn('Pinned cache recovery', {
             key: 'ui.tab.pinned_tabs',
             reason: 'automatic feedback budget exhausted',
@@ -457,6 +459,7 @@ export function TabsProvider({
   }, [
     tabs,
     pinnedTabs,
+    readPinnedTabs,
     activeTabId,
     applyTabLimit,
     storesPinned,
@@ -478,6 +481,7 @@ export function TabsProvider({
       if (storesPinned(tab)) {
         setPinnedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       } else {
+        normalTabsRef.current = normalTabsRef.current.map((t) => (t.id === id ? { ...t, ...updates } : t))
         setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       }
     },
@@ -623,7 +627,7 @@ export function TabsProvider({
       const normal = normalTabsRef.current.filter((t) => t.id !== id)
       normalTabsRef.current = normal
       projectedTabsRef.current = projectedTabsRef.current.map((t) => (t.id === id ? { ...t, isPinned: true } : t))
-      setNormalTabs(normal)
+      setNormalTabs((prev) => prev.filter((t) => t.id !== id))
       // Add to pinnedTabs
       setPinnedTabs((prev) => [...prev, { ...tab, isPinned: true }], undefined, normal)
 
@@ -652,7 +656,7 @@ export function TabsProvider({
       const normal = [...normalTabsRef.current, { ...tab, isPinned: false }]
       normalTabsRef.current = normal
       projectedTabsRef.current = projectedTabsRef.current.map((t) => (t.id === id ? { ...t, isPinned: false } : t))
-      setNormalTabs(normal)
+      setNormalTabs((prev) => [...prev, { ...tab, isPinned: false }])
 
       logger.info('Tab unpinned', { tabId: id })
     },

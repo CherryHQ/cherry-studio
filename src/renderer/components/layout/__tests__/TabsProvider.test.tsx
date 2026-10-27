@@ -68,6 +68,7 @@ const HOME_TAB: Tab = {
 // i18n.language dependency in the tabs useMemo.
 let pinnedTabsValue: Tab[] = [PINNED_FILES_TAB]
 const setPinnedTabsMock = vi.fn()
+const readPinnedTabsMock = () => pinnedTabsValue
 
 // Restore-session keys (normal tabs + active id). Default to empty (fresh launch); individual
 // restore tests set them before render. Kept separate from the pinned tuple so the mock returns the
@@ -88,6 +89,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
+  usePersistCacheReader: () => readPinnedTabsMock,
   usePersistCache: (key: string) => {
     if (key === 'ui.tab.normal_tabs') return [normalTabsValue, setNormalTabsMock]
     if (key === 'ui.tab.active_tab_id') return [activeTabIdValue, setActiveTabIdMock]

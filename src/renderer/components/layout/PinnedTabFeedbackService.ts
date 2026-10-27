@@ -1,6 +1,6 @@
 import { isEqual } from 'es-toolkit/compat'
 
-export type PinnedTabFeedbackEpisode = { revisions: number; closed: boolean; acceptedValue?: unknown }
+export type PinnedTabFeedbackEpisode = { revisions: number; closed: boolean }
 
 const PINNED_FEEDBACK_BUDGET = 8
 
@@ -18,8 +18,9 @@ class PinnedTabFeedbackService {
   }
 
   observe(episode: PinnedTabFeedbackEpisode, value: unknown, preparedValue: unknown): 'accepted' | 'tripped' {
-    const changed =
-      !isEqual(value, preparedValue) || (episode.acceptedValue !== undefined && !isEqual(value, episode.acceptedValue))
+    // Only reconciliation the provider still owes is feedback; a value already equal
+    // to the prepared one was written by someone else and is not bounded here.
+    const changed = !isEqual(value, preparedValue)
     if (changed) {
       if (episode.revisions === PINNED_FEEDBACK_BUDGET) {
         episode.closed = true
@@ -27,9 +28,6 @@ class PinnedTabFeedbackService {
       }
       episode.revisions += 1
     }
-    // An echo of our own preparation is free; a different observed value belongs
-    // to the same episode even when it arrives on a later asynchronous turn.
-    episode.acceptedValue = preparedValue
     return 'accepted'
   }
 }
