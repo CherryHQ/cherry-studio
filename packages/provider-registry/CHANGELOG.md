@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.7
+
+### Patch Changes
+
+- [#22719](https://github.com/CherryHQ/cherry-studio/pull/22719) [`3c99b48`](https://github.com/CherryHQ/cherry-studio/commit/3c99b4860c33d220f4296c4f37c3f5a63c4e372a) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Narrow DashScope native web search eligibility to supported model families and exact hosted GLM 5.2 and Kimi K3 SKUs.
+
 ## 0.2.6
 
 ### Patch Changes
