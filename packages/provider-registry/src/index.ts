@@ -160,3 +160,13 @@ export {
 } from './patterns/reasoning-heuristics'
 export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
 export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'
+
+// DotHoosh gateway model listings (shared by the catalog generator and the app's live model list)
+export type { DotHooshModel, DotHooshPricing } from './utils/dothooshListing'
+export {
+  countListedModels,
+  DOTHOOSH_API_URL,
+  DOTHOOSH_MIRROR_URL,
+  parseDotHooshListings,
+  readAnthropicListing
+} from './utils/dothooshListing'
