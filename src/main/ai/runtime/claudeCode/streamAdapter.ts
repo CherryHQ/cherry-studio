@@ -215,7 +215,8 @@ type StreamContext = {
    * fence content.
    */
   scratchpadMaskHeldFence: {
-    fenceChar: '`' | '~'
+    /** Parsed opener char; null when the opener line is unparseable - the closer scan then fires on EITHER fence char instead of assuming backtick. */
+    fenceChar: '`' | '~' | null
     openerRunLength: number
     rawContainerPrefix: string
     enclosedScratchpad: boolean
@@ -1377,13 +1378,17 @@ export class ClaudeCodeStreamAdapter {
   ): NonNullable<StreamContext['scratchpadMaskHeldFence']> {
     const openerEnd = /\r\n|\r|\n/.exec(heldRaw)
     const openerLine = openerEnd ? heldRaw.slice(0, openerEnd.index) : heldRaw
-    // The ACTUAL opener run length, parsed from the held raw opener line: a
-    // real closing fence needs a run at least this long (CommonMark), so a
-    // candidate line with a shorter run (``` inside a ```` fence) cannot
-    // change the mask outcome and must not wake the slow path. Fallback 3
-    // keeps the previous any-run->=3 superset when the opener is unparseable.
-    const openerMatch = /^[ >\t]*([`~])(\1*)/.exec(openerLine)
-    const fenceChar = (openerMatch?.[1] ?? '`') as '`' | '~'
+    // The ACTUAL opener char and run length, parsed from the held raw opener
+    // line, seeing past optional list-marker prefixes ("- ~~~", "1. ```"): a
+    // real closing fence needs a run of the same char at least this long
+    // (CommonMark), so a candidate line with a shorter run (``` inside a
+    // ```` fence) cannot change the mask outcome and must not wake the slow
+    // path. When the opener cannot be parsed, fenceChar stays null so the
+    // closer scan fires on a run of EITHER fence char - defaulting to
+    // backtick would never wake on a real tilde closer (cherry-review). Run
+    // fallback 3 keeps the any-run->=3 superset for an unparseable opener.
+    const openerMatch = /^[ >\t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*([`~])(\1*)/.exec(openerLine)
+    const fenceChar = (openerMatch?.[1] ?? null) as '`' | '~' | null
     const openerRunLength = openerMatch ? 1 + openerMatch[2].length : 3
     // Raw continuation prefix of the fence's container ancestry, mirroring
     // fenceContainerPrefixFromState with the literal spaces streamed content
@@ -1429,6 +1434,9 @@ export class ClaudeCodeStreamAdapter {
   /** Feed one character into the held fence's open-line state. */
   private heldFenceFeedChar(held: NonNullable<StreamContext['scratchpadMaskHeldFence']>, c: string): void {
     const st = held.openLine
+    // Null fenceChar (unparseable opener): a run of either fence char counts
+    // as a candidate - superset of real closers, never a miss.
+    const fenceCharMatch = held.fenceChar === null ? c === '`' || c === '~' : c === held.fenceChar
     if (!st.headDone) {
       st.head += c
       if (st.head.length >= Math.max(held.rawContainerPrefix.length, 4)) {
@@ -1440,7 +1448,7 @@ export class ClaudeCodeStreamAdapter {
     }
     switch (st.phase) {
       case 'prefix':
-        if (c === held.fenceChar) {
+        if (fenceCharMatch) {
           st.phase = 'run'
           st.runLength = 1
         } else if (c !== ' ' && c !== '\t' && c !== '>' && c !== '\r') {
@@ -1448,7 +1456,7 @@ export class ClaudeCodeStreamAdapter {
         }
         break
       case 'run':
-        if (c === held.fenceChar) st.runLength++
+        if (fenceCharMatch) st.runLength++
         else if (c === ' ' || c === '\t' || c === '\r') st.phase = 'trailing'
         else st.phase = 'dead'
         break
