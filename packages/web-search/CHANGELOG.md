@@ -1,5 +1,11 @@
 # @cherrystudio/web-search
 
+## 0.4.0
+
+### Minor Changes
+
+- [#22599](https://github.com/CherryHQ/cherry-studio/pull/22599) [`b8e6bca`](https://github.com/CherryHQ/cherry-studio/commit/b8e6bca0423b618819b8082204db0f4b6b798b70) Thanks [@sgan0420](https://github.com/sgan0420)! - Add the SearchApi provider for Google keyword search with bearer API key authentication.
+
 ## 0.3.1
 
 ### Patch Changes
