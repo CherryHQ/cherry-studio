@@ -471,7 +471,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
           })
       },
       helpers: {
-        message: (child, input, key) =>
+        message: (child, input, key, reservedRun) =>
           enter(scope, () =>
             trackMessage(
               scope.task,
@@ -485,7 +485,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                     const live = await tx.doc(LiveDoc, id)
                     const tasks = await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))
                     const owner = child?.owner && (await tx.task(child.owner.taskId))
-                    if (owner && !owner.background && !live.run && runIds(tasks).length)
+                    if (owner && !owner.background && !live.run && (await runIds(tx, id, tasks)).length)
                       throw new Error('Durable cannot detach a foreground child continuation')
                     return tx.submissionByRequest(id, key)
                   })
@@ -536,6 +536,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                             data: {
                               ...(input.data as Record<string, JsonValue>),
                               key,
+                              ...(reservedRun !== undefined && { cherryRun: reservedRun }),
                               ...(scope.input?.thread === child && { cherryInputId: scope.input.id })
                             }
                           }
@@ -554,27 +555,16 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                   if (!scope.context.abortSignal?.aborted) throw error
                   const withdrawn = await harness.abortSubmission(receipt.id, context, id)
                   if (withdrawn === 'aborted') {
-                    const count = await harness.commit(
-                      async (tx) =>
-                        runIds(await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))).length,
-                      context
-                    )
+                    const count = await harness.commit(async (tx) => (await runIds(tx, id)).length, context)
                     return { run: count, status: 'withdrawn' as const }
                   }
                   consumed = await receipt.status(context)
                 }
                 if (consumed.type !== 'input' || consumed.runId === undefined) {
-                  const count = await harness.commit(
-                    async (tx) =>
-                      runIds(await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))).length,
-                    context
-                  )
+                  const count = await harness.commit(async (tx) => (await runIds(tx, id)).length, context)
                   return { status: 'withdrawn' as const, run: count }
                 }
-                const ids = await harness.commit(
-                  async (tx) => runIds(await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))),
-                  context
-                )
+                const ids = await harness.commit((tx) => runIds(tx, id), context)
                 return {
                   run: ids.indexOf(consumed.runId) + 1,
                   status: consumed.runId > consumed.id ? ('started' as const) : ('queued' as const)
@@ -582,10 +572,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               })().catch(async (error) => {
                 if (!scope.context.abortSignal?.aborted) throw error
                 const count = await harness.commit(
-                  async (tx) =>
-                    runIds(
-                      await pages((cursor) => tx.scanTasks({ conversationId: conversationId(child) }, 256, cursor))
-                    ).length,
+                  async (tx) => (await runIds(tx, conversationId(child))).length,
                   context
                 )
                 return { run: count, status: 'withdrawn' as const }
@@ -599,7 +586,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                 scope.commit(async (tx) => {
                   const id = conversationId(child)
                   const tasks = await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))
-                  const runId = runIds(tasks)[run - 1]
+                  const runId = (await runIds(tx, id, tasks))[run - 1]
                   if (runId === undefined) throw new Error(`Unknown child run ${run}`)
                   const live = await tx.doc(LiveDoc, id)
                   if ((live.run?.id ?? live.run?.taskId) === runId) return undefined
@@ -642,7 +629,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               const id = conversationId(child)
               for (;;) {
                 const task = await scope.commit(async (tx) => {
-                  const ids = runIds(await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor)))
+                  const ids = await runIds(tx, id)
                   const live = await tx.doc(LiveDoc, id)
                   const inbox = await tx.doc(InboxDoc, id)
                   return live.run && (live.run.id ?? live.run.taskId) === ids[run - 1]

@@ -145,11 +145,13 @@ export async function readFacts(
     const childEntries = await lineageEntries(tx, childId)
     const childLive = await tx.doc(LiveDoc, childId)
     const childTasks = await pages((cursor) => tx.scanTasks({ conversationId: childId }, 256, cursor))
-    const ids = runIds(childTasks)
-    const runUsage = ids.map(() => ({ ...ZERO_USAGE }))
+    const ids = await runIds(tx, childId, childTasks, childEntries)
+    const runUsage = Array.from(ids, () => ({ ...ZERO_USAGE }))
     for (const entry of childEntries) {
       if (entry.conversationId !== childId) continue
-      const run = ids.indexOf((entry.data as { runId?: TaskId })?.runId!)
+      const runId = (entry.data as { runId?: TaskId })?.runId
+      if (runId === undefined) continue
+      const run = ids.indexOf(runId)
       if (run < 0) continue
       for (const message of entry.model ?? []) {
         if (message.role !== 'assistant') continue
@@ -218,6 +220,30 @@ export const ZERO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, to
 export function taskRun(task: TaskRecord<JsonValue, JsonValue, JsonValue>): TaskId {
   return (task.input as { runId?: TaskId }).runId ?? task.id
 }
-export function runIds(tasks: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[]): TaskId[] {
-  return [...new Set(tasks.filter((task) => task.kind === 'pi.generation').map(taskRun))].sort((a, b) => a - b)
+export async function runIds(
+  tx: Tx,
+  id: ConversationId,
+  tasks?: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[],
+  entries?: readonly EntryRecord[]
+): Promise<(TaskId | undefined)[]> {
+  tasks ??= await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))
+  entries ??= await lineageEntries(tx, id)
+  const reservations = new Map<TaskId, number>()
+  for (const entry of entries) {
+    if (entry.conversationId !== id) continue
+    const data = entry.data as { key?: string; cherryRun?: number } | undefined
+    if (!data?.key || data.cherryRun === undefined) continue
+    const input = await tx.submissionByRequest(id, data.key)
+    if (input?.type === 'input' && input.runId !== undefined && input.runId > input.id)
+      reservations.set(input.runId, Math.max(reservations.get(input.runId) ?? 0, data.cherryRun))
+  }
+  const ids: (TaskId | undefined)[] = []
+  for (const run of [...new Set(tasks.filter((task) => task.kind === 'pi.generation').map(taskRun))].sort(
+    (a, b) => a - b
+  )) {
+    const number = Math.max(ids.length + 1, reservations.get(run) ?? 0)
+    while (ids.length < number - 1) ids.push(undefined)
+    ids.push(run)
+  }
+  return ids
 }
