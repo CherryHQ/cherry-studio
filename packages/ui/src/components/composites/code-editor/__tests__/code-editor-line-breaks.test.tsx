@@ -6,7 +6,7 @@ import { act, fireEvent, render, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
-import { codeBlockHighlightStyle } from '../../../../code-block'
+import { codeBlockHighlightStyle, loadCodeBlockLanguage } from '../../../../code-block'
 import CodeEditor from '../code-editor'
 import type { CodeEditorHandles } from '../types'
 
@@ -23,6 +23,10 @@ async function mount(value = 'a\r\nb', sharedSyntax = true) {
     onSave: (source: string) => saved.push(source)
   }
   const host = render(<CodeEditor {...props} />)
+  // Language reconfiguration removes search's transient panel state.
+  await act(async () => {
+    await loadCodeBlockLanguage(props.language)
+  })
   await waitFor(() => expect(handle.current?.getContent?.()).toBe(value))
   const view = EditorView.findFromDOM(host.container.querySelector('.cm-editor')!)!
   act(() => view.dispatch({ selection: { anchor: view.state.doc.length } }))
