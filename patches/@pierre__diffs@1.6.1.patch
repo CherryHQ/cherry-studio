@@ -12,7 +12,7 @@ index 8055c09b642caddcf411182dad3313866b02d15c..5ad3c861103e8023d8b202d6285b95da
    historyMaxEntries?: number;
    /**
 diff --git a/dist/editor/editor.js b/dist/editor/editor.js
-index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676607f7f32 100644
+index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..4b8b052d4c6522177e9620bd9a187d301886d220 100644
 --- a/dist/editor/editor.js
 +++ b/dist/editor/editor.js
 @@ -69,6 +69,7 @@ const MAX_EDIT_PREDICTION_RESPONSE_BYTES = 131072;
@@ -188,7 +188,28 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  				if (e.inputType === "insertCompositionText") {
  					this.#cancelEditPrediction(true);
  					return;
-@@ -1317,6 +1373,7 @@ var Editor = class {
+@@ -1217,9 +1273,20 @@ var Editor = class {
+ 				e.preventDefault();
+ 				this.#handleInput(e.inputType, e.data);
+ 			}),
++			addEventListener(contentEl, "dragover", (e) => {
++				if (!targetIsContentElement(e) || this.#options.readOnly || !e.dataTransfer?.types.includes("text/plain")) return;
++				e.preventDefault();
++				e.dataTransfer.dropEffect = "copy";
++			}),
+ 			addEventListener(contentEl, "drop", (e) => {
+ 				if (!targetIsContentElement(e)) return;
+ 				e.preventDefault();
++				if (this.#options.readOnly) return;
++				const text = e.dataTransfer?.getData("text/plain");
++				const textDocument = this.#editSession?.document;
++				const selection = this.#selectionAtPointer(e);
++				if (!text || textDocument == null || selection == null) return;
++				this.#replaceSelectionText(textDocument.normalizeEol(text), [selection], true);
+ 			}),
+ 			addEventListener(contentEl, "compositionstart", (e) => {
+ 				if (!targetIsContentElement(e)) return;
+@@ -1317,6 +1384,7 @@ var Editor = class {
  		this.#computeContentOffset(contentEl);
  	}
  	#handleCustomPasteEvent = async () => {
@@ -196,7 +217,7 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  		const clipboard = this.#options.clipboard;
  		if (clipboard !== void 0) {
  			let text = await clipboard.readText();
-@@ -1345,6 +1402,7 @@ var Editor = class {
+@@ -1345,6 +1413,7 @@ var Editor = class {
  		if (this.#isDiff && this.#diffSyle === "split" && this.#isWrap) return this.#contentOffset;
  	}
  	#runCommand(command) {
@@ -204,7 +225,7 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  		const textDocument = this.#editSession?.document;
  		if (textDocument == null) return;
  		switch (command) {
-@@ -1913,6 +1971,7 @@ var Editor = class {
+@@ -1913,6 +1982,7 @@ var Editor = class {
  		if (this.#options.__debug === true) console.log(`[diffs/editor] re-render in: ${round(performance.now() - t2)}ms,`, `tokenize in: ${round(t2 - t)}ms (${dirtyLines.size} dirty lines)`);
  	}
  	#handleInput(inputType, data) {
@@ -212,7 +233,7 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  		switch (inputType) {
  			case "insertText": {
  				const text = data ?? "";
-@@ -2278,6 +2337,7 @@ var Editor = class {
+@@ -2278,6 +2348,7 @@ var Editor = class {
  		if (this.#themeSelectionRefreshFrame !== void 0) return;
  		this.#themeSelectionRefreshFrame = requestAnimationFrame(() => {
  			this.#themeSelectionRefreshFrame = void 0;
@@ -220,7 +241,7 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  			if (this.#selections !== void 0 || this.#matches !== void 0 || this.#markerRenderer !== void 0) this.#updateSelections(this.#selections ?? []);
  		});
  	}
-@@ -2552,6 +2612,7 @@ var Editor = class {
+@@ -2552,6 +2623,7 @@ var Editor = class {
  	}
  	#scheduleEditPrediction() {
  		this.#cancelEditPrediction(true);
@@ -228,7 +249,7 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  		const selection = this.#selections?.[0];
  		if (this.#options.editPrediction === void 0 || this.#editSession?.document === void 0 || this.#editSession?.fileInfo === void 0 || this.#selections?.length !== 1 || selection === void 0 || !isCollapsedSelection(selection)) return;
  		const document = this.#editSession?.document;
-@@ -2676,6 +2737,7 @@ var Editor = class {
+@@ -2676,6 +2748,7 @@ var Editor = class {
  		this.#editPredictionHistory = recordEditPrediction(this.#editPredictionHistory, path, textDocument, transaction, source);
  	}
  	#acceptEditPrediction() {
@@ -236,7 +257,7 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  		const prediction = this.#editPrediction;
  		const textDocument = this.#editSession?.document;
  		const selection = this.#selections?.[0];
-@@ -3194,6 +3256,7 @@ var Editor = class {
+@@ -3194,6 +3267,7 @@ var Editor = class {
  		this.#selectionAction.reposition(left, anchorTop, this.#getGutterWidth(), placeAbove, isSelectionVisible, viewport);
  	}
  	#openSearchPanel(mode) {
@@ -244,7 +265,7 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  		if (this.#searchPanel !== void 0) {
  			this.#searchPanel.setMode(mode);
  			return;
-@@ -3232,10 +3295,11 @@ var Editor = class {
+@@ -3232,10 +3306,11 @@ var Editor = class {
  			containerElement: preElement,
  			defaultQuery,
  			mode,
@@ -257,7 +278,7 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  				const change = textDocument.applyEdits(edits.map((edit) => ({
  					range: {
  						start: textDocument.positionAt(edit.start),
-@@ -3333,6 +3397,7 @@ var Editor = class {
+@@ -3333,6 +3408,7 @@ var Editor = class {
  		this.#applyChange(change, nextSelections, this.#applyChangeToLineAnnotations(change));
  	}
  	#replaceSelectionText(text, selections = this.#selections, undoBoundary = false, textOrder = "selection") {
@@ -265,12 +286,12 @@ index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..e18a52cd198aa34ce8c977428afa6676
  		if (selections === void 0) return;
  		const textDocument = this.#editSession?.document;
  		const primarySelection = selections.at(-1);
-@@ -3423,7 +3488,7 @@ var Editor = class {
+@@ -3423,7 +3499,7 @@ var Editor = class {
  				} else shouldUpdateBuffer = true;
  			}
  		}
 -		if (this.#isRendering && this.#tokenizer != null && this.#contentElement != null) this.#rerender(change, newLineAnnotations, renderRange, shouldUpdateBuffer);
-+		if (this.#isRendering && this.#tokenizer != null && this.#contentElement != null && this.#isLineInRenderRange(change.startLine)) this.#rerender(change, newLineAnnotations, renderRange, shouldUpdateBuffer);
++		if (this.#isRendering && this.#tokenizer != null && this.#contentElement != null && (renderRange == null || change.startLine < renderRange.startingLine + renderRange.totalLines)) this.#rerender(change, newLineAnnotations, renderRange, shouldUpdateBuffer);
  		else if (textDocument != null) {
  			this.#applySuspendedDocumentChange?.(textDocument, newLineAnnotations);
  			if (newLineAnnotations != null) this.#lineAnnotations = newLineAnnotations;

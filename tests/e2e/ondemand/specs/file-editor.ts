@@ -23,6 +23,7 @@ export default async function fileEditor(context: ScenarioContext): Promise<void
     { length: 20_000 },
     (_, index) => `export const row${index} = "中文 🥟 ${index}"; // source fixture\n`
   ).join('')
+  const interactionsSource = Array.from({ length: 1_000 }, (_, index) => `const row${index} = "original";`).join('\r\n')
   const largeDigest = digest(largeSource)
   await writeFile(
     join(fixture, 'SKILL.md'),
@@ -30,6 +31,7 @@ export default async function fileEditor(context: ScenarioContext): Promise<void
   )
   await writeFile(join(fixture, 'sample.ts'), original)
   await writeFile(join(fixture, 'large.ts'), largeSource)
+  await writeFile(join(fixture, 'interactions.ts'), interactionsSource)
   let skillId: string | undefined
   const originalTheme = await page.evaluate(() => window.api.preference.get('ui.theme_mode'))
   const originalLightTheme = await page.evaluate(() => window.api.preference.get('chat.code.viewer.theme_light'))
@@ -124,6 +126,86 @@ export default async function fileEditor(context: ScenarioContext): Promise<void
     await editor.press('ControlOrMeta+z')
     await expect.poll(() => readFile(savedFile, 'utf8'), { timeout: 15_000 }).toBe(original)
     await context.screenshot('file-editor-theme-history')
+
+    await page.getByRole('treeitem', { name: 'interactions.ts', exact: true }).click()
+    const interactions = page.getByRole('textbox', { name: 'interactions.ts', exact: true })
+    const interactionsPath = join(rootPath, 'interactions.ts')
+    await expect(interactions).toBeVisible()
+    const scrollToMiddle = () =>
+      interactions.evaluate((node) => {
+        let scroll = (node.getRootNode() as ShadowRoot).host.parentElement
+        while (scroll && !/(auto|scroll|overlay)/.test(getComputedStyle(scroll).overflowY))
+          scroll = scroll.parentElement
+        if (!scroll) throw new Error('Missing file viewport')
+        scroll.scrollTop = 500 * parseFloat(getComputedStyle(node).lineHeight)
+      })
+    await scrollToMiddle()
+    const visibleRow = interactions.locator('[data-line="501"]')
+    await expect(visibleRow).toBeVisible()
+    await visibleRow.click()
+    await expect(interactions.locator('[data-line="1"]')).toHaveCount(0)
+    await interactions.press(process.platform === 'darwin' ? 'Meta+Alt+f' : 'Control+h')
+    await page.getByPlaceholder('Search', { exact: true }).fill('original')
+    await page.getByPlaceholder('Replace', { exact: true }).fill('changed!')
+    await scrollToMiddle()
+    await expect(visibleRow).toBeVisible()
+    await expect(interactions.locator('[data-line="1"]')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Replace All', exact: true }).click()
+    const replacedSource = interactionsSource.replaceAll('original', 'changed!')
+    expect(await visibleRow.textContent()).toBe('const row500 = "changed!";')
+    await expect.poll(() => readFile(interactionsPath, 'utf8'), { timeout: 15_000 }).toBe(replacedSource)
+    await context.screenshot('file-editor-scrolled-replace-all')
+    await page.getByRole('button', { name: 'Close', exact: true }).click()
+    await interactions.click()
+    await interactions.press('ControlOrMeta+z')
+    await expect.poll(() => readFile(interactionsPath, 'utf8'), { timeout: 15_000 }).toBe(interactionsSource)
+    await interactions.press('ControlOrMeta+Shift+z')
+    await expect.poll(() => readFile(interactionsPath, 'utf8'), { timeout: 15_000 }).toBe(replacedSource)
+
+    await interactions.press('ControlOrMeta+Home')
+    const firstInteractionRow = interactions.locator('[data-line="1"]')
+    await expect(firstInteractionRow).toBeVisible()
+    await firstInteractionRow.click({ position: { x: 2, y: 2 } })
+    const dropPoint = await firstInteractionRow.boundingBox()
+    if (!dropPoint) throw new Error('Missing drop target')
+    const cdp = await page.context().newCDPSession(page)
+    const dropText = 'DROP\n中文 🥟\r\n'
+    const data = { items: [{ mimeType: 'text/plain', data: dropText }], dragOperationsMask: 1 }
+    try {
+      for (const type of ['dragEnter', 'dragOver', 'drop'] as const)
+        await cdp.send('Input.dispatchDragEvent', {
+          type,
+          x: dropPoint.x + 1,
+          y: dropPoint.y + dropPoint.height / 2,
+          data
+        })
+      const droppedSource = 'DROP\r\n中文 🥟\r\n' + replacedSource
+      await expect.poll(() => readFile(interactionsPath, 'utf8'), { timeout: 15_000 }).toBe(droppedSource)
+      await expect(firstInteractionRow).toHaveText('DROP')
+      await interactions.press('ControlOrMeta+z')
+      await expect.poll(() => readFile(interactionsPath, 'utf8'), { timeout: 15_000 }).toBe(replacedSource)
+      await interactions.press('ControlOrMeta+Shift+z')
+      await expect.poll(() => readFile(interactionsPath, 'utf8'), { timeout: 15_000 }).toBe(droppedSource)
+      await page.getByRole('radio', { name: '预览', exact: true }).click()
+      const readOnly = page.getByRole('textbox', { name: /[/\\]interactions\.ts$/ })
+      await expect(readOnly).toHaveAttribute('aria-readonly', 'true')
+      await readOnly.locator('[data-line="1"]').click({ position: { x: 2, y: 2 } })
+      const readOnlyPoint = await readOnly.locator('[data-line="1"]').boundingBox()
+      if (!readOnlyPoint) throw new Error('Missing read-only drop target')
+      for (const type of ['dragEnter', 'dragOver', 'drop'] as const)
+        await cdp.send('Input.dispatchDragEvent', {
+          type,
+          x: readOnlyPoint.x + 1,
+          y: readOnlyPoint.y + readOnlyPoint.height / 2,
+          data
+        })
+      await readOnly.press('ControlOrMeta+a')
+      await readOnly.press('ControlOrMeta+c')
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(droppedSource)
+      expect(await readFile(interactionsPath, 'utf8')).toBe(droppedSource)
+    } finally {
+      await cdp.detach()
+    }
 
     await page.getByRole('treeitem', { name: 'large.ts', exact: true }).click()
     await page.getByRole('radio', { name: '预览', exact: true }).click()
