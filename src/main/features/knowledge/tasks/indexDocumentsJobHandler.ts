@@ -269,7 +269,10 @@ async function ensureSnapshot(
       // Another job captured the snapshot (or the item changed) while we produced.
       return isIndexableKnowledgeItem(latest) ? latest : item
     }
-    const reservedPaths = collectKnowledgeReservedRelativePaths(knowledgeItemService.getItemsByBaseId(ctx.input.baseId))
+    // A deleting row's pending cleanup still unlinks its paths, so the snapshot must not claim them.
+    const reservedPaths = collectKnowledgeReservedRelativePaths(
+      knowledgeItemService.getItemsByBaseId(ctx.input.baseId, { includeDeleting: true })
+    )
     const relativePath = await spec.capture(snapshot, reservedPaths)
     const updated = knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)
     return isIndexableKnowledgeItem(updated) ? updated : item

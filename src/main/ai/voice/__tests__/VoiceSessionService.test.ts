@@ -34,6 +34,10 @@ import type * as LocalAdapters from '../localAdapters'
 import { VoiceCleanupError, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
 
+// Captured before the describe's beforeEach stubs process as darwin: the real
+// host decides whether the filesystem enforces POSIX permission modes.
+const HOST_PLATFORM = process.platform
+
 const native = vi.hoisted(() => ({
   status: vi.fn(),
   transcribe: vi.fn(),
@@ -1579,7 +1583,9 @@ describe('VoiceSessionService file and admission contract', () => {
     await service._doInit()
 
     expect(await readdir(directory)).toEqual([])
-    expect((await stat(directory)).mode & 0o777).toBe(0o700)
+    if (HOST_PLATFORM !== 'win32') {
+      expect((await stat(directory)).mode & 0o777).toBe(0o700)
+    }
     expect(await readFile(sibling)).toEqual(wav())
     expect((await speech()).result.output).toMatchObject({ kind: 'audio', mimeType: 'audio/wav' })
   })
