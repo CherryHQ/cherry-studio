@@ -1,11 +1,51 @@
+import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 
+import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
 import { claudeThread } from '../src'
 import { confirmed, fixture, inputId, observe, spawnChild, textOf } from './nativeFixture'
+
+it('claims one prewarmed native process for commands, input and confirmed shutdown', async () => {
+  const test = await fixture()
+  const sessionId = randomUUID()
+  const warm = await startup({
+    options: {
+      ...test.options,
+      sessionId,
+      includePartialMessages: true,
+      forwardSubagentText: true,
+      env: { ...test.options.env, CLAUDE_CONFIG_DIR: test.configDir }
+    }
+  })
+  try {
+    const child = test.children[0]
+    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+    const runtime = test.runtime()
+    const root = confirmed(await runtime.create({ ...test.options, sessionId }))
+    const view = await observe(root)
+    confirmed(root.claude.start({ query: warm, exited }))
+    const commands = confirmed(await root.claude.supportedCommands())
+    expect(commands.some((command) => command.name === 'compact')).toBe(true)
+    expect(root.thread.id).toBe(sessionId)
+    const id = inputId()
+    await root.input!.submit({ inputId: id, text: 'Use the warm process', whenBusy: 'steer' })
+    const request = await test.request()
+    request.reply.block({ type: 'text', text: 'Warm answer' })
+    request.reply.finish()
+    await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === id)?.outcome).toBe('completed')
+    expect(textOf(view.snapshot)).toContain('Warm answer')
+    expect(test.children).toHaveLength(1)
+    confirmed(await runtime.shutdown())
+    expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
+  } finally {
+    warm.close()
+    await test.close()
+  }
+}, 30000)
 
 it('reconciles an archive read overlapping live output without losing the committed tail or its aliases', async () => {
   const test = await fixture()
