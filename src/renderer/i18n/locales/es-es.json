@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Por favor, seleccione el archivo a subir",
   "notes.no_note_selected": "Por favor, selecciona primero una nota.",
   "notes.no_valid_files": "No se ha cargado un archivo válido",
+  "notes.open": "Abrir nota",
   "notes.open_outside": "Abrir desde el exterior",
   "notes.print": "Imprimir",
   "notes.print_failed": "Error al imprimir la nota",
