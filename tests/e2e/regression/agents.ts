@@ -35,15 +35,45 @@ export async function startBuiltinAssistantTask(page: Page): Promise<void> {
   }
 
   await selectSidebarApp(page, 'Work')
-  const agentView = page.locator('[data-ui="agent.view"]:visible')
-  await expect(agentView).toBeVisible({ timeout: 30_000 })
-  const agentHeader = agentView.getByRole('button', { name: resolved.name, exact: true })
-  await expect(agentHeader, `Expected one header for built-in assistant agent ${resolved.id}`).toHaveCount(1)
-  await agentHeader.click({ noWaitAfter: true })
-  await agentHeader.hover()
-  const newTask = agentHeader.locator('..').getByRole('button', { name: 'New task', exact: true })
+
+  const view = page.locator('[data-ui~="agent.view"]:visible')
+  await expect(view).toHaveCount(1, { timeout: 30_000 })
+  await expect(view).toBeVisible({ timeout: 30_000 })
+
+  const entry = view
+    .locator('div[class~="group/resource-list-group"]')
+    .filter({
+      has: page.getByRole('button', {
+        name: resolved.name,
+        exact: true
+      })
+    })
+    .filter({
+      has: page.getByRole('button', {
+        name: 'New task',
+        exact: true,
+        includeHidden: true
+      })
+    })
+
+  await expect(entry).toHaveCount(1)
+
+  const header = entry.getByRole('button', {
+    name: resolved.name,
+    exact: true
+  })
+  await expect(header).toHaveCount(1)
+  await header.click({ noWaitAfter: true })
+  await header.hover()
+
+  const newTask = entry.getByRole('button', {
+    name: 'New task',
+    exact: true
+  })
+  await expect(newTask).toHaveCount(1)
   await expect(newTask).toBeVisible()
   await newTask.click()
+
   await expect(page.locator('[data-ui~="chat.message"]:visible')).toHaveCount(0, { timeout: 30_000 })
 }
 

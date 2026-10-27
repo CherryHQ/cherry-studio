@@ -447,7 +447,7 @@ export const useSessions = (
         }
         return true
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.pin.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.update.error.failed')))
         return false
       }
     },

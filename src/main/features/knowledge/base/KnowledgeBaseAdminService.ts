@@ -2,7 +2,6 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   type CreateKnowledgeBaseDto,
@@ -13,6 +12,7 @@ import {
   type RestoreKnowledgeBaseDto,
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import type { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { classifyKnowledgeItemRestoreSource } from '../items'
@@ -156,7 +156,7 @@ export class KnowledgeBaseAdminService {
     const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
     try {
-      await this.ingestionService.addItems(restoredBase.id, inputs)
+      await this.ingestionService.addItems(restoredBase.id, inputs, undefined, { copyInline: true })
     } catch (error) {
       try {
         await this.deleteBase(restoredBase.id)
@@ -199,7 +199,11 @@ export class KnowledgeBaseAdminService {
           type: 'file',
           data: {
             source: item.data.source,
-            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
+            // A `preparing` file has not been copied into the source base yet, so copy its original.
+            path:
+              item.status === 'preparing'
+                ? item.data.source
+                : getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
             // Carry the processed artifact across so the new base indexes from it
             // instead of re-running the (slow, paid) file processor.
             ...(item.data.indexedRelativePath

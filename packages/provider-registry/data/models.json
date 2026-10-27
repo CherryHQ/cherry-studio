@@ -17696,6 +17696,86 @@
       "contextWindow": 1050000,
       "endpointTypes": ["openai-responses"],
       "family": "gpt",
+      "id": "gpt-6-1-terra",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GPT-6.1 Terra",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": false,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.1
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 2.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 2
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 7.5
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
+      "contextWindow": 1050000,
+      "endpointTypes": ["openai-responses"],
+      "family": "gpt",
       "id": "gpt-6-astra",
       "inputModalities": ["text", "image"],
       "maxInputTokens": 922000,
@@ -23187,5 +23267,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "496aef37f9a35b5d"
+  "version": "38986c5ef01254eb"
 }
