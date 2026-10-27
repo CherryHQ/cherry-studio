@@ -73,22 +73,21 @@ export function submit(host: RunHost, thread: ThreadState, key: string, input: T
 }
 
 /**
- * H3: a running child takes the message at its next boundary; an idle one starts a run with it, unless it steers `run`
- * or `ownerAborted` says the call that owns the child's first run has aborted.
+ * H3: a running child takes the message at its next boundary; an idle one starts a run with it, unless its caller
+ * has already aborted.
  */
 export function message(
   host: RunHost,
   thread: ThreadState,
   input: TurnInput,
   key: string,
-  run?: number,
-  ownerAborted = false
+  cancelled = false
 ): MessageResult {
   const existing = thread.submissions.get(key)
   if (existing) return existing.admission as MessageResult
   const active = thread.active
-  if (run !== undefined ? active?.run !== run : !active && ownerAborted) {
-    const withdrawn: MessageResult = { run: run ?? thread.runs + 1, status: 'withdrawn' }
+  if (cancelled) {
+    const withdrawn: MessageResult = { run: active?.run ?? thread.runs + 1, status: 'withdrawn' }
     thread.submissions.set(key, { input, admission: withdrawn, state: 'withdrawn' })
     return withdrawn
   }
@@ -208,8 +207,9 @@ function finish(host: RunHost, epoch: Epoch, thread: ThreadState, end: RunEnding
   thread.owner = undefined
   for (const submission of thread.submissions.values())
     if (submission.run === run && submission.state === 'running') submission.state = 'settled'
-  // A steer that missed the run's last boundary is withdrawn, never carried into the next run (G-C5).
-  for (const key of thread.steer.splice(0)) thread.submissions.get(key)!.state = 'withdrawn'
+  const pending = thread.steer.splice(0)
+  if (end.live === 'completed') thread.inbox.push(...pending)
+  else for (const key of pending) thread.submissions.get(key)!.state = 'withdrawn'
   epoch.loops.delete(thread.id)
   if (end.live === 'completed') drain(host, thread)
   wake(epoch, thread.id)

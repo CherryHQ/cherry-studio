@@ -169,11 +169,10 @@ describe('subagent tools', () => {
   it('message_subagent continues the child when its run ends before the steer arrives', async () => {
     const hold = holds()
     const lateSteer = wrapTool('message_subagent', (run) => (call, ports) => {
-      // Released for every message, so a steer sent without its run fails here instead of waiting on the held run.
-      const message: typeof ports.helpers.message = async (child, input, key, steered) => {
+      const message: typeof ports.helpers.message = async (child, input, key) => {
         hold.release('child')
         await ports.waits.untilIdle(child)
-        return ports.helpers.message(child, input, key, steered)
+        return ports.helpers.message(child, input, key)
       }
       return run(call, { ...ports, helpers: { ...ports.helpers, message } })
     })
@@ -203,17 +202,16 @@ describe('subagent tools', () => {
     expect(facts.children.get(CHILD)?.runUsage).toHaveLength(2)
   })
 
-  // Catches a steer its run ended without taking being silently dropped (the tool answering 'queued' for a message
-  // nobody reads) or carried into a run the parent never records (G-C5).
-  it('message_subagent continues the child when its run ends before a boundary takes the steer', async () => {
+  // Catches an explicit stop being undone by automatically resubmitting a cancelled message.
+  it('message_subagent reports cancellation without restarting a stopped child', async () => {
     const hold = holds()
     const steerSent = latch()
     const w = world({
       extra: (p) => p.tools.register(hold.tool),
       wrap: wrapTool('message_subagent', (run) => (call, ports) => {
-        const message: typeof ports.helpers.message = (child, input, key, steered) => {
-          const answer = ports.helpers.message(child, input, key, steered)
-          if (steered !== undefined) steerSent.release()
+        const message: typeof ports.helpers.message = (child, input, key) => {
+          const answer = ports.helpers.message(child, input, key)
+          if (key.startsWith('subagent-steer:')) steerSent.release()
           return answer
         }
         return run(call, { ...ports, helpers: { ...ports.helpers, message } })
@@ -236,21 +234,14 @@ describe('subagent tools', () => {
     await w.fake.settle()
     const facts = await w.read(t)
     expect(toolResults(facts).find(({ tool }) => tool === 'message_subagent')).toMatchObject({
-      details: { sessionId: CHILD, continued: true }
+      text: notDeliveredText(CHILD),
+      isError: true
     })
-    expect(
-      runRecords(facts)
-        .filter(({ status }) => status === 'finished')
-        .map(({ run, outcome }) => [run, outcome])
-    ).toEqual([
-      [1, 'aborted'],
-      [2, 'completed']
+    expect(runRecords(facts).filter(({ status }) => status === 'finished')).toMatchObject([
+      { run: 1, outcome: 'aborted' }
     ])
-    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(2)
-    const child = await w.read(CHILD)
-    const steers = child.history.filter((entry) => entry.kind === 'marker' && entry.key?.startsWith('subagent-steer:'))
-    expect(steers).toEqual([])
-    expect(markers(child, 'subagent-message').at(-1)?.text).toContain('one more thing')
+    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(1)
+    expect(await childInputs(w, CHILD)).toBe(1)
   })
 
   // Catches a person's stop that waits on a steer (H3): the steer's call holds the parent's run until the child's next
@@ -261,9 +252,9 @@ describe('subagent tools', () => {
     const w = world({
       extra: (p) => p.tools.register(hold.tool),
       wrap: wrapTool('message_subagent', (run) => (call, ports) => {
-        const message: typeof ports.helpers.message = (child, input, key, steered) => {
-          const answer = ports.helpers.message(child, input, key, steered)
-          if (steered !== undefined) steerSent.release()
+        const message: typeof ports.helpers.message = (child, input, key) => {
+          const answer = ports.helpers.message(child, input, key)
+          if (key.startsWith('subagent-steer:')) steerSent.release()
           return answer
         }
         return run(call, { ...ports, helpers: { ...ports.helpers, message } })
@@ -302,38 +293,27 @@ describe('subagent tools', () => {
     expect(await childInputs(w, CHILD)).toBe(1)
   })
 
-  // Catches a decision again after a withdrawn steer reusing that steer's key on a later run (G-C5): the harness keeps
-  // answering it 'withdrawn', so the tool decides again while that run lasts (cut off at 20 commits) and never steers it.
-  it('message_subagent steers a later run under a new key once its first steer was withdrawn', async () => {
+  // Catches concurrent late messages being lost or duplicated while one starts the next run and the other joins it.
+  it('concurrent messages cross completion under their original keys and report the new run once', async () => {
     const hold = holds()
     const second = callKeyOf('message-2')
     const steeredTwo = latch()
     let messageRun: ToolDefinition['run'] | undefined
-    let commits = 0
-    let steersForOne = 0
+    let arrivals = 0
     const w = world({
       extra: (p) => p.tools.register(hold.tool),
       wrap: wrapTool('message_subagent', (run) => {
         messageRun = (call, ports) => {
-          const transact: typeof ports.ledger.transact = (thread, decide) => {
-            commits += 1
-            if (commits > 20) return Promise.reject(new Error('message_subagent kept deciding'))
-            return ports.ledger.transact(thread, decide)
-          }
-          const message: typeof ports.helpers.message = async (child, input, key, steered) => {
-            // Run 1 ends once both calls steered it, before either steer reaches it.
-            if (steered === 1) {
-              steersForOne += 1
-              if (steersForOne === 2) hold.release('one')
-              await ports.waits.untilIdle(child)
-            }
-            const answer = ports.helpers.message(child, input, key, steered)
-            if (steered === 2) steeredTwo.release()
-            // The second call decides again only once the first call's continuation is running.
-            if (call.key === second && steered === 1) await hold.started('two')
+          const message: typeof ports.helpers.message = async (child, input, key) => {
+            arrivals += 1
+            if (arrivals === 2) hold.release('one')
+            await ports.waits.untilIdle(child)
+            if (call.key === second) await hold.started('two')
+            const answer = ports.helpers.message(child, input, key)
+            if (call.key === second) steeredTwo.release()
             return answer
           }
-          return run(call, { ...ports, ledger: { ...ports.ledger, transact }, helpers: { ...ports.helpers, message } })
+          return run(call, { ...ports, helpers: { ...ports.helpers, message } })
         }
         return messageRun
       }),
@@ -360,13 +340,20 @@ describe('subagent tools', () => {
     await w.fake.settle()
     expect(first).toMatchObject({ details: { sessionId: CHILD, continued: true } })
     expect(later).toMatchObject({ details: { sessionId: CHILD, continued: false } })
-    expect(markersWith(await w.read(CHILD), keys.subagentSteer(second, 2))).toHaveLength(1)
-    expect((await w.read(t)).children.get(CHILD)?.runUsage).toHaveLength(2)
+    expect(markersWith(await w.read(CHILD), keys.subagentSteer(second, 1))).toHaveLength(1)
+    const facts = await w.read(t)
+    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(2)
+    expect(runRecords(facts).filter((record) => record.run === 2 && record.status === 'finished')).toHaveLength(1)
+    expect(
+      markers(facts, 'subagent-notification')
+        .flatMap((entry) => entry.marker.runs)
+        .filter((run) => run.run === 2)
+    ).toHaveLength(1)
   })
 
   // Catches a rerun of a steer that a crash cut after the child took it (H3): the call's result was never stored, and
   // its rerun, finding the child finished, sent the same instruction again as a new run.
-  it('message_subagent rerun after a crash does not deliver its steer twice', async () => {
+  it.each([false, true])('message replay after a crash delivers once, crossing completion: %s', async (late) => {
     const hold = holds()
     const steerSent = latch()
     const answered = latch()
@@ -375,9 +362,13 @@ describe('subagent tools', () => {
     const w = world({
       extra: (p) => p.tools.register(hold.tool),
       wrap: wrapTool('message_subagent', (run) => async (call, ports) => {
-        const message: typeof ports.helpers.message = (child, input, key, steered) => {
-          const answer = ports.helpers.message(child, input, key, steered)
-          if (steered !== undefined) steerSent.release()
+        const message: typeof ports.helpers.message = async (child, input, key) => {
+          if (late) {
+            hold.release('child')
+            await ports.waits.untilIdle(child)
+          }
+          const answer = ports.helpers.message(child, input, key)
+          if (key.startsWith('subagent-steer:')) steerSent.release()
           return answer
         }
         const outcome = await run(call, { ...ports, helpers: { ...ports.helpers, message } })
@@ -420,10 +411,10 @@ describe('subagent tools', () => {
       (entry) => entry.kind === 'marker' && entry.text.includes('one more thing')
     )
     expect(deliveries).toHaveLength(1)
-    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(1)
+    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(late ? 2 : 1)
     expect(toolResults(facts).find(({ tool }) => tool === 'message_subagent')).toMatchObject({
       isError: false,
-      details: { sessionId: CHILD, continued: false }
+      details: { sessionId: CHILD, continued: late }
     })
   })
 

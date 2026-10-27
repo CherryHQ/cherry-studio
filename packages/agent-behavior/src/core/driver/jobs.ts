@@ -17,6 +17,8 @@ export type ReportInput = {
   readonly run: number
   readonly text: string
   readonly child?: ThreadId
+  /** A late message already submitted under this key; the report must not send it again under a different key. */
+  readonly messageKey?: Key
 }
 export const ensureReport = (facts: Pick<ConversationFacts, 'thread'>, input: ReportInput): TxOp => ({
   type: 'ensure-job',

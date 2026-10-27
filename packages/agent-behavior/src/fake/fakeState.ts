@@ -41,7 +41,7 @@ export type RunEnding = { readonly live: NonNullable<LiveFacts['runEnd']>['outco
 export type StoredEntry = { readonly entry: HistoryEntry; readonly run?: number }
 export type Submission = {
   readonly input: TurnInput
-  readonly admission: StartResult | MessageResult
+  admission: StartResult | MessageResult
   state: 'queued' | 'running' | 'settled' | 'withdrawn'
   /** The run the input started or joined. */
   run?: number

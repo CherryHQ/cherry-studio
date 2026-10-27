@@ -71,8 +71,7 @@ export async function step<R extends JsonValue>(
   for (const effect of committed.effects) {
     if (effect.type === 'start-turn') started = await turns.start(effect.thread, effect.input, effect.key)
     else if (effect.type === 'retract-turn') retracted = await turns.retract(effect.thread, effect.key)
-    else if (effect.type === 'message-child')
-      messaged = await helpers.message(effect.child, effect.input, effect.key, effect.run)
+    else if (effect.type === 'message-child') messaged = await helpers.message(effect.child, effect.input, effect.key)
     else await execute(context, effect)
   }
   if (touched) await emitViews(context, thread)

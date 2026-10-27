@@ -28,7 +28,8 @@ export function subagentReport(host: HostPorts): JobHandler {
       target.child,
       target.run,
       message,
-      callKeyOf(origin.latest.parentToolCallId)
+      callKeyOf(origin.latest.parentToolCallId),
+      input.messageKey
     )
   }
 }

@@ -26,6 +26,7 @@ import {
   IN_SUBAGENT,
   idTrailer,
   MAX_SUBAGENT_REQUESTS,
+  notDeliveredText,
   queuedText,
   RECOVERY_HINT,
   type RunReport,
@@ -174,9 +175,8 @@ export type MessageDecision =
  * `message_subagent` (D17): a running child reads the message after its current step; a finished one continues
  * in the background as its next run, keeping the same child id and history. A message to a run being stopped
  * waits for that stop to be recorded; a child the user stopped
- * cannot be continued. A steer only joins a running run (G-C5): one whose first input has not arrived refuses it, and
- * when the run ends before taking it the caller records that (`decideSteerWithdrawn`) and decides again. A steer is
- * recorded before it is sent, and a rerun sends that steer again under its key instead of deciding afresh: the
+ * cannot be continued. A child whose first input has not arrived refuses it. A message is recorded before it is
+ * sent, and a rerun sends it again under the same key instead of deciding afresh: the
  * harness answers as it first did (H3), so a steer the child took is never delivered twice. Once a stop is recorded
  * for the current turn, no finished child is continued.
  */
@@ -193,12 +193,15 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
     return refuse({ kind: 'continued', child: sessionId, run })
   }
   const sent = pendingSteer(facts, call)
-  if (sent) return steer(facts, call, sent.sessionId, sent.run, message)
+  if (sent)
+    return facts.keysSeen.has(keys.subagentSteerWithdrawn(call, sent.run))
+      ? refuse({ kind: 'refused', text: notDeliveredText(sent.sessionId) })
+      : steer(facts, call, sent.sessionId, sent.run, message)
   const target = resolveChild(readSubagents(facts.history), id)
   if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts, inputs)) })
   const { child, latest } = target
   if (isLive(facts, latest) && !latest.stoppedBy) {
-    // A steer joins a running run only (G-C5); this one's report job has not sent its first input yet.
+    // The report job owns the first input; a message must not overtake it.
     if (facts.children.get(child)?.running !== true)
       return refuse({
         kind: 'refused',
@@ -240,34 +243,66 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
   }
 }
 
-/** The steer `call` recorded last that no withdrawal followed. */
+/** The message intent recorded before `call` submitted it, retained across run boundaries and replay. */
 function pendingSteer(facts: Facts, call: CallKey): SteerRecord | undefined {
   let sent: SteerRecord | undefined
   for (const entry of facts.history)
     if (
       entry.kind === 'record' &&
       entry.record.type === 'subagent-steer' &&
-      entry.key === keys.subagentSteer(call, entry.record.value.run) &&
-      !facts.keysSeen.has(keys.subagentSteerWithdrawn(call, entry.record.value.run))
+      entry.key === keys.subagentSteer(call, entry.record.value.run)
     )
       sent = entry.record.value
   return sent
 }
 
-/** A steer for run `run` of `child`, recorded under its request key in the commit before it is sent. */
+/** Record the observed run in the request key; it is provenance, not an input admission condition. */
 function steer(facts: Facts, call: CallKey, child: ThreadId, run: number, message: string): Step<MessageDecision> {
   const key = keys.subagentSteer(call, run)
   const value: SteerRecord = { sessionId: child, run, digest: sha256Hex(message), withdrawn: false }
   return {
     ops: [{ type: 'append-record', thread: facts.thread, record: { type: 'subagent-steer', value }, key }],
-    effects: [{ type: 'message-child', child, input: messageInput(message), key, run }],
+    effects: [{ type: 'message-child', child, input: messageInput(message), key }],
     result: { kind: 'queued', child, text: queuedText(child) }
   }
 }
 
+/** A late message started a subsequent run: record it and report using the input already accepted by the harness. */
+export function decideMessageStarted(facts: Facts, call: CallKey, run: number, text: string): Step<null> {
+  const sent = pendingSteer(facts, call)
+  if (!sent) return refuse(null)
+  const ledger = readSubagents(facts.history).find(({ child }) => child === sent.sessionId)
+  if (!ledger || ledger.runs.has(run)) return refuse(null)
+  const { parentToolCallId, fork, description, modelKey } = ledger.latest
+  const record: SubagentRunRecord = {
+    parentToolCallId,
+    fork,
+    description,
+    modelKey,
+    sessionId: sent.sessionId,
+    background: true,
+    run,
+    status: 'running'
+  }
+  const key = keys.subagentContinue(call)
+  return {
+    ops: [
+      { type: 'append-record', thread: facts.thread, record: { type: 'subagent-run', value: record }, key },
+      ensureReport(facts, {
+        runKey: key,
+        run,
+        text,
+        child: sent.sessionId,
+        messageKey: keys.subagentSteer(call, sent.run)
+      })
+    ],
+    effects: [],
+    result: null
+  }
+}
+
 /**
- * The harness answered `withdrawn` for the call's steer (H3): recorded, so neither the next decision nor a rerun sends
- * it again.
+ * The harness cancelled an unconsumed message (H3): retain that outcome so a replay cannot resubmit it to a later run.
  */
 export function decideSteerWithdrawn(facts: Facts, call: CallKey): Step<null> {
   const sent = pendingSteer(facts, call)

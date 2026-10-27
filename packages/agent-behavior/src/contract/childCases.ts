@@ -109,36 +109,38 @@ export const childCases: readonly ContractCase[] = [
   // Catches a foreground child started after the call that owns it aborted (H3, AC10): the parent's stop passed the
   // child while it had no run, so nothing would stop the run a late first input starts.
   {
-    name: 'a foreground child whose owning call aborted before its first input never runs',
+    name: 'a cancelled caller cannot start a child run in either ownership mode',
     covers: ['ledger.transact', 'ledger.read', 'helpers.message', 'turns.stop', 'tools.register'],
     needs: [],
     async run(open) {
-      const spawned = latch()
-      const sent: { child?: ThreadId; answer?: MessageResult } = {}
-      const spawner: ToolDefinition = {
-        ...toolBase('spawner'),
-        async run(call, ports) {
-          const { spawned: created } = await ports.ledger.transact(call.thread, () =>
-            step([{ type: 'spawn-child', spec: childSpec('foreground', 'late-fg'), key: key('late-fg') }], null)
-          )
-          sent.child = created[0].child
-          h.script(sent.child, [reply('ran anyway')])
-          spawned.release()
-          await aborted(call.signal)
-          sent.answer = await ports.helpers.message(sent.child, message('task'), key('late-fg-msg'))
-          return { text: sent.answer.status, isError: false }
+      for (const boundary of ['foreground', 'background'] as const) {
+        const spawned = latch()
+        const sent: { child?: ThreadId; answer?: MessageResult } = {}
+        const spawner: ToolDefinition = {
+          ...toolBase('spawner'),
+          async run(call, ports) {
+            const { spawned: created } = await ports.ledger.transact(call.thread, () =>
+              step([{ type: 'spawn-child', spec: childSpec(boundary, 'late-fg'), key: key('late-fg') }], null)
+            )
+            sent.child = created[0].child
+            h.script(sent.child, [reply('ran anyway')])
+            spawned.release()
+            await aborted(call.signal)
+            sent.answer = await ports.helpers.message(sent.child, message('task'), key('late-fg-msg'))
+            return { text: sent.answer.status, isError: false }
+          }
         }
+        const h = await open((p) => p.tools.register(spawner))
+        const t = await h.createThread()
+        h.script(t, [callTool('spawner', {}), reply('never')])
+        await h.sendUser(t, 'go')
+        await spawned.promise
+        await h.withCall(t, (p) => p.turns.stop(t, 'user'))
+        await h.settle()
+        check(sent.answer?.status === 'withdrawn', 'a first input sent after its owning call aborted must be withdrawn')
+        check((await read(h, t)).children.get(sent.child!)?.runUsage.length === 0, 'the child must start no run')
+        check(markersWith(await read(h, sent.child!), key('late-fg-msg')).length === 0, 'the child must gain no input')
       }
-      const h = await open((p) => p.tools.register(spawner))
-      const t = await h.createThread()
-      h.script(t, [callTool('spawner', {}), reply('never')])
-      await h.sendUser(t, 'go')
-      await spawned.promise
-      await h.withCall(t, (p) => p.turns.stop(t, 'user'))
-      await h.settle()
-      check(sent.answer?.status === 'withdrawn', 'a first input sent after its owning call aborted must be withdrawn')
-      check((await read(h, t)).children.get(sent.child!)?.runUsage.length === 0, 'the child must start no run')
-      check(markersWith(await read(h, sent.child!), key('late-fg-msg')).length === 0, 'the child must gain no input')
     }
   },
   // Catches a completed foreground child's background continuation inheriting its first run's cancellation owner.
@@ -249,31 +251,34 @@ export const childCases: readonly ContractCase[] = [
       )
     }
   },
-  // Catches a steer that starts a run nobody recorded when its run had already ended (G-C5): the parent never learns of
-  // that run, and its output is never delivered.
+  // Catches a late message discarded at normal completion, or replay starting another run with the same input.
   {
-    name: 'a steer for a run that has ended is withdrawn and starts no run',
+    name: 'a message after normal completion starts the next run once',
     covers: ['helpers.message', 'helpers.awaitAnswer', 'ledger.read'],
     needs: [],
     async run(open) {
       const h = await open(() => {})
       const t = await h.createThread()
       const child = await spawnBackground(h, t, 'c34')
-      h.script(child, [reply('done'), reply('never')])
+      h.script(child, [reply('done'), reply('continued')])
       const first = await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c34-go')))
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, first.run, key('c34-go')))
-      const steer = () => h.withCall(t, (p) => p.helpers.message(child, message('late'), key('c34-steer'), first.run))
-      same(await steer(), { run: first.run, status: 'withdrawn' }, 'a steer for an ended run must be withdrawn')
-      same(await steer(), { run: first.run, status: 'withdrawn' }, 'the same key must return the original answer')
+      const send = () => h.withCall(t, (p) => p.helpers.message(child, message('late'), key('c34-steer')))
+      same(await send(), { run: 2, status: 'started' }, 'the late message must start a subsequent run')
+      same(
+        await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 2, key('c34-steer'))),
+        { outcome: 'completed', text: 'continued' },
+        'the input must receive its own answer'
+      )
+      same(await send(), { run: 2, status: 'started' }, 'replay must return the original result')
       await h.settle()
-      check(markersWith(await read(h, child), key('c34-steer')).length === 0, 'a withdrawn steer must add no input')
-      check((await read(h, t)).children.get(child)?.runUsage.length === 1, 'a withdrawn steer must start no run')
+      check(markersWith(await read(h, child), key('c34-steer')).length === 1, 'the input must be placed exactly once')
+      check((await read(h, t)).children.get(child)?.runUsage.length === 2, 'replay must not start another run')
     }
   },
-  // Catches a steer carried into the next run when the run it joined ends before a boundary takes it (G-C5): the next
-  // run would start with input nobody sent it, which on a parent's tool call is a run the parent never recorded.
+  // Catches an explicit stop carrying cancelled input into a later run.
   {
-    name: 'a steer whose run ends before a boundary takes it is withdrawn, not carried into the next run',
+    name: 'an explicit stop withdraws unconsumed messages before a later run',
     covers: ['helpers.message', 'helpers.stop', 'helpers.awaitAnswer', 'ledger.read'],
     needs: [],
     async run(open) {
@@ -282,16 +287,15 @@ export const childCases: readonly ContractCase[] = [
       const t = await h.createThread()
       const child = await spawnBackground(h, t, 'c36')
       h.script(child, [callTool('hold', { id: 'c36' }), reply('next')])
-      const send = (label: string, run?: number) =>
-        h.withCall(t, (p) => p.helpers.message(child, message(label), key(label), run))
+      const send = (label: string) => h.withCall(t, (p) => p.helpers.message(child, message(label), key(label)))
       same(await send('c36-go'), { run: 1, status: 'started' }, 'an idle child must start run 1')
       await hold.started('c36')
-      const steer = send('c36-steer', 1)
+      const steer = send('c36-steer')
       await h.withCall(t, (p) => p.helpers.stop(child, 1))
       same(await send('c36-again'), { run: 2, status: 'started' }, 'a message after the run ended must start run 2')
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 2, key('c36-again')))
       // Awaited only now, so a harness that carries the steer into run 2 answers it there and fails here.
-      same(await steer, { run: 1, status: 'withdrawn' }, 'a steer its run ended without taking must be withdrawn')
+      same(await steer, { run: 1, status: 'withdrawn' }, 'an explicit stop must withdraw unconsumed input')
       check(markersWith(await read(h, child), key('c36-steer')).length === 0, 'the steer must not reach run 2')
       check((await read(h, t)).children.get(child)?.runUsage.length === 2, 'the steer must start no run of its own')
     }
@@ -309,7 +313,7 @@ export const childCases: readonly ContractCase[] = [
       const steerer: ToolDefinition = {
         ...toolBase('steerer'),
         async run(_call, ports) {
-          const answer = ports.helpers.message(sent.child!, message('steer'), key('c35-steer'), 1)
+          const answer = ports.helpers.message(sent.child!, message('steer'), key('c35-steer'))
           steering.release()
           sent.answer = await answer
           return { text: sent.answer.status, isError: false }
