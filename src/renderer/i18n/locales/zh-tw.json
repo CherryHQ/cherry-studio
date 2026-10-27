@@ -2312,7 +2312,6 @@
   "message.loading.notion.exporting_progress": "正在匯出到 Notion ...",
   "message.loading.notion.preparing": "正在準備匯出到 Notion...",
   "message.mention.title": "切換模型回答",
-  "message.message.code_editor_style": "CodeMirror 編輯器樣式",
   "message.message.code_style": "程式碼風格",
   "message.message.compact.title": "對話已壓縮",
   "message.message.delete.content": "確定要刪除此訊息嗎？",

@@ -2312,7 +2312,6 @@
   "message.loading.notion.exporting_progress": "Экспорт в Notion ...",
   "message.loading.notion.preparing": "Подготовка к экспорту в Notion...",
   "message.mention.title": "Переключить модель ответа",
-  "message.message.code_editor_style": "Стиль редактора CodeMirror",
   "message.message.code_style": "Стиль кода",
   "message.message.compact.title": "Сжатый разговор",
   "message.message.delete.content": "Вы уверены, что хотите удалить это сообщение?",

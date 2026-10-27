@@ -2312,7 +2312,6 @@
   "message.loading.notion.exporting_progress": "Se exportă în Notion...",
   "message.loading.notion.preparing": "Se pregătește exportul în Notion...",
   "message.mention.title": "Schimbă răspunsul modelului",
-  "message.message.code_editor_style": "Stil editor CodeMirror",
   "message.message.code_style": "Stil cod",
   "message.message.compact.title": "Conversație compactată",
   "message.message.delete.content": "Ești sigur că vrei să ștergi acest mesaj?",

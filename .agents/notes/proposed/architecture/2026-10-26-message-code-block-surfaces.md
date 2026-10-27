@@ -126,6 +126,16 @@ Real Electron verification covers streaming to completion, cold editor load and 
 
 Compare baseline/candidate production renderer builds on the same machine, viewport, font and wrap configuration: pnpm-lock.yaml, deterministic 1/5 MiB multiline source, 1 MiB single line, and many small blocks. Record three cold and five warm runs, first visible source/highlight separately, input-to-paint and scrolling p95, longest task, mounted rows, worker count and retained-memory trend over 20 mount/unmount cycles. Budgets: warm first-source p95 within 1 s / 2.5 s for 1/5 MiB and no more than 20% slower than baseline; steady input/scroll p95 within 100 ms and no task over 200 ms. Require 5 MiB mounted rows at most 1.5 times 1 MiB with the same viewport. Treat a missed budget as a blocker to widening this rollout, not a reason to truncate source or declare an unmeasured pass.
 
+## Remaining-surface rollout
+
+The user authorized migrating all remaining surfaces on 2026-10-27. Extend this proposal to HTML file source, Notes source, CLI/MCP/CSS/prompt editors, Tiptap code decorations and snapshot/HTML/Markdown jobs. Existing file/save/conflict and ProseMirror history ownership remain unchanged. All application CodeMirror surfaces use the shared semantic HighlightStyle and selected viewer palette; retain stored legacy theme values without continuing a second active selector. Tiptap decorates its own document using asynchronous shared-parser sessions, rejects obsolete results and keeps theme changes outside document/history transactions. Snapshot adapters preserve the existing token/HTML contracts using the same parser and palette. Pierre's internal Highlights backend stays library-owned. Trace/error truncation policies are separate and unchanged. No new persistence, engine toggle, size cutoff or worker pool is introduced. Local conversation approval authorizes implementation; Spec lifecycle and cross-platform acceptance remain proposed.
+
+- HTML source reuses FileEditor; iframe security and host controls remain unchanged.
+- Shared parser/palette adoption must preserve editor drafts, focus, selections, history, form callbacks, exact whitespace and unknown-language fallback. Host-specific heights and save semantics remain local.
+- Real macOS Electron covers Notes rich/source editing, generic form editors, HTML file source and existing message/popup scenarios. Native IME/Windows evidence is reported separately; it is not inferred from Unicode insertion.
+
+Local rollout verification passed 298 scoped renderer/UI tests and real macOS Electron checks for Notes rich/source, CSS, MCP JSON, prompt preview/edit, CLI config drafts, HTML file source, message blocks and HTML popups. The existing large-file scenario remains unaccepted: rapid jump-and-type failed two unchanged runs and passed three diagnostic runs without a product fix. This is recorded separately from the migrated-entry checks; its root cause, Windows, native IME and remote CI remain unverified. Current evidence is recorded in `.context/cherry-electron-dev/remaining-validation.md`.
+
 ## Alternatives considered
 
 | Alternative | Assessment |
@@ -148,6 +158,10 @@ Compare baseline/candidate production renderer builds on the same machine, viewp
 - AC8 — Production baseline/candidate reports satisfy the stated cold/warm, interaction, mounted-row and lifecycle-memory checks without truncation or unreported main-thread fallback. (verification: production Electron measurements; owner: performance verifier)
 - AC9 — macOS and Windows real Electron scenarios pass native Chinese IME, clipboard, focus, mode/theme/history and message save/reopen checks; Unicode insertion is not substituted for IME. (verification: platform Electron evidence; owner: desktop verifier)
 - AC10 — Owning bilingual docs, dedicated entry/import boundaries, affected tests and required CI checks pass; implementation is reported separately from missing runtime evidence, and Spec transition waits for every criterion. (verification: docs gate, scoped checks, CI and evidence mapping; owner: final integrator)
+
+- AC11 — All application CodeMirror consumers and Tiptap code blocks share parser classes and the selected palette without resetting compatible drafts, selections or history. (verification: renderer and Electron; owner: surface integrator)
+- AC12 — Remaining HTML file source uses FileEditor without changing restricted preview security or existing file session ownership. (verification: renderer and Electron; owner: file integrator)
+- AC13 — Snapshot, HTML and Markdown highlighting preserve existing source/token/export contracts using shared parser classification; stale asynchronous Tiptap results cannot decorate a changed or removed block. (verification: parser/worker/plugin tests and Electron; owner: syntax integrator)
 
 ## Local implementation evidence
 

@@ -280,7 +280,7 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 | Invalid or non-absolute path | Invalid | Explanation without an open action |
 
 - Markdown previews read the complete document without a fixed file-size rejection limit.
-- Text and Markdown source bodies use the renderer's `FileEditor` in read-only mode, with Pierre
+- Text, Markdown and HTML source bodies use the renderer's `FileEditor` in read-only mode, with Pierre
   row virtualization bound to the preview scroller. File editing uses the same component and
   viewer-theme preferences; the existing host still owns permissions, drafts and saving.
 - Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;

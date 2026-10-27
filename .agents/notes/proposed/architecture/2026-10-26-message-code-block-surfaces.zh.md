@@ -126,6 +126,16 @@ HTML artifact 弹窗在代码、预览和分屏布局之间保留独立的本地
 
 在相同机器、视口、字体和换行配置下比较基线/候选生产 renderer：pnpm-lock.yaml、确定性的 1/5 MiB 多行源码、1 MiB 单行和大量小代码块。记录三次冷运行和五次热运行，分别记录源码/高亮首次可见时间、输入到绘制及滚动 p95、最长任务、挂载行数、Worker 数量和 20 次挂载/卸载的保留内存趋势。预算：1/5 MiB 热运行源码首次可见 p95 分别不超过 1 s / 2.5 s，且相对基线退化不超过 20%；稳定交互输入/滚动 p95 不超过 100 ms，无超过 200 ms 的任务。相同视口下 5 MiB 挂载行数最多为 1 MiB 的 1.5 倍。预算未达标会阻止扩大推广，不能以截断源码或声称未测通过来替代。
 
+## 剩余入口迁移
+
+用户于 2026-10-27 批准迁移全部剩余入口。将本方案扩展到 HTML 文件源码、Notes 源码、CLI/MCP/CSS/提示词编辑器、Tiptap 代码装饰以及快照/HTML/Markdown 任务。文件保存、权限、冲突及 ProseMirror 文档历史继续由原宿主管理。应用内 CodeMirror 统一使用共享语义 HighlightStyle 与 viewer 调色板；保留已存储的旧主题值，但不继续提供第二个生效的主题选择器。Tiptap 通过异步共享解析会话装饰自身文档，丢弃过期结果，主题变化不修改文档或历史。快照适配层用相同解析器和调色板保留现有 token/HTML 契约。Pierre 内部的 Highlights 后端仍归库自身管理。Trace/错误详情的截断策略独立保留。不新增持久化、引擎开关、大小截断或 worker 池。对话批准允许本地实现，Spec 生命周期与跨平台验收仍保持 proposed。
+
+- HTML 源码复用 FileEditor；iframe 安全策略与宿主控件不变。
+- 共享语法/配色接入须保留草稿、焦点、选区、历史、表单回调、完整空白及未知语言回退；高度与保存语义继续由宿主决定。
+- 真实 macOS Electron 覆盖笔记富文本/源码、通用表单编辑器、HTML 文件源码及已有消息/弹窗场景；原生 IME/Windows 单独报告，Unicode 插入不能代替相关证据。
+
+本轮本地验证通过了 298 项 renderer/UI 定向测试，以及真实 macOS Electron 下 Notes 富文本/源码、CSS、MCP JSON、提示词预览/编辑、CLI 配置草稿、HTML 文件源码、消息代码块和 HTML 弹窗检查。既有大文件用例仍未验收：快速跳转后输入在两次原始运行中失败，在三次诊断运行中通过，期间未修改产品实现。该结果与新增入口验证分别记录；其根因、Windows、原生输入法和远程 CI 仍未验证。本轮证据记录在 `.context/cherry-electron-dev/remaining-validation.md`。
+
 ## 考虑过的替代方案
 
 | 替代方案 | 评估 |
@@ -148,6 +158,10 @@ HTML artifact 弹窗在代码、预览和分屏布局之间保留独立的本地
 - AC8 — 生产基线/候选报告满足规定的冷热运行、交互、挂载行和生命周期内存检查，不截断内容、不隐藏主线程回退。（验证：生产 Electron 测量；负责人：性能验证者）
 - AC9 — macOS 与 Windows 真实 Electron 场景通过原生中文输入法、剪贴板、焦点、模式/主题/历史和消息保存后重开检查；不能以 Unicode 插入替代 IME。（验证：平台 Electron 证据；负责人：桌面验证者）
 - AC10 — 所属双语文档、独立入口/导入边界、受影响测试和必需 CI 检查通过；实现与缺少的运行证据分开报告，所有标准完成前不迁移 Spec 状态。（验证：文档门禁、定向检查、CI 和证据映射；负责人：最终集成者）
+
+- AC11 — 应用内所有 CodeMirror 入口及 Tiptap 代码块共享解析 class 与所选调色板，兼容草稿、选区及历史不被重置。 (verification: renderer and Electron; owner: surface integrator)
+- AC12 — 剩余 HTML 文件源码接入 FileEditor，受限预览安全策略及原文件会话所有权不变。 (verification: renderer and Electron; owner: file integrator)
+- AC13 — 快照、HTML 及 Markdown 高亮使用共享解析分类并保留原源码/token/导出契约；过期 Tiptap 异步结果不能装饰已改变或移除的代码块。 (verification: parser/worker/plugin tests and Electron; owner: syntax integrator)
 
 ## 本地实现证据
 

@@ -1,10 +1,13 @@
 import { LRUCache } from 'lru-cache'
 import MarkdownIt from 'markdown-it'
 
-import { createCodeBlockDocument, type CodeBlockDocument } from '@cherrystudio/ui/code-block'
-import { createSnapshotExecutor, loadCodeHighlightRuntime } from '@cherrystudio/ui/code-highlight'
+import {
+  createCodeBlockDocument,
+  createCodeBlockSnapshotExecutor,
+  codeBlockToHtml,
+  type CodeBlockDocument
+} from '@cherrystudio/ui/code-block'
 import type { HighlightRequest, HighlightResponse, HighlightValue } from '@renderer/types/codeHighlight'
-import { loadCodeTheme } from '@renderer/utils/codeHighlight'
 
 const documents = new LRUCache<
   string,
@@ -13,7 +16,7 @@ const documents = new LRUCache<
   max: 50,
   dispose: ({ document }) => document.dispose()
 })
-const snapshot = createSnapshotExecutor()
+const snapshot = createCodeBlockSnapshotExecutor()
 class MissingSession extends Error {}
 
 async function handle(request: HighlightRequest): Promise<HighlightValue> {
@@ -51,11 +54,25 @@ async function handle(request: HighlightRequest): Promise<HighlightValue> {
       throw new Error('Stale range read')
     return entry.document.read(request.range)
   }
-  const [runtime, theme] = await Promise.all([loadCodeHighlightRuntime(), loadCodeTheme(request.theme)])
-  const highlight = (code: string, language: string) =>
-    runtime.codeToHtml(code, language, theme).replace('class="highlights"', 'class="shiki highlights"')
-  if (request.type === 'html') return highlight(request.code, request.language)
-  return new MarkdownIt({ linkify: true, typographer: true, highlight }).render(request.code)
+  if (request.type === 'html') return codeBlockToHtml(request.code, request.language, request.theme)
+  const markdown = new MarkdownIt({ linkify: true, typographer: true })
+  const tokens = markdown.parse(request.code, {})
+  const codeBlocks = tokens.filter((token) => token.type === 'fence' || token.type === 'code_block')
+  const highlighted = new Map(
+    await Promise.all(
+      codeBlocks.map(
+        async (token) =>
+          [
+            token,
+            await codeBlockToHtml(token.content, token.info.trim().split(/\s+/)[0] || 'text', request.theme)
+          ] as const
+      )
+    )
+  )
+  const render = (items: typeof tokens, index: number) => highlighted.get(items[index]) ?? ''
+  markdown.renderer.rules.fence = render
+  markdown.renderer.rules.code_block = render
+  return markdown.renderer.render(tokens, markdown.options, {})
 }
 
 type Job = HighlightRequest & { id: number; generation: number }

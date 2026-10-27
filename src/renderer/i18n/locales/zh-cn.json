@@ -2312,7 +2312,6 @@
   "message.loading.notion.exporting_progress": "正在导出到 Notion ...",
   "message.loading.notion.preparing": "正在准备导出到 Notion...",
   "message.mention.title": "切换模型回答",
-  "message.message.code_editor_style": "CodeMirror 编辑器样式",
   "message.message.code_style": "代码风格",
   "message.message.compact.title": "对话已压缩",
   "message.message.delete.content": "确定要删除此消息吗？",

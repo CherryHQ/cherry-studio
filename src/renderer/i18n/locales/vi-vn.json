@@ -2312,7 +2312,6 @@
   "message.loading.notion.exporting_progress": "Đang xuất sang Notion...",
   "message.loading.notion.preparing": "Đang chuẩn bị xuất sang Notion...",
   "message.mention.title": "Chuyển đổi câu trả lời mô hình",
-  "message.message.code_editor_style": "Kiểu trình soạn thảo CodeMirror",
   "message.message.code_style": "Phong cách mã",
   "message.message.compact.title": "Cuộc trò chuyện được nén gọn",
   "message.message.delete.content": "Bạn có chắc chắn muốn xóa tin nhắn này không?",

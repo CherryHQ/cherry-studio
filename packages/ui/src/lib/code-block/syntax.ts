@@ -29,7 +29,7 @@ export const codeBlockHighlightStyle = HighlightStyle.define(
 )
 
 export const codeBlockSyntaxCss =
-  '.code-viewer ::selection{background:var(--code-selection)}' +
+  '.code-viewer ::selection,.code-syntax-root ::selection{background:var(--code-selection)}' +
   CODE_BLOCK_SYNTAX.map(
     ({ role }) =>
       `.code-syntax-${role}{color:var(--code-syntax-${role},inherit);font-style:var(--code-syntax-${role}-style,normal);font-weight:var(--code-syntax-${role}-weight,normal)}`

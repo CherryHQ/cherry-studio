@@ -2312,7 +2312,6 @@
   "message.loading.notion.exporting_progress": "Notion'a aktarılıyor ...",
   "message.loading.notion.preparing": "Notion'a aktarmaya hazırlanıyor...",
   "message.mention.title": "Model yanıtını değiştir",
-  "message.message.code_editor_style": "CodeMirror düzenleyici stili",
   "message.message.code_style": "Kod stili",
   "message.message.compact.title": "Konuşma Sıkıştırıldı",
   "message.message.delete.content": "Bu mesaj silinsin mi?",

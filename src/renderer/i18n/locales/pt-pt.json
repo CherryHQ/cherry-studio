@@ -2312,7 +2312,6 @@
   "message.loading.notion.exporting_progress": "A exportar para o Notion...",
   "message.loading.notion.preparing": "A preparar exportação para Notion...",
   "message.mention.title": "Alternar modelo de resposta",
-  "message.message.code_editor_style": "Estilo do editor CodeMirror",
   "message.message.code_style": "Estilo de código",
   "message.message.compact.title": "Conversa Compactada",
   "message.message.delete.content": "Tem a certeza de que pretende eliminar esta mensagem?",

@@ -6,6 +6,9 @@ sources:
   - packages/ui/src/lib/code-block
   - src/renderer/components/CodeViewer.tsx
   - src/renderer/components/CodeStyleProvider.tsx
+  - src/renderer/components/LazyCodeEditor.tsx
+  - src/renderer/components/PromptEditorField.tsx
+  - src/renderer/components/RichEditor
   - src/renderer/workers/codeHighlight.worker.ts
   - src/renderer/components/markdown/useMarkdownCode.ts
   - src/renderer/utils/markdown.ts
@@ -102,7 +105,7 @@ success result so failed clipboard operations do not show success feedback.
 `CodeViewer` is the default source surface, including active streams. It retains its caller ID, TanStack viewport,
 selection state and DOM while content grows. Existing worker sessions parse the shared code-block language with
 Lezer/StreamLanguage and return semantic classes for requested lines. Pending or failed syntax work leaves complete
-plain source readable. Snapshot/HTML/Markdown worker jobs keep their existing Highlights backend.
+plain source readable. Tiptap decorations and snapshot/HTML/Markdown worker jobs use the same parser classification.
 
 ### CodeEditor
 
@@ -117,7 +120,7 @@ text and line-number alignment, wrapped line heights and the code surface backgr
 Integer vertical padding keeps CodeMirror's gutter baseline aligned with the viewer. The lazy editor waits for
 its language before mounting; returning to reading seeds visible syntax from the retained editor's parsed tree
 until Worker results arrive. Unparsed ranges retain the normal plain-source fallback.
-Generic editors retain their existing CodeMirror theme preferences. Copy/save preserve source whitespace;
+Application Notes, prompt and configuration editors use the same palette through the shared renderer editor entry. Stored legacy CodeMirror theme values remain unchanged; their separate selector is retired. Copy/save preserve source whitespace;
 CodeMirror uses `sliceDoc` and the source line separator rather than implicitly converting CRLF.
 The Markdown adapter removes exactly the structural LF appended by mdast-to-HAST conversion; the code document
 uses the AST code value, preserving authored trailing spaces and blank lines. Saving matches that exact value,
