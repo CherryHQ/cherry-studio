@@ -93,11 +93,14 @@ it('places steer at a native tool boundary and associates one answer with both i
     const second = inputId()
     await root.input!.submit({ inputId: second, text: 'Use the revised requirement', whenBusy: 'steer' })
     await view.event(
-      (event) => (event as { type: string }).type === 'command_lifecycle' && JSON.stringify(event).includes(second)
+      (event) => event.type === 'command_lifecycle' && event.command_uuid === second && event.state === 'queued'
     )
     child.reply.block({ type: 'text', text: 'Child answer' })
     child.reply.finish()
     const reply = await test.request()
+    await view.event(
+      (event) => event.type === 'command_lifecycle' && event.command_uuid === second && event.state === 'started'
+    )
     expect(JSON.stringify(reply.body.messages)).toContain('Use the revised requirement')
     reply.reply.block({ type: 'text', text: 'Shared answer' })
     reply.reply.finish()
@@ -106,6 +109,15 @@ it('places steer at a native tool boundary and associates one answer with both i
     expect(inputs.map((input) => input.outcome)).toEqual(['completed', 'completed'])
     expect(inputs[0].response).toEqual(inputs[1].response)
     expect(inputs[0].response).toBeDefined()
+    const resultIndex = view.batches.findIndex((batch) =>
+      batch.native.some((native) => native.message.type === 'result')
+    )
+    expect(
+      view.batches
+        .slice(0, resultIndex)
+        .flatMap((batch) => batch.events)
+        .filter((event) => event.type === 'input.changed' && event.input.outcome === 'completed')
+    ).toHaveLength(2)
     expect(await root.input!.submit({ inputId: second, text: 'Changed payload', whenBusy: 'steer' })).toMatchObject({
       status: 'rejected',
       error: { code: 'duplicate-input' }

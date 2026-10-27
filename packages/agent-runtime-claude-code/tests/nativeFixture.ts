@@ -13,6 +13,7 @@ import { runtimeId, ThreadFeed, type OperationResult, type ThreadSnapshot } from
 import {
   createClaudeCodeRuntime,
   type ClaudeObservation,
+  type ClaudeCommandLifecycle,
   type ClaudeSessionOptions,
   type ClaudeThreadHandle
 } from '../src'
@@ -168,7 +169,7 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
 
 export async function observe(handle: ClaudeThreadHandle) {
   const batches: ClaudeObservation[] = []
-  const native: SDKMessage[] = []
+  const native: (SDKMessage | ClaudeCommandLifecycle)[] = []
   const initial: ThreadSnapshot = {
     type: 'snapshot',
     coverage: 'live-only',
@@ -193,7 +194,7 @@ export async function observe(handle: ClaudeThreadHandle) {
     get snapshot() {
       return state.snapshot
     },
-    async event(predicate: (message: SDKMessage) => boolean) {
+    async event(predicate: (message: SDKMessage | ClaudeCommandLifecycle) => boolean) {
       await expect.poll(() => native.find(predicate), { timeout: 15000 }).toBeDefined()
       return native.find(predicate)!
     }

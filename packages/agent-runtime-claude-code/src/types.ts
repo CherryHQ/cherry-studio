@@ -43,8 +43,17 @@ export interface ClaudeCodeRuntimeOptions {
   readonly onError?: (error: unknown) => void
 }
 
+/** Native SDK stream event omitted from the pinned SDKMessage declaration. */
+export interface ClaudeCommandLifecycle {
+  readonly type: 'command_lifecycle'
+  readonly command_uuid: string
+  readonly state: 'queued' | 'started' | 'completed' | 'cancelled' | 'discarded' | 'refused'
+  readonly uuid: string
+  readonly session_id: string
+}
+
 export type ClaudeNativeMessage =
-  | { readonly source: 'live'; readonly message: SDKMessage }
+  | { readonly source: 'live'; readonly message: SDKMessage | ClaudeCommandLifecycle }
   | { readonly source: 'archive'; readonly message: SessionMessage }
 
 export interface ClaudeObservation {

@@ -8,6 +8,7 @@ export type {
   ClaudeObservation,
   ClaudeObservationSink,
   ClaudeNativeMessage,
+  ClaudeCommandLifecycle,
   ClaudeArchive,
   ClaudeSource
 } from './types'
