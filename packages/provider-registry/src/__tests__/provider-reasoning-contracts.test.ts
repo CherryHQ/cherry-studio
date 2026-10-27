@@ -21,6 +21,15 @@ describe('provider reasoning contracts', () => {
     expect(wire?.off?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }])
   })
 
+  it('encodes Watt Cloud Off as a literal false on the chat template flag', () => {
+    const wire = provider('watt-cloud').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+
+    expect(wire).toEqual({
+      off: { operations: [{ target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: false } }] },
+      auto: { operations: [{ target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: true } }] }
+    })
+  })
+
   it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
     expect(override('deepseek', 'deepseek-flash').pricing).toEqual({
       cacheRead: { currency: 'USD', perMillionTokens: 0.006 },

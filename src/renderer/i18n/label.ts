@@ -80,6 +80,7 @@ const providerKeyMap = {
   tokenhub: 'provider.tokenhub',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
+  'watt-cloud': 'provider.watt-cloud',
   xirang: 'provider.xirang',
   yi: 'provider.yi',
   zhinao: 'provider.zhinao',

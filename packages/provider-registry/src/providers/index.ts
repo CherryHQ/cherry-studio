@@ -62,6 +62,7 @@ import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
+import p_watt_cloud from './watt-cloud'
 import p_xirang from './xirang'
 import p_zai from './zai'
 import p_zhipu from './zhipu'
@@ -92,6 +93,7 @@ export const PROVIDERS: Provider[] = [
   p_new_api,
   p_lmstudio,
   p_litellm,
+  p_watt_cloud,
   p_anthropic,
   p_claude_code,
   p_openai_codex,

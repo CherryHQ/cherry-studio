@@ -911,6 +911,53 @@
       "name": "LiteLLM"
     },
     {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Watt Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.watt-cloud.com/v1",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "watt-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.watt-cloud.com/workspaces/keys",
+          "docs": "https://www.watt-cloud.com/docs/",
+          "official": "https://www.watt-cloud.com"
+        }
+      },
+      "name": "Watt Cloud"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
@@ -2772,5 +2819,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "afa17e5976dcef2e"
+  "version": "39d7c1340c4fcff5"
 }
