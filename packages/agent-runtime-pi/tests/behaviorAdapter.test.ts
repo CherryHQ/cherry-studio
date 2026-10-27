@@ -214,9 +214,8 @@ describe('coding-agent behavior adapter', () => {
     expect((await read(pi, t)).live.runEnd?.outcome).toBe('aborted')
   })
 
-  // Catches a message that reaches a child while Pi settles its run (after Pi's last steering check) being started by
-  // Pi as a run of its own, stranded in Pi's queue, or carried into the child's next run, a run nobody recorded (H3).
-  it('withdraws a message that reaches a child while its run settles', async () => {
+  // Catches accepted input lost after Pi's final steering check, or attributed to the completed run's answer.
+  it('continues with a message that reaches a child while its run settles', async () => {
     const late: { send?: () => Promise<MessageResult>; sent?: Promise<MessageResult> } = {}
     const pi = await openPiHarness(() => {}, [
       (api) => {
@@ -232,20 +231,15 @@ describe('coding-agent behavior adapter', () => {
     late.send = () => pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('late'), key('late')))
     await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
     await pi.harness.settle()
-    expect(await late.sent).toEqual({ run: 1, status: 'withdrawn' })
-    expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 1, key('late')))).toEqual({
-      outcome: 'completed',
-      text: 'first'
-    })
-    expect((await read(pi, parent)).children.get(child)?.runUsage).toHaveLength(1)
-    // A run started with the late message would have taken 'second' and written its marker.
-    const next = await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('next'), key('next')))
-    expect(next).toEqual({ run: 2, status: 'started' })
-    expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 2, key('next')))).toEqual({
+    expect(await late.sent).toEqual({ run: 2, status: 'started' })
+    expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 2, key('late')))).toEqual({
       outcome: 'completed',
       text: 'second'
     })
-    expect(markerKeys(await read(pi, child))).toEqual([key('work'), key('next')])
+    expect((await read(pi, parent)).children.get(child)?.runUsage).toHaveLength(2)
+    expect(markerKeys(await read(pi, child))).toEqual([key('work'), key('late')])
+    expect(await late.send()).toEqual({ run: 2, status: 'started' })
+    expect(markerKeys(await read(pi, child))).toEqual([key('work'), key('late')])
   })
 
   // Catches a steer whose message answers only once the child's run ends instead of when a boundary takes it, which
@@ -266,7 +260,7 @@ describe('coding-agent behavior adapter', () => {
     ])
     await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
     await first.started
-    const steer = pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('steer'), key('steer'), 1))
+    const steer = pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('steer'), key('steer')))
     first.release()
     // The boundary after the first call placed the steer; the run now waits in the second call.
     await second.started
@@ -284,7 +278,7 @@ describe('coding-agent behavior adapter', () => {
     const steerer: ToolDefinition = {
       ...tool('steerer'),
       run: async (_call, ports) => {
-        sent.steer = ports.helpers.message(sent.child!, input('aborted steer'), key('aborted'), 1)
+        sent.steer = ports.helpers.message(sent.child!, input('aborted steer'), key('aborted'))
         steering.release()
         return { text: (await sent.steer).status, isError: false }
       }
@@ -302,7 +296,7 @@ describe('coding-agent behavior adapter', () => {
     pi.harness.script(parent, [{ text: '', toolCalls: [{ name: 'steerer', args: {} }] }, { text: 'never' }])
     await pi.harness.sendUser(parent, 'go')
     await steering.promise
-    const kept = pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('kept'), key('kept'), 1))
+    const kept = pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('kept'), key('kept')))
     await pi.harness.withCall(parent, (ports) => ports.turns.stop(parent, 'user'))
     expect(await sent.steer).toEqual({ run: 1, status: 'withdrawn' })
     hold.release()
