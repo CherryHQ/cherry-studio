@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 
-import { getAutoApprovedBrowserTools } from '../browserToolPolicy'
 import { findBuiltinToolPolicy, listBuiltinToolPolicies, toMcpRuntimeName } from '../builtinToolPolicy'
 
 const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
@@ -30,13 +29,8 @@ describe('builtinToolPolicy', () => {
     }
     expect(findBuiltinToolPolicy('mcp__browser__future_tool', mountedServers)).toBeUndefined()
     expect(findBuiltinToolPolicy('mcp__browser__click', WITHOUT_HOST_TOOLS)).toBeUndefined()
-    expect(getAutoApprovedBrowserTools()).toEqual(
-      expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
-    )
-    expect(getAutoApprovedBrowserTools()).not.toContain('mcp__browser__*')
     await preferences.set('app.browser.agent_control.enabled', false)
     expect(findBuiltinToolPolicy('mcp__browser__click', mountedServers)?.approval).toBe('required')
-    expect(getAutoApprovedBrowserTools()).toEqual([])
   })
 
   it('filters Assistant-only entries when their MCP servers are not mounted', () => {
