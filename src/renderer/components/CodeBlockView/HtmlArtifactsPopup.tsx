@@ -10,7 +10,18 @@ import {
   SquareSplitHorizontal,
   X
 } from 'lucide-react'
-import { memo, type ReactNode, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  memo,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -38,12 +49,13 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { FilePngIcon } from '@renderer/components/icons/FileIcons'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
+import { WINDOW_CONTROLS_OVERLAY_WIDTH } from '@renderer/components/WindowControls'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
-import { isMac } from '@renderer/utils/platform'
+import { isLinux, isMac, isWin } from '@renderer/utils/platform'
 
 import HtmlArtifactPreviewSurface, { htmlArtifactPreviewRequiresInteractive } from './HtmlArtifactPreviewSurface'
 
@@ -310,8 +322,15 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         )}>
         <div className="grid h-full min-h-0 grid-rows-[45px_minmax(0,1fr)]">
           <header
+            style={
+              {
+                '--window-controls-width': isWin || isLinux ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
+              } as CSSProperties
+            }
             className={cn(
               'relative flex items-center justify-between gap-4 border-border border-b bg-background px-2.5',
+              'pr-[calc(0.625rem+var(--window-controls-width,0px))]',
+              isLinux && 'pl-[calc(0.625rem+env(titlebar-area-x,0px))]',
               isFullscreen && '[-webkit-app-region:drag]'
             )}
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>

@@ -7,6 +7,20 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import HtmlArtifactsPopup from '../HtmlArtifactsPopup'
 
+const platformState = vi.hoisted(() => ({ isMac: true, isWin: false, isLinux: false }))
+
+vi.mock('@renderer/utils/platform', () => ({
+  get isMac() {
+    return platformState.isMac
+  },
+  get isWin() {
+    return platformState.isWin
+  },
+  get isLinux() {
+    return platformState.isLinux
+  }
+}))
+
 const mocks = vi.hoisted(() => ({
   CodeEditor: vi.fn(({ value }: { value: string }) => (
     <div role="textbox" aria-label="HTML editor">
@@ -43,9 +57,51 @@ vi.mock('react-i18next', () => ({
 describe('HtmlArtifactsPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(platformState, { isMac: true, isWin: false, isLinux: false })
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('chat.message.font_size', 14)
   })
+
+  it.each(['Windows', 'Linux', 'macOS'])(
+    'reserves the native caption strip on %s in fullscreen and windowed mode',
+    async (platform) => {
+      Object.assign(platformState, {
+        isMac: platform === 'macOS',
+        isWin: platform === 'Windows',
+        isLinux: platform === 'Linux'
+      })
+      const user = userEvent.setup()
+      render(
+        <HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />
+      )
+
+      const dialog = screen.getByRole('dialog', { name: 'HTML Artifacts' })
+      const header = dialog.querySelector('header')!
+      const titleWrapper = screen.getByRole('heading', { name: 'HTML Artifacts' }).parentElement
+
+      // Caption clearance is a literal CSS contract: reserve native edges without moving the centered modes.
+      for (const fullscreen of [true, false]) {
+        expect.soft(header).toHaveClass('pr-[calc(0.625rem+var(--window-controls-width,0px))]')
+        expect
+          .soft(header.style.getPropertyValue('--window-controls-width'))
+          .toBe(
+            platform === 'macOS' ? '0px' : 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))'
+          )
+        if (platform === 'Linux') {
+          expect.soft(header).toHaveClass('pl-[calc(0.625rem+env(titlebar-area-x,0px))]')
+        } else {
+          expect.soft(header).not.toHaveClass('pl-[calc(0.625rem+env(titlebar-area-x,0px))]')
+        }
+        expect.soft(titleWrapper).toHaveClass(platform === 'macOS' && fullscreen ? 'pl-20' : 'pl-3')
+        if (fullscreen) {
+          expect(header).toHaveClass('[-webkit-app-region:drag]')
+          await user.dblClick(header)
+        } else {
+          expect(header).not.toHaveClass('[-webkit-app-region:drag]')
+        }
+      }
+    }
+  )
 
   it('defaults to preview and switches to read-only source', async () => {
     const user = userEvent.setup()
