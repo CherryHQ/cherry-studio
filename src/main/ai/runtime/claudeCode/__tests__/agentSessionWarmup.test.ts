@@ -916,6 +916,70 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
+  it('reports model-api-key-binding as the degradation reason for a differing sub-model key', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-2'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) =>
+      modelId === 'model-2'
+        ? { id: modelId, apiModelId: 'model-2-api', apiKeyId: 'key-sub' }
+        : { id: modelId, apiModelId: `${modelId}-api` }
+    )
+    mocks.getApiKeys.mockReturnValue([
+      { id: 'key-a', key: 'api-key', isEnabled: true },
+      { id: 'key-sub', key: 'sub-key', isEnabled: true }
+    ])
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude Code route degraded to the internal gateway by a background model slot',
+      expect.objectContaining({
+        slots: [expect.objectContaining({ slot: 'sonnet', modelId: 'model-2', reasons: ['model-api-key-binding'] })]
+      })
+    )
+  })
+
+  it('stays direct when primary and sub-model bind the same effective key, and the fingerprint follows that key', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-2'
+    })
+    mocks.getApiKeys.mockReturnValue([
+      { id: 'key-a', key: 'api-key', isEnabled: true },
+      { id: 'key-b', key: 'other-key', isEnabled: true }
+    ])
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    const build = async (keyId: string) => {
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+        id: modelId,
+        apiModelId: `${modelId}-api`,
+        apiKeyId: keyId
+      }))
+      mocks.resolveApiKey.mockReturnValue({
+        value: keyId,
+        apiKeySelection: { attribution: 'explicit', id: keyId, masked: `key-****-${keyId}` }
+      })
+      return buildClaudeCodeQueryRequestForAgentSession('session-1')
+    }
+
+    const onA = await build('key-a')
+    const onAAgain = await build('key-a')
+    const onB = await build('key-b')
+
+    for (const request of [onA, onAAgain, onB]) {
+      expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'https://anthropic.example.com' })
+    }
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    expect(onAAgain?.credentialsFingerprint).toBe(onA?.credentialsFingerprint)
+    expect(onB?.credentialsFingerprint).not.toBe(onA?.credentialsFingerprint)
+  })
+
   it('stays on direct routing when a sub-model binding points at a disabled or removed key', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
