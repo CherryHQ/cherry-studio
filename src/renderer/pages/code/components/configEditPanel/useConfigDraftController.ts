@@ -6,6 +6,7 @@ import {
   cliConfigConnectionMatchesProvider,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
+  type GatewayModel,
   gatewayExpectedModel,
   gatewayModelIdFromAddress,
   getClaudeContextModelId,
@@ -17,7 +18,7 @@ import {
 } from '@renderer/pages/code/cliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 import {
@@ -41,7 +42,7 @@ interface ConfigDraftControllerOptions extends Pick<
   /** Present when editing the Cherry gateway provider — drives gateway-addressed drafts + matching. */
   gateway?: CliConfigGatewayContext
   /** Gateway-routable models by unique id, used for matching and gateway address resolution. */
-  models?: Map<UniqueModelId, Model>
+  models?: Map<UniqueModelId, GatewayModel>
   /** True while `models` is still being queried — an empty map is not yet meaningful. */
   isModelsLoading?: boolean
 }
@@ -130,11 +131,17 @@ export function useConfigDraftController({
     (connection: CliConfigConnection | null, expectedModelId = draftRef.current.modelId): boolean => {
       // The gateway writes the gateway-addressed id ("providerId:apiModelId"); match against the
       // same string (via the shared helper) so the stored config lights up as active, not foreign.
-      const expectedModel = gateway
-        ? gatewayExpectedModel(expectedModelId, expectedModelId ? models?.get(expectedModelId)?.apiModelId : undefined)
+      let expectedModel = gateway
+        ? gatewayExpectedModel(
+            expectedModelId,
+            expectedModelId ? models?.get(expectedModelId)?.apiModelId : undefined,
+            expectedModelId ? models?.get(expectedModelId)?.providerAlias : undefined
+          )
         : expectedModelId && isUniqueModelId(expectedModelId)
           ? parseUniqueModelId(expectedModelId).modelId
           : undefined
+      if (gateway && expectedModelId && gatewayModelIdFromAddress(connection?.model, models) === expectedModelId)
+        expectedModel = connection?.model
       return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysRef.current, expectedModel)
     },
     [cliTool, provider, gateway, models]

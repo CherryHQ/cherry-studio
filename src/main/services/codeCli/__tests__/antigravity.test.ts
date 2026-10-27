@@ -42,7 +42,7 @@ import { prepareAntigravityLaunch } from '../antigravity'
 describe('prepareAntigravityLaunch', () => {
   beforeEach(async () => {
     mocks.root = await mkdtemp(path.join(tmpdir(), 'cherry-antigravity-test-'))
-    mocks.getByProviderId.mockReset()
+    mocks.getByProviderId.mockReset().mockImplementation((id: string) => ({ id }))
     mocks.getRotatedApiKey.mockReset()
     mocks.getMultiple.mockReset()
   })
@@ -103,7 +103,21 @@ describe('prepareAntigravityLaunch', () => {
     })
     expect(result.model).toBe('gemini-api://provider-a/models/models/gemini-flash')
     expect(result.model).not.toContain('@cherry')
-    expect(mocks.getByProviderId).not.toHaveBeenCalled()
+    expect(mocks.getRotatedApiKey).not.toHaveBeenCalled()
+  })
+
+  it('uses a configured alias in the custom model URL', async () => {
+    mocks.getByProviderId.mockReturnValue({ id: 'provider-a', alias: 'company' })
+    mocks.getMultiple.mockReturnValue({ host: '127.0.0.1', port: 24444, apiKey: 'gateway-secret' })
+    const result = await prepareAntigravityLaunch({
+      mode: 'normal',
+      cliTool: CodeCli.ANTIGRAVITY_CLI,
+      providerId: 'provider-a',
+      model: 'models/gemini-flash',
+      gateway: true,
+      directory: '/tmp/project'
+    })
+    expect(result.model).toBe('gemini-api://company/models/models/gemini-flash')
   })
 
   it('rejects a gateway launch whose provider id carries the path separator', async () => {

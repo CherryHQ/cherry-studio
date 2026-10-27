@@ -486,6 +486,10 @@
       "sources": ["packages/ui/scripts/build-theme-css.ts","packages/ui/scripts/theme-contract.ts","src/main/features/miniApp/runtime/protocol.ts"]
     },
     {
+      "path": "docs/references/provider-model/provider-identifiers.md",
+      "sources": ["src/main/data/db/schemas/userProvider.ts","src/main/data/services/ProviderService.ts","src/main/features/apiGateway/utils/models.ts","src/renderer/pages/code/cliConfig","src/renderer/pages/settings/ProviderSettings/ProviderList","src/shared/data/api/schemas/providers.ts"]
+    },
+    {
       "path": "docs/references/provider-model/provider-registry.md",
       "sources": ["packages/provider-registry","src/main/data/db/seeding","src/main/data/services/ModelService.ts","src/main/data/services/ProviderRegistryService.ts"]
     },

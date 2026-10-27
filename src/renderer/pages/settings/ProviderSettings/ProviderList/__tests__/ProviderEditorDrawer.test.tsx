@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import ProviderEditorDrawer from '../ProviderEditorDrawer'
 
@@ -206,6 +208,58 @@ describe('ProviderEditorDrawer', () => {
     // jsdom has no object-URL impl; stub so the staged-upload preview path runs.
     URL.createObjectURL = vi.fn(() => 'blob:provider-logo')
     URL.revokeObjectURL = vi.fn()
+  })
+
+  it('keeps the alias input after a conflict and lets the user correct and clear it', async () => {
+    const user = userEvent.setup()
+    let savedAlias: string | null | undefined = 'old-alias'
+    const save = async (input: { alias?: string | null }) => {
+      if (input.alias === 'taken') throw DataApiErrorFactory.conflict('In use', 'Provider alias')
+      savedAlias = input.alias
+    }
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'edit', provider: { id: 'custom', name: 'Custom', alias: 'old-alias' } as any }}
+        onClose={vi.fn()}
+        onSubmit={save}
+      />
+    )
+    const input = screen.getByLabelText('settings.provider.alias.label')
+    expect(input).toHaveValue('old-alias')
+    await user.clear(input)
+    await user.type(input, 'taken')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    expect(await screen.findByText('settings.provider.alias.conflict')).toBeVisible()
+    expect(input).toHaveValue('taken')
+    expect(savedAlias).toBe('old-alias')
+    await user.clear(input)
+    await user.type(input, 'Bad:Alias')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    expect(await screen.findByText('settings.provider.alias.invalid')).toBeVisible()
+    expect(savedAlias).toBe('old-alias')
+    await user.clear(input)
+    await user.type(input, 'company')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(savedAlias).toBe('company'))
+    await user.clear(input)
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(savedAlias).toBeNull())
+  })
+
+  it('does not copy the source alias when duplicating a provider', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: { id: 'custom', name: 'Custom', alias: 'source-alias', authType: 'api-key' } as any
+        }}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+    expect(screen.getByLabelText('settings.provider.alias.label')).toHaveValue('')
   })
 
   it('stages an uploaded logo and previews it via an object URL', async () => {
@@ -780,6 +834,7 @@ describe('ProviderEditorDrawer', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       mode: 'create',
       name: 'Claude Gateway',
+      alias: null,
       defaultChatEndpoint: 'openai-chat-completions',
       presetProviderId: 'openai',
       authConfig: { type: 'api-key' },

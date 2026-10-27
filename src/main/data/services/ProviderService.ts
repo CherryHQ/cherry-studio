@@ -6,7 +6,7 @@
  * - Row to Provider conversion
  */
 
-import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -31,7 +31,12 @@ import { loggerService } from '@logger'
 import { getAppEdition } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
+import {
+  type CreateProviderDto,
+  type ListProvidersQuery,
+  ProviderAliasSchema,
+  type UpdateProviderDto
+} from '@shared/data/api/schemas/providers'
 import { isManagedCherryProviderId } from '@shared/data/presets/cherryai'
 import type { EndpointType } from '@shared/data/types/model'
 import type {
@@ -71,6 +76,42 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
+
+function normalizeProviderAlias(alias: string | null | undefined): string | null {
+  const result = ProviderAliasSchema.safeParse(alias ?? null)
+  if (!result.success) {
+    throw DataApiErrorFactory.validation({ alias: ['Use lowercase letters, digits, hyphens, or underscores'] })
+  }
+  return result.data
+}
+
+function assertProviderIdentifiersAvailable(
+  tx: Pick<DbType, 'select'>,
+  providers: Pick<NewUserProviderInput, 'providerId' | 'alias'>[]
+): void {
+  const rows = tx
+    .select({ providerId: userProviderTable.providerId, alias: userProviderTable.alias })
+    .from(userProviderTable)
+    .all()
+  const owners = new Map<string, string>()
+  for (const row of rows) {
+    owners.set(row.providerId, row.providerId)
+    if (row.alias) owners.set(row.alias, row.providerId)
+  }
+  for (const { providerId, alias } of providers) {
+    if (alias && alias !== providerId && getDataService('ProviderRegistryService').isRegistryProvider(alias)) {
+      throw DataApiErrorFactory.conflict('Provider identifier is reserved', 'Provider alias')
+    }
+    for (const identifier of [providerId, alias]) {
+      if (!identifier) continue
+      const owner = owners.get(identifier)
+      if (owner && owner !== providerId) {
+        throw DataApiErrorFactory.conflict('Provider identifier is already in use', 'Provider alias')
+      }
+      owners.set(identifier, providerId)
+    }
+  }
+}
 
 function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
   const availableInEditions = provider.availableInEditions
@@ -317,6 +358,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
 
   return {
     id: row.providerId,
+    alias: row.alias ?? undefined,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
     // Preset icon key stays on `logo`, an uploaded one on `logoSrc` — mutually exclusive.
@@ -488,10 +530,21 @@ class ProviderService {
     return rowToRuntimeProvider(row)
   }
 
-  /**
-   * Create a new provider
-   */
+  /** Resolve an external identifier without changing internal DataApi addressing. */
+  getByIdentifier(identifier: string): Provider {
+    const row = application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(userProviderTable)
+      .where(or(eq(userProviderTable.providerId, identifier), eq(userProviderTable.alias, identifier)))
+      .get()
+    assertProviderAvailable(row, identifier)
+    return rowToRuntimeProvider(row)
+  }
+
   create(dto: CreateProviderDto): Provider {
+    const alias = normalizeProviderAlias(dto.alias)
     if (dto.providerSettings?.billing) ProviderBillingSchema.parse(dto.providerSettings.billing)
     if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
       throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
@@ -519,11 +572,13 @@ class ProviderService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          assertProviderIdentifiersAvailable(tx, [{ providerId: dto.providerId, alias }])
           const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, dto.providerId, dto.logo) ?? {
             logoKey: null
           }
           const values: NewUserProviderInput = {
             providerId: dto.providerId,
+            ...(alias ? { alias } : {}),
             presetProviderId: dto.presetProviderId ?? null,
             name: dto.name,
             logoKey: logoCols.logoKey,
@@ -582,6 +637,10 @@ class ProviderService {
 
       const updates: Partial<InsertUserProviderRow> = {}
 
+      if (dto.alias !== undefined) {
+        updates.alias = normalizeProviderAlias(dto.alias)
+        assertProviderIdentifiersAvailable(tx, [{ providerId, alias: updates.alias }])
+      }
       if (dto.name !== undefined) updates.name = dto.name
       // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
       const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, providerId, dto.logo)
@@ -655,10 +714,13 @@ class ProviderService {
   batchUpsertTx(tx: Pick<DbType, 'select' | 'insert'>, providers: NewUserProviderInput[]): number {
     const existing = tx.select({ providerId: userProviderTable.providerId }).from(userProviderTable).all()
     const existingIds = new Set(existing.map((row) => row.providerId))
-    const newProviders = providers.filter((provider) => !existingIds.has(provider.providerId))
+    const newProviders = providers
+      .filter((provider) => !existingIds.has(provider.providerId))
+      .map((provider) => ({ ...provider, alias: normalizeProviderAlias(provider.alias) }))
 
     if (newProviders.length === 0) return 0
 
+    assertProviderIdentifiersAvailable(tx, newProviders)
     insertManyWithOrderKey(tx, userProviderTable, newProviders, {
       pkColumn: userProviderTable.providerId
     })

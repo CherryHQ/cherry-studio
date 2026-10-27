@@ -32,6 +32,7 @@ function mockGet(handlers: Record<string, () => unknown>) {
     for (const prefix of prefixes) {
       if (path.startsWith(prefix)) return handlers[prefix]()
     }
+    if (/^\/providers\/[^/]+$/.test(path)) return { id: path.split('/')[2] }
     return undefined
   })
 }
@@ -1450,9 +1451,20 @@ describe('writeCliConfigDraft', () => {
         // Gateway addressing: single colon, providerId:apiModelId (NOT the "::" internal id).
         ANTHROPIC_MODEL: 'deepseek:deepseek-chat'
       })
-      // The real provider is never read, so its key can't leak into the CLI config file.
-      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+      // Gateway configs must never read the real provider's credentials.
       expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek/api-keys')
+    })
+
+    it('writes the provider alias without exposing upstream credentials', async () => {
+      mockGet({
+        '/providers/deepseek': () => ({ id: 'deepseek', alias: 'company' }),
+        '/models/': () => ({ apiModelId: 'deepseek-chat' })
+      })
+      await writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'deepseek::deepseek-chat', gateway })
+      expect(JSON.parse(written!.content).env).toMatchObject({
+        ANTHROPIC_MODEL: 'company:deepseek-chat',
+        ANTHROPIC_AUTH_TOKEN: 'cs-sk-gateway'
+      })
     })
 
     it('addresses by the model record apiModelId when it differs from the internal model id', async () => {
@@ -1543,8 +1555,7 @@ describe('writeCliConfigDraft', () => {
       // Gateway addressing (single colon, providerId:apiModelId) plus the sentinel
       // suffix that keeps gemini-cli's model normalization from rewriting the name.
       expect(settings.model).toEqual({ name: 'deepseek:deepseek-chat@cherry' })
-      // The real provider is never read, so its key can't leak into the CLI config file.
-      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+      // Gateway configs must never read the real provider's credentials.
     })
 
     it('writes Pi models/settings with the gateway endpoint, key, and gateway-addressed model', async () => {
@@ -1575,7 +1586,6 @@ describe('writeCliConfigDraft', () => {
         defaultProvider: 'cherry-gateway',
         defaultModel: 'deepseek:deepseek-chat'
       })
-      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
     })
 
     it('rejects the CherryAI managed default model and writes nothing', async () => {

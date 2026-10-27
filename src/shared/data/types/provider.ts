@@ -242,6 +242,8 @@ export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema
 export const ProviderSchema = z.object({
   /** Provider ID */
   id: z.string(),
+  /** User-editable unique identifier, independent of the internal ID. */
+  alias: z.string().optional(),
   /** Associated preset provider ID (if any) */
   presetProviderId: z.string().optional(),
   /** Display name */

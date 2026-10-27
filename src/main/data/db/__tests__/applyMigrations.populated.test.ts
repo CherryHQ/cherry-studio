@@ -70,8 +70,36 @@ describe('applyMigrations over a populated database', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  it('adds provider aliases without changing populated provider/model identities', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0029_condemned_mulholland_black'))
+    sqlite
+      .prepare(
+        'INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run('existing', 'Existing', 'a0', 1000, 1000)
+    sqlite
+      .prepare(`INSERT INTO user_model (id, provider_id, model_id, name, capabilities, supports_streaming, order_key, created_at, updated_at)
+      VALUES ('existing::model', 'existing', 'model', 'Model', '[]', 1, 'a0', 1000, 1000)`)
+      .run()
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT provider_id, alias FROM user_provider').get()).toEqual({
+      provider_id: 'existing',
+      alias: null
+    })
+    expect(sqlite.prepare('SELECT id, provider_id FROM user_model').get()).toEqual({
+      id: 'existing::model',
+      provider_id: 'existing'
+    })
+    sqlite.prepare("UPDATE user_provider SET alias = 'company' WHERE provider_id = 'existing'").run()
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    expect(sqlite.prepare('SELECT alias FROM user_provider').get()).toEqual({ alias: 'company' })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
+  })
+
   it('adds diagnostic history to a populated database and retains it after reopening', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0028_slow_ravenous'))
     const now = Date.now()
     sqlite
       .prepare(

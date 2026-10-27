@@ -41,6 +41,7 @@ type ProviderExportModel = Pick<
 type ProviderExportEntry = Pick<
   Provider,
   | 'id'
+  | 'alias'
   | 'presetProviderId'
   | 'name'
   | 'logo'
@@ -114,6 +115,7 @@ function projectModel(model: Model): ProviderExportModel {
 export function getProviderExportPayload(): ProviderExportPayload {
   const providers = providerService.list({ enabled: true }).map<ProviderExportEntry>((provider) => ({
     id: provider.id,
+    alias: provider.alias,
     presetProviderId: provider.presetProviderId,
     name: provider.name,
     logo: provider.logo,

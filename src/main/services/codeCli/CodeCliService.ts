@@ -6,6 +6,7 @@ import { promisify } from 'util'
 import { app } from 'electron'
 
 import { application } from '@application'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -676,7 +677,12 @@ export class CodeCliService extends BaseService {
         // The gateway serves only `/v1beta`; force the SDK's API version at launch so a stale
         // `GOOGLE_GENAI_API_VERSION=v1` exported in the user's shell can't redirect it to `/v1`.
         if (normal.gateway) env.GOOGLE_GENAI_API_VERSION = 'v1beta'
-        const modelArg = normal.gateway ? formatGeminiGatewayModelId(normal.providerId, normal.model) : normal.model
+        const modelArg = normal.gateway
+          ? formatGeminiGatewayModelId(
+              providerService.getByProviderId(normal.providerId).alias ?? normal.providerId,
+              normal.model
+            )
+          : normal.model
         // Bare-concatenated into the launch command like OpenCode's model above, so reject a
         // model id carrying shell metacharacters rather than launch.
         if (!isShellSafeModelId(modelArg)) {

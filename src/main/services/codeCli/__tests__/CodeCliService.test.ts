@@ -19,6 +19,10 @@ const skillServiceMock = vi.hoisted(() => ({
   uninstallBuiltinSkill: vi.fn(() => Promise.resolve(false))
 }))
 
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { getByProviderId: (id: string) => ({ id, alias: id === 'custom-aliased' ? 'company' : undefined }) }
+}))
+
 vi.mock('@main/ai/skills/SkillService', () => ({ skillService: skillServiceMock }))
 
 vi.mock('electron', () => ({
@@ -571,6 +575,19 @@ describe('CodeCliService', () => {
       // value's quotes are backslash-escaped by the AppleScript wrapper, so match the export + value.)
       expect(script).toContain('export GOOGLE_GENAI_API_VERSION=')
       expect(script).toContain('v1beta')
+    })
+
+    it('uses the provider alias while preserving the Gemini sentinel suffix', async () => {
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'agent/model-flash',
+        providerId: 'custom-aliased',
+        gateway: true,
+        directory: '/tmp/project'
+      })
+      expect(script).toContain('--model company:agent/model-flash@cherry')
+      expect(script).not.toContain('custom-aliased:')
     })
 
     it('passes the bare model id in direct (non-gateway) mode', async () => {

@@ -171,7 +171,7 @@ guard, described below.
 | `POST /v1beta/models/{provider:model}:generateContent` | Gemini | `gemini` → Gemini JSON |
 | `POST /v1beta/models/{provider:model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
 | `POST /v1beta/models/{provider:model}:countTokens` | Gemini | local converted-request estimate |
-| `GET /v1/models` | OpenAI list | `{ object:'list', data:[…] }`, ids are `providerId:modelId` (offset/limit) |
+| `GET /v1/models` | OpenAI list | `{ object:'list', data:[…] }`, ids are `providerIdentifier:apiModelId` (offset/limit) |
 | `GET /v1/knowledge-bases` | Cherry REST | list (offset/limit) |
 | `POST /v1/knowledge-bases/search` | Cherry REST | semantic search across bases |
 | `GET /v1/knowledge-bases/:id` | Cherry REST | single base |
@@ -179,8 +179,12 @@ guard, described below.
 | `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
 | `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | modern discovery/requests/subscriptions or legacy initialize/session requests |
 
-The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
+The model in every chat/messages/responses body is `"<providerIdentifier>:<apiModelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
+The prefix accepts the provider alias or its stable internal ID. Listings and
+new user-facing configurations prefer the alias when set; response model fields
+preserve the requested prefix. See [Provider identifiers](../provider-model/provider-identifiers.md)
+for collision rules and compatibility when changing or clearing an alias.
 
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.
@@ -249,7 +253,9 @@ The OpenAI, Anthropic, and Gemini generation routes call
 `proxyStream.ts`. That function is the heart of the gateway:
 
 1. **Resolve model.** Read `params.model`, split on the first `:` into
-   `providerId` / `modelId`, build a `uniqueModelId` via `createUniqueModelId`.
+   a provider identifier and API model ID. Resolve the alias or internal ID to
+   the provider, then find its enabled, routable model using the internal ID.
+   Preserve the requested prefix with the resolved API model ID in responses.
    `params.stream === true` selects streaming vs. JSON.
 2. **Validate trusted Agent history.** After the request authenticates with the
    internal Agent key, Anthropic-format history is checked before conversion.

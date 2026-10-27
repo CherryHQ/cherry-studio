@@ -8,6 +8,7 @@ import {
   CLAUDE_MODEL_ROLES,
   CLAUDE_PERMISSION_MODES,
   CLAUDE_REASONING_EFFORTS,
+  type GatewayModel,
   gatewayExpectedModel,
   gatewayModelIdFromAddress,
   safeCreateUniqueModelId,
@@ -96,7 +97,7 @@ export interface ClaudeConfigFieldsProps {
   providerId?: string
   modelFilter?: (model: Model) => boolean
   onSettingsNavigate?: (navigate: () => void) => void
-  gatewayModels?: Map<UniqueModelId, Model>
+  gatewayModels?: Map<UniqueModelId, GatewayModel>
 }
 
 function getEnv(config: Record<string, unknown>): Record<string, string> {
@@ -127,18 +128,18 @@ function hasOneMMarker(value: string): boolean {
 
 function getRawModelId(
   uniqueModelId: UniqueModelId | undefined,
-  gatewayModels: Map<UniqueModelId, Model> | undefined
+  gatewayModels: Map<UniqueModelId, GatewayModel> | undefined
 ): string {
   if (!uniqueModelId || !isUniqueModelId(uniqueModelId)) return ''
   if (!gatewayModels) return parseUniqueModelId(uniqueModelId).modelId
   const model = gatewayModels.get(uniqueModelId)
-  return model ? (gatewayExpectedModel(uniqueModelId, model.apiModelId) ?? '') : ''
+  return model ? (gatewayExpectedModel(uniqueModelId, model.apiModelId, model.providerAlias) ?? '') : ''
 }
 
 function toProviderModelId(
   providerId: string | undefined,
   modelId: string,
-  gatewayModels: Map<UniqueModelId, Model> | undefined
+  gatewayModels: Map<UniqueModelId, GatewayModel> | undefined
 ): UniqueModelId | undefined {
   // modelId comes from a user-typed env value; never throw in a render path.
   if (!modelId) return undefined

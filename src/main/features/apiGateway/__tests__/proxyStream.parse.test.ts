@@ -50,7 +50,7 @@ vi.mock('@application', () => ({
   }
 }))
 vi.mock('@data/services/ProviderService', () => ({
-  providerService: { getByProviderId: mockGetProvider }
+  providerService: { getByIdentifier: mockGetProvider }
 }))
 vi.mock('@data/services/ModelService', () => ({
   modelService: { list: mockListModels }
