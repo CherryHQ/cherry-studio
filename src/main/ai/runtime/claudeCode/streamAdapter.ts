@@ -1800,12 +1800,19 @@ export class ClaudeCodeStreamAdapter {
     // (round-19 marker-line fence chunking divergence / in-fence content
     // loss). A partial run is safe: the scan holds "1. ~"/"1. ~~" as a
     // potential fence prefix, and "1. ~x" still classifies as paragraph.
-    const suppressParagraphSentinel =
-      paragraph &&
-      markerHead !== '' &&
-      openLine.length === indent.length + markerHead.length &&
-      /^[`~]/.test(ctx.scratchpadStreamRemainder)
-    return indent + markerHead + (paragraph && !suppressParagraphSentinel ? 'x' : '') + tail + escapeMarker
+    // A bare marker-chain line ("1. ", "- 1. ") whose buffered scan
+    // remainder starts a fence run is a potential marker-line fence opener
+    // ("1. " + "~~~" in flight): carry the chain whole. The paragraph
+    // sentinel must not sit between the marker head and the run, or the
+    // completed opener scans as paragraph text (unrecognizable to the fence
+    // scan) and the closer re-reads as a new top-level opener (round-19
+    // marker-line fence chunking divergence / in-fence content loss). A
+    // partial run is safe: the scan holds "1. ~"/"1. ~~" as a potential
+    // fence prefix, and "1. ~x" still classifies as paragraph.
+    if (/^(?:(?:[-*+]|\d{1,9}[.)])\s+)+$/.test(openLine.slice(indent.length)) && /^[`~]/.test(ctx.scratchpadStreamRemainder)) {
+      return openLine
+    }
+    return indent + markerHead + (paragraph ? 'x' : '') + tail + escapeMarker
   }
 
   private emittedIndentOnlyLinePrefix(text: string): string {
