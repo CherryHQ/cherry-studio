@@ -1,5 +1,5 @@
 import * as fs from 'fs'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -219,7 +219,8 @@ export class SkillInstaller {
     // original can be restored without losing either copy.
     const newPath = path.join(storageRoot, newName)
     if (await pathExists(newPath)) {
-      const quarantine = path.join(storageRoot, `.${newName}.conflict-${Date.now()}`)
+      // Random suffix: renaming onto an existing empty directory would silently replace it.
+      const quarantine = path.join(storageRoot, `.${newName}.conflict-${Date.now()}-${randomUUID()}`)
       await fs.promises.rename(newPath, quarantine)
       logger.warn('Moved unindexed folder aside before restoring skill migration backup', {
         newPath,

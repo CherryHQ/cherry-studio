@@ -276,7 +276,7 @@ describe('SkillInstaller', () => {
     expect(mockDeleteDirectoryRecursive).not.toHaveBeenCalled()
     expect(mockFsRename).toHaveBeenCalledWith(
       '/global-skills/bar',
-      expect.stringMatching(/^\/global-skills\/\.bar\.conflict-\d+$/)
+      expect.stringMatching(/^\/global-skills\/\.bar\.conflict-\d+-[0-9a-f-]+$/)
     )
     expect(mockFsRename).toHaveBeenCalledWith('/global-skills/.foo.migrating-to.bar.bak', '/global-skills/foo')
   })
