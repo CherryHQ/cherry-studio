@@ -301,6 +301,33 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
   return filePath
 }
 
+export async function inspectImageInExternalBrowser(
+  paths: RunPaths,
+  candidatePath: string
+): Promise<{ width: number; height: number; screenshot: string }> {
+  const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
+  const { chromium } = await import('@playwright/test')
+  const browser = await chromium.launchPersistentContext(join(paths.private, 'external-image-viewer'), {
+    channel: 'msedge',
+    headless: false
+  })
+  try {
+    const page = await browser.newPage()
+    await page.goto(pathToFileURL(filePath).href)
+    const image = page.locator('img')
+    await image.waitFor({ state: 'visible' })
+    const dimensions = await image.evaluate((element) => ({
+      width: (element as HTMLImageElement).naturalWidth,
+      height: (element as HTMLImageElement).naturalHeight
+    }))
+    const screenshot = join(paths.evidence, 'external-image-viewer.png')
+    await page.screenshot({ path: screenshot })
+    return { ...dimensions, screenshot }
+  } finally {
+    await browser.close()
+  }
+}
+
 export function chooseNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)

@@ -164,12 +164,9 @@ describe('regression execution plan', () => {
     }
     for (const id of [
       'MP-52',
-      'MP-56',
       'MP-68',
       'MP-72',
       'MP-77',
-      'MP-82',
-      'MP-90',
       'MP-97',
       'MP-105',
       'MP-110',
@@ -182,7 +179,7 @@ describe('regression execution plan', () => {
     ] as const) {
       expect(supportsPlatform(id, 'windows'), id).toBe(false)
     }
-    for (const id of ['MP-70', 'MP-109', 'S-01'] as const) {
+    for (const id of ['MP-56', 'MP-70', 'MP-82', 'MP-90', 'MP-109', 'S-01'] as const) {
       expect(supportsPlatform(id, 'windows'), id).toBe(true)
     }
   })

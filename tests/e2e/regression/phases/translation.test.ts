@@ -176,7 +176,7 @@ test(...caseDefinition('MP-82'), async ({ app, mainWindow: page }, testInfo) => 
       'Source character counting and Markdown save-as with translated-file naming are not implemented in the current UI; this case covers import, translation and the Notes export control.'
   })
   // Catches dropped documents losing structure, missing progress/counts, and unavailable or misnamed exports.
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp82-assets-'))
+  const root = await mkdtemp(join(app.paths.workspace, 'mp82-assets-'))
   const documents = root
   const sample = app.fixturesPath('translation-documents', 'sample-chinese.md')
   testInfo.annotations.push({ type: 'provider', description: 'Uses the run-configured real translation provider.' })

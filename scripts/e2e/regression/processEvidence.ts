@@ -8,7 +8,7 @@ interface ProcessInfo {
   pid: number
 }
 
-function listProcesses(record: AppRecord): ProcessInfo[] {
+export function listProcesses(record: AppRecord): ProcessInfo[] {
   if (record.platform === 'windows') {
     const script =
       'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress'

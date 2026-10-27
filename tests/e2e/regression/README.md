@@ -91,6 +91,8 @@ while Electron is running, since native dependency rebuilds switch its ABI.
 
 ## Configuration and evidence
 
+Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.
+
 `translation-settings` selects only MP-86. The case uses pinned aiMock responses for
 language detection and translation, while exercising the real settings UI, model
 routing, automatic clipboard copy, history and usage storage, and restart persistence.

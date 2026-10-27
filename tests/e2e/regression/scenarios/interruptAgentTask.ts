@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 
@@ -7,20 +6,11 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 import type { AgentEntity, AgentSessionMessageEntity } from '@shared/data/types/agent'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { listProcesses } from '../../../../scripts/e2e/regression/processEvidence'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startNewAgentTask } from '../helpers/agents'
 import { selectVisibleModel } from '../helpers/models'
 import type { RegressionApp } from '../RegressionApp'
-
-function processTable() {
-  return execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' })
-    .trim()
-    .split('\n')
-    .map((line) => {
-      const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)!
-      return { pid: Number(match[1]), ppid: Number(match[2]), command: match[3] }
-    })
-}
 
 export async function interruptAgentTask(
   app: RegressionApp,
@@ -59,7 +49,10 @@ export async function interruptAgentTask(
   await expect(composer.locator('[data-composer-token-kind="skill"]')).toHaveCount(0)
 
   const tag = `MP56_PROCESS_${Date.now()}`
-  const command = `/bin/sh -c 'sleep 60; printf ${tag}_FINISHED' ${tag}`
+  const command =
+    app.record.platform === 'windows'
+      ? `node -e "setTimeout(function(){process.stdout.write('${tag}_FINISHED')},60000)"`
+      : `/bin/sh -c 'sleep 60; printf ${tag}_FINISHED' ${tag}`
   const tracked = new Set<number>()
   const pause = view.locator('[data-ui~="chat.composer.action.pause"]')
   const gateway = await page.evaluate(async () => ({
@@ -101,20 +94,27 @@ export async function interruptAgentTask(
         async () => {
           const allow = page.getByRole('button', { name: /Allow/ }).first()
           if (await allow.isVisible().catch(() => false)) await allow.click()
-          const table = processTable()
-          const roots = table.filter((p) => p.command.includes(tag) && /(?:sh|bash|zsh) -c/.test(p.command))
+          const table = listProcesses(app.record)
+          const roots = table.filter((p) => p.command.includes(tag))
           for (const p of roots) tracked.add(p.pid)
           for (let i = 0; i < table.length; i++) {
-            for (const p of table) if (tracked.has(p.ppid)) tracked.add(p.pid)
+            for (const p of table) if (tracked.has(p.parentPid)) tracked.add(p.pid)
           }
-          return table.some((p) => tracked.has(p.pid) && /(?:^|\/)sleep 60$/.test(p.command))
+          return table.some((p) => {
+            if (!tracked.has(p.pid)) return false
+            if (app.record.platform !== 'windows') return /(?:^|\/)sleep 60$/.test(p.command)
+            const executable = p.command.startsWith('"')
+              ? p.command.slice(1, p.command.indexOf('"', 1))
+              : p.command.split(/\s/)[0]
+            return /(?:^|[\\/])node(?:\.exe)?$/i.test(executable) && p.command.includes(tag)
+          })
         },
         { timeout: 90_000, intervals: [250, 500, 1000] }
       )
       .toBe(true)
     await testInfo.attach('MP-56 running process tree', {
       body: JSON.stringify(
-        processTable().filter((p) => tracked.has(p.pid)),
+        listProcesses(app.record).filter((p) => tracked.has(p.pid)),
         null,
         2
       ),
@@ -161,7 +161,9 @@ export async function interruptAgentTask(
     await expect
       .poll(async () => (await readMessages()).some((m) => m.role === 'assistant' && m.status === 'paused'))
       .toBe(true)
-    await expect.poll(() => processTable().filter((p) => tracked.has(p.pid)), { timeout: 10_000 }).toEqual([])
+    await expect
+      .poll(() => listProcesses(app.record).filter((p) => tracked.has(p.pid)), { timeout: 10_000 })
+      .toEqual([])
     expect(Date.now() - stoppedAt).toBeLessThan(20_000)
     const stoppedMessages = await readMessages()
     const before = toolIds(stoppedMessages)
@@ -172,14 +174,17 @@ export async function interruptAgentTask(
     const deadline = Date.now() + 3000
     do {
       expect(toolIds(await readMessages())).toEqual(before)
-      expect(processTable().filter((p) => tracked.has(p.pid) || p.command.includes(tag))).toEqual([])
+      expect(listProcesses(app.record).filter((p) => tracked.has(p.pid) || p.command.includes(tag))).toEqual([])
       await expect(pause).toBeHidden()
       await page.waitForTimeout(250)
     } while (Date.now() < deadline)
     expect(await readMessages()).toEqual(stoppedMessages)
     await screenshot('MP-56 after stop and process cleanup')
     await testInfo.attach('MP-56 process cleanup', {
-      body: JSON.stringify({ trackedPids: [...tracked], remaining: processTable().filter((p) => tracked.has(p.pid)) }),
+      body: JSON.stringify({
+        trackedPids: [...tracked],
+        remaining: listProcesses(app.record).filter((p) => tracked.has(p.pid))
+      }),
       contentType: 'application/json'
     })
 
@@ -207,7 +212,7 @@ export async function interruptAgentTask(
         })
       }, gateway)
     }
-    for (const p of processTable().filter((p) => tracked.has(p.pid))) {
+    for (const p of listProcesses(app.record).filter((p) => tracked.has(p.pid))) {
       try {
         process.kill(p.pid, 'SIGTERM')
       } catch {

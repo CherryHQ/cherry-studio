@@ -232,8 +232,7 @@ export const REGRESSION_CASES = [
     title: 'Enlarge, preview, and save images',
     tasks: ['paintings'],
     phase: 'images',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-91',
@@ -332,8 +331,7 @@ export const REGRESSION_CASES = [
     title: 'Interrupt tasks and clean up background processes',
     tasks: ['agents'],
     phase: 'agentRuntimes',
-    capabilities: [],
-    platforms: ['macos']
+    capabilities: []
   },
   {
     id: 'MP-57',
@@ -533,8 +531,7 @@ export const REGRESSION_CASES = [
     title: 'Translate files by dragging documents',
     tasks: ['translation'],
     phase: 'translation',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-83',

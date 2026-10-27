@@ -11,7 +11,7 @@ import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { validateFileEvidence } from '../../../../scripts/e2e/regression/fileEvidence'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
+import { inspectImageInExternalBrowser, saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
 import { addCherryInModel, ensureCherryInSignedIn } from '../helpers/cherryIn'
 import { selectVisibleModel } from '../helpers/models'
@@ -36,6 +36,7 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
   await closeSettings(page)
   await selectSidebarApp(page, 'Paintings')
   const view = page.locator('[data-ui~="paintings.view"]:visible')
+  await view.getByRole('button', { name: 'New Image', exact: true }).click()
   await view.locator('[data-selector-shell-root="true"] > button').first().click()
   await selectVisibleModel(page, app.config.cherryIn.imageModel)
   await view
@@ -125,7 +126,13 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
       )
       .toContain('MP-90-original.png')
   } else {
-    throw new Error('UNCOVERED: saved-image viewer verification is unavailable on this platform')
+    const external = await inspectImageInExternalBrowser(app.paths, output)
+    expect(external.width).toBe(originalSize.width)
+    expect(external.height).toBe(originalSize.height)
+    await testInfo.attach('MP-90 image opened in external viewer', {
+      path: external.screenshot,
+      contentType: 'image/png'
+    })
   }
   await attachScreenshot('MP-90 original image saved after preview transformations')
 })
