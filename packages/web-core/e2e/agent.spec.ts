@@ -101,6 +101,19 @@ test('lists the files the agent writes in the file tree and previews them', asyn
   await expect(page.getByText('second.txt', { exact: true })).toBeVisible()
 })
 
+test("saves an edit to the agent's file from the file pane", async ({ page }) => {
+  const written = await writeInNewSession(page, 'edit-me.txt', 'before')
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByText('edit-me.txt', { exact: true }).click()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.insertText(' and after')
+
+  await expect.poll(async () => (await readWorkspaceFiles(page))[written]).toBe('before and after')
+  await expect(page.getByLabel('Unsaved')).toHaveCount(0)
+})
+
 /** Has the agent write `content` at `filePath` in a new session and returns the file's workspace path. */
 async function writeInNewSession(page: Page, filePath: string, content: string): Promise<string> {
   await gotoApp(page, 'Work')

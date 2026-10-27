@@ -1,14 +1,16 @@
 // Browser `@main/utils/file`: the path helpers and the async file helpers the agent host and the file
-// preview use, on ZenFS. The rest (atomic writes, streams, downloads) needs Node streams; tool-output
-// file storage stays unsupported.
+// preview and editor use, on ZenFS. The rest (streamed atomic writes, downloads) needs Node streams;
+// tool-output file storage stays unsupported.
 import {
   lstat as fsLstat,
   mkdir as fsMkdir,
   open as fsOpen,
   readFile,
   realpath as fsRealpath,
+  rename,
   rm,
-  stat as fsStat
+  stat as fsStat,
+  writeFile
 } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -17,7 +19,7 @@ import mime from 'mime'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
-export { atomicWriteIfUnchanged, hashContent, PathStaleVersionError } from '../disabled/files'
+export { hashContent } from '../disabled/files'
 export {
   canonicalizePathForContainment,
   isNotEmptyDir,
@@ -74,6 +76,56 @@ export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
 
 export async function removeDir(target: AbsoluteFilePath): Promise<void> {
   await rm(target, { recursive: true, force: true })
+}
+
+interface PathVersion {
+  mtime: number
+  size: number
+}
+
+/** The desktop `PathStaleVersionError`: the file changed after the caller read `expected`. */
+export class PathStaleVersionError extends Error {
+  constructor(
+    readonly target: AbsoluteFilePath,
+    readonly expected: PathVersion,
+    readonly current: PathVersion
+  ) {
+    super(
+      `Path ${target} version mismatch: expected mtime=${expected.mtime} size=${expected.size}, ` +
+        `got mtime=${current.mtime} size=${current.size}`
+    )
+    this.name = 'PathStaleVersionError'
+  }
+}
+
+async function pathVersion(target: AbsoluteFilePath): Promise<PathVersion> {
+  const s = await fsStat(target)
+  return { mtime: Math.floor(s.mtimeMs), size: s.size }
+}
+
+/**
+ * The desktop `atomicWriteIfUnchanged`: writes a temporary file next to `target` and renames it over
+ * `target` only if `target` is still at `expected`. Browser file systems keep millisecond times, so
+ * the desktop's content-hash check for second-precision times is not needed.
+ */
+export async function atomicWriteIfUnchanged(
+  target: AbsoluteFilePath,
+  data: string | Uint8Array,
+  expected: PathVersion
+): Promise<PathVersion> {
+  const tmp = `${target}.tmp-${crypto.randomUUID()}`
+  await writeFile(tmp, data)
+  try {
+    const current = await pathVersion(target)
+    if (current.mtime !== expected.mtime || current.size !== expected.size) {
+      throw new PathStaleVersionError(target, expected, current)
+    }
+    await rename(tmp, target)
+  } catch (error) {
+    await rm(tmp, { force: true })
+    throw error
+  }
+  return pathVersion(target)
 }
 
 /** The desktop `read`: text, or bytes with the MIME type the extension implies. */

@@ -35,7 +35,7 @@ Firefox and Safari.
 | Settings | Provider, default model, general, appearance, archive, about | Other sections are desktop-only. |
 | Agents | Pi runtime | Claude Code and other runtimes, skills, slash commands, heartbeat and scheduled runs are desktop-only. |
 | Agent file tools | Yes | `read`, `write`, `edit`, `ls`, `find`, `grep` in a workspace in the browser's storage. |
-| Agent file tree and file preview | Yes | The preview is read-only. A local folder's tree does not see changes made outside the app. |
+| Agent file tree, file preview and editor | Yes | The editor saves only over the version it opened, as on the desktop. A local folder's tree does not see changes made outside the app. |
 | Agent in a folder on the computer | Chrome and Edge | Needs `showDirectoryPicker()`. |
 | Python | Yes | Pyodide, loaded from jsDelivr: pure-Python and Pyodide-built packages only. |
 | JavaScript | Yes | QuickJS, without network, file or DOM access. |

@@ -5,10 +5,13 @@ import { translateHandlers } from '@main/ipc/handlers/translate'
 import { trashHandlers } from '@main/ipc/handlers/trash'
 import { dispatchHandle } from '@main/services/file/internal/dispatch'
 import type { TreeOwner } from '@main/services/file/tree/DirectoryTreeManager'
-import { readByPath, readChunkByPath } from '@main/services/file/utils/content'
+import { readByPath, readChunkByPath, writeIfUnchangedByPath } from '@main/services/file/utils/content'
 import { getMetadataByPath } from '@main/services/file/utils/metadata'
+import { PathStaleVersionError } from '@main/utils/file'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { ipcRequestSchemas, type IpcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -33,13 +36,13 @@ const pageTreeOwner: TreeOwner = {
   webContents: pageWebContents as unknown as TreeOwner['webContents']
 }
 
-/** Files in the library (attachments) are not served; the file preview reads the agent's files by path. */
+/** Files in the library (attachments) are not served; the file preview and editor use the agent's files by path. */
 const libraryFiles = unsupported('Library files')
 
 /**
  * IpcApi routes the Web edition serves: chat streams, one-shot text and translation, model listing
  * and checks, agent creation, tool approvals, the agent session runtime, archiving and deleting,
- * workspaces, the agent's file tree and file preview, and Web answers to what the desktop shell asks.
+ * workspaces, the agent's file tree, file preview and editor, and Web answers to what the desktop shell asks.
  */
 const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.open': aiHandlers['ai.stream.open'],
@@ -103,6 +106,20 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
     return dispatchHandle(handle as FileHandle, libraryFiles, (path) =>
       readByPath(path, { encoding: options.encoding, ...(options.withContentHash && { withContentHash: true }) })
     )
+  },
+  // The editor saves only over the version it loaded; a newer one asks the user, as on the desktop.
+  'file.write_if_unchanged': async ({ handle, data, expectedVersion, expectedContentHash }) => {
+    try {
+      return await dispatchHandle(handle as FileHandle, libraryFiles, (path) =>
+        writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
+      )
+    } catch (error) {
+      if (!(error instanceof PathStaleVersionError)) throw error
+      throw new IpcError(fileErrorCodes.STALE_VERSION, error.message, {
+        expected: error.expected,
+        current: error.current
+      })
+    }
   },
   // A missing or unreadable file is `null`, as on the desktop.
   'file.get_metadata': async (handle) =>
