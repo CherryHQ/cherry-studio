@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 // It replies `echo: <last user text>` in three stream chunks, answers 401 to "please fail", never
 // finishes a reply to "please hang" and replies the JSON string after `say ` verbatim. To
 // `call <tool> <json args>` (repeatable) it answers with those tool calls, then replies
-// `tools said: <results>` once the results come back.
+// `tools said: <results>` once the results come back. `GET /v1/models` lists `mock-chat` and `mock-other`.
 // `GET /requests` returns what it received so tests can check what the browser sent.
 // It also collects the app's CSP violation reports (`/csp-reports`), on which every test fails.
 export const MOCK_PROVIDER_PORT = 4319
@@ -126,6 +126,9 @@ function startMockProvider() {
       response.writeHead(204).end()
     } else if (request.method === 'GET' && request.url === '/requests') {
       response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(received))
+    } else if (request.method === 'GET' && request.url === '/v1/models') {
+      const data = ['mock-chat', 'mock-other'].map((id) => ({ id, object: 'model', created: 0, owned_by: 'mock' }))
+      response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ object: 'list', data }))
     } else if (request.method === 'GET') {
       response.writeHead(200).end('mock provider')
     } else if (request.method === 'POST' && request.url === '/v1/chat/completions') {

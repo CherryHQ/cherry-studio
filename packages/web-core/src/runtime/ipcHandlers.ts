@@ -36,9 +36,9 @@ const pageTreeOwner: TreeOwner = {
 const libraryFiles = unsupported('Library files')
 
 /**
- * IpcApi routes the Web edition serves: chat streams, agent creation, tool approvals, the agent
- * session runtime, archiving and deleting, local-folder workspaces, the agent's file tree and file
- * preview, and Web answers to what the desktop shell asks at start.
+ * IpcApi routes the Web edition serves: chat streams, one-shot text, model listing and checks,
+ * agent creation, tool approvals, the agent session runtime, archiving and deleting, workspaces,
+ * the agent's file tree and file preview, and Web answers to what the desktop shell asks.
  */
 const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.open': aiHandlers['ai.stream.open'],
@@ -46,6 +46,10 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.detach': aiHandlers['ai.stream.detach'],
   'ai.stream.abort': aiHandlers['ai.stream.abort'],
   'ai.tool.respond_approval': aiHandlers['ai.tool.respond_approval'],
+  'ai.text.generate': aiHandlers['ai.text.generate'],
+  'ai.text.abort': aiHandlers['ai.text.abort'],
+  'ai.provider.model.list': aiHandlers['ai.provider.model.list'],
+  'ai.provider.model.check': aiHandlers['ai.provider.model.check'],
   'ai.agent.create': aiHandlers['ai.agent.create'],
   'ai.agent.restore': aiHandlers['ai.agent.restore'],
   'ai.agent.delete': aiHandlers['ai.agent.delete'],
@@ -63,6 +67,10 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.agent.session.edit_target': aiHandlers['ai.agent.session.edit_target'],
   'ai.agent.session.edit_resend': aiHandlers['ai.agent.session.edit_resend'],
   'ai.agent.session.fork': aiHandlers['ai.agent.session.fork'],
+  'ai.agent.workspace.delete': aiHandlers['ai.agent.workspace.delete'],
+  // Attachments are not served, so no session has selected any; nor can a model run on OVMS.
+  'ai.agent.attachment_selections.list': async () => [],
+  'ovms.is_supported': async () => false,
   'trash.topic.archive': trashHandlers['trash.topic.archive'],
   'trash.topic.delete_permanently': trashHandlers['trash.topic.delete_permanently'],
   'trash.assistant_topics.archive': trashHandlers['trash.assistant_topics.archive'],

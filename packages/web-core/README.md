@@ -29,7 +29,7 @@ Firefox and Safari.
 | Feature | Web edition | Notes |
 | --- | --- | --- |
 | Chat: topics, messages, streaming, assistants | Yes | A reply cut off by a reload is kept and marked interrupted. |
-| Model providers | Yes | Requests go from the browser, so the provider must allow CORS from the app's origin. |
+| Model providers | Yes | Requests go from the browser, so the provider must allow CORS from the app's origin. Fetching the model list and checking a model work for every provider except Vertex AI. |
 | CherryIN sign-in, Cherry account, the built-in CherryAI model | No | First-run setup offers provider setup only; CherryIN works with an API key. |
 | Saving and exporting messages | Markdown and image downloads | Notes, knowledge bases, Word and note apps are desktop-only. |
 | Settings | Provider, default model, general, appearance, archive, about | Other sections are desktop-only. |
