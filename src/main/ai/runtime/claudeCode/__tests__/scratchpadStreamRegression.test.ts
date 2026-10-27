@@ -175,7 +175,6 @@ describe('round-17 stale-sibling-ownership (cherry-review P2, CommonMark ex313)'
     }
     adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     const work = (adapter as any).scratchpadMaskAdvanceWorkChars as number
-    console.log({ fenceChars: fence.length, maskAdvanceWorkChars: work })
     expect(work).toBeGreaterThan(0)
     expect(work).toBeLessThan(fence.length * 3)
   })
