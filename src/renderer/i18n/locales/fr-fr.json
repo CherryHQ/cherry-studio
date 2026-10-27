@@ -4811,7 +4811,7 @@
   "settings.mcp.timeoutTooltip": "Délai d'expiration en secondes pour les requêtes envoyées à ce serveur. La valeur par défaut est de 60 secondes.",
   "settings.mcp.title": "Serveurs MCP",
   "settings.mcp.tools.autoApprove.label": "Approbation automatique",
-  "settings.mcp.tools.autoApprove.tooltip.disabled": "L'approbation manuelle est requise avant l'exécution de l'outil",
+  "settings.mcp.tools.autoApprove.tooltip.disabled": "L'approbation manuelle est requise avant l'exécution de l'outil, sauf dans les conversations non enregistrées de l'Assistant Rapide et de l'Assistant de sélection de texte, où il s'exécute sans demander",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "L'outil s'exécutera automatiquement sans approbation",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "L'approbation automatique ne peut être utilisée que lorsque l'outil est activé",
   "settings.mcp.tools.availableTools": "Outils disponibles",

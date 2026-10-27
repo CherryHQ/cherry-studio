@@ -4811,7 +4811,7 @@
   "settings.mcp.timeoutTooltip": "Tiempo de espera (en segundos) para las solicitudes a este servidor; el valor predeterminado es 60 segundos",
   "settings.mcp.title": "Servidores MCP",
   "settings.mcp.tools.autoApprove.label": "Aprobación automática",
-  "settings.mcp.tools.autoApprove.tooltip.disabled": "Se requiere aprobación manual antes de ejecutar la herramienta",
+  "settings.mcp.tools.autoApprove.tooltip.disabled": "Se requiere aprobación manual antes de ejecutar la herramienta, salvo en chats no guardados del Asistente Rápido y del Asistente de selección de palabras, donde se ejecuta sin preguntar",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "La herramienta se ejecutará automáticamente sin necesidad de aprobación",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Debe habilitar la herramienta para poder usar la aprobación automática",
   "settings.mcp.tools.availableTools": "Herramientas disponibles",

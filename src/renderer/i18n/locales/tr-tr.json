@@ -4811,7 +4811,7 @@
   "settings.mcp.timeoutTooltip": "Bu sunucuya yapılan istekler için saniye cinsinden zaman aşımı; varsayılan değer 60 saniyedir",
   "settings.mcp.title": "MCP Sunucuları",
   "settings.mcp.tools.autoApprove.label": "Otomatik Onayla",
-  "settings.mcp.tools.autoApprove.tooltip.disabled": "Araç çalıştırılmadan önce manuel onay gerektirecek",
+  "settings.mcp.tools.autoApprove.tooltip.disabled": "Araç çalıştırılmadan önce manuel onay gerektirecek; ancak kaydedilmemiş Hızlı Asistan ve Seçim Asistanı sohbetlerinde sormadan çalışır",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Araç onay olmadan otomatik olarak çalışacak",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Otomatik onayı kullanmak için önce aracı etkinleştirin",
   "settings.mcp.tools.availableTools": "Kullanılabilir Araçlar",

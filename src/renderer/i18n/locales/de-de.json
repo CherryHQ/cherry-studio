@@ -4811,7 +4811,7 @@
   "settings.mcp.timeoutTooltip": "Timeout für Anfragen an den Server in Sekunden. Standardmäßig 60 Sekunden.",
   "settings.mcp.title": "MCP-Server",
   "settings.mcp.tools.autoApprove.label": "Automatische Genehmigung",
-  "settings.mcp.tools.autoApprove.tooltip.disabled": "Manuelle Genehmigung vor Tool-Ausführung erforderlich",
+  "settings.mcp.tools.autoApprove.tooltip.disabled": "Manuelle Genehmigung vor Tool-Ausführung erforderlich – außer in ungespeicherten Chats von Schnellassistent und Textauswahl-Assistent, wo das Tool ohne Nachfrage ausgeführt wird",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Tool wird automatisch ohne Genehmigung ausgeführt",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Tool muss aktiviert sein für Auto-Genehmigung",
   "settings.mcp.tools.availableTools": "Verfügbare Tools",

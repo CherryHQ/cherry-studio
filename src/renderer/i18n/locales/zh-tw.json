@@ -4811,7 +4811,7 @@
   "settings.mcp.timeoutTooltip": "對該伺服器請求的逾時時間（秒），預設為 60 秒",
   "settings.mcp.title": "MCP 伺服器",
   "settings.mcp.tools.autoApprove.label": "自動核准",
-  "settings.mcp.tools.autoApprove.tooltip.disabled": "工具執行前需要手動核准",
+  "settings.mcp.tools.autoApprove.tooltip.disabled": "工具執行前需要手動核准；但在未儲存的快速助理和選取文字助理對話中會直接執行，不再詢問",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "工具將自動執行，無需手動核准",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "啟用工具後才能使用自動核准",
   "settings.mcp.tools.availableTools": "可用工具",

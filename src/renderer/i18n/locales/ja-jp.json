@@ -4811,7 +4811,7 @@
   "settings.mcp.timeoutTooltip": "このサーバーへのリクエストのタイムアウト時間（秒）、デフォルトは60秒です",
   "settings.mcp.title": "MCP サーバー",
   "settings.mcp.tools.autoApprove.label": "自動承認",
-  "settings.mcp.tools.autoApprove.tooltip.disabled": "ツールは実行前に手動承認が必要です",
+  "settings.mcp.tools.autoApprove.tooltip.disabled": "ツールは実行前に手動承認が必要です。ただし、未保存のクイックアシスタントとテキスト選択ツールのチャットでは確認なしで実行されます",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "ツールは承認なしで自動実行されます",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "ツールを有効にしてから自動承認を使用できます",
   "settings.mcp.tools.availableTools": "利用可能なツール",

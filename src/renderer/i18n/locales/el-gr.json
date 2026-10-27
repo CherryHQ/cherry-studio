@@ -4811,7 +4811,7 @@
   "settings.mcp.timeoutTooltip": "Ο χρόνος λήξης αιτήσεων για αυτόν τον διακομιστή (σε δευτερόλεπτα), προεπιλεγμένος είναι 60 δευτερόλεπτα",
   "settings.mcp.title": "Διακομιστές MCP",
   "settings.mcp.tools.autoApprove.label": "Αυτόματη έγκριση",
-  "settings.mcp.tools.autoApprove.tooltip.disabled": "Απαιτείται χειροκίνητη έγκριση πριν την εκτέλεση του εργαλείου",
+  "settings.mcp.tools.autoApprove.tooltip.disabled": "Απαιτείται χειροκίνητη έγκριση πριν την εκτέλεση του εργαλείου, εκτός από μη αποθηκευμένες συνομιλίες στον Γρήγορο βοηθό και στον Βοηθό Επιλογής Λέξεων, όπου εκτελείται χωρίς ερώτηση",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Το εργαλείο θα εκτελείται αυτόματα χωρίς έγκριση",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Η αυτόματη έγκριση είναι διαθέσιμη μόνο αφού ενεργοποιηθεί το εργαλείο",
   "settings.mcp.tools.availableTools": "Διαθέσιμα Εργαλεία",

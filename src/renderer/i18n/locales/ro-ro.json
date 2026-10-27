@@ -4811,7 +4811,7 @@
   "settings.mcp.timeoutTooltip": "Timpul de expirare în secunde pentru cererile către acest server, implicit este 60 secunde",
   "settings.mcp.title": "Servere MCP",
   "settings.mcp.tools.autoApprove.label": "Aprobare automată",
-  "settings.mcp.tools.autoApprove.tooltip.disabled": "Instrumentul va necesita aprobare manuală înainte de rulare",
+  "settings.mcp.tools.autoApprove.tooltip.disabled": "Instrumentul va necesita aprobare manuală înainte de rulare, cu excepția conversațiilor nesalvate din Asistentul rapid și Asistentul de selecție, unde rulează fără confirmare",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Instrumentul va rula automat fără confirmare",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Activează mai întâi instrumentul pentru a folosi aprobarea automată",
   "settings.mcp.tools.availableTools": "Instrumente disponibile",
