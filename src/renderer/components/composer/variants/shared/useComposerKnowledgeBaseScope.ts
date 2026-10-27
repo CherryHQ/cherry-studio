@@ -85,15 +85,22 @@ export function useComposerKnowledgeBaseScope({
     () => filterSelectableKnowledgeBases(allKnowledgeBases),
     [allKnowledgeBases, filterSelectableKnowledgeBases]
   )
+  // Paste resolution stays restricted to configured bases: an unlinked pick must go through the
+  // explicit picker flow (which auto-links it) — resolving a pasted unlinked marker without linking
+  // would name a base the request's retrieval never uses. Previously selected stale bases keep their
+  // chips via selection retention, not via this map.
   const knowledgeBaseMarkerMap = useMemo(() => {
     const map = new Map<string, KnowledgeBase>()
-    selectableKnowledgeBases.forEach((base) => {
+    const resolvable = allowUnconfigured
+      ? selectableKnowledgeBases.filter((base) => configuredKnowledgeBaseIdSet.has(base.id))
+      : selectableKnowledgeBases
+    resolvable.forEach((base) => {
       map.set(base.id, base)
       map.set(base.name, base)
       map.set(composerKnowledgeBaseTokenId(base), base)
     })
     return map
-  }, [selectableKnowledgeBases])
+  }, [allowUnconfigured, configuredKnowledgeBaseIdSet, selectableKnowledgeBases])
   const resolveKnowledgeBaseMarker = useCallback(
     (marker: string): ComposerDraftToken | null => {
       const base = knowledgeBaseMarkerMap.get(marker)

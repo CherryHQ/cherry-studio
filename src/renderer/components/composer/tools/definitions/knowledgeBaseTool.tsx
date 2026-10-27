@@ -51,18 +51,30 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
   // own write while React Query has not delivered a fresher assistant yet.
   const assistantSnapshotRef = useRef(context.assistant)
   const latestKnowledgeBaseIdsRef = useRef<string[] | null>(null)
+  // Server revision (updatedAt ms) of the row the settled ids came from; ordering — not id
+  // containment — decides staleness, so a COMPLETED external edit (newer revision, missing ids)
+  // stays authoritative instead of being mistaken for a stale fetch.
+  const settledUpdatedAtMsRef = useRef<number | null>(null)
   if (assistantSnapshotRef.current !== context.assistant) {
-    const nextIds = context.assistant?.knowledgeBaseIds ?? null
-    const settled = latestKnowledgeBaseIdsRef.current
-    // A same-assistant delivery missing ids this runtime already persisted predates
-    // those writes (stale fetch); accepting it would resurrect the loss in the next
-    // full PATCH. A different assistant's delivery is a new scope, not staleness.
-    const sameAssistant = context.assistant?.id === assistantSnapshotRef.current?.id
+    const nextAssistant = context.assistant
+    const nextIds = nextAssistant?.knowledgeBaseIds ?? null
+    const nextUpdatedAtMs = nextAssistant ? Date.parse(nextAssistant.updatedAt) : Number.NaN
+    const settledUpdatedAtMs = settledUpdatedAtMsRef.current
+    // A same-assistant delivery older than the revision this runtime settled on predates
+    // those writes (stale fetch); accepting it would resurrect the loss in the next full
+    // PATCH. A different assistant's delivery is a new scope, not staleness.
+    const sameAssistant = nextAssistant?.id === assistantSnapshotRef.current?.id
     const isStaleDelivery =
-      sameAssistant && settled != null && nextIds != null && !settled.every((id) => nextIds.includes(id))
-    assistantSnapshotRef.current = context.assistant
+      sameAssistant &&
+      latestKnowledgeBaseIdsRef.current != null &&
+      nextIds != null &&
+      settledUpdatedAtMs != null &&
+      !Number.isNaN(nextUpdatedAtMs) &&
+      nextUpdatedAtMs < settledUpdatedAtMs
+    assistantSnapshotRef.current = nextAssistant
     if (!isStaleDelivery) {
       latestKnowledgeBaseIdsRef.current = nextIds
+      if (!Number.isNaN(nextUpdatedAtMs)) settledUpdatedAtMsRef.current = nextUpdatedAtMs
     }
   }
   // Auto-link PATCHes run strictly one at a time, each body computed from the previous
@@ -99,13 +111,19 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
         if (currentIds.includes(base.id)) return true
         const knowledgeBaseIds = [...currentIds, base.id]
         try {
-          await updateAssistant(assistantAtPick.id, { knowledgeBaseIds })
-          // A mid-PATCH switch already re-scoped the settled ids to the new assistant;
-          // writing the old list back would leak this assistant's bases into its next PATCH.
+          const updated = await updateAssistant(assistantAtPick.id, {
+            knowledgeBaseIds
+          })
+          // A mid-PATCH switch already re-scoped the settled ids to the new assistant; writing
+          // the old list back would leak this assistant's bases into its next PATCH, and the
+          // awaiting picker must not settle the pick into the new scope's draft either.
           if (pickStillInScope()) {
             latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
+            const updatedAtMs = Date.parse(updated.updatedAt)
+            if (!Number.isNaN(updatedAtMs)) settledUpdatedAtMsRef.current = updatedAtMs
+            return true
           }
-          return true
+          return false
         } catch (error) {
           logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
             assistantId: assistantAtPick.id,

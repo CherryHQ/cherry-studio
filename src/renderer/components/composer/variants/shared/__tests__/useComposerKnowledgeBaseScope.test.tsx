@@ -65,7 +65,11 @@ describe('useComposerKnowledgeBaseScope', () => {
 
     it('re-selects the persisted ids once the bases have loaded', () => {
       const { result } = renderHook(useScopeHarness, {
-        initialProps: { allKnowledgeBases: bases, isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+        initialProps: {
+          allKnowledgeBases: bases,
+          isKnowledgeBasesLoading: false,
+          scopeKey: SCOPE_KEY
+        }
       })
 
       act(() => result.current.restoreKnowledgeBaseSelection(['kb-2']))
@@ -146,13 +150,21 @@ describe('useComposerKnowledgeBaseScope', () => {
   it('clears the selection when the composer scope key changes', () => {
     const bases = [kb('kb-1'), kb('kb-2')]
     const { result, rerender } = renderHook(useScopeHarness, {
-      initialProps: { allKnowledgeBases: bases, isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+      initialProps: {
+        allKnowledgeBases: bases,
+        isKnowledgeBasesLoading: false,
+        scopeKey: SCOPE_KEY
+      }
     })
     act(() => result.current.restoreKnowledgeBaseSelection(['kb-1']))
     expect(result.current.selectedKnowledgeBases).toEqual([bases[0]])
 
     // Switching topic or agent must not carry one conversation's knowledge scope into the next.
-    rerender({ allKnowledgeBases: bases, isKnowledgeBasesLoading: false, scopeKey: 'topic-2:agent-1' })
+    rerender({
+      allKnowledgeBases: bases,
+      isKnowledgeBasesLoading: false,
+      scopeKey: 'topic-2:agent-1'
+    })
 
     expect(result.current.selectedKnowledgeBases).toEqual([])
   })
@@ -190,6 +202,25 @@ describe('useComposerKnowledgeBaseScope', () => {
       act(() => result.current.restoreKnowledgeBaseSelection(['kb-3']))
 
       expect(result.current.selectedKnowledgeBases).toEqual([bases[2]])
+    })
+
+    it('resolves pasted markers only for configured bases', () => {
+      // A pasted marker for an unlinked base must stay unresolved: naming it without
+      // linking would select a base the request's retrieval never uses. The explicit
+      // picker flow still auto-links unconfigured picks.
+      const { result } = renderHook(useScopeHarness, {
+        initialProps: {
+          configuredKnowledgeBaseIds: ['kb-1'],
+          allKnowledgeBases: bases,
+          isKnowledgeBasesLoading: false,
+          scopeKey: SCOPE_KEY,
+          allowUnconfigured: true
+        }
+      })
+
+      expect(result.current.selectableKnowledgeBases).toEqual(bases)
+      expect(result.current.resolveKnowledgeBaseMarker('kb-1')).not.toBeNull()
+      expect(result.current.resolveKnowledgeBaseMarker('kb-2')).toBeNull()
     })
 
     it('keeps the configured-intersection filter when not opted in (agent scope)', () => {
