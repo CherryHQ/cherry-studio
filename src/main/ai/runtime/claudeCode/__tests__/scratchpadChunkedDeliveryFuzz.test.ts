@@ -69,7 +69,7 @@ describe('fence continuity across advance spans', () => {
       const whole = deliver(input, null)
       const c1 = deliver(input, 1)
       const c5 = deliver(input, 5)
-      console.log('FENCE-CONTINUITY-DIFF', id, JSON.stringify({ whole, c1, c5 }))
+      if (c1 !== whole || c5 !== whole) console.log('FENCE-CONTINUITY-DIFF', id, JSON.stringify({ whole, c1, c5 }))
       expect(c5).toBe(whole)
       expect(c1).toBe(whole)
     })
