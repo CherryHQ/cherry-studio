@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-27-claude-code-output-token-pin-ceiling.md
-2026-10-27-claude-code-output-token-pin-ceiling.md: ea40a9451262de6323c742a3f89379e95d3a11d4
-2026-10-27-claude-code-output-token-pin-ceiling.zh.md: 2c63ce88d517bc000e68a1a74acf9ee1507e8387
+2026-10-27-claude-code-output-token-pin-ceiling.md: a76062f34ef1ca162592427ac91c4b7c0fd95b68
+2026-10-27-claude-code-output-token-pin-ceiling.zh.md: c2216e32bdca5beb861a7daf3d992dfcda3126b8

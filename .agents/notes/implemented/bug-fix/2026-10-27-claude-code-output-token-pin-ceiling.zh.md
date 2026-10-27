@@ -34,5 +34,5 @@ grok-4.6 现在正好固定为 65,536。这个值就是端点在自身错误信�
 
 ## 验证
 
-- 回归 — `vitest run --project main src/main/ai/runtime/claudeCode/__tests__/settingsBuilder.test.ts src/main/ai/runtime/claudeCode/__tests__/agentSessionWarmup.test.ts`：228 项测试通过。新增：500K 目录上限配 500K 窗口固定为 `65536`，同时压缩窗口保持在 400K 以上（即 #22332 场景，此前固定为 `128000`）；`CLAUDE_CODE_MAX_OUTPUT_TOKENS=500000` 覆盖值在子进程 env 中被收敛为预算所依据的 `65536`，而 `48000` 原样保留；`393_216` 仍固定为上界；`16_384` 仍固定为其声明上限。
+- 回归 — `vitest run --project main src/main/ai/runtime/claudeCode/__tests__/settingsBuilder.test.ts src/main/ai/runtime/claudeCode/__tests__/agentSessionWarmup.test.ts`：228 项测试通过。新增：500K 目录上限配 500K 窗口固定为 `65536`，同时压缩窗口保持在 400K 以上（即 #22332 场景，此前固定为 `128000`）；`CLAUDE_CODE_MAX_OUTPUT_TOKENS=500000` 覆盖值在子进程 env 中被收敛为预算所依据的 `65536`，`48000` 原样保留，且在上下文窗口缺失或低于最小压缩窗口时超大覆盖值同样被收敛，而目录推导值在该情形下保持不固定；`393_216` 仍固定为上界；`16_384` 仍固定为其声明上限。
 - `oxlint --deny-warnings` 与 `oxfmt` 在两个改动文件上通过。

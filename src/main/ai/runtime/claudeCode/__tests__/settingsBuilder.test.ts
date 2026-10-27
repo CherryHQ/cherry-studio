@@ -726,6 +726,53 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  // Without a usable context window there is no compaction budget, but the override still feeds
+  // the request: an oversized pin has to be held to the endpoint maximum for these inputs too,
+  // while a catalog-derived value stays unpinned (the CLI's own default applies).
+  it.each([
+    ['absent', undefined],
+    ['below the minimum compaction window', 64_000]
+  ])('normalizes an oversized override when the context window is %s', async (_label, contextWindow) => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow, maxOutputTokens: 500_000 }
+    )
+
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '65536' })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeUndefined()
+  })
+
+  it('does not pin a catalog-derived value without a usable context window', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { maxOutputTokens: 500_000 }
+    )
+
+    expect(settings.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS).toBeUndefined()
+  })
+
   it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
     // No context window declared — the percentage still applies.
     const settings = await buildClaudeCodeSessionSettings(
