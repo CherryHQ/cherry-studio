@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-26-agent-session-rename.md
-2026-10-26-agent-session-rename.md: 9d4cd12f3cfdac39400c96996fd94a2a8777f809
-2026-10-26-agent-session-rename.zh.md: 59c11a62dfca812429d833d43379fc59dbd7d391
+2026-10-26-agent-session-rename.md: d76b1bde9a8e3b62ef13733f5bab38c34681c4b2
+2026-10-26-agent-session-rename.zh.md: 62cf28bce7106895f6ba055ed87cb04962e6b4f8

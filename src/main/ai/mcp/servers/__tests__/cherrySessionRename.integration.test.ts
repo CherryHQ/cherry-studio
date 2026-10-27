@@ -116,14 +116,23 @@ describe('session_rename persisted contract', () => {
     })
   })
 
-  it('rejects another Agent’s Session without modifying either Session', async () => {
+  it('renames another Agent’s Session without changing its ownership or the current Session', async () => {
     const target = createSession('rename-other')
     const result = await callBuiltinTool(createServer, 'session_rename', { session_id: target.id, title: 'New' })
 
-    expect(result.isError).toBe(true)
-    expect(JSON.parse(toolText(result))).toMatchObject({ error: { code: 'SESSION_TOOL_FORBIDDEN' } })
-    expect(agentSessionService.getById(target.id).name).toBe('Original title')
-    expect(agentSessionService.getById(context.sessionId).name).toBe('Original title')
+    expect(result.isError, toolText(result)).not.toBe(true)
+    expect(JSON.parse(toolText(result))).toEqual({ sessionId: target.id, sessionName: 'New' })
+    expect(agentSessionService.getById(target.id)).toMatchObject({
+      name: 'New',
+      isNameManuallyEdited: true,
+      agentId: target.agentId,
+      workspaceId: target.workspaceId,
+      lastActivityAt: target.lastActivityAt
+    })
+    expect(agentSessionService.getById(context.sessionId)).toMatchObject({
+      name: 'Original title',
+      isNameManuallyEdited: false
+    })
   })
 
   it.each(['missing', 'trashed'])('rejects a %s target without modifying the current Session', async (kind) => {
@@ -147,19 +156,23 @@ describe('session_rename persisted contract', () => {
     { currentTurn: 'interactive', userResponse: 'unavailable' }
   ])('denies renaming without an interactive responder: %j', async (interaction) => {
     getInteractionState.mockReturnValue(interaction)
-    const result = await callBuiltinTool(createServer, 'session_rename', { title: 'New' })
+    const target = createSession('rename-other')
+    const result = await callBuiltinTool(createServer, 'session_rename', { session_id: target.id, title: 'New' })
 
     expect(result.isError).toBe(true)
     expect(JSON.parse(toolText(result))).toMatchObject({ error: { code: 'SESSION_TOOL_FORBIDDEN' } })
+    expect(agentSessionService.getById(target.id).name).toBe('Original title')
     expect(agentSessionService.getById(context.sessionId).name).toBe('Original title')
   })
 
   it('rejects a runtime whose current Session has been reassigned', async () => {
+    const target = createSession('rename-other')
     agentSessionService.update(context.sessionId, { agentId: 'rename-other' })
-    const result = await callBuiltinTool(createServer, 'session_rename', { title: 'New' })
+    const result = await callBuiltinTool(createServer, 'session_rename', { session_id: target.id, title: 'New' })
 
     expect(result.isError).toBe(true)
     expect(JSON.parse(toolText(result))).toMatchObject({ error: { code: 'SENDER_FORBIDDEN' } })
+    expect(agentSessionService.getById(target.id).name).toBe('Original title')
     expect(agentSessionService.getById(context.sessionId).name).toBe('Original title')
   })
 })

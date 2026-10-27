@@ -230,9 +230,9 @@ and exposes the session tools below:
 - `session_read` — read a Chat topic, Agent Session, or live temporary conversation by its ID,
   using the existing storage query rules. The caller does not supply a conversation type;
   ambiguous IDs fail rather than selecting the first matching store;
-- `session_rename` — rename the current Session by default, or an explicit `session_id`
-  owned by the same Agent. The trimmed `title` must contain 1–255 characters. Missing,
-  trashed, and other Agents' Sessions are rejected. The saved name is marked manually
+- `session_rename` — rename the current Session by default, or an explicit `session_id`,
+  including another Agent's Session. The trimmed `title` must contain 1–255 characters.
+  Missing and trashed Sessions are rejected. The saved name is marked manually
   edited so automatic naming cannot overwrite it; existing read-model notifications
   refresh the Session list and detail views;
 - `agent_list` — discover Agents independently of their Sessions, with public identity, runtime

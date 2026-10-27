@@ -297,7 +297,7 @@ const SessionRenameInputSchema = z.strictObject({
     .trim()
     .min(1)
     .optional()
-    .describe('Session id owned by this Agent. Omit to rename the current Session.')
+    .describe('Target Agent Session id, including another Agent’s Session. Omit to rename the current Session.')
 })
 
 const SessionCreateInputSchema = z.object({
@@ -385,13 +385,6 @@ function listAgents(): CallToolResult {
 
 function renameSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionRenameInputSchema>): CallToolResult {
   const sessionId = args.session_id ?? ctx.sessionId
-  const session = agentSessionService.getById(sessionId)
-  if (session.agentId !== ctx.agentId) {
-    throw new AgentSessionDeliveryRoutingError(
-      'SESSION_TOOL_FORBIDDEN',
-      'Only Sessions owned by this Agent can be renamed'
-    )
-  }
   const updated = agentSessionService.update(sessionId, { name: args.title })
   return {
     content: [{ type: 'text', text: JSON.stringify({ sessionId: updated.id, sessionName: updated.name }) }]
@@ -1208,7 +1201,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     SESSION_RENAME_TOOL_NAME,
     {
       description:
-        'Rename the current Agent Session, or another Session owned by this Agent. The title is protected from automatic renaming.',
+        'Rename the current Agent Session, or another Agent Session by id. The title is protected from automatic renaming.',
       inputSchema: SessionRenameInputSchema
     },
     (args) => runSessionTool(ctx, () => renameSession(ctx, args))

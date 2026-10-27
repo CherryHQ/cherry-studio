@@ -60,8 +60,8 @@ is not available.
 
 Use **`session_rename`** when the user asks to change a Session's display title.
 Omit the target to rename the current Session, or resolve the immutable ID first
-to rename another Session owned by the same Agent. Other Agents' Sessions,
-missing Sessions, and trashed Sessions cannot be renamed.
+to rename another Agent Session, including one belonging to a different Agent.
+Missing Sessions and trashed Sessions cannot be renamed.
 
 The title is trimmed and must contain 1–255 characters. A successful rename is
 persisted as an explicit name edit, so automatic naming cannot overwrite it. The
