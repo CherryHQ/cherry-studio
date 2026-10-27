@@ -1450,6 +1450,7 @@
   "error.http.402": "Zahlung erforderlich. Ihr Kontoguthaben oder Kontingent ist aufgebraucht - bitte auf der Website des Anbieters aufladen oder zu einem anderen Anbieter wechseln",
   "error.http.403": "Zugriff verweigert. Prüfen Sie die genaue Fehlermeldung oder wenden Sie sich an den Anbieter",
   "error.http.404": "Modell existiert nicht oder Anfragepfad ist fehlerhaft",
+  "error.http.413": "Anfrageinhalt zu groß. Bitte verringern Sie die Größe der Nachricht, des Anhangs oder des Gesprächsverlaufs und versuchen Sie es erneut",
   "error.http.429": "Anfragelimit überschritten. Bitte versuchen Sie es später erneut",
   "error.http.500": "Serverfehler. Bitte versuchen Sie es später erneut",
   "error.http.502": "Gateway-Fehler. Bitte versuchen Sie es später erneut",

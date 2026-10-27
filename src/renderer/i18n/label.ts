@@ -306,6 +306,7 @@ const httpMessageKeyMap = {
   '402': 'error.http.402',
   '403': 'error.http.403',
   '404': 'error.http.404',
+  '413': 'error.http.413',
   '429': 'error.http.429',
   '500': 'error.http.500',
   '502': 'error.http.502',

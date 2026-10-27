@@ -1450,6 +1450,7 @@
   "error.http.402": "Ödeme gerekiyor. Hesap bakiyesi veya kota tükendi. Sağlayıcının web sitesinden bakiye yükleyin ya da başka bir sağlayıcıya geçin",
   "error.http.403": "Erişim reddedildi. Hesabın doğrulanıp doğrulanmadığını kontrol edin veya daha fazla bilgi için hizmet sağlayıcısıyla iletişime geçin",
   "error.http.404": "Model bulunamadı veya istek yolu yanlış",
+  "error.http.413": "İstek gövdesi çok büyük. Lütfen mesajın, ekin veya konuşma geçmişinin boyutunu azaltıp tekrar deneyin",
   "error.http.429": "Çok fazla istek gönderildi. Lütfen daha sonra tekrar deneyin",
   "error.http.500": "Sunucu hatası. Lütfen daha sonra tekrar deneyin",
   "error.http.502": "Ağ geçidi hatası. Lütfen daha sonra tekrar deneyin",

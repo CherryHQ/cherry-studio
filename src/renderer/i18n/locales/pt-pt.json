@@ -1450,6 +1450,7 @@
   "error.http.402": "É necessário efetuar um pagamento. O saldo ou a quota da conta esgotou-se; adicione saldo no site do fornecedor ou mude de fornecedor.",
   "error.http.403": "Acesso negado. Verifique se a conta foi confirmada ou contacte o fornecedor do serviço para obter mais informações.",
   "error.http.404": "O modelo não existe ou a rota do pedido está incorreta",
+  "error.http.413": "O corpo do pedido é demasiado grande, por favor reduza o tamanho da mensagem, do anexo ou do histórico da conversa e tente novamente",
   "error.http.429": "Taxa de pedido excedeu o limite, por favor tente novamente mais tarde",
   "error.http.500": "Erro do servidor, por favor tente novamente mais tarde",
   "error.http.502": "Erro de gateway, por favor tente novamente mais tarde",

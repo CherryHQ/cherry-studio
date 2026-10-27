@@ -1450,6 +1450,7 @@
   "error.http.402": "Yêu cầu thanh toán. Số dư hoặc hạn mức tài khoản của bạn đã cạn - hãy nạp tiền trên trang nhà cung cấp, hoặc chuyển sang nhà cung cấp khác",
   "error.http.403": "Truy cập bị từ chối. Vui lòng kiểm tra xem tài khoản của bạn đã được xác minh chưa, hoặc liên hệ với nhà cung cấp dịch vụ để biết thêm thông tin.",
   "error.http.404": "Không tìm thấy mô hình hoặc đường dẫn yêu cầu không chính xác",
+  "error.http.413": "Nội dung yêu cầu quá lớn. Vui lòng giảm kích thước tin nhắn, tệp đính kèm hoặc lịch sử trò chuyện rồi thử lại.",
   "error.http.429": "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
   "error.http.500": "Lỗi máy chủ. Vui lòng thử lại sau.",
   "error.http.502": "Lỗi cổng kết nối. Vui lòng thử lại sau.",

@@ -1450,6 +1450,7 @@
   "error.http.402": "Se requiere pago. El saldo o la cuota de su cuenta se ha agotado - recargue en el sitio web del proveedor o cambie a otro proveedor",
   "error.http.403": "Acceso prohibido, traduzca el mensaje de error específico para ver la causa o póngase en contacto con el proveedor de servicios para preguntar sobre la razón de la prohibición",
   "error.http.404": "El modelo no existe o la ruta de la solicitud está incorrecta",
+  "error.http.413": "El cuerpo de la solicitud es demasiado grande, reduzca el tamaño del mensaje, del archivo adjunto o del historial de conversación e inténtelo de nuevo",
   "error.http.429": "La tasa de solicitudes excede el límite, inténtelo de nuevo más tarde",
   "error.http.500": "Error del servidor, inténtelo de nuevo más tarde",
   "error.http.502": "Error de puerta de enlace, inténtelo de nuevo más tarde",

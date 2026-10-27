@@ -1450,6 +1450,7 @@
   "error.http.402": "Paiement requis. Le solde ou le quota de votre compte est épuisé - rechargez sur le site du fournisseur ou changez de fournisseur.",
   "error.http.403": "Accès interdit, veuillez traduire le message d'erreur spécifique pour connaître la raison ou contacter le fournisseur de services pour demander la raison de l'interdiction.",
   "error.http.404": "Le modèle n'existe pas ou la requête de chemin est incorrecte.",
+  "error.http.413": "Le corps de la requête est trop volumineux, veuillez réduire la taille du message, de la pièce jointe ou de l'historique de conversation, puis réessayer.",
   "error.http.429": "Le taux de requêtes dépasse la limite, veuillez réessayer plus tard.",
   "error.http.500": "Erreur serveur, veuillez réessayer plus tard.",
   "error.http.502": "Erreur de passerelle, veuillez réessayer plus tard.",

@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { loggerService } from '@logger'
+import type * as LabelModule from '@renderer/i18n/label'
 import enUS from '@renderer/i18n/locales/en-us.json'
 
 import type { MessageListActions, MessageListItem } from '../../types'
@@ -32,8 +34,8 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/i18n/label', () => ({
-  getHttpMessageLabelKey: (status: string) => `HTTP ${status}`,
+vi.mock('@renderer/i18n/label', async () => ({
+  ...(await vi.importActual<typeof LabelModule>('@renderer/i18n/label')),
   getProviderLabelKey: (providerId: string) => providerId
 }))
 
@@ -44,7 +46,8 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('react-i18next', () => ({
   Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
   useTranslation: () => ({
-    t: (key: string) => mocks.translations.get(key) ?? key,
+    t: (key: string) =>
+      key.startsWith('error.http.') ? (enUS[key as keyof typeof enUS] ?? key) : (mocks.translations.get(key) ?? key),
     i18n: {
       language: mocks.language,
       exists: (key: string) => mocks.i18nKeys.has(key)
@@ -78,7 +81,6 @@ describe('ErrorBlock', () => {
     mocks.language = 'en'
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
-    mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
   })
 
@@ -183,22 +185,36 @@ describe('ErrorBlock', () => {
   })
 
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
-    render(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={{
-          name: 'APICallError',
-          message: '413 Request Entity Too Large',
-          stack: null,
-          statusCode: 413,
-          responseBody: '<html><body><h1>413 Request Entity Too Large</h1></body></html>'
-        }}
-        message={message}
-      />
-    )
+    const loggerErrorSpy = vi.spyOn(loggerService, 'error')
+    try {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'APICallError',
+            message: '413 Request Entity Too Large',
+            stack: null,
+            statusCode: 413,
+            responseBody: '<html><body><h1>413 Request Entity Too Large</h1></body></html>'
+          }}
+          message={message}
+        />
+      )
 
-    expect(screen.getByText(/Request body too large/)).toBeInTheDocument()
-    expect(screen.queryByText(/<html>/)).not.toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Request body too large. Reduce the size of the message, attachment or conversation history and try again 413 Request Entity Too Large',
+          { exact: true }
+        )
+      ).toBeInTheDocument()
+      expect(enUS['error.http.413' as keyof typeof enUS]).toBe(
+        'Request body too large. Reduce the size of the message, attachment or conversation history and try again'
+      )
+      expect(screen.queryByText(/<html>/)).not.toBeInTheDocument()
+      expect(loggerErrorSpy).not.toHaveBeenCalledWith('Missing key 413')
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
   })
 
   it('shows only the safe Claude Code exit status and diagnostic reference', () => {
