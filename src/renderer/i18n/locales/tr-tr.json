@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Lütfen yüklenecek dosyayı seçin",
   "notes.no_note_selected": "Lütfen önce bir not seçin",
   "notes.no_valid_files": "Geçerli bir dosya yüklenmedi",
+  "notes.open": "Notu aç",
   "notes.open_outside": "Hariciden aç",
   "notes.print": "Yazdır",
   "notes.print_failed": "Not yazdırılamadı",
