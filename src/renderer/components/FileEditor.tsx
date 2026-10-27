@@ -109,7 +109,9 @@ export default function FileEditor({
     () => ({
       readOnly: !editable,
       ownsVerticalViewport: true,
-      clipboard: { readText: () => navigator.clipboard.readText() }
+      clipboard: {
+        readText: (type) => (!type || type === 'text/plain' ? navigator.clipboard.readText() : '')
+      }
     }),
     [editable]
   )

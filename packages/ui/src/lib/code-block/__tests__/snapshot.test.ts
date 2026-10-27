@@ -8,7 +8,11 @@ const code = '// 中文 🥟\r\nconst html = "<b>&";  \r\n\r\n'
 describe('shared code snapshots', () => {
   it.each([
     ['jsonc', '{ "html": "<b>& 🥟", "count": 42 }\r\n'],
-    ['shellscript', 'echo "<b>& 🥟" # comment\r\n']
+    ['shellscript', 'echo "<b>& 🥟" # comment\r\n'],
+    ['clojure', '(def html "<b>& 🥟")\r\n'],
+    ['haskell', 'html = "<b>& 🥟"\r\n'],
+    ['powershell', 'Write-Host "<b>& 🥟"\r\n'],
+    ['perl', 'print "<b>& 🥟";\r\n']
   ])('exports %s aliases with syntax colors and exact escaped source', async (language, code) => {
     const html = await codeBlockToHtml(code, language, 'one-light')
     const node = document.createElement('div')
@@ -18,6 +22,17 @@ describe('shared code snapshots', () => {
     const string = Array.from(node.querySelectorAll('span')).find((span) => span.textContent === '"<b>& 🥟"')
     expect(string).toBeDefined()
     expect(string?.style.color).not.toBe(node.querySelector('pre')?.style.color)
+  })
+
+  it('exports a canonical LaTeX command with syntax and escaped source', async () => {
+    const code = '\\textbf{<b>& 🥟}\r\n'
+    const node = document.createElement('div')
+    node.innerHTML = await codeBlockToHtml(code, 'latex', 'one-light')
+    expect(node.querySelector('code')?.textContent).toBe(code)
+    expect(node.querySelector('b')).toBeNull()
+    const command = Array.from(node.querySelectorAll('span')).find((span) => span.textContent === '\\textbf')
+    expect(command).toBeDefined()
+    expect(command?.style.color).not.toBe(node.querySelector('pre')?.style.color)
   })
 
   it('uses semantic palette colors and preserves exact source and offsets in both themes', async () => {

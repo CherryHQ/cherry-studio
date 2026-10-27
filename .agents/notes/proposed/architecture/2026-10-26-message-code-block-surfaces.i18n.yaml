@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-26-message-code-block-surfaces.md
-2026-10-26-message-code-block-surfaces.md: a4d8ee61eed9c6b12760cefab1ea9eabaec3cac4
-2026-10-26-message-code-block-surfaces.zh.md: 7eda9742eace2cffe450a428a5d5190ec1d54d14
+2026-10-26-message-code-block-surfaces.md: 13b8c1aa85576c3ecdf58401e09dbb1b3f262c88
+2026-10-26-message-code-block-surfaces.zh.md: af116dcd4df1e958dfdabdc3e327b921715ce9ed

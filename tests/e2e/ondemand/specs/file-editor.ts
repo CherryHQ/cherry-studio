@@ -19,6 +19,8 @@ export default async function fileEditor(context: ScenarioContext): Promise<void
   const name = `file-editor-${Date.now()}`
   const original = '\uFEFFconst greeting = "你好 🥟";\r\nconst answer = 42;  \r\n\r\n'
   const addition = '// verified 中文 🥟'
+  const pasteSource = 'target\r\ntarget\r\n'
+  const jsonClipboard = '["HELLO","WORLD"]'
   const largeSource = Array.from(
     { length: 20_000 },
     (_, index) => `export const row${index} = "中文 🥟 ${index}"; // source fixture\n`
@@ -30,6 +32,7 @@ export default async function fileEditor(context: ScenarioContext): Promise<void
     `---\nname: ${name}\ndescription: File editor E2E fixture\n---\n# Fixture\n`
   )
   await writeFile(join(fixture, 'sample.ts'), original)
+  await writeFile(join(fixture, 'paste.ts'), pasteSource)
   await writeFile(join(fixture, 'large.ts'), largeSource)
   await writeFile(join(fixture, 'interactions.ts'), interactionsSource)
   let skillId: string | undefined
@@ -68,6 +71,27 @@ export default async function fileEditor(context: ScenarioContext): Promise<void
     await page.getByRole('searchbox').fill(name)
     await page.getByRole('button', { name, exact: true }).click()
     await context.runSteps([{ verb: 'expectVisible', selector: '[data-ui~="skill-file-workspace"]' }])
+    await page.getByRole('treeitem', { name: 'paste.ts', exact: true }).click()
+    await page.getByRole('radio', { name: '编辑', exact: true }).click()
+    const pasteEditor = page.getByRole('textbox', { name: 'paste.ts', exact: true })
+    await expect(pasteEditor).toBeVisible()
+    await pasteEditor.click()
+    await pasteEditor.press('ControlOrMeta+Home')
+    await pasteEditor.press('ControlOrMeta+d')
+    await pasteEditor.press('ControlOrMeta+d')
+    await page.evaluate((text) => navigator.clipboard.writeText(text), jsonClipboard)
+    await pasteEditor.press('ControlOrMeta+v')
+    const pastedSource = `${jsonClipboard}\r\n${jsonClipboard}\r\n`
+    const pastePath = join(rootPath, 'paste.ts')
+    await expect.poll(() => readFile(pastePath, 'utf8'), { timeout: 15_000 }).toBe(pastedSource)
+    await expect(pasteEditor.locator('[data-line="1"]')).toHaveText(jsonClipboard)
+    await expect(pasteEditor.locator('[data-line="2"]')).toHaveText(jsonClipboard)
+    await pasteEditor.press('ControlOrMeta+z')
+    await expect.poll(() => readFile(pastePath, 'utf8'), { timeout: 15_000 }).toBe(pasteSource)
+    await pasteEditor.press('ControlOrMeta+Shift+z')
+    await expect.poll(() => readFile(pastePath, 'utf8'), { timeout: 15_000 }).toBe(pastedSource)
+    await context.screenshot('file-editor-json-multiselection-paste')
+
     await page.getByRole('treeitem', { name: 'sample.ts', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'sample.ts', exact: true })
     await expect(editor).toBeVisible()

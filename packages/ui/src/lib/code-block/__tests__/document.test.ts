@@ -19,21 +19,41 @@ describe('Code block syntax contract', () => {
     ['.JSONC', '{ "greeting": "你好 🥟", "count": 42 }\r\n', '"你好 🥟"', 'code-syntax-string'],
     ['shellscript', 'echo "你好 🥟" # comment\r\n', '"你好 🥟"', 'code-syntax-string'],
     [' SHELLSCRIPT ', 'echo "你好 🥟" # comment\r\n', '"你好 🥟"', 'code-syntax-string'],
-    ['scm', '(define enabled #t)\n', '#t', 'code-syntax-keyword']
-  ])('preserves supported %s aliases without losing syntax or source', async (language, code, content, className) => {
-    const doc = await createCodeBlockDocument(code, language)
-    try {
-      const result = await doc.read({ start: 0, end: 2 })
-      expect(sourceOf(result)).toBe(code)
-      expect(result.lines.flat()).toContainEqual(expect.objectContaining({ content, className }))
-    } finally {
-      doc.dispose()
+    ['scm', '(define enabled #t)\n', '#t', 'code-syntax-keyword'],
+    ['clojure', '(def greeting "你好 🥟")\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['haskell', 'greeting = "你好 🥟"\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['powershell', 'Write-Host "你好 🥟"\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['perl', 'print "你好 🥟";\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['latex', '\\textbf{你好 🥟}\r\n', '\\textbf', 'code-syntax-tag'],
+    ['asm', '# comment\r\n', '# comment', 'code-syntax-comment'],
+    ['erlang', 'greeting() -> "你好 🥟".\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['fortran-free-form', 'print *, "你好 🥟"\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['fortran-fixed-form', '      print *, "你好 🥟"\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['fsharp', 'let greeting = "你好 🥟"\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['julia', 'println("你好 🥟")\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['objective-c', 'const char *greeting = "你好 🥟";\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['ocaml', 'let greeting = "你好 🥟";;\r\n', '"你好 🥟"', 'code-syntax-string'],
+    ['pascal', "writeln('你好 🥟');\r\n", "'你好 🥟'", 'code-syntax-string'],
+    ['wasm', ';; comment\r\n', ';; comment', 'code-syntax-comment']
+  ])(
+    'preserves supported %s names and aliases without losing syntax or source',
+    async (language, code, content, className) => {
+      const doc = await createCodeBlockDocument(code, language)
+      try {
+        const result = await doc.read({ start: 0, end: 2 })
+        expect(sourceOf(result)).toBe(code)
+        expect(result.lines.flat()).toContainEqual(
+          expect.objectContaining({ content: expect.stringContaining(content), className })
+        )
+      } finally {
+        doc.dispose()
+      }
     }
-  })
+  )
 
-  it('honors caller language configuration before a built-in alias', async () => {
-    const support = await loadCodeBlockLanguage('jsonc', {
-      CustomScript: { type: 'programming', aliases: ['jsonc'], extensions: ['.ts'] }
+  it.each(['jsonc', 'clojure'])('honors caller configuration before the %s grammar', async (language) => {
+    const support = await loadCodeBlockLanguage(language, {
+      CustomScript: { type: 'programming', aliases: [language], extensions: ['.ts'] }
     })
     const state = EditorState.create({ doc: 'const answer = 42;', extensions: [support!] })
     ensureSyntaxTree(state, state.doc.length, 1000)
