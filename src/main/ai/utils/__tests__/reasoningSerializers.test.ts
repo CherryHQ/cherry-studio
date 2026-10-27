@@ -12,7 +12,11 @@ import {
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 
 import { makeModel } from '../../__tests__/fixtures'
-import { encodeReasoningInvocation, normalizeRequestedSelection, resolveReasoningInvocation } from '../reasoningSerializers'
+import {
+  encodeReasoningInvocation,
+  normalizeRequestedSelection,
+  resolveReasoningInvocation
+} from '../reasoningSerializers'
 
 describe('Claude Opus 5.5 reasoning requests', () => {
   const controls = inferReasoningControls('claude-opus-5-5')
