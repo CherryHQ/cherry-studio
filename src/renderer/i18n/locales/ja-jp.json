@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "アップロードするファイルを選択してください",
   "notes.no_note_selected": "まずノートを選択してください",
   "notes.no_valid_files": "有効なファイルがアップロードされていません",
+  "notes.open": "ノートを開く",
   "notes.open_outside": "外部から開く",
   "notes.print": "印刷",
   "notes.print_failed": "ノートの印刷に失敗しました",
