@@ -922,7 +922,10 @@ describe('AgentService', () => {
     it('migrates denial rules when a mount change reallocates keys', async () => {
       // A's configured name equals unmounted B's id, so A holds that key and the denial
       // `mcp__id-b__run` targets A. Mounting B (name `other`) reserves B's id and moves A onto
-      // its own id — the saved denial must follow A instead of translating onto B's tools.
+      // its own id — the saved denial must follow A instead of translating onto B's tools. The
+      // cold catalog cannot prove the identity fragment's raw spelling, so the name-keyed
+      // original also survives: it over-blocks B's literally-named `run` through B's native id
+      // form (fail-closed) instead of leaving A's denial unenforceable.
       await insertMcpServer('id-a', 'id-b')
       await insertMcpServer('id-b', 'other')
       const created = createAgentForTest({
@@ -936,7 +939,7 @@ describe('AgentService', () => {
       agentService.updateAgent(created.id, { mcps: ['id-a', 'id-b'] })
 
       const reloaded = agentService.getAgent(created.id)
-      expect(reloaded?.disabledTools).toEqual(['mcp__id-a__run'])
+      expect(reloaded?.disabledTools).toEqual(['mcp__id-b__run', 'mcp__id-a__run'])
     })
 
     it('reserves a mounted browser id so a server named after it keeps its own id key across the mount change', async () => {
@@ -965,8 +968,10 @@ describe('AgentService', () => {
 
       const reloaded = agentService.getAgent(created.id)
       // Mounting the browser reserves `id-browser`, so `srv-s` moves onto its own id and the
-      // denial follows onto the identity the runtime actually registers.
-      expect(reloaded?.disabledTools).toEqual(['mcp__srv-s__run'])
+      // denial follows onto the identity the runtime actually registers. The cold catalog
+      // cannot prove the identity fragment's raw spelling, so the name-keyed original also
+      // survives (owner-bound; the browser registers nothing, so it over-blocks nobody).
+      expect(reloaded?.disabledTools).toEqual(['mcp__id-browser__run', 'mcp__srv-s__run'])
     })
 
     it('keeps the persisted mount order equal to the submitted order so migration matches runtime allocation', async () => {
@@ -1023,9 +1028,11 @@ describe('AgentService', () => {
       // A and B are both named `docs`; A mounts first, owns the name, and disabling A.run saved
       // `mcp__docs__run`. Unmounting A skipped the departing server in the migration, so the
       // denial stayed keyed `docs` — the key B is promoted onto. Remounting A (which returns
-      // under its id) left the denial on B's runtime name: A ran under Full Access while B was
-      // incorrectly denied. The denial must move onto A's id before the name is released, and
-      // the name-keyed original must not survive it.
+      // under its id) left the denial on B's runtime name: A ran under Full Access. The denial
+      // must move onto A's id before the name is released. The cold catalog cannot produce an
+      // enforceable replacement, so the name-keyed original also survives the takeover: it
+      // re-enforces A's denial the moment A remounts and over-blocks B's same-camelization
+      // `run` (fail-closed) instead of letting the explicitly disabled tool execute.
       await insertMcpServer('srv-a', 'docs')
       await insertMcpServer('srv-b', 'docs')
       const created = createAgentForTest({
@@ -1038,15 +1045,15 @@ describe('AgentService', () => {
 
       agentService.updateAgent(created.id, { mcps: ['srv-b'] })
       // A's id registers under its raw form (hyphens survive the SDK segment, so raw and
-      // SDK-segment fold into one entry); `mcp__docs__run` is gone — it is B's runtime name now.
-      expect(agentService.getAgent(created.id)?.disabledTools).toEqual(['mcp__srv-a__run'])
+      // SDK-segment fold into one entry); `mcp__docs__run` stays — the cold catalog leaves it
+      // the only enforceable spelling, bound to the released segment (B over-blocked).
+      expect(agentService.getAgent(created.id)?.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-a__run'])
 
       agentService.updateAgent(created.id, { mcps: ['srv-b', 'srv-a'] })
       const reloaded = agentService.getAgent(created.id)
-      // A returned under its id and stays denied; B holds `docs` with no inherited denial.
+      // A returned under its id and stays denied; B holds `docs` under the inherited over-block.
       expect(reloaded?.mcps).toEqual(['srv-b', 'srv-a'])
-      expect(reloaded?.disabledTools).toEqual(['mcp__srv-a__run'])
-      expect(reloaded?.disabledTools).not.toContain('mcp__docs__run')
+      expect(reloaded?.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-a__run'])
     })
 
     it('resolves a camelized Pi denial onto the raw stable-id form when unmounting releases the name', async () => {

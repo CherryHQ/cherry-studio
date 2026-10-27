@@ -495,7 +495,9 @@ interface AgentKeyRewrite {
    * claimant. The saved strings spelled under the segment become the new owner's registered
    * identity the moment the change lands, so keeping a display-name alias would deny the new
    * owner's tool in this server's place — this server's restriction travels through its
-   * stable-id forms instead.
+   * stable-id forms instead. With a cold catalog the stable-id forms are unenforceable, so the
+   * original ALSO survives the takeover (fail-closed over-block of the claimant beats permitting
+   * the explicitly disabled tool — see the keepOriginal reasoning in {@link applyAgentKeyRewrites}).
    */
   aliasOwnershipLost?: boolean
   /**
@@ -695,8 +697,11 @@ export function migrateAgentDisabledToolsForAllocationChange(
  *
  * Computed from the PRE-change mount set only: a server entering in the new set has no denial
  * written before it existed, so a segment spelling its id is purely the displaced owner's old
- * configured-name rule and must move off it (blocking the newcomer's tool in its place would
- * be exactly the mis-attribution the allocation migration exists to fix).
+ * configured-name rule and its copies must move off it (blocking the newcomer's tool in its
+ * place would be exactly the mis-attribution the allocation migration exists to fix). With a
+ * cold catalog the unresolvable original also survives the move (fail-closed — see the
+ * keepOriginal reasoning in {@link applyAgentKeyRewrites}); it can then over-block only a
+ * newcomer tool whose raw spelling the fragment literally names.
  */
 function collectMountedIdSegments(servers: ReadonlyArray<MountedServerRef>): Set<string> {
   const segments = new Set<string>()
@@ -870,28 +875,32 @@ function applyAgentKeyRewrites(
           // the new owner in this server's place; the restriction travels through the
           // stable-id forms instead.
           // When the catalog could NOT resolve the fragment to any raw tool (a cold cache, a
-          // stale list, or a bounded/foreign spelling no entry reproduces) and the fragment's
-          // camelized spelling is not its own raw spelling, none of the replacements is an
-          // identity any runtime registers: the camelized copies match neither Pi's raw
-          // stable-id form nor its configured-name alias (`get_time` persists `getTime`, whose
-          // id-keyed copy names nothing; a fragment that is already its own camelization —
-          // `run` — doubles as the plausible raw spelling, so the plain id copy keeps the
-          // denial enforceable and needs no keep). Dropping the original then removes the
-          // last enforceable restriction, so the original survives — but only while the old
-          // key segment stays unclaimed: it is owner-bound precisely because no other mounted
-          // server registers under it, so the kept string can over-block only a FUTURE
-          // claimant that takes the released key while owning a same-camelization tool, the
-          // same fail-closed direction this engine already takes for ambiguous resolutions,
-          // and it stays enforceable — a remount under the same configured name re-registers
-          // exactly this string as Pi's display-name alias. When another server's post-change
-          // key claims the segment (aliasOwnershipLost), the string names that other server's
-          // registered identity and keeping it would deny the new owner in this server's
-          // place, so the original still moves off it (the ownership rule above).
+          // stale list, or a bounded/foreign spelling no entry reproduces), none of the
+          // replacements is an identity any runtime registers. A fragment unchanged by
+          // camelization proves nothing about its raw spelling — camelization is not injective
+          // (`RUN` and `run` both camelize to `run`), so the id-keyed copy `mcp__<id>__run`
+          // matches neither Pi's verbatim raw stable id `mcp__<id>__RUN` nor an alias whose
+          // fragment derives from the raw tool. Dropping the original then removes the last
+          // enforceable restriction and the explicitly disabled tool executes on remount, so
+          // the original survives every failed resolution: it is owner-bound while no mounted
+          // server registers under the segment, and it re-enforces the denial the moment the
+          // owner remounts under the same configured name (Pi derives its alias from that
+          // name) — including a remount onto the owner's id while a duplicate holds the name.
+          // Under a namespace takeover (aliasOwnershipLost) the kept string spells the
+          // claimant's registered identity and can deny the claimant's same-camelization tool
+          // in this server's place. That over-block is the accepted direction of the two
+          // conflicting invariants: keeping may deny an allowed tool (fail-closed), while
+          // dropping permits the explicitly disabled one — the permission invariant this
+          // migration exists to preserve — so a failed resolution keeps the original even when
+          // the segment changes owners (the same fail-closed trade every ambiguous resolution
+          // in this engine already takes). When the catalog DID resolve, the raw stable-id
+          // forms travel with the owner and stay enforceable, so the original moves off a
+          // claimed segment without loss (the ownership rule above).
           keepOriginal =
             matched.fromIsId === true ||
             idSegments.has(serverPart) ||
             (matched.aliasOwnershipLost !== true && displaySegments.has(serverPart)) ||
-            (!rawResolved && matched.aliasOwnershipLost !== true && toCamelCase(toolPart) !== toolPart)
+            !rawResolved
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = [
             ...rewriteHashed(toolPart, lossyMatched.toKey),

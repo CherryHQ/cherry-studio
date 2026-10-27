@@ -194,8 +194,10 @@ describe('McpServerService', () => {
       mcpServerService.update('srv-1', { name: 'github' })
 
       const [renamed] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
-      // The `docs`-keyed rule follows the rename; the other server's rule is untouched.
-      expect(renamed.disabledTools).toEqual(['mcp__github__run', 'mcp__other__run'])
+      // The `docs`-keyed rule follows the rename; the cold catalog cannot prove the identity
+      // fragment's raw spelling, so the name-keyed original also survives (owner-bound while
+      // the released key stays unclaimed). The other server's rule is untouched.
+      expect(renamed.disabledTools).toEqual(['mcp__docs__run', 'mcp__github__run', 'mcp__other__run'])
       const [untouched] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-2'))
       // agent-2 does not mount the server: a name match alone must never steal its rules.
       expect(untouched.disabledTools).toEqual(['mcp__other__run'])
@@ -273,7 +275,9 @@ describe('McpServerService', () => {
       mcpServerService.update('srv-1', { name: 'skills' })
 
       const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
-      expect(agent.disabledTools).toEqual(['mcp__srv-1__run'])
+      // The cold catalog cannot prove the identity fragment's raw spelling, so the released
+      // name-keyed original also survives (owner-bound while unclaimed).
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-1__run'])
     })
 
     it('matches runtime eligibility by excluding the in-memory browser from rename allocations', async () => {
@@ -301,8 +305,9 @@ describe('McpServerService', () => {
 
       const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
       // The named server owned `_cherry_browser` all along (the browser claims nothing), so the
-      // denial follows its rename onto `docs`.
-      expect(agent.disabledTools).toEqual(['mcp__docs__run'])
+      // denial follows its rename onto `docs`; the cold catalog cannot prove the identity
+      // fragment's raw spelling, so the released name-keyed original also survives.
+      expect(agent.disabledTools).toEqual(['mcp___cherry_browser__run', 'mcp__docs__run'])
     })
 
     it('reserves a mounted browser id so renaming a server onto that id keeps its own id key', async () => {
@@ -332,8 +337,10 @@ describe('McpServerService', () => {
 
       const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
       // The browser's id is reserved in the post-rename allocation, so the server keeps its own
-      // id key and the denial follows onto the identity the runtime actually registers.
-      expect(agent.disabledTools).toEqual(['mcp__srv-s__run'])
+      // id key and the denial follows onto the identity the runtime actually registers. The
+      // cold catalog cannot prove the identity fragment's raw spelling, so the released
+      // name-keyed original also survives (owner-bound while unclaimed).
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-s__run'])
     })
 
     it('copies lossy-hashed rules onto the new lossy base when a normalized name is renamed', async () => {
@@ -414,7 +421,9 @@ describe('McpServerService', () => {
       mcpServerService.update('srv-1', { name: 'Docs MCP' })
 
       const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
-      expect(agent.disabledTools).toEqual(['mcp__Docs_MCP__run', 'mcp__docsMcp__run'])
+      // The cold catalog cannot prove the identity fragment's raw spelling, so the released
+      // name-keyed original also survives alongside the SDK-normalized identity.
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__Docs_MCP__run', 'mcp__docsMcp__run'])
     })
 
     it('keeps an explicitly submitted disabledTools list on a combined rename update', async () => {
@@ -437,9 +446,10 @@ describe('McpServerService', () => {
       const [server] = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'srv-1'))
       expect(server.disabledTools).toEqual(['delete'])
       // Agent-mounted rules still follow the rename — the submitted list only owns the server's
-      // own field.
+      // own field. The cold catalog cannot prove the identity fragment's raw spelling, so the
+      // released name-keyed original also survives.
       const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
-      expect(agent.disabledTools).toEqual(['mcp__github__run'])
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__github__run'])
     })
 
     it('lets an explicit empty disabledTools list clear the server rules on a combined rename update', async () => {
@@ -519,12 +529,16 @@ describe('McpServerService', () => {
       mcpServerService.delete('srv-a')
 
       const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
-      // A's denial follows A onto its stable id; the unrelated rule is untouched.
-      expect(agent.disabledTools).toEqual(['mcp__srv-a__run', 'mcp__other__run'])
-      // Enforcement seam: B inherits the `docs` key after the deletion, and the persisted
-      // rules must not block B's runtime name.
+      // A's denial follows A onto its stable id; the unrelated rule is untouched. The cold
+      // catalog cannot produce an enforceable replacement, so the name-keyed original also
+      // survives the takeover: it re-enforces A's denial on a remount and over-blocks B's
+      // same-camelization `run` (fail-closed) instead of letting the disabled tool execute.
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-a__run', 'mcp__other__run'])
+      // Enforcement seam: B inherits the `docs` key after the deletion, and the kept alias —
+      // the only spelling a cold catalog leaves enforceable — binds B's same-camelization tool
+      // (fail-closed over-block).
       const denied = translateLegacyMcpToolRules(agent.disabledTools, new Map([['srv-b', 'docs']]))
-      expect(denied).not.toContain('mcp__docs__run')
+      expect(denied).toContain('mcp__docs__run')
       expect(denied).toContain('mcp__srv-a__run')
     })
 

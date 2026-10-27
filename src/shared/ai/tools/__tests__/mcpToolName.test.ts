@@ -562,12 +562,15 @@ describe('migrateDisabledToolsForServerRename', () => {
 describe('migrateAgentDisabledToolsForServerRename', () => {
   const RESERVED = ['skills', 'assistant', 'agent-memory']
 
-  it('does not keep a name-keyed denial whose key the renamed server takes over', () => {
+  it('keeps the name-keyed denial whose key the renamed server takes over when the catalog is cold', () => {
     // A (`other`) mounts before B (`docs`); disabling B.run saved `mcp__docs__run`. Renaming A
-    // to `docs` hands the key to A and bumps B onto its id — the display-name alias must not
-    // keep the original: post-rename the string is A's registered identity, and keeping it
-    // denies A's previously enabled tool in B's place. B's restriction travels through its
-    // stable id instead.
+    // to `docs` hands the key to A and bumps B onto its id — post-rename the string is A's
+    // registered identity. With a cold catalog B's stable-id copy (`mcp__srv-b__run`) matches
+    // no Pi identity (Pi matches the raw `mcp__<id>__tool` verbatim or the configured-name
+    // alias), so dropping the original leaves B's denial unenforceable; the original survives
+    // and over-blocks A's literally-named `run` tool in B's place — the fail-closed direction
+    // (an allowed tool denied) against dropping (the explicitly disabled tool permitted). With
+    // a warm catalog the raw forms travel with B and the alias moves off the claimed segment.
     const migrated = migrateAgentDisabledToolsForServerRename(['mcp__docs__run'], {
       mountedServers: [
         { mcpId: 'srv-a', name: 'other' },
@@ -577,17 +580,20 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       toName: 'docs',
       reservedKeys: RESERVED
     })
-    expect(migrated).toContain('mcp__srv-b__run')
-    expect(migrated).not.toContain('mcp__docs__run')
+    expect(migrated).toEqual(['mcp__docs__run', 'mcp__srv-b__run'])
   })
 
-  it('drops the display-name alias whose string the renamed server claims, keeping the stable-id forms', () => {
+  it('keeps the display-name alias a rename claims when the catalog cannot replace it', () => {
     // A (`other`) mounts first; B (`docs`) is displaced onto its id when A renames to `docs`.
     // The saved `mcp__docs__getTime` spells a CURRENT configured name (B keeps `docs`), but its
     // ownership did not survive the change: the string is A's registered key the moment the
-    // rename lands, so keeping the alias would deny A's previously enabled tool in B's place.
-    // B's restriction travels through its stable id forms (Pi matches `mcp__<id>__tool`
-    // verbatim at any tool length, raw and camelized tool segment alike).
+    // rename lands. With a cold catalog the stable-id copies (`mcp__srv-b__getTime`/`gettime`)
+    // match no Pi identity (Pi matches the raw `mcp__<id>__tool` verbatim or the configured-name
+    // alias), so dropping the alias leaves B's denial unenforceable — the original survives the
+    // takeover. The kept alias names A's registered key and can deny A's same-camelization tool
+    // in B's place: that over-block is the accepted direction (it may deny an allowed tool,
+    // fail-closed, while dropping permits the explicitly disabled one). With a warm catalog the
+    // raw forms travel with B and the alias moves off the claimed segment.
     const migrated = migrateAgentDisabledToolsForServerRename(['mcp__docs__getTime'], {
       mountedServers: [
         { mcpId: 'srv-a', name: 'other' },
@@ -597,7 +603,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       toName: 'docs',
       reservedKeys: RESERVED
     })
-    expect(migrated).toEqual(['mcp__srv-b__getTime', 'mcp__srv-b__gettime'])
+    expect(migrated).toEqual(['mcp__docs__getTime', 'mcp__srv-b__getTime', 'mcp__srv-b__gettime'])
   })
 
   it('leaves rules alone when the agent does not mount the renamed server', () => {
@@ -633,7 +639,10 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
 
   it('rewrites onto the post-rename allocation, including the id fallback for reserved names', () => {
     // Renaming `docs` onto the reserved `skills` key: the allocator falls back to the server
-    // id, so the saved rule must follow to `mcp__<id>__run`, not onto the unwritable name.
+    // id, so the saved rule must follow to `mcp__<id>__run`, not onto the unwritable name. The
+    // cold catalog cannot prove the raw spelling behind the identity fragment (`run` — `RUN`
+    // camelizes to it too), so the name-keyed original also survives: it is owner-bound while
+    // the released key stays unclaimed and re-enforces if the name is ever reclaimed.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__docs__run', 'mcp__other__run'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
@@ -641,7 +650,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'skills',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__srv-1__run', 'mcp__other__run'])
+    ).toEqual(['mcp__docs__run', 'mcp__srv-1__run', 'mcp__other__run'])
   })
 
   it('keeps id-keyed rules that still resolve after a name-keyed fallback appears', () => {
@@ -683,6 +692,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       // The tail can also be a plain literal tool name, so the complete literal destination
       // (Pi's camelized-tool alias) rides along with the hashed copies.
       'mcp__newServer__run4f7413c24ae4',
+      // The cold catalog cannot prove the identity fragment's raw spelling, so the
+      // name-keyed original also survives (owner-bound while the released key stays unclaimed).
+      'mcp__Old_server__other',
       'mcp__New_server__other',
       'mcp__newServer__other'
     ])
@@ -723,9 +735,12 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
 
   it('follows a sibling whose allocated key the rename displaces', () => {
     // A (`docs`) mounts before B (`github`); disabling B saved `mcp__github__run`. Renaming A
-    // to `github` moves the key to A and bumps B onto its id — B's denial must follow B and
-    // the original must go: post-rename the string is A's registered identity, and keeping it
-    // would deny A's previously enabled tool in B's place.
+    // to `github` moves the key to A and bumps B onto its id — B's denial must follow B. With
+    // a cold catalog B's stable-id copy is the camelized fragment, which no runtime registers,
+    // so the name-keyed original also survives: it names A's registered identity and can deny
+    // A's literally-named `run` tool in B's place — the fail-closed direction (an allowed tool
+    // denied) against dropping (the explicitly disabled tool permitted). With a warm catalog
+    // the raw forms travel with B and the original moves off the claimed segment.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__github__run', 'mcp__other__run'], {
         mountedServers: [
@@ -736,10 +751,13 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__srv-b__run', 'mcp__other__run'])
+    ).toEqual(['mcp__github__run', 'mcp__srv-b__run', 'mcp__other__run'])
   })
 
   it('migrates the renamed server and a displaced sibling in one pass', () => {
+    // Both entries are cold-catalog identity fragments, so both originals survive alongside
+    // their rewrites: the renamed server's denial moves onto the new key and the displaced
+    // sibling's onto its id, each name-keyed original kept owner-bound (fail-closed).
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__docs__x', 'mcp__github__run'], {
         mountedServers: [
@@ -750,7 +768,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__github__x', 'mcp__srv-b__run'])
+    ).toEqual(['mcp__docs__x', 'mcp__github__x', 'mcp__github__run', 'mcp__srv-b__run'])
   })
 
   it('rewrites a hashed plain-key entry onto the 50-char stripped base of the new allocation', () => {
@@ -842,11 +860,12 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
 
   it('keeps every replacement when another original occupies its destination', () => {
     // A (`docs`) mounts before B (`github`); both run tools are disabled. Renaming A to
-    // `github` hands the `github` key to A and bumps B onto its id. The name-keyed original no
-    // longer survives (the key changed hands), so the output is A's replacement plus B's
-    // stable-id copy. Originals that DO survive the migration (hashed or id-native keeps) can
-    // still occupy another entry's replacement destination — all rewrites must be planned
-    // first and the final output deduped afterwards.
+    // `github` hands the `github` key to A and bumps B onto its id. The cold catalog cannot
+    // prove either identity fragment's raw spelling, so BOTH name-keyed originals survive
+    // (owner-bound) alongside the rewrites: A's replacement is B's old key string, and B's
+    // original occupies that exact destination — all rewrites must be planned first and the
+    // final output deduped afterwards, or one entry's not-yet-processed original suppresses
+    // another entry's required replacement.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__docs__run', 'mcp__github__run'], {
         mountedServers: [
@@ -857,7 +876,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__github__run', 'mcp__srv-b__run'])
+    ).toEqual(['mcp__docs__run', 'mcp__github__run', 'mcp__srv-b__run'])
   })
 
   it('emits the camelized configured-name form Pi recognizes after a mixed-case rename', () => {
@@ -987,7 +1006,11 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
   it('emits the SDK-normalized destination identity when the new key needs underscoring', () => {
     // Renaming to `Docs MCP` allocates the protected key `Docs_MCP` (the space underscores and
     // the SDK invokes `mcp__Docs_MCP__run`); the copy list carries that identity plus the
-    // camelized configured-name alias Pi resolves denials through.
+    // camelized configured-name alias Pi resolves denials through. The cold catalog cannot
+    // prove the raw spelling behind the identity fragment (`run`), so the released name-keyed
+    // original also survives — owner-bound while unclaimed, and the only form that still binds
+    // if the raw tool's case defeats the raw-verbatim copies (Pi's alias `mcp__docsMcp__run`
+    // still covers it, but the kept string is the fail-closed remainder for a reclaimed name).
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__docs__run'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
@@ -995,13 +1018,14 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'Docs MCP',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__Docs_MCP__run', 'mcp__docsMcp__run'])
+    ).toEqual(['mcp__docs__run', 'mcp__Docs_MCP__run', 'mcp__docsMcp__run'])
   })
 
   it('recognizes a saved SDK-normalized key form as the renamed server on a subsequent rename', () => {
     // A prior migration persisted the SDK form (`Docs_MCP` for the key `Docs MCP`); renaming
     // again must treat that segment as the renamed server's rule, or the denial passes through
-    // unmigrated and keeps pointing at the dead key.
+    // unmigrated and keeps pointing at the dead key. The cold catalog cannot prove the raw
+    // spelling behind the identity fragment, so the original survives alongside the rewrite.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__Docs_MCP__run'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'Docs MCP' }],
@@ -1009,7 +1033,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__github__run'])
+    ).toEqual(['mcp__Docs_MCP__run', 'mcp__github__run'])
   })
 })
 
@@ -1021,8 +1045,12 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
   it('follows a mounted server displaced onto its id by a new mount reserving the shared name', () => {
     // A's configured name equals unmounted B's id, so A's key is that id and disabling A.run
     // saved `mcp__<B id>__run`. Mounting B (name `other`) reserves B's id and moves A onto A's
-    // id — the denial must follow A, or A's tool executes while B's run is blocked in its
-    // place (the saved string resolves through B's pre-name alias).
+    // id — the denial must follow A, or A's tool executes. With a cold catalog the id-keyed copy
+    // is the fragment's camelized spelling, which no runtime registers, so the original also
+    // survives: it can block B's literally-named `run` through Pi's native raw-id match — the
+    // fail-closed cost of keeping an enforceable restriction (an allowed tool denied) instead
+    // of permitting the explicitly disabled one; with a warm catalog the raw forms travel with
+    // A and the original moves off the newcomer's id segment.
     expect(
       migrateAgentDisabledToolsForAllocationChange([`mcp__${idB}__run`], {
         oldMountedServers: [{ mcpId: idA, name: idB }],
@@ -1032,7 +1060,7 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
         ],
         reservedKeys: RESERVED
       })
-    ).toEqual([`mcp__${idA}__run`])
+    ).toEqual([`mcp__${idB}__run`, `mcp__${idA}__run`])
   })
 
   it('returns undefined when the allocation is stable across the mount change', () => {
@@ -1054,7 +1082,10 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
     // change and falls back to its own id once the browser mounts. The migration must see the
     // same displacement — the browser never becomes a candidate (it registers nothing), but its
     // id joins the new set's reservations. Without it the allocation reads stable and the saved
-    // denial stays keyed by an identity no runtime registers.
+    // denial stays keyed by an identity no runtime registers. The cold catalog cannot prove the
+    // identity fragment's raw spelling, so the original also survives: the browser registers
+    // nothing, so the kept string can over-block nobody today and re-enforces if the name is
+    // ever reclaimed.
     expect(
       migrateAgentDisabledToolsForAllocationChange([`mcp__${idB}__run`], {
         oldMountedServers: [{ mcpId: idA, name: idB }],
@@ -1065,7 +1096,7 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
         reservedKeys: RESERVED,
         nonCandidateIds: new Set([idB])
       })
-    ).toEqual([`mcp__${idA}__run`])
+    ).toEqual([`mcp__${idB}__run`, `mcp__${idA}__run`])
   })
 
   it('keeps the UUID denial and emits the camelized alias when unmounting promotes an id-keyed server to a mixed-case key', () => {
@@ -1110,10 +1141,16 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
     // A and B are both named `docs`; A mounts first, owns the key, and disabling A.run saved
     // `mcp__docs__run`. Unmounting A (without disabledTools) releases the name and B claims it;
     // remounting A after B brings A back under its id. Skipping departing A leaves the denial on
-    // `docs` — the key B now holds — so after reconnect A ran under Full Access while B was
-    // incorrectly denied (deniedA=false, deniedB=true). The denial must follow A onto its id
-    // BEFORE the name key is released, and the name-keyed original must go: it spells B's
-    // runtime name, and keeping it would deny B in A's place.
+    // `docs` — the key B now holds — so after reconnect A ran under Full Access. The denial must
+    // follow A onto its id BEFORE the name key is released. With a cold catalog the id-keyed copy
+    // is the fragment's camelized spelling, which is no Pi identity (Pi matches the raw
+    // `mcp__<id>__tool` verbatim or the configured-name alias), so the name-keyed original also
+    // survives: it re-enforces the denial the moment A remounts (Pi derives the alias from the
+    // configured name A keeps — including when A remounts onto its id while B holds the name).
+    // The kept alias now names B's registered identity and over-blocks B's same-camelization
+    // tool — the fail-closed direction (an allowed tool denied) against dropping (the explicitly
+    // disabled tool permitted); with a warm catalog the raw forms travel with A and the alias
+    // moves off B's segment.
     const unmounted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
       oldMountedServers: [
         { mcpId: idA, name: 'docs' },
@@ -1125,7 +1162,7 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
     // A's id registers under its raw form — Pi matches `mcp__<id>__tool` verbatim and the SDK
     // keeps hyphens in the segment, so the raw and SDK-segment forms fold into one entry (the
     // camelized-key alias exists only for configured-name destinations; an id has none).
-    expect(unmounted).toEqual([`mcp__${idA}__run`])
+    expect(unmounted).toEqual(['mcp__docs__run', `mcp__${idA}__run`])
 
     // Remounting A after B reallocates no key (B keeps `docs`, A returns on its id), so the
     // persisted denial needs no further migration.
@@ -1141,10 +1178,13 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
     ).toBeUndefined()
   })
 
-  it('denies the remounted owner and allows the name claimant after the departing-server migration', () => {
+  it('denies the remounted owner and over-blocks the name claimant when the cold catalog leaves the alias enforceable', () => {
     // Policy seam: the Claude SDK hard-block list is built by translating the persisted rules
     // with the live id→key map (settingsBuilder/agentTools). After unmount+remount, A is keyed
-    // by its id and B holds `docs`: A's runtime name must stay denied, B's must not appear.
+    // by its id and B holds `docs`: A's runtime name must stay denied, and the cold catalog
+    // leaves the name-keyed alias the only spelling that can still bind — it now translates
+    // onto B's namespace and over-blocks B's same-camelization tool (fail-closed), instead of
+    // letting the explicitly disabled tool execute.
     const persisted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
       oldMountedServers: [
         { mcpId: idA, name: 'docs' },
@@ -1159,7 +1199,7 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
     ])
     const denied = translateLegacyMcpToolRules(persisted, serverNameById)
     expect(denied).toContain(`mcp__${toSdkMcpServerSegment(idA)}__run`)
-    expect(denied).not.toContain('mcp__docs__run')
+    expect(denied).toContain('mcp__docs__run')
   })
 
   it('resolves a departing server camelized denial to its raw tool on the stable id', () => {
@@ -1197,6 +1237,45 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
       migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
         oldMountedServers: [{ mcpId: idA, name: 'docs' }],
         newMountedServers: [],
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__docs__getTime', `mcp__${idA}__getTime`, `mcp__${idA}__gettime`])
+  })
+
+  it('keeps the name-keyed original when a cold catalog cannot prove an identity camelization raw', () => {
+    // Raw tool `RUN` persists as the alias `mcp__docs__run` (`buildFunctionCallToolName`
+    // camelizes it), so a saved fragment that is already its own camelization proves nothing
+    // about its raw spelling: `RUN` and `run` both camelize to `run`, and with a cold catalog
+    // the id-keyed copy `mcp__<id>__run` matches neither Pi identity (the raw `mcp__<id>__RUN`
+    // stable id or the configured-name alias). Dropping the original removes the last
+    // enforceable restriction and the explicitly disabled tool executes on remount; keeping it
+    // is owner-bound while the released key stays unclaimed and re-enforces on remount.
+    expect(
+      migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+        oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+        newMountedServers: [],
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__docs__run', `mcp__${idA}__run`])
+  })
+
+  it('keeps the name-keyed original through a namespace takeover the cold catalog cannot replace', () => {
+    // A and B are both named `docs`; A departs and B claims the released key. With a cold
+    // catalog no replacement is enforceable (the id-keyed copies keep the camelized spelling
+    // and Pi matches the raw `mcp__<id>__get_time` form verbatim), so dropping the original
+    // because the alias ownership moved leaves nothing that blocks A's tool. The kept alias
+    // now names B's registered identity and can deny B's same-camelization tool in A's place —
+    // that over-block is the accepted direction of the two conflicting invariants: it may deny
+    // an allowed tool (fail-closed), while dropping permits the explicitly disabled one. The
+    // alias re-enforces A's denial the moment A remounts under the same configured name (Pi
+    // derives it from the name, including when A remounts onto its id while B holds the name).
+    expect(
+      migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
+        oldMountedServers: [
+          { mcpId: idA, name: 'docs' },
+          { mcpId: idB, name: 'docs' }
+        ],
+        newMountedServers: [{ mcpId: idB, name: 'docs' }],
         reservedKeys: RESERVED
       })
     ).toEqual(['mcp__docs__getTime', `mcp__${idA}__getTime`, `mcp__${idA}__gettime`])
