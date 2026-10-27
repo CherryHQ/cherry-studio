@@ -1,131 +1,386 @@
 {
-  "generated_at": "2026-10-25T17:48:52.208963+00:00",
+  "generated_at": "2026-10-27T17:51:25.655539+00:00",
   "open_issues": {
-    "total": 1451,
-    "sample_size": 100,
-    "p1_from_label_query": "50+ (first page, more available)",
-    "p2_in_sample": 22,
-    "p3_in_sample": 9,
-    "no_priority_label_in_sample": 14,
-    "no_priority_pct_in_sample": 14.0,
-    "note": "Total from GitHub totalCount; label breakdown from first 100 most-recently-updated issues"
-  },
-  "closed_last_30d": {
-    "total_sampled": 50,
-    "bugs": 29,
-    "features": 17,
-    "duplicates": 10,
-    "no_labels": 1
+    "count": 200,
+    "total_in_repo": null
   },
   "open_prs": {
-    "sample": 100,
-    "to_main": 84,
-    "to_other_branches": 16
+    "count": 100,
+    "by_base": {
+      "main": 84,
+      "docs/agent-runtime-claude-code-spec": 1,
+      "feature/agent-runtime-durable-behavior": 1,
+      "feature/agent-runtime-shared-projection": 1,
+      "DeJeune/gateway-provider-id": 1,
+      "feature/agent-runtime-child-projection": 1,
+      "feature/agent-runtime-pi-root": 1,
+      "eurfelux/knowledge-file-processing-wait-from-start": 1,
+      "eurfelux/knowledge-file-processing-abandon-on-restart": 1,
+      "feat/web-core-m2-agent": 1,
+      "feat/web-core-m1-chat": 1,
+      "feat/web-core-m0-database": 1,
+      "spec/web-core": 1,
+      "split/20440-b-hook": 1,
+      "split/20440-d-lifecycle": 1,
+      "split/20440-a-data-layer": 1,
+      "codex/shared-connector-credentials-spec": 1
+    }
   },
-  "health_sample_100": {
-    "active_le7d": 85,
-    "aging_7_30d": 10,
-    "stale_30_90d": 4,
-    "zombie_gt90d": 1,
-    "note": "Based on updated_at of 100 most recently updated open issues (2026-10-25)"
-  },
-  "p1_issues_top": [
+  "closed_issues_30d": 17,
+  "closed_prs_30d": 66,
+  "label_distribution": [
     {
-      "number": 21905,
-      "title": "[Bug]: Work-mode Agent turns abort with Autocompact is thrashing and cannot recover on 2.0.14-2.1.6",
-      "updated_at": "2026-10-25T10:09:22Z"
+      "label": "bug",
+      "count": 117
     },
     {
-      "number": 20344,
-      "title": "Windows Agent startup crashes when PATH contains a null byte",
-      "updated_at": "2026-10-25T16:13:35Z"
+      "label": "p2",
+      "count": 69
+    },
+    {
+      "label": "feature",
+      "count": 69
+    },
+    {
+      "label": "agent",
+      "count": 68
+    },
+    {
+      "label": "p3",
+      "count": 54
+    },
+    {
+      "label": "models",
+      "count": 52
+    },
+    {
+      "label": "needs-review",
+      "count": 50
+    },
+    {
+      "label": "ui-ux",
+      "count": 47
+    },
+    {
+      "label": "chat",
+      "count": 40
+    },
+    {
+      "label": "ai:assign:coding",
+      "count": 40
+    },
+    {
+      "label": "needs-info",
+      "count": 34
+    },
+    {
+      "label": "provider",
+      "count": 30
+    },
+    {
+      "label": "windows",
+      "count": 24
+    },
+    {
+      "label": "duplicate",
+      "count": 24
+    },
+    {
+      "label": "p1",
+      "count": 18
+    },
+    {
+      "label": "claude-code",
+      "count": 13
+    },
+    {
+      "label": "connectivity",
+      "count": 13
+    },
+    {
+      "label": "data",
+      "count": 11
+    },
+    {
+      "label": "assistant",
+      "count": 11
+    },
+    {
+      "label": "v2",
+      "count": 9
+    }
+  ],
+  "unlabeled_pct": 2.5,
+  "p1_issues": [
+    {
+      "number": 22121,
+      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "v2",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22121"
+    },
+    {
+      "number": 22850,
+      "title": "[Bug]: Windows Work sessions cannot start Claude runtime with spawn ENAMETOOLONG",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent",
+        "claude-code",
+        "ai:assign:coding"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "v2",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
+    },
+    {
+      "number": 19441,
+      "title": "[Feature]: Video generation feature urgently needed",
+      "labels": [
+        "p1",
+        "feature",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19441"
     },
     {
       "number": 20941,
       "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "updated_at": "2026-10-25T12:09:01Z"
+      "labels": [
+        "bug",
+        "p1",
+        "v2",
+        "agent",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
     },
     {
-      "number": 20940,
-      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "updated_at": "2026-10-25T10:09:06Z"
+      "number": 19124,
+      "title": "[Bug]: ClaudeCodeResultError - API Error 400 litellm.BadRequestError: System message must be at the beginning",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19124"
     },
     {
-      "number": 22121,
-      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part",
-      "updated_at": "2026-10-24T06:09:26Z"
-    },
-    {
-      "number": 19864,
-      "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
-      "updated_at": "2026-10-25T08:05:52Z"
-    },
-    {
-      "number": 22401,
-      "title": "[Bug]: Orphan sweep deletes the Claude Code transcript of a session that still exists",
-      "updated_at": "2026-10-22T04:14:37Z"
-    },
-    {
-      "number": 22137,
-      "title": "[Bug]: Conversations and two configured agents disappear around an update",
-      "updated_at": "2026-10-21T10:19:58Z"
-    },
-    {
-      "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM)",
-      "updated_at": "2026-10-22T15:36:35Z"
+      "number": 19793,
+      "title": "Chat fails when a response stream ends without a finish reason",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19793"
     },
     {
       "number": 20343,
       "title": "Configured OCR fallback fails for image input on non-vision models",
-      "updated_at": "2026-10-24T18:06:23Z"
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20343"
     },
     {
-      "number": 19847,
-      "title": "[Bug]: Agent with DashScope Qwen3.8-Max terminates on a mid-response server error",
-      "updated_at": "2026-10-23T20:04:57Z"
+      "number": 21905,
+      "title": "[Bug]: Work-mode Agent turns abort with \"Autocompact is thrashing\" and cannot recover on 2.0.14-2.1.6",
+      "labels": [
+        "bug",
+        "p1"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21905"
     },
     {
-      "number": 20940,
-      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "updated_at": "2026-10-25T10:09:06Z"
+      "number": 18741,
+      "title": "[Bug]: DeepSeek V4 shows \"No tool output found for tool call\" after a long conversation; session becomes permanently broken with HTTP 400",
+      "labels": [
+        "bug",
+        "p1",
+        "agent",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18741"
+    },
+    {
+      "number": 19452,
+      "title": "OneAPI-compatible providers leave knowledge-base search stuck",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "rag",
+        "connectivity",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19452"
+    },
+    {
+      "number": 21418,
+      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local Storage\"); backup archive corrupted (Bad archive) and old backup version incompatible (v6→v7) — data cannot be restored, perceived as a crash",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "data",
+        "v2"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21418"
     },
     {
       "number": 19314,
       "title": "[Bug]: DeepSeek V4 Pro reasoning can finish without a final answer",
-      "updated_at": "2026-10-25T00:03:27Z"
+      "labels": [
+        "bug",
+        "p1",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19314"
     },
     {
-      "number": 21864,
-      "title": "[QA] e2e regression harness: three defects that block local PR verification",
-      "updated_at": "2026-10-20T20:46:10Z"
+      "number": 21898,
+      "title": "[Bug]: Agent turns fail with \"Claude Code process failed to start\" when the bundled Claude Code executable is missing from a packaged Windows install",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "claude-code"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21898"
     },
     {
-      "number": 19865,
-      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
-      "updated_at": "2026-10-15T09:48:10Z"
+      "number": 19321,
+      "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19321"
     },
     {
-      "number": 20692,
-      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
-      "updated_at": "2026-10-15T08:57:07Z"
+      "number": 18373,
+      "title": "Data directory relocation leaves stale absolute paths in the DB (breaks agent system-workspace validation) and never deletes the old directory",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "data"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18373"
+    },
+    {
+      "number": 19929,
+      "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19929"
+    },
+    {
+      "number": 20344,
+      "title": "Windows Agent startup crashes when PATH contains a null byte",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20344"
     }
   ],
-  "label_distribution_sample": {
-    "bug": 65,
-    "p2": 22,
-    "feature": 18,
-    "p3": 9,
-    "p1": 7,
-    "needs-info": 15,
-    "windows": 12,
-    "agent": 28,
-    "models": 20,
-    "chat": 12,
-    "ui-ux": 10,
-    "duplicate": 8,
-    "needs-review": 7,
-    "ai:assign:coding": 5,
-    "claude-code": 7
-  }
+  "v2_prs": {
+    "open": 0,
+    "merged_30d": 0
+  },
+  "top_issues_by_comments": [
+    {
+      "number": 20282,
+      "title": "[Bug]: Chat and Agent streams fail to parse successful HTTP 200 responses",
+      "comments": 191,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20282"
+    },
+    {
+      "number": 14198,
+      "title": "[Bug]: Switching model mid-conversation fails with No conversation found with session ID",
+      "comments": 144,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14198"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "comments": 82,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "comments": 76,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
+    },
+    {
+      "number": 18894,
+      "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction",
+      "comments": 56,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18894"
+    },
+    {
+      "number": 20976,
+      "title": "[Bug]: Cherry adapter rejects mid-conversation system messages for models without the mid-conversation-system beta — 49 local 400s/day, each triggering a fallback chain",
+      "comments": 55,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20976"
+    },
+    {
+      "number": 19793,
+      "title": "Chat fails when a response stream ends without a finish reason",
+      "comments": 51,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19793"
+    },
+    {
+      "number": 21191,
+      "title": "[Bug]: A single corrupt image permanently bricks an Agent session — every request 400s at a fixed message index, with no UI recovery path",
+      "comments": 39,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21191"
+    },
+    {
+      "number": 21965,
+      "title": "[Bug]: Turns fail with HTTP 400 \"Function tools with reasoning_effort are not supported\" when an OpenAI-compatible relay receives reasoning_effort together with function tools",
+      "comments": 34,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21965"
+    },
+    {
+      "number": 20343,
+      "title": "Configured OCR fallback fails for image input on non-vision models",
+      "comments": 33,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20343"
+    }
+  ]
 }

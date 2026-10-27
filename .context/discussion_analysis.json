@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-10-25T17:48:52.477795+00:00",
-  "note": "GitHub Discussions require GraphQL API; not available via MCP in this run. Showing placeholder.",
-  "total_discussions": null,
-  "answered": null,
-  "unanswered": null,
-  "answer_rate_pct": null,
-  "by_category": {},
-  "top_unanswered_by_upvotes": []
+  "generated_at": "2026-10-27T17:51:46.969587+00:00",
+  "total": 0,
+  "by_category": [],
+  "unanswered_count": 0,
+  "unanswered_sample": [],
+  "recent_active_7d": 0,
+  "top_upvoted": [],
+  "_note": "Discussions unavailable: GraphQL API not accessible in this execution environment"
 }
