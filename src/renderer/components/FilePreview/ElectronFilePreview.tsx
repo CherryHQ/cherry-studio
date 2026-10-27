@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { PreviewSelection } from '@cherrystudio/file-preview/core'
 import { Preview } from '@cherrystudio/file-preview/react'
-import type { PreviewDiagnostic, PreviewResources } from '@cherrystudio/file-preview/react'
+import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from '@cherrystudio/file-preview/react'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -21,6 +21,11 @@ const resources: PreviewResources = {
     return content
   }
 }
+/**
+ * Word previews fit the pane instead of a fixed page width. A page rendered at actual size is wider
+ * than a docked pane, so the pane has to grow to the paper and the leftover width shows as gutters.
+ */
+const previewOptions: PreviewOptions = { docx: { initialZoom: 'fit-width' } }
 
 export default function ElectronFilePreview({
   filePath,
@@ -81,6 +86,7 @@ export default function ElectronFilePreview({
       refreshKey={metadataRequest ? undefined : refreshKey}
       locale={i18n.language}
       resources={resources}
+      options={previewOptions}
       onSelection={onSelectionReference ? onSelection : undefined}
       onDiagnostic={onDiagnostic}
       onRequestOpen={onRequestOpen}

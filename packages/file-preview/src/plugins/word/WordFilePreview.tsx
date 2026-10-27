@@ -115,7 +115,8 @@ export default function WordFilePreview({
     const fit = () => {
       const width = body.offsetWidth
       if (container.clientWidth > 0 && width > 0) {
-        setFitZoom(Math.min(DOCX_PREVIEW_DEFAULT_ZOOM, container.clientWidth / width))
+        // Fit both ways: a pane wider than the paper should scale the page up instead of leaving gutters.
+        setFitZoom(Math.min(DOCX_PREVIEW_MAX_ZOOM, container.clientWidth / width))
       }
     }
     fit()
