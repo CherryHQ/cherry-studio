@@ -35,6 +35,7 @@ import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/sett
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { isWin } from '@renderer/utils/platform'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
@@ -425,15 +426,18 @@ export default function OnboardingPage({
               </SelectContent>
             </Select>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="nodrag text-muted-foreground hover:text-foreground"
-            onClick={() => void complete('skipped')}
-            disabled={isCompleting || isUpdatingPrivacy}>
-            {t('onboarding.skip')}
-          </Button>
+          {/* Skipping leaves the app on the built-in model; without it there would be no model to chat with. */}
+          {hostFeatures.builtinModel && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="nodrag text-muted-foreground hover:text-foreground"
+              onClick={() => void complete('skipped')}
+              disabled={isCompleting || isUpdatingPrivacy}>
+              {t('onboarding.skip')}
+            </Button>
+          )}
         </div>
         <WindowControls />
       </div>

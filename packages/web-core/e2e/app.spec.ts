@@ -34,8 +34,9 @@ test('leaves out the entries for desktop and Cherry account services', async ({ 
   // CherryIN signs in through a callback on the computer, which a Web page cannot receive.
   await expect(page.getByRole('button', { name: 'Set up another provider' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Connect CherryIN' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Set up later' }).click()
-  await composerInput(page).waitFor()
+  // Without the built-in model, which needs the desktop app's client secret, setup cannot be skipped.
+  await expect(page.getByRole('button', { name: 'Set up later' })).toHaveCount(0)
+  await gotoApp(page)
 
   await expect(page.getByRole('button', { name: 'Help' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /dictation/i })).toHaveCount(0)

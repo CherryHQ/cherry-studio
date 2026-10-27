@@ -1,13 +1,17 @@
 import type { BrowserContext, Locator, Page } from '@playwright/test'
 
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 import { test as harnessTest } from './fixtures'
 import { MOCK_PROVIDER_PORT } from './mockProvider'
 
 declare global {
   interface Window {
-    api: { dataApi: { request(request: DataRequest): Promise<DataResponse> } }
+    api: {
+      dataApi: { request(request: DataRequest): Promise<DataResponse> }
+      preference: { set(key: string, value: unknown): Promise<void> }
+    }
   }
 }
 
@@ -32,15 +36,21 @@ export const test = harnessTest.extend<{ page: Page; persistentStorage: boolean 
 })
 
 /**
- * Opens the Web app on a sidebar section and waits for its composer, skipping first-run onboarding
- * when it shows. The app opens on its first sidebar entry, Work (the agents).
+ * Opens the Web app on a sidebar section and waits for its composer, past first-run setup when it
+ * shows. The app opens on its first sidebar entry, Work (the agents).
  */
 export async function gotoApp(page: Page, section: 'Chat' | 'Work' = 'Chat'): Promise<void> {
   await page.goto(APP_URL)
   const composer = composerInput(page)
-  const skipOnboarding = page.getByRole('button', { name: 'Set up later' })
-  await composer.or(skipOnboarding).first().waitFor()
-  if (await skipOnboarding.isVisible()) await skipOnboarding.click()
+  const onboarding = page.getByRole('heading', { name: 'Welcome to Cherry Studio' })
+  await composer.or(onboarding).first().waitFor()
+  if (await onboarding.isVisible()) {
+    // The Web edition cannot skip setting up a provider; tests set up theirs (`useMockProvider`) later.
+    await page.evaluate(async (policyVersion) => {
+      await window.api.preference.set('app.privacy.policy_version', policyVersion)
+      await window.api.preference.set('app.onboarding.provider_setup.status', 'skipped')
+    }, LATEST_PRIVACY_POLICY_VERSION)
+  }
   await sidebarApps(page)
     .and(page.getByLabel(section, { exact: true }))
     .click()

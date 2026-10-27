@@ -36,5 +36,7 @@ export const hostFeatures = {
   /** Settings of the desktop program: start at login, tray, its own proxy, GPU and power use, native menus. */
   desktopApp: true,
   /** Provider sign-ins through a CLI, an app login or GitHub's device login, which report back to the app. */
-  providerSignIn: true
+  providerSignIn: true,
+  /** The built-in CherryAI model, which needs the client secret built into the desktop app. */
+  builtinModel: true
 }
