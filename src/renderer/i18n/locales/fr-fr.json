@@ -2836,6 +2836,7 @@
   "notes.no_file_selected": "Veuillez sélectionner le fichier à télécharger",
   "notes.no_note_selected": "Veuillez d'abord sélectionner une note",
   "notes.no_valid_files": "Aucun fichier valide n’a été téléversé",
+  "notes.open": "Ouvrir la note",
   "notes.open_outside": "Ouvrir depuis l'extérieur",
   "notes.print": "Imprimer",
   "notes.print_failed": "Échec de l'impression de la note",
