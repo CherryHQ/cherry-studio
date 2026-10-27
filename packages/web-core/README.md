@@ -205,7 +205,8 @@ Saving a message or an image becomes a browser download (`src/page/fileDownloads
 The renderer itself changes in two places. First-run setup's `enableCherryInLogin` switch is off
 here. `src/renderer/utils/hostFeatures.ts` says what the app around the renderer can do: more
 windows, opening paths in the computer's apps, app zoom, updates, developer tools, stored image
-uploads, notes and knowledge bases. The desktop has all of them; `src/page/hostFeatures.ts` has
+uploads, notes, knowledge bases, diagnostics (Doctor and problem reports), the agent browser and
+computer use. The desktop has all of them; `src/page/hostFeatures.ts` has
 none, so the entries for them are hidden in the page.
 
 ## Editions

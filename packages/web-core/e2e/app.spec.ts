@@ -88,6 +88,26 @@ test('leaves out the entries a browser tab cannot carry out', async ({ page }) =
   await expect(page.getByText('Debug', { exact: true })).toHaveCount(0)
 })
 
+test("shows a failed reply's error without the desktop's diagnostics", async ({ page }) => {
+  const unsupported: string[] = []
+  page.on('console', (message) => {
+    if (message.text().includes('not available in the Web edition')) unsupported.push(message.text())
+  })
+  await gotoApp(page)
+  await useMockProvider(page, Date.now().toString(36))
+  await gotoApp(page)
+  await send(page, 'please fail')
+  await page.getByText('Detail', { exact: true }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('mock provider rejected the key').first()).toBeVisible()
+  // Diagnostics check the install, logs and network on the computer.
+  await expect(dialog.getByText('Diagnostic result')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Report a problem' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'AI consultation' })).toHaveCount(0)
+  expect(unsupported).toEqual([])
+})
+
 test('keeps the agent browser off in a workspace that had it on', async ({ page }) => {
   type PreferenceApi = {
     preference: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }

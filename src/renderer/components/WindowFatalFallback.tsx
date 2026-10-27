@@ -5,6 +5,7 @@ import { Alert, Button } from '@cherrystudio/ui'
 import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 
 /**
  * Fallback for the top-level ErrorBoundary that wraps each window's provider stack.
@@ -32,9 +33,11 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
       />
       <div className="flex items-center gap-2">
         <ErrorFallbackCopyButton error={error} />
-        <Button size="sm" onClick={() => void ipcApi.request('system.toggle_dev_tools')}>
-          {i18n.t('error.boundary.default.devtools')}
-        </Button>
+        {hostFeatures.devTools && (
+          <Button size="sm" onClick={() => void ipcApi.request('system.toggle_dev_tools')}>
+            {i18n.t('error.boundary.default.devtools')}
+          </Button>
+        )}
         <Button size="sm" onClick={() => void ipcApi.request('window.main.reload')}>
           {i18n.t('error.boundary.default.reload')}
         </Button>

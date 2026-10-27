@@ -38,6 +38,7 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import { parseDataUrl } from '@shared/utils/dataUrl'
@@ -571,9 +572,9 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
               onReportProblem={onOpenDiagnosticReport}
               onCloseBlockedChange={onDoctorCloseBlockedChange}
             />
-          ) : (
+          ) : hostFeatures.diagnostics ? (
             <p className="text-muted-foreground text-sm">{t('error.diagnostics.context_unavailable')}</p>
-          )}
+          ) : null}
           <ErrorBasicInformation
             viewDetailsButtonRef={viewDetailsButtonRef}
             error={error}
@@ -690,6 +691,7 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
 
   void ErrorDetailPopup.show({
     ...params,
+    ...(!hostFeatures.diagnostics && { subject: undefined, diagnosticReport: undefined }),
     onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
     onOpenDiagnosticReport: (initialDescription) =>
       finishHandoff(() => {

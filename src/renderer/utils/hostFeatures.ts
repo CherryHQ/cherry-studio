@@ -18,5 +18,11 @@ export const hostFeatures = {
   /** Notes, kept as files in a folder on the computer. */
   notes: true,
   /** Knowledge bases, which index files with the desktop's native libraries. */
-  knowledgeBases: true
+  knowledgeBases: true,
+  /** Diagnostics (Doctor) and problem reports, which check and collect the install, logs and network. */
+  diagnostics: true,
+  /** The built-in browser pane, a web view that agents can drive. */
+  agentBrowser: true,
+  /** Computer use: agents see and control the computer's apps. */
+  computerUse: true
 }

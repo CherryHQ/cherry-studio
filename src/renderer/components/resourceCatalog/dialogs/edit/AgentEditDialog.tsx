@@ -38,6 +38,7 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 import { type AgentLanguageMode, resolveAgentLanguagePreview } from '@renderer/utils/agent/agentLanguage'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -1166,58 +1167,62 @@ function AgentToolsFields({
     <div className="grid gap-4">
       {activeToolTab === 'tools.builtin' ? (
         <div className="grid gap-5">
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-muted-foreground text-xs">{t('settings.browser.title')}</span>
-              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/browser')}>
-                {t('settings.title')}
-              </Button>
-            </div>
-            <CatalogToggleGrid
-              items={[
-                {
-                  id: BROWSER_TOOL_GROUP,
-                  name: t('settings.browser.control'),
-                  description: t('settings.browser.controlHelp'),
-                  pickable: browserEnabled,
-                  inactiveBadge: browserEnabled ? undefined : t('library.config.tools.inactive_badge')
+          {hostFeatures.agentBrowser && (
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-muted-foreground text-xs">{t('settings.browser.title')}</span>
+                <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/browser')}>
+                  {t('settings.title')}
+                </Button>
+              </div>
+              <CatalogToggleGrid
+                items={[
+                  {
+                    id: BROWSER_TOOL_GROUP,
+                    name: t('settings.browser.control'),
+                    description: t('settings.browser.controlHelp'),
+                    pickable: browserEnabled,
+                    inactiveBadge: browserEnabled ? undefined : t('library.config.tools.inactive_badge')
+                  }
+                ]}
+                enabledIds={
+                  browserEnabled && !disabledSet.has(BROWSER_TOOL_GROUP) ? new Set([BROWSER_TOOL_GROUP]) : new Set()
                 }
-              ]}
-              enabledIds={
-                browserEnabled && !disabledSet.has(BROWSER_TOOL_GROUP) ? new Set([BROWSER_TOOL_GROUP]) : new Set()
-              }
-              onToggle={setToolEnabled}
-              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
-              portalContainer={portalContainer}
-            />
-          </div>
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-muted-foreground text-xs">{t('settings.computerUse.title')}</span>
-              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/computer-use')}>
-                {t('settings.title')}
-              </Button>
+                onToggle={setToolEnabled}
+                emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
+                portalContainer={portalContainer}
+              />
             </div>
-            <CatalogToggleGrid
-              items={[
-                {
-                  id: COMPUTER_USE_TOOL_GROUP,
-                  name: t('settings.computerUse.control'),
-                  description: t('settings.computerUse.controlHelp'),
-                  pickable: computerUseEnabled,
-                  inactiveBadge: computerUseEnabled ? undefined : t('library.config.tools.inactive_badge')
+          )}
+          {hostFeatures.computerUse && (
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-muted-foreground text-xs">{t('settings.computerUse.title')}</span>
+                <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/computer-use')}>
+                  {t('settings.title')}
+                </Button>
+              </div>
+              <CatalogToggleGrid
+                items={[
+                  {
+                    id: COMPUTER_USE_TOOL_GROUP,
+                    name: t('settings.computerUse.control'),
+                    description: t('settings.computerUse.controlHelp'),
+                    pickable: computerUseEnabled,
+                    inactiveBadge: computerUseEnabled ? undefined : t('library.config.tools.inactive_badge')
+                  }
+                ]}
+                enabledIds={
+                  computerUseEnabled && !disabledSet.has(COMPUTER_USE_TOOL_GROUP)
+                    ? new Set([COMPUTER_USE_TOOL_GROUP])
+                    : new Set()
                 }
-              ]}
-              enabledIds={
-                computerUseEnabled && !disabledSet.has(COMPUTER_USE_TOOL_GROUP)
-                  ? new Set([COMPUTER_USE_TOOL_GROUP])
-                  : new Set()
-              }
-              onToggle={setToolEnabled}
-              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
-              portalContainer={portalContainer}
-            />
-          </div>
+                onToggle={setToolEnabled}
+                emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
+                portalContainer={portalContainer}
+              />
+            </div>
+          )}
           {builtinSections.map((section) => (
             <div key={section.category} className="grid gap-2">
               <div className="font-medium text-muted-foreground text-xs">{section.label}</div>

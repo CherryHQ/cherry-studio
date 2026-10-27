@@ -124,6 +124,15 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   // A missing or unreadable file is `null`, as on the desktop.
   'file.get_metadata': async (handle) =>
     dispatchHandle(handle as FileHandle, libraryFiles, getMetadataByPath).catch(() => null),
+  'file.batch_get_metadata': async ({ items }) =>
+    Object.fromEntries(
+      await Promise.all(
+        items.map(async ({ key, handle }) => [
+          key,
+          await dispatchHandle(handle as FileHandle, libraryFiles, getMetadataByPath).catch(() => null)
+        ])
+      )
+    ),
   'app.get_info': async () => ({
     version,
     isPackaged: true,
@@ -147,6 +156,8 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'window.set_full_screen': async () => {},
   'navigation.protocol_dispatch_ready': async () => {},
   'chat.screenshot.target': async () => {},
+  // A page cannot read another site's image; the link stays a link.
+  'tool_result.preview_image': async () => null,
   'backup.get_auto_sync_state': async () => ({ pendingNotifications: [] })
 }
 

@@ -38,6 +38,17 @@ test('offers the built-in Cherry Assistant and creates Pi agents only', async ({
   await expect(dialog.getByRole('button', { name: /^\d/ })).toHaveText(['1Basic info', '2System Prompt'])
 })
 
+test("leaves the desktop's browser and computer control out of an agent's tools", async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await page.getByRole('button', { name: 'Cherry Assistant' }).first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: /^Edit/ }).first().click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('tab', { name: 'Built-in tools' }).click()
+  await expect(dialog.getByText('Read files').first()).toBeVisible()
+  await expect(dialog.getByText('Allow AI browser control')).toHaveCount(0)
+  await expect(dialog.getByText('Allow agents to control desktop applications')).toHaveCount(0)
+})
+
 test('writes a file only after approval and keeps the turn across a reload', async ({ page }) => {
   await gotoApp(page, 'Work')
   await setUpAssistant(page)
