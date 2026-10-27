@@ -683,14 +683,14 @@ export class CodeCliService extends BaseService {
               normal.model
             )
           : normal.model
-        // Bare-concatenated into the launch command like OpenCode's model above, so reject a
-        // model id carrying shell metacharacters rather than launch.
+        // The model is interpolated into a shell command, so reject shell metacharacters.
         if (!isShellSafeModelId(modelArg)) {
           const message = `Unsupported model id for ${cliTool}: ${modelArg}`
           logger.error(message)
           return { success: false, message }
         }
-        baseCommand = `${baseCommand} --model ${modelArg}`
+        // Bind the value so a leading hyphen is not parsed as another option.
+        baseCommand = `${baseCommand} --model=${modelArg}`
       }
     }
 

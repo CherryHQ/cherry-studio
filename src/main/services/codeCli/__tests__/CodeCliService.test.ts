@@ -20,7 +20,12 @@ const skillServiceMock = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
-  providerService: { getByProviderId: (id: string) => ({ id, alias: id === 'custom-aliased' ? 'company' : undefined }) }
+  providerService: {
+    getByProviderId: (id: string) => ({
+      id,
+      alias: id === 'custom-aliased' ? 'company' : id === 'custom-hyphen' ? '-company' : undefined
+    })
+  }
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({ skillService: skillServiceMock }))
@@ -569,7 +574,7 @@ describe('CodeCliService', () => {
       })
       // The @cherry suffix defeats gemini-cli's model normalization, which rewrites
       // any name satisfying endsWith("flash") to a default Gemini model.
-      expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash@cherry')
+      expect(script).toContain('--model=618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash@cherry')
       // The gateway serves only /v1beta, so the launch env forces the SDK's API version — a stale
       // GOOGLE_GENAI_API_VERSION=v1 in the user's shell would otherwise redirect it to /v1. (The
       // value's quotes are backslash-escaped by the AppleScript wrapper, so match the export + value.)
@@ -577,17 +582,35 @@ describe('CodeCliService', () => {
       expect(script).toContain('v1beta')
     })
 
-    it('uses the provider alias while preserving the Gemini sentinel suffix', async () => {
+    it.each([
+      { providerId: 'custom-aliased', expected: '--model=company:agent/model-flash@cherry' },
+      { providerId: 'custom-hyphen', expected: '--model=-company:agent/model-flash@cherry' }
+    ])('binds the provider alias to the model option ($providerId)', async ({ providerId, expected }) => {
       const script = await launchScript({
         mode: 'normal',
         cliTool: CodeCli.GEMINI_CLI,
         model: 'agent/model-flash',
-        providerId: 'custom-aliased',
+        providerId,
         gateway: true,
         directory: '/tmp/project'
       })
-      expect(script).toContain('--model company:agent/model-flash@cherry')
-      expect(script).not.toContain('custom-aliased:')
+      expect(script).toContain(expected)
+      expect(script).not.toContain(`${providerId}:`)
+    })
+
+    it.each([false, true])('rejects shell metacharacters before launching Gemini (gateway=%s)', async (gateway) => {
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'flash; echo injected',
+        providerId: 'custom-hyphen',
+        gateway,
+        directory: '/tmp/project'
+      })
+      expect(result).toMatchObject({ success: false, message: expect.stringContaining('Unsupported model id') })
+      expect(spawn).not.toHaveBeenCalled()
     })
 
     it('passes the bare model id in direct (non-gateway) mode', async () => {
@@ -598,7 +621,7 @@ describe('CodeCliService', () => {
         providerId: 'gemini',
         directory: '/tmp/project'
       })
-      expect(script).toContain('--model gemini-2.5-pro')
+      expect(script).toContain('--model=gemini-2.5-pro')
       expect(script).not.toContain('gemini:gemini-2.5-pro')
       // Direct launch must not force the gateway-only API version — a user who set
       // GOOGLE_GENAI_API_VERSION for their own provider keeps it untouched.
