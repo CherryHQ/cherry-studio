@@ -330,6 +330,15 @@ describe('KnowledgeItemService', () => {
       expect(result.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
     })
 
+    it('includes deleting items when asked', async () => {
+      await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
+      await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
+
+      const result = service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { includeDeleting: true })
+
+      expect(result.map((item) => item.id).sort()).toEqual([DELETING_NOTE_ID, VISIBLE_NOTE_ID].sort())
+    })
+
     it('throws NotFound when listing items for a missing base', () => {
       let err: unknown
       try {
@@ -451,6 +460,19 @@ describe('KnowledgeItemService', () => {
       expect(service.getById(DELETING_LEAF).status).toBe('deleting')
     })
 
+    it('marks a file still waiting for its copy failed, so an interrupted copy is reindexable', async () => {
+      const COPYING_FILE = itemId('7e09')
+      await seedItem({
+        id: COPYING_FILE,
+        type: 'file',
+        data: { source: '/docs/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath },
+        status: 'preparing'
+      })
+
+      expect(service.failInterruptedItems(INTERRUPTED)).toBe(1)
+      expect(service.getById(COPYING_FILE)).toMatchObject({ status: 'failed', error: INTERRUPTED })
+    })
+
     it('returns 0 when nothing is in flight', async () => {
       await seedItem({ id: COMPLETED_LEAF, data: { source: 'c', content: 'c' }, status: 'completed' })
       expect(service.failInterruptedItems(INTERRUPTED)).toBe(0)
@@ -480,6 +502,27 @@ describe('KnowledgeItemService', () => {
         error: null,
         data: item.data
       })
+    })
+
+    it('creates a file whose bytes are still owed as preparing, then lets it move on to processing', async () => {
+      const item: CreateKnowledgeItemDto = {
+        type: 'file',
+        data: { source: '/docs/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath }
+      }
+
+      const created = service.createActive(KNOWLEDGE_BASE_ID, item, { awaitingCopy: true })
+
+      expect(created).toMatchObject({ type: 'file', status: 'preparing', error: null })
+      expect(service.updateStatus(created.id, 'processing').status).toBe('processing')
+    })
+
+    it('still rejects preparing for a note, so only files and directories can wait in it', async () => {
+      const item: CreateKnowledgeItemDto = { type: 'note', data: { source: 'note', content: 'note' } }
+
+      expect(() => service.createActive(KNOWLEDGE_BASE_ID, item, { awaitingCopy: true })).toThrow(
+        expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR })
+      )
+      expect(service.getItemsByBaseId(KNOWLEDGE_BASE_ID)).toEqual([])
     })
 
     it('creates a leaf item as processing', async () => {

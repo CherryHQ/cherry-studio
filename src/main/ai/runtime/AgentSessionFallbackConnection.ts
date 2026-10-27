@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { loggerService } from '@logger'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import { AsyncEventQueue } from '@shared/utils/async'
 
-import { AsyncEventQueue } from './AsyncEventQueue'
 import { resolveAgentFallbackPolicy, selectFallbackModelId } from './modelFallback'
 import type {
   AgentRuntimeConnectInput,

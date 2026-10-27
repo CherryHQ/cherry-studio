@@ -13,8 +13,9 @@ vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProvi
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getByKey } }))
 vi.mock('../aiSdk', () => ({ readRetryPolicy: mocks.readRetryPolicy }))
 
+import { AsyncEventQueue } from '@shared/utils/async'
+
 import { AgentSessionFallbackConnection, classifyRuntimeFallbackError } from '../AgentSessionFallbackConnection'
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,

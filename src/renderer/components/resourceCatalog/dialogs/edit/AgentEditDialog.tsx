@@ -583,6 +583,7 @@ function AgentEditDialogContent({
             caps={caps}
             agentType={resource.type}
             agentId={resource.id}
+            permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
             beforeHeartbeatOpen={async () => {
               await flush()
               return failedSaveKeyRef.current === null
@@ -640,6 +641,7 @@ function AgentBasicFields({
   caps,
   agentType,
   agentId,
+  permissionAuthorityKey,
   beforeHeartbeatOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
@@ -655,6 +657,7 @@ function AgentBasicFields({
   caps: AgentRuntimeCapabilities
   agentType: AgentType
   agentId: string
+  permissionAuthorityKey: string
   beforeHeartbeatOpen: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
@@ -758,7 +761,9 @@ function AgentBasicFields({
           />
         </>
       ) : null}
+      {/* Invalidate only the pending permission dialog when authoritative identity/mode changes. */}
       <PermissionModeField
+        key={permissionAuthorityKey}
         form={form}
         portalContainer={portalContainer}
         patchAgentForm={patchAgentForm}
@@ -879,6 +884,7 @@ function PermissionModeField({
 }) {
   const { t } = useTranslation()
   const permissionMode = useWatch({ control: form.control, name: 'permissionMode' }) || 'default'
+  const agentName = useWatch({ control: form.control, name: 'name' })
   const selectedPermissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
 
   return (
@@ -896,6 +902,7 @@ function PermissionModeField({
             onValueChange={(value) => patchAgentForm({ permissionMode: value })}
             portalContainer={portalContainer}
             ariaLabel={t('library.config.agent.field.permission_mode.label')}
+            scopeName={agentName.trim() || undefined}
             t={t}
           />
           <FormMessage className="col-start-2" />

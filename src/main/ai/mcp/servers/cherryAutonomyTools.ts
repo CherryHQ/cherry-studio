@@ -170,7 +170,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
   },
   feishu: {
     required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
-    optional: ['allowed_chat_ids'],
+    optional: ['allowed_chat_ids', 'mention_only'],
     description:
       'Feishu/Lark bot. Set auth_mode to "qr" to register interactively without config. For credential setup, provide all required fields and set domain to "feishu" or "lark".'
   },
@@ -1097,7 +1097,17 @@ function configSetBootstrap(ctx: AutonomyToolsContext, completed: boolean): Call
   return { content: [{ type: 'text', text }] }
 }
 
+function assertConfigMutationAuthorized(ctx: AutonomyToolsContext): void {
+  const interaction = application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId)
+  if (interaction.currentTurn === 'headless') {
+    throw new Error(
+      'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
+    )
+  }
+}
+
 async function runConfig(ctx: AutonomyToolsContext, args: ConfigInput): Promise<CallToolResult> {
+  if (args.action !== 'status') assertConfigMutationAuthorized(ctx)
   switch (args.action) {
     case 'status':
       return configStatus(ctx)
