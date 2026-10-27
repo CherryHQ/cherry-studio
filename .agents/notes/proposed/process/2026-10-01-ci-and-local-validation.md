@@ -10,6 +10,8 @@ CI and local coding agents spend time checking unrelated code, while their indep
 
 The proposed direction is to share task definitions and change classification between local validation and CI, while giving each a different concurrency policy. First correct selection and coverage, then optimize heavy checks and caches. This note records research on 2026-10-01; no proposed commands or workflow changes have been implemented, and the existing agent instructions still apply.
 
+The proposed [ESLint retirement](2026-10-27-eslint-retirement.md) partially succeeds this note's dual-linter choice. This note retains ownership of task selection, orchestration, concurrency, and CI observation; its historical measurements do not establish the successor's behavior or performance.
+
 ## Evidence
 
 ### Scope and sampling
