@@ -43,7 +43,7 @@ Claude Code 目前仍通过 [ClaudeCodeRuntimeDriver](../../../../src/main/ai/ru
 pnpm exec vitest run --project main src/main/ai/runtime/claudeCode/__tests__/nativeContract.test.ts
 ```
 
-探索阶段的原始事件捕获还显示：根消息有 partial 事件，子消息按完整内容块交付，没有 child token delta。这与官方[流式输出文档](https://code.claude.com/docs/en/agent-sdk/streaming-output) 一致。C1 必须按原生实际交付的粒度消费，不能承诺子任务的 token 级流式输出。固定版本 CLI 还会发出公开 `SDKMessage` 联合类型未包含的 `command_lifecycle` 帧。探针只通过带校验的形状检查将其用作输入到达的同步点；生产输入回执不能依赖这个未声明的帧。
+探索阶段的原始事件捕获还显示：根消息有 partial 事件，子消息按完整内容块交付，没有 child token delta。这与官方[流式输出文档](https://code.claude.com/docs/en/agent-sdk/streaming-output) 一致。C1 必须按原生实际交付的粒度消费，不能承诺子任务的 token 级流式输出。固定版本 CLI 还会发出变更日志已描述、但公开 `SDKMessage` 联合类型未包含的 `command_lifecycle` 帧。适配器校验后通过 Claude 专用类型暴露这些事件。`queued` 证明已接受并排队；`started` 证明已接受，不证明进入模型上下文。合入现有原生轮次的 steer 可能直到最终 result 才出现在 `user_message_uuids` 中，后续 assistant 事件仍不携带它。因此 C2 通过 `started` 的精确 command UUID 与随后的根输出切换产品回复，再由关联 result 结算所有已消费输入。不匹配提示文本，也不使用私有控制传输。升级后必须重跑这些固定版本的原生测试。
 
 C0 必须在 C1 实现之前确定原生边界。下文区分已经观察到的原生行为，以及适配器存在之后才能通过的实现验收。跨进程故障的副作用恰好一次执行不属于契约：适配器既不自动重放不确定的提交，也不把对话保留视为执行恢复。当前[子智能体](https://code.claude.com/docs/en/agent-sdk/subagents)和[会话](https://code.claude.com/docs/en/agent-sdk/sessions)文档提供背景；涉及具体版本的结论以已安装类型和固定版本探针为准。
 
@@ -99,7 +99,8 @@ flowchart TD
 | --- | --- |
 | 适配器尚未向 SDK yield 输入 | 可以在本地拒绝，不声明原生放置。 |
 | SDK 消费输入迭代器条目 | `dispatch-started`。保留逻辑 ID 和精确的原生 UUID，不能仅凭此事件增加 `accepted` 或 `queued`。 |
-| `interrupt().still_queued` 包含该 UUID | 增加 `accepted` 与 `queued`，不标记已放置或已完成。 |
+| `command_lifecycle: queued` 或 `interrupt().still_queued` 指明该 UUID | 增加 `accepted` 和 `queued`，不标记已放置或已完成。 |
+| `command_lifecycle: started` 指明该 UUID | 增加 `accepted`；本地命令也能开始而不进入模型上下文。C2 等待随后的根输出才切换 steer 回复。 |
 | 有关联的 assistant/partial 帧 | 增加 `placed`，保留全部 `user_message_uuids` 关联。 |
 | 匹配的原生历史行，但没有消费证据 | 恢复内容与 UUID，不推断放置或完成；SDK 历史也会呈现排队输入。 |
 | 有关联的 result | 为列出的每个输入记录有证据的结果及共享响应身份；错误不代表成功完成。 |
@@ -145,7 +146,7 @@ flowchart TD
 5. `compact_boundary` 使续接视图失效。通过 SDK 历史 API 重新获取该视图，由 SDK 负责父链选择和保留片段的重新连接。产品历史保留已保存消息，不能因为模型改用摘要就删除它们。不能重写原生压缩逻辑，也不能把旧产品消息重新送入模型。
 6. 观察 gap 或重启后，选取规范原生基线，按来源 UUID 协调，再排空读取期间捕获的实时变化。基线缺少某来源，不自动等于撤回；只有明确的替换/移除证据才能隐藏已保存产品行。来源映射与原生撤回必须连同投影检查点一起跨重启保留。
 
-现有 `ChildThreadProjection` 会合并已保存与实时消息，但尚未持久化显式撤回。C2 必须在共享归档/投影边界补齐移除与替换处理；仅换成另一个 `ThreadHandle` 会让已撤回消息重新出现。复用共享 `MessageProjection` 的 revision/IPC 协议，不新增 Claude 专用传输，也不声明新的原生序列号。
+C2 在共享归档/投影边界扩展 `ChildThreadProjection`，在合并已保存和实时消息时，同时持久化显式撤回及替换来源映射。仅传入不同 `ThreadHandle` 会让被撤回的消息重新出现。复用共享 `MessageProjection` revision/IPC 协议；不能新增 Claude 专用传输，也不能声称存在新的原生序号。
 
 根 `result` 结束前台轮次，不结束 Query 或子 feed。任务通知更新任务状态，也可能引发原生自主根轮次；不能由此额外发送一次宿主通知，或把新轮次归给无关输入。C1 不在原生 Agent/Bash/问答机制之上安装共享 behavior 工具。以后若复用 behavior 策略，需单独证明其原生所有权映射。
 
@@ -170,6 +171,10 @@ SDK 历史函数接收项目 `dir`，没有配置根目录参数。读取某个 
 对于新迁移的上下文，由唯一的独立子写入器持久化并发布子消息集合。父消息只保留工具结果、关系和少量任务摘要。移除 Claude background-flow 发布器时，要同时移除其重复正文写入和 Shared Cache 广播。已保存的旧 flow 正文继续可读；只有建立原生身份和来源映射后才能回填为子消息。不能删除历史父 parts，也不能从文本猜测子身份。原生文件缺失时允许展示已保存视图，但不能创建可写替代会话。
 
 桌面兼容性包括运行中的权限收紧、后台 AskUserQuestion、原生/login/直接提供商/gateway 路由、预热 Query 捕获的凭据、MCP/skills、多模态输入、原生 fork/edit、进程退出确认，以及唯一的计费/追踪路径。宿主策略和 UI 回调留在 Cherry，执行访问迁移到包后方。
+
+网关归属在请求开始时冻结凭据、价格和来源。只有原生输出确定所有者后，才通过网关线协议的 response ID 将已完成调用关联到产品消息；用量和所有者可以按任意顺序到达。根 steer 和子观察共用这一关联方式，直接 SDK 用量也使用原生 API response ID。连接关闭时，没有观察到所有者的待入账或迟到调用保留已捕获的归属信息，不关联消息。不能根据当前回复猜测，不能匹配提示文本，也不增加关系表。这是内存中的待关联记录，不是可抵抗崩溃的计费日志。
+
+`src/main/ai/runtime/claudeCode/__tests__/desktopRuntime.integration.test.ts` 使用真实 SDK/CLI、脚本化端点和经过迁移的 SQLite 验证桌面接线，覆盖原生 steer、结束边界续接、预热所有者移交、前台/后台子任务、单独停止一个兄弟任务、嵌套 context、冷启动子投影恢复和 `/clear`。独立的投影与计费测试覆盖撤回、检查点原子性、富内容，以及用量/所有者的两种到达顺序。这些是可重复的集成检查；真实模型 Electron 验收仍需单独完成。
 
 ### 交付分层
 
