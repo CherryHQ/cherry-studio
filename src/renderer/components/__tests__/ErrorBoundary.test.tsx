@@ -1,7 +1,14 @@
+import type * as SentryRenderer from '@sentry/electron/renderer'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loggerService } from '@logger'
+
+const { captureExceptionMock } = vi.hoisted(() => ({ captureExceptionMock: vi.fn() }))
+vi.mock('@sentry/electron/renderer', async (importOriginal) => ({
+  ...(await importOriginal<typeof SentryRenderer>()),
+  captureException: captureExceptionMock
+}))
 
 import { ErrorBoundary } from '../ErrorBoundary'
 
@@ -13,15 +20,18 @@ const Bomb = (): never => {
 
 describe('ErrorBoundary', () => {
   beforeEach(() => {
+    captureExceptionMock.mockReset()
+    vi.stubEnv('DEV', false)
     // React logs caught render errors via console.error; keep test output clean.
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
-  it('logs caught render errors through loggerService', () => {
+  it('shows the fallback and reports caught render failures independently of logging', () => {
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => {})
 
     render(
@@ -33,6 +43,24 @@ describe('ErrorBoundary', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(errorSpy).toHaveBeenCalledTimes(1)
     expect(errorSpy.mock.calls[0]).toContain(boomError)
+    expect(captureExceptionMock).toHaveBeenCalledExactlyOnceWith(boomError, {
+      tags: { 'failure.kind': 'render' },
+      extra: { componentStack: expect.stringContaining('Bomb') }
+    })
+  })
+
+  it('keeps the fallback and caller recovery usable if telemetry fails', () => {
+    captureExceptionMock.mockImplementationOnce(() => {
+      throw new Error('Telemetry unavailable')
+    })
+    const onError = vi.fn()
+    render(
+      <ErrorBoundary onError={onError}>
+        <Bomb />
+      </ErrorBoundary>
+    )
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(onError.mock.calls[0][0]).toBe(boomError)
   })
 
   it('composes a caller-supplied onError with the default logging', () => {

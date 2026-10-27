@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import type * as SentryRenderer from '@sentry/electron/renderer'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +11,13 @@ import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 
 const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),
-  load: vi.fn()
+  load: vi.fn(),
+  captureException: vi.fn()
+}))
+
+vi.mock('@sentry/electron/renderer', async (importOriginal) => ({
+  ...(await importOriginal<typeof SentryRenderer>()),
+  captureException: mocks.captureException
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -48,6 +55,7 @@ vi.mock('../filePreviewRegistry', async (importOriginal) => {
 import { FilePreview } from '../FilePreview'
 
 beforeEach(() => {
+  vi.stubEnv('DEV', false)
   vi.spyOn(console, 'error').mockImplementation(() => {})
   mocks.ipcApiRequest.mockResolvedValue({
     kind: 'file',
@@ -95,6 +103,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
 })
 
 describe('FilePreview plugin loading', () => {
@@ -180,12 +189,14 @@ describe('FilePreview plugin loading', () => {
 
     expect(await screen.findByText('file_preview.load_error.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()
+    expect(mocks.captureException).not.toHaveBeenCalled()
   })
 
-  it('contains plugin render failures inside the preview surface', async () => {
+  it('reports plugin render failures while retaining the preview fallback', async () => {
+    const error = new Error('plugin render failed')
     mocks.load.mockResolvedValueOnce({
-      default: () => {
-        throw new Error('plugin render failed')
+      default: function BrokenPreview() {
+        throw error
       }
     })
 
@@ -193,5 +204,9 @@ describe('FilePreview plugin loading', () => {
 
     expect(await screen.findByText('file_preview.load_error.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()
+    expect(mocks.captureException).toHaveBeenCalledExactlyOnceWith(error, {
+      tags: { 'failure.kind': 'render' },
+      extra: { componentStack: expect.stringContaining('BrokenPreview') }
+    })
   })
 })

@@ -25,7 +25,7 @@ import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/prot
 import { runDataReset } from '@main/services/dataReset'
 import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
 import { configureRemoteDebugging } from '@main/services/remoteDebugging'
-import { initSentry } from '@main/services/sentry'
+import { initSentry, reportStartupFailure } from '@main/services/sentry'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
 import { getApplicationId } from '@main/utils/appEdition'
 
@@ -99,7 +99,8 @@ const startApp = async () => {
 // Top-level safety net: bootstrap() handles known fatal errors internally
 // (ServiceInitError → dialog → exit/relaunch), so this catch only fires
 // for unexpected errors that escape the normal handling path.
-startApp().catch((error) => {
+startApp().catch(async (error) => {
   logger.error('Fatal startup error:', error)
+  await reportStartupFailure(error)
   application.forceExit(1)
 })

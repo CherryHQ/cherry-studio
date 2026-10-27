@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '../sentry'
+import { getSentryBuildContext, sanitizeSentryEvent } from '../sentry'
 
 describe('Sentry context', () => {
   it.each([
@@ -13,26 +13,6 @@ describe('Sentry context', () => {
       release: `CherryStudio@${version}`,
       tags: { 'app.version': version, 'app.channel': channel, 'app.edition': 'cn' }
     })
-  })
-
-  it('keeps only explicit operation identifiers and excludes business data', () => {
-    const info = {
-      level: 'error',
-      name: 'Error',
-      errorMessage: 'Failed',
-      stack: 'Error: Failed\n at run (app:///job.js:2:3)',
-      operation: 'job.schedule.fire',
-      module: 'JobManager',
-      code: 'SQLITE_BUSY',
-      process: 'main',
-      scheduleId: 'private-id',
-      context: { prompt: 'private conversation' }
-    }
-    expect(getSentryLogContext(info)).toEqual({
-      tags: { module: 'JobManager', code: 'SQLITE_BUSY', operation: 'job.schedule.fire', 'event.process': 'main' },
-      extra: undefined
-    })
-    expect(getSentryLogContext({ ...info, operation: 'user typed this text' })?.tags).not.toHaveProperty('operation')
   })
 })
 

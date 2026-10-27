@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import type { RequestContext as ErrorRequestContext } from '@shared/data/api/errors'
-import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
+import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { ApiImplementation } from '@shared/data/api/types'
 import type { DataRequest, DataResponse, HttpMethod, RequestContext, SuccessStatusCode } from '@shared/data/api/types'
 import { isCustomStatusResult, SuccessStatus } from '@shared/data/api/types'
@@ -24,6 +25,8 @@ export class ApiServer {
   private static instance: ApiServer
   private middlewareEngine: MiddlewareEngine
   private handlers: ApiImplementation
+  private readonly _onUnexpectedError = new Emitter<unknown>()
+  public readonly onUnexpectedError: Event<unknown> = this._onUnexpectedError.event
 
   private constructor(handlers: ApiImplementation) {
     this.middlewareEngine = new MiddlewareEngine()
@@ -121,6 +124,9 @@ export class ApiServer {
 
       // Convert to DataApiError and serialize for IPC
       const apiError = error instanceof DataApiError ? error : toDataApiError(error, `${method} ${path}`)
+      if (apiError.code === ErrorCode.INTERNAL_SERVER_ERROR || apiError.code === ErrorCode.DATA_INCONSISTENT) {
+        this._onUnexpectedError.fire(error)
+      }
 
       const duration = DATA_API_TIMING_ENABLED ? performance.now() - perfStart : undefined
       return {

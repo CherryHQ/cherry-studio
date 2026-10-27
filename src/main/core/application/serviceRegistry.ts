@@ -75,7 +75,7 @@ import { RuntimeQuitConfirmationService } from '@main/services/RuntimeQuitConfir
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionService } from '@main/services/selection/SelectionService'
-import { SentryLogService } from '@main/services/SentryLogService'
+import { SentryService } from '@main/services/SentryService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
@@ -121,7 +121,7 @@ export const services = {
   IpcApiService,
   SubWindowService,
   PreferenceService,
-  SentryLogService,
+  SentryService,
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,

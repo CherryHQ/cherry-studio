@@ -1,7 +1,6 @@
 import {
   browserApiErrorsIntegration,
   captureException,
-  dedupeIntegration,
   eventFiltersIntegration,
   functionToStringIntegration,
   globalHandlersIntegration,
@@ -10,7 +9,7 @@ import {
   scopeToMainIntegration
 } from '@sentry/electron/renderer'
 
-import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '@shared/utils/sentry'
+import { getSentryBuildContext, sanitizeSentryEvent } from '@shared/utils/sentry'
 
 import { name, version } from '../../../package.json'
 import { loggerService, resolveWindowSourceFromMeta } from './LoggerService'
@@ -34,7 +33,6 @@ export function initSentry(): void {
       browserApiErrorsIntegration(),
       globalHandlersIntegration(),
       linkedErrorsIntegration(),
-      dedupeIntegration(),
       scopeToMainIntegration()
     ],
     beforeSend: (event) =>
@@ -46,8 +44,13 @@ export function initSentry(): void {
     sendClientReports: false,
     sendDefaultPii: false
   })
-  loggerService.setErrorReporter((error, entry) => {
-    const context = getSentryLogContext(entry)
-    if (context) captureException(error, context)
-  })
+}
+
+export function reportRenderFailure(error: Error, componentStack?: string | null): void {
+  if (import.meta.env.DEV) return
+  try {
+    captureException(error, { tags: { 'failure.kind': 'render' }, extra: { componentStack } })
+  } catch (reportError) {
+    loggerService.withContext('Sentry').warn('Failed to report render failure', reportError as Error)
+  }
 }

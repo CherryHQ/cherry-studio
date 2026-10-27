@@ -7,6 +7,7 @@ import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import { ipcApi } from '@renderer/ipc'
+import { reportRenderFailure } from '@renderer/services/sentry'
 
 const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
@@ -52,6 +53,7 @@ const ErrorBoundaryCustomized = ({
 }) => {
   const handleError = (error: Error, info: ErrorInfo) => {
     logger.error('Caught a render error', error, { componentStack: info.componentStack, operation: 'react.render' })
+    reportRenderFailure(error, info.componentStack)
     onError?.(error, info)
   }
   return (

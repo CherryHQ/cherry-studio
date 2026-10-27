@@ -439,7 +439,7 @@
     },
     {
       "path": "docs/references/logging/README.md",
-      "sources": ["src/main/core/logger/LoggerService.ts","src/main/services/SentryLogService.ts","src/main/services/sentry.ts","src/renderer/services/LoggerService.ts","src/renderer/services/sentry.ts","src/shared/utils/sentry.ts"]
+      "sources": ["src/main/core/logger/LoggerService.ts","src/main/data/api/core/ApiServer.ts","src/main/services/SentryEventFilter.ts","src/main/services/SentryService.ts","src/main/services/sentry.ts","src/renderer/components/FilePreview/FilePreview.tsx","src/renderer/services/LoggerService.ts","src/renderer/services/sentry.ts","src/shared/utils/sentry.ts"]
     },
     {
       "path": "docs/references/memory/overview.md",

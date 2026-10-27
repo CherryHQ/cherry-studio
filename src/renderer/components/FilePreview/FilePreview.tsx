@@ -16,6 +16,7 @@ import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { reportRenderFailure } from '@renderer/services/sentry'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
@@ -160,7 +161,10 @@ function FilePreviewPluginRenderer({
       key={`${plugin.descriptor.id}:${filePath}`}
       resetKeys={[refreshKey]}
       FallbackComponent={PluginErrorFallback}
-      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
+      onError={(error, info) => {
+        logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)
+        reportRenderFailure(error, info.componentStack)
+      }}>
       <PluginPreview
         filePath={filePath}
         fileName={fileName}

@@ -4,9 +4,12 @@ sources:
   - src/main/core/logger/LoggerService.ts
   - src/renderer/services/LoggerService.ts
   - src/main/services/sentry.ts
-  - src/main/services/SentryLogService.ts
+  - src/main/services/SentryService.ts
+  - src/main/services/SentryEventFilter.ts
   - src/renderer/services/sentry.ts
   - src/shared/utils/sentry.ts
+  - src/main/data/api/core/ApiServer.ts
+  - src/renderer/components/FilePreview/FilePreview.tsx
 ---
 
 # How to use the LoggerService
@@ -26,12 +29,42 @@ exception capture is installed before lifecycle services start. Reporting stays
 blocked until `PreferenceService` is ready and consent is valid; the same check
 runs before sending each envelope, including after preferences stop.
 
-`SentryLogService` owns the main logger's Sentry transport. It starts in
-`BeforeReady`, after `PreferenceService`, and removes the transport on stop or
-destroy. Restarting the service attaches a fresh transport. `AnalyticsService`
-owns only its analytics client; stopping it does not remove the Sentry bridge.
-Stopping `SentryLogService` leaves the SDK's automatic exception capture installed.
-Logged errors before the bridge starts or after it stops remain local.
+Logging does not trigger Sentry uploads. Ordinary failures, including network,
+provider, search, backup, and expected handled DataApi errors, stay in local logs for
+user-initiated in-app feedback. `logger.error` is not a telemetry API.
+
+Sentry reports unexpected unhandled exceptions, handled internal DataApi failures, explicitly reported render and
+fatal startup failures, and Electron process crash, out-of-memory, launch-failure,
+and integrity-failure summaries. Native memory dumps stay local for diagnostics;
+the SDK does not upload them. Failures before preferences are readable remain
+local under the consent gate, including early startup failures. No offline upload
+queue or preboot consent copy is maintained.
+
+`SentryService` subscribes during `BeforeReady` to service initialization failures.
+It reports main-window initialization failures even though `MainWindowService`
+uses the graceful lifecycle strategy, as well as failures from fail-fast services.
+Other graceful service failures and post-startup hook errors remain local. The startup entry point
+reports unexpected escaping errors and waits up to two seconds for sending
+before exiting. Both the shared renderer error boundary and the file-preview
+plugin boundary explicitly report render failures while retaining their fallbacks.
+
+`ApiServer` emits the original caught error once for `INTERNAL_SERVER_ERROR` or
+`DATA_INCONSISTENT`, preserving its stack and cause chain. `SentryService` subscribes
+after `DataApiService` initializes and reports these errors with
+`failure.kind=unexpected`. Expected request errors stay local; an HTTP error status
+alone does not make an event eligible. Both service subscriptions are removed on
+stop or destroy.
+
+The main SDK applies the common policy to all windows. Non-fatal unexpected
+cancellation and known transport failures are filtered. Explicit render/startup
+failures and fatal exceptions remain eligible even when their cause is a network
+error. Unknown unhandled errors, including `NOT_FOUND`, are not broadly ignored.
+Normalized signatures ignore dynamic UUIDs and long numeric identifiers and
+deduplicate interleaved events across windows for ten minutes. Per running app,
+separate hourly budgets allow ten fatal/render/startup events and ten other
+unexpected exceptions, including explicitly reported handled internal errors; filtered and duplicate events do not consume those
+budgets. State is bounded, stays in memory, and resets on restart. Per-app limits
+do not guarantee an organization-wide quota.
 
 Pass the original `Error` as the first data argument and use a fixed operation identifier:
 
@@ -39,11 +72,10 @@ Pass the original `Error` as the first data argument and use a fixed operation i
 logger.error('Save failed', error, { operation: 'translate.history.save' })
 ```
 
-For logged errors, only `error` entries with stacks are reported; cancellation and
-telemetry diagnostic errors are excluded. Reports include module/window/process, operation, string error code,
-and React component stack when available. Arbitrary log context is excluded and
-credentials are redacted. Never derive operation identifiers from user input;
-use letters, digits, dots, underscores or hyphens, starting with a letter (max 80 characters).
+Keep the original error and a fixed operation identifier in local logs for
+diagnosis. Sentry receives only the explicit failure context, not arbitrary log
+context, and credentials are redacted. Never derive operation identifiers from
+user input.
 
 Renderer errors are captured in their originating process to retain causes and source-map
 Debug IDs. Both processes share the package-based release and `app.version`,
