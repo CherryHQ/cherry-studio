@@ -222,15 +222,14 @@ function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
 }
 
-const SYNTHETIC_ASSISTANT_MODEL = '<synthetic>'
-/** How the CLI renders a provider failure into that message's text block. */
-const API_ERROR_TEXT = /^API Error: /
-
-/** A provider failure the CLI folds in as an assistant message whose text is the raw API error. */
-function isSyntheticApiErrorMessage(message: SDKAssistantMessage, text: string): boolean {
-  return (
-    message.error !== undefined || message.message?.model === SYNTHETIC_ASSISTANT_MODEL || API_ERROR_TEXT.test(text)
-  )
+/** The CLI's failure report: its typed `error: SDKAssistantMessageError` (pinned SDK 0.3.284) or the CLI's own
+ *  `isApiErrorMessage` flag — not `<synthetic>` alone, which also labels successful /context and /usage replies. */
+function isApiErrorDiagnostic(message: SDKAssistantMessage): boolean {
+  const envelope = message as SDKAssistantMessage & {
+    is_api_error_message?: unknown
+    isApiErrorMessage?: unknown
+  }
+  return message.error !== undefined || envelope.is_api_error_message === true || envelope.isApiErrorMessage === true
 }
 
 function getToolParentId(
@@ -1074,8 +1073,8 @@ export class ClaudeCodeStreamAdapter {
 
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
 
-    if (text && isSyntheticApiErrorMessage(message, text)) {
-      logger.debug('Dropping the synthetic API-error message text', {
+    if (text && isApiErrorDiagnostic(message)) {
+      logger.debug('Dropping the CLI API-error diagnostic text', {
         sessionId: this.sessionId,
         error: message.error,
         chars: text.length

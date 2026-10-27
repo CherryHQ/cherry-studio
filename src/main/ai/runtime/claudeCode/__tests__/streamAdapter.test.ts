@@ -556,6 +556,48 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(serializeError(thrown)).toMatchObject({ name: 'ClaudeCodeResultError', statusCode: 400, message: errorText })
   })
 
+  it('keeps the text of a successful synthetic /context or /usage report', () => {
+    for (const report of [
+      { id: 'msg-context', text: '# Context Usage\n\nYou are using 12% of the context window.' },
+      { id: 'msg-usage', text: '# Usage\n\nSession total: 123k tokens.' }
+    ]) {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { id: report.id, model: '<synthetic>', content: [{ type: 'text', text: report.text }] }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(report.text)
+    }
+  })
+
+  it('keeps an ordinary answer whose text begins with the provider-failure prefix', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'API Error: the retry wrapper classifies a status before naming the stage.'
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { id: 'msg-answer', model: 'glm-4.6', content: [{ type: 'text', text: answer }] }
+    } as any)
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(answer)
+  })
+
   it('emits a new assistant message whole instead of slicing it by the previous message', () => {
     const { adapter, parts } = createAdapter()
 
