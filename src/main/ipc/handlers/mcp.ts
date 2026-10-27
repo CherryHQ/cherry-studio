@@ -38,6 +38,14 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   'mcp.server.refresh_tools': async ({ serverId }) => {
     await application.get('McpCatalogService').refreshTools(serverId)
   },
+  'mcp.server.list_skills': async ({ serverId, requestId }, { senderId }) => {
+    if (!senderId) throw new Error('MCP skill discovery requires a managed window')
+    return application
+      .get('McpRuntimeService')
+      .runDesktopRequest(senderId, requestId, (signal) =>
+        application.get('McpCatalogService').listSkills(serverId, signal)
+      )
+  },
   'mcp.server.list_prompts': async ({ serverId }) => application.get('McpRuntimeService').listPrompts(serverId),
   'mcp.server.list_resources': async ({ serverId }) => application.get('McpRuntimeService').listResources(serverId),
   'mcp.server.list_resource_templates': async ({ serverId }) =>

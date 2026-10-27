@@ -2247,6 +2247,8 @@
   "lmstudio.keep_alive_time.description": "Tiempo que el modelo permanece en memoria después de la conversación (predeterminado: 5 minutos)",
   "lmstudio.keep_alive_time.placeholder": "minutos",
   "lmstudio.keep_alive_time.title": "Tiempo de Actividad",
+  "mcp.skills.unavailable": "Habilidades MCP no disponibles",
+  "mcp.skills.use": "Usa la habilidad MCP «{{name}}» de {{server}} ({{origin}}).",
   "message.agents.import.error": "Error al importar",
   "message.agents.imported": "Se han importado correctamente {{count}} asistentes",
   "message.api.check.model.title": "Seleccione el modelo a verificar",

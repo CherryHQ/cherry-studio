@@ -2247,6 +2247,8 @@
   "lmstudio.keep_alive_time.description": "เวลาเป็นนาทีในการคงการเชื่อมต่อ ค่าเริ่มต้นคือ 5 นาที",
   "lmstudio.keep_alive_time.placeholder": "นาที",
   "lmstudio.keep_alive_time.title": "เวลาคงการเชื่อมต่อ",
+  "mcp.skills.unavailable": "ทักษะ MCP ไม่พร้อมใช้งาน",
+  "mcp.skills.use": "ใช้ทักษะ MCP “{{name}}” จาก {{server}} ({{origin}})",
   "message.agents.import.error": "นำเข้าไม่สำเร็จ",
   "message.agents.imported": "นำเข้าผู้ช่วย {{count}} รายการสำเร็จ",
   "message.api.check.model.title": "เลือกโมเดลที่ใช้ตรวจจับ",

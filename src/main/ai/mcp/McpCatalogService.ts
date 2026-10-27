@@ -61,6 +61,10 @@ export class McpCatalogService extends BaseService {
     )
   }
 
+  public listSkills(serverId: string, signal?: AbortSignal) {
+    return application.get('McpRuntimeService').listSkills(serverId, signal)
+  }
+
   protected async onReady(): Promise<void> {
     void this.prewarmActiveServerTools()
   }

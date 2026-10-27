@@ -2247,6 +2247,8 @@
   "lmstudio.keep_alive_time.description": "Χρόνος που ο μοντέλος διατηρείται στη μνήμη μετά από το συνομιλητή (προεπιλογή: 5 λεπτά)",
   "lmstudio.keep_alive_time.placeholder": "λεπτά",
   "lmstudio.keep_alive_time.title": "Χρόνος διατήρησης ενεργοποίησης",
+  "mcp.skills.unavailable": "Μη διαθέσιμες δεξιότητες MCP",
+  "mcp.skills.use": "Χρησιμοποίησε τη δεξιότητα MCP «{{name}}» από {{server}} ({{origin}}).",
   "message.agents.import.error": "Η εισαγωγή απέτυχε",
   "message.agents.imported": "Εισήχθησαν επιτυχώς {{count}} βοηθοί",
   "message.api.check.model.title": "Επιλέξτε το μοντέλο που θα ελέγξετε",

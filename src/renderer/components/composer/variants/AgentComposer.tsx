@@ -61,6 +61,7 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useMcpSkills } from '@renderer/hooks/useMcpSkills'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -909,6 +910,7 @@ const AgentComposerInner = ({
     error: availableSkillsError,
     refresh: refreshAvailableSkills
   } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
+  const remoteSkillCatalogs = useMcpSkills(agent?.mcps ?? [], rootPanelVisible || skillsPanelVisible)
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
     [availableSkills]
@@ -1196,12 +1198,41 @@ const AgentComposerInner = ({
 
   const skillLabel = t('plugins.skills')
   const skillItems = useMemo<QuickPanelListItem[]>(
-    () =>
-      createSkillQuickPanelItems(availableSkills, {
-        skillLabel,
-        onInsertSkill: insertSkillToken
-      }),
-    [availableSkills, insertSkillToken, skillLabel]
+    () => [
+      ...createSkillQuickPanelItems(availableSkills, { skillLabel, onInsertSkill: insertSkillToken }),
+      ...remoteSkillCatalogs.flatMap((catalog): QuickPanelListItem[] =>
+        catalog.error
+          ? [
+              {
+                id: `mcp-skill-error:${catalog.serverId}`,
+                label: t('mcp.skills.unavailable'),
+                icon: <McpLogo />,
+                description: `${catalog.serverId}: ${catalog.error}`,
+                disabled: true
+              }
+            ]
+          : catalog.skills.map((skill) => ({
+              id: `mcp-skill:${JSON.stringify([skill.serverId, skill.uri])}`,
+              label: `${skill.frontmatter.name} · ${skill.serverName}`,
+              icon: <McpLogo />,
+              description: `${skill.frontmatter.description} — ${skill.uri}`,
+              filterText: `${skill.frontmatter.name} ${skill.serverName} ${skill.frontmatter.description} ${skill.uri}`,
+              searchAliases: [skillLabel],
+              action: ({ inputAdapter }) => {
+                inputAdapter?.insertText(
+                  t('mcp.skills.use', {
+                    name: skill.frontmatter.name,
+                    server: skill.serverName,
+                    origin: JSON.stringify({ server_id: skill.serverId, skill_uri: skill.uri })
+                  }) + ' ',
+                  { tokenizeVariables: false }
+                )
+                inputAdapter?.focus()
+              }
+            }))
+      )
+    ],
+    [availableSkills, insertSkillToken, remoteSkillCatalogs, skillLabel, t]
   )
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
     return {

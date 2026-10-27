@@ -31,6 +31,10 @@ import {
 import { withInputRequired } from '@modelcontextprotocol/client'
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
 import { GetPromptResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/core'
+import * as z from 'zod'
+
+import { validateMcpSkill } from '@main/ai/skills/mcpSkillContent'
+import { MCP_SKILLS_EXTENSION, McpSkillSchema, type McpSkill } from '@shared/types/mcpSkills'
 
 import type {
   McpCallToolOptions,
@@ -309,6 +313,56 @@ export class ClientMcpConnection implements McpConnection {
         }
       }
     }
+  }
+
+  private get skillsCapability() {
+    if (this.era !== 'modern' || !this.serverCapabilities?.resources) return undefined
+    const capability = this.serverCapabilities.extensions?.[MCP_SKILLS_EXTENSION]
+    return z.object({ directoryRead: z.boolean().optional() }).safeParse(capability).data
+  }
+
+  public async listSkills(options?: McpRequestOptions): Promise<McpSkill[]> {
+    if (!this.skillsCapability) return []
+    return this.withRequestContext(options, async (signal) => {
+      const skills: McpSkill[] = []
+      const cursors = new Set<string>()
+      const uris = new Set<string>()
+      let cursor: string | undefined
+      do {
+        const result = await this.client.request(
+          { method: 'skills/list', params: this.paramsWithLogLevel({ cursor, _meta: {} }) },
+          z.object({
+            skills: McpSkillSchema.array(),
+            nextCursor: z.string().optional(),
+            ttlMs: z.number().nonnegative(),
+            cacheScope: z.enum(['public', 'private'])
+          }),
+          { signal, timeout: options?.timeoutMs }
+        )
+        for (const skill of result.skills) {
+          if (uris.has(skill.uri)) throw new Error('Duplicate skill URI in catalog')
+          uris.add(skill.uri)
+          skills.push(validateMcpSkill(skill))
+        }
+        cursor = result.nextCursor
+        if (cursor !== undefined && cursors.has(cursor)) throw new Error('Repeated skill catalog cursor')
+        if (cursor !== undefined) cursors.add(cursor)
+      } while (cursor !== undefined)
+      return skills
+    })
+  }
+
+  public async getSkill(uri: string, options?: McpRequestOptions): Promise<McpSkill> {
+    if (!this.skillsCapability) throw new Error('Server does not advertise MCP Skills')
+    return this.withRequestContext(options, async (signal) => {
+      const result = await this.client.request(
+        { method: 'skills/get', params: this.paramsWithLogLevel({ uri, _meta: {} }) },
+        z.object({ skill: McpSkillSchema, ttlMs: z.number().nonnegative(), cacheScope: z.enum(['public', 'private']) }),
+        { signal, timeout: options?.timeoutMs }
+      )
+      if (result.skill.uri !== uri) throw new Error('Server returned a different skill URI')
+      return validateMcpSkill(result.skill)
+    })
   }
 
   public async listTools(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Tool[]> {

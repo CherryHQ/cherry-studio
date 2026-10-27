@@ -140,7 +140,7 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = {
       name: CHERRY_MCP_SERVER.SKILLS,
-      connect: serveAgentMcpServer(() => createSkillsServer(agent.id))
+      connect: serveAgentMcpServer(() => createSkillsServer(agent.id, session.id))
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {

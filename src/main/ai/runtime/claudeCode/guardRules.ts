@@ -14,6 +14,7 @@
 
 import path from 'node:path'
 
+import { application } from '@application'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import {
@@ -135,6 +136,19 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
 
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
+    id: 'mcp-skill-execution',
+    bypassBehavior: 'enforce',
+    match: {
+      when: (ctx) => {
+        if (!ctx.sessionId) return null
+        const reason = application.get('McpSkillService').guardTool(ctx.sessionId, ctx.toolName)
+        return reason ? { evidence: reason } : null
+      }
+    },
+    effect: 'deny',
+    reason: (hit) => hit.evidence ?? 'MCP skill approval is required'
+  },
+  {
     id: 'browser-tool-disabled',
     bypassBehavior: 'enforce',
     match: {
@@ -208,6 +222,23 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'interactive-headless',
     match: { when: (ctx) => (claudeToolRequiresUserInteraction(ctx.toolName) ? {} : null) },
+    headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+  },
+  {
+    id: 'mcp-skill-tool-approval',
+    bypassBehavior: 'enforce',
+    match: {
+      when: (ctx) => {
+        const approval = ctx.sessionId
+          ? application
+              .get('McpSkillService')
+              .toolApproval(ctx.sessionId, ctx.toolName, ctx.input ?? {}, ctx.permissionMode)
+          : undefined
+        return approval ? {} : null
+      }
+    },
+    effect: 'ask',
+    reason: 'MCP skill tool approval is required',
     headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
   },
   {

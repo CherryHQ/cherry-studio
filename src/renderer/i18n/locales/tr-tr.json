@@ -2247,6 +2247,8 @@
   "lmstudio.keep_alive_time.description": "Bağlantının canlı tutulacağı dakika cinsinden süre; varsayılan değer 5 dakikadır.",
   "lmstudio.keep_alive_time.placeholder": "Dakika",
   "lmstudio.keep_alive_time.title": "Bağlantıyı Canlı Tutma Süresi",
+  "mcp.skills.unavailable": "MCP becerileri kullanılamıyor",
+  "mcp.skills.use": "{{server}} üzerindeki “{{name}}” MCP becerisini kullan ({{origin}}).",
   "message.agents.import.error": "İçe aktarma başarısız oldu",
   "message.agents.imported": "{{count}} asistan başarıyla içe aktarıldı",
   "message.api.check.model.title": "Denetim için kullanılacak modeli seçin",
