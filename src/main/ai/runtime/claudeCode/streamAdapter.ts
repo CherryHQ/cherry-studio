@@ -199,6 +199,9 @@ type StreamContext = {
    * multi-chunk partition finding). Re-present this tail with every advance.
    */
   scratchpadMaskStateUnstepped: string
+  /** Raw scan-consumed text queued for mask-state advance (suppressed lines
+   * included): the container machine must see pre-strip structure, not the
+   * blank lines stripping leaves (round-18 review case 56). */
   /**
    * Append-stable open-line carry verdicts, keyed by the open line's absolute
    * start. Recomputed when the line restarts or shrinks (round-17 latency).
@@ -674,6 +677,7 @@ export class ClaudeCodeStreamAdapter {
       scratchpadStreamHtmlCarryBase: -1,
       scratchpadMaskState: initialIndentedMaskState(),
       scratchpadMaskStateUnstepped: '',
+      scratchpadMaskAdvanceRawQueue: '',
       scratchpadOpenLineCarry: null,
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
@@ -1123,6 +1127,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadTextProbe = ''
     ctx.scratchpadMaskState = initialIndentedMaskState()
     ctx.scratchpadMaskStateUnstepped = ''
+    ctx.scratchpadMaskAdvanceRawQueue = ''
     ctx.scratchpadOpenLineCarry = null
     ctx.suppressActiveTextPart = false
     ctx.suppressCompactionArtifactPart = false
@@ -1262,7 +1267,15 @@ export class ClaudeCodeStreamAdapter {
    * remainder's re-scan.
    */
   private advanceScratchpadMaskState(emit: string, ctx: StreamContext): void {
-    const maskAdvanceInput = ctx.scratchpadMaskStateUnstepped + emit
+    // The scratchpad scan queues the RAW text it consumed per delta; the
+    // container machine must advance over that raw structure: advancing over
+    // post-strip visible text turns suppressed scratchpad-block lines into
+    // blanks that never close an enclosing list, so a later indented line is
+    // misclassified against a stale list (round-18 review case 56). The
+    // visible fallback covers only deltas that bypassed the scan.
+    const rawAdvance = ctx.scratchpadMaskAdvanceRawQueue
+    ctx.scratchpadMaskAdvanceRawQueue = ''
+    const maskAdvanceInput = ctx.scratchpadMaskStateUnstepped + (rawAdvance !== '' ? rawAdvance : emit)
     const maskAdvanceCut = this.steppedLineEndOffset(maskAdvanceInput)
     if (maskAdvanceCut <= 0) {
       ctx.scratchpadMaskStateUnstepped = maskAdvanceInput
@@ -1332,7 +1345,8 @@ export class ClaudeCodeStreamAdapter {
       ctx.scratchpadStreamFenceCarry +
       htmlCarry +
       (openLinePrefix !== '' ? openLinePrefix : (ctx.scratchpadStreamEscapeCarry ? '\\' : '') + indentPrefix)
-    const combined = prefix + ctx.scratchpadStreamRemainder + text
+    const scanRemainder = ctx.scratchpadStreamRemainder
+    const combined = prefix + scanRemainder + text
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
 
@@ -1363,6 +1377,7 @@ export class ClaudeCodeStreamAdapter {
       // would change it (e.g. a scratchpad block ahead of the fence), keep
       // buffering everything.
       if (openFence && stableText && stripKnownModelScratchpadBlocksPreservingCodeFences(stableText) === stableText) {
+        ctx.scratchpadMaskAdvanceRawQueue += combined.slice(prefix.length, openFence.stableEnd)
         ctx.scratchpadStreamRemainder = combined.slice(openFence.stableEnd)
         ctx.scratchpadStreamFenceCarry = openFence.openerLine
         // The cut sits at a line boundary: no adjacent backslash run carries.
@@ -1400,6 +1415,11 @@ export class ClaudeCodeStreamAdapter {
       scanned = stripped.slice(shared)
     }
     const { emit, buffer } = this.splitIncompleteTagSuffix(scanned)
+    // Raw consumed this scan: the carried remainder plus this delta, less
+    // the re-buffered suffix (a partial tag survives stripping byte-identical,
+    // so the boundary holds in raw terms).
+    const scanRaw = scanRemainder + text
+    ctx.scratchpadMaskAdvanceRawQueue += scanRaw.slice(0, scanRaw.length - buffer.length)
     ctx.scratchpadStreamRemainder = buffer
     // Escape context belongs to the emit/buffer boundary, not the stripped tail: a
     // backslash inside the buffered partial tag is invisible to the next chunk, so
@@ -2183,6 +2203,8 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadStreamFenceCarry = ''
         ctx.scratchpadMaskState = initialIndentedMaskState()
         ctx.scratchpadMaskStateUnstepped = ''
+        ctx.scratchpadMaskAdvanceRawQueue = ''
+    ctx.scratchpadMaskAdvanceRawQueue = ''
         ctx.scratchpadOpenLineCarry = null
         this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
@@ -3327,6 +3349,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadStreamHtmlCarryBase = -1
     ctx.scratchpadMaskState = initialIndentedMaskState()
     ctx.scratchpadMaskStateUnstepped = ''
+    ctx.scratchpadMaskAdvanceRawQueue = ''
     ctx.scratchpadOpenLineCarry = null
     this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
