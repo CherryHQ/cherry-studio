@@ -88,12 +88,14 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 实现 PR-1 期间记下的决定（2026-10-19 至 2026-10-20）：
 
 - `Waits.untilDone(thread, key)` 取代等待 run 结束：driver 等的是自己提交的键，遗留输入不会让它空转。
-- steer 只并入它点名的、正在跑的 run；该 run 先结束或发出它的工具调用中止时撤回，绝不开新 run。steer 键按 run 区分。
+- 发给运行中 child 的消息在下一个输入边界 steer；如果当前运行先正常结束，消息保留同一 child id 和历史，在后续 run 继续处理。接纳结果返回实际接收输入的 run。跨越结束边界和重放时，请求 key 保持不变。显式取消仍会撤回尚未消费的输入。
 - fork 一律新建会话；占位结果只补给 fork 子代理自己的未答调用；任何 run 开始前，未答调用先补「被打断」结果。
 - 闸门的 `before` 收到中止信号；被中止的问人不留 memo。
 - 每次压缩前先问 `onCompacting`；拒绝则不压缩；适配器拒绝绕过它的压缩。
 - 每个会话一个空闲驱动，负责人已确认；fork 出的子代理不自驱。
 - YAGNI 审计找出的死字段已删除（`callWindow`、`GateFacts.lineage`、`LiveFacts.reopened`、工具结果的 `blocked`、`turn-stop.by`）。
+
+负责人于 2026-10-27 移除仅限指定 run 的输入约束。`Helpers.message` 只指定 child 和请求 key，不再接受目标 run 参数。迟到消息如果启动另一轮，编排层记录实际 run，并用已接纳的输入 key 创建结果任务，让父会话收到结果且不会重复发送输入。Durable 使用原生 `whenBusy: 'steer'` 即可；条件提交补丁及适配器接口撤回，独立的严格打开存储补丁保留。使用量、结果和定向停止仍需要运行身份，但普通消息不因运行结束而过期。
 
 ### 受 harness 限制的能力
 
