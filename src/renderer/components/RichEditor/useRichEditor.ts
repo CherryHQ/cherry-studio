@@ -46,6 +46,8 @@ export interface UseRichEditorOptions {
   enableImageInsertion?: boolean
   /** Slash-menu commands hidden for this editor instance */
   disabledCommands?: readonly string[]
+  /** Maps an image destination to the URL to display; the Markdown keeps the original destination. */
+  resolveImageSrc?: (src: string) => string | null
   /** Show table action menu (row/column) with concrete actions and position */
   onShowTableActionMenu?: (payload: {
     type: 'row' | 'column'
@@ -102,6 +104,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     ariaLabel,
     enableImageInsertion = true,
     disabledCommands,
+    resolveImageSrc,
     onShowTableActionMenu,
     scrollParent
   } = options
@@ -269,10 +272,19 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           showTableActionMenu('column', colIndex, position)
         },
         enableImageInsertion,
-        disabledCommands
+        disabledCommands,
+        resolveImageSrc
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeCodeTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
+    [
+      placeholder,
+      activeCodeTheme,
+      handleLinkHover,
+      handleLinkHoverEnd,
+      enableImageInsertion,
+      disabledCommands,
+      resolveImageSrc
+    ]
   )
 
   const editor = useEditor({

@@ -8,11 +8,10 @@ import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
-import { parseFileLinkHref } from '@renderer/utils/filePath'
+import { parseFileLinkHref, resolveMarkdownImageSrc } from '@renderer/utils/filePath'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { toFileUrl } from '@shared/utils/file'
 
 import type { FilePreviewPluginProps } from '../../types'
 import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
@@ -72,16 +71,6 @@ interface MarkdownPreviewContentProps {
   loadState: MarkdownFileLoadState
   markdownId: string
   mode: MarkdownFilePreviewMode
-}
-
-function resolveMarkdownImageSrc(filePath: AbsoluteFilePath, src: string): string | null {
-  if (!src || src.trim() !== src || /^[/?#]|^[a-z][a-z0-9+.-]*:|[\\\p{Cc}]|%2f|%5c/iu.test(src)) return src
-
-  try {
-    return new URL(src, toFileUrl(filePath)).href
-  } catch {
-    return null
-  }
 }
 
 function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {

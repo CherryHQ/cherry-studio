@@ -1,3 +1,6 @@
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { toFileUrl } from '@shared/utils/file'
+
 const PATH_SEGMENT_PATTERN = String.raw`[^/\n\r\`"'<>|]+`
 const ABSOLUTE_FILE_PATH_PATTERN = new RegExp(
   String.raw`^/(?!/)(?:${PATH_SEGMENT_PATTERN}/)+${PATH_SEGMENT_PATTERN}/?$`
@@ -80,4 +83,39 @@ export function parseFileLinkHref(href: string | undefined): string | null {
   if (!path || path.startsWith('//')) return null // protocol-relative → external
   if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(path) && /^[a-z][a-z0-9+.-]*:/i.test(path)) return null
   return path
+}
+
+/**
+ * Resolves a Markdown image destination relative to the document that contains it.
+ * Absolute paths, URLs with a scheme, query/hash-only targets and suspicious encodings are returned
+ * unchanged; `null` means the destination could not be resolved.
+ */
+export function resolveMarkdownImageSrc(documentPath: AbsoluteFilePath, src: string): string | null {
+  if (!src || src.trim() !== src || /^[/?#]|^[a-z][a-z0-9+.-]*:|[\\\p{Cc}]|%2f|%5c/iu.test(src)) return src
+
+  try {
+    return new URL(src, toFileUrl(documentPath)).href
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolves an image destination inside a note. Notes are the user's own files, so absolute local paths
+ * render as well; packaged builds already resolved `/path` against their `file:` page URL, so this keeps
+ * dev and packaged builds consistent. Everything else follows `resolveMarkdownImageSrc`.
+ */
+export function resolveNoteImageSrc(notePath: AbsoluteFilePath, src: string): string | null {
+  const drivePath = WINDOWS_DRIVE_FILE_PATH_PATTERN.test(src) ? AbsoluteFilePathSchema.safeParse(src) : undefined
+  if (drivePath?.success) return toFileUrl(drivePath.data)
+
+  if (src.startsWith('/') && !src.startsWith('//')) {
+    try {
+      return new URL(src, 'file:///').href
+    } catch {
+      return null
+    }
+  }
+
+  return resolveMarkdownImageSrc(notePath, src)
 }

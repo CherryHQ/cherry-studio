@@ -62,6 +62,8 @@ export interface RichEditorProps {
   enableImageInsertion?: boolean
   /** Toolbar and slash-menu commands hidden for this editor instance */
   disabledCommands?: readonly string[]
+  /** Maps an image destination to the URL to display; the Markdown keeps the original destination. */
+  resolveImageSrc?: (src: string) => string | null
 }
 
 export interface ToolbarItem {

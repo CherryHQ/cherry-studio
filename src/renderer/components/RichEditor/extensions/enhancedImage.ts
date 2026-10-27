@@ -14,7 +14,11 @@ declare module '@tiptap/core' {
 
 interface EnhancedImageOptions extends ImageOptions {
   enableInputRules: boolean
+  /** Maps the stored destination to the URL to display; returns null when it cannot be resolved. */
+  resolveSrc?: (src: string) => string | null
 }
+
+const MARKDOWN_SRC_ATTRIBUTE = 'data-markdown-src'
 
 // Enhanced Image extension that emits events for image upload
 export const EnhancedImage = Image.extend<EnhancedImageOptions>({
@@ -37,17 +41,26 @@ export const EnhancedImage = Image.extend<EnhancedImageOptions>({
   },
 
   addAttributes() {
+    const { resolveSrc } = this.options
     return {
       ...this.parent?.(),
       src: {
         default: null,
-        parseHTML: (element) => element.getAttribute('src'),
+        // Copied or dragged images carry the stored destination, not the resolved display URL.
+        parseHTML: (element) => element.getAttribute(MARKDOWN_SRC_ATTRIBUTE) ?? element.getAttribute('src'),
         renderHTML: (attributes) => {
           if (!attributes.src) {
             return {}
           }
+          const displaySrc = resolveSrc?.(attributes.src)
+          if (!displaySrc || displaySrc === attributes.src) {
+            return {
+              src: attributes.src
+            }
+          }
           return {
-            src: attributes.src
+            src: displaySrc,
+            [MARKDOWN_SRC_ATTRIBUTE]: attributes.src
           }
         }
       },

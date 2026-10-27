@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AbsoluteFilePath } from '@shared/types/file'
+
 const mocks = vi.hoisted(() => ({
   codeEditorEvaluations: 0,
   richEditorEvaluations: 0,
@@ -163,6 +165,24 @@ describe('NotesEditor focus behavior', () => {
     expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('onCommandsReady')
     // Hiding the image command must not disable image paste, which notes have always supported.
     expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('enableImageInsertion')
+  })
+
+  it('resolves relative images against the note folder', async () => {
+    render(
+      <NotesEditor
+        activeNodeId="/notes/folder/example.md"
+        notePath={'/notes/folder/example.md' as AbsoluteFilePath}
+        currentContent="![](assets/a.png)"
+        tokenCount={17}
+        editorRef={{ current: null }}
+        codeEditorRef={{ current: null }}
+        onMarkdownChange={vi.fn()}
+      />
+    )
+
+    await screen.findByTestId('rich-editor')
+    const { resolveImageSrc } = mocks.richEditorProps.mock.lastCall?.[0] ?? {}
+    expect(resolveImageSrc?.('assets/a.png')).toBe('file:///notes/folder/assets/a.png')
   })
 
   it('names the spell check toggle in the editor footer', async () => {

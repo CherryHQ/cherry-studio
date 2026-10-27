@@ -53,6 +53,8 @@ export interface CreateRichEditorExtensionsOptions {
   enableImageInsertion?: boolean
   /** Slash-menu commands hidden for this editor instance. */
   disabledCommands?: readonly string[]
+  /** Maps an image destination to the URL to display; the Markdown keeps the original destination. */
+  resolveImageSrc?: (src: string) => string | null
 }
 
 /**
@@ -78,7 +80,8 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
     onRowActionClick,
     onColumnActionClick,
     enableImageInsertion = true,
-    disabledCommands
+    disabledCommands,
+    resolveImageSrc
   } = options
 
   return [
@@ -114,7 +117,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       blockOptions: mathBlockOptions,
       inlineOptions: mathInlineOptions
     }),
-    EnhancedImage.configure({ enableInputRules: enableImageInsertion }),
+    EnhancedImage.configure({ enableInputRules: enableImageInsertion, resolveSrc: resolveImageSrc }),
     Placeholder.configure({
       placeholder,
       showOnlyWhenEditable: true,
