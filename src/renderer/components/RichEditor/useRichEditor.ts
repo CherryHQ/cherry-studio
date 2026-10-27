@@ -1,5 +1,6 @@
-import '@renderer/assets/styles/vendor/katex.css'
 import type { Editor } from '@tiptap/core'
+
+import '@renderer/assets/styles/vendor/katex.css'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
 import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
 import { useEditor, useEditorState } from '@tiptap/react'
@@ -11,6 +12,7 @@ import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 import { createRichEditorExtensions } from './createExtensions'
+import { codeHighlightPluginKey } from './extensions/codeBlockHighlight/highlightPlugin'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 import { pickInlinePasteContent, stripImageNodes, stripImageNodesFromSlice } from './helpers/markdownPaste'
 
@@ -108,7 +110,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const [markdown, setMarkdownState] = useState<string>(initialContent)
 
   // Get theme and language mapping from CodeStyleProvider
-  const { activeShikiTheme } = useCodeStyle()
+  const { activeCodeTheme } = useCodeStyle()
 
   const [tableOfContentsItems, setTableOfContentsItems] = useState<TableOfContentDataItem[]>([])
 
@@ -158,7 +160,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       createRichEditorExtensions({
         editable,
         placeholder,
-        shikiTheme: activeShikiTheme,
+        codeTheme: activeCodeTheme,
         onLinkHover: handleLinkHover,
         onLinkHoverEnd: handleLinkHoverEnd,
         tocScrollParent: scrollParent,
@@ -271,7 +273,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         disabledCommands
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
+    [placeholder, activeCodeTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
   )
 
   const editor = useEditor({
@@ -415,6 +417,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       }
     }
   })
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed)
+      editor.view.dispatch(
+        editor.state.tr.setMeta(codeHighlightPluginKey, activeCodeTheme).setMeta('addToHistory', false)
+      )
+  }, [editor, activeCodeTheme])
 
   // Handle image paste function
   const handleImagePaste = useCallback(

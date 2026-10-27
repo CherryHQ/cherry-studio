@@ -21,6 +21,7 @@ export interface KnowledgeBaseDiscoveryPage {
 
 type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
 export const KNOWLEDGE_JOB_TYPES = [
+  'knowledge.copy-sources',
   'knowledge.prepare-root',
   'knowledge.index-documents',
   'knowledge.check-file-processing-result',
@@ -101,6 +102,10 @@ export function knowledgeDeleteSubtreeIdempotencyKey(baseId: KnowledgeBaseId, ro
 export function knowledgeReindexSubtreeIdempotencyKey(baseId: KnowledgeBaseId, rootItemIds: KnowledgeItemId[]): string {
   const rootKey = [...rootItemIds].sort().join(',')
   return `knowledge:${baseId}:${rootKey}:reindex`
+}
+
+export function knowledgeCopySourcesIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {
+  return `knowledge:${baseId}:${itemId}:copy`
 }
 
 export function knowledgePrepareIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {

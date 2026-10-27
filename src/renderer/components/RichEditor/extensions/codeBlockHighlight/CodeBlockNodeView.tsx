@@ -1,0 +1,159 @@
+import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
+import { Code, Copy, Eye } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Combobox, Tooltip } from '@cherrystudio/ui'
+import { CODE_LANGUAGES } from '@cherrystudio/ui/code-highlight'
+import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from '@renderer/components/CodeBlockView/constants'
+
+const languageOptions = [
+  ...new Set([...Object.keys(CODE_LANGUAGES), ...Object.values(CODE_LANGUAGES).flat(), ...SPECIAL_VIEWS])
+].sort()
+
+const options = languageOptions.map((value) => ({ value, label: value }))
+
+const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
+  const { node, updateAttributes, editor } = props
+  const { t } = useTranslation()
+
+  // Detect language from node attrs or fallback
+  const language = (node.attrs.language as string) || 'text'
+  const isSpecialView = SPECIAL_VIEWS.includes(language)
+  const isEditable = editor.isEditable
+  const [showPreview, setShowPreview] = useState(true)
+
+  // Handle language change
+  const handleLanguageChange = useCallback(
+    (value: string | string[]) => {
+      if (typeof value === 'string') {
+        editor.view.focus()
+        updateAttributes({ language: value })
+      }
+    },
+    [editor, updateAttributes]
+  )
+
+  // Handle copy code block content
+  const handleCopy = useCallback(async () => {
+    const codeText = props.node.textContent || ''
+    try {
+      await navigator.clipboard.writeText(codeText)
+    } catch {
+      // Clipboard may fail (e.g. non-secure context)
+    }
+  }, [props.node.textContent])
+
+  const handleToggleView = useCallback(() => {
+    setShowPreview((prev) => !prev)
+  }, [])
+
+  // Special view: render diagram preview with toggle to edit source
+  if (isSpecialView && showPreview) {
+    const SpecialComponent = SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS].component
+    const codeContent = node.textContent || ''
+
+    return (
+      <NodeViewWrapper className="code-block-wrapper">
+        <div className="code-block-header">
+          <span className="code-block-language-label">{language}</span>
+          <div className="flex items-center gap-1">
+            {isEditable && (
+              <Tooltip content={t('common.edit')}>
+                <Button
+                  aria-label={t('common.edit')}
+                  size="icon-sm"
+                  variant="ghost"
+                  className="code-block-copy-btn"
+                  onClick={handleToggleView}>
+                  <Code size={14} />
+                </Button>
+              </Tooltip>
+            )}
+            <Tooltip content={t('common.copy')}>
+              <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleCopy}>
+                <Copy size={14} />
+              </Button>
+            </Tooltip>
+          </div>
+        </div>
+        <div className="special-preview-wrapper">
+          <SpecialComponent>{codeContent}</SpecialComponent>
+        </div>
+        <pre className={`language-${language}`} style={{ display: 'none' }}>
+          <NodeViewContent<'code'> as="code" />
+        </pre>
+      </NodeViewWrapper>
+    )
+  }
+
+  // Special view: source editing mode with toggle to preview
+  if (isSpecialView && !showPreview) {
+    return (
+      <NodeViewWrapper className="code-block-wrapper">
+        <div className="code-block-header">
+          <Combobox
+            value={language}
+            options={options}
+            onChange={handleLanguageChange}
+            size="sm"
+            className="code-block-language-select min-w-[90px]"
+            aria-label={t('common.language')}
+            searchPlaceholder={t('common.search')}
+            emptyText={t('common.no_results')}
+            filterOption={(option, search) => option.value.toLowerCase().includes(search.trim().toLowerCase())}
+            renderValue={() => language}
+          />
+          <div className="flex items-center gap-1">
+            <Tooltip content={t('common.preview')}>
+              <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleToggleView}>
+                <Eye size={14} />
+              </Button>
+            </Tooltip>
+            <Tooltip content={t('common.copy')}>
+              <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleCopy}>
+                <Copy size={14} />
+              </Button>
+            </Tooltip>
+          </div>
+        </div>
+        <pre className={`language-${language}`}>
+          <NodeViewContent<'code'> as="code" />
+        </pre>
+      </NodeViewWrapper>
+    )
+  }
+
+  // Normal code block: source code with language selector
+  return (
+    <NodeViewWrapper className="code-block-wrapper">
+      <div className="code-block-header">
+        <Combobox
+          value={language}
+          options={options}
+          onChange={handleLanguageChange}
+          size="sm"
+          className="code-block-language-select min-w-[90px]"
+          aria-label={t('common.language')}
+          searchPlaceholder={t('common.search')}
+          emptyText={t('common.no_results')}
+          filterOption={(option, search) => option.value.toLowerCase().includes(search.trim().toLowerCase())}
+          renderValue={() => language}
+        />
+        <Tooltip content={t('common.copy')}>
+          <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleCopy}>
+            <Copy size={14} />
+          </Button>
+        </Tooltip>
+      </div>
+      <pre className={`language-${language}`}>
+        <NodeViewContent<'code'> as="code" />
+      </pre>
+    </NodeViewWrapper>
+  )
+}
+
+export const CodeBlockNodeReactRenderer = ReactNodeViewRenderer(CodeBlockNodeView)
+
+export default CodeBlockNodeView

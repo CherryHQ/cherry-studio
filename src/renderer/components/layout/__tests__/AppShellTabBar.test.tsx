@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { useTabsContext } from '@renderer/hooks/tab'
+
 import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
+import { TabsProvider } from '../TabsProvider'
 
 const mocks = vi.hoisted(() => ({
   emojiIconProps: [] as Array<{ emoji: string; size?: number; fontSize?: number; className?: string }>,
@@ -17,8 +21,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.ipcRequest }
+  ipcApi: { request: mocks.ipcRequest },
+  useIpcOn: vi.fn()
 }))
+
+vi.mock('@renderer/components/AgentBrowserRuntimeHost', () => ({ AgentBrowserRuntimeHost: () => null }))
 
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
@@ -105,7 +112,8 @@ vi.mock('../../WindowControls', () => ({
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({
-    t: (key: string) => (key === 'title.launchpad' ? 'Launchpad' : key)
+    t: (key: string) => (key === 'title.launchpad' ? 'Launchpad' : key),
+    i18n: { language: 'en' }
   })
 }))
 
@@ -185,6 +193,7 @@ const firePointerDoubleClick = (element: Element, pointerType: 'mouse' | 'touch'
 
 afterEach(() => {
   cleanup()
+  MockUseCacheUtils.resetMocks()
   vi.clearAllMocks()
   mocks.emojiIconProps.length = 0
   mocks.macTransparentState.value = false
@@ -236,16 +245,31 @@ describe('AppShellTabBar', () => {
     expect(screen.getByRole('button', { name: 'Emoji' })).toHaveAttribute('title', 'Emoji')
   })
 
-  it('opens launchpad from the plus button', async () => {
+  it('appends a fresh launchpad from the plus button while a middle tab is active', async () => {
     const user = userEvent.setup()
-    const openTab = vi.fn()
-    const tabs = [createTab('home')]
+    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [createTab('home'), createTab('a'), createTab('b')])
+    MockUseCacheUtils.setPersistCacheValue('ui.tab.active_tab_id', 'a')
+    function TabBar() {
+      return <AppShellTabBar {...useTabsContext()} />
+    }
+    const { result } = renderHook(useTabsContext, {
+      wrapper: ({ children }) => (
+        <TabsProvider>
+          {children}
+          <TabBar />
+        </TabsProvider>
+      )
+    })
 
-    renderTabBar({ tabs, activeTabId: 'home', openTab })
+    for (const count of [4, 5]) {
+      act(() => result.current.setActiveTab('a'))
+      await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
-    await user.click(screen.getByRole('button', { name: 'Launchpad' }))
-
-    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+      expect(result.current.tabs).toHaveLength(count)
+      expect(result.current.tabs.slice(0, 3).map((tab) => tab.id)).toEqual(['home', 'a', 'b'])
+      expect(result.current.tabs.at(-1)?.url).toBe('/app/launchpad')
+      expect(result.current.activeTabId).toBe(result.current.tabs.at(-1)?.id)
+    }
   })
 
   it('renders preset and installed mini app icons at the same circular size', () => {

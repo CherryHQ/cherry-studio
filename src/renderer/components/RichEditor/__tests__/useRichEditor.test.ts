@@ -1,13 +1,19 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { Selection, TextSelection } from '@tiptap/pm/state'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeShikiTheme: 'one-light' })
+  useCodeStyle: () => ({ activeCodeTheme: 'one-light' })
 }))
 
 import { useRichEditor } from '../useRichEditor'
+
+// Tiptap defers editor destruction; finish it before JSDOM tears down window listeners.
+afterEach(async () => {
+  cleanup()
+  await new Promise((resolve) => setTimeout(resolve, 1))
+})
 
 const CONTENT = 'hello world'
 

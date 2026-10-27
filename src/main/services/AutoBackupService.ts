@@ -9,6 +9,7 @@ import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyF
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import {
   AUTO_BACKUP_TYPES,
+  BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE,
   type AutoBackupEvent,
   type AutoBackupEventInput,
   type AutoBackupSnapshot,
@@ -280,7 +281,8 @@ export class AutoBackupService extends BaseService {
       }
 
       state.retryCount++
-      if (state.retryCount < MAX_ATTEMPTS) {
+      const payloadTooLarge = error instanceof Error && error.message.includes(BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE)
+      if (!payloadTooLarge && state.retryCount < MAX_ATTEMPTS) {
         const delay = 2 ** (state.retryCount - 1) * 10_000 - 3_000
         logger.warn('Automatic backup failed; retry scheduled', { type, retry: state.retryCount, delayMs: delay })
         this.scheduleNext(type, 'immediate', generation, delay)
@@ -294,7 +296,7 @@ export class AutoBackupService extends BaseService {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logFailure(
         logger,
-        'Automatic backup failed after all attempts',
+        payloadTooLarge ? 'Automatic backup rejected: HTTP 413' : 'Automatic backup failed after all attempts',
         error,
         'backup.automatic',
         classifyBackupFailure(error)

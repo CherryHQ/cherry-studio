@@ -66,7 +66,7 @@ const fetchRemoteTextMock = mocks.fetchRemoteText
 
 const runtimeConfig: WebSearchExecutionConfig = {
   maxResults: 4,
-  excludeDomains: ['example.com'],
+  excludeDomains: ['*://*.example.com/*'],
   compression: {
     method: 'none',
     cutoffLimit: 2000
@@ -238,6 +238,27 @@ describe('main web search API providers', () => {
       Site: 'exclude:qq.com|sohu.com'
     })
     expect(config).toEqual(original)
+  })
+
+  it('maps blacklist rules to bare domains for Bocha and Querit site exclusion', async () => {
+    const excludeDomains = ['*://*.qq.com/*', '*://exact.example/*', '/regex\\.example/']
+    const config = { ...runtimeConfig, excludeDomains }
+
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('bocha-response.json')))
+    await createProviderDriver(
+      BochaProvider,
+      createProvider({ id: 'bocha', apiKeys: ['bocha-key'], apiHost: 'https://api.bochaai.com' })
+    ).searchKeywords('hello', config)
+    expect(serializeRequestBody(fetchMock.mock.calls[0][1].body)).toMatchObject({ exclude: 'qq.com' })
+
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('querit-response.json')))
+    await createProviderDriver(
+      QueritProvider,
+      createProvider({ id: 'querit', apiKeys: ['querit-key'], apiHost: 'https://api.querit.ai' })
+    ).searchKeywords('hello', config)
+    expect(serializeRequestBody(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      filters: { sites: { exclude: ['qq.com'] } }
+    })
   })
 
   it.each(['Cnt is not supported in lite version', '极速版不支持参数Cnt'])(

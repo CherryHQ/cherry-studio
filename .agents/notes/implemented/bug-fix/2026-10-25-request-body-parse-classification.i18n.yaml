@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-25-request-body-parse-classification.md
+2026-10-25-request-body-parse-classification.md: df0da00b413b35842ebe758132a9c2f8c2b75b60
+2026-10-25-request-body-parse-classification.zh.md: 1c3fc492c2554c6636e60e8dcc4456ac9c9de76a

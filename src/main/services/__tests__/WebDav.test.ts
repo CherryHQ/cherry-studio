@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import type { AddressInfo } from 'node:net'
+import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getSentryLogContext } from '@shared/utils/sentry'
 
@@ -127,5 +128,30 @@ describe('WebDav TLS verification', () => {
     })
 
     await expect(webdav.checkConnection()).rejects.toThrow(/self-signed certificate/i)
+  })
+})
+
+describe('WebDAV upload error classification', () => {
+  it.each([
+    { status: 413, stream: false },
+    { status: 413, stream: true },
+    { status: 401, stream: false },
+    { status: 507, stream: false }
+  ])('classifies upload status $status (stream: $stream)', async ({ status, stream }) => {
+    const webdav = new WebDav({ webdavHost: 'https://example.com/dav' })
+    const error = Object.assign(new Error(`Invalid response: ${status} private server details`), { status })
+    vi.spyOn(webdav.instance!, 'exists').mockResolvedValue(true)
+    vi.spyOn(webdav.instance!, 'putFileContents').mockRejectedValue(error)
+
+    const data = stream ? Readable.from(Buffer.from('backup')) : Buffer.from('backup')
+    if (status === 413) {
+      await expect(webdav.putFileContents('backup.zip', data)).rejects.toMatchObject({
+        message: 'BACKUP_WEBDAV_TOO_LARGE: HTTP 413',
+        reportingHandled: true,
+        cause: error
+      })
+    } else {
+      await expect(webdav.putFileContents('backup.zip', data)).rejects.toBe(error)
+    }
   })
 })

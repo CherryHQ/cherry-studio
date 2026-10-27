@@ -15,7 +15,8 @@ import { createClient } from 'webdav'
 import { loggerService } from '@logger'
 import { logFailure } from '@main/core/logger/logFailure'
 import { classifyStorageFailure } from '@main/services/remoteStorage/failureFacts'
-import type { WebDavConfig } from '@shared/types/backup'
+import { BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE, type WebDavConfig } from '@shared/types/backup'
+import { markReportingHandled } from '@shared/utils/errorReporting'
 
 const logger = loggerService.withContext('WebDav')
 
@@ -86,6 +87,11 @@ export default class WebDav {
         'storage.webdav',
         classifyStorageFailure(error)
       )
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 413) {
+        const reported = new Error(`${BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE}: HTTP 413`, { cause: error })
+        markReportingHandled(reported)
+        throw reported
+      }
       throw error
     }
   }

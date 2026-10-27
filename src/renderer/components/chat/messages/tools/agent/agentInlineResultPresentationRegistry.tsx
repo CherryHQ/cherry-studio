@@ -5,6 +5,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { getCreateAgentResult, isCreateAgentResultPart } from './createAgentResult'
 import { CreateAgentToolInline } from './CreateAgentTool'
+import { getAgentNavigateResult, isAgentNavigateResultPart } from './navigateResult'
+import { NavigateToolInline } from './NavigateTool'
 import { getPrepareDiagnosticReportResult, isPrepareDiagnosticReportResultPart } from './prepareDiagnosticReportResult'
 import { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
 import { getScheduledTaskResult, isScheduledTaskResultPart } from './scheduledTaskResult'
@@ -16,6 +18,13 @@ interface AgentInlineResultPresentation {
 }
 
 const AGENT_INLINE_RESULT_PRESENTATIONS = [
+  {
+    isResultPart: isAgentNavigateResultPart,
+    renderResult: (toolResponse) => {
+      const result = getAgentNavigateResult(toolResponse)
+      return result ? <NavigateToolInline input={result.input} output={result.output} /> : undefined
+    }
+  },
   {
     isResultPart: isPrepareDiagnosticReportResultPart,
     renderResult: (toolResponse) => {

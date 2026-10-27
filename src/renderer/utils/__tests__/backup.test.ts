@@ -19,6 +19,12 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 describe('getLocalizedBackupErrorMessage', () => {
+  it('maps a WebDAV upload size rejection after IPC without exposing the server response', () => {
+    expect(
+      getLocalizedBackupErrorMessage(new Error('Error invoking remote method: BACKUP_WEBDAV_TOO_LARGE: HTTP 413'))
+    ).toBe('localized:backup.error.webdav_too_large')
+  })
+
   it('maps the active-writer code without exposing the raw English error', () => {
     const result = getLocalizedBackupErrorMessage(
       new Error(`Error invoking remote method: ${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running.`)
