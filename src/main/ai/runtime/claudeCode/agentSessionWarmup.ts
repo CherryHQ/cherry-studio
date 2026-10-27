@@ -603,6 +603,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   if (options.includePartialMessages === undefined) {
     options.includePartialMessages = true
   }
+  options.forwardSubagentText = true
 
   return {
     connectionConfig,

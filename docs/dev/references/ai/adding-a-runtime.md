@@ -111,10 +111,12 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        `steer-boundary` when a steer is injected. A driver that returns unplaced inputs
        for the next turn emits `steer-undelivered`; Pi instead records native queued
        inputs as aborted when execution ends without placing them, without automatic resend.
+       Claude uses native next-priority admission across the turn boundary and never
+       returns an accepted input for host resend.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` with `awaitingReply: false` — retain independent background
-       work without holding the parent's reply open. Durable uses this for child projections;
+       work without holding the parent's reply open. Durable and Claude use this for child projections;
        later result delivery announces an autonomous turn.
      - `childProjection(toolCallId)` — expose a child snapshot and subscription
        through the root owner. `messageChild(contextId, text)` dispatches child input

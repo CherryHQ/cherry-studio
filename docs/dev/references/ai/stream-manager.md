@@ -726,9 +726,10 @@ to a terminal `error` rather than sticking at `streaming`.
 
 Agent-session topics use a parallel, queue-based mechanism — never an interrupt.
 A live follow-up is steered into the running turn via `connection.redirect()`
-(no abort); if there is no live turn, or the steer is never injected, it is
-enqueued on the session's `pendingTurns` for the next turn. `send()` only upserts
-the new subscriber. See
+(no abort). Native admission owns already dispatched inputs, including Claude
+inputs that cross a turn's end; the host does not resend them. Inputs that the
+host has not dispatched remain in `pendingTurns`. `send()` only upserts the new
+subscriber. See
 [Agent Session Runtime → Live follow-up](./agent-session-runtime.md#live-follow-up).
 
 ## End-to-end flows

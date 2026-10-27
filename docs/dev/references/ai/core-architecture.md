@@ -19,7 +19,7 @@ each subsystem.
 Renderer: commands → ai.stream.open/abort → AiStreamManager
           views    ← ai.projection.* ← root/child message publishers
 Main: context provider → AiService / native runtime → UIMessageChunk stream
-      pipeStreamLoop → SDK message accumulator → current root projection
+      pipeStreamLoop → SDK accumulator + native replacement parts → current root projection
       child native observation → reconciliation/archive → independent child projection
 Terminal: persistence → projection and other subscriber notifications → cleanup
 Model requests: existing provider registry / gateway / AI SDK paths remain unchanged

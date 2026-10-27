@@ -453,9 +453,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */
-  resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
+  resolveAgentSessionUsage(headers: Headers, responseId?: string): InProcessUsageContext | undefined {
     const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
-    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
+    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
   }
 }

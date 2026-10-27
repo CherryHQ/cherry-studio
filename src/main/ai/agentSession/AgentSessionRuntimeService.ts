@@ -115,11 +115,13 @@ import {
   transitionAgentSessionRuntime,
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
+import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
 import { savedChildView } from './ChildThreadProjection'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
+import { RootMessageProjection } from './RootMessageProjection'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -192,6 +194,7 @@ export interface OpenAgentSessionTurnStreamInput {
   turnId: string
   interactionWindowId?: string
   signal: AbortSignal
+  onMessage?: (parts: CherryUIMessage['parts']) => void
 }
 
 export interface AgentSessionRuntimeSnapshot {
@@ -229,6 +232,7 @@ type AgentSessionTurn = {
   fastMode: boolean
   abortController: AbortController
   controller?: ReadableStreamDefaultController<UIMessageChunk>
+  onMessage?: (parts: CherryUIMessage['parts']) => void
   activeToolIds: Set<string>
   headless?: boolean
   trustedNotifyChannels?: readonly NotifyChannel[]
@@ -298,6 +302,10 @@ type AgentSessionRuntimeEntry = {
   connectionLoop?: Promise<void>
   lastResumeToken?: string
   branchHead?: string
+  usageAttribution?: AgentSessionUsageAttribution
+  pendingResponseIds?: Set<string>
+  rootProjections?: Map<string, RootMessageProjection>
+  pendingProjections?: Extract<AgentRuntimeEvent, { type: 'message-projection' }>[]
   idleTimer?: ReturnType<typeof setTimeout>
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
@@ -730,8 +738,15 @@ export class AgentSessionRuntimeService extends BaseService {
    * The gateway calls this at provider-request ingress, before any later agent edit,
    * message roll, or deletion can affect usage persistence.
    */
-  getActiveUsageContext(sessionId: string): InProcessUsageContext | undefined {
+  getActiveUsageContext(sessionId: string, responseId?: string): InProcessUsageContext | undefined {
     const entry = this.entries.get(sessionId)
+    if (entry?.agentType === 'claude-code' && responseId) {
+      return {
+        agentSessionId: sessionId,
+        source: sourceSnapshotFromMessageSnapshot(this.liveTurn(entry)?.messageSnapshot ?? entry.messageSnapshot),
+        recordInvocation: (entry.usageAttribution ??= new AgentSessionUsageAttribution()).capture(responseId)
+      }
+    }
     const reservation =
       entry?.runtimeState.execution.kind === 'turn'
         ? entry.runtimeState.execution.reservation
@@ -756,7 +771,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private reserveSteerContinuation(entry: AgentSessionRuntimeEntry, inputs: AgentRuntimeUserInput[]): void {
-    if (!this.isCurrentEntry(entry) || entry.usageCapture?.owner !== 'provider-calls') return
+    if (!this.isCurrentEntry(entry)) return
     const turn = this.currentTurn(entry)
     const steerMessage = inputs[0]?.message
     if (
@@ -962,7 +977,16 @@ export class AgentSessionRuntimeService extends BaseService {
         try {
           this.clearIdleTimer(entry)
           turn.controller = controller
+          turn.onMessage = input.onMessage
           this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+          for (const event of entry.pendingProjections?.splice(0) ?? []) this.handleRuntimeEvent(entry, event)
+          for (const projection of entry.rootProjections?.values() ?? []) {
+            const parts = projection.parts(turn.assistantMessageId)
+            if (parts) turn.onMessage?.(parts)
+          }
+          for (const id of entry.pendingResponseIds ?? [])
+            (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(id, turn.assistantMessageId)
+          entry.pendingResponseIds?.clear()
 
           // Durable shutdown preserves work; user Stop must record cancellation before closing.
           const onAbort = () =>
@@ -1144,7 +1168,12 @@ export class AgentSessionRuntimeService extends BaseService {
       if (connectionAttempt) fallbackClosings.push(connectionAttempt)
       closing = Promise.allSettled(fallbackClosings).then(() => undefined)
     }
-    const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken, entry.branchHead)
+    const barrier = this.trackSessionClosing(
+      sessionId,
+      closing.finally(() => entry.usageAttribution?.close()),
+      entry.lastResumeToken,
+      entry.branchHead
+    )
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
@@ -2056,6 +2085,42 @@ export class AgentSessionRuntimeService extends BaseService {
     connection = this.currentConnection(entry)
   ): void {
     switch (event.type) {
+      case 'message-projection': {
+        const execution = entry.runtimeState.execution
+        const turn = this.currentTurn(entry)
+        const messageId =
+          execution.kind === 'steer-transition'
+            ? (execution.continuationTurn?.assistantMessageId ?? execution.reservation?.assistantMessageId)
+            : this.liveTurn(entry)?.assistantMessageId
+        if (!messageId && event.projection.live.length) {
+          ;(entry.pendingProjections ??= []).push(event)
+          break
+        }
+        const projections = (entry.rootProjections ??= new Map())
+        let projection = projections.get(event.projection.contextId)
+        if (!projection)
+          projections.set(
+            event.projection.contextId,
+            (projection = new RootMessageProjection(event.projection.contextId))
+          )
+        for (const [id, parts] of projection.accept(event.projection, messageId)) {
+          if (turn && id === turn.assistantMessageId) turn.onMessage?.(parts)
+          else if (id !== messageId)
+            agentSessionMessageService.replaceMessageParts(entry.sessionId, id, parts, projection.checkpoint())
+        }
+        break
+      }
+      case 'response-start': {
+        const execution = entry.runtimeState.execution
+        const messageId =
+          event.messageId ??
+          (execution.kind === 'steer-transition'
+            ? (execution.continuationTurn?.assistantMessageId ?? execution.reservation?.assistantMessageId)
+            : this.liveTurn(entry)?.assistantMessageId)
+        if (messageId) (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(event.responseId, messageId)
+        else (entry.pendingResponseIds ??= new Set()).add(event.responseId)
+        break
+      }
       case 'resume-token':
         entry.lastResumeToken = event.token
         if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry)
@@ -2074,6 +2139,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.recordRuntimeUsage(entry, event.invocation)
         break
       case 'steer-boundary':
+        this.reserveSteerContinuation(entry, event.inputs)
         // The model is about to emit its post-steer assistant message. Finalise the pre-steer parts as
         // A1a, then buffer the continuation until `startContinuationTurn` opens A2. The reducer keeps
         // A1a awaiting persistence and does not schedule A2 until the stream terminal listener fires.
@@ -2214,7 +2280,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (capture?.owner !== 'agent-sdk') return
 
     const turn = invocation.messageAssociation === 'current-turn' ? this.liveTurn(entry) : undefined
-    if (invocation.messageAssociation === 'current-turn' && !turn) {
+    if (!invocation.responseId && invocation.messageAssociation === 'current-turn' && !turn) {
       logger.warn('Agent SDK usage lost its active turn before persistence; recording stateless', {
         sessionId: entry.sessionId,
         requestId: invocation.requestId
@@ -2227,7 +2293,11 @@ export class AgentSessionRuntimeService extends BaseService {
     )
     const modelId = frozenModel?.modelId ?? normalizedModel
     const apiModelId = frozenModel?.apiModelId ?? normalizedModel
-    aiUsageRecordService.recordInvocation({
+    const record = invocation.responseId
+      ? (entry.usageAttribution ??= new AgentSessionUsageAttribution()).capture(invocation.responseId)
+      : (input: Parameters<typeof aiUsageRecordService.recordInvocation>[0]) =>
+          aiUsageRecordService.recordInvocation(input)
+    record({
       requestId: invocation.requestId,
       context: createAiUsageCaptureContext({
         providerId: capture.providerId,
@@ -2708,6 +2778,19 @@ export class AgentSessionRuntimeService extends BaseService {
       if (value !== undefined) merged[field] = value
     }
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
+    for (const projection of entry.rootProjections?.values() ?? []) {
+      const update = projection.taskEvent(merged as unknown as AgentTaskEventPartData)
+      if (!update) continue
+      const turn = this.liveTurn(entry)
+      if (turn?.assistantMessageId === update.messageId) turn.onMessage?.(update.parts)
+      else
+        agentSessionMessageService.replaceMessageParts(
+          entry.sessionId,
+          update.messageId,
+          update.parts,
+          projection.checkpoint()
+        )
+    }
     if (isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
       this.deliverRuntimeChunk(entry, {
         type: 'data-agent-task-event',
@@ -3558,6 +3641,12 @@ export class AgentSessionRuntimeService extends BaseService {
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
         forkAnchor: () => currentTurn.forkAnchor,
+        projection: () => {
+          const projection = [...(entry.rootProjections?.values() ?? [])].find(
+            (candidate) => candidate.parts(assistantMessageId) !== undefined
+          )
+          return projection && { checkpoint: projection.checkpoint(), parts: projection.parts(assistantMessageId)! }
+        },
         afterPersist
       }),
       onPersistFailed: (error) =>

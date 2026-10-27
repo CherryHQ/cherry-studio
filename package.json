@@ -141,6 +141,7 @@
   },
   "dependencies": {
     "@cherrystudio/agent-behavior": "workspace:*",
+    "@cherrystudio/agent-runtime-claude-code": "workspace:*",
     "@cherrystudio/agent-runtime-pi": "workspace:*",
     "@cherrystudio/agent-runtime-pi-durable": "workspace:*",
     "@cherrystudio/mlx-asr": "github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr",

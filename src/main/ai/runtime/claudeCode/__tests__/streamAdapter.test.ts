@@ -1,22 +1,9 @@
+import { mockMainLoggerService as loggerMocks } from '@test-mocks/MainLoggerService'
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
-
-const loggerMocks = vi.hoisted(() => ({
-  silly: vi.fn(),
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn()
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: vi.fn(() => loggerMocks)
-  }
-}))
 
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
@@ -126,23 +113,6 @@ describe('ClaudeCodeStreamAdapter', () => {
 
       adapter.beginTurn()
       expect(adapter.hasTurnActivity).toBe(false)
-    })
-
-    it('tracks tool-use chunks emitted by a parented assistant flow', () => {
-      const { adapter } = createAdapter()
-
-      adapter.handleMessage({
-        type: 'assistant',
-        parent_tool_use_id: 'workflow-root',
-        uuid: crypto.randomUUID(),
-        session_id: 'sdk-1',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/tmp/a.ts' } }]
-        }
-      } as any)
-
-      expect(adapter.hasTurnActivity).toBe(true)
     })
 
     it('remains inactive when an error result emits only usage metadata', () => {
@@ -354,8 +324,8 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
   })
 
-  it('maps SDK task system messages to hidden task event data parts', () => {
-    const { adapter, parts } = createAdapter()
+  it('projects SDK task lifecycle independently of the parent stream', () => {
+    const { adapter, statusEvents } = createAdapter()
 
     adapter.handleMessage({
       type: 'system',
@@ -382,10 +352,9 @@ describe('ClaudeCodeStreamAdapter', () => {
       usage: { total_tokens: 120, tool_uses: 3, duration_ms: 4500 }
     } as any)
 
-    expect(parts).toEqual([
+    expect(statusEvents).toEqual([
       {
-        type: 'data-agent-task-event',
-        id: 'task-task-1-started-task-started-uuid',
+        type: 'background-task-event',
         data: expect.objectContaining({
           event: 'started',
           taskId: 'task-1',
@@ -396,8 +365,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         })
       },
       {
-        type: 'data-agent-task-event',
-        id: 'task-task-1-notification-task-finished-uuid',
+        type: 'background-task-event',
         data: expect.objectContaining({
           event: 'notification',
           taskId: 'task-1',
@@ -414,7 +382,7 @@ describe('ClaudeCodeStreamAdapter', () => {
   })
 
   it('maps task_updated through mapTaskStatus non-completed branches (S5)', () => {
-    const { adapter, parts } = createAdapter()
+    const { adapter, statusEvents } = createAdapter()
 
     adapter.handleMessage({
       type: 'system',
@@ -433,10 +401,9 @@ describe('ClaudeCodeStreamAdapter', () => {
       patch: { status: 'running', description: 'Render slides' }
     } as any)
 
-    expect(parts).toEqual([
+    expect(statusEvents).toEqual([
       {
-        type: 'data-agent-task-event',
-        id: 'task-task-9-updated-task-updated-failed-uuid',
+        type: 'background-task-event',
         data: expect.objectContaining({
           event: 'updated',
           taskId: 'task-9',
@@ -446,8 +413,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         })
       },
       {
-        type: 'data-agent-task-event',
-        id: 'task-task-9-updated-task-updated-running-uuid',
+        type: 'background-task-event',
         data: expect.objectContaining({
           event: 'updated',
           status: 'in_progress', // mapTaskStatus('running')
@@ -458,7 +424,7 @@ describe('ClaudeCodeStreamAdapter', () => {
   })
 
   it('maps a stopped task notification to a neutral terminal status', () => {
-    const { adapter, parts } = createAdapter()
+    const { adapter, statusEvents } = createAdapter()
 
     adapter.handleMessage({
       type: 'system',
@@ -470,10 +436,9 @@ describe('ClaudeCodeStreamAdapter', () => {
       summary: 'Stopped by user'
     } as any)
 
-    expect(parts).toEqual([
+    expect(statusEvents).toEqual([
       {
-        type: 'data-agent-task-event',
-        id: 'task-task-1-notification-task-stopped-uuid',
+        type: 'background-task-event',
         data: expect.objectContaining({
           event: 'notification',
           taskId: 'task-1',
@@ -592,76 +557,6 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
     expect(parts[1]).toMatchObject({ type: 'reasoning-delta', id: (parts[0] as any).id, delta: 'plan' })
     expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
-  })
-
-  it('attaches parent tool metadata to streamed text and reasoning parts', () => {
-    const { adapter, parts } = createAdapter()
-
-    adapter.handleMessage({
-      ...streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
-      parent_tool_use_id: 'parent-tool'
-    })
-    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
-    adapter.handleMessage({
-      ...streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'thinking', thinking: '' } }),
-      parent_tool_use_id: 'parent-tool'
-    })
-
-    expect(parts[0]).toMatchObject({
-      type: 'text-start',
-      providerMetadata: {
-        'claude-code': {
-          parentToolCallId: 'parent-tool'
-        }
-      }
-    })
-    expect(parts[2]).toMatchObject({
-      type: 'reasoning-start',
-      providerMetadata: {
-        'claude-code': {
-          parentToolCallId: 'parent-tool'
-        }
-      }
-    })
-  })
-
-  it('keeps nested Agent tools under the SDK parent while top-level Agent tools remain roots', () => {
-    const { adapter, parts } = createAdapter()
-
-    adapter.handleMessage({
-      ...streamEvent({
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'tool_use', id: 'nested-agent', name: 'Agent', input: {} }
-      }),
-      parent_tool_use_id: 'workflow-root'
-    })
-    adapter.handleMessage(
-      streamEvent({
-        type: 'content_block_start',
-        index: 1,
-        content_block: { type: 'tool_use', id: 'top-level-agent', name: 'Agent', input: {} }
-      })
-    )
-
-    expect(parts[0]).toMatchObject({
-      type: 'tool-input-start',
-      toolCallId: 'nested-agent',
-      providerMetadata: {
-        'claude-code': {
-          parentToolCallId: 'workflow-root'
-        }
-      }
-    })
-    expect(parts[1]).toMatchObject({
-      type: 'tool-input-start',
-      toolCallId: 'top-level-agent',
-      providerMetadata: {
-        'claude-code': {
-          parentToolCallId: null
-        }
-      }
-    })
   })
 
   it('maps tool input deltas to tool call parts', () => {
@@ -1153,8 +1048,8 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(result).toEqual({ type: 'continue' })
       expect(adapter.isTurnActive).toBe(true)
       expect(sessionIds).toEqual(['sdk-result'])
-      // The notification stays a task-event part; no finish and no autonomous wake for it.
-      expect(parts).toEqual([expect.objectContaining({ type: 'data-agent-task-event' })])
+      // Task lifecycle must not finish or wake a parent stream.
+      expect(parts).toEqual([])
       expect(statusEvents.map((event) => event.type)).toEqual(['background-task-event'])
 
       const final = adapter.handleMessage(successResult({ result: 'real answer' }))
@@ -1492,68 +1387,6 @@ describe('ClaudeCodeStreamAdapter', () => {
       // diffed against the first turn's text instead of the whole string.
       const secondTurnParts = parts.slice(firstTurnParts)
       expect(secondTurnParts.some((part) => part.type === 'text-delta' && part.delta === 'second')).toBe(true)
-    })
-
-    it('keeps a subagent flow context alive after the spawning main turn completes', () => {
-      const { adapter, parts, statusEvents } = createAdapter()
-
-      adapter.handleMessage({
-        type: 'assistant',
-        parent_tool_use_id: 'task-root',
-        session_id: 'sdk-1',
-        uuid: crypto.randomUUID(),
-        message: {
-          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/tmp/a.ts' } }]
-        }
-      } as any)
-      adapter.handleMessage(successResult())
-      const mainPartCount = parts.length
-
-      adapter.handleMessage({
-        type: 'user',
-        parent_tool_use_id: 'task-root',
-        session_id: 'sdk-1',
-        uuid: crypto.randomUUID(),
-        message: {
-          content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'source text' }]
-        }
-      } as any)
-
-      expect(parts).toHaveLength(mainPartCount)
-      expect(statusEvents).toContainEqual({
-        type: 'background-flow-chunk',
-        rootToolCallId: 'task-root',
-        chunk: expect.objectContaining({
-          type: 'tool-output-available',
-          toolCallId: 'read-1'
-        })
-      })
-    })
-
-    it('routes parented content to the detached FlowTab stream when no main turn is open', () => {
-      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
-
-      adapter.handleMessage({
-        type: 'assistant',
-        parent_tool_use_id: 'task-9',
-        session_id: 'sdk-1',
-        uuid: crypto.randomUUID(),
-        message: { content: [{ type: 'text', text: 'background result' }] }
-      } as any)
-
-      expect(parts).toEqual([])
-      expect(statusEvents).toEqual([
-        expect.objectContaining({
-          type: 'background-flow-chunk',
-          rootToolCallId: 'task-9',
-          chunk: expect.objectContaining({ type: 'text-start' })
-        }),
-        expect.objectContaining({
-          type: 'background-flow-chunk',
-          rootToolCallId: 'task-9',
-          chunk: expect.objectContaining({ type: 'text-delta', delta: 'background result' })
-        })
-      ])
     })
 
     it('advances the resume token but reports no turn to complete for a stray result', () => {
@@ -1912,7 +1745,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: false })
     })
 
-    it('releases the reply after subagents drain even while a background server remains', () => {
+    it('keeps background resources alive without holding the foreground reply', () => {
       const { adapter, statusEvents } = createAdapter()
       const server = { task_id: 'server', task_type: 'local_bash', description: 'Development server' }
       const agent = { task_id: 'child', task_type: 'local_agent', description: 'Review' }
@@ -1927,7 +1760,11 @@ describe('ClaudeCodeStreamAdapter', () => {
       membership([server, agent])
       adapter.handleMessage(successResult())
       membership([server])
-      expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: true })
+      expect(statusEvents.filter((event) => event.type === 'background-work-state').at(-1)).toEqual({
+        type: 'background-work-state',
+        active: true,
+        awaitingReply: false
+      })
       adapter.handleMessage(
         streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Summary' } })
       )
@@ -1940,7 +1777,11 @@ describe('ClaudeCodeStreamAdapter', () => {
         state: 'idle'
       } as any)
       expect(adapter.isTurnActive).toBe(false)
-      expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: true, awaitingReply: false })
+      expect(statusEvents.filter((event) => event.type === 'background-work-state').at(-1)).toEqual({
+        type: 'background-work-state',
+        active: true,
+        awaitingReply: false
+      })
       expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
     })
 
@@ -2066,7 +1907,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
-    it('keeps task lifecycle in the transcript and current-process task surface while a turn is open', () => {
+    it('reports task lifecycle through the same status surface while a turn is open', () => {
       const { adapter, parts, statusEvents } = createAdapter()
 
       adapter.handleMessage({
@@ -2078,14 +1919,14 @@ describe('ClaudeCodeStreamAdapter', () => {
         description: 'Audit the codebase'
       } as any)
 
-      // In-turn events stay parts for history and also update the process-scoped liveness surface.
+      // Root projection owns lifecycle history independently of the parent stream.
       expect(statusEvents).toEqual([
         {
           type: 'background-task-event',
           data: expect.objectContaining({ taskId: 'bg-1', event: 'started', status: 'in_progress' })
         }
       ])
-      expect(parts).toEqual([expect.objectContaining({ type: 'data-agent-task-event' })])
+      expect(parts).toEqual([])
     })
 
     it('maps the per-task background transition without correlating the aggregate level', () => {
@@ -2145,37 +1986,6 @@ describe('ClaudeCodeStreamAdapter', () => {
         'Received a result message with no active turn; dropping turn-complete',
         expect.anything()
       )
-    })
-
-    it('does not wake the main agent for parented content and routes it to FlowTab instead', () => {
-      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
-
-      adapter.handleMessage({
-        type: 'assistant',
-        parent_tool_use_id: 'task-1',
-        session_id: 'sdk-1',
-        uuid: crypto.randomUUID(),
-        message: { content: [{ type: 'text', text: 'subagent internals' }] }
-      } as any)
-
-      expect(statusEvents).toEqual([
-        expect.objectContaining({
-          type: 'background-flow-chunk',
-          rootToolCallId: 'task-1',
-          chunk: expect.objectContaining({ type: 'text-start' })
-        }),
-        expect.objectContaining({
-          type: 'background-flow-chunk',
-          rootToolCallId: 'task-1',
-          chunk: expect.objectContaining({ type: 'text-delta', delta: 'subagent internals' })
-        })
-      ])
-      expect(parts).toEqual([])
-      expect(statusEvents).not.toContainEqual({
-        type: 'autonomous-turn-state',
-        state: 'started',
-        origin: { kind: 'background-work' }
-      })
     })
 
     it('holds init metadata until a turn opens, since it is turn content', () => {

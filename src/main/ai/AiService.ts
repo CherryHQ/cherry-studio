@@ -45,6 +45,7 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -277,6 +278,7 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
 
 /** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
 export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
+  runtimeMessageSink?: (parts: CherryUIMessage['parts']) => void
   usageContext?: InProcessUsageContext
   runtimeTimingSink?: MessageRuntimeTimingSink
   /**
@@ -604,7 +606,8 @@ export class AiService extends BaseService {
         sessionId: request.runtime.sessionId,
         turnId: request.runtime.turnId,
         interactionWindowId: request.interactionWindowId,
-        signal
+        signal,
+        onMessage: request.runtimeMessageSink
       })
     }
 
@@ -638,12 +641,14 @@ export class AiService extends BaseService {
         ? request.usageContext.source
         : (request.source ?? sourceSnapshotForAssistant(assistant)),
       messageRef: request.usageContext
-        ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+        ? request.usageContext.assistantMessageId
+          ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+          : null
         : request.messageId
           ? { kind: 'chat', id: request.messageId }
           : null
     })
-    const usagePlugin = createAiUsagePlugin(usageContext)
+    const usagePlugin = createAiUsagePlugin(usageContext, request.usageContext?.recordInvocation)
     repairUsagePlugins.current = [usagePlugin]
 
     const mediaCapabilities = resolveMediaCapabilities(model)
@@ -692,8 +697,9 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(() =>
-            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          createAiUsagePlugin(
+            () => createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt }),
+            request.usageContext?.recordInvocation
           )
       })
       const retryPolicy = resolveTextRetryPolicy(
@@ -727,7 +733,8 @@ export class AiService extends BaseService {
                 credentialReceipt,
                 source: usageContext().source,
                 messageRef: usageContext().messageRef
-              })
+              }),
+              request.usageContext?.recordInvocation
             )
         }),
         onFallbackActivated: (fallback) => {

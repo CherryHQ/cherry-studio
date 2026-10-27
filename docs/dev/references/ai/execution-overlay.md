@@ -16,7 +16,7 @@ sources:
 
 ## Ownership and message model
 
-Root conversations and children use `CherryUIMessage`. Each native owner has an independent projection. Root messages come from the existing `readUIMessageStream` accumulator in `pipeStreamLoop`; child messages come from `ThreadMessageProjection` and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
+Root conversations and children use `CherryUIMessage`. Each native owner has an independent projection. Root messages normally come from `readUIMessageStream` in `pipeStreamLoop`. Claude roots also accept authoritative replacement-aware native parts; later SDK snapshots contribute status data without restoring retracted content. Child messages come from `ThreadMessageProjection` and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
 
 ```text
 Root SDK accumulator → TopicMessageProjection ─┐
@@ -36,6 +36,8 @@ Native queues, child lifetime and persistence destinations remain owner-specific
 Archive reconciliation can await a native read. It preserves submitted product user text
 when behavior wraps the corresponding native input, and retains saved source mappings
 when a later snapshot uses committed rather than live preview identities.
+Explicit removals persist with the checkpoint and hide those sources after reopen;
+absence from a compacted native view alone does not remove saved product history.
 
 ## Publication
 

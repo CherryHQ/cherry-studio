@@ -20,10 +20,38 @@ const locatorSchema = z.discriminatedUnion('kind', [
     version: z.literal(1),
     kind: z.literal('pi-durable'),
     fileName: z.string().regex(/^[a-zA-Z0-9_-]+\.sqlite$/)
-  })
+  }),
+  z.object({ version: z.literal(1), kind: z.literal('claude-code'), configDir: z.string().refine(path.isAbsolute) })
 ])
 
+export interface RootProjectionCheckpoint {
+  contextId: string
+  root: {
+    version?: 2
+    sources: Record<string, { messageId: string; offset: number; count: number }>
+    removed: string[]
+  }
+}
+
 class AgentSessionContextService {
+  saveRootProjectionTx(tx: DbOrTx, sessionId: string, checkpoint: RootProjectionCheckpoint): void {
+    const context = tx.select().from(contexts).where(eq(contexts.id, checkpoint.contextId)).get()
+    if (context?.sessionId !== sessionId) throw new Error('Projection belongs to another session')
+    tx.update(contexts)
+      .set({ checkpointMapping: { ...context.checkpointMapping, root: checkpoint.root } })
+      .where(eq(contexts.id, context.id))
+      .run()
+  }
+  children(parentContextId: string): AgentSessionContextRow[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(contexts)
+      .where(eq(contexts.parentContextId, parentContextId))
+      .all()
+  }
+
   child(parentContextId: string, nativeThreadId: string, toolCallId: string, name: string): AgentSessionContextRow {
     return application.get('DbService').withWriteTx((tx) => {
       const parent = tx.select().from(contexts).where(eq(contexts.id, parentContextId)).get()
@@ -203,3 +231,4 @@ class AgentSessionContextService {
 }
 
 export const agentSessionContextService = new AgentSessionContextService()
+import path from 'node:path'
