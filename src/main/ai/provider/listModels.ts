@@ -711,7 +711,8 @@ const tokenLabFetcher: ModelFetcher = {
         .map((m) =>
           toModel(m.id, provider, {
             ownedBy: m.owned_by,
-            ...(m.tokenlab?.max_input_tokens ? { contextWindow: m.tokenlab.max_input_tokens } : {})
+            ...(m.tokenlab?.max_input_tokens ? { contextWindow: m.tokenlab.max_input_tokens } : {}),
+            ...(m.tokenlab?.max_output_tokens ? { maxOutputTokens: m.tokenlab.max_output_tokens } : {})
           })
         )
     )

@@ -336,7 +336,11 @@ describe('listModels — TokenLab category filtering', () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         data: [
-          { id: 'gpt-6.1-sol', owned_by: 'openai', tokenlab: { category: 'chat', max_input_tokens: 400000 } },
+          {
+            id: 'gpt-6.1-sol',
+            owned_by: 'openai',
+            tokenlab: { category: 'chat', max_input_tokens: 400000, max_output_tokens: 128000 }
+          },
           { id: 'boogu-image-0-1-edit', owned_by: 'boogu', tokenlab: { category: 'image' } },
           { id: 'seedance-2.0', owned_by: 'bytedance', tokenlab: { category: 'video' } },
           { id: 'text-embedding-3-small', owned_by: 'openai', tokenlab: { category: 'embedding' } },
@@ -356,7 +360,8 @@ describe('listModels — TokenLab category filtering', () => {
     )
 
     expect(models.map((model) => model.apiModelId)).toEqual(['gpt-6.1-sol', 'legacy-chat-model'])
-    expect(models[0]).toMatchObject({ contextWindow: 400000 })
+    expect(models[0]).toMatchObject({ contextWindow: 400000, maxOutputTokens: 128000 })
+    expect(models[1].maxOutputTokens).toBeUndefined()
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('https://api.tokenlab.sh/v1/models')
   })

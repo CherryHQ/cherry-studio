@@ -214,7 +214,8 @@ export const TokenLabModelsResponseSchema = z.object({
       tokenlab: z
         .looseObject({
           category: z.string().optional(),
-          max_input_tokens: z.number().nullable().optional()
+          max_input_tokens: z.number().nullable().optional(),
+          max_output_tokens: z.number().nullable().optional()
         })
         .optional()
     })

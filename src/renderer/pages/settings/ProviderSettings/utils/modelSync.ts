@@ -69,7 +69,10 @@ export function toCreateModelDto(
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+    // Same for a provider-reported output cap (TokenLab `max_output_tokens`): without it the row falls
+    // back to the registry value at read time and requests can ask for more than the provider allows.
+    ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {})
   }
 }
 
@@ -139,10 +142,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }
-      // A context window the provider itself reports (e.g. TokenLab's `max_input_tokens`, Ollama's
-      // `/api/show`) is specific to that provider's deployment and can be smaller than the global
-      // registry value for the same model id; keep it so context budgeting never exceeds the real cap.
-      if (field === 'contextWindow' && base.contextWindow) {
+      // Token limits the provider itself reports (e.g. TokenLab's `max_input_tokens` / `max_output_tokens`,
+      // Ollama's `/api/show`) are specific to that provider's deployment and can be smaller than the global
+      // registry value for the same model id; keep them so requests never exceed the real caps.
+      if ((field === 'contextWindow' || field === 'maxOutputTokens') && base[field]) {
         continue
       }
       if (field === 'name' && keepFetchedName) {
