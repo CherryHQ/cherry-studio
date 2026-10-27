@@ -219,3 +219,67 @@ describe('fence inside analysis block (round-18 review)', () => {
     ])
   })
 })
+
+describe('hold-path retention and escape carry (round-18 c7 review)', () => {
+  const HELD = 'para text <analysis>H</analysis>more</analysis\nZ <analysis>HID2</analysis>\nplain <foo never closed\n'
+  const HELD_CUT = 'para text <analysis>H</analysis>more</an'.length
+
+  it('held region arrives whole at block end (never-completing partial tag)', () => {
+    const whole = runStream(HELD, [])
+    const c = runStream(HELD, [HELD_CUT])
+    expect(c.out).toBe(whole.out)
+    expect(c.out).toContain('para text')
+  })
+
+  it('held region retained when the stream ends without block_stop (abort/error flush)', () => {
+    const whole = runStream(HELD, [])
+    // chunked delivery into the hold branch, then NO content_block_stop:
+    // the abort/error path (finalizeOpenTextParts) must flush the held remainder
+    const parts: CherryUIMessageChunk[] = []
+    const log: Log = { adv: [], splitBufs: [], scanRecs: [], flags: { inDeferredFlush: false }, ctx: null }
+    const adapter = makeAdapter(parts, log)
+    adapter.beginTurn()
+    adapter.handleMessage(ev({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }))
+    adapter.handleMessage(
+      ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: HELD.slice(0, HELD_CUT) } })
+    )
+    adapter.handleMessage(
+      ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: HELD.slice(HELD_CUT) } })
+    )
+    adapter.finalizeOpenTextParts()
+    const out = parts
+      .filter((p): p is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => p.type === 'text-delta')
+      .map((p) => p.delta)
+      .join('')
+    expect(out).toBe(whole.out)
+    expect(out).toContain('never closed')
+  })
+
+  it('backslash run adjacent to the hold boundary, chunked == whole', () => {
+    for (const bs of ['\\\\', '\\\\\\']) {
+      const full = 'alpha' + bs + '\n<analysis>H</analysis>beta</analysis\nZ <analysis>H2</analysis>\n- x\n    y\n'
+      const cut = ('alpha' + bs + '\n<analysis>H</analysis>beta</an').length
+      const whole = runStream(full, [])
+      const c = runStream(full, [cut])
+      expect(c.out).toBe(whole.out)
+      // and with abort-flush instead of block_stop
+      const parts: CherryUIMessageChunk[] = []
+      const log: Log = { adv: [], splitBufs: [], scanRecs: [], flags: { inDeferredFlush: false }, ctx: null }
+      const adapter = makeAdapter(parts, log)
+      adapter.beginTurn()
+      adapter.handleMessage(ev({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }))
+      adapter.handleMessage(
+        ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: full.slice(0, cut) } })
+      )
+      adapter.handleMessage(
+        ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: full.slice(cut) } })
+      )
+      adapter.finalizeOpenTextParts()
+      const out = parts
+        .filter((p): p is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => p.type === 'text-delta')
+        .map((p) => p.delta)
+        .join('')
+      expect(out).toBe(whole.out)
+    }
+  })
+})
