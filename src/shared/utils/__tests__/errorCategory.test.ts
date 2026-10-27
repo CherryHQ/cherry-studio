@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
+import { classifyErrorCategory, isMcpErrorMessage, isProxyErrorMessage } from '../errorCategory'
 
 describe('classifyErrorCategory HTTP 400', () => {
   it('identifies a provider request failure without guessing its cause', () => {
@@ -208,5 +208,58 @@ describe('classifyErrorCategory provider response protocol', () => {
     expect(classifyErrorCategory({ status: 400, text: 'Invalid input: temperature must be positive' })).toBe(
       'bad_request'
     )
+  })
+})
+
+describe('Issue #22198: tool and parameter identifiers are not failure signals', () => {
+  const reported =
+    "Unable to submit request because mcp__cherry-tools__cron functionDeclaration parameters.timeout_minutes schema didn't specify the schema type field."
+
+  it('classifies the reported Gemini HTTP 400 as a bad request', () => {
+    expect(classifyErrorCategory({ status: 400, text: reported })).toBe('bad_request')
+  })
+
+  it('leaves the reported error unclassified without an HTTP status', () => {
+    expect(classifyErrorCategory({ text: reported })).toBe('unknown')
+  })
+
+  it.each([reported, 'mcp__cherry-tools__cron', 'mcp__cherry_tools__generate_image', 'mcp_resource_read'])(
+    'does not treat tool identifiers as MCP failures: %s',
+    (text) => {
+      expect(isMcpErrorMessage(text)).toBe(false)
+    }
+  )
+
+  it('does not treat a timeout parameter identifier as a network failure', () => {
+    const text = 'Invalid parameter: timeout_minutes'
+    expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+  })
+
+  describe('invariants (not acceptance regressions)', () => {
+    it.each([
+      'MCP server failed to start',
+      'MCP connection refused',
+      'MCP server timeout after 30000ms',
+      '[mcp] server exited unexpectedly',
+      'MCP client is not connected'
+    ])('preserves explicit MCP failures: %s', (text) => {
+      expect(classifyErrorCategory({ text })).toBe('mcp')
+    })
+
+    it.each(['Request timeout after 30000ms', 'connect ETIMEDOUT 93.184.216.34:443', 'net::ERR_CONNECTION_TIMED_OUT'])(
+      'preserves transport timeout failures: %s',
+      (text) => {
+        expect(classifyErrorCategory({ text })).toBe('network')
+      }
+    )
+
+    it.each([
+      ['insufficient balance', 'quota'],
+      ['content_filter triggered', 'content'],
+      ['prompt is too long', 'context_length']
+    ] as const)('preserves specific HTTP 400 diagnoses: %s', (text, category) => {
+      expect(classifyErrorCategory({ status: 400, text })).toBe(category)
+    })
   })
 })

@@ -753,3 +753,24 @@ describe('classifyError', () => {
     expect(result.category).toBe('content')
   })
 })
+
+describe('Issue #22198: provider tool schema errors', () => {
+  const reported =
+    "Unable to submit request because mcp__cherry-tools__cron functionDeclaration parameters.timeout_minutes schema didn't specify the schema type field."
+
+  it('directs the reported HTTP 400 to provider settings', () => {
+    expect(classifyError(makeError({ message: reported, statusCode: 400 }), 'cherryin')).toEqual({
+      category: 'bad_request',
+      i18nKey: 'error.diagnosis.bad_request',
+      navTarget: '/settings/provider?id=cherryin'
+    })
+  })
+
+  it('does not suggest settings without an HTTP status', () => {
+    expect(classifyError(makeError({ message: reported }), 'cherryin')).toEqual({
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.unknown',
+      navTarget: null
+    })
+  })
+})
