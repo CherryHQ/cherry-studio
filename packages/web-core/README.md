@@ -41,7 +41,7 @@ Firefox and Safari.
 | JavaScript | Yes | QuickJS, without network, file or DOM access. |
 | Shell commands | No | |
 | MCP servers | No | |
-| Archiving, restoring and deleting agents and sessions | Yes | Archived items stay until deleted: the automatic cleanup is desktop-only. |
+| Archiving, restoring and deleting chat topics, assistants, agents and sessions | Yes | Archived items stay until deleted: the automatic cleanup is desktop-only. |
 | Forking agent sessions; editing a sent agent message | No | |
 | Attachments and file storage | No | |
 | Web search, knowledge bases | No | |
@@ -138,8 +138,16 @@ Archiving a session packs its system workspace into `<workspace>.tar.gz` and res
 in the Worker `tar` is `src/agent/tar.ts`, which builds and reads gzipped tarballs with
 `modern-tar` and `CompressionStream`. Channels, scheduled tasks and agent-to-agent deliveries are
 desktop-only, so `ChannelManager`, `JobManager` and `AgentSessionDeliveryService` are stand-ins
-with nothing to pause, drain or resync. The archive's auto-cleanup runs on the desktop job
-scheduler, which the Web edition does not have: archived items stay until they are deleted.
+with nothing to pause, drain or resync.
+
+Chat topics and assistants are archived by the desktop `TrashService` (`trash.topic.archive`,
+`trash.topic.delete_permanently`, `trash.assistant_topics.archive`, `trash.assistant.archive` and
+`trash.assistant.delete_permanently`); restoring them and deleting them from Settings → Archive go
+through DataApi. "Empty archive" (`trash.purge_now`) runs the desktop `trash.purge` job's handler
+once in the Worker (`src/runtime/archivePurge.ts`), since the Web edition has no job queue; its
+file-storage sweep finds nothing, as the Web edition stores no files there. The archive's
+auto-cleanup runs on the desktop job scheduler, which the Web edition does not have: archived items
+stay until they are deleted.
 
 ### Local folders
 

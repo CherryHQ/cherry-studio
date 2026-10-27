@@ -202,3 +202,33 @@ test('archives an agent with its sessions and restores them', async ({ page, acc
   expect(result.archived).toEqual({ agent: false, session: false })
   expect(result.restored).toEqual({ agent: true, session: true })
 })
+
+test('archives a chat topic, restores it and empties the archive', async ({ page, account }) => {
+  await gotoBridge(page, account)
+  const result = await page.evaluate(async () => {
+    const { dataApiService, ipcApi } = bridge
+    const topic = await dataApiService.post('/topics', { body: { name: 'Archived chat' } })
+    const listed = async () =>
+      ((await dataApiService.get('/topics', { query: { limit: 50 } })) as { items: { id: string }[] }).items.some(
+        ({ id }) => id === topic.id
+      )
+    await ipcApi.request('trash.topic.archive', { topicIds: [topic.id] })
+    const archived = await listed()
+    await dataApiService.post(`/topics/${topic.id}/restore`, { body: undefined })
+    const restored = await listed()
+
+    await ipcApi.request('trash.topic.archive', { topicIds: [topic.id] })
+    const purge = await ipcApi.request('trash.purge_now')
+    const restoreAfterPurge = await dataApiService.post(`/topics/${topic.id}/restore`, { body: undefined }).then(
+      () => 'restored',
+      () => 'gone'
+    )
+    return { archived, restored, purge, restoreAfterPurge }
+  })
+  expect(result).toEqual({
+    archived: false,
+    restored: true,
+    purge: { status: 'completed', reclaimed: true, deletedCount: 1, retainedReferencedFileCount: 0 },
+    restoreAfterPurge: 'gone'
+  })
+})
