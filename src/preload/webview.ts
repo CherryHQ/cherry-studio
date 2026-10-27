@@ -1,13 +1,10 @@
 import { ipcRenderer, webFrame } from 'electron'
 
 // Inject stealth evasions into the page's main world (worldId: 0) before any site scripts execute.
-// Masks navigator.webdriver, mocks userAgentData & chrome object, and removes Electron signatures.
+// Masks navigator.webdriver, normalizes userAgentData brands & client hints, and removes Electron signatures.
 try {
   const chromeMajor = process.versions?.chrome ? process.versions.chrome.split('.')[0] : '132'
   const chromeFull = process.versions?.chrome || '132.0.6834.196'
-  const platformName = process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux'
-  const platformVersion = process.platform === 'darwin' ? '15.0.0' : process.platform === 'win32' ? '10.0.0' : '0.0.0'
-  const archName = process.arch === 'arm64' ? 'arm' : 'x86'
 
   void webFrame
     .executeJavaScriptInIsolatedWorld(0, [
@@ -26,42 +23,74 @@ try {
           } catch (_) {}
 
           try {
-            // 2. Mock navigator.userAgentData to authentic Chrome brands without Electron
-            const brands = [
-              { brand: 'Chromium', version: '${chromeMajor}' },
-              { brand: 'Google Chrome', version: '${chromeMajor}' },
-              { brand: 'Not A(Brand', version: '24' }
-            ];
-            const fullVersionList = [
-              { brand: 'Chromium', version: '${chromeFull}' },
-              { brand: 'Google Chrome', version: '${chromeFull}' },
-              { brand: 'Not A(Brand', version: '24.0.0.0' }
-            ];
-            const fakeData = {
-              brands,
-              mobile: false,
-              platform: '${platformName}',
-              getHighEntropyValues: async () => ({
-                brands,
-                mobile: false,
-                platform: '${platformName}',
-                platformVersion: '${platformVersion}',
-                architecture: '${archName}',
-                bitness: '64',
-                model: '',
-                uaFullVersion: '${chromeFull}',
-                fullVersionList
-              }),
-              toJSON: () => ({
-                brands,
-                mobile: false,
-                platform: '${platformName}'
-              })
-            };
-            Object.defineProperty(navigator, 'userAgentData', {
-              get: () => fakeData,
-              configurable: true
-            });
+            // 2. Delegate to native userAgentData, preserving requested fields & host metadata while normalizing brands
+            const origUAData = navigator.userAgentData;
+            if (origUAData) {
+              const chromeMajor = '${chromeMajor}';
+              const chromeFull = '${chromeFull}';
+              const cleanBrands = [
+                { brand: 'Chromium', version: chromeMajor },
+                { brand: 'Google Chrome', version: chromeMajor },
+                { brand: 'Not A(Brand', version: '24' }
+              ];
+              const cleanFullVersionList = [
+                { brand: 'Chromium', version: chromeFull },
+                { brand: 'Google Chrome', version: chromeFull },
+                { brand: 'Not A(Brand', version: '24.0.0.0' }
+              ];
+
+              const nativeGetHighEntropyValues = typeof origUAData.getHighEntropyValues === 'function'
+                ? origUAData.getHighEntropyValues.bind(origUAData)
+                : null;
+
+              const proxyUAData = new Proxy(origUAData, {
+                get(target, prop, receiver) {
+                  if (prop === 'brands') {
+                    return cleanBrands;
+                  }
+                  if (prop === 'toJSON') {
+                    return () => {
+                      const base = typeof target.toJSON === 'function' ? target.toJSON() : {};
+                      return {
+                        ...base,
+                        brands: cleanBrands,
+                        mobile: target.mobile,
+                        platform: target.platform
+                      };
+                    };
+                  }
+                  if (prop === 'getHighEntropyValues') {
+                    return async (hints) => {
+                      const result = nativeGetHighEntropyValues ? await nativeGetHighEntropyValues(hints) : {};
+                      result.brands = cleanBrands;
+                      if (Array.isArray(hints)) {
+                        if (hints.includes('fullVersionList')) {
+                          result.fullVersionList = cleanFullVersionList;
+                        }
+                        if (hints.includes('uaFullVersion')) {
+                          result.uaFullVersion = chromeFull;
+                        }
+                      } else {
+                        if (result.fullVersionList) {
+                          result.fullVersionList = cleanFullVersionList;
+                        }
+                        if (result.uaFullVersion) {
+                          result.uaFullVersion = chromeFull;
+                        }
+                      }
+                      return result;
+                    };
+                  }
+                  const val = Reflect.get(target, prop, receiver);
+                  return typeof val === 'function' ? val.bind(target) : val;
+                }
+              });
+
+              Object.defineProperty(navigator, 'userAgentData', {
+                get: () => proxyUAData,
+                configurable: true
+              });
+            }
           } catch (_) {}
 
           try {
