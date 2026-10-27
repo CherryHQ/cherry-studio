@@ -14,7 +14,9 @@ import type { CacheService } from '@main/data/CacheService'
 import type { DataApiService } from '@main/data/DataApiService'
 import type { PreferenceService } from '@main/data/PreferenceService'
 import type { IpcApiService } from '@main/ipc/IpcApiService'
+import type { FileManager } from '@main/services/file/FileManager'
 import type { PythonService } from '@main/services/PythonService'
+import type { TrashService } from '@main/services/trash'
 
 import type { WebDbService } from '../database/WebDbService'
 import type { WebWindowManager } from '../services/WebWindowManager'
@@ -47,6 +49,8 @@ export interface WebServices {
   >
   ChannelManager: Pick<ChannelManager, 'pause' | 'reconcileAgent' | 'drainInFlight' | 'listActiveWork'>
   JobManager: Pick<JobManager, 'syncJobScheduleTimerById'>
+  TrashService: TrashService
+  FileManager: Pick<FileManager, 'runSweep'>
 }
 
 /**

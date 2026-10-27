@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiHandlers } from '@main/ipc/handlers/ai'
+import { trashHandlers } from '@main/ipc/handlers/trash'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { ipcRequestSchemas, type IpcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
@@ -9,6 +10,7 @@ import { version } from '../../../../package.json'
 import { isLocalFolderPath } from '../agent/localFolders'
 import { unsupported } from '../disabled/unsupported'
 import { NATIVE_THEME_CHANNEL } from '../worker/protocol'
+import { purgeArchiveNow } from './archivePurge'
 import { ipcMain } from './electron'
 
 // The page reports its `prefers-color-scheme`, which Electron's `nativeTheme` gives the desktop main process.
@@ -20,9 +22,8 @@ ipcMain.on(NATIVE_THEME_CHANNEL, (_event, theme) => {
 
 /**
  * IpcApi routes the Web edition serves: chat streams, agent creation, tool approvals, the agent
- * session runtime, local-folder workspaces, and Web answers to what the desktop shell asks at start.
- * Archiving and deleting agents, sessions and workspaces need the desktop's workspace archives, which
- * the Web edition does not have yet.
+ * session runtime, archiving and deleting, local-folder workspaces, and Web answers to what the
+ * desktop shell asks at start.
  */
 const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.open': aiHandlers['ai.stream.open'],
@@ -47,6 +48,12 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.agent.session.edit_target': aiHandlers['ai.agent.session.edit_target'],
   'ai.agent.session.edit_resend': aiHandlers['ai.agent.session.edit_resend'],
   'ai.agent.session.fork': aiHandlers['ai.agent.session.fork'],
+  'trash.topic.archive': trashHandlers['trash.topic.archive'],
+  'trash.topic.delete_permanently': trashHandlers['trash.topic.delete_permanently'],
+  'trash.assistant_topics.archive': trashHandlers['trash.assistant_topics.archive'],
+  'trash.assistant.archive': trashHandlers['trash.assistant.archive'],
+  'trash.assistant.delete_permanently': trashHandlers['trash.assistant.delete_permanently'],
+  'trash.purge_now': purgeArchiveNow,
   // A workspace the user picks is a stored local folder; the desktop's storage checks need its disk.
   'ai.agent.workspace.register': async ({ path, name }) => {
     if (!isLocalFolderPath(path)) throw new Error(`Not a local folder the user picked: ${path}`)

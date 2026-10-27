@@ -11,6 +11,7 @@ import { DataApiService } from '@main/data/DataApiService'
 import { PreferenceService } from '@main/data/PreferenceService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { PythonService } from '@main/services/PythonService'
+import { TrashService } from '@main/services/trash'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { mountBuiltinAgentTemplates } from '../agent/builtinAgentTemplates'
@@ -19,6 +20,7 @@ import { mountAccountFiles, unmountAccountFiles } from '../database/accountFiles
 import { type OpenedDatabase, openDatabase } from '../database/openDatabase'
 import { WebCherryAssistantSeeder } from '../database/WebCherryAssistantSeeder'
 import { WebPreferenceDefaultsSeeder } from '../database/WebPreferenceDefaultsSeeder'
+import { unsupportedService } from '../disabled/unsupported'
 import { application } from '../runtime/application'
 import { connectPage, ipcMain } from '../runtime/electron'
 import { installNodeGlobals } from '../runtime/nodeGlobals'
@@ -122,6 +124,21 @@ async function startAccountServices(opened: OpenedDatabase) {
   const agentLifecycle = new AgentLifecycleService()
   await agentLifecycle._doInit()
   application.register('AgentLifecycleService', agentLifecycle)
+  // Its `onInit` only schedules the archive's purge job; `trash.purge_now` runs that job directly.
+  application.register('TrashService', new TrashService())
+  // Emptying the archive sweeps file storage for unreferenced files; the Web edition stores none.
+  application.register(
+    'FileManager',
+    Object.assign(Object.create(unsupportedService('File storage')), {
+      runSweep: async () => ({
+        outcome: 'completed' as const,
+        lastRunAt: Date.now(),
+        orphanEntriesByOrigin: {},
+        orphanEntriesTotal: 0,
+        entryCleanup: { outcome: 'completed' as const, candidates: 0, deleted: 0, hasPendingWork: false }
+      })
+    })
+  )
 }
 
 function serializeError(error: unknown): SerializedError {
