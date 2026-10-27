@@ -223,17 +223,27 @@ describe('stealth evasions and client hints delegation in webview preload', () =
       return result
     })
 
-    const testNav: { userAgentData?: Record<string, unknown> } = {
-      userAgentData: {
-        brands: [
-          { brand: 'Chromium', version: '132' },
-          { brand: 'Electron', version: '44' }
-        ],
-        mobile: false,
-        platform: 'Windows',
-        getHighEntropyValues: nativeGetHighEntropyValues,
-        toJSON: () => ({ brands: [{ brand: 'Chromium', version: '132' }], mobile: false, platform: 'Windows' })
+    const nativeTarget = Object.create({
+      get mobile() {
+        if (this !== nativeTarget) throw new TypeError('Illegal invocation')
+        return false
+      },
+      get platform() {
+        if (this !== nativeTarget) throw new TypeError('Illegal invocation')
+        return 'Windows'
       }
+    })
+    Object.assign(nativeTarget, {
+      brands: [
+        { brand: 'Chromium', version: '132' },
+        { brand: 'Electron', version: '44' }
+      ],
+      getHighEntropyValues: nativeGetHighEntropyValues,
+      toJSON: () => ({ brands: [{ brand: 'Chromium', version: '132' }], mobile: false, platform: 'Windows' })
+    })
+
+    const testNav: { userAgentData?: Record<string, unknown> } = {
+      userAgentData: nativeTarget
     }
 
     const runner = new Function('navigator', 'window', injectedCode)
@@ -245,6 +255,13 @@ describe('stealth evasions and client hints delegation in webview preload', () =
       { brand: 'Google Chrome', version: expect.any(String) },
       { brand: 'Not A(Brand', version: '24' }
     ])
+
+    // Verify reading native WebIDL getters preserves the target receiver (no TypeError: Illegal invocation)
+    expect(testNav.userAgentData?.mobile).toBe(false)
+    expect(testNav.userAgentData?.platform).toBe('Windows')
+    const json = (testNav.userAgentData?.toJSON as () => Record<string, unknown>)()
+    expect(json.platform).toBe('Windows')
+    expect(json.mobile).toBe(false)
 
     const getHighEntropyValues = testNav.userAgentData?.getHighEntropyValues as (
       hints: string[]

@@ -50,12 +50,12 @@ try {
                   }
                   if (prop === 'toJSON') {
                     return () => {
-                      const base = typeof target.toJSON === 'function' ? target.toJSON() : {};
+                      const base = typeof target.toJSON === 'function' ? target.toJSON.call(target) : {};
                       return {
                         ...base,
                         brands: cleanBrands,
-                        mobile: target.mobile,
-                        platform: target.platform
+                        mobile: Reflect.get(target, 'mobile', target),
+                        platform: Reflect.get(target, 'platform', target)
                       };
                     };
                   }
@@ -81,7 +81,7 @@ try {
                       return result;
                     };
                   }
-                  const val = Reflect.get(target, prop, receiver);
+                  const val = Reflect.get(target, prop, target);
                   return typeof val === 'function' ? val.bind(target) : val;
                 }
               });
