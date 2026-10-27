@@ -739,6 +739,7 @@
   "chat.input.reference_panel.session.no_results.description": "Nessuna sessione corrisponde alla ricerca",
   "chat.input.reference_panel.session.no_results.label": "Nessuna sessione trovata",
   "chat.input.reference_panel.session.title": "Sessioni",
+  "chat.input.reference_panel.title": "Riferimenti",
   "chat.input.reference_panel.topic.no_results.description": "Nessun argomento corrisponde alla ricerca",
   "chat.input.reference_panel.topic.no_results.label": "Nessun argomento trovato",
   "chat.input.reference_panel.topic.title": "Argomenti",
