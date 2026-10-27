@@ -202,6 +202,7 @@ type StreamContext = {
   /** Raw scan-consumed text queued for mask-state advance (suppressed lines
    * included): the container machine must see pre-strip structure, not the
    * blank lines stripping leaves (round-18 review case 56). */
+  scratchpadMaskAdvanceRawQueue: string
   /**
    * Append-stable open-line carry verdicts, keyed by the open line's absolute
    * start. Recomputed when the line restarts or shrinks (round-17 latency).
@@ -1535,7 +1536,11 @@ export class ClaudeCodeStreamAdapter {
    * the full strip pipeline over it on every delta (round-17 latency
    * regression / cherry-review inv_269a650fa555da87).
    */
-  private emittedOpenLinePrefixWithState(accumulatedText: string, state: IndentedMaskState, ctx: StreamContext): string {
+  private emittedOpenLinePrefixWithState(
+    accumulatedText: string,
+    state: IndentedMaskState,
+    ctx: StreamContext
+  ): string {
     const lineStart = accumulatedText.lastIndexOf('\n') + 1
     const openLine = accumulatedText.slice(lineStart)
     if (openLine === '') return ''
@@ -2204,7 +2209,6 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadMaskState = initialIndentedMaskState()
         ctx.scratchpadMaskStateUnstepped = ''
         ctx.scratchpadMaskAdvanceRawQueue = ''
-    ctx.scratchpadMaskAdvanceRawQueue = ''
         ctx.scratchpadOpenLineCarry = null
         this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
