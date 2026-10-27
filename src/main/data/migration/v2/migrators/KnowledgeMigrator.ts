@@ -875,6 +875,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         name,
         group,
         capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        capabilitiesExplicit: true,
         supportsStreaming: true
       })
       this.recordWarning(

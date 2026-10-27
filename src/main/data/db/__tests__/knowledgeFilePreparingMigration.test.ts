@@ -53,6 +53,8 @@ describe('knowledge file preparing migrate-forward', () => {
     const readItems = () => dbh.db.select().from(knowledgeItemTable).orderBy(asc(knowledgeItemTable.id)).all()
     const before = readItems()
 
+    // 0029 appends capabilities_explicit after this migration; drop it so the replayed tail re-adds it.
+    dbh.sqlite.exec('ALTER TABLE user_model DROP COLUMN capabilities_explicit')
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
     applyMigrations(dbh.db, migrationsFolder)
 
