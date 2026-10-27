@@ -23,27 +23,6 @@ export default defineProvider({
       modelIds: ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-1-sol']
     }
   ],
-  // Restore max by OpenAI preset identity and endpoint contract;
-  // custom providers not pinned to the preset keep the canonical xhigh cap.
-  overrides: [
-    {
-      modelId: 'gpt-5-6-luna',
-      reasoningContracts: {
-        'openai-responses': {
-          support: {
-            controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }],
-            supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max']
-          }
-        },
-        'openai-chat-completions': {
-          support: {
-            controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }],
-            supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max']
-          }
-        }
-      }
-    }
-  ],
   metadata: {
     website: {
       billing: 'https://platform.openai.com/settings/organization/billing/overview',

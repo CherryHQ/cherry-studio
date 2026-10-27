@@ -311,52 +311,6 @@ describe('OpenAI catalog', () => {
     })
   })
 
-  it.each([['gpt-5-6-luna', ['none', 'low', 'medium', 'high', 'xhigh']]] as const)(
-    'caps the base %s reasoning vocabulary at xhigh',
-    (id, values) => {
-      const model = loader.findModel(id)
-
-      expect(model?.reasoning?.controls).toEqual([{ kind: 'effort', values }])
-      expect(model?.reasoning?.supportedEfforts).toEqual(values)
-      expect(loader.findModel('gpt-5.6-luna')).toEqual(model)
-    }
-  )
-
-  it('restores the documented Max tier in both OpenAI preset Luna endpoint contracts', () => {
-    const override = loader.findOverride('openai', 'gpt-5-6-luna')
-    const values = ['none', 'low', 'medium', 'high', 'xhigh', 'max']
-
-    expect(override).toEqual({
-      providerId: 'openai',
-      modelId: 'gpt-5-6-luna',
-      reasoningContracts: {
-        'openai-responses': {
-          support: {
-            controls: [{ kind: 'effort', values }],
-            supportedEfforts: values
-          }
-        },
-        'openai-chat-completions': {
-          support: {
-            controls: [{ kind: 'effort', values }],
-            supportedEfforts: values
-          }
-        }
-      }
-    })
-    expect(loader.findOverride('openai', 'gpt-5.6-luna')).toEqual(override)
-    expect(loader.findModel('gpt-5.6-luna')?.reasoning?.controls).toEqual([
-      { kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }
-    ])
-    expect(loader.findModel('gpt-5.6-luna')?.reasoning?.supportedEfforts).toEqual([
-      'none',
-      'low',
-      'medium',
-      'high',
-      'xhigh'
-    ])
-  })
-
   // The base catalog infers the platform-API ladder for gpt-5.6 (`none`…`xhigh`), which the Codex
   // backend neither accepts (`none`) nor is limited to (`max`/`ultra`); each SKU carries its own.
   it.each([

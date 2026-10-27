@@ -17238,10 +17238,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
+            "values": ["none", "low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     },
     {
@@ -23187,5 +23187,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "c9175a01d92c0538"
+  "version": "496aef37f9a35b5d"
 }
