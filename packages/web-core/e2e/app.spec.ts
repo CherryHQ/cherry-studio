@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import type { Page } from '@playwright/test'
 
 import { APP_URL, composerInput, gotoApp, send, setUpAssistant, sidebarApps, test, useMockProvider } from './appPage'
@@ -134,6 +137,29 @@ test('adds an assistant from the presets bundled with the app', async ({ page })
   await page.getByRole('dialog').getByText('Product Manager', { exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Product Manager' }).first()).toBeVisible()
+})
+
+test('gives pdf.js the character maps and fonts the desktop ships', async ({ page }) => {
+  await gotoApp(page)
+  const read = (kind: string, name: string) =>
+    page.evaluate(
+      async ([kind, name]) => {
+        const api = window.api as unknown as {
+          ipcApi: { request(route: string, input: unknown): Promise<{ data: { content: Uint8Array } }> }
+        }
+        return [...(await api.ipcApi.request('pdfjs.resource.read', { kind, name })).data.content]
+      },
+      [kind, name]
+    )
+  // A small map, which the build inlines, and a large one and a font, which it emits as files.
+  for (const [kind, file] of [
+    ['cmap', 'cmaps/Roman.bcmap'],
+    ['cmap', 'cmaps/UniGB-UCS2-H.bcmap'],
+    ['standard_font', 'standard_fonts/FoxitFixed.pfb']
+  ]) {
+    const shipped = readFileSync(resolve(import.meta.dirname, '../../../node_modules/pdfjs-dist', file))
+    expect(await read(kind, file.split('/')[1])).toEqual([...shipped])
+  }
 })
 
 test('keeps the agent browser off in a workspace that had it on', async ({ page }) => {

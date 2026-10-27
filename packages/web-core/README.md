@@ -200,8 +200,8 @@ Web edition serves, and the help menu, dictation and the read-aloud bar are left
 panels leave out sign-in popups and the OVMS installer, while API keys still work.
 `src/page/tailwind.css` points Tailwind at the renderer, since the Vite root here is `app/`.
 Saving a message or an image becomes a browser download (`src/page/fileDownloads.ts`), and the
-assistant presets the desktop reads from `resources/data` are fetched from the app's own copy
-(`src/page/bundledData.ts`).
+assistant presets the desktop reads from `resources/data` and pdf.js's character maps and fonts
+are fetched from the app's own copy (`src/page/bundledData.ts`).
 
 The renderer itself changes in two places. First-run setup's `enableCherryInLogin` switch is off
 here. `src/renderer/utils/hostFeatures.ts` says what the app around the renderer can do: more
