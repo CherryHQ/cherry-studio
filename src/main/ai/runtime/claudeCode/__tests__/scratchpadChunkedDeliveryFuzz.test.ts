@@ -171,7 +171,9 @@ const PIECES = [
 // rebuild-introduced. it.fails keeps each lead gated and reproducible without
 // a default CI regression: a future fix turns the case green, which fails
 // it.fails and forces this list to shrink (conformance-sweep precedent).
-const KNOWN_INHERITED = new Set([2, 111, 138, 203, 237, 256, 264, 300, 334, 339, 375, 384])
+// Case 237 retired: the round-17 stale-sibling-ownership fix made its
+// whole-vs-chunked delivery consistent (cherry-pr-review P2, CommonMark ex313).
+const KNOWN_INHERITED = new Set([2, 111, 138, 203, 256, 264, 300, 334, 339, 375, 384])
 
 describe('seeded fuzz whole-vs-chunked delivery', () => {
   const rnd = mulberry32(0xc0ffee)

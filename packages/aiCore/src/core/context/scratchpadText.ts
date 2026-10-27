@@ -1193,13 +1193,18 @@ export function maskIndentedCodeBlocksReference(text: string): {
     if (list) {
       const padding = list[3].length <= 4 ? list[3].length : 1
       const nextColumns = nestedOffset + list[1].length + list[2].length + padding
+      const markerColumn = nestedOffset + list[1].length
       while (listColumnStack.length) {
         const top = listColumnStack[listColumnStack.length - 1]
         // The new item's column is measured in its own quote segment: only
         // levels that segment owns compete on columns; outer-segment lists
         // enclose the quote and survive (cherry-pr-review:
-        // outer-list-analysis-retained).
-        if (top.quoteDepth > depth || (top.quoteDepth === depth && top.column >= nextColumns)) {
+        // outer-list-analysis-retained). A marker nests only in items whose
+        // content column it reaches, so sibling markers at a shallower column
+        // end every level above the marker's own column - not just levels at
+        // or past the new item's content column (cherry-pr-review round-17
+        // stale-sibling-ownership, CommonMark 0.31.2 ex313).
+        if (top.quoteDepth > depth || (top.quoteDepth === depth && top.column > markerColumn)) {
           listColumnStack.pop()
         } else break
       }
@@ -1552,9 +1557,13 @@ export function indentedMaskStep(
   if (list) {
     const padding = list[3].length <= 4 ? list[3].length : 1
     const nextColumns = nestedOffset + list[1].length + list[2].length + padding
+    const markerColumn = nestedOffset + list[1].length
     while (state.listColumnStack.length) {
       const top = state.listColumnStack[state.listColumnStack.length - 1]
-      if (top.quoteDepth > depth || (top.quoteDepth === depth && top.column >= nextColumns)) {
+      // See the reference loop: sibling markers at a shallower column end
+      // every level above the marker's own column (cherry-pr-review round-17
+      // stale-sibling-ownership, CommonMark 0.31.2 ex313).
+      if (top.quoteDepth > depth || (top.quoteDepth === depth && top.column > markerColumn)) {
         state.listColumnStack.pop()
       } else break
     }

@@ -13,15 +13,16 @@ import cases from './corpus-cases.json'
 // Known-failing conformance leads (inherited-class gaps, present on the
 // published head before round 17; tracked as leads per cherry-pr-review
 // round-17 triage, not accepted losses):
-// - ex313C: top-level indented code under nested list structure (round-17
-//   conformance Finding 1).
 // - ex138C/ex145C/ex121S: fence-adjacent shapes where the whole-text
 //   classification diverges from CommonMark.
 // - ex170S-ex173S/ex178S: HTML-block shapes where an injected probe inside
 //   visible table/pre content is stripped.
 // it.fails keeps each lead gated: a future fix turns the case green, which
 // fails it.fails and forces the lead list to shrink.
-const KNOWN_FAILS = new Set(['ex313C', 'ex138C', 'ex145C', 'ex121S', 'ex170S', 'ex171S', 'ex172S', 'ex173S', 'ex178S'])
+// ex313C retired: the round-17 stale-sibling-ownership fix (sibling list
+// markers pop every level above the marker column) classifies the indented
+// line as top-level code again (cherry-pr-review P2, CommonMark ex313).
+const KNOWN_FAILS = new Set(['ex138C', 'ex145C', 'ex121S', 'ex170S', 'ex171S', 'ex172S', 'ex173S', 'ex178S'])
 
 describe('commonmark conformance sweep (head)', () => {
   for (const c of cases) {
