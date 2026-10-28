@@ -35,7 +35,10 @@ describe('readRetryPolicy', () => {
 
   it('bounds the configured fallback list so one failed call cannot fan out to every model', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.enabled', true)
-    const configured: RetryFallbackModelId[] = Array.from({ length: 9 }, (_, index) => `provider::model-${index}`)
+    const configured: RetryFallbackModelId[] = Array.from(
+      { length: 9 },
+      (_, index): RetryFallbackModelId => `provider::model-${index}`
+    )
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.fallback_model_ids', configured)
 
     const { fallbackModelIds } = readRetryPolicy()
