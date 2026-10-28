@@ -16,7 +16,7 @@ function setup() {
     sink: { enqueue: (p: any) => parts.push(p) },
     statusSink: { emit: () => {} },
     onSessionId: () => {}
-  } as any)
+  })
   a.beginTurn()
   a.handleMessage(ev({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }))
   return {

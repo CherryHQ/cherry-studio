@@ -19,7 +19,7 @@ function makeAdapter(parts: any[]) {
     sink: { enqueue: (part: any) => parts.push(part) },
     statusSink: { emit: () => {} },
     onSessionId: () => {}
-  } as any)
+  })
   adapter.beginTurn()
   adapter.handleMessage(
     streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
