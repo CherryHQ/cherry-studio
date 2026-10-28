@@ -16,7 +16,7 @@ Status: implemented
 
 `WebviewBrowser`（独立浏览器标签页和打开的 HTML 产物都用它渲染）通过 `webview.set_visible` 向主进程报告 guest 的可见性。报告放在 effect 及其 cleanup 中发送，因为隐藏的 `<Activity>` 会执行 effect 的 cleanup，但不会执行 effect 本体。`WebviewService.setGuestVisible` 校验调用方窗口确实拥有该 guest 后，交给 `HiddenGuestFreezer` 处理。
 
-guest 被隐藏时，`HiddenGuestFreezer` 启动一个 `HIDDEN_FREEZE_DELAY_MS`（5 分钟）计时器。计时器到期后，它挂上该 guest 的调试器并发送 `Page.setWebLifecycleState`（`state: 'frozen'`），这正是 Chrome 冻结后台标签页的机制。guest 重新显示时，它发送 `state: 'active'` 并断开调试器。冻结期间调试器保持挂载，因此恢复命令总是在同一会话上排在冻结命令之后。正在播放音频、打开了 DevTools 或已挂有调试器的 guest 不会被冻结。隐藏期间被销毁的 guest 会丢弃其计时器。服务停止时会恢复所有已冻结的 guest。
+guest 被隐藏时，`HiddenGuestFreezer` 启动一个 `HIDDEN_FREEZE_DELAY_MS`（5 分钟）计时器。计时器到期后，它挂上该 guest 的调试器并发送 `Page.setWebLifecycleState`（`state: 'frozen'`），这正是 Chrome 冻结后台标签页的机制。guest 重新显示时，它发送 `state: 'active'` 并断开调试器。冻结期间调试器保持挂载，因此恢复命令总是在同一会话上排在冻结命令之后。正在播放音频、打开了 DevTools、已挂有调试器，或正被 `--remote-debugging-port` 客户端（由 `RemoteDebuggingMonitor` 跟踪）调试的 guest 不会被冻结。隐藏期间被销毁的 guest 会丢弃其计时器。服务停止时会恢复所有已冻结的 guest。
 
 ## 备选方案
 
@@ -31,7 +31,7 @@ guest 被隐藏时，`HiddenGuestFreezer` 启动一个 `HIDDEN_FREEZE_DELAY_MS`�
 
 ## 验证
 
-- Regression — `pnpm test:main src/main/services/webview/__tests__/HiddenGuestFreezer.test.ts`：只在完整延迟后冻结、延迟内重新显示则不冻结、恢复并释放调试器、跳过播放音频/打开 DevTools/已被外部挂载调试器的 guest、丢弃已销毁的 guest、dispose 时恢复。
+- Regression — `pnpm test:main src/main/services/webview/__tests__/HiddenGuestFreezer.test.ts`：只在完整延迟后冻结、延迟内重新显示则不冻结、恢复并释放调试器、跳过播放音频/打开 DevTools/已被外部挂载调试器/被远程调试端口客户端调试的 guest、丢弃已销毁的 guest、dispose 时恢复。
 - Regression — `pnpm test:renderer src/renderer/components/__tests__/WebviewBrowser.test.tsx`（`reports its guest hidden while the tab Activity is hidden so main can freeze it`）：去掉 effect cleanup 中的报告后该测试失败。
 - Regression — `pnpm test:main src/main/services/webview/__tests__/WebviewService.test.ts src/main/ipc/handlers/__tests__/webview.test.ts` 与 `pnpm test:renderer src/renderer/pages/browser/__tests__/BrowserPage.test.tsx`：现有 webview 契约测试仍然通过。
 - Regression — 独立的开发实例，在浏览器标签页中打开 vercel.com：可见时每秒 61 帧、100 次定时器；隐藏不足 5 分钟时无帧、每秒 67 次定时器、CPU 5-7%；隐藏满 5 分钟后页面冻结，CPU 约 1.5%；重新显示后每秒 58 帧、100 次定时器，调试器已断开。

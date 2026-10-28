@@ -9,6 +9,7 @@ interface GuestOptions {
   audible?: boolean
   devTools?: boolean
   foreignDebugger?: boolean
+  remoteClient?: boolean
 }
 
 /** A guest whose page lifecycle follows the CDP commands it receives, like Chromium's. */
@@ -17,6 +18,7 @@ function createGuest(options: GuestOptions = {}) {
   let destroyed = false
   const guest = Object.assign(new EventEmitter(), {
     lifecycle: 'active',
+    remoteClient: options.remoteClient,
     isDestroyed: () => destroyed,
     isCurrentlyAudible: () => options.audible ?? false,
     isDevToolsOpened: () => options.devTools ?? false,
@@ -50,7 +52,7 @@ describe('HiddenGuestFreezer', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    freezer = new HiddenGuestFreezer()
+    freezer = new HiddenGuestFreezer((guest) => (guest as unknown as { remoteClient?: boolean }).remoteClient ?? false)
   })
 
   afterEach(() => {
@@ -96,7 +98,8 @@ describe('HiddenGuestFreezer', () => {
   it.each<[string, GuestOptions]>([
     ['playing audio', { audible: true }],
     ['open in DevTools', { devTools: true }],
-    ['driven by another debugger client', { foreignDebugger: true }]
+    ['driven by another debugger client', { foreignDebugger: true }],
+    ['driven by a remote-debugging-port client', { remoteClient: true }]
   ])('leaves a hidden guest running while it is %s', async (_label, options) => {
     const guest = createGuest(options)
     freezer.setVisible(asContents(guest), false)

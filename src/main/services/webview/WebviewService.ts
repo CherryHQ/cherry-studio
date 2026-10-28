@@ -76,7 +76,7 @@ export class WebviewService extends BaseService {
   private debuggingMonitor?: RemoteDebuggingMonitor
   private debuggingRevision = 0
   private readonly debuggingTargets = new Map<string, number>()
-  private readonly hiddenGuests = new HiddenGuestFreezer()
+  private readonly hiddenGuests = new HiddenGuestFreezer((guest) => this.isGuestDebugging(guest.id))
 
   protected async onInit() {
     this.initSessionUserAgent()

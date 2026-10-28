@@ -16,7 +16,7 @@ Each awake browser tab is also its own renderer process. Eight open tabs used ab
 
 `WebviewBrowser`, which renders standalone browser tabs and opened HTML artifacts, reports its guest's visibility to main through `webview.set_visible`. The report is sent from an effect and its cleanup, because a hidden `<Activity>` runs effect cleanups but not effect bodies. `WebviewService.setGuestVisible` checks that the caller's window owns the guest and passes it to `HiddenGuestFreezer`.
 
-`HiddenGuestFreezer` starts a `HIDDEN_FREEZE_DELAY_MS` (5 minutes) timer when a guest is hidden. When the timer fires, it attaches the guest's debugger and sends `Page.setWebLifecycleState` with `state: 'frozen'`, the mechanism Chrome uses to freeze background tabs. When the guest is shown again, it sends `state: 'active'` and detaches. The debugger stays attached while the guest is frozen, so a resume is always sent after the freeze on the same session. A guest that is playing audio, has DevTools open, or already has a debugger attached is left running. A guest destroyed while hidden drops its timer. Stopping the service resumes every frozen guest.
+`HiddenGuestFreezer` starts a `HIDDEN_FREEZE_DELAY_MS` (5 minutes) timer when a guest is hidden. When the timer fires, it attaches the guest's debugger and sends `Page.setWebLifecycleState` with `state: 'frozen'`, the mechanism Chrome uses to freeze background tabs. When the guest is shown again, it sends `state: 'active'` and detaches. The debugger stays attached while the guest is frozen, so a resume is always sent after the freeze on the same session. A guest that is playing audio, has DevTools open, already has a debugger attached, or is driven by a `--remote-debugging-port` client (tracked by `RemoteDebuggingMonitor`) is left running. A guest destroyed while hidden drops its timer. Stopping the service resumes every frozen guest.
 
 ## Alternatives considered
 
@@ -31,7 +31,7 @@ A browser tab hidden for more than 5 minutes runs no JavaScript until it is show
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/services/webview/__tests__/HiddenGuestFreezer.test.ts`: freezing only after the full delay, no freeze when shown before the delay, resuming and releasing the debugger, skipping audible, DevTools-open, and externally attached guests, dropping destroyed guests, and resuming on dispose.
+- Regression — `pnpm test:main src/main/services/webview/__tests__/HiddenGuestFreezer.test.ts`: freezing only after the full delay, no freeze when shown before the delay, resuming and releasing the debugger, skipping audible, DevTools-open, externally attached, and remote-debugging-port guests, dropping destroyed guests, and resuming on dispose.
 - Regression — `pnpm test:renderer src/renderer/components/__tests__/WebviewBrowser.test.tsx` (`reports its guest hidden while the tab Activity is hidden so main can freeze it`): fails without the effect cleanup report.
 - Regression — `pnpm test:main src/main/services/webview/__tests__/WebviewService.test.ts src/main/ipc/handlers/__tests__/webview.test.ts` and `pnpm test:renderer src/renderer/pages/browser/__tests__/BrowserPage.test.tsx`: existing webview contracts still pass.
 - Regression — isolated dev instance, vercel.com in a browser tab: visible, 61 frames and 100 timers per second; hidden for under 5 minutes, no frames, 67 timers per second, 5-7% CPU; hidden for 5 minutes, page frozen at about 1.5% CPU; shown again, 58 frames and 100 timers per second with the debugger detached.

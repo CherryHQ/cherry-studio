@@ -21,6 +21,9 @@ interface HiddenGuest {
 export class HiddenGuestFreezer {
   private readonly hidden = new Map<WebContents, HiddenGuest>()
 
+  /** @param isRemotelyDebugged - true while a `--remote-debugging-port` client drives the guest */
+  constructor(private readonly isRemotelyDebugged: (guest: WebContents) => boolean) {}
+
   setVisible(guest: WebContents, visible: boolean): void {
     let entry = this.hidden.get(guest)
     if (visible) {
@@ -57,7 +60,13 @@ export class HiddenGuestFreezer {
   private freeze(guest: WebContents, entry: HiddenGuest): void {
     entry.timer = undefined
     // ponytail: a guest skipped here stays awake until its next hide; no re-check timer.
-    if (guest.isDestroyed() || guest.isCurrentlyAudible() || guest.isDevToolsOpened() || guest.debugger.isAttached()) {
+    if (
+      guest.isDestroyed() ||
+      guest.isCurrentlyAudible() ||
+      guest.isDevToolsOpened() ||
+      guest.debugger.isAttached() ||
+      this.isRemotelyDebugged(guest)
+    ) {
       return
     }
     try {
