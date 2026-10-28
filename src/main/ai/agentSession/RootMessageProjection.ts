@@ -99,6 +99,18 @@ export class RootMessageProjection {
     return { messageId: owner.messageId, parts: this.parts(owner.messageId)! }
   }
 
+  /** Retains host display state before late task updates reuse the settled message. */
+  retain(message: CherryUIMessage): void {
+    let offset = 0
+    for (const source of this.sources.values()) {
+      if (source.messageId !== message.id) continue
+      const count = source.parts.length
+      source.parts = message.parts.slice(offset, offset + count)
+      offset += count
+    }
+    this.extras.set(message.id, message.parts.slice(offset))
+  }
+
   checkpoint(): RootProjectionCheckpoint {
     const offsets = new Map<string, number>()
     const sources: RootProjectionCheckpoint['root']['sources'] = {}

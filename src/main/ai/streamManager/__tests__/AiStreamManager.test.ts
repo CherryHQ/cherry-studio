@@ -17,6 +17,7 @@ import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type * as DispatchModule from '../context/dispatch'
 import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
+import type { AiStreamSource, MessageStreamEvent } from '../types'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -132,7 +133,7 @@ function controlledStream(): {
 }
 
 const mockStreamText = vi.fn<
-  (request: Parameters<AiService['streamText']>[0]) => Promise<ReadableStream<UIMessageChunk>>
+  (request: Parameters<AiService['streamText']>[0]) => Promise<ReadableStream<UIMessageChunk> | AiStreamSource>
 >(async () => pendingStream())
 
 /**
@@ -160,7 +161,12 @@ vi.mock('@application', async () => {
   // and the mock factory's lookup is keyed by string so the extra entry
   // is wired up regardless of the type.
   return mockApplicationFactory({
-    AiService: { streamText: mockStreamText },
+    AiService: {
+      streamText: async (request: Parameters<AiService['streamText']>[0]) => {
+        const source = await mockStreamText(request)
+        return source instanceof ReadableStream ? { kind: 'chunks', stream: source } : source
+      }
+    },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
     AgentSessionRuntimeService: {
@@ -350,13 +356,16 @@ describe('AiStreamManager', () => {
     sender.emit('destroyed')
   })
 
-  // Native retractions must survive the append-only SDK accumulator through the terminal save.
-  it('keeps native replacement parts when later SDK snapshots still contain the old body', async () => {
-    const feed = controlledStream()
-    let sink: Parameters<AiService['streamText']>[0]['runtimeMessageSink']
-    mockStreamText.mockImplementationOnce(async (request) => {
-      sink = request.runtimeMessageSink
-      return feed.stream
+  // A replacement must reach subscribers and terminal persistence without reintroducing withdrawn text.
+  it('publishes authoritative replacements and drains the final update before completion', async () => {
+    let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+    mockStreamText.mockResolvedValueOnce({
+      kind: 'messages',
+      stream: new ReadableStream({
+        start: (value) => {
+          controller = value
+        }
+      })
     })
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
@@ -365,31 +374,21 @@ describe('AiStreamManager', () => {
     })
     const listener = new FakeListener('native-result')
     startSingle(mgr, { topicId: 'native-topic', modelId: 'p::m', request: req('native-topic'), listeners: [listener] })
-    feed.enqueue({ type: 'start', messageId: 'answer' })
-    feed.enqueue({ type: 'text-start', id: 'text' })
-    feed.enqueue({ type: 'text-delta', id: 'text', delta: 'Withdrawn body' })
+    controller.enqueue({ type: 'control', chunk: { type: 'start' } })
+    controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Withdrawn body' }] })
     await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Withdrawn body' }))
-    const replacement: CherryUIMessage['parts'] = [
-      { type: 'text', text: 'Replacement', state: 'done' },
-      {
-        type: 'data-agent-task-event',
-        id: 'task-child',
-        data: { taskId: 'child', event: 'notification', status: 'completed' }
-      }
-    ]
-    sink!(replacement)
-    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Replacement' }))
-    feed.enqueue({ type: 'text-delta', id: 'text', delta: ' stale tail' })
-    feed.enqueue({
-      type: 'data-agent-task-event',
-      id: 'task-child',
-      data: { taskId: 'child', event: 'started', status: 'in_progress' }
+    const replay: CherryUIMessage[] = []
+    const late = Object.assign(new FakeListener('late-reader'), {
+      onMessage: (message: CherryUIMessage) => replay.push(message)
     })
-    feed.enqueue({ type: 'text-end', id: 'text' })
-    feed.enqueue({ type: 'finish' })
-    feed.close()
+    expect(mgr.addListener('native-topic', late)).toBe(true)
+    expect(replay.at(-1)?.parts).toEqual([{ type: 'text', text: 'Withdrawn body' }])
+    const replacement: CherryUIMessage['parts'] = [{ type: 'text', text: 'Replacement', state: 'done' }]
+    controller.enqueue({ type: 'message', parts: replacement })
+    controller.close()
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
     expect(listener.doneResults[0].finalMessage?.parts).toEqual(replacement)
+    expect(replay.at(-1)?.parts).toEqual(replacement)
     expect(view?.messages[0].parts).toEqual(replacement)
     mgr.detachProjection(sender, 'native-subscription')
     sender.emit('destroyed')

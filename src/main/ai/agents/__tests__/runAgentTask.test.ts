@@ -544,10 +544,8 @@ describe('runAgentTask', () => {
     })
   })
 
-  // C1 (agents-jobs-3): a `text-delta` chunk's payload is on `.delta`, not `.text`.
-  // The previous `as { text }` cast silently accumulated nothing, so every run
-  // persisted the `'Completed'` fallback instead of the model's reply.
-  it('accumulates text-delta chunks via .delta into the result', async () => {
+  // Replacements must reach the saved job result even when no body chunks are emitted.
+  it('uses the final authoritative message as the task result', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
@@ -557,10 +555,17 @@ describe('runAgentTask', () => {
 
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
     const sentinel = captured.listeners[0]
-    sentinel.onChunk({ type: 'text-delta', delta: 'Hello ' })
-    sentinel.onChunk({ type: 'text-delta', delta: 'world' })
-    sentinel.onChunk({ type: 'reasoning-delta', delta: 'ignored' })
-    sentinel.onDone({ status: 'completed' })
+    sentinel.onDone({
+      status: 'completed',
+      finalMessage: {
+        id: 'reply',
+        role: 'assistant',
+        parts: [
+          { type: 'reasoning', text: 'ignored' },
+          { type: 'text', text: 'Hello world' }
+        ]
+      }
+    })
 
     const out = await promise
     expect(out).toEqual({ result: 'Hello world' })
@@ -625,7 +630,10 @@ describe('runAgentTask', () => {
     for (const listener of captured.listeners) {
       listener.onChunk?.(chunk)
     }
-    const doneResult = { status: 'success' }
+    const doneResult = {
+      status: 'success',
+      finalMessage: { id: 'reply', role: 'assistant', parts: [{ type: 'text', text: 'daily summary' }] }
+    }
     await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.(doneResult as never))))
 
     await expect(promise).resolves.toEqual({ result: 'daily summary' })
@@ -660,7 +668,10 @@ describe('runAgentTask', () => {
     for (const listener of captured.listeners) {
       listener.onChunk?.(chunk)
     }
-    const pausedResult = { status: 'paused' }
+    const pausedResult = {
+      status: 'paused',
+      finalMessage: { id: 'reply', role: 'assistant', parts: [{ type: 'text', text: 'partial summary' }] }
+    }
     await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onPaused?.(pausedResult as never))))
 
     await expect(promise).resolves.toEqual({ result: 'partial summary' })

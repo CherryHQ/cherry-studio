@@ -184,7 +184,8 @@ describe('provider billing through AiService and the real SDK', () => {
       requestOptions: { maxRetries: 0, signal: new AbortController().signal }
     })
     const chunks: UIMessageChunk[] = []
-    for await (const chunk of stream) chunks.push(chunk)
+    if (stream.kind !== 'chunks') throw new Error('Expected provider chunks')
+    for await (const chunk of stream.stream) chunks.push(chunk)
     expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'ok' }))
     const rows = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rows).toHaveLength(1)

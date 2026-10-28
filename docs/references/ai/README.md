@@ -133,9 +133,10 @@ src/main/ai/
    Agent-session runtime requests are the exception: `AiService.streamText`
    routes them to `AgentSessionRuntimeService.openTurnStream()` so the
    registered driver can own the concrete agent runtime.
-6. `pipeStreamLoop` tees the chunk stream: one branch broadcasts to listeners
-   (WebContents / SSE / channel-adapter / persistence), one branch runs
-   `readUIMessageStream` to accumulate a `CherryUIMessage` snapshot, published through the shared root projection.
+6. Each execution selects one content source. `chunks` uses `pipeStreamLoop` and
+   `readUIMessageStream`; Claude's `messages` uses `pipeMessageStream` over native
+   projection views. Both publish the same `CherryUIMessage` model through the
+   root projection and `onMessage` listeners. See [Stream Manager](./stream-manager.md).
 7. On terminal (done / error / aborted / paused-for-approval), listeners get
    a typed terminal callback. `PersistenceListener` writes the final
    message via the appropriate `PersistenceBackend`.

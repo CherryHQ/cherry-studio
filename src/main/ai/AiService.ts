@@ -7,8 +7,7 @@ import {
   type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
-  type ModelMessage,
-  type UIMessageChunk
+  type ModelMessage
 } from 'ai'
 
 import { application } from '@application'
@@ -45,7 +44,6 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -85,6 +83,7 @@ import {
   readRetryPolicy
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
+import type { AiStreamSource } from './streamManager'
 import { type MessageRuntimeTimingSink } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
@@ -278,7 +277,6 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
 
 /** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
 export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
-  runtimeMessageSink?: (parts: CherryUIMessage['parts']) => void
   usageContext?: InProcessUsageContext
   runtimeTimingSink?: MessageRuntimeTimingSink
   /**
@@ -586,15 +584,15 @@ export class AiService extends BaseService {
   // ── Streaming chat (agent.stream) ──
 
   /**
-   * Raw `UIMessageChunk` stream from `Agent.stream`. Caller (usually
-   * `AiStreamManager`) owns read/multicast/accumulation/terminal dispatch.
+   * One content source per execution: SDK chunks or authoritative message views.
+   * `AiStreamManager` owns consumption, publication and terminal dispatch.
    * Pre-stream errors reject the Promise; mid-stream errors come through
    * the stream itself.
    */
   async streamText(
     request: AsInProcessChat<AiStreamRequest>,
     extraFeatures: readonly RequestFeature[] = []
-  ): Promise<ReadableStream<UIMessageChunk>> {
+  ): Promise<AiStreamSource> {
     logger.info('streamText started', { chatId: request.conversation.topicId })
     const signal = request.requestOptions?.signal
     if (!signal) {
@@ -605,8 +603,7 @@ export class AiService extends BaseService {
       return application.get('AgentSessionRuntimeService').openTurnStream({
         sessionId: request.runtime.sessionId,
         turnId: request.runtime.turnId,
-        signal,
-        onMessage: request.runtimeMessageSink
+        signal
       })
     }
 
@@ -780,7 +777,7 @@ export class AiService extends BaseService {
     })
     agentRef.current = agent
 
-    return agent.stream(preparedMessages, signal)
+    return { kind: 'chunks', stream: agent.stream(preparedMessages, signal) }
   }
 
   private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {

@@ -615,8 +615,11 @@ Root content passes through `ThreadMessageProjection` and `RootMessageProjection
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. Rich native tool, thinking,
 image and document metadata is restored before publishing `CherryUIMessage`.
-AI SDK accumulation still supplies root status metadata, but cannot overwrite
-that authoritative content with an older append-only snapshot.
+The driver selects the `messages` source for the entire execution. `pipeMessageStream`
+applies host approval, data-part and status metadata to that view; it never accumulates
+a second text/tool body. Publishing, listeners and persistence receive the same
+`CherryUIMessage`. `ClaudeRuntimeState` owns native lifecycle events, while
+`ClaudeMessageMetadata` decorates rich native blocks. No Claude chunk adapter remains.
 
 Each child uses its own `ChildThreadProjection`, context and archive, including
 nested children under their immediate parent. Parent completion and window detach
@@ -1077,7 +1080,8 @@ Focused tests:
 - `src/main/ai/agentSession/__tests__/AgentSessionDeliveryService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`
 - `src/main/ai/__tests__/AiService.test.ts`
-- `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/ClaudeRuntimeState.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/transcriptReplay.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
 - `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`
 

@@ -7,8 +7,6 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
-import { isDataUIPart } from 'ai'
-
 import type { InputState } from '@cherrystudio/agent-runtime'
 import type { RootProjectionCheckpoint } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -33,7 +31,7 @@ export interface AgentSessionMessageBackendOptions {
   runtimeResumeToken?: string | (() => string | undefined)
   forkAnchor?: () => RuntimeForkAnchor | undefined
   inputResponses?: () => readonly InputState[]
-  projection?: () => { checkpoint: RootProjectionCheckpoint; parts: CherryUIMessage['parts'] } | undefined
+  projection?: (message?: CherryUIMessage) => RootProjectionCheckpoint | undefined
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -61,19 +59,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       }
     }
     const inputResponses = this.opts.inputResponses?.()
-    const projection = this.opts.projection?.()
-    const parts = projection
-      ? [
-          ...projection.parts,
-          ...(finalMessage?.parts ?? []).filter(
-            (part) =>
-              isDataUIPart(part) &&
-              !projection.parts.some(
-                (native) => isDataUIPart(native) && native.type === part.type && native.id === part.id
-              )
-          )
-        ]
-      : (finalMessage?.parts ?? [])
+    const projection = this.opts.projection?.(finalMessage)
+    const parts = finalMessage?.parts ?? []
     const save = (runtimeAnchor?: RuntimeForkAnchor) =>
       agentSessionMessageService.saveMessage(
         {
@@ -91,7 +78,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         },
         {
           publishDataChange: true,
-          projection: projection?.checkpoint,
+          projection,
           ...(inputResponses?.length ? { inputResponses } : {})
         }
       )

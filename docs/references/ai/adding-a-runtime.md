@@ -92,7 +92,8 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
    - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `chunk` for streamed content, `turn-complete` to settle the
+     mapping: `chunk` for chunk-source content or `message-projection` for a driver
+     declaring `messageSource: 'projection'`, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
      never emits it strands the turn), `resume-token` whenever the runtime
      learns a recovery handle, `error` on failure.
@@ -137,10 +138,13 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Stream adapter** — convert runtime-native events into
-   `UIMessageChunk`s. Import your transport constant from the descriptor
-   (single source), never re-declare the string. Reference implementations:
-   `claudeCode/streamAdapter.ts` and `pi/piStreamAdapter.ts`.
+4. **Content producer** — choose one source per execution. A chunk driver converts
+   native events to `UIMessageChunk`s (see `pi/piStreamAdapter.ts`). A projection
+   driver uses common observation and `ThreadMessageProjection`, decorates native
+   blocks, then publishes replacement-aware message views (see
+   `claudeCode/ClaudeMessageMetadata.ts`). Keep lifecycle/approval controls separate;
+   do not produce the same text and tools through both sources. Import the transport
+   constant from the descriptor rather than re-declaring its string.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a

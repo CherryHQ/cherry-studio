@@ -1,5 +1,5 @@
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import { readUIMessageStream, type UIMessageChunk } from 'ai'
+import { isToolUIPart, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
@@ -82,6 +82,7 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../runtime/types'
+import type { AiStreamSource, MessageStreamEvent } from '../streamManager'
 import {
   finalizeInterruptedParts,
   PersistenceListener,
@@ -194,7 +195,6 @@ export interface OpenAgentSessionTurnStreamInput {
   sessionId: string
   turnId: string
   signal: AbortSignal
-  onMessage?: (parts: CherryUIMessage['parts']) => void
 }
 
 export interface AgentSessionRuntimeSnapshot {
@@ -230,8 +230,9 @@ type AgentSessionTurn = {
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   abortController: AbortController
-  controller?: ReadableStreamDefaultController<UIMessageChunk>
-  onMessage?: (parts: CherryUIMessage['parts']) => void
+  controller?: Pick<ReadableStreamDefaultController<UIMessageChunk>, 'enqueue' | 'error' | 'close'> & {
+    message?: (parts: CherryUIMessage['parts']) => void
+  }
   activeToolIds: Set<string>
   headless?: boolean
   trustedNotifyChannels?: readonly NotifyChannel[]
@@ -961,57 +962,73 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeSession(entry.sessionId)
   }
 
-  openTurnStream(input: OpenAgentSessionTurnStreamInput): ReadableStream<UIMessageChunk> {
+  openTurnStream(input: OpenAgentSessionTurnStreamInput): AiStreamSource {
     const entry = this.entries.get(input.sessionId)
     const turn = entry ? this.currentTurn(entry) : undefined
     if (!entry || !turn || turn.turnId !== input.turnId) {
       throw new Error(`No active agent runtime turn ${input.turnId} for session ${input.sessionId}`)
     }
 
-    return new ReadableStream<UIMessageChunk>({
-      start: async (controller) => {
-        try {
-          this.clearIdleTimer(entry)
-          turn.controller = controller
-          turn.onMessage = input.onMessage
-          this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
-          for (const event of entry.pendingProjections?.splice(0) ?? []) this.handleRuntimeEvent(entry, event)
-          for (const projection of entry.rootProjections?.values() ?? []) {
-            const parts = projection.parts(turn.assistantMessageId)
-            if (parts) turn.onMessage?.(parts)
-          }
-          for (const id of entry.pendingResponseIds ?? [])
-            (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(id, turn.assistantMessageId)
-          entry.pendingResponseIds?.clear()
-
-          // Durable shutdown preserves work; user Stop must record cancellation before closing.
-          const onAbort = () =>
-            void this.closeSession(entry.sessionId, !this.isShuttingDown && input.signal.reason !== 'app-shutdown')
-          if (input.signal.aborted) {
-            onAbort()
-            return
-          } else {
-            input.signal.addEventListener('abort', onAbort, { once: true })
-          }
-
-          controller.enqueue({ type: 'start' })
-          // A steer/autonomous transition owns any chunks that arrived before this controller. The
-          // state transition atomically transfers that buffer to this exact turn before admission.
-          this.applyRuntimeStateEvent(entry, { type: 'flush-transition' })
-          if (!this.isTurnLive(entry, turn)) return
-          const connected = await this.ensureConnection(entry)
-          if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
-          await this.admitTurn(entry, turn)
-        } catch (error) {
-          controller.error(error)
+    const start = async (controller: NonNullable<AgentSessionTurn['controller']>) => {
+      try {
+        this.clearIdleTimer(entry)
+        turn.controller = controller
+        this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+        for (const event of entry.pendingProjections?.splice(0) ?? []) this.handleRuntimeEvent(entry, event)
+        for (const projection of entry.rootProjections?.values() ?? []) {
+          const parts = projection.parts(turn.assistantMessageId)
+          if (parts) this.publishTurnMessage(entry, turn, parts)
         }
-      },
-      cancel: () => {
-        // Routed through the machine so the settle is a real transition (`awaiting-persistence`)
-        // rather than an out-of-band mutation the busy/live queries cannot see.
-        this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
+        for (const id of entry.pendingResponseIds ?? [])
+          (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(id, turn.assistantMessageId)
+        entry.pendingResponseIds?.clear()
+
+        // Durable shutdown preserves work; user Stop must record cancellation before closing.
+        const onAbort = () =>
+          void this.closeSession(entry.sessionId, !this.isShuttingDown && input.signal.reason !== 'app-shutdown')
+        if (input.signal.aborted) {
+          onAbort()
+          return
+        } else {
+          input.signal.addEventListener('abort', onAbort, { once: true })
+        }
+
+        controller.enqueue({ type: 'start' })
+        // A steer/autonomous transition owns any chunks that arrived before this controller. The
+        // state transition atomically transfers that buffer to this exact turn before admission.
+        this.applyRuntimeStateEvent(entry, { type: 'flush-transition' })
+        if (!this.isTurnLive(entry, turn)) return
+        const connected = await this.ensureConnection(entry)
+        if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
+        await this.admitTurn(entry, turn)
+      } catch (error) {
+        controller.error(error)
       }
-    })
+    }
+    const cancel = () => {
+      // Routed through the machine so the settle is a real transition (`awaiting-persistence`)
+      // rather than an out-of-band mutation the busy/live queries cannot see.
+      this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
+    }
+    if (runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)?.messageSource === 'projection') {
+      return {
+        kind: 'messages',
+        stream: new ReadableStream<MessageStreamEvent>({
+          start: (controller) =>
+            start({
+              enqueue: (chunk) => controller.enqueue({ type: 'control', chunk }),
+              message: (parts) => controller.enqueue({ type: 'message', parts }),
+              close: () => controller.close(),
+              error: (error) => {
+                controller.enqueue({ type: 'error', error })
+                controller.close()
+              }
+            }),
+          cancel
+        })
+      }
+    }
+    return { kind: 'chunks', stream: new ReadableStream<UIMessageChunk>({ start, cancel }) }
   }
 
   enqueueUserMessage(
@@ -2051,7 +2068,7 @@ export class AgentSessionRuntimeService extends BaseService {
             (projection = new RootMessageProjection(event.projection.contextId))
           )
         for (const [id, parts] of projection.accept(event.projection, messageId)) {
-          if (turn && id === turn.assistantMessageId) turn.onMessage?.(parts)
+          if (turn && id === turn.assistantMessageId) this.publishTurnMessage(entry, turn, parts)
           else if (id !== messageId)
             agentSessionMessageService.replaceMessageParts(entry.sessionId, id, parts, projection.checkpoint())
         }
@@ -2740,7 +2757,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const update = projection.taskEvent(merged as unknown as AgentTaskEventPartData)
       if (!update) continue
       const turn = this.liveTurn(entry)
-      if (turn?.assistantMessageId === update.messageId) turn.onMessage?.(update.parts)
+      if (turn?.assistantMessageId === update.messageId) this.publishTurnMessage(entry, turn, update.parts)
       else
         agentSessionMessageService.replaceMessageParts(
           entry.sessionId,
@@ -2893,6 +2910,23 @@ export class AgentSessionRuntimeService extends BaseService {
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
     })
+  }
+
+  private publishTurnMessage(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    parts: CherryUIMessage['parts']
+  ): void {
+    if (!turn.controller?.message || !this.isTurnLive(entry, turn)) return
+    this.clearApiRetry(entry)
+    turn.activeToolIds.clear()
+    for (const part of parts) {
+      if (!isToolUIPart(part)) continue
+      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(part.toolCallId, turn.assistantMessageId)
+      if (part.state !== 'output-available' && part.state !== 'output-error' && part.state !== 'output-denied')
+        turn.activeToolIds.add(part.toolCallId)
+    }
+    turn.controller.message(parts)
   }
 
   private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
@@ -3593,11 +3627,12 @@ export class AgentSessionRuntimeService extends BaseService {
         runtimeResumeToken: () => entry.lastResumeToken,
         forkAnchor: () => currentTurn.forkAnchor,
         inputResponses: () => entry.inputResponses?.get(assistantMessageId) ?? [],
-        projection: () => {
+        projection: (message) => {
           const projection = [...(entry.rootProjections?.values() ?? [])].find(
             (candidate) => candidate.parts(assistantMessageId) !== undefined
           )
-          return projection && { checkpoint: projection.checkpoint(), parts: projection.parts(assistantMessageId)! }
+          if (message) projection?.retain(message)
+          return projection?.checkpoint()
         },
         afterPersist
       }),

@@ -13,6 +13,8 @@ export type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } fr
 export { finalizeInterruptedParts } from './persistence/PersistenceBackend'
 export type {
   ActiveStream,
+  AiStreamSource,
+  MessageStreamEvent,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,

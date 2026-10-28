@@ -107,9 +107,18 @@ function dataPart(partId: string, revision: string, name: string, value: unknown
 
 /** Persisted parts get index-based IDs; live parts use stream IDs and are tombstoned once history commits. */
 export function projectPersistedParts(message: AgentSessionMessageEntity): ProjectedPart[] {
-  const revision = revisionOf(message.updatedAt)
+  return projectMessageParts(
+    { id: message.id, parts: message.data.parts ?? [], modelId: message.modelId },
+    revisionOf(message.updatedAt)
+  )
+}
+
+export function projectMessageParts(
+  message: { id: string; parts: CherryMessagePart[]; modelId?: string | null },
+  revision: string
+): ProjectedPart[] {
   const projected: ProjectedPart[] = []
-  ;(message.data.parts ?? []).forEach((part: CherryMessagePart, index) => {
+  message.parts.forEach((part: CherryMessagePart, index) => {
     const partId = `${message.id}:${index}`
     if (part.type === 'text' || part.type === 'reasoning') {
       projected.push({

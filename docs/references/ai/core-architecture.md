@@ -18,8 +18,10 @@ each subsystem.
 ```text
 Renderer: commands → ai.stream.open/abort → AiStreamManager
           views    ← ai.projection.* ← root/child message publishers
-Main: context provider → AiService / native runtime → UIMessageChunk stream
-      pipeStreamLoop → SDK accumulator + native replacement parts → current root projection
+Main: context provider → AiService → one source per execution
+      chunks → pipeStreamLoop → readUIMessageStream → CherryUIMessage
+      messages → pipeMessageStream → host display state → CherryUIMessage
+      current CherryUIMessage → root projection + listeners + persistence
       child native observation → reconciliation/archive → independent child projection
 Terminal: persistence → projection and other subscriber notifications → cleanup
 Model requests: existing provider registry / gateway / AI SDK paths remain unchanged
@@ -59,8 +61,11 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
    agent loop here: `AiService.streamText()` calls
    `AgentSessionRuntimeService.openTurnStream()` so the registered driver
    can own the concrete agent runtime.
-8. `pipeStreamLoop` reads the chunk stream once, tees: broadcast to
-   listeners, accumulate via `readUIMessageStream`.
+8. The returned `AiStreamSource` selects one consumer. `chunks` uses `pipeStreamLoop`
+   and `readUIMessageStream`; `messages` uses `pipeMessageStream` to apply host display
+   state to authoritative bodies. Listeners receive `onMessage` snapshots, and
+   persistence uses that same final view. Claude selects `messages`; Chat and Pi
+   retain their chunk sources.
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):
    - `PersistenceListener` writes the final assistant message.
    - `TopicMessageProjection` publishes the final message and terminal state to subscribed windows.

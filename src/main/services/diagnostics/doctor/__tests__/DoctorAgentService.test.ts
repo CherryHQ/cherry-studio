@@ -135,6 +135,42 @@ describe('DoctorAgentService.start', () => {
     expect(listener!.isAlive()).toBe(false)
   })
 
+  it('replaces withdrawn native output before publishing and settling the diagnostic reply', async () => {
+    await startedService()
+    listener!.onMessage?.(
+      { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'Withdrawn' }] },
+      undefined,
+      'messages'
+    )
+    listener!.onMessage?.(
+      {
+        id: 'answer',
+        role: 'assistant',
+        parts: [
+          { type: 'text', text: 'Corrected answer' },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call',
+            toolName: 'mcp__doctor__report',
+            input: {},
+            state: 'output-available',
+            output: 'Ready'
+          }
+        ]
+      },
+      undefined,
+      'messages'
+    )
+    await wait(250)
+    expect(agentState()).toMatchObject({
+      status: 'running',
+      text: 'Corrected answer',
+      toolCalls: ['mcp__doctor__report']
+    })
+    await listener!.onDone({ status: 'success' })
+    expect(agentState()).toMatchObject({ status: 'completed', text: 'Corrected answer' })
+  })
+
   it('runs on the model the user picked and remembers it in the state', async () => {
     mocks.getModel.mockReturnValue({
       id: 'deepseek::v3',

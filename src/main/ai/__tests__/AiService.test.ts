@@ -583,27 +583,28 @@ describe('AiService', () => {
     }
   })
 
-  it('routes agent-session runtime requests directly to the runtime service', async () => {
+  it('forwards the runtime message source without converting it into chunks', async () => {
     const service = createService()
-    const stream = new ReadableStream()
-    const openTurnStream = vi.fn(() => stream)
-    mockApplicationGet.mockReturnValue({ openTurnStream })
-
-    await expect(
-      service.streamText({
-        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
-        trigger: 'submit-message',
-        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
-        requestOptions: { signal: new AbortController().signal }
+    const source = {
+      kind: 'messages' as const,
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+          controller.close()
+        }
       })
-    ).resolves.toBe(stream)
-
-    expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
-    expect(openTurnStream).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      turnId: 'turn-1',
-      signal: expect.any(AbortSignal)
+    }
+    mockApplicationGet.mockReturnValue({ openTurnStream: () => source })
+    const result = await service.streamText({
+      conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
+      trigger: 'submit-message',
+      runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
+      requestOptions: { signal: new AbortController().signal }
     })
+    expect(result.kind).toBe('messages')
+    const reader = result.stream.getReader()
+    expect((await reader.read()).value).toEqual({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+    expect((await reader.read()).done).toBe(true)
   })
 
   it('rejects agent-session streams that do not carry a runtime request', async () => {

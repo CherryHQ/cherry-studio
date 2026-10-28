@@ -88,6 +88,16 @@ export interface StreamErrorResult extends TerminalOutcome {
 
 // ── StreamListener ──────────────────────────────────────────────────
 
+export type MessageStreamEvent =
+  | { type: 'error'; error: unknown }
+  | { type: 'message'; parts: CherryUIMessage['parts'] }
+  | { type: 'control'; chunk: UIMessageChunk }
+
+/** One content producer per execution: either SDK chunks or authoritative message views. */
+export type AiStreamSource =
+  | { kind: 'chunks'; stream: ReadableStream<UIMessageChunk> }
+  | { kind: 'messages'; stream: ReadableStream<MessageStreamEvent> }
+
 export interface StreamListener {
   readonly windowId?: string
   /** Stable id used for dedup, detach-by-match, and logging. */
@@ -102,6 +112,7 @@ export interface StreamListener {
     attemptId?: number,
     sequence?: number
   ): void
+  onMessage?(message: CherryUIMessage, sourceModelId?: UniqueModelId, sourceKind?: AiStreamSource['kind']): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
@@ -134,7 +145,8 @@ export interface StreamExecution {
   buffer: StreamChunkPayload[]
   sequence: number
   droppedChunks: number
-  /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
+  /** Latest authoritative message view. Undefined until the first snapshot lands. */
+  sourceKind?: AiStreamSource['kind']
   finalMessage?: CherryUIMessage
   /**
    * Compaction anchors emitted during this turn, newest last.

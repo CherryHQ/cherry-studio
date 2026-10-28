@@ -73,8 +73,14 @@ it('updates a settled parent task and keeps the status after replay and reopen',
   new AgentSessionMessageBackend({
     sessionId: f.sessionId,
     assistantMessageId: id,
-    projection: () => ({ parts: f.projection.parts(id)!, checkpoint: f.projection.checkpoint() })
-  }).persistAssistant({ finalMessage: stale, status: 'success' })
+    projection: (message) => {
+      if (message) f.projection.retain(message)
+      return f.projection.checkpoint()
+    }
+  }).persistAssistant({
+    finalMessage: { ...stale, parts: [...f.projection.parts(id)!, stale.parts.at(-1)!] },
+    status: 'success'
+  })
   f.projection.taskEvent({ ...terminal, usage: { totalTokens: 100 } })
   f.save(id)
   const restored = new RootMessageProjection(f.context.id)
@@ -128,11 +134,14 @@ it('persists the latest replacement and checkpoint atomically at turn completion
   const backend = new AgentSessionMessageBackend({
     sessionId: f.sessionId,
     assistantMessageId: id,
-    projection: () => ({ checkpoint: f.projection.checkpoint(), parts: f.projection.parts(id)! })
+    projection: () => f.projection.checkpoint()
   })
   f.projection.accept(f.update([text('native:1', 'Old')]), id)
   f.projection.accept(f.update([text('native:2', 'New')], { removed: ['native:1'] }), id)
-  backend.persistAssistant({ finalMessage: text(id, 'Old'), status: 'success' })
+  backend.persistAssistant({
+    finalMessage: { id, role: 'assistant', parts: f.projection.parts(id)! },
+    status: 'success'
+  })
   expect(messages.getSessionMessage(f.sessionId, id).data.parts).toEqual(text('', 'New').parts)
   expect(new RootMessageProjection(f.context.id).parts(id)).toEqual(text('', 'New').parts)
 })
