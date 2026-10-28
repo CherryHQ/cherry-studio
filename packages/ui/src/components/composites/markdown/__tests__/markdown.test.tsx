@@ -325,3 +325,18 @@ describe('Markdown (static)', () => {
     expect(container.innerHTML).not.toContain('data-markdown-image-src')
   })
 })
+
+describe('additional link protocols', () => {
+  it.each([false, true])('only preserves injected application links (injected: %s)', (injected) => {
+    const href = 'zotero://select/items/Note'
+    const { container } = render(
+      <Markdown
+        id="protocol"
+        components={{ a: ({ href, children }) => <a href={href}>{children}</a> }}
+        additionalLinkProtocols={injected ? ['zotero'] : undefined}>
+        {`[Note](${href})`}
+      </Markdown>
+    )
+    expect(container.querySelector('a')?.getAttribute('href') ?? null).toBe(injected ? href : null)
+  })
+})

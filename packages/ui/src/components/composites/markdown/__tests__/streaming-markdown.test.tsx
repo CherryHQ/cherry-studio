@@ -147,3 +147,18 @@ describe('StreamingMarkdown', () => {
     expect(rendered).toEqual(['Third paragraph'])
   })
 })
+
+describe('additional link protocols', () => {
+  it.each([false, true])('only preserves injected application links (injected: %s)', (injected) => {
+    const href = 'zotero://select/items/Note'
+    const { container } = render(
+      <StreamingMarkdown
+        id="protocol"
+        components={{ a: ({ href, children }) => <a href={href}>{children}</a> }}
+        additionalLinkProtocols={injected ? ['zotero'] : undefined}>
+        {`[Note](${href})`}
+      </StreamingMarkdown>
+    )
+    expect(container.querySelector('a')?.getAttribute('href') ?? null).toBe(injected ? href : null)
+  })
+})

@@ -228,3 +228,32 @@ describe('Markdown sanitize schema', () => {
     expect(output).not.toContain('injected')
   })
 })
+
+describe('additional link protocol injection', () => {
+  it.each([false, true])('keeps injected knowledge hrefs (harden: %s)', async (withHarden) => {
+    const { sanitize, harden } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+    const [hardenFn, hardenOptions] = harden
+    const hrefs = ['zotero://select/items/Note', 'obsidian://new?vault=Notes', 'siyuan://blocks/Note']
+    const html =
+      hrefs.map((href) => `<a href="${href}">Note</a>`).join('') +
+      '<a href="javascript:alert(1)">Bad</a><a href="file:///secret">Bad</a>' +
+      '<img src="zotero://select/items/Note"><img src="data:image/png;base64,AA==">'
+    for (const injected of [false, true]) {
+      const extended = createMarkdownSanitizeSchema(
+        schema,
+        injected ? ['zotero', 'obsidian', 'siyuan', 'zotero'] : undefined
+      )
+      expect(extended.protocols?.src).toEqual(createMarkdownSanitizeSchema(schema).protocols?.src)
+      expect(new Set(extended.protocols?.href).size).toBe(extended.protocols?.href?.length)
+      const pipeline = unified().use(rehypeParse, { fragment: true }).use(sanitizeFn, extended)
+      if (withHarden) pipeline.use(hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only' })
+      const output = String(await pipeline.use(rehypeStringify).process(html))
+      for (const href of hrefs) expect(output.includes(`href="${href}"`)).toBe(injected)
+      expect(output).not.toContain('javascript:')
+      expect(output).not.toContain('file:///')
+      expect(output).not.toContain('src="zotero:')
+      expect(output).toContain('src="data:image/png;base64,AA=="')
+    }
+  })
+})

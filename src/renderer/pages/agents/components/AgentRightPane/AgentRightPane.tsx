@@ -97,6 +97,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -111,6 +112,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
 import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotations'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -396,6 +398,10 @@ function AgentRightPaneActionsProvider({
   )
   const openExternalUrl = useCallback(
     (url: string) => {
+      if (resolveSafeExternalUrl(url)?.requiresConfirmation) {
+        void openExternalWebsite(url)
+        return
+      }
       if (openLinksInBrowser && /^https?:\/\//i.test(url) && canOpenBrowser) {
         openBrowserPanel(url)
         return

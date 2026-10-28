@@ -134,6 +134,7 @@ export interface MarkdownCoreProps {
   footnoteLabel?: string
   /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
   preserveFileLinkHrefs?: boolean
+  additionalLinkProtocols?: readonly string[]
   preserveRelativeImageSrcs?: boolean
 }
 
@@ -152,6 +153,7 @@ export function MarkdownCore({
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes',
   preserveFileLinkHrefs = false,
+  additionalLinkProtocols,
   preserveRelativeImageSrcs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
@@ -173,7 +175,7 @@ export function MarkdownCore({
   const rehypePlugins = useMemo(() => {
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
     const relativeImages = createRelativeImagePreservation()
-    const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
+    const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema, additionalLinkProtocols)
     const effectiveSchema = preserveFileLinkHrefs
       ? {
           ...extendedSchema,
@@ -203,7 +205,14 @@ export function MarkdownCore({
     )
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
-  }, [hasSvgElement, id, stableExtraRehypePlugins, preserveFileLinkHrefs, preserveRelativeImageSrcs])
+  }, [
+    hasSvgElement,
+    id,
+    stableExtraRehypePlugins,
+    preserveFileLinkHrefs,
+    preserveRelativeImageSrcs,
+    additionalLinkProtocols
+  ])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
