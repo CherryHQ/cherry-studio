@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { dirname, join, parse } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
@@ -40,7 +39,7 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
   const packaged = app.record.mode === 'tag'
   const initialElectronPid = app.record.electronPid
   const bootConfigPath = packaged
-    ? join(homedir(), '.cherrystudio', 'boot-config.json')
+    ? join(app.paths.profiles, app.record.profile, 'home', '.cherrystudio', 'boot-config.json')
     : join(app.paths.profiles, app.record.profile, '.cherrystudio', 'boot-config.json')
   const bootConfigBackup = existsSync(bootConfigPath) ? await readFile(bootConfigPath) : undefined
   let restoreBootConfig = false
