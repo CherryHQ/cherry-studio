@@ -1288,6 +1288,322 @@ describe('Anthropic adaptive thinking projection', () => {
   })
 })
 
+describe('Gateway issue 22785 core', () => {
+  const provider = makeProvider({
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'gateway', baseUrl: 'https://ai-gateway.vercel.sh/v1/ai' }
+    }
+  })
+  const model = makeModel({
+    id: 'gateway::openai/gpt-6-astra',
+    providerId: 'gateway',
+    apiModelId: 'openai/gpt-6-astra'
+  })
+
+  it('projects the Chat config without changing the stored Gateway base', () => {
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://ai-gateway.vercel.sh/v1')
+    expect(injection.modelId).toBe('openai/gpt-6-astra')
+    expect(provider.endpointConfigs?.['openai-chat-completions']?.baseUrl).toBe('https://ai-gateway.vercel.sh/v1/ai')
+  })
+
+  it('projects the Responses fallback from the Chat config', () => {
+    const injection = buildPiProviderInjection(provider, { ...model, endpointTypes: ['openai-responses'] }, REAL_KEY)
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.providerConfig.api).toBe('openai-responses')
+    expect(injection.providerConfig.baseUrl).toBe('https://ai-gateway.vercel.sh/v1')
+  })
+
+  it('sends real Chat wire requests to /v1/chat/completions', async () => {
+    const requests: { method: string | undefined; url: string | undefined; body: { model?: string } }[] = []
+    const marker = 'gateway-chat-22785'
+    const server = createServer(async (req, res) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      requests.push({ method: req.method, url: req.url, body })
+      if (req.method !== 'POST' || req.url !== '/v1/chat/completions') {
+        res.writeHead(404, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: 'Unknown endpoint', type: 'invalid_request_error' } }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      const chunk = {
+        id: 'chat-22785',
+        object: 'chat.completion.chunk',
+        created: 1,
+        model: 'openai/gpt-6-astra',
+        choices: [{ index: 0, delta: { content: marker }, finish_reason: null }]
+      }
+      res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      res.write(`data: ${JSON.stringify({ ...chunk, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`)
+      res.end('data: [DONE]\n\n')
+    })
+    server.requestTimeout = 3_000
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', resolve)
+      })
+      const injection = buildPiProviderInjection(
+        {
+          ...provider,
+          endpointConfigs: {
+            'openai-chat-completions': {
+              adapterFamily: 'gateway',
+              baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/ai`
+            }
+          }
+        },
+        model,
+        'test-key'
+      )
+      const materialized = await materializePiProviderStream(injection)
+      const piModel = {
+        ...injection.providerConfig.models![0],
+        api: injection.api,
+        provider: injection.providerName,
+        baseUrl: injection.providerConfig.baseUrl
+      } as PiModel<'openai-completions'>
+      const result = await materialized
+        .streamSimple(piModel, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }), {
+          apiKey: 'test-key',
+          maxRetries: 0,
+          timeoutMs: 2_000
+        })
+        .result()
+
+      expect(requests).toHaveLength(1)
+      expect(requests[0].url).toBe('/v1/chat/completions')
+      expect(requests[0].body.model).toBe('openai/gpt-6-astra')
+      expect(result.stopReason).toBe('stop')
+      expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: marker }))
+      expect(requests[0].method).toBe('POST')
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
+  })
+
+  it('sends real Responses fallback wire requests to /v1/responses', async () => {
+    const requests: { method: string | undefined; url: string | undefined; body: { model?: string } }[] = []
+    const marker = 'gateway-responses-22785'
+    const server = createServer(async (req, res) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      requests.push({ method: req.method, url: req.url, body })
+      if (req.method !== 'POST' || req.url !== '/v1/responses') {
+        res.writeHead(404, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: 'Unknown endpoint', type: 'invalid_request_error' } }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      const events = [
+        { type: 'response.created', response: { id: 'resp-22785', status: 'in_progress' } },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { id: 'msg-22785', type: 'message', role: 'assistant', content: [] }
+        },
+        { type: 'response.output_text.delta', output_index: 0, content_index: 0, delta: marker },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-22785',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 }
+          }
+        }
+      ]
+      for (const event of events) res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      res.end()
+    })
+    server.requestTimeout = 3_000
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', resolve)
+      })
+      const injection = buildPiProviderInjection(
+        {
+          ...provider,
+          endpointConfigs: {
+            'openai-chat-completions': {
+              adapterFamily: 'gateway',
+              baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/ai`
+            }
+          }
+        },
+        { ...model, endpointTypes: ['openai-responses'] },
+        'test-key'
+      )
+      const materialized = await materializePiProviderStream(injection)
+      const piModel = {
+        ...injection.providerConfig.models![0],
+        api: injection.api,
+        provider: injection.providerName,
+        baseUrl: injection.providerConfig.baseUrl
+      } as PiModel<'openai-responses'>
+      const result = await materialized
+        .streamSimple(piModel, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }), {
+          apiKey: 'test-key',
+          maxRetries: 0,
+          timeoutMs: 2_000
+        })
+        .result()
+
+      expect(requests).toHaveLength(1)
+      expect(requests[0].url).toBe('/v1/responses')
+      expect(requests[0].body.model).toBe('openai/gpt-6-astra')
+      expect(result.stopReason).toBe('stop')
+      expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: marker }))
+      expect(requests[0].method).toBe('POST')
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
+  })
+})
+
+describe('Gateway issue 22785 boundaries', () => {
+  const provider = makeProvider({
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'gateway', baseUrl: 'https://proxy.example/v1/ai' }
+    }
+  })
+  const model = makeModel({
+    id: 'gateway::openai/gpt-6-astra',
+    providerId: 'gateway',
+    apiModelId: 'openai/gpt-6-astra'
+  })
+
+  it.each([
+    ['https://proxy.example/v1/ai/', 'https://proxy.example/v1'],
+    ['https://proxy.example/v1/ai#', 'https://proxy.example/v1'],
+    ['https://proxy.example', 'https://proxy.example/v1']
+  ])('formats Gateway base %s as %s', (baseUrl, expectedBaseUrl) => {
+    const injection = buildPiProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          'openai-chat-completions': { adapterFamily: 'gateway', baseUrl }
+        }
+      },
+      model,
+      REAL_KEY
+    )
+
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe(expectedBaseUrl)
+  })
+
+  it('preserves the proxy prefix for a preset-derived Gateway', () => {
+    const derivedProvider = makeProvider({
+      ...provider,
+      id: 'my-gateway',
+      presetProviderId: 'gateway',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'gateway', baseUrl: 'https://proxy.example/prefix/v1/ai' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      derivedProvider,
+      { ...model, id: 'my-gateway::openai/gpt-6-astra', providerId: 'my-gateway' },
+      REAL_KEY
+    )
+
+    expect(injection.providerConfig.baseUrl).toBe('https://proxy.example/prefix/v1')
+  })
+
+  it('honors an explicit Responses base with the no-version sentinel', () => {
+    const injection = buildPiProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          'openai-responses': { adapterFamily: 'gateway', baseUrl: 'https://proxy.example/compat#' }
+        }
+      },
+      { ...model, endpointTypes: ['openai-responses'] },
+      REAL_KEY
+    )
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.providerConfig.baseUrl).toBe('https://proxy.example/compat')
+  })
+
+  it('projects an explicit Responses base using the OpenAI adapter', () => {
+    const injection = buildPiProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://proxy.example/v1/ai' }
+        }
+      },
+      { ...model, endpointTypes: ['openai-responses'] },
+      REAL_KEY
+    )
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.providerConfig.baseUrl).toBe('https://proxy.example/v1')
+  })
+
+  it('preserves a Gateway base with a path after /v1/ai', () => {
+    const injection = buildPiProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          'openai-chat-completions': { adapterFamily: 'gateway', baseUrl: 'https://proxy.example/v1/ai/extra' }
+        }
+      },
+      model,
+      REAL_KEY
+    )
+
+    expect(injection.providerConfig.baseUrl).toBe('https://proxy.example/v1/ai/extra')
+  })
+
+  it('preserves /v1/ai for a non-Gateway OpenAI-compatible provider', () => {
+    const relay = makeProvider({
+      id: 'relay',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'https://relay.example/v1/ai' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      relay,
+      { ...model, id: 'relay::openai/gpt-6-astra', providerId: 'relay' },
+      REAL_KEY
+    )
+
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://relay.example/v1/ai')
+  })
+
+  it('preserves the local gateway base, credentials, usage headers and model namespace', () => {
+    const injection = buildPiGatewayInjection(provider, model, GATEWAY)
+
+    expect(injection.providerConfig.baseUrl).toBe('http://127.0.0.1:23333/v1')
+    expect(injection.apiKey).toBe(GATEWAY_KEY)
+    expect(injection.providerConfig.headers).toEqual(GATEWAY_USAGE_HEADERS)
+    expect(injection.modelId).toBe('gateway:openai/gpt-6-astra')
+  })
+})
+
 describe('Responses summary permission through production materialization', () => {
   it.each([
     { id: 'doubao', summary: undefined, suppressed: true },
