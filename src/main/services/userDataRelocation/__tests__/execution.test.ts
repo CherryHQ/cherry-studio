@@ -617,34 +617,39 @@ describe('userDataRelocation execution', () => {
     expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps failed state until the recovery window explicitly continues on the old path', async () => {
-    const root = makeRoot()
-    const source = path.join(root, 'source')
-    const target = path.join(root, 'target')
-    fs.mkdirSync(source)
-    relocationState['app.userdata'] = source
-    relocationState['temp.user_data_relocation'] = {
-      status: 'failed',
-      taskId: TASK_ID,
-      from: source,
-      to: target,
-      copy: true,
-      error: 'copy failed',
-      failedAt: '2026-07-13T00:00:00.000Z'
+  it.each(['outside', 'inside'])(
+    'keeps failed state until continuing on the old path (%s target)',
+    async (location) => {
+      const root = makeRoot()
+      const source = path.join(root, 'source')
+      const target = path.join(location === 'inside' ? source : root, 'target')
+      fs.mkdirSync(source)
+      relocationState['app.userdata'] = source
+      relocationState['temp.user_data_relocation'] = {
+        status: 'failed',
+        taskId: TASK_ID,
+        from: source,
+        to: target,
+        copy: true,
+        error: 'copy failed',
+        failedAt: '2026-07-13T00:00:00.000Z'
+      }
+
+      const { runUserDataRelocation } = await loadDomain()
+      await expect(runUserDataRelocation()).resolves.toBe('handled')
+
+      expect(appSetPathMock).not.toHaveBeenCalled()
+      expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed' })
+      expect(updateProgressMock).toHaveBeenCalledWith(
+        expect.objectContaining({ stage: 'failed', error: 'copy failed' })
+      )
+
+      await restartFromWindow?.()
+      expect(relocationState['temp.user_data_relocation']).toBeNull()
+      expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
+      expect(relaunchMock).toHaveBeenCalledTimes(1)
     }
-
-    const { runUserDataRelocation } = await loadDomain()
-    await expect(runUserDataRelocation()).resolves.toBe('handled')
-
-    expect(appSetPathMock).not.toHaveBeenCalled()
-    expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed' })
-    expect(updateProgressMock).toHaveBeenCalledWith(expect.objectContaining({ stage: 'failed', error: 'copy failed' }))
-
-    await restartFromWindow?.()
-    expect(relocationState['temp.user_data_relocation']).toBeNull()
-    expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
-    expect(relaunchMock).toHaveBeenCalledTimes(1)
-  })
+  )
 
   it('fails the relocation instead of crashing when the temporary sessionData cannot be prepared', async () => {
     const root = makeRoot()

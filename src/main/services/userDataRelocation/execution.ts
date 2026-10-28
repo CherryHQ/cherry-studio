@@ -424,16 +424,16 @@ function commitUserDataRelocation(targetPath: string): void {
  * matching marker at most an empty directory is ever removed.
  */
 async function recoverInterruptedCopy(pending: PendingRelocation | FailedRelocation): Promise<void> {
-  assertRelocationPaths(pending.from, pending.to, {
-    allowRelocationArtifacts: true,
-    taskId: pending.taskId
-  })
   const target = pending.to
   const { workPath, asidePath } = relocationArtifactPaths(target, pending.taskId)
   const hasWork = pathEntryExists(workPath)
   const hasAside = pathEntryExists(asidePath)
   const targetOwned = isOwnedByRelocation(target, pending.taskId)
   if (!hasWork && !hasAside && !targetOwned) return
+  assertRelocationPaths(pending.from, pending.to, {
+    allowRelocationArtifacts: true,
+    taskId: pending.taskId
+  })
 
   logger.warn('Recovering interrupted userData relocation copy', {
     taskId: pending.taskId,
