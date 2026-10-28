@@ -78,6 +78,25 @@ function trackVerifiedMembers(taskId: string, storageDir?: string): void {
 }
 
 /**
+ * Membership pulses through the launch window and then settles into the steady poll. A launcher
+ * that starts a worker and exits inside one steady interval is invisible to that interval: the
+ * fork has to be sampled while the launcher still parents the worker, or no channel — group,
+ * descriptors, marker, parent chain — ever ties the worker to this task again.
+ */
+function launchMembershipPulse(taskId: string, storageDir?: string): NodeJS.Timeout {
+  let pulses = 0
+  const timer = setInterval(() => {
+    trackVerifiedMembers(taskId, storageDir)
+    pulses += 1
+    if (pulses < LAUNCH_WINDOW_PULSES) return
+    clearInterval(timer)
+    const steady = setInterval(() => trackVerifiedMembers(taskId, storageDir), LEADERLESS_GROUP_POLL_MS)
+    steady.unref?.()
+  }, LAUNCH_WINDOW_PULSE_MS)
+  return timer
+}
+
+/**
  * Seeds the group's leader from the table when the spawn could not stamp it. Its start stamp is
  * the seed every member is verified from, so without one `verifyMembers` can never extend and the
  * task is permanently unownable: Stop/Kill stays refused while it runs, restart has no persisted
@@ -396,6 +415,14 @@ const BACKGROUND_TASK_PROBE_ENV = 'CHERRY_BG_TASK_PROBE'
 
 /** How often a leaderless group is polled for its last member's exit. */
 const LEADERLESS_GROUP_POLL_MS = 250
+/**
+ * A launcher that starts a worker and exits within one poll interval breaks every membership
+ * channel at once — the worker leaves the group (setsid), drops the inherited descriptors
+ * (close_fds) and may clear the marker (its own env) before any pulse can tie it to the task.
+ * The launch window polls fast enough to catch the fork while the parent is still alive.
+ */
+const LAUNCH_WINDOW_PULSE_MS = 25
+const LAUNCH_WINDOW_PULSES = 40
 /** How long a forced stop waits for the group to drain before treating a member as a survivor. */
 const STOP_DRAIN_TIMEOUT_MS = 3_000
 const STOP_DRAIN_POLL_MS = 50
@@ -1570,10 +1597,7 @@ export async function startDetachedBackgroundTask(
     // Taking stock on a pulse while the group works: a member is only the task's while this app can
     // still tie it to one it has verified, and that tie is easiest to establish while its parent
     // lives. The Windows kill targets the pid tree instead, so there is nothing to verify there.
-    const taking =
-      process.platform === 'win32'
-        ? undefined
-        : setInterval(() => trackVerifiedMembers(id, input.storageDir), LEADERLESS_GROUP_POLL_MS)
+    const taking = process.platform === 'win32' ? undefined : launchMembershipPulse(id, input.storageDir)
     taking?.unref?.()
     let settled = false
     // The completion the leader's handler observed. A member it backgrounded (`sleep 1 &`) can
