@@ -5,6 +5,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -353,6 +354,7 @@ export class AgentLifecycleService extends BaseService {
         agentSessionService.notifyPurged(purgedIds)
         await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
         await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(purgedIds, tokensBySession))
+        if (purgedIds.length > 0) followupQueueService.notifyPurged()
         return { purgedIds, hasMore: sessionIds.length === limit }
       } finally {
         for (const release of releases.reverse()) release()
@@ -433,6 +435,10 @@ export class AgentLifecycleService extends BaseService {
         return { result, scheduleIds }
       })
       agentService.notifyDeleted(agentId, result)
+      if (result.deleted && permanent) {
+        const purgedScopeIds = result.deletedSessionIds ?? result.affectedSessionIds
+        if (purgedScopeIds.length > 0) followupQueueService.notifyPurged()
+      }
       this.syncSchedules(scheduleIds)
       application.get('ChannelManager').reconcileAgent(agentId, true)
       const manager = application.get('AiStreamManager')
