@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { normalizeContext } from '@earendil-works/pi-ai'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -705,7 +706,7 @@ describe('PiRuntimeConnection', () => {
     vi.stubEnv('HTTPS_PROXY', 'http://127.0.0.1:7890')
     vi.stubEnv('NO_PROXY', 'localhost,127.0.0.1')
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
-    providerConfig.streamSimple({}, [], { env: { REQUEST_SCOPED: 'preserved' } })
+    providerConfig.streamSimple({}, { messages: [] }, { env: { REQUEST_SCOPED: 'preserved' } })
 
     expect(mocks.providerStreamSimple.mock.calls[0][2]).toMatchObject({
       fetch: customFetch,
@@ -717,6 +718,49 @@ describe('PiRuntimeConnection', () => {
         AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
       }
     })
+  })
+
+  it('repairs replayed output through the registered resolved stream with request environment intact', async () => {
+    const injection = mocks.resolveInjection()
+    mocks.resolveInjection.mockReturnValue({
+      ...injection,
+      requestEnvironment: { AZURE_OPENAI_API_VERSION: '2025-04-01-preview' }
+    })
+    const connection = await new PiRuntimeConnection(input).start()
+    const context = normalizeContext({
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'toolCall', id: 'call_a', name: 'read', arguments: {} }],
+          stopReason: 'toolUse',
+          timestamp: 1
+        },
+        {
+          role: 'toolResult',
+          toolName: 'read',
+          content: [{ type: 'text', text: 'REAL_OUTPUT' }],
+          isError: false,
+          timestamp: 2
+        }
+      ] as never
+    })
+    const options = { signal: new AbortController().signal, onPayload: vi.fn(), env: { REQUEST_SCOPED: 'preserved' } }
+    const model = { provider: 'p', id: 'm' }
+    const config = mocks.registerProvider.mock.calls[0][1]
+    config.streamSimple(model, context, options)
+    const [receivedModel, receivedContext, receivedOptions] = mocks.providerStreamSimple.mock.calls[0]
+    expect(receivedModel).toBe(model)
+    expect(receivedContext.messages[1]).toEqual({ ...context.messages[1], toolCallId: 'call_a' })
+    expect(context.messages[1]).not.toHaveProperty('toolCallId')
+    expect(receivedOptions.signal).toBe(options.signal)
+    expect(receivedOptions.onPayload).toBe(options.onPayload)
+    expect(receivedOptions.env).toMatchObject({
+      REQUEST_SCOPED: 'preserved',
+      AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
+    })
+    expect(receivedOptions.fetch).toBe(customFetch)
+    expect(options.env).toEqual({ REQUEST_SCOPED: 'preserved' })
+    await connection.close()
   })
 
   it('layers Cherry-managed tools onto Pi bash without dropping Pi PATH entries', async () => {
@@ -794,7 +838,7 @@ describe('PiRuntimeConnection', () => {
     vi.stubEnv('SOCKS_PROXY', 'socks5://user:password@127.0.0.1:1080')
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
 
-    providerConfig.streamSimple({}, [], {})
+    providerConfig.streamSimple({}, { messages: [] }, {})
 
     expect(mocks.providerStreamSimple.mock.calls[0][2].fetch).not.toBe(customFetch)
   })
@@ -817,7 +861,7 @@ describe('PiRuntimeConnection', () => {
     mocks.providerStreamSimple.mockReturnValueOnce({ result: () => Promise.reject(failure) })
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
 
-    providerConfig.streamSimple({}, [], {})
+    providerConfig.streamSimple({}, { messages: [] }, {})
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
 
@@ -833,7 +877,7 @@ describe('PiRuntimeConnection', () => {
     const connection = await new PiRuntimeConnection({ ...input, trace: traceContext }).start()
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
 
-    providerConfig.streamSimple({ provider: 'p', id: 'm' }, {}, {})
+    providerConfig.streamSimple({ provider: 'p', id: 'm' }, { messages: [] }, {})
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     const providerSpan = mocks.spans.find((span) => span.name === 'pi.generate_content')!
@@ -880,7 +924,7 @@ describe('PiRuntimeConnection', () => {
     }).start()
     const providerResult = createDeferred<any>()
     mocks.providerStreamSimple.mockReturnValueOnce({ result: () => providerResult.promise })
-    mocks.registerProvider.mock.calls[0][1].streamSimple({ provider: 'p', id: 'm' }, {}, {})
+    mocks.registerProvider.mock.calls[0][1].streamSimple({ provider: 'p', id: 'm' }, { messages: [] }, {})
     mocks.subscribeCb!({
       type: 'tool_execution_start',
       toolCallId: 'tool-open',
@@ -1036,8 +1080,8 @@ describe('PiRuntimeConnection', () => {
       usage: { input: 10, output: 4, cacheRead: 3, cacheWrite: 2, reasoning: 1, totalTokens: 19 }
     }
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
-    providerConfig.streamSimple({}, {})
-    providerConfig.streamSimple({}, {})
+    providerConfig.streamSimple({}, { messages: [] })
+    providerConfig.streamSimple({}, { messages: [] })
     await vi.waitFor(() => expect(mocks.providerStreamSimple).toHaveBeenCalledTimes(2))
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
 
@@ -1100,7 +1144,7 @@ describe('PiRuntimeConnection', () => {
       return stream
     })
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
-    providerConfig.streamSimple({}, {})
+    providerConfig.streamSimple({}, { messages: [] })
     // The mocked stream self-emits asynchronously; wait for it so the usage event
     // (queued from the capture callback) lands before the terminal turn-complete.
     await vi.waitFor(() => expect(emitted).toBe(true))
@@ -1149,7 +1193,7 @@ describe('PiRuntimeConnection', () => {
       return stream
     })
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
-    providerConfig.streamSimple({}, {})
+    providerConfig.streamSimple({}, { messages: [] })
     await vi.waitFor(() => expect(emitted).toBe(true))
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
 
@@ -1171,7 +1215,7 @@ describe('PiRuntimeConnection', () => {
       timestamp: 1,
       usage: { input: 10, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 10 }
     }
-    mocks.registerProvider.mock.calls[0][1].streamSimple({}, {})
+    mocks.registerProvider.mock.calls[0][1].streamSimple({}, { messages: [] })
     await vi.waitFor(() => expect(mocks.providerStreamSimple).toHaveBeenCalledOnce())
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
 
@@ -1600,7 +1644,7 @@ describe('PiRuntimeConnection', () => {
     let resolveAbort!: () => void
     mocks.abort.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveAbort = resolve)))
     const conn = await new PiRuntimeConnection(input).start()
-    mocks.registerProvider.mock.calls[0][1].streamSimple({}, {})
+    mocks.registerProvider.mock.calls[0][1].streamSimple({}, { messages: [] })
 
     const closing = conn.close()
     resolveProviderResult(mocks.providerResult)
