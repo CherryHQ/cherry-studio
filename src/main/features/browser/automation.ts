@@ -78,7 +78,8 @@ export async function executeBrowserOperation(
     deadline: Date.now() + 30_000,
     signal: AbortSignal.any([signal, ...(target.signal ? [target.signal] : [])]),
     pointer: target.pointer,
-    focusInput: target.focusInput
+    focusInput: target.focusInput,
+    assertInputTarget: target.assertInputTarget
   }
   const session = target.session
   if (name === 'evaluate')

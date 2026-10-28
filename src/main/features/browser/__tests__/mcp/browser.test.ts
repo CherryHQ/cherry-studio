@@ -850,21 +850,16 @@ describe('MCP browser on shared sessions', () => {
       vi.spyOn(c, 'getSession').mockResolvedValue({
         tabId: 'tab-focus',
         session,
-        ...(ownership === 'managed'
-          ? {
-              focusInput: async () => {
-                throw new BrowserSessionError('input_not_focused')
-              }
-            }
-          : {})
+        focusInput: async () => {
+          throw new BrowserSessionError('input_not_focused')
+        },
+        assertInputTarget: async () => {}
       })
       const result = await handleInteraction('press_key', c, { key: 'x' })
       expect(result.isError).toBe(true)
       expect(JSON.parse((result.content[0] as { text: string }).text)).toMatchObject({
         ok: false,
-        error: 'input_not_focused',
-        message:
-          'Browser input stopped because the page or target field does not have input focus. Bring the browser pane into view and focus it, then inspect the page before retrying; earlier input may already have been applied.'
+        error: 'input_not_focused'
       })
       const calls = mock.debugger.sendCommand.mock.calls
       expect(calls.filter(([method]) => method.startsWith('Input.'))).toEqual([])

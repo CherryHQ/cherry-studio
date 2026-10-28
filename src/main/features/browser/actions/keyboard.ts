@@ -8,33 +8,29 @@ import { KeyModifier, resolveKeyDefinition, TEXT_SUPPRESSING_MODIFIERS } from '.
 import { callOnElement, withElement } from './resolveTarget'
 
 async function requestInputFocus(session: GuestSession, options: BrowserActionOptions) {
-  if (session.ownership === 'borrowed' && !options.focusInput) throw new BrowserSessionError('input_not_focused')
+  if (session.sendInputEvent && (!options.focusInput || !options.assertInputTarget))
+    throw new BrowserSessionError('input_unavailable')
   await options.focusInput?.(options)
-}
-
-async function checkGuestFocus(session: GuestSession, options: BrowserActionOptions) {
-  if (session.ownership !== 'borrowed') return
-  const result = await session.send(
-    'Runtime.evaluate',
-    { expression: 'document.hasFocus()', returnByValue: true },
-    options
-  )
-  if (result.result.value !== true) throw new BrowserSessionError('input_not_focused')
 }
 
 export async function pressKey(session: GuestSession, chord: string, options: BrowserActionOptions) {
   const prepared = resolveChord(chord)
   await requestInputFocus(session, options)
-  await dispatchKey(session, prepared, options, () => checkGuestFocus(session, options))
+  await dispatchKey(
+    session,
+    prepared,
+    options,
+    () => options.assertInputTarget?.(undefined, options) ?? Promise.resolve()
+  )
 }
 
 type ResolvedChord = {
   key: string
-  code: string
-  windowsVirtualKeyCode: number
+  code?: string
+  windowsVirtualKeyCode?: number
   modifiers: number
   text: string | undefined
-  selectAll: boolean
+  selectAll?: boolean
 }
 
 function resolveChord(chord: string): ResolvedChord {
@@ -72,28 +68,75 @@ async function dispatchKey(
 ) {
   const { key, code, windowsVirtualKeyCode, modifiers, text, selectAll } = chord
   const params = { key, code, windowsVirtualKeyCode, modifiers }
+  const send = async (type: 'rawKeyDown' | 'char' | 'keyUp') => {
+    if (session.sendInputEvent) {
+      const names = ['Alt', 'Control', 'Meta', 'Shift'] as const
+      const electronModifiers = names
+        .filter((name) => modifiers & KeyModifier[name])
+        .map((name) => name.toLowerCase()) as Electron.KeyboardInputEvent['modifiers']
+      session.sendInputEvent({
+        type: type === 'rawKeyDown' ? 'keyDown' : type,
+        keyCode: type === 'char' ? text! : key,
+        modifiers: electronModifiers
+      })
+    } else {
+      await session.send(
+        'Input.dispatchKeyEvent',
+        {
+          ...params,
+          type,
+          ...(type === 'rawKeyDown' && selectAll ? { commands: ['selectAll'] } : {}),
+          ...(type === 'char' ? { text, unmodifiedText: text } : {})
+        },
+        options
+      )
+    }
+  }
   await guard()
-  await session.send(
-    'Input.dispatchKeyEvent',
-    { ...params, type: 'rawKeyDown', ...(selectAll ? { commands: ['selectAll'] } : {}) },
-    options
-  )
+  await send('rawKeyDown')
   let failed = false
   try {
     if (text) {
       await guard()
-      await session.send('Input.dispatchKeyEvent', { ...params, type: 'char', text, unmodifiedText: text }, options)
+      await send('char')
     }
   } catch (error) {
     failed = true
     throw error
   } finally {
-    // Release an already dispatched key even after focus, ref, cancellation or deadline loss.
-    await session
-      .send('Input.dispatchKeyEvent', { ...params, type: 'keyUp' }, { deadline: Date.now() + 1000 })
-      .catch((error) => {
+    let canRelease = true
+    try {
+      await guard()
+    } catch {
+      // Skip release when the guest route, target ref or operation is no longer valid.
+      canRelease = false
+    }
+    if (canRelease)
+      await send('keyUp').catch((error) => {
         if (!failed) throw error
       })
+  }
+}
+
+async function insertText(
+  session: GuestSession,
+  text: string,
+  options: BrowserActionOptions,
+  guard: () => Promise<void>
+) {
+  if (session.sendInputEvent) {
+    for (const character of text) {
+      const enter = character === '\n' || character === '\r'
+      await dispatchKey(
+        session,
+        { key: enter ? 'Enter' : character, text: enter ? '\r' : character, modifiers: 0 },
+        options,
+        guard
+      )
+    }
+  } else {
+    await guard()
+    await session.send('Input.insertText', { text }, options)
   }
 }
 
@@ -105,7 +148,6 @@ export async function typeText(
   submit: boolean,
   options: BrowserActionOptions
 ) {
-  if (session.ownership === 'borrowed' && !options.focusInput) throw new BrowserSessionError('input_not_focused')
   await withElement(
     session,
     ref,
@@ -127,50 +169,32 @@ export async function typeText(
       await session.send('DOM.focus', { backendNodeId }, options)
       const guard = async () => {
         check()
-        if (session.ownership === 'borrowed') {
-          const focused = await callOnElement<boolean>(
-            session,
-            objectId,
-            `function(){
-              if(!document.hasFocus() || !this.isConnected) return false;
-              let target = this, active = this.getRootNode().activeElement;
-              if(this.isContentEditable){
-                while(target.parentElement?.isContentEditable) target = target.parentElement;
-                if(!active?.isContentEditable) return false;
-                while(active.parentElement?.isContentEditable) active = active.parentElement;
-              }
-              return active === target
-            }`,
-            [],
-            options
-          )
-          check()
-          if (!focused) throw new BrowserSessionError('input_not_focused')
-        }
+        await options.assertInputTarget?.(objectId, options)
+        check()
       }
-      const key = (chord: string) => dispatchKey(session, resolveChord(chord), options, guard)
-      const clearField = async () => {
-        await key(`${isMac ? 'Meta' : 'Control'}+a`)
-        await key('Backspace')
-      }
-      await guard()
-      if (clear) await clearField()
-      else {
-        const positioned = await callOnElement<boolean>(
+      const sendChord = (chord: string) => dispatchKey(session, resolveChord(chord), options, guard)
+      const selectText = (all: boolean) =>
+        callOnElement<boolean>(
           session,
           objectId,
-          `function(){
-          if(this.setSelectionRange && this.selectionStart !== null){ this.setSelectionRange(this.value.length, this.value.length); return true }
-          if(this.isContentEditable){ const r=document.createRange(); r.selectNodeContents(this); r.collapse(false); const s=getSelection(); s.removeAllRanges(); s.addRange(r); return true }
+          `function(all){
+          if(this.setSelectionRange && this.selectionStart !== null){ this.setSelectionRange(all ? 0 : this.value.length, this.value.length); return true }
+          if(this.isContentEditable){ const r=document.createRange(); r.selectNodeContents(this); if(!all) r.collapse(false); const s=getSelection(); s.removeAllRanges(); s.addRange(r); return true }
           return false
         }`,
-          [],
+          [all],
           options
         )
-        if (!positioned) await key(isMac ? 'Meta+ArrowRight' : 'End')
+      const clearField = async () => {
+        if (session.sendInputEvent) {
+          await guard()
+          if (!(await selectText(true))) throw new BrowserSessionError('not_found')
+        } else await sendChord(`${isMac ? 'Meta' : 'Control'}+a`)
+        await sendChord('Backspace')
       }
-      await guard()
-      await session.send('Input.insertText', { text }, options)
+      if (clear) await clearField()
+      else if (!(await selectText(false))) await sendChord(isMac ? 'Meta+ArrowRight' : 'End')
+      await insertText(session, text, options, guard)
       const expected = (clear ? '' : initial.value) + text
       const read = () =>
         callOnElement<string>(
@@ -182,16 +206,16 @@ export async function typeText(
         )
       if ((await read()) !== expected) {
         if (/[\r\n]/.test(expected)) throw new BrowserSessionError('not_found')
-        await guard()
         await clearField()
         for (const character of expected) {
           check()
-          await key(character === '\n' ? 'Enter' : character)
+          if (session.sendInputEvent) await insertText(session, character, options, guard)
+          else await sendChord(character === '\n' ? 'Enter' : character)
         }
         if ((await read()) !== expected) throw new BrowserSessionError('not_found')
       }
       check()
-      if (submit) await key('Enter')
+      if (submit) await sendChord('Enter')
     },
     options
   )

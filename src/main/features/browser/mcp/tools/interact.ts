@@ -41,7 +41,7 @@ export async function handleInteraction(
         }
       }
     }
-    if (session.ownership === 'managed')
+    if ((name !== 'type' && name !== 'press_key') || !session.sendInputEvent)
       await session.send('Emulation.setFocusEmulationEnabled', { enabled: true }, options)
     const { value, navigated } = await settleAction(session, () => act(session, options), options)
     return { ...value, navigated, snapshot: (await session.snapshot({}, options)).text }

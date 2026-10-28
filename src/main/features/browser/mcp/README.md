@@ -25,7 +25,8 @@ are serialized, and target revocation cancels active and queued work.
 
 The UI owns these guests. Control uses borrowed leases with explicit inspection observers;
 releasing control preserves the guest and concurrent annotation leases. Native dialogs are not
-auto-dismissed, and hidden-page focus emulation is not applied. Fresh observation clears browser
+auto-dismissed. Borrowed keyboard tools deliver directly to the guest; MCP mouse/form
+interactions enable focus emulation. Fresh observation clears browser
 refs without invalidating a running annotation capture. The setting defaults on for unset preferences and runtime
 connection signatures reflect changes. Enabling Browser control grants all known browser tools
 without per-action approval until the user turns it off. Runtime gates and queued dispatch enforce
@@ -64,8 +65,8 @@ parallel work; operations on a single tab run serially.
 | `click` | `ref`, `button?`, `clickCount?` | Real mouse events; covered left single clicks use a reported synthetic fallback |
 | `hover` | `ref` | Mouse movement; covered targets fail |
 | `scroll` | `ref?`, `pages?` | Scroll viewport or target; negative pages scroll up |
-| `type` | `ref`, `text`, `clear?`, `submit?` | Input events with focused borrowed guest/target prerequisites, read-back verification and one focus-guarded retry; optional Enter |
-| `press_key` | `key` | Key or chord, e.g. `Enter`, `Control+a`, `Meta+a`, `Shift+Tab`; borrowed guest must acknowledge and retain input focus |
+| `type` | `ref`, `text`, `clear?`, `submit?` | Guest-directed text with target editing-focus checks, read-back verification and one retry; optional Enter |
+| `press_key` | `key` | Key or chord, e.g. `Enter`, `Control+a`, `Meta+a`, `Shift+Tab`; borrowed input targets the bound guest regardless of host focus |
 | `select_option` | `ref`, `values` | Native select by value then label; validates all choices before mutation |
 | `go_back`, `go_forward` | — | Tab history navigation |
 | `wait_for` | `text?`, `ref?`, `gone?`, `timeoutMs?` | At least text or ref; waits up to 30 seconds for snapshot presence/absence |
@@ -75,17 +76,25 @@ parallel work; operations on a single tab run serially.
 Snapshot and action results are JSON text with `ok`, `tabId`, `url`, `title`,
 `navigated`, and `snapshot` on success. Covered fallback clicks include
 `occluded: true` and `synthetic: true`. Failures include `error`; stale refs tell
-the caller to re-snapshot. Borrowed `type`/`press_key` require a visible pane that
-successfully acknowledges focus, then recheck unemulated guest focus before each
-key-down/character or text insertion. Typing also requires the intended editable to
-retain editing focus, including during clearing, the bounded value-mismatch replay
-and optional submission. Background acknowledgements, missing focus callbacks and
-detected focus loss return `input_not_focused` without reacquiring focus or continuing
-input; already pressed keys are released. Bring the browser pane into view and focus
-it, then inspect the page before retrying; earlier input may already have been applied.
-Managed interactions retain focus emulation. Pending dialogs and download state changes accompany
+the caller to re-snapshot. Borrowed `type`/`press_key` request focus once and accept
+both `focused` and `background` acknowledgements. They send input through the bound
+guest's `webContents.sendInputEvent`, including when the pane is inert or the host
+composer holds focus. Typing requires the intended editable to retain editing focus
+during clearing, insertion, the bounded value-mismatch retry and optional submission.
+The controller checks the binding, cancellation and deadline before each event.
+Target focus loss returns `input_not_focused`; unavailable renderer focus preparation
+returns `input_unavailable`. Inspect the page and take a fresh snapshot before retrying;
+earlier input may already have been applied. Keys are released only while their route,
+ref and operation remain valid. Managed interactions and MCP mouse/form tools enable
+focus emulation. Pending dialogs and download state changes accompany
 results. Popups switch the active tab and report `newTabId`; the current result snapshot still
 belongs to the source tab, so observe the new tab explicitly. An `execute` interrupted by a page dialog returns the same error envelope.
+
+For borrowed input, `submit: true` now delivers the Enter key event to the bound
+guest regardless of host focus: `keyDown Enter`, `char '\r'`, then `keyUp Enter`.
+Page `keydown` handlers receive it and textareas insert a line break. Native implicit
+form submission from a single-line input does not fire; submission depends on the
+page's own key handling.
 
 Inspection tools use the same result envelope and untrusted-data notice. `find` adds `matches`;
 console/network tools add `messages` / `requests`. Each includes `truncated` for the result limit.

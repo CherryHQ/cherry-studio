@@ -19,6 +19,7 @@ export interface BrowserPointerFeedback {
 export interface BrowserActionOptions extends CommandOptions {
   pointer?: BrowserPointerFeedback
   focusInput?: (options: CommandOptions) => Promise<void>
+  assertInputTarget?: (objectId: string | undefined, options: CommandOptions) => Promise<void>
 }
 
 export class BrowserCursor implements Disposable {

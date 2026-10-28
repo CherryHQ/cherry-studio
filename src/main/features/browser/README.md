@@ -123,7 +123,7 @@ Agent pointer actions publish a host-rendered cursor through the binding-owned `
 Only a presented, focused host waits for arrival, bounded by 250 ms and the action deadline.
 Owner/tab/document/sequence checks reject unrelated acknowledgements; cancellation, navigation and
 binding disposal invalidate pending input. Actions re-resolve their element after the visual wait,
-and clicks check for layout changes caused by real hover before pressing. Actual input stays on CDP;
+and clicks check for layout changes caused by real hover before pressing. Mouse input uses CDP;
 the overlay never intercepts user input or appears in guest screenshots. Matching runtime output
 boundaries and controller release hide the cursor without closing the borrowed page. Renderer motion
 uses a host PNG and eight response/damping springs in one requestAnimationFrame loop. Short moves
@@ -137,14 +137,28 @@ use separate IPC events. Per-tool execution leases temporarily disable backgroun
 restore its previous value after the last execution. Webview screenshots retain a native frame
 subscription for the bounded CDP command, releasing it on completion, cancellation or timeout.
 
-Borrowed keyboard/text input requires a positive `focused` renderer acknowledgement,
-validated against the invocation's current conversation owner and exact guest binding.
-Inert retained guests still report `background` without taking focus or revealing the
-pane; keyboard actions reject that status with `input_not_focused`. `unavailable` keeps
-returning `not_found`. A missing focus callback also refuses borrowed keyboard actions.
-After the single focus request, every key-down, character and text insertion checks
-current, unemulated guest focus; typing also checks the resolved target's editing focus
-through its root. Detected focus loss stops clearing, replay and submission without
-reacquiring focus. An already pressed key is released even after focus or ref loss.
-Bring the browser pane into view, focus it and inspect the page before retrying:
-earlier input may already have been applied. Managed-session focus behavior is unchanged.
+Borrowed keyboard/text input requests focus once against the current conversation
+owner and exact guest binding. A visible pane receives DOM focus; an inert retained
+pane acknowledges `background` without being revealed. Both acknowledgements admit
+input through that guest's `webContents.sendInputEvent`, regardless of host DOM or
+OS foreground focus. Text uses `keyDown`, `char` and `keyUp` per Unicode code point;
+line breaks use `Enter` with `char '\r'`. Chords use key-down, optional character
+and key-up events. Clearing selects the contents in-page, rechecks the target and
+sends `Backspace`; select-all chords do not select borrowed fields. Managed keyboard
+input uses CDP.
+The borrowed controller supplies the focus request and routing assertion through
+`BrowserActionOptions`. Before each event it checks the binding, operation and,
+for typing, the resolved target's editing focus through its root. Target focus loss
+returns `input_not_focused`; failed renderer focus preparation returns
+`input_unavailable`. Ref invalidation, cancellation and deadlines also stop input.
+Key release is skipped when the route, target ref or operation cannot be validated.
+Typing reads back the value and retries a mismatch once through the same delivery
+path. Inspect the page before retrying a failed action; earlier input may already
+have been applied. Managed interactions and MCP mouse/form interactions use focus
+emulation; borrowed keyboard tools use direct guest delivery.
+
+For borrowed input, `submit: true` now delivers the Enter key event to the bound
+guest regardless of host focus: `keyDown Enter`, `char '\r'`, then `keyUp Enter`.
+Page `keydown` handlers receive it and textareas insert a line break. Native implicit
+form submission from a single-line input does not fire; submission depends on the
+page's own key handling.

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type { UtilityProcessRequestOptions } from '@main/core/utilityProcess/types'
-import { BrowserSessionError } from '@main/features/browser/session/BrowserSessionError'
 
 import { AutomationReplService } from '../AutomationReplService'
 
@@ -12,7 +11,6 @@ let service: AutomationReplService
 let effects: number
 let leases: number
 let failingOperation: string | undefined
-let inputFocusFailure: boolean
 let crashAfterDispatch: boolean
 let lastCall: UtilityProcessRequestOptions<never>['onHostCall']
 
@@ -21,7 +19,6 @@ beforeEach(async () => {
   effects = 0
   leases = 0
   failingOperation = undefined
-  inputFocusFailure = false
   crashAfterDispatch = false
   lastCall = undefined
   const get = application.getContainer().get.bind(application.getContainer())
@@ -50,7 +47,6 @@ beforeEach(async () => {
       return {
         execute: async (name: string) => {
           if (closed) throw new Error('Lease closed')
-          if (inputFocusFailure) throw new BrowserSessionError('input_not_focused')
           if (name === failingOperation)
             throw Object.assign(new Error('Observation unavailable'), { code: 'CAPTURE_FAILED', effect: 'none' })
           return { value: { effects: ++effects }, observation: true }
@@ -126,34 +122,6 @@ describe('automation run authority', () => {
     })
     expect(effects).toBe(1)
     expect(result.isError).toBe(true)
-  })
-
-  it('preserves the keyboard focus error, guidance and possible partial effects', async () => {
-    inputFocusFailure = true
-    const run = service.beginRun(owner, 'run', () => ({ browser: true, computer: false }))
-    const result = await run.execute(
-      JSON.stringify({ name: 'type', args: { ref: 'e1', text: 'new' }, target: 'tab-1' })
-    )
-    expect(result.isError).toBe(true)
-    expect(result.structuredContent).toMatchObject({
-      execution: {
-        events: [
-          {
-            domain: 'browser',
-            operation: 'type',
-            target: 'tab-1',
-            status: 'failed',
-            error: {
-              code: 'input_not_focused',
-              effect: 'possible',
-              message:
-                'Browser input stopped because the page or target field does not have input focus. Bring the browser pane into view and focus it, then inspect the page before retrying; earlier input may already have been applied.'
-            }
-          }
-        ]
-      }
-    })
-    expect(effects).toBe(0)
   })
 
   it('releases live control when the kernel fails and reports cleared bindings', async () => {

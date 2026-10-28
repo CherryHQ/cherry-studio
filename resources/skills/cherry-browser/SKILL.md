@@ -31,8 +31,11 @@ The runtime emits this same reference on first binding and through `documentatio
 4. Group already-determined sequential actions and a final observation in one cell.
    Stop at that observation when the next action depends on unseen UI. Verify the
    outcome, URL and page identity before reporting success.
-5. On `stale_ref`, observe again and resolve the intended element. After an action
-   times out or is interrupted, inspect whether its effect already happened.
+5. On `stale_ref`, observe again and resolve the intended element. On
+   `input_not_focused`, inspect the target field and resolve it from fresh AX state.
+   On `input_unavailable`, reopen the browser pane, inspect it and resolve fresh refs.
+   A background pane can receive input. After an action times out or is interrupted,
+   inspect whether its effect already happened.
    Never automatically repeat a purchase, submission, message or other uncertain effect.
 
 The visible host has one page per session. It does not support new/private tabs,

@@ -19,9 +19,9 @@ interface Tab {
   getNetworkRequests(options?: { clear?: boolean }): Promise<object>
   click(ref: string, options?: { button?: 'left' | 'right' | 'middle'; count?: number }): Promise<object>
   hover(ref: string): Promise<object>
-  // Requires the browser pane and intended field to retain input focus.
+  // Targets this guest regardless of host focus; the field must retain editing focus.
   type(ref: string, text: string, options?: { clear?: boolean; submit?: boolean }): Promise<object>
-  // Requires the browser pane to retain input focus; no editable target required.
+  // Targets this guest regardless of host focus; no editable target required.
   pressKey(key: string): Promise<object>
   scroll(pages: number, ref?: string): Promise<object>
   selectOption(ref: string, values: string[]): Promise<object>
@@ -54,7 +54,7 @@ await tab.getAXState();
 
 Use only observed refs. A navigation/replaced page invalidates references; reacquire them from fresh AX state. Never guess refs or selectors. Prefer AX for locating controls and screenshots for visual confirmation; do not request both by default. Coordinates in screenshot metadata are not an input API.
 
-`type` and `pressKey` require the browser pane to be in view and successfully focused. A background pane or detected focus loss returns `input_not_focused` and stops input, clearing, replay and submission without reacquiring focus. Bring the pane into view and focus it, then inspect with `getAXState()` before retrying; earlier input may already have been applied.
+`type` and `pressKey` request pane focus once, then deliver input through the bound guest's `webContents.sendInputEvent` regardless of host focus, including when the pane is inert or the user is typing in the host composer. A `background` acknowledgement permits input. `type` checks that the referenced field retains editing focus before each event and verifies the resulting value, retrying a mismatch once through the same guest route. Target focus loss returns `input_not_focused` and stops clearing, retry and submission; inspect with `getAXState()` and resolve the target again. Failed renderer focus preparation returns `input_unavailable`; reopen the pane and inspect it before retrying. Ref invalidation, cancellation and deadlines also stop input. Earlier input may already have been applied; never replay uncertain effects automatically.
 
 Await actions sequentially. If the next action depends on an unseen page or dialog, stop the cell at that observation. If an action fails or has no visible effect, observe the blocker before retrying; never replay the whole cell. Do not reload a URL merely to reconfirm the current state. One authoritative visible success signal is enough.
 

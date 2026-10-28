@@ -33,6 +33,7 @@ const logger = loggerService.withContext('GuestSession')
 
 export class GuestSession implements Disposable {
   readonly ownership: SessionOwnership['ownership']
+  readonly sendInputEvent?: (event: Electron.KeyboardInputEvent) => void
   retention: TabRetention = 'temporary'
   lastActive = Date.now()
   private currentDocumentId = ''
@@ -74,6 +75,7 @@ export class GuestSession implements Disposable {
     ownership: SessionOwnership['ownership']
   ) {
     this.ownership = ownership
+    if (ownership === 'borrowed') this.sendInputEvent = (event) => guest.sendInputEvent(event)
     this.electronSession = guest.session
     this.electronDebugger = guest.debugger
     this.electronDebugger.on('message', this.onMessage)

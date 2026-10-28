@@ -5,6 +5,14 @@ import { sanitizeSnapshotUrl } from '../../snapshot/serializeSnapshot'
 import type { BrowserController } from '../browserController'
 import { errorResponse, successResponse } from './utils'
 
+const errorGuidance: Partial<Record<BrowserSessionError['code'], string>> = {
+  stale_ref: 'Take a new snapshot of this tab and use its refs.',
+  input_not_focused:
+    'The target field lost editing focus. Inspect the page and take a new snapshot before retrying; earlier input may already have been applied.',
+  input_unavailable:
+    'The browser pane could not prepare input. Reopen the pane, inspect the page and take a new snapshot before retrying; earlier input may already have been applied.'
+}
+
 export type TabTarget = { tabId?: string; privateMode?: boolean }
 
 export async function browserResult(
@@ -20,7 +28,8 @@ export async function browserResult(
       session,
       signal: targetSignal,
       pointer,
-      focusInput
+      focusInput,
+      assertInputTarget
     } = await controller.getSession(target.privateMode, target.tabId)
     signal = targetSignal ? AbortSignal.any(signal ? [signal, targetSignal] : [targetSignal]) : signal
     return await session.run(
@@ -31,7 +40,13 @@ export async function browserResult(
           result = {
             ok: true,
             navigated: false,
-            ...(await action(session, { deadline: Date.now() + 30_000, signal, pointer, focusInput }))
+            ...(await action(session, {
+              deadline: Date.now() + 30_000,
+              signal,
+              pointer,
+              focusInput,
+              assertInputTarget
+            }))
           }
         } catch (error) {
           pointer?.hide()
@@ -40,11 +55,8 @@ export async function browserResult(
             navigated: false,
             error: error instanceof BrowserSessionError ? error.code : 'not_found',
             message:
-              error instanceof BrowserSessionError && error.code === 'stale_ref'
-                ? 'Take a new snapshot of this tab and use its refs.'
-                : error instanceof Error
-                  ? error.message
-                  : String(error)
+              (error instanceof BrowserSessionError ? errorGuidance[error.code] : undefined) ??
+              (error instanceof Error ? error.message : String(error))
           }
         }
         const newTabId = await controller.takeNewTabId(target.privateMode, tabId)

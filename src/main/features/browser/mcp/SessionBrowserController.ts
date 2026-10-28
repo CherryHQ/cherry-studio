@@ -5,6 +5,7 @@ import { Mutex } from 'async-mutex'
 import type { Disposable } from '@main/core/lifecycle'
 import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
 
+import { callOnElement } from '../actions/resolveTarget'
 import { settleAction } from '../actions/settle'
 import type { BrowserPointerFeedback } from '../BrowserCursor'
 import type { BrowserGuestTarget } from '../BrowserGuestRegistry'
@@ -97,14 +98,49 @@ export class SessionBrowserController extends BrowserPageController {
         target.abort.signal.addEventListener('abort', release, { once: true })
         this.lease = { target, session, release }
       }
+      const session = this.lease.session
       return {
         tabId: target.tabId,
-        session: this.lease.session,
-        pointer: this.pointerFeedback(target, this.lease.session),
+        session,
+        pointer: this.pointerFeedback(target, session),
         focusInput: async (options: CommandOptions) => {
           this.assertAvailable()
           await this.binding.focusInput(target, options)
           this.assertAvailable()
+        },
+        assertInputTarget: async (objectId: string | undefined, options: CommandOptions) => {
+          const check = () => {
+            this.assertAvailable()
+            options.signal?.throwIfAborted()
+            target.abort.signal.throwIfAborted()
+            if (options.deadline !== undefined && options.deadline <= Date.now())
+              throw new BrowserSessionError('timeout')
+            if (this.binding.get() !== target || target.guest.isDestroyed())
+              throw new BrowserSessionError('input_unavailable')
+            if (!session.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
+            if (session.pendingDialog) throw new BrowserSessionError('dialog_open', session.pendingDialog)
+          }
+          check()
+          if (objectId) {
+            const focused = await callOnElement<boolean>(
+              session,
+              objectId,
+              `function(){
+              if(!this.isConnected) return false;
+              let target = this, active = this.getRootNode().activeElement;
+              if(this.isContentEditable){
+                while(target.parentElement?.isContentEditable) target = target.parentElement;
+                if(!active?.isContentEditable) return false;
+                while(active.parentElement?.isContentEditable) active = active.parentElement;
+              }
+              return active === target
+            }`,
+              [],
+              options
+            )
+            check()
+            if (!focused) throw new BrowserSessionError('input_not_focused')
+          }
         },
         signal: AbortSignal.any([this.operationSignal, target.abort.signal])
       }
