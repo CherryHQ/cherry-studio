@@ -20,11 +20,13 @@ import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   resolveDelegationApproval,
+  toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
@@ -35,6 +37,8 @@ import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependenc
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+export const HEADLESS_CONFIG_MUTATION_DENIAL =
+  'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
 export const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
@@ -184,6 +188,18 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     id: 'interactive-headless',
     match: { when: (ctx) => (claudeToolRequiresUserInteraction(ctx.toolName) ? {} : null) },
     headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+  },
+  {
+    // Config MUTATION needs a user; the read-only status stays available to unattended runs (the
+    // cherry-tools boundary denies the same actions from the same origins). A native child spawned
+    // by a headless turn keeps that turn's authority after a desktop follow-up has made the root
+    // Session interactive — the guard resolves by the calling execution.
+    id: 'config-mutation-headless',
+    match: {
+      tool: toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME),
+      when: (ctx) => (ctx.input?.action !== 'status' ? {} : null)
+    },
+    headless: { predicate: 'responder-unavailable', reason: HEADLESS_CONFIG_MUTATION_DENIAL }
   },
   {
     // Not an approval: the tool's entire function is a user-authored answer, so bypassPermissions
