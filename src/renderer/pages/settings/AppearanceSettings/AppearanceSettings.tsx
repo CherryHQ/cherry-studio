@@ -157,6 +157,7 @@ const AppearanceSettings: FC = () => {
 
   useEffect(() => {
     const loadSystemFonts = async () => {
+      if (!hostFeatures.systemFonts) return
       try {
         const fonts = await ipcApi.request('system.get_fonts')
         setFontList(fonts)
@@ -481,59 +482,61 @@ const AppearanceSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.font.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow id="setting-appearance-font-global" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
-          <SelectorRow className="gap-2">
-            {userTheme.userFontFamily && (
-              <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
-            )}
-            <div className="min-w-0 flex-1">
-              <Combobox
-                placeholder={t('settings.display.font.select')}
-                emptyText={t('common.no_results')}
-                options={fontOptions}
-                value={userTheme.userFontFamily || ''}
-                onChange={handleUserFontComboboxChange}
-                renderOption={renderFontOption}
-                searchPlacement="trigger"
-                className={fontComboboxClassName}
-                triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
-              />
-            </div>
-          </SelectorRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-appearance-font-code" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
-          <SelectorRow className="gap-2">
-            {userTheme.userCodeFontFamily && (
-              <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
-            )}
-            <div className="min-w-0 flex-1">
-              <Combobox
-                placeholder={t('settings.display.font.select')}
-                emptyText={t('common.no_results')}
-                options={fontOptions}
-                value={userTheme.userCodeFontFamily || ''}
-                onChange={handleUserCodeFontComboboxChange}
-                renderOption={renderFontOption}
-                searchPlacement="trigger"
-                className={fontComboboxClassName}
-                triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
-              />
-            </div>
-          </SelectorRow>
-        </SettingRow>
-      </SettingGroup>
+      {hostFeatures.systemFonts && (
+        <SettingGroup theme={theme}>
+          <SettingTitle>{t('settings.display.font.title')}</SettingTitle>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-font-global" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
+            <SelectorRow className="gap-2">
+              {userTheme.userFontFamily && (
+                <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
+                  <ResetIcon size="14" />
+                </Button>
+              )}
+              <div className="min-w-0 flex-1">
+                <Combobox
+                  placeholder={t('settings.display.font.select')}
+                  emptyText={t('common.no_results')}
+                  options={fontOptions}
+                  value={userTheme.userFontFamily || ''}
+                  onChange={handleUserFontComboboxChange}
+                  renderOption={renderFontOption}
+                  searchPlacement="trigger"
+                  className={fontComboboxClassName}
+                  triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
+                  popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
+                />
+              </div>
+            </SelectorRow>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-font-code" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
+            <SelectorRow className="gap-2">
+              {userTheme.userCodeFontFamily && (
+                <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
+                  <ResetIcon size="14" />
+                </Button>
+              )}
+              <div className="min-w-0 flex-1">
+                <Combobox
+                  placeholder={t('settings.display.font.select')}
+                  emptyText={t('common.no_results')}
+                  options={fontOptions}
+                  value={userTheme.userCodeFontFamily || ''}
+                  onChange={handleUserCodeFontComboboxChange}
+                  renderOption={renderFontOption}
+                  searchPlacement="trigger"
+                  className={fontComboboxClassName}
+                  triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
+                  popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
+                />
+              </div>
+            </SelectorRow>
+          </SettingRow>
+        </SettingGroup>
+      )}
 
       <ChatPreferenceSections />
 

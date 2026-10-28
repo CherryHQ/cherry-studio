@@ -23,6 +23,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
@@ -125,7 +126,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
   showDescription = true,
   showDividers = true,
-  showPaintingModel = true,
+  showPaintingModel = hostFeatures.paintings,
   modelFilter,
   autoFillEmptyModels = false,
   onDefaultModelSelected,

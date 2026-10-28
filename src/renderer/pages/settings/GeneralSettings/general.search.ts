@@ -49,6 +49,7 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'allow-private-network',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.fetch.allow_private_network',
     groupKey: 'settings.general.sections.network'
   },
@@ -61,6 +62,7 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'commit-attribution',
+    available: hostFeatures.claudeCode,
     titleKey: 'settings.general.commit_attribution.title',
     groupKey: 'settings.general.sections.agent',
     descriptionKey: 'settings.general.commit_attribution.description',

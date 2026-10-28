@@ -54,11 +54,13 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'font-global',
+    available: hostFeatures.systemFonts,
     titleKey: 'settings.display.font.global',
     groupKey: 'settings.display.font.title'
   },
   {
     anchorId: 'font-code',
+    available: hostFeatures.systemFonts,
     titleKey: 'settings.display.font.code',
     groupKey: 'settings.display.font.title'
   },

@@ -261,7 +261,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           <SettingRow id="setting-appearance-spell-check" className="scroll-mt-6">
             <Flex className="mr-4 flex-1 items-center justify-between">
               <SettingRowTitleSmall>{t('settings.general.spell_check.label')}</SettingRowTitleSmall>
-              {enableSpellCheck && !isMac && (
+              {enableSpellCheck && !isMac && hostFeatures.desktopApp && (
                 <Selector<string>
                   size={14}
                   multiple

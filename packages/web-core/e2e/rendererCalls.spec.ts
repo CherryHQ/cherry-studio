@@ -63,7 +63,8 @@ const unreachable: { path: string; only?: string[]; reason: string }[] = [
   },
   {
     path: 'pages/settings/AppearanceSettings/AppearanceSettings.tsx',
-    reason: 'App zoom and the settings that restart the program (hostFeatures.appZoom, hostFeatures.desktopApp).'
+    reason:
+      'App zoom, installed fonts and the settings that restart the program (hostFeatures.appZoom, hostFeatures.systemFonts, hostFeatures.desktopApp).'
   },
   {
     path: 'pages/settings/GeneralSettings/GeneralSettings.tsx',
@@ -71,7 +72,7 @@ const unreachable: { path: string; only?: string[]; reason: string }[] = [
   },
   {
     path: 'pages/settings/ArchiveSettings',
-    reason: 'Archived paintings and library files; the Web edition stores no files, so it archives none.'
+    reason: 'Archived paintings and library files (hostFeatures.paintings, hostFeatures.attachments).'
   },
   {
     path: 'pages/settings/ProviderSettings/ProviderSpecific',

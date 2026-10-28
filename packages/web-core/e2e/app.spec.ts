@@ -94,6 +94,17 @@ test('leaves out the entries a browser tab cannot carry out', async ({ page }) =
   await expect(page.getByText('Context menu style', { exact: true })).toHaveCount(0)
   // Messages take no attachments, so long text is not pasted as a file either.
   await expect(page.getByText('Paste long text as file', { exact: true })).toHaveCount(0)
+  // A page cannot list the computer's fonts.
+  await expect(page.getByText('Global Font', { exact: true })).toHaveCount(0)
+  // The Web edition has no paintings and stores no files, so it archives neither.
+  await page.getByRole('button', { name: 'Archive', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Topics', exact: true })).toBeVisible()
+  for (const tab of ['Paintings', 'Files']) {
+    await expect(page.getByRole('tab', { name: tab, exact: true })).toHaveCount(0)
+  }
+  await page.getByRole('button', { name: 'Default Model', exact: true }).click()
+  await expect(page.getByText('Translate Model', { exact: true })).toBeVisible()
+  await expect(page.getByText('Painting Model', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'About & Feedback', exact: true }).click()
   await expect(page.getByText('Official Website', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Check Update' })).toHaveCount(0)
@@ -104,10 +115,17 @@ test('leaves out the entries a browser tab cannot carry out', async ({ page }) =
   await expect(page.getByRole('dialog').getByText('Feedback assistant', { exact: true })).toHaveCount(0)
   await page.keyboard.press('Escape')
 
-  // The browser, not the app, starts with the computer and sets the proxy, GPU and power use.
+  // The browser, not the app, starts with the computer and sets the network, GPU and power use;
+  // agents run on Pi, not Claude Code.
   await page.getByRole('button', { name: 'General', exact: true }).click()
   await expect(page.getByText('Enable retry', { exact: true })).toBeVisible()
-  for (const row of ['Start Automatically on Boot', 'Proxy Mode', 'Disable Hardware Acceleration']) {
+  for (const row of [
+    'Start Automatically on Boot',
+    'Proxy Mode',
+    'Allow fetching local network addresses',
+    'Disable Hardware Acceleration',
+    'Commit attribution'
+  ]) {
     await expect(page.getByText(row, { exact: true })).toHaveCount(0)
   }
   await expect(page.getByText('Enable Developer Mode', { exact: true })).toHaveCount(0)

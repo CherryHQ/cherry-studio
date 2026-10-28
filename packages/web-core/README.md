@@ -180,8 +180,7 @@ undefined.
 
 A few IpcApi routes are answered in the page (`answerInPage`), where the browser window and the
 click are: `src/page/browserShell.ts` opens links in a new tab, reloads the page, and reads the
-device type and full screen from the browser. Browsers do not list installed fonts, so the font
-setting offers its presets only.
+device type and full screen from the browser.
 
 ## The Web app
 
@@ -208,10 +207,12 @@ are fetched from the app's own copy (`src/page/bundledData.ts`).
 The renderer itself changes in two places. First-run setup's `enableCherryInLogin` switch is off
 here. `src/renderer/utils/hostFeatures.ts` says what the app around the renderer can do: more
 windows, opening paths in the computer's apps, app zoom, updates, developer tools, stored image
-uploads, attachments, reading Word documents' text, notes, knowledge bases, mini apps, dictation and
-reading aloud, diagnostics (Doctor, problem reports and the feedback assistant), the agent browser,
-computer use, the desktop program's own settings (start at login, tray, proxy, GPU and power use,
-native menus) and provider sign-ins through a CLI, an app login or GitHub's device login. The
+uploads, file storage (attachments and the files page), reading Word documents' text, notes,
+knowledge bases, mini apps, paintings, dictation and reading aloud, diagnostics (Doctor, problem
+reports and the feedback assistant), the agent browser, computer use, the desktop program's own
+settings (start at login, tray, its network access, GPU and power use, native menus, the spell
+checker's languages), listing installed fonts, Claude Code agents, provider sign-ins through a CLI,
+an app login or GitHub's device login, and the built-in CherryAI model. The
 desktop has all of them; `src/page/hostFeatures.ts` has none, so the entries for them, and their
 settings search results, are hidden in the page.
 

@@ -201,73 +201,67 @@ const GeneralSettings: FC = () => {
         </SettingGroup>
       )}
 
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
-        {hostFeatures.desktopApp && (
-          <>
-            <SettingDivider />
-            <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
-              <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
-              <Selector
-                value={storeProxyMode}
-                onChange={(mode) => void setProxyMode(mode)}
-                options={proxyModeOptions}
+      {hostFeatures.desktopApp && (
+        <SettingGroup theme={theme}>
+          <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
+          <SettingDivider />
+          <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
+            <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
+          </SettingRow>
+          {storeProxyMode === 'custom' && (
+            <>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
+                <Input
+                  spellCheck={false}
+                  placeholder="socks5://127.0.0.1:6153"
+                  value={proxyUrl}
+                  onChange={(e) => setProxyUrl(e.target.value)}
+                  style={{ width: 220 }}
+                  onBlur={onSetProxyUrl}
+                  type="url"
+                />
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>{t('settings.proxy.bypass')}</span>
+                  <InfoTooltip
+                    content={t('settings.proxy.tip')}
+                    placement="right"
+                    iconProps={{ className: 'cursor-pointer' }}
+                  />
+                </SettingRowTitle>
+                <Input
+                  spellCheck={false}
+                  placeholder={defaultByPassRules}
+                  value={proxyBypassRules}
+                  onChange={(e) => setProxyBypassRules(e.target.value)}
+                  style={{ width: 220 }}
+                  onBlur={onSetProxyBypassRules}
+                />
+              </SettingRow>
+            </>
+          )}
+          <SettingDivider />
+          <SettingRow id="setting-general-allow-private-network" className="scroll-mt-6">
+            <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>{t('settings.fetch.allow_private_network')}</span>
+              <InfoTooltip
+                content={t('settings.fetch.allow_private_network_tip')}
+                placement="right"
+                iconProps={{ className: 'cursor-pointer' }}
               />
-            </SettingRow>
-            {storeProxyMode === 'custom' && (
-              <>
-                <SettingDivider />
-                <SettingRow>
-                  <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
-                  <Input
-                    spellCheck={false}
-                    placeholder="socks5://127.0.0.1:6153"
-                    value={proxyUrl}
-                    onChange={(e) => setProxyUrl(e.target.value)}
-                    style={{ width: 220 }}
-                    onBlur={onSetProxyUrl}
-                    type="url"
-                  />
-                </SettingRow>
-                <SettingDivider />
-                <SettingRow>
-                  <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span>{t('settings.proxy.bypass')}</span>
-                    <InfoTooltip
-                      content={t('settings.proxy.tip')}
-                      placement="right"
-                      iconProps={{ className: 'cursor-pointer' }}
-                    />
-                  </SettingRowTitle>
-                  <Input
-                    spellCheck={false}
-                    placeholder={defaultByPassRules}
-                    value={proxyBypassRules}
-                    onChange={(e) => setProxyBypassRules(e.target.value)}
-                    style={{ width: 220 }}
-                    onBlur={onSetProxyBypassRules}
-                  />
-                </SettingRow>
-              </>
-            )}
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow id="setting-general-allow-private-network" className="scroll-mt-6">
-          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>{t('settings.fetch.allow_private_network')}</span>
-            <InfoTooltip
-              content={t('settings.fetch.allow_private_network_tip')}
-              placement="right"
-              iconProps={{ className: 'cursor-pointer' }}
+            </SettingRowTitle>
+            <Switch
+              checked={allowPrivateNetworkFetch}
+              onCheckedChange={(checked) => void setAllowPrivateNetworkFetch(checked)}
             />
-          </SettingRowTitle>
-          <Switch
-            checked={allowPrivateNetworkFetch}
-            onCheckedChange={(checked) => void setAllowPrivateNetworkFetch(checked)}
-          />
-        </SettingRow>
-      </SettingGroup>
+          </SettingRow>
+        </SettingGroup>
+      )}
 
       {hostFeatures.desktopApp && (
         <SettingGroup theme={theme}>
@@ -386,20 +380,24 @@ const GeneralSettings: FC = () => {
             />
           </div>
         </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle id="commit-attribution-title">
-              {t('settings.general.commit_attribution.title')}
-            </SettingRowTitle>
-            <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
-          </div>
-          <Switch
-            checked={commitAttribution}
-            onCheckedChange={(checked) => void setCommitAttribution(checked)}
-            aria-labelledby="commit-attribution-title"
-          />
-        </SettingRow>
+        {hostFeatures.claudeCode && (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle id="commit-attribution-title">
+                  {t('settings.general.commit_attribution.title')}
+                </SettingRowTitle>
+                <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
+              </div>
+              <Switch
+                checked={commitAttribution}
+                onCheckedChange={(checked) => void setCommitAttribution(checked)}
+                aria-labelledby="commit-attribution-title"
+              />
+            </SettingRow>
+          </>
+        )}
       </SettingGroup>
 
       {hostFeatures.devTools && (

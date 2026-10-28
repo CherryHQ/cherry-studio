@@ -15,7 +15,7 @@ export const hostFeatures = {
   devTools: true,
   /** Storing uploaded images, such as a provider's logo. */
   imageUploads: true,
-  /** Files attached to messages, copied into the app's file storage. */
+  /** The app's file storage: files attached to messages and the files page. */
   attachments: true,
   /** Reading a Word document's text, with the desktop's document parser. */
   documentText: true,
@@ -25,6 +25,8 @@ export const hostFeatures = {
   knowledgeBases: true,
   /** Mini apps, websites the desktop shows in its own web views. */
   miniApps: true,
+  /** Paintings: the image generation page and its default model. */
+  paintings: true,
   /** Dictation and reading replies aloud, which run speech models in the desktop app. */
   voice: true,
   /** Diagnostics (Doctor) and problem reports, which check and collect the install, logs and network. */
@@ -33,8 +35,13 @@ export const hostFeatures = {
   agentBrowser: true,
   /** Computer use: agents see and control the computer's apps. */
   computerUse: true,
-  /** Settings of the desktop program: start at login, tray, its own proxy, GPU and power use, native menus. */
+  /** Settings of the desktop program: start at login, tray, its network access, GPU and power use, native
+   *  menus and the spell checker's languages. */
   desktopApp: true,
+  /** Listing the fonts installed on the computer, for the font settings. */
+  systemFonts: true,
+  /** Claude Code agents, which run the Claude Code program on the computer. */
+  claudeCode: true,
   /** Provider sign-ins through a CLI, an app login or GitHub's device login, which report back to the app. */
   providerSignIn: true,
   /** The built-in CherryAI model, which needs the client secret built into the desktop app. */
