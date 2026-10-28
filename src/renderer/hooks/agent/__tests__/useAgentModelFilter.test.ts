@@ -80,5 +80,14 @@ describe('useAgentModelFilter', () => {
 
       expect(result.current({ ...model([MODEL_CAPABILITY.EMBEDDING]), providerId: 'openai' })).toBe(false)
     })
+
+    it('rejects a native-compatible model whose provider id cannot be routed by the gateway', () => {
+      const { result } = renderHook(() => useAgentModelFilter('pi'))
+      const provider = { ...providers.anthropic, id: 'custom:anthropic' } as Provider
+
+      expect(result.current({ ...model(), id: 'custom:anthropic::claude', providerId: provider.id }, provider)).toBe(
+        false
+      )
+    })
   })
 })

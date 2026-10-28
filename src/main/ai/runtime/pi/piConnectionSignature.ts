@@ -21,7 +21,7 @@ import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 
 import { gatewayCredentialsFingerprint } from '../agentApiGateway'
 
@@ -41,7 +41,6 @@ export interface PiConnectionSnapshot {
   session: AgentSessionEntity
   provider: Provider
   model: Model
-  enabledApiKeys: readonly ApiKeyEntry[]
   additionalSkillPaths: readonly string[]
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
@@ -140,7 +139,6 @@ export async function capturePiConnectionSnapshot(
     session,
     provider,
     model,
-    enabledApiKeys: apiKeys,
     effectiveLanguage,
     mcpInstructions,
     additionalSkillPaths: [

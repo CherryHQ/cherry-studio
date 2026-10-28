@@ -11,7 +11,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
-import { isPiGatewayCompatibleModel } from '@shared/ai/piModelCompatibility'
+import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
@@ -72,7 +72,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<PiRunt
         const needle = query.trim().toLowerCase()
         const candidates = modelService
           .list({ enabled: true })
-          .filter((model) => isPiGatewayCompatibleModel(providerService.getByProviderId(model.providerId), model))
+          .filter((model) => isPiCompatibleModel(providerService.getByProviderId(model.providerId), model))
         return candidates.flatMap((model) => {
           const raw = getRawModelId(model)
           const key =

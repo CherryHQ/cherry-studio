@@ -175,7 +175,6 @@ describe('capturePiConnectionSnapshot', () => {
     expect(snapshot).toMatchObject({
       provider: { id: 'provider' },
       model: { id: 'provider::model' },
-      enabledApiKeys: [{ id: 'key-1', key: 'secret', enabled: true }],
       additionalSkillPaths: ['/skills/pdf', '/workspace/.agents/skills/review'],
       linkedChannel: { id: 'channel-1', type: 'telegram' }
     })
