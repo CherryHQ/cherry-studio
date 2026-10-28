@@ -6,7 +6,7 @@ Status: proposed
 
 ## 问题
 
-Claude Code 目前仍通过 [ClaudeCodeRuntimeDriver](../../../../src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts) 及其会话级[流适配器](../../../../src/main/ai/runtime/claudeCode/streamAdapter.ts) 接入 Cherry。该适配器混合了原生执行、输入归属、任务发现和产品消息渲染。父轮次结束后，子内容会切换输出目标，更新一个以完整父消息为初始状态的累加器。随后宿主通过 Shared Cache 发布父消息的 parts。因此，子内容的生命周期和恢复都依赖父消息。
+迁移前，Claude Code 通过 `ClaudeCodeRuntimeDriver` 和会话级 chunk 适配器接入 Cherry。该适配器同时处理原生生命周期和产品消息渲染。子内容被复制到父消息；引入原生 projection 后，根正文又出现了两个生产者。此次迁移删除 chunk 适配器和第二次正文合并，同时保留原生生命周期控制及独立的子线程所有权。
 
 [Runtime 契约](2026-10-17-agent-runtime-contract.md) 已经区分访问、输入、观察和所有权。Pi 与 Pi Durable 现在已在桌面端使用该契约，并拥有独立的子投影。Claude Code 需要适配这条边界，同时保留原生会话、工具、任务生命周期、权限和模型路由。直接把现有 driver 移进包，会保留这些耦合，并把 Cherry 的数据库和 UI 策略一起带入适配器。
 
@@ -169,6 +169,10 @@ Shutdown 首先关闭输入接纳，再关闭拥有的 Query，排空事件消�
 SDK 历史函数接收项目 `dir`，没有配置根目录参数。读取某个 backend 时，不能临时修改主进程的 `CLAUDE_CONFIG_DIR`。应像现有 [fork worker](../../../../src/main/ai/runtime/claudeCode/forkWorker.ts) 一样，把环境隔离在 worker 中。C0 历史探针使用相同隔离配置的独立进程读取真实原生文件。使用 `getSessionMessages` / `getSubagentMessages` 选择原生视图，需要原始元数据时用 `importSessionToStore` 做临时捕获；这是读取/导出，不是第二套持久化存储。SDK 公开的 `SessionMessage` 投影不暴露全部线协议替换/中止元数据，不能独自证明富内容的无损重放。将已观察的来源映射/撤回存入现有 context 检查点，原生恢复不完整时保留更丰富的已保存产品 parts。保留精确的原生 fork 边界与 UUID 重映射；编辑仍保留原产品分支。
 
 复用 [ThreadMessageProjection](../../../../src/main/ai/agentSession/ThreadMessageProjection.ts)、[ChildThreadProjection](../../../../src/main/ai/agentSession/ChildThreadProjection.ts) 和共享 `ai.projection` 传输。在适合的地方继续使用 `readUIMessageStream` 累加消息。子所有权独立不要求替换 AI SDK 消息模型，也不要求新增 child 专用 IPC。文本/工具规范化可以复用 `ThreadMessageProjection`；原生富内容块需在共享写入器之前经过上述带类型的转换。根路径当前面向追加的 [ThreadProjection](../../../../src/main/ai/agentSession/ThreadProjection.ts) 不能直接替代支持 replacement 的 reducer；C2 必须明确验证根重放和替换路径。
+
+每次执行通过 `AiStreamSource` 选择唯一正文来源。Claude 使用权威消息视图：公共 observation → `ThreadMessageProjection` → `RootMessageProjection` 归属 → `pipeMessageStream` 宿主显示状态。Manager 发布和持久化同一份 `CherryUIMessage`，不再合并第二个 SDK 累加器，也不接受外部消息 sink。`ClaudeRuntimeState` 处理原生生命周期和用量控制，`ClaudeMessageMetadata` 保留富内容元数据。Chat/Pi 的 chunk 执行仍使用 `readUIMessageStream`。Channel、任务和远程消费者必须读取当前及最终消息视图，支持内容替换和错误前的部分输出。
+
+内容保真使用迁移前后冻结的真实 transcript 用例，独立检查原生字段并验证 SQLite 恢复。可提交的 fixture 替换私有内容。另用 SDK/CLI 集成及消费者契约测试覆盖流式、steer、审批和终结顺序；仅完整 transcript 重放不能证明这些行为或 Electron 验收。
 
 对于新迁移的上下文，由唯一的独立子写入器持久化并发布子消息集合。父消息只保留工具结果、关系和少量任务摘要。移除 Claude background-flow 发布器时，要同时移除其重复正文写入和 Shared Cache 广播。已保存的旧 flow 正文继续可读；只有建立原生身份和来源映射后才能回填为子消息。不能删除历史父 parts，也不能从文本猜测子身份。原生文件缺失时允许展示已保存视图，但不能创建可写替代会话。
 

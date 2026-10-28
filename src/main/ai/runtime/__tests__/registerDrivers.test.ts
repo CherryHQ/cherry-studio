@@ -14,6 +14,14 @@ describe('registerRuntimeDrivers', () => {
     vi.restoreAllMocks()
   })
 
+  it('selects the projection source before loading the lazy Claude implementation', () => {
+    const load = vi.spyOn(claudeCode, 'createClaudeCodeRuntimeDriver')
+    registerRuntimeDrivers()
+    const driver = runtimeDriverRegistry.getAgentSessionDriver('claude-code')!
+    expect(driver.messageSource).toBe('projection')
+    expect(load).not.toHaveBeenCalled()
+  })
+
   it('forwards native forks through the registered lazy Claude driver without opening a connection', async () => {
     const result: RuntimeForkResult = { resumeToken: 'child-native', checkpoints: [], publish: [] }
     const implementation = {

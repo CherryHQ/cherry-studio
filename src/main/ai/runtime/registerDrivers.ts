@@ -24,6 +24,7 @@ const logger = loggerService.withContext('LazyClaudeCodeRuntimeDriver')
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
+  readonly messageSource = 'projection' as const
   readonly capabilities = ['agent-session'] as const
 
   private implementationPromise: Promise<AgentSessionRuntimeDriver> | undefined

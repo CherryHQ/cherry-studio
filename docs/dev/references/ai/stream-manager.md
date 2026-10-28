@@ -47,9 +47,11 @@ reference for that Main-side design.
 Renderer commands → ai.stream.open/abort → AiStreamManager
 Renderer views    → ai.projection.attach/detach
                            ↑ snapshots / message patches
-Main SDK stream → pipeStreamLoop → TopicMessageProjection
-                     ├─ raw chunk listeners (SSE, channels, prompt consumers)
-                     └─ readUIMessageStream → accumulated CherryUIMessage
+AiService → one AiStreamSource per execution
+  chunks   → pipeStreamLoop → readUIMessageStream → CherryUIMessage
+  messages → pipeMessageStream + host display state → CherryUIMessage
+  current view → TopicMessageProjection + onMessage listeners
+  chunks / host controls → onChunk listeners
 Terminal: PersistenceListener → projection and other notifications → cleanup
 Child owner: independent native observation/archive → shared projection delivery
 ```
@@ -182,6 +184,7 @@ each event by calling these methods uniformly:
 interface StreamListener {
   readonly id: string
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
+  onMessage?(message: CherryUIMessage, sourceModelId?: string, sourceKind?: 'chunks' | 'messages'): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
   onError(result: StreamErrorResult): void | Promise<void>    // { finalMessage?, error, status: 'error', ... }
@@ -190,7 +193,12 @@ interface StreamListener {
 ```
 
 All three terminal shapes share the same `finalMessage?` field — the
-`UIMessage` accumulated by `readUIMessageStream` in the execution loop.
+current `CherryUIMessage` from the execution's selected source. Chunk sources use
+`readUIMessageStream`; projection sources supply authoritative parts with host
+approval/data/metadata applied by `pipeMessageStream`. No second body is merged
+at publication or persistence. Content consumers use `onMessage` and the terminal
+view; `onChunk` is a content feed only for chunk sources. A late listener receives
+the current view after control/chunk replay.
 Whether the stream ended naturally, was aborted, or errored, it's the
 same variable, only the stop point differs. Earlier designs called the
 error-path partial a `partialMessage`; this turned out to be just a
@@ -539,8 +547,16 @@ const stream: ReadableStream<UIMessageChunk> = await aiService.streamText({
 })
 ```
 
-`streamText` returns AI SDK's raw chunk stream. `signal` comes from
-`StreamExecution.abortController`; `abort()` triggers it.
+`streamText` returns `AiStreamSource`: either `{ kind: 'chunks', stream }` or
+`{ kind: 'messages', stream }`. The choice is fixed for an execution, not switched
+for individual events. `signal` comes from `StreamExecution.abortController`.
+
+For `messages`, `pipeMessageStream` replaces the current body, applies only
+host-owned display state and publishes `onMessage`. Native errors are queued as
+events so the preceding partial body drains before terminal persistence. It does
+not run `readUIMessageStream` or synthesize text/tool deltas. Idle timeout, approval
+tracking and terminal dispatch remain owned by the manager. The following chunk
+steps apply to `chunks`.
 
 **Step 2 — wrap with `withIdleTimeout`.** Resets per chunk; on idle
 timeout it aborts `exec.abortController`, which the upstream request is

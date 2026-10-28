@@ -6,10 +6,16 @@ service owns encrypted WebSocket connections, pairing invitations and delivery.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
 
-The remote stream listener coalesces adjacent deltas for the same message and part for
+For chunk sources, the remote stream listener coalesces adjacent deltas for the same message and part for
 up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending
 text first. Appends maintain UTF-8 offsets incrementally; completion still verifies the
 full content digest. Journal disposal cancels pending delivery.
+
+Projection sources use authoritative `onMessage` views and the existing wire
+part create/replace/remove events. Native retractions remove remote parts;
+reappearing positions receive new IDs so tombstoned parts cannot revive. Late
+listeners receive the current view. Content is never reconstructed from the
+projection source's host-control chunks, and no wire schema changes are needed.
 
 Append offsets come from the protocol's `textByteLength`, a memory-only cache keyed by
 immutable part objects; replacements and completion never inherit a prior object's cache. Events and checkpoints add no fields.

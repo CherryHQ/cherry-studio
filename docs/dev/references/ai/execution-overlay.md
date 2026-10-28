@@ -16,10 +16,10 @@ sources:
 
 ## Ownership and message model
 
-Root conversations and children use `CherryUIMessage`. Each native owner has an independent projection. Root messages normally come from `readUIMessageStream` in `pipeStreamLoop`. Claude roots also accept authoritative replacement-aware native parts; later SDK snapshots contribute status data without restoring retracted content. Child messages come from `ThreadMessageProjection` and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
+Root conversations and children use `CherryUIMessage`. Each execution selects one content source: chunk streams use `readUIMessageStream` in `pipeStreamLoop`; Claude roots use authoritative message views from `RootMessageProjection`, with host display state applied by `pipeMessageStream`. Each native owner has an independent projection. Child messages come from `ThreadMessageProjection` and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
 
 ```text
-Root SDK accumulator → TopicMessageProjection ─┐
+Root message source → TopicMessageProjection ──┐
 Child native observer → ChildThreadProjection ─┤
                                               ↓
                               MessageProjection / ProjectionSubscriptions

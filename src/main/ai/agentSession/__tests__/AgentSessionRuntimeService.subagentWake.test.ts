@@ -153,7 +153,7 @@ describe('subagent settlement wake (incident replay)', () => {
       }
       const owner = currentTurn(entry)
       const emit = (event: unknown) => (service as any).handleRuntimeEvent(entry, event)
-      const stream = service.openTurnStream({
+      const stream = openChunkStream(service, {
         sessionId: 'session-1',
         turnId: owner.turnId,
         signal: new AbortController().signal
@@ -217,9 +217,11 @@ describe('subagent settlement wake (incident replay)', () => {
       occupancy: {}
     }
     const turn1 = currentTurn(entry)
-    const turn1Reader = service
-      .openTurnStream({ sessionId: 'session-1', turnId: turn1.turnId, signal: new AbortController().signal })
-      .getReader()
+    const turn1Reader = openChunkStream(service, {
+      sessionId: 'session-1',
+      turnId: turn1.turnId,
+      signal: new AbortController().signal
+    }).getReader()
     await expect(turn1Reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
 
     // Spawn tool call registers the flow anchor; children start (background occupancy on).
@@ -276,9 +278,11 @@ describe('subagent settlement wake (incident replay)', () => {
     expect(receiveOnlyTurn).toBeDefined()
     expect(receiveOnlyTurn.turnId).not.toBe(turn1.turnId)
 
-    const wakeReader = service
-      .openTurnStream({ sessionId: 'session-1', turnId: receiveOnlyTurn.turnId, signal: new AbortController().signal })
-      .getReader()
+    const wakeReader = openChunkStream(service, {
+      sessionId: 'session-1',
+      turnId: receiveOnlyTurn.turnId,
+      signal: new AbortController().signal
+    }).getReader()
 
     // More wake content + the second child settling mid-turn (work-state drops).
     handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-delta', id: 'w1', delta: ' part 2' } })
@@ -359,3 +363,12 @@ describe('subagent settlement wake (incident replay)', () => {
     void service.closeSession('session-1')
   })
 })
+
+function openChunkStream(
+  service: InstanceType<typeof AgentSessionRuntimeService>,
+  input: Parameters<InstanceType<typeof AgentSessionRuntimeService>['openTurnStream']>[0]
+) {
+  const source = service.openTurnStream(input)
+  if (source.kind !== 'chunks') throw new Error('Expected chunk fixture')
+  return source.stream
+}

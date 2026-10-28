@@ -7,8 +7,6 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
-import { isDataUIPart } from 'ai'
-
 import type { RootProjectionCheckpoint } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -32,7 +30,7 @@ export interface AgentSessionMessageBackendOptions {
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
   forkAnchor?: () => RuntimeForkAnchor | undefined
-  projection?: () => { checkpoint: RootProjectionCheckpoint; parts: CherryUIMessage['parts'] } | undefined
+  projection?: (message?: CherryUIMessage) => RootProjectionCheckpoint | undefined
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -59,19 +57,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
       }
     }
-    const projection = this.opts.projection?.()
-    const parts = projection
-      ? [
-          ...projection.parts,
-          ...(finalMessage?.parts ?? []).filter(
-            (part) =>
-              isDataUIPart(part) &&
-              !projection.parts.some(
-                (native) => isDataUIPart(native) && native.type === part.type && native.id === part.id
-              )
-          )
-        ]
-      : (finalMessage?.parts ?? [])
+    const projection = this.opts.projection?.(finalMessage)
+    const parts = finalMessage?.parts ?? []
     const save = (runtimeAnchor?: RuntimeForkAnchor) => {
       const nativeContext =
         runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'
@@ -94,7 +81,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         },
         {
           publishDataChange: true,
-          projection: projection?.checkpoint,
+          projection,
         }
       )
     }

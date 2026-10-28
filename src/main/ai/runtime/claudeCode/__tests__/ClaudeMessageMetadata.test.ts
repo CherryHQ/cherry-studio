@@ -6,20 +6,11 @@ import type { ClaudeObservation } from '@cherrystudio/agent-runtime-claude-code'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 
 import { ClaudeMessageMetadata } from '../ClaudeMessageMetadata'
-import { ClaudeCodeStreamAdapter } from '../streamAdapter'
 
 const thread: Thread = { backendId: runtimeId('claude'), id: runtimeId('root') }
 const ref = (id: string): ItemRef => ({ session: thread, id: runtimeId(id) })
 async function project(content: BetaContentBlockParam[], items: ContentItem[]) {
-  const metadata = new ClaudeMessageMetadata(
-    new ClaudeCodeStreamAdapter({
-      modelId: 'claude',
-      sessionId: 'product',
-      streamOptions: { prompt: [] },
-      sink: { enqueue() {} },
-      statusSink: { emit() {} }
-    })
-  )
+  const metadata = new ClaudeMessageMetadata()
   const projection = new ThreadMessageProjection(thread, metadata.decorate)
   const batch: ClaudeObservation = {
     events: items.map((item) => ({ type: 'item.upsert', item })),

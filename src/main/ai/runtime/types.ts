@@ -47,6 +47,7 @@ export type AgentSessionUsageCapture =
   | { owner: 'provider-calls' }
 
 export interface AiRuntimeDriver {
+  readonly messageSource?: 'projection'
   readonly type: string
   readonly capabilities: readonly AiRuntimeCapability[]
 }

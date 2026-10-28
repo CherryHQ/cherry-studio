@@ -1345,6 +1345,47 @@ describe('remote agent access', () => {
     ).toMatchObject({ error: { data: { reason: 'FORBIDDEN' } } })
   })
 
+  it('projects replacement views in order and replays removals without reviving old content', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const publish = (parts: CherryMessagePart[]) => {
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.({ id: 'answer', role: 'assistant', parts }, undefined, 'messages')
+    }
+    publish([
+      { type: 'text', text: 'Withdrawn', state: 'streaming' },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    publish([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'call',
+        toolName: 'Bash',
+        state: 'input-available',
+        input: { command: 'pwd' }
+      },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    publish([{ type: 'text', text: 'Replacement', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const batch: AgentEventBatch = { subscriptionId: 'test', sessionId, streamEpoch: journal.epoch, events }
+    const applied = applyAgentEvents(baseline.projection, batch, {}, integrity)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages.answer.partIds).toHaveLength(1)
+    expect(applied.projection.parts[applied.projection.messages.answer.partIds[0]]).toMatchObject({
+      kind: 'text',
+      content: { text: 'Replacement' },
+      state: 'completed'
+    })
+    expect(applyAgentEvents(applied.projection, batch, {}, integrity)).toEqual(applied)
+    const legacy = installLegacyCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!legacy.ok) throw new Error(legacy.reason)
+    expect(applyLegacyEvents(legacy.projection, legacyBatchSchema.parse(batch), {}, integrity).ok).toBe(true)
+  })
+
   it('coalesces Unicode deltas within a bounded window and replays them from a checkpoint', async () => {
     const journal = hub.journal(sessionId)
     await journal.startRun('hi', 'agent-1', () => {})

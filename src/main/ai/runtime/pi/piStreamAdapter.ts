@@ -2,7 +2,7 @@
  * Translate pi `AgentSessionEvent`s into Cherry `UIMessageChunk`s (plan D3).
  *
  * pi's event vocabulary differs from Claude Code's, so this is a fresh, smaller
- * adapter (not a reuse of the Claude `streamAdapter`). It maps only the
+ * adapter. It maps only the
  * content/tool/usage surface; turn lifecycle (`agent_end` → `turn-complete`,
  * resume tokens, errors) is owned by `PiRuntimeConnection`.
  *
