@@ -3,6 +3,7 @@ import { foldState, syntaxHighlighting } from '@codemirror/language'
 import type { ChangeSpec } from '@codemirror/state'
 import { EditorState, Text } from '@codemirror/state'
 import type { ViewUpdate } from '@codemirror/view'
+import { gutters } from '@codemirror/view'
 import type { BasicSetupOptions } from '@uiw/react-codemirror'
 import CodeMirror, { ExternalChange, EditorView } from '@uiw/react-codemirror'
 import { use, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -224,7 +225,10 @@ const CodeEditor = ({
       ...(extensions ?? []),
       EditorState.lineSeparator.of(lineBreak),
       codeEditorLineBreakFilter,
-      ...(syntaxHighlightStyle ? [syntaxHighlighting(syntaxHighlightStyle), EditorState.tabSize.of(2)] : []),
+      // Line numbers scroll with the code, matching the message viewer; a sticky gutter overlaps it.
+      ...(syntaxHighlightStyle
+        ? [syntaxHighlighting(syntaxHighlightStyle), EditorState.tabSize.of(2), gutters({ fixed: false })]
+        : []),
       ...langExtensions,
       ...(wrapped ? [EditorView.lineWrapping] : []),
       codeEditorGutterTheme,

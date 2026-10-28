@@ -1,4 +1,4 @@
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
@@ -26,6 +26,7 @@ import type { WebviewAnnotationSavedPayload } from '@renderer/components/Webview
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { EventPayload } from '@shared/ipc/types'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot } from '@shared/utils/file'
 
@@ -235,8 +236,8 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   )
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  useIpcOn: vi.fn(),
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal()),
   ipcApi: { request: ipcRequestMock }
 }))
 
@@ -476,6 +477,9 @@ vi.mock('react-i18next', () => ({
 
 import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
 
+const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
+let browserOpenListener: (payload: EventPayload<'browser.pane.open_requested'>) => void
+
 type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
 
 function createTaskPart(sequence: number, subject: string, activeForm?: string): CherryMessagePart {
@@ -681,6 +685,12 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUsePreference.mockImplementation(defaultPreferenceImplementation)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
+    vi.spyOn(window.api.ipcApi, 'on').mockImplementation((event, listener) => {
+      if (event === 'browser.pane.open_requested') browserOpenListener = listener
+      return vi.fn()
+    })
     // Leaving a dirty file saves first; the leave-dialog flows below need that save to fail, synchronously.
     fileSessionFlushMock.mockImplementation(
       () =>
@@ -770,6 +780,7 @@ describe('AgentRightPane', () => {
   })
 
   it('explicitly opens the session browser pane even when normal links prefer an external browser', async () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
     try {
@@ -815,6 +826,7 @@ describe('AgentRightPane', () => {
     [false, 'https://example.com/path?q=hello#section', false],
     [true, 'mailto:test@example.com', false]
   ] as const)('opens message URLs according to the browser setting (%s, %s)', async (enabled, url, inPane) => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', enabled)
     const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
     try {
@@ -967,6 +979,7 @@ describe('AgentRightPane', () => {
   })
 
   it('opens a blank browser when no preview URL has been reported', () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
     render(
       <TestAgentRightPane sessionId="session-a" sessionName="Frontend task" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
@@ -1046,6 +1059,7 @@ describe('AgentRightPane', () => {
   })
 
   it('opens an HTML artifact in the browser instead of the file preview', () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
       filePath: 'index.html'
@@ -3350,5 +3364,89 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'common.back' }))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it.each([true, false])('respects tool-driven browser opening (auto-open=%s)', (autoOpen) => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', autoOpen)
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    act(() => browserOpenListener({ sessionId: 'session-a', scope: 'topic' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', String(autoOpen))
+    if (autoOpen) expect(screen.getByTestId('webview-browser')).toBeVisible()
+  })
+
+  it.each([true, false])('ignores another session without changing the URL (auto-open=%s)', async (autoOpen) => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', autoOpen)
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    act(() => browserOpenListener({ sessionId: 'session-b', url: 'https://other.example/' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    expect(screen.getByTestId('webview-browser')).not.toHaveAttribute('data-url')
+  })
+
+  it('records a matching URL without opening the panel when auto-open is off', async () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    act(() => browserOpenListener({ sessionId: 'session-a', url: 'https://example.com/browsed' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'https://example.com/browsed')
+  })
+
+  it('preserves the selected files pane while auto-open is off', async () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+    act(() => browserOpenListener({ sessionId: 'session-a' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('artifact-pane')).toBeVisible()
+  })
+
+  it('uses committed preference changes through the original IPC listener', async () => {
+    const user = userEvent.setup()
+    const pane = () => (
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const view = render(pane())
+    const listener = browserOpenListener
+    act(() => listener({ sessionId: 'session-a' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
+    view.rerender(pane())
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    act(() => listener({ sessionId: 'session-a' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', true)
+    view.rerender(pane())
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    act(() => listener({ sessionId: 'session-a' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('webview-browser')).toBeVisible()
   })
 })
