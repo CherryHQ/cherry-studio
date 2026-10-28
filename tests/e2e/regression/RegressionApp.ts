@@ -4,6 +4,8 @@ import { basename, join } from 'node:path'
 import type { Browser, Page } from '@playwright/test'
 import { chromium } from '@playwright/test'
 
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/e2e/regression/config'
 import { assertOwnedAppIsolation, prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
 import {
@@ -96,18 +98,29 @@ export class RegressionApp {
     throw new Error('Cherry Studio main window was not ready within 60 seconds')
   }
 
-  async window(pathFragment: string): Promise<Page> {
+  async window(pathFragment: string, tabId?: string): Promise<Page> {
     const browser = await this.connect()
     const deadline = Date.now() + 30_000
     do {
-      const page = browser
+      const pages = browser
         .contexts()
         .flatMap((context) => context.pages())
-        .find((candidate) => candidate.url().toLowerCase().includes(pathFragment.toLowerCase()))
-      if (page) return page
+        .filter((candidate) => candidate.url().toLowerCase().includes(pathFragment.toLowerCase()))
+      for (const page of pages) {
+        if (!tabId) return page
+        const data = await page
+          .evaluate(async () => {
+            const result = (await window.api.ipcApi.request('window.get_init_data')) as IpcResult<{
+              tabId?: string
+            } | null>
+            return result.ok ? result.data : null
+          })
+          .catch(() => null)
+        if (data?.tabId === tabId) return page
+      }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 250))
     } while (Date.now() < deadline)
-    throw new Error(`Window not found: ${pathFragment}`)
+    throw new Error(`Window not found: ${pathFragment}${tabId ? ` (tab ${tabId})` : ''}`)
   }
 
   async cleanupTransientUi(mainWindow: Page): Promise<void> {

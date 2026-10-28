@@ -89,6 +89,9 @@ local runs outside the source checkout so generated extension code is not scanne
 by repository lint. Do not run Node SQLite tests
 while Electron is running, since native dependency rebuilds switch its ABI.
 
+Detached-tab checks select the child by its `window.get_init_data` tab ID. A URL
+alone can also match the hidden prewarmed SubWindow and produce a false empty-page failure.
+
 ## Configuration and evidence
 
 Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.

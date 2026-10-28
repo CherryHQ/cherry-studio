@@ -615,9 +615,10 @@ test(...caseDefinition('MP-131'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(knowledge).toBeVisible()
 
     const knowledgeId = await tab('Knowledge Base').getAttribute('data-tab-id')
+    expect(knowledgeId).toBeTruthy()
     const knowledgeContent = await knowledge.innerText()
     await menu(tab('Knowledge Base'), 'Open in New Window')
-    child = await app.window('/windows/subWindow/')
+    child = await app.window('/windows/subWindow/', knowledgeId!)
     await expect(child.locator('[data-ui~="knowledge.view"]:visible')).toBeVisible()
     await expect(child.locator('[data-ui~="knowledge.view"]:visible')).toHaveText(knowledgeContent, {
       useInnerText: true
