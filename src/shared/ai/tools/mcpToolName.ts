@@ -575,14 +575,7 @@ export function migrateAgentDisabledToolsForServerRename(
       toolNames: input.toolNamesByServerId?.get(mcpId)
     })
   }
-  return applyAgentKeyRewrites(
-    disabledTools,
-    rewrites,
-    collectMountedIdSegments(input.mountedServers),
-    collectDisplayNameSegments(
-      input.mountedServers.map((server) => (server.mcpId === input.renamedServerId ? input.toName : server.name))
-    )
-  )
+  return applyAgentKeyRewrites(disabledTools, rewrites, collectMountedIdSegments(input.mountedServers))
 }
 
 export interface AgentAllocationChangeInput {
@@ -679,12 +672,7 @@ export function migrateAgentDisabledToolsForAllocationChange(
     })
   }
   if (rewrites.length === 0) return undefined
-  return applyAgentKeyRewrites(
-    disabledTools,
-    rewrites,
-    collectMountedIdSegments(input.oldMountedServers),
-    collectDisplayNameSegments(input.newMountedServers.map((server) => server.name))
-  )
+  return applyAgentKeyRewrites(disabledTools, rewrites, collectMountedIdSegments(input.oldMountedServers))
 }
 
 /**
@@ -708,19 +696,6 @@ function collectMountedIdSegments(servers: ReadonlyArray<MountedServerRef>): Set
   for (const { mcpId } of servers) {
     segments.add(sanitizeAgentServerKey(mcpId))
     segments.add(mcpId.replace(/[^A-Za-z0-9_]/g, '_'))
-  }
-  return segments
-}
-
-/**
- * The camelized forms of the CURRENT configured names — Pi derives its display-name alias
- * (`buildFunctionCallToolName(server.name, tool)`) from them. An entry keyed by such a segment
- * still resolves the alias of the server that keeps the name, so a rewrite must not strip it.
- */
-function collectDisplayNameSegments(names: ReadonlyArray<string | undefined>): Set<string> {
-  const segments = new Set<string>()
-  for (const name of names) {
-    if (name) segments.add(toCamelCase(name))
   }
   return segments
 }
@@ -772,8 +747,7 @@ function keyClaimedByOtherServer(newKeys: ReadonlyMap<string, string>, ownerId: 
 function applyAgentKeyRewrites(
   disabledTools: readonly string[],
   rewrites: ReadonlyArray<AgentKeyRewrite>,
-  idSegments: ReadonlySet<string> = new Set(),
-  displaySegments: ReadonlySet<string> = new Set()
+  idSegments: ReadonlySet<string> = new Set()
 ): string[] | undefined {
   const rewriteHashed = (toolPart: string, targetKey: string): string[] => {
     const targets = new Set<string>([toCamelCase(targetKey)])
@@ -792,8 +766,9 @@ function applyAgentKeyRewrites(
   // all of them (fail-closed). A saved fragment past the bounded cap (`buildFunctionCallToolName`
   // truncates long names and appends the server hash) is resolved by replaying that build against
   // every raw tool (see {@link isBoundedAliasToolFragment}). No catalog entry means no
-  // resolution — `rawResolved` stays false and the caller keeps the original string (fail-closed)
-  // rather than guessing a spelling.
+  // resolution — `rawResolved` stays false — and even a resolution only ever covers the
+  // spellings the snapshot holds, so the caller keeps the original string on any non-takeover
+  // path (fail-closed) rather than trusting a partial recovery.
   const targetForms = (
     rewrite: AgentKeyRewrite,
     toolPart: string,
@@ -893,13 +868,24 @@ function applyAgentKeyRewrites(
           // dropping permits the explicitly disabled one — the permission invariant this
           // migration exists to preserve — so a failed resolution keeps the original even when
           // the segment changes owners (the same fail-closed trade every ambiguous resolution
-          // in this engine already takes). When the catalog DID resolve, the raw stable-id
-          // forms travel with the owner and stay enforceable, so the original moves off a
-          // claimed segment without loss (the ownership rule above).
+          // in this engine already takes).
+          // A catalog resolution is not a complete recovery, only a partial one: every
+          // replacement derives from the spellings the snapshot happens to hold, and a
+          // snapshot match on ONE spelling proves nothing about the other spellings the saved
+          // alias historically represented. The same lossy alias `mcp__docs__run` persists a
+          // denial of raw `RUN`, while a snapshot listing only the lowercase sibling `run`
+          // resolves against it and emits nothing that names `RUN` — after the unmount/remount
+          // transition registers `mcp__<id>__RUN`, neither surviving form matches it and the
+          // Full Access gate executes the explicitly disabled tool. While the alias ownership
+          // has not moved, the original stays owner-bound exactly as in the failed-resolution
+          // case: it re-enforces the denial on remount and can over-block only a
+          // same-camelization sibling of a tool the owner itself registered. Only when the
+          // segment changes owners does the original step aside for the claimant, on the
+          // stable-id forms that DO travel with the owner (the ownership rule above).
           keepOriginal =
+            matched.aliasOwnershipLost !== true ||
             matched.fromIsId === true ||
             idSegments.has(serverPart) ||
-            (matched.aliasOwnershipLost !== true && displaySegments.has(serverPart)) ||
             !rawResolved
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = [

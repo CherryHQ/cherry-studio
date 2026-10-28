@@ -209,7 +209,10 @@ describe('McpServerService', () => {
       // mixed-case `GitHub` must resolve the fragment against the server's tool catalog (the
       // shared `mcp.tools.<serverId>` cache) and emit the raw spelling the SDK serves
       // (`mcp__GitHub__get_time`) plus the alias Pi resolves
-      // (`buildFunctionCallToolName('GitHub', 'get_time')` = `mcp__github__getTime`).
+      // (`buildFunctionCallToolName('GitHub', 'get_time')` = `mcp__github__getTime`). The
+      // resolution is partial — the catalog spellings cannot prove every historical raw
+      // spelling the alias represented — and the released key stays unclaimed, so the
+      // owner-bound original persists alongside the copies.
       await seedServer({ id: 'srv-camel', name: 'docs' })
       application.get('CacheService').setShared(`mcp.tools.srv-camel`, [{ name: 'get_time' } as unknown as McpTool])
       const [keyA] = generateOrderKeySequence(1)
@@ -227,6 +230,7 @@ describe('McpServerService', () => {
 
       const [renamed] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
       expect(renamed.disabledTools).toEqual([
+        'mcp__docs__getTime',
         'mcp__GitHub__getTime',
         'mcp__github__gettime',
         'mcp__GitHub__get_time',

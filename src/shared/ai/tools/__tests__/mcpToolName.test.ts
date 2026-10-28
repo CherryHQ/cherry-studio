@@ -932,6 +932,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     // mixed-case `GitHub` must resolve the fragment against the server's actual tool list and
     // emit the raw spelling the runtimes keep: the SDK serves `mcp__GitHub__get_time`, and Pi
     // resolves `buildFunctionCallToolName('GitHub', 'get_time')` = `mcp__github__getTime`.
+    // The resolution is still partial — camelization is not injective, so the catalog spellings
+    // prove nothing about other raw spellings the saved alias might have represented — and the
+    // released key stays unclaimed, so the owner-bound original survives the move.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__docs__getTime'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
@@ -940,7 +943,13 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         reservedKeys: RESERVED,
         toolNamesByServerId: new Map([['srv-1', ['get_time']]])
       })
-    ).toEqual(['mcp__GitHub__getTime', 'mcp__github__gettime', 'mcp__GitHub__get_time', 'mcp__github__getTime'])
+    ).toEqual([
+      'mcp__docs__getTime',
+      'mcp__GitHub__getTime',
+      'mcp__github__gettime',
+      'mcp__GitHub__get_time',
+      'mcp__github__getTime'
+    ])
   })
 
   it('carries a truncated DSH identity onto the renamed key fragment', () => {
@@ -1217,9 +1226,18 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
       toolNamesByServerId: new Map([[idA, ['get_time', 'search_docs']]])
     })
     // The camelized forms stay (existing semantics; `gettime` also matches a raw tool literally
-    // named `gettime`), the raw stable-id form joins them, and the name-keyed original is still
-    // dropped — the released key spells the next claimant's identity.
-    expect(unmounted).toEqual([`mcp__${idA}__getTime`, `mcp__${idA}__gettime`, `mcp__${idA}__get_time`])
+    // named `gettime`), the raw stable-id form joins them, and the name-keyed original stays:
+    // the released key is unclaimed (`newMountedServers` is empty, so no sibling takes the
+    // segment over), and the catalog resolution is partial — the snapshot spellings say nothing
+    // about other raw spellings the alias might have represented — so the owner-bound original
+    // re-enforces the denial on remount instead of leaving the restriction to copies that may
+    // name nothing.
+    expect(unmounted).toEqual([
+      'mcp__docs__getTime',
+      `mcp__${idA}__getTime`,
+      `mcp__${idA}__gettime`,
+      `mcp__${idA}__get_time`
+    ])
   })
 
   it('keeps the camelized fragments unchanged when the departing server has no tool catalog entry', () => {
@@ -1255,6 +1273,28 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
         oldMountedServers: [{ mcpId: idA, name: 'docs' }],
         newMountedServers: [],
         reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__docs__run', `mcp__${idA}__run`])
+  })
+
+  it('keeps the name-keyed original when a partial catalog match cannot prove the raw spelling', () => {
+    // Raw tool `RUN` persists as the alias `mcp__docs__run`, and the cached catalog
+    // temporarily lists only the lowercase sibling `run`. The sibling camelizes identically,
+    // so the fragment resolves against it — but a current catalog match cannot prove recovery
+    // of every historical raw spelling this lossy alias represents: camelization is not
+    // injective (`RUN` and `run` both camelize to `run`), and the sibling says nothing about
+    // `RUN` being present. Dropping the original keeps only `mcp__<id>__run`, which matches
+    // neither Pi identity of the remounted server (the raw `mcp__<id>__RUN` stable id or the
+    // configured-name alias), and the explicitly disabled tool executes under Full Access.
+    // The kept original is owner-bound while the released key stays unclaimed and re-enforces
+    // the denial the moment the owner remounts — the same fail-closed trade as the cold
+    // catalog above, extended to a resolution that may be partial.
+    expect(
+      migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+        oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+        newMountedServers: [],
+        reservedKeys: RESERVED,
+        toolNamesByServerId: new Map([[idA, ['run']]])
       })
     ).toEqual(['mcp__docs__run', `mcp__${idA}__run`])
   })
@@ -1339,7 +1379,9 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
   it('emits every raw spelling a camelized fragment resolves to (fail-closed)', () => {
     // `get_time` and `get.time` both camelize to `getTime`, so the saved string is ambiguous:
     // resolving only one spelling could re-enable the other. Every matching raw tool
-    // contributes its stable-id form.
+    // contributes its stable-id form. The emission is still bounded by the snapshot — any raw
+    // spelling outside the catalog (or any spelling camelizing to the same fragment) is not
+    // emitted, and the unclaimed release keeps the owner-bound original enforceable.
     expect(
       migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
         oldMountedServers: [{ mcpId: idA, name: 'docs' }],
@@ -1347,7 +1389,13 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
         reservedKeys: RESERVED,
         toolNamesByServerId: new Map([[idA, ['get_time', 'get.time', 'other']]])
       })
-    ).toEqual([`mcp__${idA}__getTime`, `mcp__${idA}__gettime`, `mcp__${idA}__get_time`, `mcp__${idA}__get.time`])
+    ).toEqual([
+      'mcp__docs__getTime',
+      `mcp__${idA}__getTime`,
+      `mcp__${idA}__gettime`,
+      `mcp__${idA}__get_time`,
+      `mcp__${idA}__get.time`
+    ])
   })
 
   it('resolves the camelized denial onto the raw stable id when a mount change displaces the owner', () => {

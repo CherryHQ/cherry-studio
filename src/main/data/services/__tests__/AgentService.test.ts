@@ -1062,7 +1062,10 @@ describe('AgentService', () => {
       // configured-name key, so the rewrite lands on the stable id — and a camelized fragment
       // under the id names nothing (Pi registers the raw tool and matches
       // `mcp__<id>__get_time` verbatim). The migration reads the server's tool catalog from the
-      // shared cache and emits the raw stable-id form alongside the camelized copies.
+      // shared cache and emits the raw stable-id form alongside the camelized copies. The
+      // release is unclaimed and the catalog resolution is partial — the snapshot spellings
+      // cannot prove every raw spelling the alias represented — so the owner-bound original
+      // persists and re-enforces the denial on remount.
       await insertMcpServer('srv-a', 'docs')
       application.get('CacheService').setShared(`mcp.tools.srv-a`, [{ name: 'get_time' } as unknown as McpTool])
       const created = createAgentForTest({
@@ -1076,6 +1079,7 @@ describe('AgentService', () => {
       agentService.updateAgent(created.id, { mcps: [] })
 
       expect(agentService.getAgent(created.id)?.disabledTools).toEqual([
+        'mcp__docs__getTime',
         'mcp__srv-a__getTime',
         'mcp__srv-a__gettime',
         'mcp__srv-a__get_time'
