@@ -2408,6 +2408,32 @@ export function stableScratchpadStreamPrefix(
   // Incomplete markup, wrappers and fences retain the existing conservative verdict. Only the
   // inline-code-only hold is narrowed here; classification of ambiguous markup stays deferred.
   const fenced = maskCodeFences(raw)
+  // A backtick opener's info string is not sealed until its line ends:
+  // another backtick can invalidate the fence and expose wrapper markup.
+  // Hold only that markup, not ordinary info text or later code lines.
+  const lastFenceIndex = fenced.fences.length - 1
+  const lastFence = fenced.fences[lastFenceIndex]
+  const lastToken = `${fenced.placeholderBase}CODE_FENCE_${lastFenceIndex}\uE001`
+  if (lastFence && fenced.text.endsWith(lastToken) && !/[\r\n]/.test(lastFence)) {
+    const tick = lastFence.indexOf('`')
+    if (tick >= 0 && /^`{3,}/.test(lastFence.slice(tick))) {
+      const runLength = /^`+/.exec(lastFence.slice(tick))![0].length
+      const infoStart = tick + runLength
+      const info = lastFence.slice(infoStart)
+      for (const match of info.matchAll(/<([a-z]*)/gi)) {
+        const name = match[1].toLowerCase()
+        const complete =
+          MODEL_SCRATCHPAD_TAG_NAMES.includes(name) && /[\s/>]/.test(info[match.index + match[0].length] ?? '')
+        const partial =
+          match.index + match[0].length === info.length &&
+          MODEL_SCRATCHPAD_TAG_NAMES.some((tag) => tag.startsWith(name))
+        if (complete || partial) {
+          cut = Math.min(cut, raw.length - lastFence.length + infoStart + match.index)
+          break
+        }
+      }
+    }
+  }
   const masked = fenced.text
   const lastLineEnd = Math.max(masked.lastIndexOf('\n'), masked.lastIndexOf('\r'))
   const completed = lastLineEnd < 0 ? '' : masked.slice(0, lastLineEnd + 1)
@@ -2446,7 +2472,7 @@ export function stableScratchpadStreamPrefix(
         if (match.index >= markup) break
         rawOffset += fenced.fences[Number(match[1])].length - match[0].length
       }
-      cut = rawOffset
+      cut = Math.min(cut, rawOffset)
     }
   }
   const candidate = raw.slice(0, cut)

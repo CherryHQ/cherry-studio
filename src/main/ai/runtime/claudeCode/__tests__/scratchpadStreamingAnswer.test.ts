@@ -350,6 +350,37 @@ describe('append-only scratchpad answer streaming', () => {
     s.stop()
     expect(s.text()).toBe('`x`\n\nAnswer. after')
   })
+  it('holds wrapper markup on an unfinished backtick info line but streams valid code bodies', () => {
+    for (const prefix of ['Text\n', '<b>Text</b>\n', '<analysis>hidden</analysis>Text\n'])
+      for (const marker of ['```', '````', '~~~'])
+        for (const suffix of ['`', '\ncode\n' + marker, '']) {
+          const raw = prefix + marker + '<thinking>SECRET</thinking>' + suffix
+          const expected = stripKnownModelScratchpadBlocksPreservingCodeFences(raw)
+          for (const size of [1, 2, 3, 5, 7, raw.length]) {
+            const s = setup()
+            for (let i = 0; i < raw.length; i += size) {
+              s.push(raw.slice(i, i + size))
+              if (!expected.includes('SECRET')) expect(s.text()).not.toContain('SECRET')
+            }
+            s.stop()
+            expect(s.text()).toBe(expected)
+            expect(s.a.scratchpadPrefixViolation).toBe(false)
+            s.a.handleMessage({
+              type: 'assistant',
+              parent_tool_use_id: null,
+              session_id: 's',
+              uuid: crypto.randomUUID(),
+              message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+            } as any)
+            expect(s.text()).toBe(expected)
+          }
+        }
+    const s = setup()
+    s.push('Text\n```js\n')
+    s.push('const answer = 42\n')
+    expect(s.text()).toContain('const answer = 42')
+    s.stop()
+  })
   it('withholds a closing backtick run that can still grow and revoke inline ownership', () => {
     for (const n of [1, 2, 3, 4, 5])
       for (const extra of [1, 2]) {
