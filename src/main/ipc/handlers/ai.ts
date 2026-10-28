@@ -142,12 +142,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const subscriber = new WebContentsListener(wc, request.topicId)
     // Renderer ingress: hidden channel metadata is host-owned, so renderer-supplied parts never
     // keep it (schema-valid is not authority). Trusted main-process facades dispatch directly and
-    // never pass through this strip.
-    const dispatchRequest: MainDispatchRequest = {
-      ...request,
-      ...(request.userMessageParts ? { userMessageParts: stripChannelContextParts(request.userMessageParts) } : {}),
-      interactionWindowId: senderId
-    }
+    // never pass through this strip. Only submit turns carry parts (regenerate forbids them), so
+    // narrow on the trigger instead of spreading conditionally.
+    const dispatchRequest: MainDispatchRequest =
+      request.trigger === 'submit-message'
+        ? {
+            ...request,
+            userMessageParts: stripChannelContextParts(request.userMessageParts),
+            interactionWindowId: senderId
+          }
+        : { ...request, interactionWindowId: senderId }
     return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
