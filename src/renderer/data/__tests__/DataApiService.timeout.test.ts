@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@data/DataApiService')
 

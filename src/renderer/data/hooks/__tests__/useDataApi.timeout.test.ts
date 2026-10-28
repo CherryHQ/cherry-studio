@@ -1,6 +1,7 @@
-import type { DataRequest, DataResponse } from '@shared/data/api/types'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { DataRequest, DataResponse } from '@shared/data/api/types'
 
 import { createSWRTestWrapper } from './testUtils'
 
