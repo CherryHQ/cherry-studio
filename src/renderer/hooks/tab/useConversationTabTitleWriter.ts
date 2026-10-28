@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
 import { useDataChange } from '@renderer/data/hooks/useDataApi'
@@ -39,11 +39,15 @@ export function useConversationTabTitleWriter() {
   // not as they were when the rename was observed.
   const tabsRef = useRef(tabs)
   tabsRef.current = tabs
+  // An unmounted writer's snapshot never advances again, so its delayed writes
+  // would stamp stale bindings over whatever the tab now shows.
+  const mountedRef = useRef(true)
+  useEffect(() => () => (mountedRef.current = false), [])
 
   return useCallback(
     (kind: ConversationTabKind, conversationId: string, name: string | null | undefined) => {
       const title = name?.trim()
-      if (!updateTab || !tabsRef.current || !title) return
+      if (!mountedRef.current || !updateTab || !tabsRef.current || !title) return
       const param = CONVERSATION_PARAM[kind]
       for (const tab of tabsRef.current) {
         if (tab.title === title) continue

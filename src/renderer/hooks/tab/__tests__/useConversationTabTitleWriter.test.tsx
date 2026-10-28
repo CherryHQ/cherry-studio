@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -137,6 +138,18 @@ function NavigateTabAwayButton() {
   )
 }
 
+function UnmountableRenameSync() {
+  const [mounted, setMounted] = useState(true)
+  return mounted ? (
+    <>
+      <CrossWindowRenameSync />
+      <button type="button" onClick={() => setMounted(false)}>
+        Unmount sync
+      </button>
+    </>
+  ) : null
+}
+
 function renderShell(extra: React.ReactNode) {
   return render(
     <TabsProvider initialDefaultTab={HOME_TAB}>
@@ -251,6 +264,34 @@ describe('useConversationTabTitleWriter', () => {
 
     // Navigate tab-a away from topic-a while the read is still in flight.
     fireEvent.click(screen.getByRole('button', { name: 'Navigate away' }))
+
+    await act(async () => {
+      resolveGet?.({ id: 'topic-a', name: 'Other-window A' })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Old A'))
+    get.mockRestore()
+  })
+
+  it('drops a pending rename whose writer unmounted before it landed', async () => {
+    // History starts renaming A, then closes; the pending mutation lands after the writer's
+    // snapshot stopped advancing, so its write would stamp A's name over a tab now showing B.
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a')]
+    let resolveGet: ((row: unknown) => void) | undefined
+    const get = vi
+      .spyOn(dataApiService, 'get')
+      .mockImplementation(() => new Promise((resolve) => (resolveGet = resolve)))
+    renderShell(<UnmountableRenameSync />)
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Old A'))
+
+    await act(async () => {
+      changeListeners.get('/topics/:id')?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
+      await waitFor(() => expect(get).toHaveBeenCalled())
+    })
+
+    // The initiator unmounts; its retained snapshot must not be trusted afterwards.
+    fireEvent.click(screen.getByRole('button', { name: 'Unmount sync' }))
 
     await act(async () => {
       resolveGet?.({ id: 'topic-a', name: 'Other-window A' })
