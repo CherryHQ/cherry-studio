@@ -128,7 +128,6 @@ describe('desktop Pi Durable connection', () => {
         authType: 'api-key',
         isEnabled: true
       }),
-      enabledApiKeys: [],
       additionalSkillPaths: [],
       mcpServerSnapshots: new Map(),
       linkedChannel: null,
