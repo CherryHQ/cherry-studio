@@ -16,7 +16,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `mockProvider.ts`, `mockWorker.ts` | Start, verify and stop the run-owned aiMock service |
 | `process.ts` | OS process identity, ancestry, ports, and termination |
 | `debugBridge.ts`, `cdpClient.ts` | Explicit main-process debug operations and HTTP callback delivery |
-| `systemAutomation.ts` | Native dialogs, external text selection, and keyboard input |
+| `systemAutomation.ts` | Native dialogs and notifications, external text selection, and keyboard input |
 | `RegressionReporter.ts` | Playwright result adapter and run-state updates |
 | `RedactionReporter.ts` | Redact configured credentials before other Playwright reporters serialize steps and errors |
 | `state.ts`, `report.ts` | Run state, platform/aggregate verdicts, and human-readable reports |
@@ -25,6 +25,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 Dependencies flow from CLI and E2E fixtures into these modules. The controller does not import E2E scenarios or production services.
 The debug bridge may inspect the owned main process; it must never manufacture a successful product result.
 Native save helpers are asynchronous so fixture HTTP servers keep serving while the application prepares an export.
+macOS notification lookups treat disappearing accessibility objects as absent; other automation errors still fail the case.
 Scenario cleanup cancels only owned Windows file dialogs, preventing a failed export from intercepting the next case's save.
 The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
 
@@ -49,14 +50,17 @@ application dependencies. The controller then launches the development server di
 including on profile switches and persistence-test restarts. Local controller runs must
 perform the same preparation in the target checkout before `launch`; release installers
 do not need it. Restarting preserves the owned application's profile. On Windows,
-restart requests `app.quit()` through its verified main-process inspector and waits
+restart of a live instance requests `app.quit()` through its verified main-process inspector and waits
 for normal shutdown so persistence tests do not simulate a forced crash. A shutdown
 timeout fails the restart; it does not force termination and launch a replacement.
+An already-exited launch is cleaned up with the same ownership checks before its replacement starts.
 Branch launches invoke the checkout's dotenv and electron-vite entry points through Node,
 so package-manager subprocesses cannot escape the owned process group. Each profile sets
 `CS_DEV_PROFILE_ROOT` inside the run directory to isolate boot configuration, migration
 state, user data, and logs from developer instances. Launches disable occluded-window
 backgrounding so Playwright actionability checks keep receiving animation frames.
+Profile-root startup also explicitly sets Electron's temporary directory before freezing
+the path registry, because setting `TMPDIR` alone does not isolate that API on macOS.
 Both branch and installer launches give the child a profile-owned home, Claude config
 directory, Codex home, and temporary directory. Windows AppData directories are created there too. Code Mate
 configuration writes therefore use the isolated profile's credentials

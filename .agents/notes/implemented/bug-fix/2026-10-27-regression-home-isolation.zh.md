@@ -14,6 +14,8 @@ Status: implemented
 
 每次连接 UI 前，控制器都会验证进程与检查器的归属，并检查运行中应用的主目录、临时目录和 CLI 配置路径，以及 Windows AppData。路径超出测试配置目录的实例会被拒绝，包括本次修复前启动的实例。
 
+在 macOS 上，即使设置了 `TMPDIR`，Electron 44.9.3 仍使用系统临时目录，而 Node 的 `os.tmpdir()` 会遵循该变量。未打包的 profile-root 启动流程会在冻结路径注册表之前，将 Electron 临时目录显式设置为 `{profileRoot}/home/temp`。安装包忽略这一开发设置，其实际路径仍必须通过隔离检查。
+
 ## 考虑过的替代方案
 
 - 只重定向 `userData` 仍会暴露 CLI 配置。
@@ -28,4 +30,5 @@ Status: implemented
 
 - Regression — `scripts/e2e/regression/__tests__/launch.test.ts`：源码和安装包启动会替换继承的主目录和配置路径；Windows 应用数据目录已创建，控制器保留原有环境。
 - Regression — `scripts/e2e/regression/__tests__/debugBridge.test.ts`：受控且已隔离的实例可以连接；个人主目录、临时目录、Windows AppData 和 CLI 配置路径会被拒绝。
+- Regression — 本地 macOS Electron 44.9.3 的主目录、Electron 临时目录和 CLI 配置路径均位于受控配置目录中；实际隔离检查与 S-01 启动用例通过。这是开发模式证据，不代表安装包验收通过。
 - Regression — 本地 Windows Electron 检查确认 `sys.home`、`appData`、`sys.temp`、`app.temp`、`CODEX_HOME` 和 `CLAUDE_CONFIG_DIR` 均位于临时测试配置目录中；代码工具阶段运行后，受监测的个人配置文件 SHA-256 哈希保持不变。这不能证明 macOS 运行时验收通过，也不能恢复隔离前已被改写的文件。

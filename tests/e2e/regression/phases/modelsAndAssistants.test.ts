@@ -11,7 +11,7 @@ import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/scre
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { customAssistantName, ensureCustomAssistant } from '../helpers/assistants'
-import { selectChatModel, sendChatMarker } from '../helpers/chat'
+import { sendChatMarker } from '../helpers/chat'
 import { CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
@@ -20,24 +20,44 @@ import { errorRecovery } from '../scenarios/errorRecovery'
 
 test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
   let page = mainWindow
-  await ensureCustomChatProvider(app, page)
+  const providerId = await ensureCustomChatProvider(app, page)
   await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
   await expect(
     page.getByTestId('provider-model-list').getByText(app.config.customProvider.chatModel, { exact: true }).last()
   ).toBeVisible()
 
   await closeSettings(page)
-  await selectChatModel(page, app.config.customProvider.chatModel)
-  await sendChatMarker(
-    page,
-    'Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else.',
-    'CUSTOM_PROVIDER_CHAT_PASS'
+  const assistantName = app.resourceName('Provider conversation')
+  const created = await page.evaluate(
+    (body) => window.api.dataApi.request({ id: 'm02-assistant', method: 'POST', path: '/assistants', body }),
+    { name: assistantName, modelId: createUniqueModelId(providerId, app.config.customProvider.chatModel) }
   )
+  expect(created.status).toBe(201)
+  const assistantId = AssistantSchema.parse(created.data).id
+  try {
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const row = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await row.hover()
+    await row.getByRole('button', { name: 'New Chat', exact: true }).press('Enter')
+    await sendChatMarker(
+      page,
+      'Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else.',
+      'CUSTOM_PROVIDER_CHAT_PASS'
+    )
 
-  page = await app.restart('authenticated')
-  await dismissOnboarding(page)
-  await openSettingsSection(page, 'Model Provider')
-  await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
+    page = await app.restart('authenticated')
+    await dismissOnboarding(page)
+    await openSettingsSection(page, 'Model Provider')
+    await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
+  } finally {
+    const removed = (await page.evaluate(
+      (assistantId) =>
+        window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true }),
+      assistantId
+    )) as IpcResult<{ deleted: boolean }>
+    expect(removed.ok && removed.data.deleted).toBe(true)
+  }
 })
 
 test(...caseDefinition('M-03'), async ({ app, mainWindow: page }) => {

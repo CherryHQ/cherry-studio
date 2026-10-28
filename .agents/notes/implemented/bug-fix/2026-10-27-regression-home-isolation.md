@@ -14,6 +14,8 @@ Both checkout and installer launches give each regression profile its own tempor
 
 Before every UI connection, the controller verifies process and inspector ownership and checks the running application's home, temporary and CLI configuration paths, plus Windows AppData. It refuses instances whose paths escape the profile, including instances launched before this repair.
 
+On macOS, Electron 44.9.3 keeps its system temporary directory despite `TMPDIR`, while Node's `os.tmpdir()` honors it. Unpackaged profile-root startup explicitly sets Electron's temporary directory to `{profileRoot}/home/temp` before freezing the path registry. Packaged builds ignore this development setting; their actual paths must still pass the isolation guard.
+
 ## Alternatives considered
 
 - Redirecting only `userData` leaves CLI configuration exposed.
@@ -28,4 +30,5 @@ Tests start without personal CLI authentication or configuration. Tools installe
 
 - Regression — `scripts/e2e/regression/__tests__/launch.test.ts`: checkout and installer launches replace inherited home/configuration locations; Windows application-data directories exist, and the controller retains its original environment.
 - Regression — `scripts/e2e/regression/__tests__/debugBridge.test.ts`: owned isolated instances connect; personal home, temporary, Windows AppData and CLI configuration paths are rejected.
+- Regression — local macOS Electron 44.9.3 resolves home, Electron temporary storage and CLI configuration paths inside the owned profile; the actual isolation guard and S-01 startup case pass. This is development-mode evidence, not installer acceptance.
 - Regression — local Windows Electron inspection resolves `sys.home`, `appData`, `sys.temp`, `app.temp`, `CODEX_HOME` and `CLAUDE_CONFIG_DIR` inside the temporary profile; a code-tools phase leaves the monitored personal configuration files' SHA-256 hashes unchanged. This does not establish macOS runtime acceptance or recover files changed before isolation.

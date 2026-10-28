@@ -854,9 +854,10 @@ test(...caseDefinition('MP-46'), async ({ app, mainWindow }, testInfo) => {
       const archived = topics.slice(0, 2)
       await history().getByRole('button', { name: 'Batch Archive (2)', exact: true }).click()
       await expect(
-        page.locator('[data-sonner-toast]').getByRole('button', { name: 'Undo', exact: true }).last(),
+        page.getByRole('button', { name: 'Undo', exact: true }).last(),
         'Archiving must offer an undo action'
       ).toBeVisible({ timeout: 10_000 })
+      await page.getByRole('button', { name: 'Undo', exact: true }).last().hover()
       for (const topic of archived) {
         await expect(history().getByRole('checkbox', { name: `Select ${topic.name}`, exact: true })).toHaveCount(0)
         await expect.poll(async () => (await readTopic(topic.id)).status).toBe(404)
@@ -881,7 +882,7 @@ test(...caseDefinition('MP-46'), async ({ app, mainWindow }, testInfo) => {
 
     await test.step('Undo restores the archived conversations', async () => {
       const archived = topics.slice(0, 2)
-      await page.locator('[data-sonner-toast]').getByRole('button', { name: 'Undo', exact: true }).last().click()
+      await page.getByRole('button', { name: 'Undo', exact: true }).last().click()
       for (const topic of archived) await expect.poll(async () => (await readTopic(topic.id)).status).toBe(200)
       await expect(history().getByRole('checkbox', { name: `Select ${archived[0].name}`, exact: true })).toBeVisible()
       await attachScreenshot('MP-46 archived conversations restored from undo')

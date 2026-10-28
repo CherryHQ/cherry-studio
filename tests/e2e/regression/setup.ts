@@ -16,4 +16,8 @@ export async function prepareScenario(page: Page): Promise<void> {
   })
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
   await selectSidebarApp(page, 'Chat')
+  const chat = page.locator('[data-ui~="chat.view"]:visible').first()
+  const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+  if (await showSidebar.isVisible()) await showSidebar.click()
+  await expect(chat.getByRole('button', { name: 'Hide Sidebar', exact: true })).toBeVisible()
 }

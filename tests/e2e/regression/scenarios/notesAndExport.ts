@@ -8,8 +8,9 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
-import { sendChatMarker } from '../helpers/chat'
+import { openAttachmentPicker, submitChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
@@ -43,7 +44,7 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
   const body = 'MP11 note body remains complete.'
   const png =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNQTX79HwAElwJzdIqk6AAAAABJRU5ErkJggg=='
-  const answer = `MP11 completed answer\n\n\`\`\`python\n${code}\n\`\`\`\n\n![MP11 image](data:image/png;base64,${png})`
+  const answer = `MP11 completed answer\n\n\`\`\`python\n${code}\n\`\`\``
   let assistantId: string | undefined
   const notes = () => page.locator('[data-ui~="notes.view"]')
   const editor = () => page.locator('[data-ui~="notes.editor"][data-file-edit]')
@@ -117,7 +118,9 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
           id: 'mp11-model',
           method: 'POST',
           path: '/models',
-          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+          body: [
+            { providerId, modelId, endpointTypes: ['openai-chat-completions'], inputModalities: ['text', 'image'] }
+          ]
         })
         const assistant = await request({
           id: 'mp11-assistant',
@@ -160,9 +163,27 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
     if (await expand.isVisible()) await expand.click()
     const topicRow = chat.getByTestId('topic-list-row').filter({ hasText: topicName })
     await topicRow.click()
+    const imageName = 'mp11-export-image.png'
+    const imagePath = join(app.paths.fixtures, imageName)
+    await writeFile(imagePath, Buffer.from(png, 'base64'))
+    const composer = chat.locator('[data-ui~="chat.composer"]')
+    await composer.locator('[contenteditable="true"]').first().fill('MP11 provide code for the attached image.')
+    await openAttachmentPicker(page, composer)
+    chooseNativeFile(app.record.platform, app.paths, imagePath)
+    await expect(
+      chat.locator('[data-ui~="chat.composer"] [data-composer-token-kind="file"]').filter({ hasText: imageName })
+    ).toBeVisible()
     const [messageId] = await Promise.all([
-      sendChatMarker(page, 'MP11 provide code and an image.', 'MP11 completed answer'),
-      server.nextRequest().then((request) => request.complete(answer))
+      submitChatMarker(page, 'MP11 completed answer'),
+      server.nextRequest().then((request) => {
+        expect(request.body.messages).toContainEqual(
+          expect.objectContaining({
+            role: 'user',
+            content: expect.arrayContaining([expect.objectContaining({ type: 'image_url' })])
+          })
+        )
+        request.complete(answer)
+      })
     ])
     const message = chat.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
     await expect(message.locator('pre')).toContainText(code)

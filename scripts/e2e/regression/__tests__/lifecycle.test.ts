@@ -1,7 +1,7 @@
 import type * as ChildProcess from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, posix } from 'node:path'
+import { join, posix, win32 } from 'node:path'
 
 import { afterEach, vi } from 'vitest'
 
@@ -188,7 +188,7 @@ describe('owned application lifecycle', () => {
       if (script.includes('CommandLine')) {
         return script.includes(String(electronPid))
           ? targetRoot
-          : `node ${join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')}`
+          : `node ${win32.join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')}`
       }
       if (script.includes('ParentProcessId')) return script.includes(String(electronPid)) ? String(runnerPid) : '1'
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
@@ -261,7 +261,7 @@ describe('owned application lifecycle', () => {
       if (script.includes('CommandLine')) {
         return script.includes(String(currentElectronPid))
           ? targetRoot
-          : `node ${join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')}`
+          : `node ${win32.join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')}`
       }
       if (script.includes('ParentProcessId'))
         return script.includes(String(currentElectronPid)) ? String(currentParentPid) : '1'

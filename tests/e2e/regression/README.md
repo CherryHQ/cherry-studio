@@ -21,6 +21,7 @@ The separate [Playwright config](../../../playwright.regression.config.ts) uses 
 
 The application process and configured service providers are shared within a run. Provider configuration comes from the same run environment and is not changed between scenarios.
 Custom assistants and knowledge bases are named with their case ID. Agent work directories are case-scoped; file tasks remove their own previous output before asserting newly produced content.
+M-02 sends its provider-verification message from a case-owned assistant with no custom prompt and removes that assistant after the persistence check.
 Each non-startup scenario begins on Chat with quick/selection assistants disabled. Persistence assertions restart the application inside the same scenario without repeating setup, so initialization cannot hide lost persisted state.
 The built-in assistant's tests start new tasks and clear skill tokens where required. A scenario that mutates a shared resource must restore its intended state explicitly before relying on it.
 
@@ -100,6 +101,9 @@ alone can also match the hidden prewarmed SubWindow and produce a false empty-pa
 
 ## Configuration and evidence
 
+MP-77 verifies PDF text/fonts and DOCX structure before checking for `/Applications/Pages.app`.
+Without Pages, the remaining native editing and print checks are blocked; successful export checks do not make the whole case pass.
+
 Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.
 
 `translation-settings` selects only MP-86. The case uses pinned aiMock responses for
@@ -139,4 +143,5 @@ A passing implemented flow does not cover capabilities absent from the current p
 | MP-90 | Preview zoom, pan, rotation and saving the original image | Image upscaling or enhancement |
 | MP-107 | Shortcut configuration, paste-as-file, delete confirmation and settings persistence | Live token counting in the draft composer |
 | MP-115 | Backup archive creation and backup-manager visibility | Native notification delivery |
+| MP-144 | Queue, steer, edited queue targets and exclusion of conflicting shortcuts | A warning after attempting to select a conflicting shortcut; those choices are absent |
 | MP-150 | Files RTF formatting, encoding, validation, preview switching, links and restart; Chat attachment transport | Ordinary Chat RTF side panel, a 360px side panel, and Shift-JIS/Big5 fixtures |

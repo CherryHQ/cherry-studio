@@ -379,6 +379,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
       { providerId, model: upstream.model, baseUrl: `http://127.0.0.1:${address.port}/v1` }
     )
     expect(configured).toEqual([201, 200, 201])
+    await page.reload()
     await selectSidebarApp(page, 'Knowledge Base')
     await page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ }).click()
     const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })

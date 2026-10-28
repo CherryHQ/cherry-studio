@@ -709,14 +709,15 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
     })
 
     const permissions = [
-      { name: '辅助功能', panel: 'Privacy_Accessibility' },
-      { name: '屏幕录制', panel: 'Privacy_ScreenCapture' }
+      { id: 'accessibility', name: '辅助功能', panel: 'Privacy_Accessibility' },
+      { id: 'screenRecording', name: '屏幕录制', panel: 'Privacy_ScreenCapture' }
     ] as const
     const permissionStates = new Map<string, string>()
-    for (const { name, panel } of permissions) {
-      const row = settings.getByRole('heading', { name, exact: true }).locator('../..')
-      await expect(row.locator('p')).toHaveText(/^(已授权|已拒绝|未确认|不可用)$/)
-      const state = await row.locator('p').innerText()
+    for (const { id, name, panel } of permissions) {
+      const row = settings.getByTestId(`computer-use-permission-${id}`)
+      const status = row.getByText(/^(已授权|已拒绝|未确认|不可用)$/, { exact: true })
+      await expect(status).toBeVisible()
+      const state = await status.innerText()
       permissionStates.set(name, state)
       expect(readNativePermission(panel), `${name}: ${state}`).toBe(state === '已授权' ? '1' : '0')
     }
@@ -726,7 +727,7 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
     await refresh.click()
     await expect(refresh).toBeEnabled()
     await expect(settings.getByRole('alert')).toHaveCount(0)
-    await expect(settings.getByRole('heading', { name: '辅助功能', exact: true })).toBeVisible()
+    await expect(settings.getByTestId('computer-use-permission-accessibility')).toBeVisible()
     await screenshot('MP-140 step 3 permissions refreshed')
 
     for (const { name } of permissions) {
