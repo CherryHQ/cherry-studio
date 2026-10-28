@@ -155,3 +155,49 @@ describe('HTML text body fence ownership', () => {
     }
   })
 })
+
+describe('HTML body inline-tick ownership', () => {
+  it('formatCompactSummary removes real analysis after closed literal bodies containing ticks', () => {
+    for (const tag of ['textarea', 'script', 'style', 'title']) {
+      expect(
+        ContextPrompts.formatCompactSummary(
+          `<summary>Keep<${tag}>\`</${tag}><analysis>SECRET</analysis> public \`x\`</summary>`
+        )
+      ).toBe(`Keep<${tag}>\`</${tag}> public \`x\``)
+    }
+  })
+})
+
+describe('literal body ownership boundaries', () => {
+  it('keeps later actual code spans after code-literal HTML tags', () => {
+    for (const lead of ['`<textarea>` ', '```\n<textarea>\n```\n\n']) {
+      const raw = lead + '`<analysis>literal</analysis>` <analysis>SECRET</analysis>'
+      expect(ContextPrompts.formatCompactSummary(raw)).toBe((lead + '`<analysis>literal</analysis>`').trim())
+    }
+  })
+})
+
+describe('summary fence HTML literal boundary', () => {
+  it('strips real analysis after a fenced HTML opener', () => {
+    const raw = '<summary>```html\n<textarea>\n```\n<analysis>SECRET</analysis> `<analysis>lit</analysis>`</summary>'
+    expect(ContextPrompts.formatCompactSummary(raw)).toBe('```html\n<textarea>\n```\n `<analysis>lit</analysis>`')
+    expect(ContextPrompts.formatCompactSummary(raw.replace('<summary>', '<summary>\n'))).toBe(
+      '```html\n<textarea>\n```\n `<analysis>lit</analysis>`'
+    )
+  })
+})
+
+describe('inline body lookup scaling', () => {
+  it('bounds repeated inline code with interleaved HTML', () => {
+    const raw = '<summary>' + 'word `code` more <b>x</b> '.repeat(2000) + '</summary>'
+    const start = performance.now()
+    expect(ContextPrompts.formatCompactSummary(raw)).toBe(raw.slice(9, -10).trim())
+    expect(performance.now() - start).toBeLessThan(1500)
+  })
+})
+
+describe('summary envelope normalization order', () => {
+  it('pins nested whole-envelope unwrapping before and after cleanup', () => {
+    expect(ContextPrompts.formatCompactSummary('<summary><summary>Public</summary></summary>')).toBe('Public')
+  })
+})

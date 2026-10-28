@@ -191,6 +191,7 @@ type StreamContext = {
   /** Opener line of a confirmed-open code fence whose content already streamed; pairs mid-fence remainder content. */
   scratchpadStreamFenceCarry: string
   /** Literal-markup carry (unclosed HTML text element / comment / CDATA), tracked incrementally over emitted text so long answers do not rescan per delta (cherry-pr-review round-12 html-carry-rescan). */
+  scratchpadStreamHtmlFenceCarry: string
   scratchpadStreamHtmlCarry: string
   /** accumulatedText length already classified for the html carry. */
   scratchpadStreamHtmlCarryScanned: number
@@ -780,6 +781,7 @@ export class ClaudeCodeStreamAdapter {
       scratchpadStreamRemainder: '',
       scratchpadStreamEscapeCarry: false,
       scratchpadStreamFenceCarry: '',
+      scratchpadStreamHtmlFenceCarry: '',
       scratchpadStreamHtmlCarry: '',
       scratchpadStreamHtmlCarryScanned: 0,
       scratchpadStreamHtmlCarryBase: -1,
@@ -1410,6 +1412,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.scratchpadStreamHtmlCarryScanned > ctx.accumulatedText.length
     ) {
       ctx.scratchpadStreamHtmlCarry = ''
+      ctx.scratchpadStreamHtmlFenceCarry = ''
       ctx.scratchpadStreamHtmlCarryBase = ctx.textBlockContextStart
       ctx.scratchpadStreamHtmlCarryScanned = ctx.textBlockContextStart
     }
@@ -1417,15 +1420,27 @@ export class ClaudeCodeStreamAdapter {
       // Inside an open fence everything is literal: keep the cursor current
       // so fenced markup is never reconsidered after the close.
       ctx.scratchpadStreamHtmlCarryScanned = ctx.accumulatedText.length
+      ctx.scratchpadStreamHtmlFenceCarry = ctx.scratchpadStreamFenceCarry
       return
     }
     while (ctx.scratchpadStreamHtmlCarryScanned < ctx.accumulatedText.length) {
       this.syncOpenLine(ctx)
       const recentStart = ctx.accumulatedText.length - ctx.accRecent.length
-      const chunk =
+      let chunk =
         ctx.scratchpadStreamHtmlCarryScanned >= recentStart
           ? ctx.accRecent.slice(ctx.scratchpadStreamHtmlCarryScanned - recentStart)
           : ctx.accumulatedText.slice(ctx.scratchpadStreamHtmlCarryScanned)
+      // Reconstruct the previous fence once, then move the cursor past its
+      // actual closer before scanning HTML. Never carry a phantom opener after
+      // advancing past that closer, even when this span contains no HTML.
+      if (ctx.scratchpadStreamHtmlFenceCarry) {
+        const opener = ctx.scratchpadStreamHtmlFenceCarry
+        const { fences } = maskCodeFences(opener + chunk)
+        const consumed = Math.max(0, (fences[0]?.length ?? opener.length) - opener.length)
+        chunk = chunk.slice(consumed)
+        ctx.scratchpadStreamHtmlCarryScanned += consumed
+        ctx.scratchpadStreamHtmlFenceCarry = ''
+      }
       const probe = ctx.scratchpadStreamHtmlCarry + chunk
       if (!/<(textarea|title|script|style)[\s>]|<!--|<!\[CDATA\[/i.test(probe)) {
         // No opener in the scanned text: only a bounded tail can still become
@@ -1435,11 +1450,12 @@ export class ClaudeCodeStreamAdapter {
         // html-carry-rescan / cherry-review inv_269a650fa555da87).
         ctx.scratchpadStreamHtmlCarryScanned = Math.max(
           ctx.scratchpadStreamHtmlCarryScanned,
-          ctx.accumulatedText.length - 16
+          ctx.accumulatedText.length - Math.min(16, chunk.length)
         )
         break
       }
       ctx.scratchpadStreamHtmlCarry = unclosedHtmlTextElementOpener(probe) ?? unclosedOpaqueMarkupOpener(probe) ?? ''
+      ctx.scratchpadStreamHtmlFenceCarry = ''
       ctx.scratchpadStreamHtmlCarryScanned = ctx.accumulatedText.length
     }
   }
@@ -4038,6 +4054,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadStreamEscapeCarry = false
     ctx.scratchpadStreamFenceCarry = ''
     ctx.scratchpadStreamHtmlCarry = ''
+    ctx.scratchpadStreamHtmlFenceCarry = ''
     ctx.scratchpadStreamHtmlCarryScanned = 0
     ctx.scratchpadStreamHtmlCarryBase = -1
     ctx.scratchpadMaskState = initialIndentedMaskState()

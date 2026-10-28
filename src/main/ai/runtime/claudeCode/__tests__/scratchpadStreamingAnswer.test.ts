@@ -82,6 +82,98 @@ describe('append-only scratchpad answer streaming', () => {
     s.stop()
     expect(s.a.scratchpadPrefixViolation).toBe(false)
   })
+  it('carries literal HTML ownership after a fragmented tilde fence closer', () => {
+    const exact = ['~~~\ncode\n', '~~~\n\n<textarea>\n', '<thinking>literal</thinking>\n</textarea>\nDone']
+    const raw = exact.join('')
+    for (const pieces of [
+      exact,
+      ...[1, 2, 3, raw.length].map((size) =>
+        Array.from({ length: Math.ceil(raw.length / size) }, (_, i) => raw.slice(i * size, (i + 1) * size))
+      )
+    ]) {
+      const s = setup()
+      for (const piece of pieces) s.push(piece)
+      s.stop()
+      expect(s.text()).toBe(raw)
+      s.a.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 's',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+      } as any)
+      expect(s.text()).toBe(raw)
+    }
+  })
+  it('does not retain phantom HTML fence ancestry after ordinary post-close spans', () => {
+    for (const middle of ['plain\n', 'ordinary text long enough to move overlap\n']) {
+      const pieces = [
+        '~~~\ncode\n',
+        '~~~\n\n' + middle,
+        '<textarea>\n',
+        '<thinking>literal</thinking>\n</textarea>\nDone'
+      ]
+      const raw = pieces.join('')
+      const s = setup()
+      for (const piece of pieces) s.push(piece)
+      s.stop()
+      expect(s.text()).toBe(raw)
+    }
+  })
+  it('matches canonical HTML/fence ownership across closer partitions and containers', () => {
+    for (const [open, close, html] of [
+      ['~~~\ncode\n', '~~~\n', '<textarea>'],
+      ['~~~js\ncode\n', '~~~\n', '<textarea>'],
+      ['  ~~~\n  code\n', '  ~~~\n', '<textarea>'],
+      ['> ~~~\n> code\n', '> ~~~\n', '<textarea>'],
+      ['- ~~~\n  code\n', '  ~~~\n', '<textarea>']
+    ]) {
+      const raw = open + close + '\n' + html + '\n<thinking>literal</thinking>\n</textarea>\nDone'
+      const expected = stripKnownModelScratchpadBlocksPreservingCodeFences(raw)
+      for (const pieces of [
+        [open, close, '\n' + html + '\n', '<thinking>literal</thinking>\n</textarea>\nDone'],
+        ...[1, 2, 3].map((size) =>
+          Array.from({ length: Math.ceil(raw.length / size) }, (_, i) => raw.slice(i * size, (i + 1) * size))
+        )
+      ]) {
+        const s = setup()
+        for (const piece of pieces) s.push(piece)
+        s.stop()
+        expect(s.text(), JSON.stringify({ open, pieces })).toBe(expected)
+        s.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        expect(s.text()).toBe(expected)
+      }
+    }
+  })
+  it('keeps textarea ownership when body ticks follow a prior fence closer in same delta', () => {
+    const exact = ['~~~\na\n', '~~~\n<textarea>\n```\nx\n', '<thinking>lit</thinking>\n```\n</textarea>\nDone']
+    const raw = exact.join('')
+    for (const pieces of [
+      exact,
+      ...[1, 2, 3].map((size) =>
+        Array.from({ length: Math.ceil(raw.length / size) }, (_, i) => raw.slice(i * size, (i + 1) * size))
+      )
+    ]) {
+      const s = setup()
+      for (const piece of pieces) s.push(piece)
+      s.stop()
+      expect(s.text()).toBe(raw)
+      s.a.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 's',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+      } as any)
+      expect(s.text()).toBe(raw)
+    }
+  })
   it('keeps quoted greater-than attributes opaque through fragments and snapshot', () => {
     const exact = ['`x`\n\n', '<div title="> <analysis>literal</analysis>"', '>PUBLIC</div>']
     const raw = exact.join('')

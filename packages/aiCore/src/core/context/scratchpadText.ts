@@ -94,13 +94,39 @@ function htmlTextElementEnd(text: string, parsed: ParsedOpeningTag, openIndex: n
   return close ? bodyStart + close.index + close[0].length : text.length
 }
 
-/** HTML opening-tag attributes are opaque to Markdown code-span openers. */
+/** HTML attributes and text-element bodies are opaque to Markdown code-span openers. */
 function htmlOpeningTagLookup(text: string): (index: number) => boolean {
   const ranges: Array<{ start: number; end: number }> = []
   let pos = 0
+  let cachedCodeBlockEnd = -1
   while (pos < text.length) {
     const start = text.indexOf('<', pos)
     if (start < 0) break
+    // A completed code span owns apparent HTML within it. Discover that span
+    // before allowing a literal <textarea> to claim all following code ticks.
+    const tick = text.indexOf('`', pos)
+    if (tick !== -1 && tick < start && !isBackslashEscaped(text, tick)) {
+      let runEnd = tick + 1
+      while (text[runEnd] === '`') runEnd++
+      const run = runEnd - tick
+      const blockEnd =
+        runEnd < cachedCodeBlockEnd ? cachedCodeBlockEnd : (cachedCodeBlockEnd = inlineBlockEnd(text, runEnd))
+      let close = runEnd
+      let found = -1
+      while (close < blockEnd) {
+        const at = text.indexOf('`', close)
+        if (at < 0 || at >= blockEnd) break
+        let end = at + 1
+        while (text[end] === '`') end++
+        if (end - at === run) {
+          found = end
+          break
+        }
+        close = end
+      }
+      pos = found !== -1 ? found : runEnd
+      continue
+    }
     const opaqueEnd = opaqueMarkupEnd(text, start)
     if (opaqueEnd !== null) {
       ranges.push({ start, end: opaqueEnd })
@@ -109,7 +135,7 @@ function htmlOpeningTagLookup(text: string): (index: number) => boolean {
     }
     const tag = isBackslashEscaped(text, start) ? null : parseOpeningTagAt(text, start)
     if (tag) {
-      pos = start + tag.opener.length
+      pos = htmlTextElementEnd(text, tag, start) ?? start + tag.opener.length
       ranges.push({ start, end: pos })
     } else pos = start + 1
   }
@@ -2900,6 +2926,9 @@ function unwrapWholeSummaryWrapper(text: string): string | null {
 }
 
 export function stripModelScratchpadBlocks(raw: string): string {
+  // The summary envelope is scaffolding, not Markdown content on the first
+  // body line. Remove a whole envelope before discovering code ownership.
+  raw = unwrapWholeSummaryWrapper(raw) ?? raw
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
   const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
