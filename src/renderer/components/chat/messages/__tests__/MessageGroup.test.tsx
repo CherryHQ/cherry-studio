@@ -191,10 +191,15 @@ vi.mock('../frame/MessageErrorBoundary', () => ({
 }))
 
 vi.mock('../blocks/ImageBlock', () => ({
-  default: ({ images }: { images: string[] }) => (
+  default: ({ images }: { images: Array<string | { id: string; src: string }> }) => (
     <div data-testid="hoisted-image-block" data-images={JSON.stringify(images)} />
   )
 }))
+
+function getImageSources(block: HTMLElement): string[] {
+  const images = JSON.parse(block.getAttribute('data-images')!) as Array<string | { id: string; src: string }>
+  return images.map((image) => (typeof image === 'string' ? image : image.src))
+}
 
 vi.mock('../frame/MessageAttachments', () => ({
   default: ({ handle, name }: { handle: unknown; name: string }) => (
@@ -682,7 +687,7 @@ describe('MessageGroup', () => {
 
     const bubble = container.querySelector('#message-msg-1 .message-content-container')
     const imageBlock = screen.getByTestId('hoisted-image-block')
-    expect(imageBlock).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+    expect(getImageSources(imageBlock)).toEqual(['file:///tmp/photo.png'])
     expect(bubble?.contains(imageBlock)).toBe(false)
     expect(screen.queryByTestId('hoisted-attachment')).toBeNull()
   })
