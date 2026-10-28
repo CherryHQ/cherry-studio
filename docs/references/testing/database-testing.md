@@ -124,6 +124,15 @@ migrations would replay against tables they have already changed. The harness
 preserves schema between tests, so give each upgrade scenario its own describe
 scope; use a separate default harness for latest-schema idempotence tests.
 
+## Testing a Schema Migration on Populated Rows
+
+To check that a shipped migration keeps existing rows, populate the tables,
+then call `replayMigration(dbh, '<tag>')`. It re-runs that one migration
+through `applyMigrations`, as an upgrade would. A migration that is not
+re-runnable needs its own schema change reverted first; prefer the historical
+baseline harness above when testing the complete upgrade path. The migrations
+after it are not re-run, so the test keeps passing when a later `ALTER TABLE ... ADD` lands.
+
 ## Migration Recipes
 
 ### Removing a legacy `vi.mock('@application', ...)` override
@@ -222,6 +231,15 @@ or declare a local `vi.mock('node:fs', ...)` with the
 ## Gotchas
 
 ### better-sqlite3 native module ABI
+
+Use the Node version pinned in `.node-version` and `.nvmrc` when installing or
+rebuilding native modules. Node 24.19.0 headers introduced an `ObjectWrap`
+cleanup-hook regression that can abort during allocation-driven garbage
+collection with `RemoveEnvironmentCleanupHook` and `Assertion failed: (env) != nullptr`
+([upstream issue](https://github.com/nodejs/node/issues/65446)). Changing only the
+runtime does not repair an addon compiled with those headers: switch to the
+repository's pinned Node version and run `pnpm rebuild:node` before rerunning
+the affected tests.
 
 better-sqlite3 is a native module, and unlike the repo's other natives it is
 NOT N-API — so it is ABI-specific and must be compiled for whichever runtime

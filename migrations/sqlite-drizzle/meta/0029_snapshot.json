@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a4e421ec-97a8-4dac-acde-c1a4f223517b",
+  "id": "fbdcebe7-a527-4ca9-94cd-c825f652f31b",
   "prevId": "e7952537-a5dd-47cb-a0e9-8246c1c27187",
   "tables": {
     "agent": {
@@ -3585,6 +3585,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "recovery": {
+          "name": "recovery",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -6144,13 +6151,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "alias": {
-          "name": "alias",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "preset_provider_id": {
           "name": "preset_provider_id",
           "type": "text",
@@ -6239,13 +6239,6 @@
         }
       },
       "indexes": {
-        "user_provider_alias_unique": {
-          "name": "user_provider_alias_unique",
-          "columns": [
-            "alias"
-          ],
-          "isUnique": true
-        },
         "user_provider_preset_idx": {
           "name": "user_provider_preset_idx",
           "columns": [

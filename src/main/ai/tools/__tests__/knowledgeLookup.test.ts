@@ -4,14 +4,17 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { knowledgeSearchMock, addItemsMock } = vi.hoisted(() => ({
+const { knowledgeSearchMock, addItemsMock, createBaseMock } = vi.hoisted(() => ({
   knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>(),
-  addItemsMock: vi.fn<() => Promise<unknown>>()
+  addItemsMock: vi.fn<() => Promise<unknown>>(),
+  createBaseMock: vi.fn<() => Promise<unknown>>()
 }))
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeService') return { search: knowledgeSearchMock, addItems: addItemsMock }
+      if (name === 'KnowledgeService') {
+        return { search: knowledgeSearchMock, addItems: addItemsMock, createBase: createBaseMock }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     }
   }
@@ -137,5 +140,98 @@ describe('manageKnowledge add for file type', () => {
         })
       })
     ])
+  })
+})
+
+// `create` builds a new BM25-only base by name. It is deliberately NOT run through the
+// `allowedIds` scope check: the ceiling governs which *existing* bases the assistant may
+// reach, and every create is user-approved like the other kb_manage actions.
+describe('manageKnowledge create', () => {
+  it('creates a base by trimmed name and reports it for follow-up calls', async () => {
+    createBaseMock.mockResolvedValueOnce({ id: 'kb-new', name: 'Research' })
+
+    const result = await manageKnowledge({ action: 'create', name: '  Research  ' }, ['kb-1'])
+
+    expect(createBaseMock).toHaveBeenCalledWith({ name: 'Research' })
+    expect(result).toEqual({ action: 'create', created: { baseId: 'kb-new', name: 'Research' } })
+  })
+
+  it('steers instead of creating when `name` is missing or blank', async () => {
+    expect(await manageKnowledge({ action: 'create' }, [])).toEqual({ error: expect.stringContaining('`name`') })
+    expect(await manageKnowledge({ action: 'create', name: '   ' }, [])).toEqual({
+      error: expect.stringContaining('`name`')
+    })
+    expect(createBaseMock).not.toHaveBeenCalled()
+  })
+
+  it('maps a failed create to the error shape instead of throwing', async () => {
+    createBaseMock.mockRejectedValueOnce(new Error('index store busy'))
+
+    expect(await manageKnowledge({ action: 'create', name: 'Research' }, [])).toEqual({ error: 'index store busy' })
+  })
+})
+
+describe('manageKnowledge batch add via items', () => {
+  it('imports every item in one addItems call and reports each source', async () => {
+    addItemsMock.mockResolvedValueOnce({ status: 'added' })
+
+    const result = await manageKnowledge(
+      {
+        action: 'add',
+        baseId: 'base-1',
+        items: [
+          { type: 'note', content: 'first note' },
+          { type: 'url', url: 'https://example.com/a' }
+        ]
+      },
+      []
+    )
+
+    expect(addItemsMock).toHaveBeenCalledTimes(1)
+    expect(addItemsMock).toHaveBeenCalledWith('base-1', [
+      { type: 'note', data: { source: 'first note', content: 'first note' } },
+      { type: 'url', data: { source: 'https://example.com/a', url: 'https://example.com/a' } }
+    ])
+    expect(result).toEqual({ action: 'add', added: ['first note', 'https://example.com/a'] })
+  })
+
+  it('rejects the mixed form (items + single-source fields) without calling the service', async () => {
+    const result = await manageKnowledge(
+      {
+        action: 'add',
+        baseId: 'base-1',
+        type: 'note',
+        content: 'single',
+        items: [{ type: 'note', content: 'batched' }]
+      },
+      []
+    )
+
+    expect(result).toEqual({ error: expect.stringContaining('not both') })
+    expect(addItemsMock).not.toHaveBeenCalled()
+  })
+
+  it('reports the failing index when one item is invalid', async () => {
+    const result = await manageKnowledge(
+      {
+        action: 'add',
+        baseId: 'base-1',
+        items: [
+          { type: 'note', content: 'ok' },
+          { type: 'file', path: 'relative/a.pdf' }
+        ]
+      },
+      []
+    )
+
+    expect(result).toEqual({ error: expect.stringContaining('items[1]') })
+    expect(addItemsMock).not.toHaveBeenCalled()
+  })
+
+  it('requires a baseId now that the schema leaves it optional', async () => {
+    const result = await manageKnowledge({ action: 'add', type: 'note', content: 'x' }, [])
+
+    expect(result).toEqual({ error: expect.stringContaining('`baseId`') })
+    expect(addItemsMock).not.toHaveBeenCalled()
   })
 })

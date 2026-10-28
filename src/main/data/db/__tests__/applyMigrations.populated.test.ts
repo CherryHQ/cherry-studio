@@ -71,7 +71,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('adds provider aliases without changing populated provider/model identities', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0029_condemned_mulholland_black'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0030_odd_liz_osborn'))
     sqlite
       .prepare(
         'INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'

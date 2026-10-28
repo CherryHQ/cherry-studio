@@ -36,6 +36,7 @@ const sections = [
 export function BrowserSettings() {
   const { t } = useTranslation()
   const [openLinks, setOpenLinks] = usePreference('app.browser.open_links_in_browser')
+  const [autoOpenPanel, setAutoOpenPanel] = usePreference('app.browser.auto_open_panel')
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
@@ -63,6 +64,34 @@ export function BrowserSettings() {
               setError(false)
               try {
                 await setEnabled(value)
+              } catch {
+                setError(true)
+              } finally {
+                setSaving(false)
+              }
+            }}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-browser-auto-open-panel" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0">
+            <SettingRowTitle id="browser-auto-open-panel-title">{t('settings.browser.autoOpenPanel')}</SettingRowTitle>
+            <SettingDescription id="browser-auto-open-panel-help">
+              {t('settings.browser.autoOpenPanelHelp')}
+            </SettingDescription>
+          </div>
+          <Switch
+            id="browser-auto-open-panel"
+            aria-labelledby="browser-auto-open-panel-title"
+            aria-describedby="browser-auto-open-panel-help"
+            className="mt-0.5"
+            checked={autoOpenPanel}
+            disabled={saving}
+            onCheckedChange={async (value) => {
+              setSaving(true)
+              setError(false)
+              try {
+                await setAutoOpenPanel(value)
               } catch {
                 setError(true)
               } finally {
