@@ -44,6 +44,8 @@ Status: proposed
   3. 产物写入完成。
   4. 处理器出错，或 job 超时。
   5. 调用 `cancelTask`，或下次启动时取消上次启动没跑完的任务。
+
+  `completed`、`failed` 和 `cancelled` 都是终态，所以 `done` 只 resolve 一次，`onDidChangeTask` 也只报告一次终态。重试就开一个新任务。JobManager 对失败尝试的重试留在任务内部，等待期间读作 `queued`，不过三种 job 类型目前都只允许一次尝试。
 - **`FileProcessingService` 的主进程 API。** 取代 `startJob`：
   - `startTask(input)` resolve 为 `{ task, done }`。`task` 是刚入队时的任务，`done` resolve 为它的终态 `FileProcessingTask`。
   - `getTask(id)` 和 `cancelTask(id)`。
@@ -79,11 +81,12 @@ Status: proposed
 - **FileProcessing 自己建一张任务表。** 和 job 行重复。这一期没有跨重启的任务，表里没有什么是 job 行里没有的。
 - **现在就做跨重启的任务：保留 `retry`，提供 `survivesRestart` 选项。** 重启后没有使用方能读结果。续跑只会让 `background` 处理器再扣一次费，或者轮询一个结果没人读的远端任务。
 - **既然这一期没人用续跑，就把它删掉。** 以后为持久的使用方重建，比现在保留并测着它代价更大。
+- **用同一个 id 重试失败或已取消的任务。** 没有使用方需要：Knowledge 重新索引、翻译页重新 OCR，都是从头开始。`done` 和终态事件会触发不止一次，任务还需要一份落库的"任务对应哪些 job"的映射。以后可以给 `startTask` 加一个 `retryOf` 选项，让重试复用原任务的远端状态，比如本地超时后远端仍在排队的任务（#22761）。这只会在这套 API 上新增内容。
 - **只在句柄上提供变化通知。** 只拿着 id 回来的使用方跟踪不了任务。以后持久的使用方在重启后就是这种情况。
 
 ## 验收标准
 
-- AC1 — 通过 `startTask` 启动的任务，在转换开始前读作 `queued`，然后是带进度的 `processing`，最后是带类型明确产物的 `completed`、带消息的 `failed` 或 `cancelled`，每次变化都由 `onDidChangeTask` 报告。(verification: unit)
+- AC1 — 通过 `startTask` 启动的任务，在转换开始前读作 `queued`，然后是带进度的 `processing`，最后是带类型明确产物的 `completed`、带消息的 `failed` 或 `cancelled`，每次变化都由 `onDidChangeTask` 报告。进入终态的任务不会再变化。(verification: unit)
 - AC2 — 渲染进程通过 IPC 启动任务，并一直跟踪到终态，不用 `useJob`、`/jobs/:id` 或任何 `jobs.*` 缓存 key，实时缓存条目过期后也能跟踪。(verification: unit + renderer)
 - AC3 — FileProcessing 的公开 API、IPC schema 和共享类型不暴露任何 JobManager 的类型、状态、入队选项或缓存 key。Knowledge 的文件处理代码和翻译页只通过 FileProcessing 使用文件处理，FileProcessing 之外没有代码提到它的 job 类型。(verification: typecheck + code search)
 - AC4 — Knowledge 在新 API 上行为不变：任务完成后转换好的文件会被索引；任务失败或被取消时，条目带着原因失败；条目显示任务的进度；删除或替换条目、删除它所在的知识库时，会取消任务。(verification: unit)

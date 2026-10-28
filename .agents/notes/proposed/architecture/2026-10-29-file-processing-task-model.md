@@ -44,6 +44,8 @@ Goal (#22987): JobManager is invisible to any service that depends on FileProces
   3. The artifact is written.
   4. The processor fails, or the job times out.
   5. `cancelTask`, or the next launch cancelling a task the previous one left unfinished.
+
+  `completed`, `failed`, and `cancelled` are final, so `done` resolves once and `onDidChangeTask` reports a terminal state once. A retry starts a new task. A JobManager retry of a failed attempt stays inside the task and reads as `queued` while it waits, but all three job types allow one attempt today.
 - **Main-process API on `FileProcessingService`.** It replaces `startJob`:
   - `startTask(input)` resolves to `{ task, done }`. `task` is the task as just queued, and `done` resolves to its terminal `FileProcessingTask`.
   - `getTask(id)` and `cancelTask(id)`.
@@ -79,11 +81,12 @@ Out of scope:
 - **FileProcessing persists its own task table.** It duplicates the job row. Without durable tasks this phase has nothing to put in it that the job row lacks.
 - **Durable tasks now: keep `retry` and offer a `survivesRestart` option.** No consumer can read a result after a restart. Resuming would only re-bill a `background` processor, or poll a remote task whose result nobody reads.
 - **Delete the resume path, since nothing uses it this phase.** Rebuilding it for a durable consumer would cost more than keeping it tested.
+- **Retrying a failed or cancelled task under the same id.** No consumer needs it: Knowledge's reindex and a new OCR on the translate page both start over. `done` and the terminal event would fire more than once, and a task would need a persisted mapping to its jobs. A later `retryOf` option on `startTask` could let a retry reuse the old task's remote state, for example a remote task still queued after a local timeout (#22761). It would only add to this API.
 - **Change notifications on the handle only.** A consumer that comes back with just an id, which a future durable consumer would do after a restart, could not follow the task.
 
 ## Acceptance criteria
 
-- AC1 — A task started through `startTask` reads `queued` until its conversion starts, then `processing` with its progress, then `completed` with a typed artifact, `failed` with a message, or `cancelled`, and `onDidChangeTask` reports each change. (verification: unit)
+- AC1 — A task started through `startTask` reads `queued` until its conversion starts, then `processing` with its progress, then `completed` with a typed artifact, `failed` with a message, or `cancelled`, and `onDidChangeTask` reports each change. A task in a terminal state never changes again. (verification: unit)
 - AC2 — The renderer starts a task over IPC and follows it to its terminal state without `useJob`, `/jobs/:id`, or a `jobs.*` cache key, including after the live cache entry expires. (verification: unit + renderer)
 - AC3 — FileProcessing's public API, IPC schema, and shared types expose no JobManager type, status, enqueue option, or cache key. Knowledge's file-processing code and the translate page reach file processing only through FileProcessing, and nothing outside FileProcessing names its job types. (verification: typecheck + code search)
 - AC4 — Knowledge keeps its behavior on the new API: a converted file is indexed after its task completes, a failed or cancelled task fails the item with the reason, the item shows the task's progress, and deleting or replacing the item or deleting its base cancels the task. (verification: unit)
