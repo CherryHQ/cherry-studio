@@ -222,7 +222,7 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     await expect(page.getByRole('status').filter({ hasText: 'Copied!' })).toHaveCount(0)
     await dismissTransientDialogs(page)
     await message().getByRole('button', { name: 'Go to Settings', exact: true }).click()
-    await expect(page.getByRole('heading', { name: providerName, exact: true, level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1 }).getByText(providerName, { exact: true })).toBeVisible()
     await setKey(validKey)
     await closeSettings(page)
     await message().hover()
