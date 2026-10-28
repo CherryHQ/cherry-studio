@@ -371,7 +371,7 @@ export default defineProvider({
     // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only — Responses stays the
     // default endpoint so their search is reachable, Chat remains selectable for plain requests. Both
     // endpoints carry their documented Chat/Responses effort ladders (see the constants above).
-    ...(['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-1-flash'] as const).map(
+    ...(['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash'] as const).map(
       (modelId): Partial<ProviderModelOverride> => ({
         modelId,
         endpointTypes: ['openai-responses', 'openai-chat-completions'],

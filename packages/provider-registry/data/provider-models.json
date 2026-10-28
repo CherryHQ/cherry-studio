@@ -37655,6 +37655,7 @@
       "providerId": "qwencloud"
     },
     {
+      "apiModelId": "deepseek-v4.1-flash",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "deepseek-v4-1-flash",
       "providerId": "qwencloud",
@@ -44396,5 +44397,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "479ccb0820e0ca32"
+  "version": "193ff765371fa1fb"
 }
