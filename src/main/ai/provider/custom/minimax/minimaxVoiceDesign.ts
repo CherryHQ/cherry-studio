@@ -3,6 +3,7 @@ import { combineHeaders, type FetchFunction, removeUndefinedEntries } from '@ai-
 
 export interface MinimaxVoiceDesignOptions {
   prompt: string
+  previewText: string
   voiceId: string
 }
 
@@ -37,7 +38,7 @@ export class MinimaxVoiceDesign {
 
   async design(options: MinimaxVoiceDesignOptions): Promise<MinimaxVoiceDesignResult> {
     const url = this.config.url({ path: '/voice_design' })
-    const body = { prompt: options.prompt, voice_id: options.voiceId }
+    const body = { prompt: options.prompt, preview_text: options.previewText, voice_id: options.voiceId }
     const headers = removeUndefinedEntries(
       combineHeaders(this.config.headers(), { 'Content-Type': 'application/json' })
     )

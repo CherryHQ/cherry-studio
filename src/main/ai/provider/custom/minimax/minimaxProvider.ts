@@ -68,7 +68,11 @@ export function createMinimaxProvider(settings: MinimaxProviderSettings = {}): M
       headers,
       fetch: customFetch
     })
-  const voiceDesign = new MinimaxVoiceDesign({ url: ({ path }) => url({ path, modelId: '' }), headers, fetch: customFetch })
+  const voiceDesign = new MinimaxVoiceDesign({
+    url: ({ path }) => url({ path, modelId: '' }),
+    headers,
+    fetch: customFetch
+  })
   provider.designVoice = (options: MinimaxVoiceDesignOptions) => voiceDesign.design(options)
 
   return provider

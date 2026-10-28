@@ -141,14 +141,22 @@ describe('createMinimaxProvider', () => {
     )
     const provider = createMinimaxProvider({ apiKey: 'sk-test', baseURL, fetch })
 
-    const result = await provider.designVoice({ prompt: 'A calm, warm narrator', voiceId: 'CustomVoice001' })
+    const result = await provider.designVoice({
+      prompt: 'A calm, warm narrator',
+      previewText: 'Welcome to today’s story.',
+      voiceId: 'CustomVoice001'
+    })
 
     expect(fetch).toHaveBeenCalledWith(
       voiceDesignUrl,
-      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'Content-Type': 'application/json' }) })
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' })
+      })
     )
     expect(JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)).toEqual({
       prompt: 'A calm, warm narrator',
+      preview_text: 'Welcome to today’s story.',
       voice_id: 'CustomVoice001'
     })
     expect(result).toEqual({ voiceId: 'CustomVoice001' })
@@ -163,7 +171,13 @@ describe('createMinimaxProvider', () => {
     )
     const provider = createMinimaxProvider({ apiKey: 'sk-test', fetch })
 
-    await expect(provider.designVoice({ prompt: 'A calm narrator', voiceId: 'CustomVoice001' })).rejects.toMatchObject({
+    await expect(
+      provider.designVoice({
+        prompt: 'A calm narrator',
+        previewText: 'This is a preview.',
+        voiceId: 'CustomVoice001'
+      })
+    ).rejects.toMatchObject({
       message: 'invalid voice ID',
       responseHeaders: { 'x-request-id': 'request-123' }
     })
