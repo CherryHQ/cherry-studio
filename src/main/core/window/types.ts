@@ -322,6 +322,11 @@ interface WindowTypeMetadataBase {
    * @default false
    */
   rememberBounds?: boolean
+  /**
+   * Fit merged options into the target display's work area before construction (Main window).
+   * The engine only calls fitWindowOptionsToWorkArea; it does not inspect the window type.
+   */
+  fitToWorkArea?: boolean
   /** Electron `BrowserWindow` constructor parameters (plus `platformOverrides`). */
   windowOptions: WindowOptions
   /**

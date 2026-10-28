@@ -60,6 +60,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     showMode: 'manual',
     // Persist & restore position/size across launches (maximize re-applied by the service).
     rememberBounds: true,
+    // Main's 960 DIP minimum width can exceed a narrow display's work area.
+    fitToWorkArea: true,
     windowOptions: {
       width: MIN_WINDOW_WIDTH,
       height: MIN_WINDOW_HEIGHT,

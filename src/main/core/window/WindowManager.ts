@@ -31,6 +31,7 @@ import {
   type WindowOptions
 } from '@main/core/window/types'
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
+import { fitWindowOptionsToWorkArea } from '@main/core/window/windowGeometry'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
 
@@ -1345,13 +1346,16 @@ export class WindowManager extends BaseService {
     const windowId = uuidv4()
     const config = mergeWindowOptions(type, args?.options)
 
-    // Restore remembered geometry into the merged options before construction.
-    // Gated to singleton + rememberBounds (registry flag or runtime override);
-    // injectSavedBounds no-ops without a valid saved record, so the window opens
-    // at its registry default. Restore is fixed at this moment — a later runtime
-    // toggle only affects the next open.
-    if (this.shouldRememberBounds(type)) {
-      injectSavedBounds(type, config)
+    // Restore is fixed here before construction, gated to singleton + rememberBounds
+    // (registry flag or runtime override); runtime toggles affect only the next open.
+    // injectSavedBounds returns the matched Display; without a valid saved record,
+    // it returns undefined and leaves config at the merged registry defaults.
+    // fitToWorkArea then fits size and minimum size to that Display's workArea
+    // (or screen.getPrimaryDisplay()), so minimums never exceed the target workArea.
+    const restoredDisplay = this.shouldRememberBounds(type) ? injectSavedBounds(type, config) : undefined
+    if (metadata.fitToWorkArea) {
+      const area = (restoredDisplay ?? screen.getPrimaryDisplay()).workArea
+      fitWindowOptionsToWorkArea(config, area)
     }
 
     const showMode = metadata.showMode ?? 'auto'

@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // re-mocking modules. The mock factories below read these via getters, preserving
 // live-binding semantics so each test sees the current value.
 const {
+  displayState,
   platformState,
   prefValues,
   prefChangeListeners,
@@ -115,6 +116,7 @@ const {
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
   return {
+    displayState: { area: { x: 0, y: 0, width: 1920, height: 1040 } },
     platformState,
     prefValues,
     prefChangeListeners,
@@ -158,6 +160,7 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('electron', () => ({
+  screen: { getDisplayMatching: vi.fn(() => ({ workArea: displayState.area })) },
   app: {
     dock: { hide: vi.fn(), show: vi.fn() },
     on: vi.fn(),
@@ -214,6 +217,13 @@ import { markMainRendererReadyForTabAttach, resetMainRendererTabAttachDelivery }
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
+  getBounds: ReturnType<typeof vi.fn<() => { x: number; y: number; width: number; height: number }>>
+  getSize: ReturnType<typeof vi.fn>
+  setSize: ReturnType<typeof vi.fn>
+  setBounds: ReturnType<typeof vi.fn>
+  setMinimumSize: ReturnType<typeof vi.fn>
+  isMaximized: ReturnType<typeof vi.fn>
+  unmaximize: ReturnType<typeof vi.fn>
   isDestroyed: ReturnType<typeof vi.fn>
   isFullScreen: ReturnType<typeof vi.fn>
   isMinimized: ReturnType<typeof vi.fn>
@@ -246,6 +256,21 @@ interface MockBrowserWindow extends EventEmitter {
 
 function createMockWindow(): MockBrowserWindow {
   const win = new EventEmitter() as MockBrowserWindow
+  let bounds = { x: 100, y: 100, width: 700, height: 700 }
+  win.getBounds = vi.fn(() => ({ ...bounds }))
+  win.getSize = vi.fn(() => [bounds.width, bounds.height])
+  win.setSize = vi.fn((width: number, height: number) => {
+    bounds = { ...bounds, width, height }
+  })
+  win.setBounds = vi.fn((next: typeof bounds) => {
+    bounds = { ...next }
+  })
+  win.setMinimumSize = vi.fn((width: number, height: number) => {
+    bounds.width = Math.max(bounds.width, width)
+    bounds.height = Math.max(bounds.height, height)
+  })
+  win.isMaximized = vi.fn(() => false)
+  win.unmaximize = vi.fn()
   win.isDestroyed = vi.fn(() => false)
   win.isFullScreen = vi.fn(() => false)
   win.isMinimized = vi.fn(() => false)
@@ -352,6 +377,55 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  describe('work area minimum size', () => {
+    beforeEach(() => {
+      ;(svc as any).mainWindow = win
+      displayState.area = { x: 0, y: 0, width: 914, height: 1400 }
+    })
+
+    it('fits a compact window on reset and leaves the second reset stationary', () => {
+      svc.resetMainWindowMinimumSize()
+      expect(win.setMinimumSize).toHaveBeenCalledWith(914, 600)
+      expect(win.setBounds).toHaveBeenCalledExactlyOnceWith({ x: 0, y: 100, width: 914, height: 700 })
+      expect(win.getBounds()).toEqual({ x: 0, y: 100, width: 914, height: 700 })
+      svc.resetMainWindowMinimumSize()
+      expect(win.setBounds).toHaveBeenCalledTimes(1)
+    })
+
+    it('retains normal-screen width growth without position clamping', () => {
+      displayState.area = { x: 0, y: 0, width: 1920, height: 1040 }
+      // Model a platform that has not resized the window when minimums change.
+      win.setMinimumSize.mockImplementation(() => {})
+      svc.resetMainWindowMinimumSize()
+      expect(win.setMinimumSize).toHaveBeenCalledWith(960, 600)
+      expect(win.setSize).toHaveBeenCalledExactlyOnceWith(960, 700)
+      expect(win.getBounds()).toEqual({ x: 100, y: 100, width: 960, height: 700 })
+      expect(win.setBounds).not.toHaveBeenCalled()
+    })
+
+    it.each(['isMaximized', 'isFullScreen', 'isMinimized'] as const)('only updates minimums when %s', (state) => {
+      win[state].mockReturnValue(true)
+      svc.resetMainWindowMinimumSize()
+      expect(win.setMinimumSize).toHaveBeenCalledWith(914, 600)
+      expect(win.setBounds).not.toHaveBeenCalled()
+      expect(win.setSize).not.toHaveBeenCalled()
+      expect(win.unmaximize).not.toHaveBeenCalled()
+      expect(win.restore).not.toHaveBeenCalled()
+      expect(win.setFullScreen).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [914, 1400, 520],
+      [480, 800, 480]
+    ])('caps compact minimums to a %i DIP work area', (width, height, expected) => {
+      displayState.area = { x: 0, y: 0, width, height }
+      svc.setMainWindowMinimumSize(520, 600)
+      expect(win.setMinimumSize).toHaveBeenCalledExactlyOnceWith(expected, 600)
+      expect(win.setBounds).not.toHaveBeenCalled()
+      expect(win.setSize).not.toHaveBeenCalled()
+    })
   })
 
   describe('Apple Silicon architecture warning', () => {

@@ -3,7 +3,7 @@ import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
 import type { BrowserWindow } from 'electron'
-import { app, dialog, nativeImage, nativeTheme, session, shell } from 'electron'
+import { app, dialog, nativeImage, nativeTheme, screen, session, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -13,6 +13,7 @@ import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
+import { clampWindowBounds, fitWindowOptionsToWorkArea } from '@main/core/window/windowGeometry'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
 import { openRequestPath } from '@main/services/file'
@@ -209,16 +210,40 @@ export class MainWindowService extends BaseService {
 
   /** Set the main window's minimum size (window.main.set_minimum_size). */
   public setMainWindowMinimumSize(width: number, height: number): void {
-    this.requireMainWindow().setMinimumSize(width, height)
+    const win = this.requireMainWindow()
+    const area = screen.getDisplayMatching(win.getBounds()).workArea
+    const opts = { minWidth: width, minHeight: height }
+    fitWindowOptionsToWorkArea(opts, area)
+    win.setMinimumSize(opts.minWidth, opts.minHeight)
   }
 
   /** Reset the main window's minimum size, growing it back if it shrank below the floor. */
   public resetMainWindowMinimumSize(): void {
-    const mainWindow = this.requireMainWindow()
-    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-    if (width < MIN_WINDOW_WIDTH) {
-      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
+    const win = this.requireMainWindow()
+    const b = win.getBounds()
+    const area = screen.getDisplayMatching(b).workArea
+    const mw = Math.min(MIN_WINDOW_WIDTH, area.width)
+    const mh = Math.min(MIN_WINDOW_HEIGHT, area.height)
+    win.setMinimumSize(mw, mh)
+    if (area.width >= MIN_WINDOW_WIDTH && area.height >= MIN_WINDOW_HEIGHT) {
+      const [width, height] = win.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+      if (width < MIN_WINDOW_WIDTH) {
+        win.setSize(MIN_WINDOW_WIDTH, height)
+      }
+    } else if (!win.isFullScreen() && !win.isMaximized() && !win.isMinimized()) {
+      const target = clampWindowBounds(
+        { x: b.x, y: b.y, width: Math.max(b.width, mw), height: Math.max(b.height, mh) },
+        area
+      )
+      const actual = win.getBounds()
+      if (
+        actual.x !== target.x ||
+        actual.y !== target.y ||
+        actual.width !== target.width ||
+        actual.height !== target.height
+      ) {
+        win.setBounds(target)
+      }
     }
   }
 
