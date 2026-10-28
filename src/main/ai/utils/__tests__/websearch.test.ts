@@ -243,7 +243,9 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
     'glm-5.2',
     'glm-5-2',
     'kimi-k3',
-    'deepseek-v4.1-flash'
+    'deepseek-v4.1-flash',
+    'deepseek-v4.1-flash-1017',
+    'deepseek-v4-1-flash-1017'
   ])('injects no enable_search for the Responses-only id %s on the chat path', (apiModelId) => {
     expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({})
   })
@@ -287,13 +289,27 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
       'deepseek-v4-flash',
       'deepseek-v4-flash-0731',
       'deepseek-v4.1-flash',
+      'deepseek-v4.1-flash-1017',
+      'deepseek-v4-1-flash-1017',
       'glm-5.2',
       'glm-5-2',
       'kimi-k3'
-    ])('attaches the bare tool for %s', (id) => {
+    ])('routes %s to native search and attaches the bare tool', (id) => {
+      const m = {
+        ...qwencloud(id),
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      }
       expect(
-        buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, qwencloud(id), preset('qwencloud'))
-      ).toEqual({ openai: {} })
+        resolveWebToolRoutes(m, qwencloudPreset, {
+          webSearchEnabled: true,
+          modelToolsPreferred: true,
+          clientSearchAvailable: true,
+          clientFetchAvailable: false,
+          endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+        }).webSearch
+      ).toBe('server')
+      expect(buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, m, qwencloudPreset)).toEqual({ openai: {} })
     })
 
     it('suppresses the Responses tool for qwen chat models', () => {

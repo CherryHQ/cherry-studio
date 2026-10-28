@@ -37,7 +37,7 @@ export interface CherryWebSearchConfig {
 // so the pattern anchors exactly — flash-vision-exp and glm-5.2-fast/-fast-preview stay out. Dots and
 // hyphens both appear depending on id origin (wire apiModelId vs catalog modelId).
 const qwencloudResponsesOnlySearch =
-  /^(?:deepseek-v4-(?:pro(?:-0813)?|flash(?:-0731)?)|deepseek-v4[.-]1-flash|glm-5[.-]2|kimi-k3)$/
+  /^(?:deepseek-v4-(?:pro(?:-0813)?|flash(?:-0731)?)|deepseek-v4[.-]1-flash(?:-1017)?|glm-5[.-]2|kimi-k3)$/
 
 export function getWebSearchParams(model: Model, provider: Provider | undefined): Record<string, any> {
   if (provider && matchesPreset(provider, 'zhipu')) {
