@@ -350,6 +350,26 @@ describe('append-only scratchpad answer streaming', () => {
     s.stop()
     expect(s.text()).toBe('`x`\n\nAnswer. after')
   })
+  it('finalizes malformed nesting with the one-pass whole-text remainder', () => {
+    const raw = '<thinking><thinking>1. - <analysis>#x``x`SECRET`1. </thinking><analysis></assessment>> > 1. '
+    for (const size of [1, 3, 7, raw.length]) {
+      const s = setup()
+      for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+      s.stop()
+      expect(s.text()).toBe(stripKnownModelScratchpadBlocksPreservingCodeFences(raw))
+      expect(s.text()).not.toContain('SECRET')
+    }
+  })
+  it('strips a private wrapper after a leading stray closing tag', () => {
+    const raw = '</analysis><thinking>SECRET</thinking>done'
+    const expected = stripKnownModelScratchpadBlocksPreservingCodeFences(raw)
+    for (const size of [1, 2, 3, 5, raw.length]) {
+      const s = setup()
+      for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+      s.stop()
+      expect(s.text()).toBe(expected)
+    }
+  })
   it('keeps quoted greater-than attributes opaque through fragments and snapshot', () => {
     const exact = ['`x`\n\n', '<div title="> <analysis>literal</analysis>"', '>PUBLIC</div>']
     const raw = exact.join('')

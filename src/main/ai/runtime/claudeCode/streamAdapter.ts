@@ -2570,6 +2570,13 @@ export class ClaudeCodeStreamAdapter {
       }
       if (stripped.length < probe.length) {
         const remainder = stripped
+        // At the completed boundary the one-pass normalizer is final, even
+        // when malformed nesting leaves another apparent opener in its output.
+        if (atBlockEnd) {
+          return remainder.trim().length > 0
+            ? { action: 'emit', visible: this.trimAfterScratchpadStrip(probe, remainder) }
+            : { action: 'suppress' }
+        }
         if (
           textStartsWithModelScratchpadTag(remainder) ||
           (!atBlockEnd &&
@@ -2600,7 +2607,9 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (atBlockEnd) {
-      return { action: 'emit', visible: probe }
+      // A non-opening prefix (for example a stray closing tag) does not
+      // exempt later real wrappers from the same whole-text cleanup.
+      return { action: 'emit', visible: stripKnownModelScratchpadBlocksPreservingCodeFences(probe) }
     }
     return { action: 'pending' }
   }
