@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
+
+vi.mock('@renderer/services/toast', () => ({ toast: { info: vi.fn() } }))
+
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 vi.mock('@renderer/components/ImageViewer', () => ({
@@ -11,7 +15,11 @@ vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-const state: { files: any[]; extensions: string[] } = { files: [], extensions: ['.png', '.jpg'] }
+const state: { files: any[]; extensions: string[]; couldAddImageFile: boolean } = {
+  files: [],
+  extensions: ['.png', '.jpg'],
+  couldAddImageFile: true
+}
 const setFiles = vi.fn()
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
@@ -49,6 +57,8 @@ const makeFile = (id: string) => ({
 const mockSelect = vi.fn()
 
 beforeEach(() => {
+  state.couldAddImageFile = true
+  vi.mocked(toast.info).mockClear()
   state.files = []
   state.extensions = ['.png', '.jpg']
   setFiles.mockReset()
@@ -73,6 +83,28 @@ describe('PaintingImageAddButton', () => {
       makeFile('a'),
       expect.objectContaining({ fileTokenSourceId: '/tmp/c.png' })
     ])
+  })
+})
+
+describe('pending image picker', () => {
+  it.each(['policy change', 'unmount'])('rejects a dialog result after %s', async (change) => {
+    let finish!: (files: { path: string; name: string }[]) => void
+    mockSelect.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    const view = render(<PaintingImageAddButton />)
+    fireEvent.click(screen.getByRole('button', { name: 'paintings.add_image' }))
+    if (change === 'unmount') view.unmount()
+    else {
+      state.couldAddImageFile = false
+      view.rerender(<PaintingImageAddButton />)
+    }
+    finish([{ path: '/tmp/stale.png', name: 'stale.png' }])
+    await waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported'))
+    expect(setFiles).not.toHaveBeenCalled()
   })
 })
 

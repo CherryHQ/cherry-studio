@@ -231,6 +231,7 @@ export interface ComposerSurfaceProps {
   isLoading: boolean
   onSendDraft: (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => void | Promise<void>
   onPause: () => void | Promise<void>
+  allowImageAttachments?: boolean
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   previewInputFile?: ComposerInputFilePreviewAction
@@ -613,7 +614,8 @@ export default function ComposerSurfaceRuntime({
   deferQuickPanel = false,
   initialTextSelection,
   deferredIntent,
-  showAiDisclaimer = false
+  showAiDisclaimer = false,
+  allowImageAttachments
 }: ComposerSurfaceProps) {
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
@@ -760,18 +762,20 @@ export default function ComposerSurfaceRuntime({
   const pasteHandlerOptions = useMemo(
     () => ({
       supportedExts,
+      allowImageAttachments,
       setFiles,
       onResize: undefined,
       pasteLongTextAsFile,
       pasteLongTextThreshold,
       t
     }),
-    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
+    [supportedExts, allowImageAttachments, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
   const { handlePaste } = usePasteHandler(pasteHandlerOptions)
 
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
+    allowImageAttachments,
     supportedExts,
     setFiles,
     onFolderPathDropped: (path) => {
@@ -1793,6 +1797,7 @@ export default function ComposerSurfaceRuntime({
 
       if (editor) {
         const pasteOptions = {
+          allowImageAttachments,
           promptVariableStartIndex: getNextPromptVariableIndex(editor),
           resolveSkillMarker,
           resolveKnowledgeBaseMarker
@@ -1806,6 +1811,7 @@ export default function ComposerSurfaceRuntime({
 
         if (clipboardPasteOverride !== null) {
           event.preventDefault()
+          if (clipboardPasteOverride.rejectedImageCount > 0) toast.info(t('chat.input.file_not_supported'))
           insertComposerPastedContent(editor, clipboardPasteOverride.content)
           if (clipboardPasteOverride.files.length > 0) {
             setFilesRef.current((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
@@ -1848,6 +1854,8 @@ export default function ComposerSurfaceRuntime({
       return false
     },
     [
+      allowImageAttachments,
+      t,
       fitContentHeight,
       handlePaste,
       pasteLongTextAsFile,

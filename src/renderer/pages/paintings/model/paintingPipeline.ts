@@ -1,8 +1,11 @@
+import { dataApiService } from '@data/DataApiService'
 import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@renderer/types/file'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { uuid } from '@renderer/utils/uuid'
-import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
+import { createUniqueModelId, type ImageGenerationMode, type ImageGenerationSupport } from '@shared/data/types/model'
+import { getFileTypeByExt } from '@shared/utils/file'
+import { isEditImageModel } from '@shared/utils/model'
 
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { canonicalGenerate } from './canonicalGenerate'
@@ -57,6 +60,19 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
   let support: ImageGenerationSupport | undefined
   let effectiveMode: ImageGenerationMode | undefined
 
+  let acceptsImageInput: boolean | undefined
+  if (modelId && input.painting.inputFiles?.some((file) => getFileTypeByExt(file.ext ?? '') === FILE_TYPE.IMAGE)) {
+    acceptsImageInput = false
+    try {
+      const model = await dataApiService.get(`/models/${createUniqueModelId(input.provider.id, modelId)}`)
+      acceptsImageInput = !!model && isEditImageModel(model)
+      if (!acceptsImageInput)
+        logger.warn('Model does not permit image input', { modelId, providerId: input.provider.id })
+    } catch (error) {
+      logger.warn('Failed to resolve image-input capability', { modelId, providerId: input.provider.id, error })
+    }
+  }
+
   if (modelId) {
     try {
       support =
@@ -82,6 +98,7 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
   }
 
   const options = {
+    ...(acceptsImageInput !== undefined && { acceptsImageInput }),
     ...(requirePrompt !== undefined && { requirePrompt }),
     ...(support !== undefined && { support }),
     ...(effectiveMode !== undefined && { mode: effectiveMode })

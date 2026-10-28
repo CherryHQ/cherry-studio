@@ -3031,6 +3031,7 @@
   "paintings.image_file_required": "画像を先にアップロードしてください",
   "paintings.image_file_retry": "画像を先にアップロードしてください",
   "paintings.image_handle_required": "最初に画像をアップロードしてください。",
+  "paintings.image_input_not_supported": "このモデルでは参照画像を使用できません。画像を削除するか、画像入力に対応したモデルを選択してください。",
   "paintings.image_mix_failed": "画像の混合に失敗しました",
   "paintings.image_placeholder": "画像がありません",
   "paintings.image_size_options.auto": "自動",

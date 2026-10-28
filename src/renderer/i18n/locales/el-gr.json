@@ -3031,6 +3031,7 @@
   "paintings.image_file_required": "Παρακαλώ ανεβάστε πρώτα μια εικόνα",
   "paintings.image_file_retry": "Παρακαλώ ανεβάστε ξανά την εικόνα",
   "paintings.image_handle_required": "Παρακαλώ ανεβάστε πρώτα μια εικόνα",
+  "paintings.image_input_not_supported": "Οι εικόνες αναφοράς δεν είναι διαθέσιμες για αυτό το μοντέλο. Αφαιρέστε τις ή επιλέξτε ένα μοντέλο που υποστηρίζει είσοδο εικόνας.",
   "paintings.image_mix_failed": "Αποτυχία ανάμειξης εικόνων",
   "paintings.image_placeholder": "Δεν υπάρχει εικόνα για τη στιγμή",
   "paintings.image_size_options.auto": "Αυτόματο",

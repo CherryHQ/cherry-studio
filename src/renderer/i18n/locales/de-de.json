@@ -3031,6 +3031,7 @@
   "paintings.image_file_required": "Bitte laden Sie zuerst ein Bild hoch",
   "paintings.image_file_retry": "Bitte laden Sie das Bild erneut hoch",
   "paintings.image_handle_required": "Bitte laden Sie zuerst ein Bild hoch",
+  "paintings.image_input_not_supported": "Referenzbilder sind für dieses Modell nicht verfügbar. Entfernen Sie sie oder wählen Sie ein Modell, das Bildeingaben unterstützt.",
   "paintings.image_mix_failed": "Fehler beim Mischen der Bilder",
   "paintings.image_placeholder": "Kein Bild vorhanden",
   "paintings.image_size_options.auto": "Automatisch",

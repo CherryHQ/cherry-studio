@@ -3031,6 +3031,7 @@
   "paintings.image_file_required": "Por favor, carga una imagen primero",
   "paintings.image_file_retry": "Vuelve a cargar la imagen",
   "paintings.image_handle_required": "Por favor, suba primero una imagen",
+  "paintings.image_input_not_supported": "Las imágenes de referencia no están disponibles para este modelo. Elimínalas o elige un modelo que admita imágenes de entrada.",
   "paintings.image_mix_failed": "Error al mezclar imágenes",
   "paintings.image_placeholder": "No hay imágenes por ahora",
   "paintings.image_size_options.auto": "Automático",
