@@ -2290,6 +2290,123 @@ function textHasUnclosedScratchpad(
   return enclosingScratchpadTag(indented, indented.length) !== null
 }
 
+/**
+ * @internal Stable visible prefix for an append-only answer. Inline-code uncertainty matters only
+ * once markup follows its unresolved opener; tagless text cannot be removed by any continuation.
+ * Ended leaf blocks cannot acquire a future inline-code closer.
+ */
+export function stableScratchpadStreamPrefix(
+  raw: string,
+  final = false
+): { visible: string; pending: boolean; checkpoint?: { raw: number; visible: number } } {
+  if (final) return { visible: stripKnownModelScratchpadBlocksPreservingCodeFences(raw), pending: false }
+  let cut = raw.length
+  // Incomplete markup, wrappers and fences retain the existing conservative verdict. Only the
+  // inline-code-only hold is narrowed here; classification of ambiguous markup stays deferred.
+  const fenced = maskCodeFences(raw)
+  const masked = fenced.text
+  const lastLineEnd = Math.max(masked.lastIndexOf('\n'), masked.lastIndexOf('\r'))
+  const completed = lastLineEnd < 0 ? '' : masked.slice(0, lastLineEnd + 1)
+  const currentStart = inlineBlockStart(completed + 'x', completed.length)
+  const active = masked.slice(currentStart)
+  const tick = active.indexOf('`')
+  if (tick !== -1) {
+    const match = /<(?:thinking|analysis|assessment)(?:[\s/>]|$)/i.exec(masked.slice(currentStart + tick))
+    const markup = match ? currentStart + tick + match.index : -1
+    if (markup !== -1) {
+      let rawOffset = markup
+      const tokens = new RegExp(`${fenced.placeholderBase}CODE_FENCE_(\\d+)\uE001`, 'g')
+      for (const match of masked.matchAll(tokens)) {
+        if (match.index >= markup) break
+        rawOffset += fenced.fences[Number(match[1])].length - match[0].length
+      }
+      cut = rawOffset
+    }
+  }
+  const candidate = raw.slice(0, cut)
+  // Resolve outstanding wrappers and incomplete tags in one masked pass, rather than trying
+  // every '<' with a full-prefix predicate. Mapping a selected offset back is one pass/stage.
+  const fm = maskCodeFences(candidate)
+  const im = maskIndentedCodeBlocksStepped(fm.text)
+  const cm = maskInlineCodeSpans(im.text)
+  const stack: Array<{ name: string; at: number }> = []
+  let unresolved = cm.text.length
+  for (let pos = 0; pos < cm.text.length;) {
+    const lt = cm.text.indexOf('<', pos)
+    if (lt < 0) break
+    pos = lt + 1
+    if (isBackslashEscaped(cm.text, lt)) continue
+    const opaque = opaqueMarkupEnd(cm.text, lt)
+    if (opaque !== null) {
+      pos = opaque
+      continue
+    }
+    const close = /^<\/([a-zA-Z][a-zA-Z0-9-]*)\s*>/.exec(cm.text.slice(lt))
+    if (close) {
+      pos = lt + close[0].length
+      const at = stack.map((entry) => entry.name).lastIndexOf(close[1].toLowerCase())
+      if (at !== -1) stack.splice(at, 1)
+      continue
+    }
+    const parsed = parseOpeningTagAt(cm.text, lt)
+    if (!parsed) {
+      if (isPlausiblePartialTag(cm.text, lt) && !cm.text.slice(lt).includes('>')) {
+        unresolved = lt
+        break
+      }
+      continue
+    }
+    const htmlEnd = htmlTextElementEnd(cm.text, parsed, lt)
+    if (htmlEnd !== null) {
+      pos = htmlEnd
+      continue
+    }
+    pos = lt + parsed.opener.length
+    if (!parsed.isSelfClosing && MODEL_SCRATCHPAD_TAG_SET.has(parsed.tagName.toLowerCase()))
+      stack.push({ name: parsed.tagName.toLowerCase(), at: lt })
+  }
+  if (stack.length) unresolved = Math.min(unresolved, stack[0].at)
+  if (unresolved < cm.text.length) {
+    const unmap = (text: string, offset: number, base: string, kind: string, originals: string[]): number => {
+      let rawOffset = offset
+      const tokens = new RegExp(`${base}${kind}_(\\d+)\uE001`, 'g')
+      for (const match of text.matchAll(tokens)) {
+        if (match.index >= offset) break
+        rawOffset += originals[Number(match[1])].length - match[0].length
+      }
+      return rawOffset
+    }
+    let offset = unmap(cm.text, unresolved, cm.placeholderBase, 'INLINE_CODE', cm.spans)
+    offset = unmap(im.text, offset, im.placeholderBase, 'INDENTED_CODE', im.blocks)
+    offset = unmap(fm.text, offset, fm.placeholderBase, 'CODE_FENCE', fm.fences)
+    cut = Math.min(cut, offset)
+  }
+  const visible = stripKnownModelScratchpadBlocksPreservingCodeFences(raw.slice(0, cut))
+  let checkpoint: { raw: number; visible: number } | undefined
+  const boundaries = [...raw.slice(0, cut).matchAll(/(?:\r?\n){2,}/g)]
+  const last = boundaries[boundaries.length - 1]
+  if (last) {
+    const end = last.index + last[0].length
+    const prefix = raw.slice(0, end)
+    const pf = maskCodeFences(prefix)
+    const pi = maskIndentedCodeBlocksStepped(pf.text)
+    if (
+      !textHasUnclosedCodeFence(prefix) &&
+      !unclosedHtmlTextElementOpener(prefix) &&
+      !unclosedOpaqueMarkupOpener(prefix) &&
+      !textHasUnclosedScratchpad(prefix) &&
+      pi.state.inheritedListColumns === 0 &&
+      !pi.state.listInsideQuote &&
+      pi.state.run === null &&
+      pi.state.scratchpadScan.stack.length === 0
+    ) {
+      const pv = stripKnownModelScratchpadBlocksPreservingCodeFences(prefix)
+      if (visible.startsWith(pv)) checkpoint = { raw: end, visible: pv.length }
+    }
+  }
+  return { visible, pending: cut < raw.length, checkpoint }
+}
+
 /** True when scratchpad filtering should wait for more stream input before stripping. */
 export function shouldDeferScratchpadStripping(
   text: string,

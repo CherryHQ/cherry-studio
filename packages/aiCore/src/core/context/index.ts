@@ -48,6 +48,7 @@ export {
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripModelScratchpadBlocks,
   stripTrailingToolProtocolClosingFragments,
+  stableScratchpadStreamPrefix,
   deferralIsInlineCodeOnly,
   isPlausiblePartialTag,
   shouldDeferScratchpadStripping,

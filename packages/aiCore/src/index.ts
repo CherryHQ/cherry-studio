@@ -93,6 +93,7 @@ export {
   stripModelScratchpadBlocks,
   stripTrailingToolProtocolClosingFragments,
   summarizeModelMessages,
+  stableScratchpadStreamPrefix,
   deferralIsInlineCodeOnly,
   isPlausiblePartialTag,
   shouldDeferScratchpadStripping,

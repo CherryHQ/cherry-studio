@@ -38,6 +38,7 @@ import type {
 import {
   advanceIndentedMaskState,
   confirmedOpenFenceStreamPrefix,
+  stableScratchpadStreamPrefix,
   deferralIsInlineCodeOnly,
   fenceContainerPrefixFromState,
   type IndentedMaskState,
@@ -172,6 +173,15 @@ type StreamContext = {
   textStreamedViaContentBlock: boolean
   /** Parentless main-agent text may carry model scratchpad wrappers outside compaction windows. */
   filterParentlessScratchpadText: boolean
+  scratchpadAnswerStream: {
+    segments: string[]
+    visible: string
+    pending: boolean
+    markupSeen: boolean
+    probe: string
+    tickSeen: boolean
+    legacy: boolean
+  } | null
   scratchpadTextProbe: string
   scratchpadStreamRemainder: string
   /** Odd trailing backslash run at the processed tail: the next delta's first character is escaped. */
@@ -762,6 +772,7 @@ export class ClaudeCodeStreamAdapter {
       hasStreamedJson: false,
       textStreamedViaContentBlock: false,
       filterParentlessScratchpadText,
+      scratchpadAnswerStream: null,
       scratchpadTextProbe: '',
       scratchpadStreamRemainder: '',
       scratchpadStreamEscapeCarry: false,
@@ -1287,6 +1298,7 @@ export class ClaudeCodeStreamAdapter {
   ): void {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
+    ctx.scratchpadAnswerStream = null
     ctx.textBlockContextStart = ctx.accumulatedText.length
     ctx.olSyncLen = -1
     ctx.textPartId = partId
@@ -1359,7 +1371,7 @@ export class ClaudeCodeStreamAdapter {
       return
     }
 
-    this.enqueueVisibleTextDelta(text, ctx)
+    this.enqueueVisibleTextDelta(text, ctx, undefined, true)
   }
 
   private splitIncompleteTagSuffix(text: string): { emit: string; buffer: string } {
@@ -1447,6 +1459,8 @@ export class ClaudeCodeStreamAdapter {
 
   /** Total characters handed to the scratchpad strip scan across deltas (test instrumentation). */
   private scratchpadScanInputChars = 0
+  private scratchpadStreamInputChars = 0
+  private scratchpadPrefixViolation = false
   /**
    * Test instrumentation for per-delta work outside the strip scan: characters
    * handled by the open-line carry (head, tail and any whole-line slice) and
@@ -1747,6 +1761,98 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.olLen <= ctx.olHead.length) return ctx.olHead
     this.scratchpadWholeSliceChars += ctx.olLen
     return ctx.accumulatedText.slice(ctx.olStart)
+  }
+
+  private filterStreamingAnswer(text: string, ctx: StreamContext): string {
+    if (this.scratchpadPrefixViolation) return ''
+    const state = ctx.scratchpadAnswerStream ?? {
+      segments: [],
+      visible: '',
+      pending: false,
+      markupSeen: false,
+      probe: '',
+      tickSeen: false,
+      legacy: false
+    }
+    ctx.scratchpadAnswerStream = state
+    this.scratchpadStreamInputChars += text.length
+    state.segments.push(text)
+    if (
+      state.legacy &&
+      text.includes('`') &&
+      ctx.scratchpadStreamRemainder === '' &&
+      ctx.scratchpadStreamFenceCarry === ''
+    ) {
+      state.tickSeen = true
+      state.legacy = false
+    }
+    if (
+      !state.tickSeen &&
+      (state.legacy ||
+        (text.includes('<') && (text.indexOf('`') === -1 || text.indexOf('<') < text.indexOf('`'))) ||
+        text.includes('~'))
+    ) {
+      state.legacy = true
+      const pending = state.probe + text
+      state.probe = ''
+      const out = this.filterScratchpadFromOngoingDelta(pending, ctx)
+      state.visible += out
+      // A tick arriving inside unresolved private/fence markup stays with that scanner.
+      // Otherwise migrate the complete raw history to the stable-prefix lane next time.
+      if (text.includes('`') && ctx.scratchpadStreamRemainder === '' && ctx.scratchpadStreamFenceCarry === '') {
+        state.tickSeen = true
+        state.legacy = false
+      }
+      return out
+    }
+    state.tickSeen ||= text.includes('`')
+    // Only possible private wrapper openers can remove bytes from this lane. Ordinary HTML,
+    // inline code, lists and links are emitted immediately, retaining the raw history solely
+    // for the first private-wrapper event. At most one tag-name prefix is held across deltas.
+    if (!state.pending) {
+      const probe = state.probe + text
+      if (
+        !/<(?:analysis|assessment|thinking)(?:[\s/>]|$)/i.test(probe) &&
+        !(state.probe.includes('<') && text.includes('<'))
+      ) {
+        const lastLt = probe.indexOf('>') === -1 ? probe.indexOf('<') : probe.lastIndexOf('<')
+        const tail = lastLt < 0 ? '' : probe.slice(lastLt)
+        const held =
+          state.probe && !probe.includes('>')
+            ? probe
+            : tail && !tail.includes('>') && isPlausiblePartialTag(tail, 0)
+              ? tail
+              : ''
+        const visible = held ? probe.slice(0, -held.length) : probe
+        state.probe = held
+        state.visible += visible
+        return visible
+      }
+    }
+    if (state.pending && !/[<>`~\r\n]/.test(text)) return ''
+    state.markupSeen = true
+    const raw = state.segments.join('')
+    this.scratchpadScanInputChars += raw.length
+    const { visible, pending, checkpoint } = stableScratchpadStreamPrefix(raw)
+    if (!visible.startsWith(state.visible)) {
+      this.scratchpadPrefixViolation = true
+      logger.warn('Scratchpad stream classification changed after emission; withholding unresolved output')
+      state.pending = true
+      return ''
+    }
+    const delta = visible.slice(state.visible.length)
+    state.visible = visible
+    state.probe = ''
+    state.pending = pending
+    if (checkpoint) {
+      const tail = raw.slice(checkpoint.raw)
+      state.segments = tail ? [tail] : []
+      state.visible = visible.slice(checkpoint.visible)
+      state.tickSeen = true
+      state.markupSeen = tail.includes('<')
+      state.legacy = false
+    }
+    return delta
   }
 
   private filterScratchpadFromOngoingDelta(text: string, ctx: StreamContext): string {
@@ -2562,7 +2668,8 @@ export class ClaudeCodeStreamAdapter {
   private enqueueVisibleTextDelta(
     text: string,
     ctx: StreamContext,
-    providerMetadata?: Record<string, JSONObject>
+    providerMetadata?: Record<string, JSONObject>,
+    rawStream = false
   ): void {
     if (!text) return
     if (ctx.suppressCompactionArtifactPart) return
@@ -2661,7 +2768,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (ctx.filterParentlessScratchpadText && ctx.textPartStarted && !ctx.textStartDeferred) {
-      text = this.filterScratchpadFromOngoingDelta(text, ctx)
+      text = rawStream ? this.filterStreamingAnswer(text, ctx) : text
       if (!text) return
     }
 
@@ -3847,6 +3954,20 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private flushScratchpadStreamRemainder(ctx: StreamContext): void {
+    if (ctx.scratchpadAnswerStream && !ctx.scratchpadAnswerStream.legacy) {
+      const state = ctx.scratchpadAnswerStream
+      ctx.scratchpadAnswerStream = null
+      const { visible } = stableScratchpadStreamPrefix(state.segments.join(''), true)
+      if (!visible.startsWith(state.visible)) {
+        this.scratchpadPrefixViolation = true
+        logger.warn('Scratchpad flush classification changed after emission; withholding unresolved output')
+        return
+      }
+      if (this.scratchpadPrefixViolation) return
+      const delta = visible.slice(state.visible.length)
+      if (delta) this.appendVisibleTextDelta(delta, ctx)
+      return
+    }
     // The fence carry pairs remainder content that starts inside an open code
     // fence; it is consumed here whether or not a remainder is pending.
     const fenceCarry = ctx.scratchpadStreamFenceCarry
