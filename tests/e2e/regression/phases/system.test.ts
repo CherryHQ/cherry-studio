@@ -561,6 +561,12 @@ test(...caseDefinition('MP-131'), async ({ app, mainWindow: page }, testInfo) =>
     await page.evaluate(() => window.api.preference.set('menu.presentation_mode', 'cherry'))
     await selectSidebarApp(page, 'Chat')
     // Normalize tabs left by earlier cases through the same close actions users have.
+    const normalTabs = tabs.filter({ has: page.getByRole('button', { name: 'Close Tab', exact: true }) })
+    if ((await normalTabs.count()) > 1) {
+      const retainedId = await normalTabs.first().getAttribute('data-tab-id')
+      await menu(strip.locator(`[data-tab-id="${retainedId}"]`), 'Close Other Tabs')
+      await expect(normalTabs).toHaveCount(1)
+    }
     while ((await tabs.count()) > 1) {
       const id = await tabs.last().getAttribute('data-tab-id')
       await menu(strip.locator(`[data-tab-id="${id}"]`), 'Close Tab')
