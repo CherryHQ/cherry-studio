@@ -138,8 +138,9 @@ describe('AskUserQuestionComposer', () => {
 
     const row = screen.getByRole('button', { name: /Winston/ })
     const span = within(row).getByText(description)
-    // Bound the combined list, not individual descriptions, so every option remains reachable.
-    expect.soft(row.parentElement).toHaveClass('max-h-[50vh]', 'overflow-y-auto', 'overscroll-contain')
+    // The list shrinks inside the bounded panel so every option remains reachable.
+    expect.soft(row.parentElement).toHaveClass('min-h-0', 'flex-auto', 'overflow-y-auto', 'overscroll-contain')
+    expect(row.parentElement).not.toHaveClass('max-h-[50vh]')
     expect(span).toHaveClass(
       'block',
       'whitespace-pre-wrap',
@@ -172,8 +173,9 @@ describe('AskUserQuestionComposer', () => {
     )
 
     const firstOption = screen.getByRole('button', { name: /Option 1/ })
-    // The combined list owns the scrolling bound; each description stays fully expanded.
-    expect.soft(firstOption.parentElement).toHaveClass('max-h-[50vh]', 'overflow-y-auto', 'overscroll-contain')
+    // The list shrinks inside the bounded panel; each description stays fully expanded.
+    expect.soft(firstOption.parentElement).toHaveClass('min-h-0', 'flex-auto', 'overflow-y-auto', 'overscroll-contain')
+    expect(firstOption.parentElement).not.toHaveClass('max-h-[50vh]')
     for (const option of options) {
       const row = screen.getByRole('button', { name: new RegExp(option.label) })
       const span = within(row).getByText(
@@ -313,6 +315,58 @@ describe('AskUserQuestionComposer', () => {
     const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
 
     expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
+  })
+
+  it('bounds the complete panel to the stage and lets only the option list shrink', () => {
+    const stage = document.createElement('div')
+    stage.setAttribute('data-composer-stage', '')
+    Object.defineProperty(stage, 'clientHeight', { value: 512, configurable: true })
+    document.body.appendChild(stage)
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />, { container: stage })
+
+    const headingRow = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!
+    const card = headingRow.parentElement!
+    const list = screen.getByRole('button', { name: /Winston/ }).parentElement!
+    const answerRow = screen.getByRole('button', { name: 'Skip' }).parentElement!
+
+    // The complete-panel bound must leave the heading and growing answer outside the shrinking list.
+    expect(card.style.maxHeight).toBe('512px')
+    expect(card).toHaveClass('flex', 'min-h-0', 'flex-col', 'overflow-hidden')
+    expect(list).toHaveClass('min-h-0', 'flex-auto', 'overflow-y-auto', 'overscroll-contain')
+    expect(list).not.toHaveClass('max-h-[50vh]')
+    expect(headingRow).toHaveClass('shrink-0')
+    expect(answerRow).toHaveClass('shrink-0')
+  })
+
+  it('subtracts the root computed padding from the stage height budget', () => {
+    const resizeObserver = globalThis.ResizeObserver
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      const stage = document.createElement('div')
+      stage.setAttribute('data-composer-stage', '')
+      Object.defineProperty(stage, 'clientHeight', { value: 512, configurable: true })
+      document.body.appendChild(stage)
+      const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />, {
+        container: stage
+      })
+
+      const root = container.firstElementChild as HTMLElement
+      root.style.paddingBottom = '18px'
+      fireEvent.resize(window)
+
+      const card = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!.parentElement!
+      // Root padding shares the stage budget with the card, keeping the heading inside the stage.
+      expect(card.style.maxHeight).toBe('494px')
+    } finally {
+      vi.stubGlobal('ResizeObserver', resizeObserver)
+    }
+  })
+
+  it('leaves the panel unbounded when there is no measurable stage', () => {
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    const card = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!.parentElement!
+    expect(card.style.maxHeight).toBe('')
   })
 
   it('auto advances after option selection and submits a custom input as an answer option', async () => {
