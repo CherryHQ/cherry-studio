@@ -64,13 +64,16 @@ const cherryCloudPlanSummarySchema = z.looseObject({
 })
 
 const cherryCloudQuotaWindowSchema = z.looseObject({
-  window_type: z.enum(['rolling', 'calendar_day']),
+  /** `subscription_month` follows the billing period and resets at `period_end`. */
+  window_type: z.enum(['rolling', 'calendar_day', 'subscription_month']),
   duration_seconds: z.number().int().positive(),
   limit_units: z.number().int().nonnegative(),
   used_units: z.number().int().nonnegative(),
   active_reserved_units: z.number().int().nonnegative(),
   remaining_units: z.number().int().nonnegative(),
-  next_recovery_at: z.iso.datetime().optional()
+  next_recovery_at: z.iso.datetime().optional(),
+  period_start: z.iso.datetime().optional(),
+  period_end: z.iso.datetime().optional()
 })
 
 const cherryCloudQuotaPoolSchema = z.looseObject({

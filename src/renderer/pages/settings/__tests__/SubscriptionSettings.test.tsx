@@ -52,6 +52,7 @@ function paidPlans(displayName: string): CherryCloudAccountPlans {
           default_for_new_accounts: false,
           quota_pool_count: 0,
           model_count: 1,
+          subscription_price: { product_name: displayName, currency: 'cny', interval: 'month', unit_amount: 1990 },
           purchase_available: true
         },
         state: 'active',
@@ -108,7 +109,7 @@ describe('SubscriptionSettings', () => {
     )
   })
 
-  it('describes quota windows without exposing backend pool names or a total summary', async () => {
+  it('labels a 30-day rolling window as monthly usage without backend pool names or a total summary', async () => {
     requestMock.mockResolvedValue({
       measured_at: '2026-09-21T00:00:00Z',
       entitlements: [
@@ -153,10 +154,13 @@ describe('SubscriptionSettings', () => {
 
     renderSettings()
 
-    expect(await screen.findByText('30-day limit')).toBeInTheDocument()
+    expect(await screen.findByText('settings.subscription.limit_monthly')).toBeInTheDocument()
     expect(screen.queryByText('Flash quota')).not.toBeInTheDocument()
     expect(screen.getByText('100% remaining')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: '30-day limit' })).toHaveAttribute('aria-valuenow', '100')
+    expect(screen.getByRole('progressbar', { name: 'settings.subscription.limit_monthly' })).toHaveAttribute(
+      'aria-valuenow',
+      '100'
+    )
     expect(screen.queryByText('US$8.00')).not.toBeInTheDocument()
   })
 
@@ -185,6 +189,48 @@ describe('SubscriptionSettings', () => {
     expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.signing_in' })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     expect(session.cancelLogin).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts a billing-period window and shows when it resets', async () => {
+    const plans = paidPlans('国内订阅')
+    plans.entitlements[0].quota_pools = [
+      {
+        allocation_id: '44444444-4444-4444-8444-444444444444',
+        display_name: '国内订阅',
+        measurement_kind: 'requests',
+        model_ids: ['cn-model'],
+        windows: [
+          {
+            window_type: 'subscription_month',
+            duration_seconds: 2_678_400,
+            limit_units: 100,
+            used_units: 25,
+            active_reserved_units: 0,
+            remaining_units: 75,
+            period_start: '2026-10-28T07:25:26Z',
+            period_end: '2026-11-28T07:25:26Z'
+          }
+        ]
+      }
+    ]
+    requestMock.mockResolvedValue(plans)
+
+    renderSettings()
+
+    expect(await screen.findByRole('progressbar', { name: 'settings.subscription.limit_monthly' })).toHaveAttribute(
+      'aria-valuenow',
+      '75'
+    )
+    expect(screen.getByText('settings.subscription.next_recovery')).toBeInTheDocument()
+  })
+
+  it('shows the backend plan name without a price or renewal interval', async () => {
+    requestMock.mockResolvedValue(paidPlans('Plus'))
+
+    renderSettings()
+
+    expect(await screen.findByText('Plus')).toBeInTheDocument()
+    expect(screen.queryByText(/19\.9|CNY|month/)).not.toBeInTheDocument()
   })
 
   it("keeps the current account's plan when a previous account's response arrives late", async () => {

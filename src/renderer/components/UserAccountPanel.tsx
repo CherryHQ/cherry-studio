@@ -1,4 +1,16 @@
-import { CreditCard, LogIn, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunMoon } from 'lucide-react'
+import {
+  ChevronRight,
+  CreditCard,
+  Gauge,
+  LogIn,
+  LogOut,
+  Monitor,
+  Moon,
+  RotateCcw,
+  Settings,
+  Sun,
+  SunMoon
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,20 +22,28 @@ import {
   ColFlex,
   ConfirmDialog,
   EmojiAvatar,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
   RowFlex,
   SegmentedControl
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsage'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { type CherryCloudEntitlement, getLowestRemainingPercent } from '@renderer/utils/cherryCloudQuota'
 import { isEmoji } from '@renderer/utils/naming'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
-type SubscriptionLookup = { status: 'loading' } | { status: 'ready'; planName: string | null } | { status: 'error' }
+type SubscriptionLookup =
+  | { status: 'loading' }
+  | { status: 'ready'; paid: CherryCloudEntitlement | null }
+  | { status: 'error' }
 
 export function UserAccountPanel({ active = true, onRequestClose }: { active?: boolean; onRequestClose?: () => void }) {
   const [userName] = usePreference('app.user.name')
@@ -54,8 +74,8 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
       .request('cherry_cloud.account_plans.get')
       .then((plans) => {
         if (cancelled) return
-        const paidPlan = plans.entitlements.find((item) => item.state === 'active' && !item.plan.is_free)
-        setSubscriptionLookup({ status: 'ready', planName: paidPlan?.plan.display_name ?? null })
+        const paid = plans.entitlements.find((item) => item.state === 'active' && !item.plan.is_free)
+        setSubscriptionLookup({ status: 'ready', paid: paid ?? null })
       })
       .catch(() => {
         if (!cancelled) setSubscriptionLookup({ status: 'error' })
@@ -85,18 +105,31 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
   const cloudSubtitleRole =
     isCloudSignedIn || isAuthorizing ? 'status' : cloudStatusLoadState === 'error' ? 'alert' : undefined
   const useCloudSubtitleAsTitle = !userName
-  const paidPlanName = isCloudSignedIn && subscriptionLookup.status === 'ready' ? subscriptionLookup.planName : null
+  const paidEntitlement = isCloudSignedIn && subscriptionLookup.status === 'ready' ? subscriptionLookup.paid : null
+  const paidPlanName = paidEntitlement?.plan.display_name ?? null
+  const remainingPercent = paidEntitlement ? getLowestRemainingPercent(paidEntitlement) : undefined
   const subscriptionLoading =
     cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && subscriptionLookup.status === 'loading')
   const subscriptionFailed =
     cloudStatusLoadState === 'error' || (isCloudSignedIn && subscriptionLookup.status === 'error')
-  const subscriptionAction = subscriptionLoading
-    ? t('common.loading')
-    : subscriptionFailed
-      ? t('common.retry')
-      : paidPlanName
-        ? t('settings.subscription.view_usage')
-        : t('settings.subscription.go_to_subscribe')
+  const subscriptionAction = subscriptionLoading ? (
+    t('common.loading')
+  ) : subscriptionFailed ? (
+    t('common.retry')
+  ) : !paidPlanName ? (
+    <span className="text-link">{t('settings.subscription.go_to_subscribe')}</span>
+  ) : remainingPercent === undefined ? (
+    t('settings.subscription.view_usage')
+  ) : (
+    <span className="inline-flex items-center gap-1 tabular-nums">
+      <Gauge className="!text-muted-foreground size-3.5" aria-hidden />
+      {remainingPercent}%
+    </span>
+  )
+  const openUsage = () => {
+    onRequestClose?.()
+    openSettingsTab('/settings/profile')
+  }
   const handleSubscriptionClick = () => {
     if (cloudStatusLoadState === 'error') {
       void loadCloudStatus()
@@ -106,7 +139,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
       setPlanRequestVersion((version) => version + 1)
     } else if (subscriptionLookup.status === 'ready') {
       onRequestClose?.()
-      if (subscriptionLookup.planName) {
+      if (subscriptionLookup.paid) {
         openSettingsTab('/settings/profile')
       } else {
         void startCherryCloudSubscription()
@@ -170,6 +203,22 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
     }
   ]
 
+  const subscriptionRow = (
+    <Button
+      type="button"
+      className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
+      disabled={subscriptionLoading}
+      onClick={handleSubscriptionClick}
+      size="sm"
+      variant="ghost">
+      <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-left" title={paidPlanName ?? undefined}>
+        {paidPlanName ?? t('settings.subscription.card_label')}
+      </span>
+      <span className="shrink-0 text-muted-foreground">{subscriptionAction}</span>
+    </Button>
+  )
+
   return (
     <ColFlex className="w-56 p-1.5">
       <ColFlex className="pb-1">
@@ -204,19 +253,28 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
         </Button>
       </ColFlex>
       <ColFlex className="border-border-subtle gap-0.5 border-t pt-1 pb-2">
-        <Button
-          type="button"
-          className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
-          disabled={subscriptionLoading}
-          onClick={handleSubscriptionClick}
-          size="sm"
-          variant="ghost">
-          <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-left" title={paidPlanName ?? undefined}>
-            {paidPlanName ?? t('settings.subscription.card_label')}
-          </span>
-          <span className="shrink-0 text-muted-foreground">{subscriptionAction}</span>
-        </Button>
+        {paidEntitlement ? (
+          <HoverCard openDelay={150} closeDelay={120}>
+            <HoverCardTrigger asChild>{subscriptionRow}</HoverCardTrigger>
+            <HoverCardContent side="right" align="start" sideOffset={8} className="w-64">
+              <div className="truncate font-medium text-sm">{paidEntitlement.plan.display_name}</div>
+              <div className="mt-2 border-border border-t pt-1">
+                <CherryCloudQuotaUsage entitlement={paidEntitlement} />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-1 w-full justify-between px-0 text-muted-foreground text-xs hover:bg-transparent hover:text-foreground"
+                onClick={openUsage}>
+                {t('settings.subscription.view_usage_details')}
+                <ChevronRight className="size-3.5" aria-hidden />
+              </Button>
+            </HoverCardContent>
+          </HoverCard>
+        ) : (
+          subscriptionRow
+        )}
         <Button
           className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
           onClick={handleOpenSettings}
