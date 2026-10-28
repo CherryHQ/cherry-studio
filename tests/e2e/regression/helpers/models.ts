@@ -1,20 +1,27 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+import { createUniqueModelId } from '@shared/data/types/model'
+
 import type { RegressionApp } from '../RegressionApp'
 import { closeOpenSettingsDrawer, openSettingsSection } from './settings'
 
 export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Provider'
 
-export async function selectVisibleModel(page: Page, model: string): Promise<void> {
+export async function selectVisibleModel(page: Page, model: string, providerId?: string): Promise<void> {
   const selector = page.locator('[data-testid="model-selector-content"]:visible').last()
   await expect(selector).toBeVisible()
   const modelName = model.split('/').at(-1) ?? model
   const search = selector.getByTestId('model-selector-search')
   await search.fill(modelName)
-  const option = selector
-    .locator(`[role="option"][data-testid$="::${model}"], [role="option"][data-testid$="::${modelName}"]`)
-    .first()
+  // Without the provider, another provider exposing the same model id can match first.
+  const option = providerId
+    ? selector.locator(
+        `[role="option"][data-testid="model-selector-item-${createUniqueModelId(providerId, model)}"]`
+      )
+    : selector
+        .locator(`[role="option"][data-testid$="::${model}"], [role="option"][data-testid$="::${modelName}"]`)
+        .first()
   await expect(option).toBeVisible()
   await option.click()
 }

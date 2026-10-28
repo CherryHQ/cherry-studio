@@ -12,7 +12,7 @@ export function customAssistantName(app: RegressionApp): string {
 
 export async function ensureCustomAssistant(app: RegressionApp, page: Page): Promise<void> {
   const name = customAssistantName(app)
-  await ensureCustomChatProvider(app, page)
+  const providerId = await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   await selectSidebarApp(page, 'Chat')
   const chatView = page.locator('[data-ui~="chat.view"]:visible').first()
@@ -26,7 +26,7 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
     await page.locator('[aria-label="Choose avatar"]').click()
     await page.locator('button[aria-label="star-struck"]').first().click()
     await page.locator('[aria-label="Model"]').click()
-    await selectVisibleModel(page, app.config.customProvider.chatModel)
+    await selectVisibleModel(page, app.config.customProvider.chatModel, providerId)
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     await page
       .getByRole('dialog')

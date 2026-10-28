@@ -322,32 +322,56 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   }
 }
 
+function isExpectedWindowUrl(url: string): boolean {
+  try {
+    const { pathname } = new URL(url)
+    return pathname.endsWith('/windows/main/index.html') || pathname.includes('/windows/userDataRelocation/')
+  } catch {
+    return false
+  }
+}
+
 /**
  * Adopt the instance a packaged restore relaunched on its own. The replacement is not a
  * descendant of the recorded runner, so cleanup has to be pointed at it explicitly.
+ * Electron exposes CDP before the renderer is ready, so a process is adopted only once an
+ * expected window is up; a further relaunch during bootstrap therefore still counts as a
+ * new replacement instead of being adopted prematurely.
  */
 export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Promise<AppRecord> {
   const record = readAppRecord(paths)
   if (record.mode !== 'tag') throw new Error('Only a packaged launch relaunches itself')
   const deadline = Date.now() + timeout
+  let lastError = 'no replacement process took over the CDP port'
   while (Date.now() < deadline) {
-    const electronPid = findCdpPid(record.platform)
-    if (electronPid && electronPid !== record.electronPid && isAlive(electronPid)) {
-      const runnerPid = findProcessGroupId(electronPid, record.platform) ?? electronPid
-      const adopted: AppRecord = {
-        ...record,
-        runnerPid,
-        electronPid,
-        startedAt: new Date().toISOString(),
-        restartCount: record.restartCount + 1
+    try {
+      const targets = await readCdpTargets()
+      const electronPid = findCdpPid(record.platform)
+      if (electronPid && electronPid !== record.electronPid && isAlive(electronPid)) {
+        const readyWindow = targets.some((target) => target.type === 'page' && isExpectedWindowUrl(target.url))
+        if (readyWindow && findCdpPid(record.platform) === electronPid) {
+          const runnerPid = findProcessGroupId(electronPid, record.platform) ?? electronPid
+          const adopted: AppRecord = {
+            ...record,
+            runnerPid,
+            electronPid,
+            startedAt: new Date().toISOString(),
+            restartCount: record.restartCount + 1
+          }
+          assertOwnedProcess(adopted, electronPid, 'electron')
+          writeJson(paths.appRecord, adopted)
+          return readAppRecord(paths)
+        }
+        lastError = readyWindow
+          ? 'the replacement process changed before its window was ready'
+          : 'the replacement process has no window yet'
       }
-      assertOwnedProcess(adopted, electronPid, 'electron')
-      writeJson(paths.appRecord, adopted)
-      return readAppRecord(paths)
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error)
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
   }
-  throw new Error('The relaunched application did not take over the CDP port')
+  throw new Error(`The relaunched application did not take over the CDP port (${lastError})`)
 }
 
 export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {

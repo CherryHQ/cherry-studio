@@ -127,7 +127,7 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
 })
 
 test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
-  await ensureCustomChatProvider(app, page)
+  const providerId = await ensureCustomChatProvider(app, page)
   await openSettingsSection(page, 'Skills')
   if (
     !(await page
@@ -160,7 +160,7 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
     .or(agentView.locator('button:has(span[title*=" | "])'))
     .first()
     .click()
-  await selectVisibleModel(page, app.config.customProvider.chatModel)
+  await selectVisibleModel(page, app.config.customProvider.chatModel, providerId)
   await openSkillsPanel(page)
   await page.getByText('Manage skills', { exact: true }).click()
   const skillSwitch = page.getByRole('switch', { name: 'cherry-regression-fixture', exact: true })

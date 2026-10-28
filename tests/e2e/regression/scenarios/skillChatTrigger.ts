@@ -20,7 +20,7 @@ export async function skillChatTrigger(app: RegressionApp, page: Page, testInfo:
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  await ensureCustomChatProvider(app, page)
+  const providerId = await ensureCustomChatProvider(app, page)
   await openSettingsSection(page, 'API Gateway')
   const startGateway = page.getByRole('button', { name: 'Start', exact: true })
   const stopGateway = page.getByRole('button', { name: 'Stop', exact: true })
@@ -72,7 +72,7 @@ export async function skillChatTrigger(app: RegressionApp, page: Page, testInfo:
       .or(view.locator('button:has(span[title*=" | "])'))
       .first()
       .click()
-    await selectVisibleModel(page, app.config.customProvider.chatModel)
+    await selectVisibleModel(page, app.config.customProvider.chatModel, providerId)
   }
   const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
   const response = page
