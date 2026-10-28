@@ -152,6 +152,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     )
     await page.reload()
     await selectSidebarApp(page, 'Work')
+    await list().getByRole('textbox', { name: 'Search tasks', exact: true }).fill('MP54')
     const agentHeader = list().locator('[data-ui~="chat.group-header"]').filter({ hasText: agent!.name }).first()
     await agentHeader.hover()
     const expand = agentHeader.getByRole('button', { name: 'Expand', exact: true })
@@ -176,6 +177,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     await handleGatewayPrompt()
     await dismissOnboarding(page)
     await selectSidebarApp(page, 'Work')
+    await list().getByRole('textbox', { name: 'Search tasks', exact: true }).fill('MP54')
     await expect.soft
       .poll(async () => (await pins()).map((pin) => pin.entityId), {
         timeout: 3000,
