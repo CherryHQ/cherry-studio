@@ -230,8 +230,14 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
           const sessionIds = (sessions.data as { items: { id: string }[] }).items
             .filter(({ id }) => !sessionsBefore.includes(id))
             .map(({ id }) => id)
-          if (sessionIds.length)
-            await window.api.ipcApi.request('ai.agent.session.delete', { sessionIds, permanent: true })
+          if (sessionIds.length) {
+            const deleted = (await window.api.ipcApi.request('ai.agent.session.delete_permanently', {
+              sessionIds
+            })) as IpcResult<{ deletedIds: string[] }>
+            if (!deleted.ok || sessionIds.some((id) => !deleted.data.deletedIds.includes(id))) {
+              throw new Error('cleanup left case sessions active')
+            }
+          }
         }
         if (agentId) {
           const deletedAgent = (await window.api.ipcApi.request('ai.agent.delete_permanently', {

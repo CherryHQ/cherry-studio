@@ -5,6 +5,7 @@ import { expect, type Locator, type Page, type TestInfo } from '@playwright/test
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Pin } from '@shared/data/types/pin'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -207,7 +208,14 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
           'agent.session.display_mode': preferences.mode,
           'agent.session.position': preferences.position
         })
-        if (ids.length) await window.api.ipcApi.request('ai.agent.session.delete', { sessionIds: ids, permanent: true })
+        if (ids.length) {
+          const deleted = (await window.api.ipcApi.request('ai.agent.session.delete_permanently', {
+            sessionIds: ids
+          })) as IpcResult<{ deletedIds: string[] }>
+          if (!deleted.ok || ids.some((id) => !deleted.data.deletedIds.includes(id))) {
+            throw new Error('cleanup left case sessions active')
+          }
+        }
       },
       { preferences, ids: sessions.map((session) => session.id) }
     )
