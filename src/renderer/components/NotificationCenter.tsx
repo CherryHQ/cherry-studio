@@ -81,17 +81,17 @@ function NotificationItem({
 
   return (
     <li className="border-b border-border-subtle last:border-0">
-      <div className="flex items-start gap-1 py-2">
+      <div className="relative py-2">
         <Button
           variant="ghost"
           aria-label={record.title}
           aria-expanded={expandable ? expanded : undefined}
-          className="h-auto min-w-0 flex-1 items-start justify-start gap-3 whitespace-normal px-2 py-2 text-left"
+          className="h-auto w-full min-w-0 items-start justify-start gap-3 whitespace-normal px-2 py-2 text-left"
           disabled={activating}
           onClick={() => void activate()}>
           <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1">
-            <span className="mb-2 flex items-center gap-2 font-medium">
+            <span className="mb-2 flex items-center gap-2 pr-8 font-medium">
               {record.readAt === null && (
                 <span className="size-1.5 shrink-0 rounded-full bg-primary">
                   <span className="sr-only">{t('notification.center.unread')}</span>
@@ -115,11 +115,11 @@ function NotificationItem({
             </time>
           </span>
         </Button>
-        <Tooltip content={t('notification.center.dismiss', { title: record.title })}>
+        <Tooltip content={t('notification.center.dismiss', { title: record.title })} asChild>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="mt-1 shrink-0"
+            className="absolute right-1 top-3"
             aria-label={t('notification.center.dismiss', { title: record.title })}
             loading={dismissing}
             onClick={() =>
