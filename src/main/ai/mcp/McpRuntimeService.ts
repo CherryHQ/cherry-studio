@@ -707,7 +707,7 @@ export class McpRuntimeService extends BaseService {
     const invocationId = uuidv4()
     const startedAt = Date.now()
     const recordCall = (phase: 'start' | 'end', data: Record<string, unknown>) => {
-      const entry: McpServerLogEntry = {
+      const entry = {
         eventId: `${invocationId}:${phase}`,
         timestamp: Date.now(),
         level: phase === 'end' && (data.status === 'error' || data.status === 'timeout') ? 'error' : 'info',
@@ -721,7 +721,7 @@ export class McpRuntimeService extends BaseService {
           sessionId: interactionContext?.sessionId,
           ...data
         }
-      }
+      } satisfies McpServerLogEntry
       getServerLogger(server)[entry.level === 'error' ? 'error' : 'info'](entry.message, entry.data)
       try {
         this.emitServerLog(server, entry)
