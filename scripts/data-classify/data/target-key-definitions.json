@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "chat.input.rich_text_math_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Preview inline LaTeX formulas in the message composer"
+    },
+    {
       "targetKey": "assistant.archive.related_topics",
       "type": "boolean",
       "defaultValue": false,

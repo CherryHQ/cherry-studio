@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import { Schema } from '@tiptap/pm/model'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -6,10 +7,12 @@ import {
   createComposerMessageSnapshot,
   createComposerUserMessageParts,
   excludeComposerDraftTokens,
+  getComposerSerializedLeafText,
   serializeComposerDocument,
   trimComposerDraftBoundaryBlankLines
 } from '../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
+import { getComposerInputLeafText } from '../quickPanel'
 
 function tokenNode(attrs: Record<string, unknown>): JSONContent {
   return {
@@ -100,6 +103,56 @@ describe('excludeComposerDraftTokens', () => {
 })
 
 describe('composer draft serialization', () => {
+  it('counts math source in both leaf text models while keeping tokens input-empty', () => {
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'inline*' },
+        text: { group: 'inline' },
+        hardBreak: { inline: true, group: 'inline' },
+        inlineMath: { inline: true, group: 'inline', attrs: { latex: { default: '' } } },
+        composerToken: {
+          inline: true,
+          group: 'inline',
+          attrs: { id: { default: 'quote-1' }, kind: { default: 'quote' }, label: { default: 'Quote' }, promptText: {} }
+        }
+      }
+    })
+    const document = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        { type: 'text', text: 'see ' },
+        { type: 'inlineMath', attrs: { latex: 'x' } },
+        { type: 'composerToken', attrs: { promptText: 'quoted text' } },
+        { type: 'hardBreak' },
+        { type: 'inlineMath', attrs: { latex: '' } }
+      ]
+    })
+
+    expect(document.textBetween(0, document.content.size, '\n', getComposerInputLeafText)).toBe('see $x$\n$$')
+    expect(document.textBetween(0, document.content.size, '\n', getComposerSerializedLeafText)).toBe(
+      'see $x$quoted text\n$$'
+    )
+  })
+
+  it('serializes inline math source before adjacent token offsets', () => {
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'see ' },
+            { type: 'inlineMath', attrs: { latex: 'x' } },
+            tokenNode({ id: 'quote-1', kind: 'quote', label: 'Quote', promptText: 'quoted text' })
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe('see $x$quoted text')
+    expect(draft.tokens[0].textOffset).toBe('see $x$'.length)
+  })
+
   it('trims only boundary blank lines while preserving meaningful-line whitespace and internal blank lines', () => {
     const draft = trimComposerDraftBoundaryBlankLines({
       text: ' \t\n  first line  \n\nlast line \t\n \t\n',

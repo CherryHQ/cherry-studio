@@ -18,7 +18,9 @@ import Selector from '@renderer/components/Selector'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
 import type { CodeStyleVarious } from '@renderer/types/app'
+import { formatErrorMessage } from '@renderer/utils/error'
 import {
   COMPOSER_SHORTCUTS,
   composerShortcutId,
@@ -89,6 +91,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const [richTextMathEnabled, setRichTextMathEnabled] = usePreference('chat.input.rich_text_math_enabled')
   const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold, setPasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
@@ -281,6 +284,21 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               checked={showInputEstimatedTokens}
               onCheckedChange={setShowInputEstimatedTokens}
               label={t('settings.messages.input.show_estimated_tokens')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-rich-text-math-enabled" className="scroll-mt-6">
+            <SettingSwitch
+              checked={richTextMathEnabled}
+              onCheckedChange={async (checked) => {
+                try {
+                  await setRichTextMathEnabled(checked)
+                } catch (error) {
+                  toast.error(formatErrorMessage(error))
+                }
+              }}
+              label={t('settings.messages.input.rich_text_math_enabled')}
+              hint={t('settings.messages.input.rich_text_math_enabled_hint')}
             />
           </SettingRow>
           <SettingDivider />

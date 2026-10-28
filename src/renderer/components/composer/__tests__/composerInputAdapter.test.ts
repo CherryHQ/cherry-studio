@@ -5,6 +5,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from '../composerDraft'
 import { appendComposerText, createComposerInputAdapter, updateComposerToken } from '../composerInputAdapter'
+import { configureComposerInlineMath } from '../composerMathExtension'
 import { createComposerEditorPreset } from '../composerPreset'
 import { tokenizePromptVariablesInEditor } from '../promptVariables'
 import { createEditableMessageDraft, replaceEditedMessageParts } from '../variants/chat/messageEditingDraft'
@@ -17,9 +18,9 @@ describe('createComposerInputAdapter', () => {
     editor = undefined
   })
 
-  function createEditor() {
+  function createEditor(mathEnabled = false) {
     editor = new Editor({
-      extensions: createComposerEditorPreset({}),
+      extensions: [...createComposerEditorPreset({}), configureComposerInlineMath(() => mathEnabled)],
       content: '',
       onUpdate: ({ editor, transaction }) => {
         tokenizePromptVariablesInEditor(editor, transaction)
@@ -27,6 +28,15 @@ describe('createComposerInputAdapter', () => {
     })
     return editor
   }
+
+  it.each(['$x$/go', '$x$ /go'])('deletes the trigger after math without flattening %s', (source) => {
+    const editor = createEditor(true)
+    const adapter = createComposerInputAdapter(editor)
+    adapter.insertText(source)
+    adapter.deleteTriggerRange({ from: source.indexOf('/go'), to: source.length })
+    expect(editor.getJSON().content?.[0].content?.[0]).toEqual({ type: 'inlineMath', attrs: { latex: 'x' } })
+    expect(serializeComposerDocument(editor).text).toBe(source.slice(0, source.indexOf('/go')))
+  })
 
   it('preserves unselected file chips when replacing text immediately after them', () => {
     const editor = createEditor()

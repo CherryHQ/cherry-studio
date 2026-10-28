@@ -3,6 +3,7 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 
+import { COMPOSER_INLINE_MATH_NODE_NAME, serializeComposerMath } from '../composerMath'
 import type { ComposerSuggestionItem } from './suggestionExtension'
 
 export const ROOT_QUICK_PANEL_ALLOWED_PREFIXES = [' ', '\n', '\t']
@@ -14,6 +15,10 @@ export function hasComposerQuickPanelTriggerBoundary(textBeforeTrigger: string) 
 
 export function getComposerInputLeafText(node: ProseMirrorNode) {
   if (node.type.name === 'hardBreak') return '\n'
+  if (node.type.name === COMPOSER_INLINE_MATH_NODE_NAME) {
+    const latex: unknown = node.attrs.latex
+    return serializeComposerMath(typeof latex === 'string' ? latex : '')
+  }
   return ''
 }
 
