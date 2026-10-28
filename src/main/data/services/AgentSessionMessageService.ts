@@ -22,6 +22,7 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { restoreStoredChannelContext, stripChannelContextParts } from '@main/utils/channelContextParts'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,
@@ -337,9 +338,13 @@ export class AgentSessionMessageService {
     sessionId: string,
     target: { messageId: string; version: string },
     prefix: readonly SessionMessageRow[]
-  ): void {
+  ): CherryMessagePart[] {
     const snapshot = this.readEditSnapshotTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
+    // Captured before the delete: the edit target's stored parts are the only authoritative source
+    // of hidden host-owned metadata for the resent turn. After this method runs the target row is
+    // gone, so no later in-transaction read can recover them.
+    const storedUserParts = snapshot.user.data.parts ?? []
     for (const row of snapshot.rows.slice(snapshot.prefix.length)) {
       this.deleteSessionMessageTx(tx, sessionId, row.id)
     }
@@ -349,6 +354,7 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, row.id)))
         .run()
     }
+    return storedUserParts
   }
 
   hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {
@@ -821,6 +827,15 @@ export class AgentSessionMessageService {
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData = publicMessageData({ ...existing.data, ...dto.data })
+      if (dto.data?.parts) {
+        // Hidden channel metadata is host-owned: renderer parts never keep it, and the stored
+        // message's own context part stays authoritative across the update (read-modify-write
+        // round-trips re-attach the same stored part, never a renderer-supplied one).
+        mergedData.parts = restoreStoredChannelContext(
+          stripChannelContextParts(dto.data.parts),
+          existing.data.parts ?? []
+        )
+      }
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)

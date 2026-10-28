@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { createChannelContextPart } from '@shared/data/types/uiParts'
 
+import { stripChannelContextParts } from '../../../../utils/channelContextParts'
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
@@ -19,7 +22,11 @@ const mocks = vi.hoisted(() => ({
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
-  runtimeValidateSession: vi.fn()
+  runtimeValidateSession: vi.fn(),
+  runtimeAssertEditable: vi.fn(),
+  runtimeEditSession: vi.fn(),
+  setEditRuntimeTx: vi.fn(),
+  notifyDataApiDataChange: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -42,8 +49,13 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
-    hasSessionMessages: mocks.hasSessionMessages
+    hasSessionMessages: mocks.hasSessionMessages,
+    setEditRuntimeTx: mocks.setEditRuntimeTx
   }
+}))
+
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: mocks.notifyDataApiDataChange
 }))
 
 vi.mock('@main/services/TopicNamingService', () => ({
@@ -82,6 +94,8 @@ function openReq(overrides: Partial<MainDispatchRequest> = {}): MainDispatchRequ
 
 describe('AgentChatContextProvider', () => {
   let provider: InstanceType<typeof AgentChatContextProvider>
+  // What the in-transaction, version-checked edit snapshot hands the persist callback.
+  let storedEditParts: CherryMessagePart[]
 
   beforeEach(() => {
     provider = new AgentChatContextProvider()
@@ -141,7 +155,9 @@ describe('AgentChatContextProvider', () => {
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
-          assertSessionWritable: mocks.runtimeAssertWritable
+          assertSessionWritable: mocks.runtimeAssertWritable,
+          assertSessionEditable: mocks.runtimeAssertEditable,
+          editSession: mocks.runtimeEditSession
         }
       }
       if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}) }
@@ -153,6 +169,10 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+    storedEditParts = []
+    mocks.runtimeEditSession.mockImplementation((_sessionId, _target, persist) =>
+      persist({}, 'native-session-1', storedEditParts)
+    )
   })
 
   it.each(['busy', 'close_failed'] as const)(
@@ -441,5 +461,82 @@ describe('AgentChatContextProvider', () => {
     )
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
+  describe('edit-agent-message hidden channel metadata', () => {
+    const storedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_123', chatType: 'group' })
+    const forgedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_forged', chatType: 'group' })
+
+    function editReq(userMessageParts: CherryMessagePart[]): MainDispatchRequest {
+      // Mirror production ingress: ai.agent.session.edit_resend strips renderer parts before the
+      // request reaches this provider, which then trusts its main-process callers.
+      return openReq({
+        trigger: 'edit-agent-message',
+        editTarget: { messageId: 'msg-1', version: 'v1' },
+        userMessageParts: stripChannelContextParts(userMessageParts)
+      })
+    }
+
+    function persistedUserParts(): unknown {
+      expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+      return mocks.saveMessagesTx.mock.calls[0][1].messages[0].data.parts
+    }
+
+    it('restores the stored source-chat identity onto the resent turn', async () => {
+      storedEditParts = [{ type: 'text', text: 'original' } as never, storedContext]
+
+      await provider.prepareDispatch(makeSubscriber(), editReq([{ type: 'text', text: 'edited' }]))
+
+      expect(persistedUserParts()).toEqual([{ type: 'text', text: 'edited' }, storedContext])
+      // beginTurn serves the restored identity to the runtime.
+      expect(mocks.runtimeBeginTurn.mock.calls[0][0].userMessage.data.parts).toEqual([
+        { type: 'text', text: 'edited' },
+        storedContext
+      ])
+    })
+
+    it('replaces a schema-valid renderer forgery with the stored identity', async () => {
+      storedEditParts = [{ type: 'text', text: 'original' } as never, storedContext]
+
+      await provider.prepareDispatch(makeSubscriber(), editReq([forgedContext, { type: 'text', text: 'edited' }]))
+
+      const parts = persistedUserParts() as { type: string; data?: { chatId: string } }[]
+      expect(parts.filter((part) => part.type === 'data-channel-context')).toEqual([storedContext])
+      expect(JSON.stringify(parts)).not.toContain('oc_forged')
+    })
+
+    it('drops a forgery outright when the stored message carried no context', async () => {
+      storedEditParts = [{ type: 'text', text: 'original' } as never]
+
+      await provider.prepareDispatch(makeSubscriber(), editReq([forgedContext, { type: 'text', text: 'edited' }]))
+
+      expect(persistedUserParts()).toEqual([{ type: 'text', text: 'edited' }])
+    })
+
+    it('keeps command text byte-identical while restoring hidden metadata', async () => {
+      storedEditParts = [{ type: 'text', text: '/compact' } as never, storedContext]
+
+      await provider.prepareDispatch(makeSubscriber(), editReq([{ type: 'text', text: '/compact' }]))
+
+      expect(persistedUserParts()).toEqual([{ type: 'text', text: '/compact' }, storedContext])
+    })
+
+    it('preserves trusted main-process channel context through submit dispatch', async () => {
+      // Facade contract (ChannelMessageHandler -> startAgentSessionRun): main-authored parts carry
+      // the hidden source-chat identity with no durable delivery message, and this layer must not
+      // strip them. Renderer forgery is stripped upstream at the IPC ingress (covered in ai.test).
+      await provider.prepareDispatch(
+        makeSubscriber(),
+        openReq({ userMessageParts: [storedContext, { type: 'text', text: 'hello from feishu' }] })
+      )
+
+      expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+      const parts = mocks.saveMessagesTx.mock.calls[0][1].messages[0].data.parts
+      expect(parts).toEqual([storedContext, { type: 'text', text: 'hello from feishu' }])
+      expect(mocks.runtimeBeginTurn.mock.calls[0][0].userMessage.data.parts).toEqual([
+        storedContext,
+        { type: 'text', text: 'hello from feishu' }
+      ])
+    })
   })
 })

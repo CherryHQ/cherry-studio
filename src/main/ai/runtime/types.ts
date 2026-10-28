@@ -68,6 +68,11 @@ export interface AgentRuntimeConnectInput {
   serviceTier?: ServiceTierSelection
   /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
   knowledgeBaseIds?: readonly string[]
+  /**
+   * Formatted source-chat identity for channel-originated sessions, surfaced through the system
+   * prompt. Deliberately NOT part of the user-turn text: command parses gate on that text.
+   */
+  channelContext?: string
   /** Whether this connection's turn requests Fast processing. */
   fastMode?: boolean
   resumeToken?: string
@@ -222,6 +227,8 @@ export interface AgentRuntimeConnection {
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
+    /** Baked into the system prompt; a mismatch must rebuild the connection. */
+    channelContext?: string
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult>
   /**

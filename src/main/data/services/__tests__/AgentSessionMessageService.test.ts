@@ -26,6 +26,7 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { createChannelContextPart } from '@shared/data/types/uiParts'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -381,6 +382,78 @@ describe('AgentSessionMessageService', () => {
         agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID)!.at(-1)!.data
           .runtimeAnchor
       ).toBeUndefined()
+    })
+
+    describe('channel context authority on PATCH', () => {
+      const storedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_123', chatType: 'group' })
+      const forgedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_forged', chatType: 'group' })
+
+      function saveChannelMessage() {
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: {
+            id: USER_MESSAGE_ID,
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'original' }, storedContext] }
+          }
+        })
+      }
+
+      it('drops a renderer-forged context part and keeps the stored one authoritative', () => {
+        saveChannelMessage()
+
+        agentSessionMessageService.updateSessionMessage(SESSION_ID, USER_MESSAGE_ID, {
+          data: { parts: [forgedContext, { type: 'text', text: 'edited' }] }
+        })
+
+        const stored = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts
+        expect(stored).toEqual([{ type: 'text', text: 'edited' }, storedContext])
+        expect(JSON.stringify(stored)).not.toContain('oc_forged')
+      })
+
+      it('a read-modify-write round-trip re-attaches exactly the one stored context part', () => {
+        saveChannelMessage()
+        // A legitimate renderer PATCH echoes back the parts it read, context part included.
+        agentSessionMessageService.updateSessionMessage(SESSION_ID, USER_MESSAGE_ID, {
+          data: { parts: [{ type: 'text', text: 'edited' }, storedContext] }
+        })
+
+        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+          { type: 'text', text: 'edited' },
+          storedContext
+        ])
+      })
+
+      it('a PATCH without parts leaves the stored context untouched', () => {
+        saveChannelMessage()
+        agentSessionMessageService.updateSessionMessage(SESSION_ID, USER_MESSAGE_ID, { data: {} })
+
+        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+          { type: 'text', text: 'original' },
+          storedContext
+        ])
+      })
+
+      it('a message with no stored context cannot gain one through PATCH', () => {
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: {
+            id: USER_MESSAGE_ID,
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'original' }] }
+          }
+        })
+
+        agentSessionMessageService.updateSessionMessage(SESSION_ID, USER_MESSAGE_ID, {
+          data: { parts: [forgedContext, { type: 'text', text: 'edited' }] }
+        })
+
+        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+          { type: 'text', text: 'edited' }
+        ])
+      })
     })
 
     it.each([

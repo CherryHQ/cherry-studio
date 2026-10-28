@@ -63,7 +63,12 @@ import {
   type ServiceTierSelection,
   type UniqueModelId
 } from '@shared/data/types/model'
-import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import {
+  type AgentTaskEventPartData,
+  getChannelContextFromParts,
+  formatChannelContext,
+  getKnowledgeBaseIdsFromParts
+} from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
@@ -207,6 +212,8 @@ export interface AgentSessionInteractionState {
 type AgentSessionTurn = {
   forkAnchor?: RuntimeForkAnchor
   turnId: string
+  /** Formatted source-chat identity read from the turn's hidden channel-context part. */
+  channelContext?: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
   systemReminder?: boolean
   assistantMessageId: string
@@ -232,6 +239,7 @@ type PendingAgentSessionTurn = {
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   knowledgeBaseIds: readonly string[]
+  channelContext?: string
   fastMode: boolean
   /** The message arrived mid-turn (steer) — the drained turn wraps it in a system-reminder. */
   steer?: boolean
@@ -414,7 +422,7 @@ export class AgentSessionRuntimeService extends BaseService {
   editSession<T>(
     sessionId: string,
     target: AgentSessionEditTarget,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, storedUserParts: CherryMessagePart[]) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
     const editing = this.forks.edit(
@@ -636,6 +644,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: input.reasoningEffort ?? 'default',
       serviceTier: input.serviceTier ?? 'standard',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
+      channelContext: this.channelContextStringFromParts(userMessage.data.parts ?? []),
       fastMode: input.fastMode === true,
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -986,6 +995,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const reasoningEffort = opts.reasoningEffort ?? 'default'
     const serviceTier = opts.serviceTier ?? 'standard'
     const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? []
+    const channelContext = this.channelContextStringFromParts(message.data.parts ?? [])
     const fastMode = opts.fastMode === true
 
     const turn = this.currentTurn(entry)
@@ -1001,6 +1011,9 @@ export class AgentSessionRuntimeService extends BaseService {
       turn.reasoningEffort === reasoningEffort &&
       turn.serviceTier === serviceTier &&
       turn.fastMode === fastMode &&
+      // A channel steer may only fold into a turn whose connection already serves the same source
+      // chat identity; otherwise it queues as the next turn and the rebuild picks the context up.
+      turn.channelContext === channelContext &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, turn.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, knowledgeBaseIds)
@@ -1032,6 +1045,7 @@ export class AgentSessionRuntimeService extends BaseService {
         reasoningEffort,
         serviceTier,
         knowledgeBaseIds,
+        channelContext,
         fastMode,
         steer: true,
         ...(headless ? { headless } : {}),
@@ -1656,6 +1670,12 @@ export class AgentSessionRuntimeService extends BaseService {
    * does not repeat it. A configured reasoning effort is not a selection — it is what the next turn
    * uses absent an override — so reading it here is what keeps idle free of permanent drift.
    */
+  /** Formatted source-chat identity for a turn, or undefined for non-channel turns. */
+  private channelContextStringFromParts(parts: readonly CherryMessagePart[]): string | undefined {
+    const data = getChannelContextFromParts(parts)
+    return data ? formatChannelContext(data) : undefined
+  }
+
   private connectionTarget(
     entry: AgentSessionRuntimeEntry,
     // `agentService.getAgent` is four queries (the row, its MCPs, its knowledge bases, the model
@@ -1678,6 +1698,7 @@ export class AgentSessionRuntimeService extends BaseService {
           reasoningEffort: turn.reasoningEffort,
           serviceTier: turn.serviceTier,
           knowledgeBaseIds: turn.knowledgeBaseIds,
+          channelContext: turn.channelContext,
           fastMode: turn.fastMode,
           trustedNotifyChannels: turn.trustedNotifyChannels
         }
@@ -1700,6 +1721,7 @@ export class AgentSessionRuntimeService extends BaseService {
       current.reasoningEffort === target.reasoningEffort &&
       current.serviceTier === target.serviceTier &&
       current.fastMode === target.fastMode &&
+      current.channelContext === target.channelContext &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, current.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, target.knowledgeBaseIds)
@@ -1847,6 +1869,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: target.reasoningEffort,
       serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,
+      channelContext: target.channelContext,
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
@@ -2949,6 +2972,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort,
       serviceTier,
       knowledgeBaseIds,
+      channelContext: pendingTurn.channelContext,
       fastMode,
       abortController: new AbortController(),
       activeToolIds: new Set(),

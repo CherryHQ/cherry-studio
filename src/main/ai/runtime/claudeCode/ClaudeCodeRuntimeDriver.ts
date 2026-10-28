@@ -321,7 +321,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.channelContext
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -436,8 +437,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // proven the incoming effective scope equals the live turn's, making the part redundant here; a
     // `file` part does not, so it is declined and the host queues it as the next SDK turn immediately
     // instead of stranding it in session-scoped state until this turn ends.
+    // `data-channel-context` qualifies for the same reason as `data-knowledge-scope`: the host's
+    // fold gate (canRedirectOnCurrentConfig) has already proven the incoming identity equals the
+    // live turn's, so the hidden part carries nothing this injection would need.
     const isInjectableSteerPart = (part: { type: string }) =>
-      part.type === 'text' || part.type === 'data-knowledge-scope'
+      part.type === 'text' || part.type === 'data-knowledge-scope' || part.type === 'data-channel-context'
     const canInject = input.message.data?.parts?.every(isInjectableSteerPart) ?? true
     // A steer is only injectable into a running turn. The adapter lives for the whole connection,
     // so its turn flag — not its existence — reports whether one is open.
@@ -453,6 +457,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    channelContext?: string
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
@@ -470,6 +475,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    channelContext?: string
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
@@ -478,7 +484,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.modelId,
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
-      input.knowledgeBaseIds
+      input.knowledgeBaseIds,
+      input.channelContext
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
