@@ -1,5 +1,5 @@
 import { once } from 'node:events'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -124,6 +124,13 @@ it('rejects native saves outside the evidence directory before any OS automation
     'outside the regression test directories'
   )
   expect(execFileSync).not.toHaveBeenCalled()
+})
+
+it('allows native saves under the private root so unredacted artifacts stay out of uploads', async () => {
+  const { paths } = nativeFixture()
+  const privateSave = join(paths.private, 'downloads', 'bundle.zip')
+  await automation.saveNativeFile('macos', paths, privateSave).catch(() => undefined)
+  expect(existsSync(join(paths.private, 'downloads'))).toBe(true)
 })
 
 it('serves fixture images while waiting for the native save dialog', async () => {

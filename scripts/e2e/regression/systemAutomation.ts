@@ -658,7 +658,8 @@ export async function cancelNativeFileDialogs(platform: Platform, paths: RunPath
 }
 
 export async function saveNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): Promise<string> {
-  const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
+  // `private` holds credential-bearing artifacts that are never uploaded, so unredacted saves stay there.
+  const filePath = resolveAllowedPath(candidatePath, [paths.evidence, paths.private])
   const directory = dirname(filePath)
   mkdirSync(directory, { recursive: true })
   const record = readAppRecord(paths)

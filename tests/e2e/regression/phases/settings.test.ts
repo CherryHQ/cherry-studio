@@ -1525,7 +1525,8 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(confirmation).toBeVisible()
     await confirmation.getByRole('checkbox').check()
     await confirmation.getByRole('button', { name: 'Export', exact: true }).click()
-    const output = join(app.paths.evidence, 'downloads', `MP-114-diagnostics-${Date.now()}.zip`)
+    // The bundle is unredacted by design, so it must never land in an uploaded root.
+    const output = join(app.paths.private, 'downloads', `MP-114-diagnostics-${Date.now()}.zip`)
     await saveNativeFile(app.record.platform, app.paths, output)
     await expect(page.getByText('Diagnostic bundle exported', { exact: true })).toBeVisible({ timeout: 60_000 })
     const archiveSize = (await stat(output)).size
