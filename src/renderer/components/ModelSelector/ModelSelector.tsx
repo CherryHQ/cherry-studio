@@ -1,5 +1,5 @@
 import { first } from 'es-toolkit/compat'
-import { CircleSlash, Lock, Pin, Settings2 } from 'lucide-react'
+import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -15,10 +15,10 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Avatar, AvatarFallback, Button, Checkbox, CustomTag, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
+import { getModelDisplayTags, ModelTag, SubscriptionTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
@@ -52,8 +52,6 @@ const logger = loggerService.withContext('ModelSelector')
 const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
-// Matches the subscription accent used for Cherry Cloud plan entry points.
-const LOCKED_TAG_COLOR = '#d48806'
 const FILTER_TAG_SIZE = 10
 const FILTER_TAG_FADE_WIDTH_PX = 24
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
@@ -239,15 +237,7 @@ function ModelRow({
   const trailing =
     rowTags.length > 0 || item.locked ? (
       <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
-        {item.locked && (
-          <CustomTag
-            size={ROW_TAG_SIZE}
-            color={LOCKED_TAG_COLOR}
-            icon={<Lock size={ROW_TAG_SIZE} />}
-            className="h-full items-center">
-            {t('models.type.subscription')}
-          </CustomTag>
-        )}
+        {item.locked && <SubscriptionTag size={ROW_TAG_SIZE} className="h-full" />}
         {rowTags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
