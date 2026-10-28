@@ -2415,14 +2415,15 @@ export class MessageService {
         SELECT id, created_at FROM message
           WHERE id = ${nodeId} AND topic_id = ${topicId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.id, m.created_at FROM message m
-          INNER JOIN subtree s ON m.parent_id = s.id
-          WHERE m.topic_id = ${topicId} AND m.deleted_at IS NULL
+        -- Without ANALYZE stats the planner picks message_topic_created_idx and rescans the topic per row;
+        -- unary + on topic_id forces message_parent_id_idx, CROSS JOIN pins subtree as the outer loop.
+        SELECT m.id, m.created_at FROM subtree s
+          CROSS JOIN message m ON m.parent_id = s.id AND +m.topic_id = ${topicId} AND m.deleted_at IS NULL
       )
       SELECT s.id FROM subtree s
       WHERE NOT EXISTS (
         SELECT 1 FROM message c
-        WHERE c.parent_id = s.id AND c.topic_id = ${topicId} AND c.deleted_at IS NULL
+        WHERE c.parent_id = s.id AND +c.topic_id = ${topicId} AND c.deleted_at IS NULL
       )
       ORDER BY s.created_at DESC
       LIMIT 1
