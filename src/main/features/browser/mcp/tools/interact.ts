@@ -41,7 +41,8 @@ export async function handleInteraction(
         }
       }
     }
-    await session.send('Emulation.setFocusEmulationEnabled', { enabled: true }, options)
+    if (session.ownership === 'managed')
+      await session.send('Emulation.setFocusEmulationEnabled', { enabled: true }, options)
     const { value, navigated } = await settleAction(session, () => act(session, options), options)
     return { ...value, navigated, snapshot: (await session.snapshot({}, options)).text }
   })

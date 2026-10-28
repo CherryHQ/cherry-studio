@@ -17,6 +17,20 @@ let hit: Element
 let quads: number[][]
 let commands: Array<{ method: string; params: any }>
 let rejectFirstInput = false
+let guestFocused: boolean
+let host: HTMLInputElement
+let afterCommand: (method: string, params: any) => void
+const inputCommands = () => commands.filter(({ method }) => method.startsWith('Input.'))
+const focusInput = async () => {
+  guestFocused = true
+}
+function borrowGuest() {
+  session.dispose()
+  session = new GuestSession(mock as unknown as Electron.WebContents, 'borrowed')
+  vi.spyOn(session, 'resolveRef').mockReturnValue(1)
+  target = dom.window.document.querySelector('input')!
+}
+
 beforeEach(() => {
   dom = new JSDOM(
     '<button id="button">Save <span>now</span></button><input id="text" value="old"><select><option value="a">Alpha</option><option value="b">Beta</option></select>',
@@ -37,6 +51,17 @@ beforeEach(() => {
   ]
   commands = []
   rejectFirstInput = false
+  guestFocused = true
+  host = dom.window.document.createElement('input')
+  host.value = 'host draft'
+  afterCommand = () => {}
+  vi.spyOn(dom.window.document, 'hasFocus').mockImplementation(() => guestFocused)
+  Object.defineProperty(dom.window.HTMLElement.prototype, 'isContentEditable', {
+    get() {
+      return this.closest('[contenteditable]')?.getAttribute('contenteditable') === 'true'
+    }
+  })
+  const selected = new WeakSet<Element>()
   mock.debugger.sendCommand.mockImplementation(async (method, params: any = {}) => {
     commands.push({ method, params })
     if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'doc' } } }
@@ -44,19 +69,40 @@ beforeEach(() => {
     if (method === 'DOM.getContentQuads') return { quads }
     if (method === 'Page.getLayoutMetrics') return { cssLayoutViewport: { pageX: 0, pageY: 0 } }
     if (method === 'DOM.getNodeForLocation') return { backendNodeId: hit === target ? 1 : 2 }
+    if (method === 'Runtime.evaluate') return { result: { value: dom.window.eval(params.expression) } }
+    if (method === 'DOM.focus') {
+      let editable = target as HTMLElement
+      while (editable.isContentEditable && editable.parentElement?.isContentEditable) editable = editable.parentElement
+      editable.focus()
+    }
     if (method === 'Runtime.callFunctionOn') {
       const fn = dom.window.eval(`(${params.functionDeclaration})`)
       const args = (params.arguments ?? []).map((arg: any) => (arg.objectId ? hit : arg.value))
-      return { result: { value: fn.apply(params.objectId === 'target' ? target : hit, args) } }
+      const value = fn.apply(params.objectId === 'target' ? target : hit, args)
+      afterCommand(method, params)
+      return { result: { value } }
+    }
+    let active = dom.window.document.activeElement
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
+    const recipient = (guestFocused ? active : host) as HTMLInputElement
+    const readValue = () => recipient.value ?? recipient.textContent ?? ''
+    const writeValue = (value: string) => {
+      if ('value' in recipient) recipient.value = value
+      else (recipient as Element).textContent = value
     }
     if (method === 'Input.insertText') {
-      if (!rejectFirstInput) (target as HTMLInputElement).value += params.text
+      if (!rejectFirstInput) writeValue(readValue() + params.text)
       rejectFirstInput = false
     }
     if (method === 'Input.dispatchKeyEvent') {
-      if (params.type === 'rawKeyDown' && params.key === 'Backspace') (target as HTMLInputElement).value = ''
-      if (params.type === 'char') (target as HTMLInputElement).value += params.text
+      if (params.type === 'rawKeyDown' && params.commands?.includes('selectAll')) selected.add(recipient)
+      if (params.type === 'rawKeyDown' && params.key === 'Backspace' && selected.has(recipient)) {
+        writeValue('')
+        selected.delete(recipient)
+      }
+      if (params.type === 'char' && params.key !== 'Enter') writeValue(readValue() + params.text)
     }
+    afterCommand(method, params)
     return {}
   })
 })
@@ -261,6 +307,194 @@ describe('Browser actions', () => {
     const events = commands.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => c.params)
     expect(events.map((event) => event.type)).toEqual(['rawKeyDown', 'keyUp'])
     expect(events[0]).toMatchObject({ key: '+', code: 'Equal', windowsVirtualKeyCode: 187, modifiers: 2 })
+  })
+
+  describe('borrowed keyboard focus', () => {
+    beforeEach(borrowGuest)
+
+    it.each(['type', 'key'])('refuses %s without a focus callback before dispatch', async (action) => {
+      await expect(
+        action === 'type' ? typeText(session, 'e1', 'new', true, true, {}) : pressKey(session, 'x', {})
+      ).rejects.toMatchObject({ code: 'input_not_focused' })
+      expect((target as HTMLInputElement).value).toBe('old')
+      expect(host.value).toBe('host draft')
+      expect(inputCommands()).toEqual([])
+    })
+
+    it.each(['type', 'key'])('refuses %s after a false-positive acknowledgement', async (action) => {
+      guestFocused = false
+      const options = { focusInput: async () => {} }
+      await expect(
+        action === 'type' ? typeText(session, 'e1', 'new', true, true, options) : pressKey(session, 'x', options)
+      ).rejects.toMatchObject({ code: 'input_not_focused' })
+      expect((target as HTMLInputElement).value).toBe('old')
+      expect(host.value).toBe('host draft')
+      expect(inputCommands()).toEqual([])
+    })
+
+    it.each(['guest', 'target'])('stops when %s focus is lost before the initial clear', async (loss) => {
+      const other = dom.window.document.createElement('input')
+      other.value = 'other field'
+      dom.window.document.body.append(other)
+      afterCommand = (method) => {
+        if (method === 'DOM.focus') {
+          if (loss === 'guest') guestFocused = false
+          else other.focus()
+        }
+      }
+      await expect(typeText(session, 'e1', 'new', true, true, { focusInput })).rejects.toMatchObject({
+        code: 'input_not_focused'
+      })
+      expect((target as HTMLInputElement).value).toBe('old')
+      expect(other.value).toBe('other field')
+      expect(host.value).toBe('host draft')
+      expect(inputCommands()).toEqual([])
+    })
+
+    it('stops between select-all and Backspace without clearing the host', async () => {
+      afterCommand = (method, params) => {
+        if (method === 'Input.dispatchKeyEvent' && params.commands) guestFocused = false
+      }
+      await expect(typeText(session, 'e1', 'new', true, true, { focusInput })).rejects.toMatchObject({
+        code: 'input_not_focused'
+      })
+      expect((target as HTMLInputElement).value).toBe('old')
+      expect(host.value).toBe('host draft')
+      expect(inputCommands().map(({ params }) => params.type)).toEqual(['rawKeyDown', 'keyUp'])
+    })
+
+    it('does not replay or submit after an ignored insertion loses focus', async () => {
+      rejectFirstInput = true
+      afterCommand = (method) => {
+        if (method === 'Input.insertText') guestFocused = false
+      }
+      await expect(typeText(session, 'e1', 'new', false, true, { focusInput })).rejects.toMatchObject({
+        code: 'input_not_focused'
+      })
+      expect((target as HTMLInputElement).value).toBe('old')
+      expect(host.value).toBe('host draft')
+      expect(inputCommands().map(({ method }) => method)).toEqual(['Input.insertText'])
+    })
+
+    it('releases key-down but suppresses char and submit after replay loses focus', async () => {
+      rejectFirstInput = true
+      afterCommand = (method, params) => {
+        if (method === 'Input.dispatchKeyEvent' && params.type === 'rawKeyDown' && params.key === 'n')
+          guestFocused = false
+      }
+      await expect(typeText(session, 'e1', 'new', true, true, { focusInput })).rejects.toMatchObject({
+        code: 'input_not_focused'
+      })
+      expect((target as HTMLInputElement).value).toBe('')
+      expect(host.value).toBe('host draft')
+      const replay = inputCommands().filter(({ params }) => params.key === 'n')
+      expect(replay.map(({ params }) => params.type)).toEqual(['rawKeyDown', 'keyUp'])
+      expect(inputCommands().filter(({ params }) => params.type === 'char' || params.key === 'Enter')).toEqual([])
+    })
+
+    it('stops before submit after successful insertion loses focus', async () => {
+      afterCommand = (method) => {
+        if (method === 'Input.insertText') guestFocused = false
+      }
+      await expect(typeText(session, 'e1', 'new', true, true, { focusInput })).rejects.toMatchObject({
+        code: 'input_not_focused'
+      })
+      expect((target as HTMLInputElement).value).toBe('new')
+      expect(host.value).toBe('host draft')
+      expect(inputCommands().filter(({ params }) => params.key === 'Enter')).toEqual([])
+    })
+
+    it('replays the complete appended value once while focus remains correct', async () => {
+      rejectFirstInput = true
+      const acknowledge = vi.fn(focusInput)
+      await typeText(session, 'e1', 'new', false, true, { focusInput: acknowledge })
+      expect((target as HTMLInputElement).value).toBe('oldnew')
+      expect(host.value).toBe('host draft')
+      expect(acknowledge).toHaveBeenCalledTimes(1)
+      expect(
+        inputCommands()
+          .filter(({ params }) => params.type === 'char')
+          .map(({ params }) => params.text)
+      ).toEqual(['o', 'l', 'd', 'n', 'e', 'w', '\r'])
+    })
+
+    it('types into a focused shadow-root input without touching the host', async () => {
+      const container = dom.window.document.createElement('div')
+      dom.window.document.body.append(container)
+      const root = container.attachShadow({ mode: 'open' })
+      root.innerHTML = '<input value="shadow">'
+      target = root.querySelector('input')!
+      await typeText(session, 'e1', 'new', true, false, { focusInput })
+      expect((target as HTMLInputElement).value).toBe('new')
+      expect(dom.window.document.activeElement).toBe(container)
+      expect(root.activeElement).toBe(target)
+      expect(host.value).toBe('host draft')
+    })
+
+    it('accepts an editable descendant whose editing host owns focus', async () => {
+      const editor = dom.window.document.createElement('div')
+      editor.setAttribute('contenteditable', 'true')
+      editor.tabIndex = 0
+      editor.innerHTML = '<span>old</span>'
+      dom.window.document.body.append(editor)
+      target = editor.firstElementChild!
+      await typeText(session, 'e1', '', false, false, { focusInput })
+      expect(dom.window.document.activeElement).toBe(editor)
+      expect(editor.textContent).toBe('old')
+      expect(host.value).toBe('host draft')
+      expect(inputCommands().map(({ method }) => method)).toEqual(['Input.insertText'])
+    })
+
+    it.each(['cancel', 'stale', 'timeout'])('preserves %s detected after an awaited guard', async (failure) => {
+      const abort = new AbortController()
+      const options = { focusInput, signal: abort.signal, deadline: Date.now() + 30_000 }
+      afterCommand = (method, params) => {
+        if (method !== 'Runtime.callFunctionOn' || !params.functionDeclaration.includes('document.hasFocus()')) return
+        if (failure === 'cancel') abort.abort(new Error('cancelled'))
+        if (failure === 'stale') vi.spyOn(session, 'resolveRef').mockReturnValue(2)
+        if (failure === 'timeout') options.deadline = Date.now() - 1
+      }
+      const action = typeText(session, 'e1', 'new', true, true, options)
+      if (failure === 'cancel') await expect(action).rejects.toThrow('cancelled')
+      else await expect(action).rejects.toMatchObject({ code: failure === 'stale' ? 'stale_ref' : 'timeout' })
+      expect((target as HTMLInputElement).value).toBe('old')
+      expect(host.value).toBe('host draft')
+      expect(inputCommands()).toEqual([])
+    })
+
+    it('releases Enter after submission invalidates the original ref', async () => {
+      afterCommand = (method, params) => {
+        if (method === 'Input.dispatchKeyEvent' && params.type === 'char' && params.key === 'Enter') {
+          vi.spyOn(session, 'resolveRef').mockImplementation(() => {
+            throw new Error('stale_ref')
+          })
+        }
+      }
+      await typeText(session, 'e1', 'new', true, true, { focusInput })
+      expect((target as HTMLInputElement).value).toBe('new')
+      expect(host.value).toBe('host draft')
+      expect(
+        inputCommands()
+          .filter(({ params }) => params.key === 'Enter')
+          .map(({ params }) => params.type)
+      ).toEqual(['rawKeyDown', 'char', 'keyUp'])
+    })
+
+    it('guards standalone keys without requiring an editable target', async () => {
+      afterCommand = (method, params) => {
+        if (method === 'Input.dispatchKeyEvent' && params.type === 'rawKeyDown' && params.key === 'x')
+          guestFocused = false
+      }
+      await pressKey(session, 'Tab', { focusInput })
+      await expect(pressKey(session, 'x', { focusInput })).rejects.toMatchObject({ code: 'input_not_focused' })
+      expect(host.value).toBe('host draft')
+      expect(inputCommands().map(({ params }) => [params.key, params.type])).toEqual([
+        ['Tab', 'rawKeyDown'],
+        ['Tab', 'keyUp'],
+        ['x', 'rawKeyDown'],
+        ['x', 'keyUp']
+      ])
+    })
   })
 
   it('holds the operation until navigation loads and interrupts the wait for a dialog', async () => {

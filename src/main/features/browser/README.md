@@ -137,8 +137,14 @@ use separate IPC events. Per-tool execution leases temporarily disable backgroun
 restore its previous value after the last execution. Webview screenshots retain a native frame
 subscription for the bounded CDP command, releasing it on completion, cancellation or timeout.
 
-Keyboard readiness is checked against the invocation's current conversation owner
-and exact guest binding before and after renderer acknowledgement. Inert retained
-guests acknowledge background execution without taking DOM focus or revealing the
-pane; visible guests must focus successfully. Missing guests, cancellation and
-ownership changes reject the input before CDP keyboard dispatch.
+Borrowed keyboard/text input requires a positive `focused` renderer acknowledgement,
+validated against the invocation's current conversation owner and exact guest binding.
+Inert retained guests still report `background` without taking focus or revealing the
+pane; keyboard actions reject that status with `input_not_focused`. `unavailable` keeps
+returning `not_found`. A missing focus callback also refuses borrowed keyboard actions.
+After the single focus request, every key-down, character and text insertion checks
+current, unemulated guest focus; typing also checks the resolved target's editing focus
+through its root. Detected focus loss stops clearing, replay and submission without
+reacquiring focus. An already pressed key is released even after focus or ref loss.
+Bring the browser pane into view, focus it and inspect the page before retrying:
+earlier input may already have been applied. Managed-session focus behavior is unchanged.

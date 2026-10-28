@@ -19,7 +19,9 @@ interface Tab {
   getNetworkRequests(options?: { clear?: boolean }): Promise<object>
   click(ref: string, options?: { button?: 'left' | 'right' | 'middle'; count?: number }): Promise<object>
   hover(ref: string): Promise<object>
+  // Requires the browser pane and intended field to retain input focus.
   type(ref: string, text: string, options?: { clear?: boolean; submit?: boolean }): Promise<object>
+  // Requires the browser pane to retain input focus; no editable target required.
   pressKey(key: string): Promise<object>
   scroll(pages: number, ref?: string): Promise<object>
   selectOption(ref: string, values: string[]): Promise<object>
@@ -51,6 +53,8 @@ await tab.getAXState();
 ```
 
 Use only observed refs. A navigation/replaced page invalidates references; reacquire them from fresh AX state. Never guess refs or selectors. Prefer AX for locating controls and screenshots for visual confirmation; do not request both by default. Coordinates in screenshot metadata are not an input API.
+
+`type` and `pressKey` require the browser pane to be in view and successfully focused. A background pane or detected focus loss returns `input_not_focused` and stops input, clearing, replay and submission without reacquiring focus. Bring the pane into view and focus it, then inspect with `getAXState()` before retrying; earlier input may already have been applied.
 
 Await actions sequentially. If the next action depends on an unseen page or dialog, stop the cell at that observation. If an action fails or has no visible effect, observe the blocker before retrying; never replay the whole cell. Do not reload a URL merely to reconfirm the current state. One authoritative visible success signal is enough.
 

@@ -207,7 +207,13 @@ export class BrowserGuestRegistry implements Disposable {
     const pending = this.pendingFocus.get(requestId)
     if (!pending || pending.target !== this.targets.get(sessionId) || pending.target.tabId !== tabId) return
     if (pending.target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
-    pending.finish(status === 'unavailable' ? new BrowserSessionError('not_found') : undefined)
+    pending.finish(
+      status === 'unavailable'
+        ? new BrowserSessionError('not_found')
+        : status === 'background'
+          ? new BrowserSessionError('input_not_focused')
+          : undefined
+    )
   }
 
   handlePopup(guest: WebContents, details: Electron.HandlerDetails): boolean {

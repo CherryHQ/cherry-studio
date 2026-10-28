@@ -64,8 +64,8 @@ parallel work; operations on a single tab run serially.
 | `click` | `ref`, `button?`, `clickCount?` | Real mouse events; covered left single clicks use a reported synthetic fallback |
 | `hover` | `ref` | Mouse movement; covered targets fail |
 | `scroll` | `ref?`, `pages?` | Scroll viewport or target; negative pages scroll up |
-| `type` | `ref`, `text`, `clear?`, `submit?` | Input events, read-back verification and one bounded retry; optional Enter |
-| `press_key` | `key` | Key or chord, e.g. `Enter`, `Control+a`, `Meta+a`, `Shift+Tab` |
+| `type` | `ref`, `text`, `clear?`, `submit?` | Input events with focused borrowed guest/target prerequisites, read-back verification and one focus-guarded retry; optional Enter |
+| `press_key` | `key` | Key or chord, e.g. `Enter`, `Control+a`, `Meta+a`, `Shift+Tab`; borrowed guest must acknowledge and retain input focus |
 | `select_option` | `ref`, `values` | Native select by value then label; validates all choices before mutation |
 | `go_back`, `go_forward` | — | Tab history navigation |
 | `wait_for` | `text?`, `ref?`, `gone?`, `timeoutMs?` | At least text or ref; waits up to 30 seconds for snapshot presence/absence |
@@ -75,7 +75,15 @@ parallel work; operations on a single tab run serially.
 Snapshot and action results are JSON text with `ok`, `tabId`, `url`, `title`,
 `navigated`, and `snapshot` on success. Covered fallback clicks include
 `occluded: true` and `synthetic: true`. Failures include `error`; stale refs tell
-the caller to re-snapshot. Pending dialogs and download state changes accompany
+the caller to re-snapshot. Borrowed `type`/`press_key` require a visible pane that
+successfully acknowledges focus, then recheck unemulated guest focus before each
+key-down/character or text insertion. Typing also requires the intended editable to
+retain editing focus, including during clearing, the bounded value-mismatch replay
+and optional submission. Background acknowledgements, missing focus callbacks and
+detected focus loss return `input_not_focused` without reacquiring focus or continuing
+input; already pressed keys are released. Bring the browser pane into view and focus
+it, then inspect the page before retrying; earlier input may already have been applied.
+Managed interactions retain focus emulation. Pending dialogs and download state changes accompany
 results. Popups switch the active tab and report `newTabId`; the current result snapshot still
 belongs to the source tab, so observe the new tab explicitly. An `execute` interrupted by a page dialog returns the same error envelope.
 

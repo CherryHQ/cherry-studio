@@ -8,9 +8,11 @@ import { application } from '@application'
 import { BaseService, Signal } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../../BrowserSessionService'
+import type { BrowserController } from '../../mcp/browserController'
 import { CdpBrowserController } from '../../mcp/controller'
 import { handleExecute } from '../../mcp/tools/execute'
 import { handleConsoleMessages, handleNetworkRequests } from '../../mcp/tools/inspect'
+import { handleInteraction } from '../../mcp/tools/interact'
 import { handleWaitFor } from '../../mcp/tools/navigate'
 import { handleHistory } from '../../mcp/tools/navigate'
 import { handleReset } from '../../mcp/tools/reset'
@@ -834,6 +836,43 @@ describe('MCP browser on shared sessions', () => {
     expect(await c.execute('document.title', 5000, false, opened.tabId)).toBe('source.example')
     expect(windows.size).toBe(1)
   })
+
+  it.each(['borrowed', 'managed'] as const)(
+    'keeps %s interaction emulation policy and focus errors',
+    async (ownership) => {
+      const c: BrowserController = controller()
+      const { guest, mock } = createGuest(1)
+      const session = await service.acquire(
+        guest,
+        'interaction-test',
+        ownership === 'managed' ? { ownership, close: () => mock.close() } : { ownership }
+      )
+      vi.spyOn(c, 'getSession').mockResolvedValue({
+        tabId: 'tab-focus',
+        session,
+        ...(ownership === 'managed'
+          ? {
+              focusInput: async () => {
+                throw new BrowserSessionError('input_not_focused')
+              }
+            }
+          : {})
+      })
+      const result = await handleInteraction('press_key', c, { key: 'x' })
+      expect(result.isError).toBe(true)
+      expect(JSON.parse((result.content[0] as { text: string }).text)).toMatchObject({
+        ok: false,
+        error: 'input_not_focused',
+        message:
+          'Browser input stopped because the page or target field does not have input focus. Bring the browser pane into view and focus it, then inspect the page before retrying; earlier input may already have been applied.'
+      })
+      const calls = mock.debugger.sendCommand.mock.calls
+      expect(calls.filter(([method]) => method.startsWith('Input.'))).toEqual([])
+      expect(calls.filter(([method]) => method === 'Emulation.setFocusEmulationEnabled')).toEqual(
+        ownership === 'managed' ? [['Emulation.setFocusEmulationEnabled', { enabled: true }]] : []
+      )
+    }
+  )
 
   it('preserves borrowed pages when controller and service shut down', async () => {
     const { guest, mock } = createGuest(1)

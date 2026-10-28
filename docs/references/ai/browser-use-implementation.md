@@ -141,7 +141,7 @@ export interface BrowserSnapshot {
 // Planned PR B adapter result; not part of the PR A API.
 export interface BrowserActionResult {
   ok: boolean
-  error?: 'stale_ref' | 'not_found' | 'dialog_open' | 'occluded' | 'timeout' | 'debugger_unavailable' | 'not_allowed'
+  error?: 'stale_ref' | 'input_not_focused' | 'not_found' | 'dialog_open' | 'occluded' | 'timeout' | 'debugger_unavailable' | 'not_allowed'
   url: string
   title: string
   navigated: boolean               // main-frame navigation happened during settle
@@ -362,8 +362,22 @@ and the scrolled-page Electron acceptance case.
 
 ### 5.4 Keyboard (`actions/keyboard.ts`)
 
-- `type`: verify the target is editable, then `DOM.focus({ backendNodeId })`. With `clear`, select all using `Control/Meta+a` and clear with `Backspace`; otherwise position the caret at the end. Insert text with `Input.insertText`, then read back `value ?? textContent`. A mismatch retries the complete expected value once through the centralized key-event pipeline, after clearing the field. Multiline mismatches and a failed retry return `not_found` without exposing the observed field value. With `submit`, press Enter after successful verification.
+- `type`: verify the target is editable and request input focus once, then `DOM.focus({ backendNodeId })`. With `clear`, select all using `Control/Meta+a` and clear with `Backspace`; otherwise position the caret at the end. Insert text with `Input.insertText`, then read back `value ?? textContent`. A mismatch retries the complete expected value once through the centralized key-event pipeline, after clearing the field, only while the focus guards pass. Multiline mismatches and a failed retry return `not_found` without exposing the observed field value. With `submit`, press Enter after successful verification.
 - `press_key`: parse `Modifier+Key`; the centralized key table maps names to `{ key, code, windowsVirtualKeyCode }`. Dispatch `rawKeyDown`, an optional `char`, then `keyUp`. Printable text and Enter (`text: '\r'`) emit `char` unless Control, Meta or Alt suppress text. Modifiers bitmask: Alt 1, Control 2, Meta 4, Shift 8. The platform select-all chord also passes Chromium's `selectAll` editing command.
+
+Borrowed keyboard actions require a focus callback and a matching renderer `focused`
+acknowledgement. `background` rejects with `input_not_focused`; `unavailable` keeps
+`not_found`. After admission, check unemulated `document.hasFocus()` before every
+key-down, character and text insertion. Typing additionally checks the resolved
+editable's editing host against its root's active element, including shadow roots.
+Guard after `DOM.focus` before caret changes, before each clear/fallback key, insertion,
+replay clear/character and submit. Focus failure escapes immediately without replay or
+reacquisition; release an already dispatched key even after focus or ref loss.
+`press_key` checks guest routing without requiring an editable, so Tab remains usable.
+`input_not_focused` tells callers to bring the browser pane into view and focus it, then
+inspect before retrying because earlier input may already have been applied. Managed
+interaction and hidden AX focus emulation remain unchanged; borrowed interactions do
+not enable it. Focus observation and native dispatch are asynchronous, not atomic.
 
 ### 5.5 Forms (`actions/forms.ts`)
 
@@ -917,7 +931,9 @@ each call. Never accept a raw `webContentsId`, profile or owner from model argum
 or foreign targets fail; do not fall back to another session or create a hidden MCP tab. Opening a
 browser requests `browser.guest.ensure_requested` at the stable renderer host and waits with cancellation
 and a deadline for a verified binding. `browser.pane.open_requested` is a separate presentation request;
-tool execution does not depend on a visible pane. A renderer with no declared session owner cannot
+observations and other non-keyboard tools do not depend on a visible pane. Borrowed
+keyboard/text input requires a visible, focused pane and stops when guest or intended
+editing focus is lost; it never reveals the pane or reacquires focus as recovery. A renderer with no declared session owner cannot
 create the guest; an unavailable host still returns a bounded error.
 
 `WebviewSurface` keeps a stable portal parent and the last viewport. Hidden presentation uses opacity
