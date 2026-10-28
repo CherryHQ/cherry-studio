@@ -75,20 +75,33 @@ through native namespace discovery, so basic identity application rules remain
 in the stable prompt independently of MCP discovery.
 
 Before each new turn, the harness checks `SOUL.md`, `USER.md`, and `memory/FACT.md`
-in Agent storage and delivers a complete `<agent_identity>` snapshot. This does
-not depend on the model choosing a Read tool or a skill. Creation, edits,
-clearing, and deletion take effect on the next turn of a reused connection.
-Empty sections explicitly withdraw previous contents, including those preserved
-in conversation summaries. The latest snapshot remains subordinate to the Agent
-System Prompt and current user instructions.
+in Agent storage. Creation, edits, clearing, and deletion take effect on the next
+turn of a reused connection. Empty sections explicitly withdraw previous contents,
+including those preserved in conversation summaries. The latest snapshot remains
+subordinate to the Agent System Prompt and current user instructions.
 
-Claude Code supplies identity through `UserPromptSubmit.additionalContext`,
-deduplicated per connection, and reloads it through `SessionStart` after native
-compaction or session restoration. Pi updates the `agent_identity` system section
-in `before_agent_start`; its native section diffing preserves unchanged context
-and replaces changed content. Neither path rebuilds a connection solely because
-an identity file changed. Changes made during an active turn are picked up at the
-next turn boundary; workspace prompt files retain their existing lifecycle.
+Claude Code delivers identity through 16 fixed `UserPromptSubmit` hook slots,
+with bodies of up to 9,600 UTF-16 code units per part and a maximum of 10,000 units
+per wrapped context. Every part carries a batch identifier, its logical part
+number, and reconstruction instructions: arrival order is not guaranteed.
+Unchanged snapshots are not injected again on the same connection. `SessionStart`
+forces a reload after native compaction or session restoration.
+
+Complete delivery without a Read tool is guaranteed only when the snapshot fits
+in the available parts (nominal capacity: 153,600 UTF-16 code units; line and
+surrogate boundaries can reduce it). Larger snapshots explicitly degrade to a
+prefix: every part is marked truncated, the last part reports delivered and
+omitted counts and the three source paths, and the main process logs a warning.
+Omitted contents are unknown and must not be filled from an earlier snapshot.
+The model may read the source files to recover them, subject to tool availability
+and permissions. If the overflow notice itself cannot fit, no parts are delivered
+and a warning is logged.
+
+Pi updates the `agent_identity` system section in `before_agent_start`; its native
+section diffing preserves unchanged context and replaces changed content. Neither
+path rebuilds a connection solely because an identity file changed. Changes made
+during an active turn are picked up at the next turn boundary; workspace prompt
+files retain their existing lifecycle.
 
 ## Update and variable lifecycle
 
