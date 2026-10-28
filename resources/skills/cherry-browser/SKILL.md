@@ -44,7 +44,7 @@ have different capabilities; only advertise the tools actually exposed. Navigati
 can replace the document and invalidate old refs. Session or profile changes revoke
 the target entirely. Missing targets are unavailable, not permission to choose another.
 
-`type` inserts text newlines as characters (`char '\r'`), never as Enter commands. A single-line target rejects multiline text with `not_found` before any mutation, including clearing. For `type`, only `submit: true` sends Enter after successful value verification. `pressKey('Meta+a')` on macOS and `pressKey('Control+a')` elsewhere keep working on borrowed panes: selection is applied through the page to the active editable, and key events still fire. With no active editable, only key events are sent.
+`type` inserts newlines as text without triggering Enter. CRLF is normalized to LF. A single-line target rejects multiline text with `not_found` before any mutation, including clearing. For `type`, only `submit: true` sends Enter after successful value verification. `pressKey('Meta+a')` on macOS and `pressKey('Control+a')` elsewhere select the active editable's contents; an unsupported target fails with `not_found`.
 
 ## Screenshots
 

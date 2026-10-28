@@ -142,29 +142,31 @@ owner and exact guest binding. A visible pane receives DOM focus; an inert retai
 pane acknowledges `background` without being revealed. Both acknowledgements admit
 input through that guest's `webContents.sendInputEvent`, regardless of host DOM or
 OS foreground focus. Text uses `keyDown`, `char` and `keyUp` per Unicode code point;
-text newlines use only `char '\r'`, never Enter key-down/key-up. A single-line
-target rejects multiline text with `not_found` before any mutation. Chords use
+CRLF is normalized to LF, and text newlines use only `char '\r'`, never Enter
+key-down/key-up. A single-line target rejects multiline text with `not_found` before any mutation. Chords use
 key-down, optional character and key-up events. Clearing selects the contents
 in-page, rechecks the target and sends `Backspace`. Inputs without a selection API
 (such as email and number) instead clear their value in-page and dispatch bubbling
 `input`, then `change`, before read-back verification. The platform select-all chord
 (`Meta+a` on macOS, `Control+a` elsewhere) selects the active editable's contents
-in-page and still delivers key events. With no active editable, it sends key events
-only. Managed keyboard input uses CDP.
-The borrowed controller supplies the focus request and routing assertion through
-`BrowserActionOptions`. Before each event it checks the binding, operation and,
-for typing, the resolved target's editing focus through its root. Target focus loss
-returns `input_not_focused`; failed renderer focus preparation returns
+in-page and still delivers key events. An unsupported active target returns
+`not_found`. Managed keyboard input uses CDP.
+The borrowed controller supplies the focus request and route assertion through
+`BrowserActionOptions`; it verifies the binding and live guest. Keyboard actions
+check the resolved target's editing focus, including shadow roots and editing hosts.
+The session input transport checks cancellation, deadlines, dialogs and availability.
+Target focus loss returns `input_not_focused`; failed renderer focus preparation returns
 `input_unavailable`. Ref invalidation, cancellation and deadlines also stop input.
-Key release is skipped when the route, target ref or operation cannot be validated.
-Typing reads back the value and retries a mismatch once through the same delivery
-path. Inspect the page before retrying a failed action; earlier input may already
-have been applied. Managed interactions and MCP mouse/form interactions use focus
-emulation; borrowed keyboard tools use direct guest delivery.
+Keys are released even after cancellation, timeout or route/ref invalidation, with
+a separate one-second deadline; only guest destruction skips release. Typing reads
+back the value. CDP retries a mismatch once; borrowed input fails without replay.
+Inspect the page before retrying a failed action; earlier input may already have
+been applied. All MCP interactions use focus emulation; borrowed keyboard tools
+use direct guest delivery through the session input transport.
 
 For `type`, `submit: true` is the only path that sends Enter. Borrowed input
 delivers the Enter key event to the bound
 guest regardless of host focus: `keyDown Enter`, `char '\r'`, then `keyUp Enter`.
-Page `keydown` handlers receive it and textareas insert a line break. Forms that
-accept implicit submission (a submit button, or at most one field that blocks
-implicit submission) submit; the page's own `keydown` handling decides the rest.
+Page `keydown` handlers receive it and textareas insert a line break. Forms with a
+submit button can submit implicitly. Forms without one can do so only if they
+contain at most one text-like input. The page's own `keydown` handling decides the rest.

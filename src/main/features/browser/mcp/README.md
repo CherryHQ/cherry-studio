@@ -25,8 +25,8 @@ are serialized, and target revocation cancels active and queued work.
 
 The UI owns these guests. Control uses borrowed leases with explicit inspection observers;
 releasing control preserves the guest and concurrent annotation leases. Native dialogs are not
-auto-dismissed. Borrowed keyboard tools deliver directly to the guest; MCP mouse/form
-interactions enable focus emulation. Fresh observation clears browser
+auto-dismissed. Borrowed keyboard tools deliver directly to the guest. All MCP interactions enable
+focus emulation. Fresh observation clears browser
 refs without invalidating a running annotation capture. The setting defaults on for unset preferences and runtime
 connection signatures reflect changes. Enabling Browser control grants all known browser tools
 without per-action approval until the user turns it off. Runtime gates and queued dispatch enforce
@@ -65,7 +65,7 @@ parallel work; operations on a single tab run serially.
 | `click` | `ref`, `button?`, `clickCount?` | Real mouse events; covered left single clicks use a reported synthetic fallback |
 | `hover` | `ref` | Mouse movement; covered targets fail |
 | `scroll` | `ref?`, `pages?` | Scroll viewport or target; negative pages scroll up |
-| `type` | `ref`, `text`, `clear?`, `submit?` | Guest-directed text with target editing-focus checks, read-back verification and one retry; optional Enter |
+| `type` | `ref`, `text`, `clear?`, `submit?` | Guest-directed text with target editing-focus checks, read-back verification; one CDP retry; optional Enter |
 | `press_key` | `key` | Key or chord, e.g. `Enter`, `Control+a`, `Meta+a`, `Shift+Tab`; borrowed input targets the bound guest regardless of host focus |
 | `select_option` | `ref`, `values` | Native select by value then label; validates all choices before mutation |
 | `go_back`, `go_forward` | — | Tab history navigation |
@@ -80,24 +80,27 @@ the caller to re-snapshot. Borrowed `type`/`press_key` request focus once and ac
 both `focused` and `background` acknowledgements. They send input through the bound
 guest's `webContents.sendInputEvent`, including when the pane is inert or the host
 composer holds focus. Typing requires the intended editable to retain editing focus
-during clearing, insertion, the bounded value-mismatch retry and optional submission.
-The controller checks the binding, cancellation and deadline before each event.
+during clearing, insertion and optional submission. A CDP value mismatch may retry once;
+borrowed input fails without replaying the insertion. The controller checks the binding;
+the action checks element focus, and the transport checks cancellation, deadlines,
+dialogs and guest availability before delivery.
 Target focus loss returns `input_not_focused`; unavailable renderer focus preparation
 returns `input_unavailable`. Inspect the page and take a fresh snapshot before retrying;
-earlier input may already have been applied. Keys are released only while their route,
-ref and operation remain valid. Managed interactions and MCP mouse/form tools enable
-focus emulation. Pending dialogs and download state changes accompany
+earlier input may already have been applied. Keys are released even after cancellation,
+timeout or route/ref invalidation, using a separate one-second deadline; only guest destruction skips release. All MCP interactions
+enable focus emulation. Pending dialogs and download state changes accompany
 results. Popups switch the active tab and report `newTabId`; the current result snapshot still
 belongs to the source tab, so observe the new tab explicitly. An `execute` interrupted by a page dialog returns the same error envelope.
 
-Text newlines are inserted as characters, never as Enter commands. Borrowed input
-uses only `char '\r'`, without Enter key-down/key-up. A single-line target rejects
-multiline text with `not_found` before any mutation. For `type`, `submit: true` is
-the only path that sends Enter. Borrowed input delivers the Enter key event to the bound
-guest regardless of host focus: `keyDown Enter`, `char '\r'`, then `keyUp Enter`.
-Page `keydown` handlers receive it and textareas insert a line break. Forms that
-accept implicit submission (a submit button, or at most one field that blocks
-implicit submission) submit; the page's own `keydown` handling decides the rest.
+For `type`, newlines are inserted as text without triggering Enter, and CRLF is
+normalized to LF. A single-line target rejects multiline text with `not_found`
+before any mutation. Only `submit: true` sends Enter after value verification.
+
+`submit: true` and `press_key` with Enter deliver the Enter key event to the bound
+guest regardless of host focus. Page `keydown` handlers receive it and textareas
+insert a line break. Forms with a submit button can submit implicitly.
+Forms without one can do so only if they contain at most one text-like input. The
+page's own `keydown` handling decides the rest.
 
 Inspection tools use the same result envelope and untrusted-data notice. `find` adds `matches`;
 console/network tools add `messages` / `requests`. Each includes `truncated` for the result limit.

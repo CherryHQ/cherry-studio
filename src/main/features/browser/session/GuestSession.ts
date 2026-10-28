@@ -27,13 +27,14 @@ import { sanitizeSnapshotUrl, serializeSnapshot, type SnapshotRevision } from '.
 import { BrowserInspection, type ConsoleLevel } from './BrowserInspection'
 import { BrowserSessionError } from './BrowserSessionError'
 import { cdpAllowList, type CdpCommandArgs, type CdpEvent, cdpEventMethods, type CdpMethod } from './cdpAllowList'
+import { CdpInputTransport, type InputTransport, SendInputEventTransport } from './InputTransport'
 import { WebMcpTools } from './WebMcpTools'
 
 const logger = loggerService.withContext('GuestSession')
 
 export class GuestSession implements Disposable {
   readonly ownership: SessionOwnership['ownership']
-  readonly sendInputEvent?: (event: Electron.KeyboardInputEvent) => void
+  readonly input: InputTransport
   retention: TabRetention = 'temporary'
   lastActive = Date.now()
   private currentDocumentId = ''
@@ -75,7 +76,7 @@ export class GuestSession implements Disposable {
     ownership: SessionOwnership['ownership']
   ) {
     this.ownership = ownership
-    if (ownership === 'borrowed') this.sendInputEvent = (event) => guest.sendInputEvent(event)
+    this.input = ownership === 'borrowed' ? new SendInputEventTransport(this) : new CdpInputTransport(this)
     this.electronSession = guest.session
     this.electronDebugger = guest.debugger
     this.electronDebugger.on('message', this.onMessage)

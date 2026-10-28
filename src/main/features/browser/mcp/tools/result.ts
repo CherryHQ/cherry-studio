@@ -29,7 +29,7 @@ export async function browserResult(
       signal: targetSignal,
       pointer,
       focusInput,
-      assertInputTarget
+      assertRoute
     } = await controller.getSession(target.privateMode, target.tabId)
     signal = targetSignal ? AbortSignal.any(signal ? [signal, targetSignal] : [targetSignal]) : signal
     return await session.run(
@@ -45,7 +45,7 @@ export async function browserResult(
               signal,
               pointer,
               focusInput,
-              assertInputTarget
+              assertRoute
             }))
           }
         } catch (error) {

@@ -853,7 +853,7 @@ describe('MCP browser on shared sessions', () => {
         focusInput: async () => {
           throw new BrowserSessionError('input_not_focused')
         },
-        assertInputTarget: async () => {}
+        assertRoute: async () => {}
       })
       const result = await handleInteraction('press_key', c, { key: 'x' })
       expect(result.isError).toBe(true)
@@ -863,9 +863,9 @@ describe('MCP browser on shared sessions', () => {
       })
       const calls = mock.debugger.sendCommand.mock.calls
       expect(calls.filter(([method]) => method.startsWith('Input.'))).toEqual([])
-      expect(calls.filter(([method]) => method === 'Emulation.setFocusEmulationEnabled')).toEqual(
-        ownership === 'managed' ? [['Emulation.setFocusEmulationEnabled', { enabled: true }]] : []
-      )
+      expect(calls.filter(([method]) => method === 'Emulation.setFocusEmulationEnabled')).toEqual([
+        ['Emulation.setFocusEmulationEnabled', { enabled: true }]
+      ])
     }
   )
 

@@ -79,7 +79,7 @@ export async function executeBrowserOperation(
     signal: AbortSignal.any([signal, ...(target.signal ? [target.signal] : [])]),
     pointer: target.pointer,
     focusInput: target.focusInput,
-    assertInputTarget: target.assertInputTarget
+    assertRoute: target.assertRoute
   }
   const session = target.session
   if (name === 'evaluate')

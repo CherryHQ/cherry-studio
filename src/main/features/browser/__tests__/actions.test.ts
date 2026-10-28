@@ -105,7 +105,7 @@ beforeEach(() => {
     let active = dom.window.document.activeElement
     while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
     const recipient = active as HTMLInputElement
-    if (event.type === 'keyDown' && event.keyCode === 'Enter' && recipient.tagName === 'INPUT')
+    if (event.type === 'keyDown' && event.keyCode === 'Return' && recipient.tagName === 'INPUT')
       recipient.form?.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
     if (event.type === 'keyDown' && event.keyCode === 'Backspace') {
       if ('value' in recipient) {
@@ -136,7 +136,11 @@ beforeEach(() => {
     if (method === 'DOM.getContentQuads') return { quads }
     if (method === 'Page.getLayoutMetrics') return { cssLayoutViewport: { pageX: 0, pageY: 0 } }
     if (method === 'DOM.getNodeForLocation') return { backendNodeId: hit === target ? 1 : 2 }
-    if (method === 'Runtime.evaluate') return { result: { value: dom.window.eval(params.expression) } }
+    if (method === 'Runtime.evaluate') {
+      const value = dom.window.eval(params.expression)
+      afterCommand(method, params)
+      return { result: { value } }
+    }
     if (method === 'DOM.focus') {
       ;(focusTarget ?? (target as HTMLElement)).focus()
     }
@@ -332,6 +336,78 @@ describe('Browser actions', () => {
     ).toEqual(['n', 'e', 'w'])
   })
 
+  it.each(['managed', 'borrowed'] as const)(
+    'normalizes multiline text for %s input before read-back',
+    async (ownership) => {
+      if (ownership === 'borrowed') await borrowGuest()
+      target = dom.window.document.createElement('textarea')
+      dom.window.document.body.append(target)
+      for (const text of ['\nabc', 'a\n\nb', 'a\r\nb']) {
+        await typeText(session, 'e1', text, true, false, ownership === 'borrowed' ? borrowedOptions : {})
+        expect((target as HTMLTextAreaElement).value).toBe(text === 'a\r\nb' ? 'a\nb' : text)
+        expect(host.value).toBe('host draft')
+      }
+    }
+  )
+
+  it.each(['managed', 'borrowed'] as const)('checks element focus for %s input after DOM.focus', async (ownership) => {
+    if (ownership === 'borrowed') await borrowGuest()
+    target = dom.window.document.querySelector('input')!
+    afterCommand = (method) => {
+      if (method === 'DOM.focus') (target as HTMLElement).blur()
+    }
+    await expect(
+      typeText(session, 'e1', 'new', true, false, ownership === 'borrowed' ? borrowedOptions : {})
+    ).rejects.toMatchObject({ code: 'input_not_focused' })
+    expect((target as HTMLInputElement).value).toBe('old')
+    expect(inputCommands()).toEqual([])
+    expect(sendInputEvent.mock.calls).toEqual([])
+  })
+
+  it.each(['managed', 'borrowed'] as const)(
+    'releases %s keys after cancellation or deadline expiry',
+    async (ownership) => {
+      if (ownership === 'borrowed') await borrowGuest()
+      target = dom.window.document.querySelector('input')!
+      ;(target as HTMLElement).focus()
+      for (const failure of ['cancel', 'timeout'] as const) {
+        const abort = new AbortController()
+        const options = {
+          ...(ownership === 'borrowed' ? borrowedOptions : {}),
+          signal: abort.signal,
+          deadline: Date.now() + 30000
+        }
+        const expire = () => {
+          if (failure === 'cancel') abort.abort(new Error('cancelled'))
+          else options.deadline = Date.now() - 1
+        }
+        afterInput = (event) => {
+          if (event.type === 'keyDown') expire()
+        }
+        afterCommand = (method, params) => {
+          if (method === 'Input.dispatchKeyEvent' && params.type === 'rawKeyDown') expire()
+        }
+        const action = pressKey(session, 'x', options)
+        if (failure === 'cancel') await expect(action).rejects.toThrow('cancelled')
+        else await expect(action).rejects.toMatchObject({ code: 'timeout' })
+        if (ownership === 'borrowed')
+          expect(sendInputEvent.mock.calls.map(([event]) => [event.type, event.keyCode])).toEqual([
+            ['keyDown', 'x'],
+            ['keyUp', 'x']
+          ])
+        else
+          expect(inputCommands().map(({ params }) => [params.type, params.key])).toEqual([
+            ['rawKeyDown', 'x'],
+            ['keyUp', 'x']
+          ])
+        expect((target as HTMLInputElement).value).toBe('old')
+        expect(host.value).toBe('host draft')
+        commands = []
+        sendInputEvent.mockClear()
+      }
+    }
+  )
+
   it('appends to email fields whose selection range API is unavailable', async () => {
     target = dom.window.document.querySelector('input')!
     target.setAttribute('type', 'email')
@@ -351,7 +427,14 @@ describe('Browser actions', () => {
     await pressKey(session, 'Control+a', {})
     await pressKey(session, 'Enter', {})
     const keys = commands.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => c.params)
-    expect(keys[0]).toMatchObject({ key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 })
+    const selection = platform.isMac ? [] : [{ type: 'rawKeyDown', commands: ['selectAll'] }, { type: 'keyUp' }]
+    expect(keys.slice(0, selection.length)).toEqual(selection)
+    expect(keys[selection.length]).toMatchObject({
+      key: 'a',
+      code: 'KeyA',
+      windowsVirtualKeyCode: 65,
+      modifiers: 2
+    })
     expect(keys.filter((k) => k.type === 'char')).toEqual([expect.objectContaining({ key: 'Enter', text: '\r' })])
     await expect(pressKey(session, 'Bogus+a', {})).rejects.toThrow('not_allowed')
   })
@@ -389,9 +472,9 @@ describe('Browser actions', () => {
         expect(inputCommands()).toEqual([])
         expect(sendInputEvent.mock.calls.map(([event]) => [event.type, event.keyCode])).toEqual(
           [...text].flatMap((character) => [
-            ['keyDown', character],
+            ['keyDown', character === ' ' ? 'Space' : character],
             ['char', character],
-            ['keyUp', character]
+            ['keyUp', character === ' ' ? 'Space' : character]
           ])
         )
       }
@@ -482,6 +565,68 @@ describe('Browser actions', () => {
       expect(inputCommands()).toEqual([])
     })
 
+    it('clears a React-controlled email with empty text without leaving stale state', async () => {
+      vi.stubGlobal('window', dom.window)
+      vi.stubGlobal('document', dom.window.document)
+      vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+      const { act, createElement, useState } = await import('react')
+      const { createRoot } = await import('react-dom/client')
+      const container = dom.window.document.createElement('div')
+      dom.window.document.body.append(container)
+      const root = createRoot(container)
+      const values: string[] = []
+      try {
+        function ControlledEmail() {
+          const [value, setValue] = useState('old@example.com')
+          return createElement('input', {
+            type: 'email',
+            value,
+            onChange: (event: { target: { value: string } }) => {
+              values.push(event.target.value)
+              act(() => setValue(event.target.value))
+            }
+          })
+        }
+        await act(async () => root.render(createElement(ControlledEmail)))
+        target = container.querySelector('input')!
+        await typeText(session, 'e1', '', true, false, borrowedOptions)
+        expect((target as HTMLInputElement).value).toBe('')
+        expect(values).toEqual([''])
+        expect(sendInputEvent.mock.calls).toEqual([])
+        expect(host.value).toBe('host draft')
+      } finally {
+        await act(async () => root.unmount())
+        await new Promise((resolve) => setImmediate(resolve))
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it.each(['none', 'email', 'number'])('fails select-all explicitly for an unsupported target: %s', async (kind) => {
+      if (kind !== 'none') {
+        ;(target as HTMLInputElement).type = kind
+        ;(target as HTMLElement).focus()
+      }
+      await expect(pressKey(session, platform.isMac ? 'Meta+a' : 'Control+a', borrowedOptions)).rejects.toMatchObject({
+        code: 'not_found'
+      })
+      expect(sendInputEvent.mock.calls).toEqual([])
+      expect(host.value).toBe('host draft')
+    })
+
+    it('selects all inside an open shadow root', async () => {
+      const container = dom.window.document.createElement('div')
+      dom.window.document.body.append(container)
+      const shadow = container.attachShadow({ mode: 'open' })
+      shadow.innerHTML = '<input value="shadow">'
+      target = shadow.querySelector('input')!
+      ;(target as HTMLElement).focus()
+      await pressKey(session, platform.isMac ? 'Meta+a' : 'Control+a', borrowedOptions)
+      expect([(target as HTMLInputElement).selectionStart, (target as HTMLInputElement).selectionEnd]).toEqual([0, 6])
+      await pressKey(session, 'Backspace', borrowedOptions)
+      expect((target as HTMLInputElement).value).toBe('')
+      expect(host.value).toBe('host draft')
+    })
+
     it.each([
       [true, 'Meta+a'],
       [false, 'Control+a']
@@ -534,9 +679,15 @@ describe('Browser actions', () => {
       expect(inputCommands()).toEqual([])
     })
 
-    it.each(['type', 'key'])('refuses %s without a focus callback before dispatch', async (action) => {
+    it.each(['type', 'key'])('refuses %s when focus preparation is unavailable before dispatch', async (action) => {
+      const options = {
+        ...borrowedOptions,
+        focusInput: async () => {
+          throw new BrowserSessionError('input_unavailable')
+        }
+      }
       await expect(
-        action === 'type' ? typeText(session, 'e1', 'new', true, true, {}) : pressKey(session, 'x', {})
+        action === 'type' ? typeText(session, 'e1', 'new', true, true, options) : pressKey(session, 'x', options)
       ).rejects.toMatchObject({ code: 'input_unavailable' })
       expect((target as HTMLInputElement).value).toBe('old')
       expect(host.value).toBe('host draft')
@@ -571,9 +722,9 @@ describe('Browser actions', () => {
               ]
             : []),
           ...[...text].flatMap((character) => [
-            ['keyDown', character],
+            ['keyDown', character === ' ' ? 'Space' : character],
             ['char', character],
-            ['keyUp', character]
+            ['keyUp', character === ' ' ? 'Space' : character]
           ])
         ])
       }
@@ -586,9 +737,9 @@ describe('Browser actions', () => {
         await pressKey(session, chord, borrowedOptions)
         const expected: Record<string, Electron.KeyboardInputEvent[]> = {
           Enter: [
-            { type: 'keyDown', keyCode: 'Enter', modifiers: [] },
+            { type: 'keyDown', keyCode: 'Return', modifiers: [] },
             { type: 'char', keyCode: '\r', modifiers: [] },
-            { type: 'keyUp', keyCode: 'Enter', modifiers: [] }
+            { type: 'keyUp', keyCode: 'Return', modifiers: [] }
           ],
           'Control+a': [
             { type: 'keyDown', keyCode: 'a', modifiers: ['control'] },
@@ -665,7 +816,7 @@ describe('Browser actions', () => {
 
     it('rechecks target focus after page selection before Backspace', async () => {
       afterCommand = (method, params) => {
-        if (method === 'Runtime.callFunctionOn' && params.functionDeclaration.includes('this.setSelectionRange'))
+        if (method === 'Runtime.evaluate' && params.expression.includes('target.setSelectionRange'))
           (target as HTMLElement).blur()
       }
       await expect(typeText(session, 'e1', 'new', true, true, borrowedOptions)).rejects.toMatchObject({
@@ -689,25 +840,23 @@ describe('Browser actions', () => {
       expect(host.value).toBe('host draft')
       expect(sendInputEvent.mock.calls.map(([event]) => event)).toEqual([
         { type: 'keyDown', keyCode: 'n', modifiers: [] },
-        { type: 'char', keyCode: 'n', modifiers: [] }
+        { type: 'char', keyCode: 'n', modifiers: [] },
+        { type: 'keyUp', keyCode: 'n', modifiers: [] }
       ])
       expect(inputCommands()).toEqual([])
     })
 
-    it('suppresses char, keyUp and submit after key-down loses the target', async () => {
+    it('suppresses char and submit but releases the key after key-down loses the target', async () => {
       ;(target as HTMLInputElement).focus()
       afterInput = (event) => {
         if (event.type === 'keyDown') (target as HTMLElement).blur()
       }
-      await expect(
-        pressKey(session, 'x', {
-          ...borrowedOptions,
-          assertInputTarget: (_objectId, options) => borrowedOptions.assertInputTarget!('target', options)
-        })
-      ).rejects.toMatchObject({ code: 'input_not_focused' })
+      await expect(typeText(session, 'e1', 'x', false, true, borrowedOptions)).rejects.toMatchObject({
+        code: 'input_not_focused'
+      })
       expect((target as HTMLInputElement).value).toBe('old')
       expect(host.value).toBe('host draft')
-      expect(sendInputEvent.mock.calls.map(([event]) => event.type)).toEqual(['keyDown'])
+      expect(sendInputEvent.mock.calls.map(([event]) => event.type)).toEqual(['keyDown', 'keyUp'])
       expect(inputCommands()).toEqual([])
     })
 
@@ -730,36 +879,29 @@ describe('Browser actions', () => {
         ['char', 'e'],
         ['keyUp', 'e'],
         ['keyDown', 'w'],
-        ['char', 'w']
+        ['char', 'w'],
+        ['keyUp', 'w']
       ])
       expect(inputCommands()).toEqual([])
     })
 
-    it('replays the complete appended Unicode value once through the guest route', async () => {
+    it('does not replay or submit a borrowed insertion after a read-back mismatch', async () => {
       rejectFirstInput = true
       const acknowledge = vi.fn(borrowedOptions.focusInput)
-      await typeText(session, 'e1', '中文🙂e\u0301', false, true, { ...borrowedOptions, focusInput: acknowledge })
-      expect((target as HTMLInputElement).value).toBe('old中文🙂e\u0301')
+      await expect(
+        typeText(session, 'e1', '中文🙂e\u0301', false, true, { ...borrowedOptions, focusInput: acknowledge })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      expect((target as HTMLInputElement).value).toBe('old文🙂e\u0301')
       expect(host.value).toBe('host draft')
       expect(acknowledge).toHaveBeenCalledTimes(1)
       expect(inputCommands()).toEqual([])
-      expect(sendInputEvent.mock.calls.map(([event]) => [event.type, event.keyCode])).toEqual([
-        ...[...'中文🙂e\u0301'].flatMap((character) => [
+      expect(sendInputEvent.mock.calls.map(([event]) => [event.type, event.keyCode])).toEqual(
+        [...'中文🙂e\u0301'].flatMap((character) => [
           ['keyDown', character],
           ['char', character],
           ['keyUp', character]
-        ]),
-        ['keyDown', 'Backspace'],
-        ['keyUp', 'Backspace'],
-        ...[...'old中文🙂e\u0301'].flatMap((character) => [
-          ['keyDown', character],
-          ['char', character],
-          ['keyUp', character]
-        ]),
-        ['keyDown', 'Enter'],
-        ['char', '\r'],
-        ['keyUp', 'Enter']
-      ])
+        ])
+      )
     })
 
     it('types into a focused shadow-root input without touching the host', async () => {
@@ -822,7 +964,7 @@ describe('Browser actions', () => {
       }
     )
 
-    it('skips Enter release after submission invalidates the original ref', async () => {
+    it('releases Enter after submission invalidates the original ref', async () => {
       afterInput = (event) => {
         if (event.type === 'char' && event.keyCode === '\r')
           vi.spyOn(session, 'resolveRef').mockImplementation(() => {
@@ -840,8 +982,9 @@ describe('Browser actions', () => {
           ['char', character],
           ['keyUp', character]
         ]),
-        ['keyDown', 'Enter'],
-        ['char', '\r']
+        ['keyDown', 'Return'],
+        ['char', '\r'],
+        ['keyUp', 'Return']
       ])
       expect(inputCommands()).toEqual([])
     })
