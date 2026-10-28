@@ -1,3 +1,6 @@
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+
 import type { Locator, Page } from '@playwright/test'
 
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
@@ -50,12 +53,15 @@ async function configureTool(page: Page, model: string, provider: string): Promi
 }
 
 async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void> {
+  const workspace =
+    app.record.platform === 'windows' ? join(app.paths.workspace, 'code tools {literal}') : app.paths.workspace
+  mkdirSync(workspace, { recursive: true })
   await page.getByRole('button', { name: 'Launch', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Select Folder', exact: true }).click()
-  chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
-  await expect(dialog.getByPlaceholder('Select working directory', { exact: true })).toHaveValue(app.paths.workspace)
+  chooseNativeFile(app.record.platform, app.paths, workspace)
+  await expect(dialog.getByPlaceholder('Select working directory', { exact: true })).toHaveValue(workspace)
   if (app.record.platform === 'windows') {
     await dialog.getByRole('combobox').click()
     await page.getByRole('option', { name: 'Command Prompt', exact: true }).click()

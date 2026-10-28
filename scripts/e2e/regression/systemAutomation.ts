@@ -494,7 +494,20 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'Add-Type -AssemblyName UIAutomationClient',
       'Add-Type -AssemblyName UIAutomationTypes',
       'Add-Type -AssemblyName System.Windows.Forms',
-      `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeDialog { [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); }'`,
+      `Add-Type -TypeDefinition '
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class NativeDialog {
+  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string value);
+  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder value);
+}'`,
       '$root = [System.Windows.Automation.AutomationElement]::RootElement',
       `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
@@ -518,25 +531,34 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
             '  if (-not $focused) { Start-Sleep -Milliseconds 100 }',
             '} while (-not $focused -and [DateTime]::UtcNow -lt $deadline)',
             'if (-not $focused) { throw "Native folder dialog could not receive focus" }',
-            '[System.Windows.Forms.SendKeys]::SendWait("^l")',
+            '[NativeDialog]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)',
+            '[NativeDialog]::keybd_event(0x4C, 0, 0, [UIntPtr]::Zero)',
+            '[NativeDialog]::keybd_event(0x4C, 0, 2, [UIntPtr]::Zero)',
+            '[NativeDialog]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)',
             '$addressCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "41477"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
+            '$addressCondition = [System.Windows.Automation.AndCondition]::new($addressCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
             '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
             'do {',
             '  $address = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
+            '  if ($address -and -not [NativeDialog]::IsWindowVisible([IntPtr]$address.Current.NativeWindowHandle)) { $address = $null }',
             '  if (-not $address) { Start-Sleep -Milliseconds 100 }',
             '} while (-not $address -and [DateTime]::UtcNow -lt $deadline)',
             'if (-not $address) { throw "Native folder address input was not found" }',
-            '$value = $address.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
-            `$value.SetValue('${escapePowerShell(filePath)}')`,
-            `if ($value.Current.Value -ne '${escapePowerShell(filePath)}') { throw "Native folder address readback mismatch" }`,
+            '$addressHandle = [IntPtr]$address.Current.NativeWindowHandle',
+            `$null = [NativeDialog]::SetText($addressHandle, 0x000C, [IntPtr]::Zero, '${escapePowerShell(filePath)}')`,
+            '$value = [System.Text.StringBuilder]::new(32768)',
+            '$null = [NativeDialog]::ReadText($addressHandle, 0x000D, [IntPtr]::new($value.Capacity), $value)',
+            `if ($value.ToString() -ne '${escapePowerShell(filePath)}') { throw "Native folder address readback mismatch" }`,
             'if ([NativeDialog]::GetForegroundWindow() -ne $dialogHandle) { throw "Native folder dialog lost foreground ownership" }',
-            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
+            '[NativeDialog]::keybd_event(0x0D, 0, 0, [UIntPtr]::Zero)',
+            '[NativeDialog]::keybd_event(0x0D, 0, 2, [UIntPtr]::Zero)',
             '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
             'do {',
             '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
             '  $dialog = $windows | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle } | Select-Object -First 1',
             '  if (-not $dialog) { break }',
             '  $editing = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
+            '  if ($editing -and -not [NativeDialog]::IsWindowVisible([IntPtr]$editing.Current.NativeWindowHandle)) { $editing = $null }',
             '  if (-not $editing) { break }',
             '  Start-Sleep -Milliseconds 100',
             '} while ([DateTime]::UtcNow -lt $deadline)',

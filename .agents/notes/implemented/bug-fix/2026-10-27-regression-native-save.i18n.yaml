@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-27-regression-native-save.md
-2026-10-27-regression-native-save.md: 91beb2162053ec657d870275ffad27d9200a0eb6
-2026-10-27-regression-native-save.zh.md: d6d7e7105a5cd25a37fa7c4f7d52e7f9cbb83924
+2026-10-27-regression-native-save.md: d120f65779fb4720e2fdd4f4c6a7e62a4464bc85
+2026-10-27-regression-native-save.zh.md: 4ef1d1cbe71c9d425adefb8c8f77833bbb4f7770

@@ -39,8 +39,8 @@ it.each([
   { name: 'an unrelated native executable', process: { ...claude, ParentProcessId: 1 }, expected: false },
   { name: 'a process without executable identity', process: { ...claude, ExecutablePath: null }, expected: false },
   {
-    name: 'a similarly named SDK executable',
-    process: { ...claude, ExecutablePath: 'C:\\sdk\\claude-agent.exe' },
+    name: 'a similarly named executable',
+    process: { ...claude, ExecutablePath: 'C:\\tools\\claude-wrapper.exe' },
     expected: false
   },
   {
