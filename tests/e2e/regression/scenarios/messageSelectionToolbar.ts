@@ -359,7 +359,11 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
 
     await page.evaluate(() => window.api.preference.set('chat.message.multi_model.style', 'grid'))
     await page.getByRole('button', { name: 'Selected models', exact: true }).click()
-    await page.getByRole('switch', { name: 'Multi-select', exact: true }).click()
+    const multiSelect = page
+      .getByTestId('model-selector-content')
+      .getByRole('button', { name: 'Multi-select', exact: true })
+    await multiSelect.click()
+    await expect(multiSelect).toHaveAttribute('aria-pressed', 'true')
     await selectVisibleModel(page, 'mock-grid')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('mock-grid')
