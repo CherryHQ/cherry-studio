@@ -100,8 +100,22 @@ vi.mock('@main/core/lifecycle', () => {
       return disposable
     }
   }
+  class MockEmitter<T> {
+    private listeners: Array<(value: T) => void> = []
+    readonly event = (listener: (value: T) => void) => {
+      this.listeners.push(listener)
+      return { dispose: () => {} }
+    }
+    fire(value: T) {
+      for (const listener of this.listeners) listener(value)
+    }
+    dispose() {
+      this.listeners = []
+    }
+  }
   return {
     BaseService: MockBaseService,
+    Emitter: MockEmitter,
     Injectable: () => (target: unknown) => target,
     ServicePhase: () => (target: unknown) => target,
     DependsOn: () => (target: unknown) => target,
@@ -1293,6 +1307,32 @@ describe('ScreenshotOverlayService', () => {
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
 
+    it('reports the session as active only to the window that started it', async () => {
+      singleDisplaySetup()
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
+
+      await service.startCapture('quick-assistant')
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(true)
+      // Another window's hide-on-blur must not be suppressed by someone else's capture.
+      expect(service.isSessionRequestedBy('main-window')).toBe(false)
+
+      await service.commit({ pngBytes: PNG_BYTES })
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
+    })
+
+    it('announces an abandoned session so the requester can settle its suppressed hide', async () => {
+      singleDisplaySetup()
+      const ended = vi.fn()
+      service.onSessionEnded(ended)
+      await service.startCapture('quick-assistant')
+
+      service.dismiss()
+
+      // Nothing refocuses the requester on this path, and the blur it swallowed to open
+      // the overlay is never coming back.
+      expect(ended).toHaveBeenCalledWith('quick-assistant')
+    })
+
     it('still dismisses the overlays when the clipboard write throws', async () => {
       singleDisplaySetup()
       await service.startCapture()
@@ -1469,6 +1509,32 @@ describe('ScreenshotOverlayService', () => {
 
       expect(capture.requestScreenCapturePermission).not.toHaveBeenCalled()
       expect(capture.openScreenCaptureSettings).toHaveBeenCalled()
+    })
+
+    it('keeps the requester of an open permission guide when the hotkey asks again', async () => {
+      singleDisplaySetup()
+      capture.getScreenCapturePermissionStatus.mockReturnValue('denied')
+      let closeGuide: (value: { response: number }) => void = () => {}
+      electron.dialog.showMessageBox.mockReturnValue(
+        new Promise((resolve) => {
+          closeGuide = resolve
+        })
+      )
+      const ended = vi.fn()
+      service.onSessionEnded(ended)
+
+      await service.startCapture('quick-assistant')
+      // The global shortcut fires while the guide is still on screen.
+      await service.startCapture()
+
+      // Losing ownership here would let the quick assistant's suppressed blur go unsettled.
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(true)
+      expect(electron.dialog.showMessageBox).toHaveBeenCalledTimes(1)
+
+      closeGuide({ response: 1 })
+      await vi.runAllTimersAsync()
+      expect(ended).toHaveBeenCalledWith('quick-assistant')
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
     })
 
     it('guides to permission rather than logging an error when the capture itself is denied', async () => {

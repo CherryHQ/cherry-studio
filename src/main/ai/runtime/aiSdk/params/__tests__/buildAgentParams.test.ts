@@ -21,6 +21,7 @@ const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
 import { createAutomationReplToolEntries } from '../../../../tools/adapters/aiSdk/builtin/AutomationReplTools'
 import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/FsReadTool'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
+import { isApprovalGated } from '../../../../tools/adapters/aiSdk/isApprovalGated'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
@@ -2446,6 +2447,43 @@ describe('resolveTools knowledge-base wiring', () => {
     const { tools } = await resolveTools({ conversation: CONVERSATION }, undefined, makeModel(), false, [])
 
     expect(tools?.[KB_GATED_TOOL_NAME]).toBeUndefined()
+  })
+})
+
+describe('resolveTools approval gating', () => {
+  // Stands in for a "manual approval" MCP tool: the gate the SDK and tool_invoke both honor.
+  const gatedEntry: ToolEntry = {
+    name: 'test-approval-gated-tool',
+    namespace: 'test',
+    description: 'test-only tool that asks before it runs',
+    defer: 'never',
+    tool: { needsApproval: true } as Tool
+  }
+
+  beforeEach(() => registry.register(gatedEntry))
+  afterEach(() => registry.deregister(gatedEntry.name))
+
+  const gatedIn = async (request: Parameters<typeof resolveTools>[0]) => {
+    const { tools } = await resolveTools(request, undefined, makeModel(), false, [])
+    return isApprovalGated(tools![gatedEntry.name])
+  }
+
+  it('keeps asking for approval on a normal chat', async () => {
+    await expect(gatedIn({ conversation: CONVERSATION })).resolves.toBe(true)
+  })
+
+  it('runs the tool without asking when the request opts out (temporary chats)', async () => {
+    // A temporary chat has no continuation path, so a pending approval would end the turn
+    // with the tool call stuck at approval-requested.
+    await expect(gatedIn({ conversation: CONVERSATION, autoApproveTools: true })).resolves.toBe(false)
+  })
+
+  it('leaves the shared registry entry gated after a temporary request', async () => {
+    // The override must be per request: mutating the process-wide entry would silently
+    // auto-approve the tool for every chat that follows.
+    await gatedIn({ conversation: CONVERSATION, autoApproveTools: true })
+
+    await expect(gatedIn({ conversation: CONVERSATION })).resolves.toBe(true)
   })
 })
 

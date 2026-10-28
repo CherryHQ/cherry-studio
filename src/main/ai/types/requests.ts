@@ -104,6 +104,11 @@ export interface AiChatRequest extends AiRequest {
   interactionWindowId?: WindowId
   /** In-process safety switch for MCP sampling; prevents tool recursion. */
   disableTools?: boolean
+  /**
+   * Main-internal: run approval-gated tools without asking. Only temporary chats set it — they
+   * have no continuation path, so a pending approval would end the turn unanswered for good.
+   */
+  autoApproveTools?: boolean
 }
 
 /**

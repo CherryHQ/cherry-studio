@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -38,6 +37,7 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+  const { navigateToRoute } = useMessageListActions()
 
   const claudeCodeExit = getClaudeCodeExitInfo(error)
   if (claudeCodeExit) {
@@ -65,7 +65,20 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
+            // Not a router <Link>: the message list also renders in windows without a
+            // router, where navigation goes through the adapter to the main window.
+            provider: (
+              <button
+                type="button"
+                style={{ color: 'var(--link)' }}
+                className="cursor-pointer bg-transparent p-0 underline-offset-2 hover:underline"
+                onClick={(event) => {
+                  // The surrounding error row opens the detail popup on click.
+                  event.stopPropagation()
+                  void navigateToRoute?.({ path: '/settings/provider', query: { id: providerId } })
+                }}
+              />
+            )
           }}
         />
       )

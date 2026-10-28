@@ -513,7 +513,9 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
-  useChatWrite: () => mocks.chatWrite ?? { pause: vi.fn(), startNewContext: vi.fn() }
+  // `null` models a surface without a ChatWriteContext provider (the quick assistant).
+  useChatWrite: () =>
+    mocks.chatWrite === null ? null : (mocks.chatWrite ?? { pause: vi.fn(), startNewContext: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -574,8 +576,11 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
+const tabState = vi.hoisted(() => ({ isActiveTab: true, hasTabs: true }))
+
 vi.mock('@renderer/hooks/tab', () => ({
-  useIsActiveTab: () => true
+  useIsActiveTab: () => tabState.isActiveTab,
+  useOptionalTabsContext: () => (tabState.hasTabs ? {} : null)
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -847,6 +852,46 @@ describe('ChatComposer', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch
     globalThis.ResizeObserver = originalResizeObserver
+  })
+
+  const screenshotTarget = () =>
+    ipcRequestMock.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1].scopeKey
+
+  it('takes screenshots in a window without tabs, where its one composer is always current', async () => {
+    // The quick assistant has no tab system; reading that as "not the active tab" left it
+    // unregistered, so a capture could never be sent to its draft.
+    tabState.isActiveTab = false
+    tabState.hasTabs = false
+    try {
+      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(screenshotTarget()).toEqual(expect.any(String)))
+
+      await act(async () => {
+        mocks.eventListeners.get('chat.screenshot.attachment')?.({
+          imageUrl: 'cherry-media://image/capture',
+          name: 'capture.png',
+          size: 42,
+          text: '',
+          scopeKey: screenshotTarget(),
+          deliveryId: 'tabless-capture'
+        })
+      })
+      expect(mocks.files).toEqual([expect.objectContaining({ blob: expect.any(Blob), type: 'image' })])
+    } finally {
+      tabState.isActiveTab = true
+      tabState.hasTabs = true
+    }
+  })
+
+  it('does not take screenshots in a background tab', async () => {
+    tabState.isActiveTab = false
+    try {
+      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+      expect(screenshotTarget() ?? null).toBeNull()
+    } finally {
+      tabState.isActiveTab = true
+    }
   })
 
   it('appends a screenshot and its message to the draft without sending', async () => {
@@ -1551,6 +1596,14 @@ describe('ChatComposer', () => {
     }
   )
 
+  it('keeps assistant and model selection available in the compact home composer', () => {
+    render(<ChatPlacementComposer placement="home" topic={topic} onSend={vi.fn()} compactWhenSingleLine />)
+
+    const compactControls = screen.getByTestId('composer-compact-controls')
+    expect(compactControls).toHaveTextContent('Assistant 1')
+    expect(compactControls).toHaveTextContent('Model A')
+  })
+
   it('does not enable skill marker paste handling', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -2201,6 +2254,23 @@ describe('ChatComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
+  it('stops the running turn from Pause on a surface without a chat-write context', () => {
+    // The quick assistant has no ChatWriteContext; Pause must reach its own stop rather than
+    // silently doing nothing while generation continues.
+    mocks.chatWrite = null
+    mocks.topicPending = true
+    const onPause = vi.fn()
+    try {
+      render(<ChatComposer topic={topic} onSend={vi.fn()} onPause={onPause} />)
+      act(() => {
+        void mocks.surfaceProps?.onPause?.()
+      })
+      expect(onPause).toHaveBeenCalledTimes(1)
+    } finally {
+      mocks.chatWrite = undefined
+    }
+  })
+
   it('queues a follow-up while the topic is streaming (does not send directly)', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
@@ -2214,6 +2284,41 @@ describe('ChatComposer', () => {
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+  })
+
+  it('disables steering a queued follow-up into a running turn when the backend cannot take it', async () => {
+    // Temporary topics have no steer queue: a steer would be rejected by main after the dock
+    // had already dropped the item, losing the follow-up.
+    mocks.topicPending = true
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'follow-up', tokens: [] })
+    })
+    const steerDisabled = () => {
+      const dock = mocks.surfaceProps?.queueContent as any
+      return dock.props.isSteerDisabled(dock.props.items[0])
+    }
+    expect(steerDisabled()).toBe(false)
+
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} steerWhileBusy={false} />)
+    expect(steerDisabled()).toBe(true)
+  })
+
+  it('does not carry a queued follow-up into the next topic of a shared draft scope', async () => {
+    // Quick assistant keeps one draft scope across temporary topics. A follow-up queued on
+    // an aborted turn never drains there, so it must not drain into the next conversation.
+    mocks.topicPending = true
+    const view = render(
+      <ChatComposer topic={topic} scopeKey="queue-scope-shared" topicId="queue-topic-a" onSend={vi.fn()} />
+    )
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued on A', tokens: [] })
+    })
+    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+
+    view.rerender(<ChatComposer topic={topic} scopeKey="queue-scope-shared" topicId="queue-topic-b" onSend={vi.fn()} />)
+
+    await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeUndefined())
   })
 
   it('restores queued knowledge selection from the user-message parts', async () => {

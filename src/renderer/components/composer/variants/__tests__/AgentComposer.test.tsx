@@ -279,7 +279,7 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
-vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
+vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true, useOptionalTabsContext: () => ({}) }))
 vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, callback: (payload: any) => void) => {
     useEffect(() => {
