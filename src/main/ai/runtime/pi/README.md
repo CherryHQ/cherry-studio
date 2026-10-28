@@ -18,6 +18,11 @@ Pi owns context, streaming, reasoning replay, tools and compaction. Cherry's gat
 selection, upstream credentials and billing. Pi's native transcript remains the replay source;
 product messages are a display projection. Tools advertised to the gateway have no executor there.
 
+Pi uses one gateway compatibility predicate for model selection, child catalogs and
+native binding. The desktop binding receives only an internal gateway credential; upstream API keys,
+OAuth refresh and provider request patches stay in Cherry's provider execution. There is no desktop
+direct-provider route or Pi-specific OAuth stream wrapper.
+
 The binding preserves the model's native protocol when the gateway supports it. The model route
 uses `providerId:apiModelId`; the gateway resolves the configured Cherry model. Internal usage
 headers associate provider calls with the active Agent input. The internal listener works independently
