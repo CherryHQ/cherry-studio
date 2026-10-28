@@ -83,17 +83,24 @@ function trackVerifiedMembers(taskId: string, storageDir?: string): void {
  * fork has to be sampled while the launcher still parents the worker, or no channel — group,
  * descriptors, marker, parent chain — ever ties the worker to this task again.
  */
-function launchMembershipPulse(taskId: string, storageDir?: string): NodeJS.Timeout {
+function launchMembershipPulse(taskId: string, storageDir?: string): () => void {
   let pulses = 0
-  const timer = setInterval(() => {
+  let active: NodeJS.Timeout | undefined = setInterval(() => {
     trackVerifiedMembers(taskId, storageDir)
     pulses += 1
     if (pulses < LAUNCH_WINDOW_PULSES) return
-    clearInterval(timer)
+    const current = active
     const steady = setInterval(() => trackVerifiedMembers(taskId, storageDir), LEADERLESS_GROUP_POLL_MS)
     steady.unref?.()
+    active = steady
+    if (current) clearInterval(current)
   }, LAUNCH_WINDOW_PULSE_MS)
-  return timer
+  active.unref?.()
+  return () => {
+    if (active === undefined) return
+    clearInterval(active)
+    active = undefined
+  }
 }
 
 /**
@@ -1253,6 +1260,8 @@ interface MarkerReadContext {
   command: string
   cwd: string
   accounted: ReadonlySet<number>
+  /** When this app observed the leader's exit; a row born after it cannot be its child. */
+  leaderDiedAt?: Date
 }
 
 function processWorkingDirectory(pid: number): string | null {
@@ -1371,6 +1380,48 @@ function hasUnreadableEnvironmentCandidate(readTable: CandidateTableReader, cont
     if (cwd !== null && sameDirectory(cwd, context.cwd)) return true
   }
   return false
+}
+
+/**
+ * A leaderless task's remaining evidence is temporal: a worker its launcher forked must appear
+ * in the table as a fresh same-user orphan. Such a row matches nothing that would tie it to the
+ * task — the launcher's exit destroyed every attribution channel — but while one is alive the
+ * task's work is not provably gone, so its identity goes into the ledger and the completion
+ * waits for it. A row the task's still-living leader could not have produced (the task commands
+ * its own children directly) is someone else's daemon and must not hold the completion.
+ */
+function captureUnattributedNewcomers(
+  readTable: CandidateTableReader,
+  context: MarkerReadContext,
+  storageDir: string,
+  taskId: string
+): boolean {
+  const uid = process.getuid?.()
+  if (uid === undefined) return true
+  const table = readTable()
+  if (table === null) return true
+  const taskAge = (Date.now() - context.since.getTime()) / 1_000
+  const captured: MarkerHolder[] = []
+  for (const row of table.split('\n')) {
+    const fields = row.trim().split(/\s+/)
+    // pid, ppid, uid, state, then `etime`.
+    if (fields.length < 5) continue
+    const pid = Number(fields[0])
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid || context.accounted.has(pid)) continue
+    if (Number(fields[1]) !== 1 || Number(fields[2]) !== uid) continue
+    if (fields[3].startsWith('Z')) continue
+    const age = elapsedSeconds(fields[4])
+    if (age === null || age > taskAge + 2) continue
+    // A launcher forks its worker at the very edge of its life, so a row born well before the
+    // leader's exit was already running independently of the task — a daemon of another program.
+    if (context.leaderDiedAt && age > (Date.now() - context.leaderDiedAt.getTime()) / 1_000 + 1) continue
+    if (!isPidAlive(pid)) continue
+    const lstart = getPidStartTime(pid)
+    if (!lstart) return true
+    captured.push({ pid, lstart })
+  }
+  if (captured.length > 0) void recordObservedMembers(storageDir, taskId, captured)
+  return captured.length > 0
 }
 
 /** `ps`'s `etime` — `[[DD-]HH:]MM:SS` — in seconds. */
@@ -1598,7 +1649,6 @@ export async function startDetachedBackgroundTask(
     // still tie it to one it has verified, and that tie is easiest to establish while its parent
     // lives. The Windows kill targets the pid tree instead, so there is nothing to verify there.
     const taking = process.platform === 'win32' ? undefined : launchMembershipPulse(id, input.storageDir)
-    taking?.unref?.()
     let settled = false
     // The completion the leader's handler observed. A member it backgrounded (`sleep 1 &`) can
     // outlive that handler, so the observation is held until the group drains. The recovery path
@@ -1606,6 +1656,7 @@ export async function startDetachedBackgroundTask(
     let observedCompletion:
       | { status: BackgroundTaskCompletion['status']; exitCode: number | null; signal: string | null }
       | undefined
+    let leaderDiedAt: Date | undefined
     // Publishes the observed completion once the task's group holds no live member. A live
     // member keeps both the completion and the ownership — the only thing that makes a
     // leaderless group verifiably this task's — so Stop/Kill stays reachable and the completion
@@ -1617,6 +1668,24 @@ export async function startDetachedBackgroundTask(
       // An identity write still in flight is not in the ledger the checks below read yet: settling
       // now would let this task finish and give up an ownership the worker outlives.
       await ownedTaskGroups.get(id)?.persisting
+      // A launcher that exited after detaching a worker leaves it observable only as a fresh
+      // same-user orphan. While its leader still lives the leader commands its own children, so
+      // the orphans in the table are someone else's; once the leader is reaped, an orphan of this
+      // task's age is the one plausible piece of work left, and its identity goes into the ledger
+      // — the completion waits for the worker the table cannot otherwise name.
+      if (
+        observedCompletion !== undefined &&
+        captureUnattributedNewcomers(
+          readCandidateTable,
+          { ...(await markerReadContext(input.storageDir, record)), leaderDiedAt },
+          input.storageDir,
+          id
+        )
+      ) {
+        const poll = setTimeout(() => void settleThroughGroupDrain(), LEADERLESS_GROUP_POLL_MS)
+        poll.unref?.()
+        return
+      }
       if (
         process.platform !== 'win32' &&
         record.pid > 0 &&
@@ -1639,7 +1708,7 @@ export async function startDetachedBackgroundTask(
           return
         }
       }
-      if (taking) clearInterval(taking)
+      taking?.()
       ownedTaskGroups.delete(id)
       const completion = observedCompletion
       if (completion) {
@@ -1654,6 +1723,7 @@ export async function startDetachedBackgroundTask(
       }
     }
     const finalize = (status: BackgroundTaskCompletion['status'], exitCode: number | null, signal: string | null) => {
+      leaderDiedAt = new Date()
       observedCompletion = { status, exitCode, signal }
       if (settled) return
       settled = true
@@ -1769,7 +1839,7 @@ export async function startDetachedBackgroundTask(
       } finally {
         // The pulse stays up through the kill: its verification is what lets `killGroupWork` tell
         // the task's members from whoever else the table shows.
-        if (taking) clearInterval(taking)
+        taking?.()
         if (cleaned) ownedTaskGroups.delete(id)
       }
       // A plain "start failed" here invites a retry that duplicates work that is in fact still

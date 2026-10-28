@@ -1331,21 +1331,13 @@ describe('backgroundTasks', () => {
           await expect(hasLiveTaskEvidence(storageDir, settled)).resolves.toBe(true)
           expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toEqual([])
 
-          // The worker cannot be named, so a stop may not claim a termination it never verified:
-          // the record stays live instead of handing the survivor to a purge.
+          // The settlement holds the completion until the worker leaves, and its identity is now
+          // in the ledger — so a stop reaches the worker the table cannot otherwise name and
+          // certifies the kill, instead of reporting an unverifiable survivor.
           const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
-          expect(stopped?.status).toBe('running')
-          expect(stopped?.terminationUnverified).toBe(true)
-          expect(isPidAlive(workerPid)).toBe(true)
-
-          // The survivor leaving is the only thing that ends the task.
-          process.kill(workerPid, 'SIGKILL')
-          await vi.waitFor(
-            async () => {
-              expect((await readdir(storageDir)).some((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toBe(true)
-            },
-            { timeout: 15_000 }
-          )
+          expect(stopped?.status).toBe('stopped')
+          expect(stopped?.terminationUnverified).toBeUndefined()
+          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
         } finally {
           try {
             if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
