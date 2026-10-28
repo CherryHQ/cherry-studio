@@ -43,6 +43,42 @@ describe('composer math editor', () => {
     expect(serializeComposerDocument(editor).text).toBe('see $x$')
   })
 
+  it('discovers distant raw math after escaping an earlier dollar', () => {
+    createEditor().commands.insertContent(String.raw`$5 and $x$`)
+    expect(children()).toEqual([text('$5 and $x$')])
+    editor.commands.setTextSelection(1)
+    editor.commands.insertContent('\\')
+    expect(children()).toEqual([text(String.raw`\$5 and `), math('x')])
+    expect(serializeComposerDocument(editor).text).toBe(String.raw`\$5 and $x$`)
+  })
+
+  it('discovers distant raw math after deleting an earlier dollar', () => {
+    createEditor().commands.insertContent('$ $x$')
+    expect(children()).toEqual([text('$ $x$')])
+    editor.commands.deleteRange({ from: 1, to: 2 })
+    expect(children()).toEqual([text(' '), math('x')])
+    expect(serializeComposerDocument(editor).text).toBe(' $x$')
+  })
+
+  it('keeps ambiguous source consistent with a single insertion', () => {
+    createEditor().commands.setContent('$ x $a$b$')
+    expect(children()).toEqual([text('$ x $a'), math('b')])
+    expect(serializeComposerDocument(editor).text).toBe('$ x $a$b$')
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.insertContent('!')
+    expect(children()).toEqual([text('$ x $a'), math('b'), text('!')])
+    expect(serializeComposerDocument(editor).text).toBe('$ x $a$b$!')
+  })
+
+  it('retains both formulas when typing at the end of $x$ and $y$', () => {
+    createEditor().commands.insertContent('$x$ and $y$')
+    expect(children()).toEqual([math('x'), text(' and '), math('y')])
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.insertContent('!')
+    expect(children()).toEqual([math('x'), text(' and '), math('y'), text('!')])
+    expect(serializeComposerDocument(editor).text).toBe('$x$ and $y$!')
+  })
+
   it('expands math after a preceding dollar and restores it when the dollar is removed', () => {
     createEditor().commands.insertContent('$x$')
     expect(children()).toEqual([math('x')])

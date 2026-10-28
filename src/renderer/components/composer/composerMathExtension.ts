@@ -24,18 +24,8 @@ function transformDocument(state: EditorState, enabled: boolean, ranges: readonl
     const flush = () => {
       const changedRanges = ranges.filter((range) => range.from <= runEnd && range.to >= runStart)
       if (runText && (!enabled || changedRanges.length)) {
-        const sourceMap = new StepMap(
-          atoms.flatMap((atom) => [atom.from, atom.to - atom.from, atom.docTo - atom.docFrom])
-        )
-        const toSource = sourceMap.invert()
-        const localRanges = changedRanges.map((range) => {
-          const from = toSource.map(Math.max(runStart, range.from) - runStart)
-          let to = toSource.map(Math.min(runEnd, range.to) - runStart)
-          while (runText[to] === '\\') to += 1
-          return { from, to }
-        })
         const segments = enabled
-          ? transformComposerMathTextRun(runText, [...localRanges, ...atoms]).filter(
+          ? transformComposerMathTextRun(runText, [{ from: 0, to: runText.length }]).filter(
               (segment) => segment.type === 'inlineMath'
             )
           : []
