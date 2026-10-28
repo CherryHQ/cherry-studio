@@ -172,7 +172,8 @@ const TopicMessageFlowCanvas = ({
   const rootFocusPositionY = rootFocusTarget?.positionY
   const rootFocusCenterY = rootFocusTarget?.centerY
   const focusActive = rootFocusTarget?.isActive
-  const focusSignature = focusReady === true && rootFocusKey ? String(focusKey ?? 'initial') : null
+  const focusSignature =
+    focusReady === true && rootFocusKey ? `${focusKey ?? 'initial'}:${graph.activeNodeId ?? 'root'}` : null
   const [readyViewport, setReadyViewport] = useState<Viewport | null>(null)
   const initialViewportSignatureRef = useRef<string | null>(null)
 

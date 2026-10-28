@@ -317,7 +317,7 @@ describe('TopicMessageFlowCanvas', () => {
     expect(setViewportMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the current viewport when the graph changes under the same pane focus key', async () => {
+  it('keeps the current viewport when the graph changes with the same active node and pane focus key', async () => {
     const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="docked:0" />)
 
     await waitFor(() => expect(setViewportMock).toHaveBeenCalledTimes(1))
@@ -362,7 +362,7 @@ describe('TopicMessageFlowCanvas', () => {
               }
             }
           ],
-          activeNodeId: 'user-2',
+          activeNodeId: graph.activeNodeId,
           stats: {
             activePathLength: 3,
             branchCount: 1,
@@ -391,7 +391,9 @@ describe('TopicMessageFlowCanvas', () => {
   })
 
   it('refocuses when the pane layout focus key changes', async () => {
-    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="docked:0" />)
+    const { rerender } = render(
+      <TopicMessageFlowCanvas graph={{ ...graph, activeNodeId: 'user-1' }} onNodeSelect={vi.fn()} focusKey="docked:0" />
+    )
 
     await waitFor(() => expect(setViewportMock).toHaveBeenCalledTimes(1))
     setViewportMock.mockClear()
