@@ -72,6 +72,29 @@ describe('deriveLegacyReasoningFields', () => {
 })
 
 describe('inferReasoningControls (ingest-time heuristics)', () => {
+  it.each(['step-5-preview', 'stepfun/step-5-preview', 'STEP-5-PREVIEW', 'StepFun/StEp-5-PrEvIeW'])(
+    'infers only the documented effort control for %s',
+    (id) => {
+      expect(inferReasoningControls(id)).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
+    }
+  )
+
+  // Membership alone does not imply an inferred effort vocabulary.
+  it.each([
+    'step-router-v1',
+    'step-5',
+    'step-5-pro',
+    'step-50',
+    'other-step-5-preview',
+    'step-5-preview-free',
+    'step-5-preview-2603',
+    'step-5-preview-non-reasoning',
+    'step-3-5-flash',
+    'step-3-7-flash'
+  ])('does not infer effort for %s', (id) => {
+    expect(inferReasoningControls(id)).toBeUndefined()
+  })
+
   it.each([
     // [id, expected controls]
     ['gpt-5.1', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
@@ -193,6 +216,15 @@ describe('catalog invariant: controls ↔ derived legacy fields', () => {
   const { models } = JSON.parse(readFileSync(modelsPath, 'utf-8')) as {
     models: Array<{ id: string; reasoning?: { controls?: ReasoningControl[] } & Record<string, unknown> }>
   }
+
+  it.each([
+    ['step-3-5-flash', ['low', 'high']],
+    ['step-3-7-flash', ['low', 'medium', 'high']]
+  ])('preserves the bundled effort vocabulary for %s', (id, values) => {
+    expect(
+      models.find((model) => model.id === id)?.reasoning?.controls?.find((control) => control.kind === 'effort')
+    ).toEqual({ kind: 'effort', values })
+  })
 
   // Key-order-insensitive: generated catalog ordering is an implementation detail.
   const canonical = (v: unknown): string =>

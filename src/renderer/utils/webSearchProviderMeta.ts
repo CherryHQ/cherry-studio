@@ -78,6 +78,11 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://querit.ai',
     apiKeyWebsite: 'https://www.querit.ai/en/dashboard/api-keys'
   },
+  searchapi: {
+    descriptionKey: 'settings.tool.websearch.provider_description.searchapi',
+    officialWebsite: 'https://www.searchapi.io',
+    apiKeyWebsite: 'https://www.searchapi.io/api_tokens'
+  },
   searxng: {
     descriptionKey: 'settings.tool.websearch.provider_description.searxng',
     iconRef: providerIconRef('searxng'),

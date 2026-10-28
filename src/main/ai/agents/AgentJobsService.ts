@@ -318,7 +318,6 @@ export class AgentJobsService extends BaseService {
     const reuseConfigChanged = reuseChanged || workspaceChanged
 
     const jobManager = application.get('JobManager')
-    let bindingCleared = false
     application.get('DbService').withWriteTx((tx) => {
       const snapshot = jobScheduleService.getByIdTx(tx, taskId)
       const currentReuse = readTaskSessionReuse(snapshot?.metadata)
@@ -330,7 +329,7 @@ export class AgentJobsService extends BaseService {
           enabled: nextReuseEnabled,
           revision: reuseRevision
         })
-        bindingCleared = agentSessionService.clearTaskScheduleTx(tx, taskId)
+        agentSessionService.clearTaskScheduleTx(tx, taskId)
       }
       if (
         snapshot &&
@@ -357,8 +356,9 @@ export class AgentJobsService extends BaseService {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
       }
     })
-    if (reuseConfigChanged || bindingCleared || patch.workspace !== undefined)
-      agentTaskService.notifyReadModelChange([taskId])
+    // Unconditional: the projection carries name/prompt/trigger too, and
+    // updateTx always bumps updatedAt — a silent rename strands IM/MCP windows.
+    agentTaskService.notifyReadModelChange([taskId])
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
@@ -375,6 +375,7 @@ export class AgentJobsService extends BaseService {
     // read-decide-write sequence is fully synchronous — no await gap.
     if (!existing.enabled) return existing
     await application.get('JobManager').pauseJobScheduleById(taskId)
+    agentTaskService.notifyReadModelChange([taskId])
     logger.info('Task paused', { taskId, agentId })
     return this.getActiveTask(agentId, taskId)
   }
@@ -386,7 +387,19 @@ export class AgentJobsService extends BaseService {
     // State-aware no-op: resuming an already-enabled task would re-register
     // the SchedulerService timer and reset an interval's phase.
     if (existing.enabled) return existing
-    application.get('JobManager').resumeJobScheduleById(taskId)
+    try {
+      application.get('JobManager').resumeJobScheduleById(taskId)
+    } catch (error) {
+      // `resumeJobScheduleById` commits the enable before arming, so an
+      // enabled row classifies the failure as arm-only — broadcast, rethrow.
+      try {
+        if (jobScheduleService.getById(taskId)?.enabled) agentTaskService.notifyReadModelChange([taskId])
+      } catch (classificationError) {
+        logger.warn('Failed to classify resume failure for read-model notification', classificationError as Error)
+      }
+      throw error
+    }
+    agentTaskService.notifyReadModelChange([taskId])
     logger.info('Task resumed', { taskId, agentId })
     return this.getActiveTask(agentId, taskId)
   }

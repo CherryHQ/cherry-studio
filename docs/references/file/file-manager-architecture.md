@@ -238,6 +238,9 @@ not retry blindly.
 - `trash` and `restore` only update internal entries' `deletedAt` state.
 - `permanentDelete` deletes the row first. It then best-effort unlinks an internal blob; an external
   path is never removed by this entry operation.
+- `deleteUnreferencedInternalEntry` checks persistent refs and deletes an internal row in one
+  transaction. Missing, external, and referenced entries are preserved. `ProfileService` uses it
+  only after replacing its Preference reference.
 - `deleteRetainedTemporaryEntry` is the stricter path for live automatic internal entries. It
   requires runtime retention, removes the physical blob first, and deletes the row only after the
   blob is gone. An unlink failure therefore leaves the entry tracked and retryable.

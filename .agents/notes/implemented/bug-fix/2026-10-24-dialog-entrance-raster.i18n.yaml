@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-24-dialog-entrance-raster.md
+2026-10-24-dialog-entrance-raster.md: 3117a224e98a8a9c69728cf55edf5fb7698370c3
+2026-10-24-dialog-entrance-raster.zh.md: 18286f327a08bcc07697a9daa2ea4c9ae4706ea5

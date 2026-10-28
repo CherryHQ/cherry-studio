@@ -53,6 +53,20 @@ describe('validate rejects broken translations', () => {
     expect(validate(english, 'Fourni par <site>{{provider}}</site>')).toMatch(/tag/)
   })
 
+  it('rejects a translation whose link target was swapped', () => {
+    // ovms.description ships <a href="..."> in every locale; attribute-bearing tags were
+    // invisible to the comparison, so a swapped link target passed the gate unnoticed.
+    const english = '<p>See the <a href="https://github.com/openvinotoolkit/model_server">guide</a>.</p>'
+    expect(validate(english, '<p>See the <a href="https://evil.example/phish">guide</a>.</p>')).toMatch(/tag/)
+  })
+
+  it('rejects a translation that altered an attribute-bearing img tag', () => {
+    const english = '<p><img src="https://cdn.example.com/logo.png" alt="logo"/> Cherry Studio</p>'
+    expect(validate(english, '<p><img src="https://evil.example/logo.png" alt="logo"/> Cherry Studio</p>')).toMatch(
+      /tag/
+    )
+  })
+
   it('rejects a translated product name', () => {
     expect(validate('Restart Cherry Studio', 'Перезапустите Вишнёвую Студию', ['Cherry Studio'])).toMatch(
       /Cherry Studio/
@@ -86,6 +100,21 @@ describe('validate accepts translations the catalog already relies on', () => {
     expect(validate('Read the <0>docs</0> first', 'Lisez d’abord la <0>documentation</0>')).toBeNull()
     const english = 'Please go to the <provider>{{provider}}</provider> to recharge.'
     expect(validate(english, 'Rufen Sie <provider>{{provider}}</provider> auf, um aufzuladen.')).toBeNull()
+  })
+
+  it('accepts matching attribute-bearing tags', () => {
+    expect(
+      validate(
+        '<p>See the <a href="https://github.com/openvinotoolkit/model_server">guide</a>.</p>',
+        '<p>Siehe die <a href="https://github.com/openvinotoolkit/model_server">Anleitung</a>.</p>'
+      )
+    ).toBeNull()
+    expect(
+      validate(
+        '<p><img src="https://cdn.example.com/logo.png" alt="logo"/></p>',
+        '<p><img src="https://cdn.example.com/logo.png" alt="logo"/></p>'
+      )
+    ).toBeNull()
   })
 
   it('accepts a technical string left in English', () => {
