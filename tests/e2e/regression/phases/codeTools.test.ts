@@ -1,5 +1,8 @@
 import type { Locator, Page } from '@playwright/test'
 
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+import type { OutputFor } from '@shared/ipc/types'
+
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { listOwnedProcessIds, observeOwnedProcess } from '../../../../scripts/e2e/regression/processEvidence'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
@@ -66,10 +69,40 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
   await closeSettings(page)
   const baseline = new Set(listOwnedProcessIds(app.record))
   await openCodeTool(page, 'Claude Code')
+  const codeView = page.locator('[data-ui~="code.view"]:visible').first()
+  const install = codeView.getByRole('button', { name: 'Install', exact: true })
+  const launch = codeView.getByRole('button', { name: 'Launch', exact: true })
+  await expect(install.or(launch)).toBeVisible()
+  if (await install.isVisible()) {
+    await install.click()
+    await expect(launch).toBeVisible({ timeout: 5 * 60_000 })
+  }
   await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
+  const snapshot = await page.evaluate(async () => {
+    const result = (await window.api.ipcApi.request('binary.get_tool_snapshots', ['claude'])) as IpcResult<
+      OutputFor<'binary.get_tool_snapshots'>
+    >
+    if (!result.ok) throw new Error(result.error.message)
+    return result.data.claude
+  })
   await launchWithWorkspace(app, page)
   await expect
-    .poll(() => observeOwnedProcess(app.record, 'claude', true, baseline).passed, { timeout: 60_000 })
+    .poll(
+      () =>
+        observeOwnedProcess(
+          app.record,
+          'claude',
+          true,
+          baseline,
+          app.record.platform === 'windows'
+            ? {
+                name: 'claude.exe',
+                shimPath: snapshot.availability.source === 'mise' ? snapshot.availability.path : undefined
+              }
+            : undefined
+        ).passed,
+      { timeout: 60_000 }
+    )
     .toBe(true)
 })
 

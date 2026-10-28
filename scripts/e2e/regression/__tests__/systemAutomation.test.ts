@@ -120,7 +120,7 @@ it('serves fixture images while waiting for the native save dialog', async () =>
     const script = args.at(-1)!
     if (script.includes('CommandLine')) return `electron ${directory}`
     if (script.includes('Get-NetTCPConnection')) return '456'
-    return ''
+    throw new Error(`Unexpected synchronous OS automation: ${_file}`)
   })
   let served = false
   const server = createServer((_request, response) => {

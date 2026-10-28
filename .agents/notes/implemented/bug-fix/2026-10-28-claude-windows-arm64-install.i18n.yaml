@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-claude-windows-arm64-install.md
-2026-10-28-claude-windows-arm64-install.md: ecfa34dc8db471701a08ad0dc66c33d472adf6c1
-2026-10-28-claude-windows-arm64-install.zh.md: f645fd8091e010d861f8b08b203a11445b82ad5a
+2026-10-28-claude-windows-arm64-install.md: 22439d6e7aa0d4bda5a910bac2f7e32d119e2c93
+2026-10-28-claude-windows-arm64-install.zh.md: b6c7a580fed5f52c3776f3059a46541afe993470
