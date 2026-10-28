@@ -2423,7 +2423,8 @@ export function stableScratchpadStreamPrefix(
       for (const match of info.matchAll(/<([a-z]*)/gi)) {
         const name = match[1].toLowerCase()
         const complete =
-          MODEL_SCRATCHPAD_TAG_NAMES.includes(name) && /[\s/>]/.test(info[match.index + match[0].length] ?? '')
+          MODEL_SCRATCHPAD_TAG_NAMES.some((tag) => tag === name) &&
+          /[\s/>]/.test(info[match.index + match[0].length] ?? '')
         const partial =
           match.index + match[0].length === info.length &&
           MODEL_SCRATCHPAD_TAG_NAMES.some((tag) => tag.startsWith(name))
