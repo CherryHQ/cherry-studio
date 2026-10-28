@@ -1132,6 +1132,34 @@ describe('FollowupQueueService', () => {
       expect(retry).toMatchObject({ id: delivered.id, status: 'closed' })
       expect(followupQueueService.listByScope('topic-a:assistant-1')).toEqual([])
     })
+
+    it('should close rows carrying sentAt before purging, so a crash after markSent cannot resurrect a sent item', async () => {
+      // Delivered and marked, but the process died before the dequeue removal
+      // landed: the row is still `sending` with a sentAt barrier.
+      const delivered = enqueueIn('topic-a:assistant-1', 'delivered')
+      expect(followupQueueService.claim(delivered.id, 'token-1')).toEqual({ claimed: true, alreadySent: false })
+      followupQueueService.markSent(delivered.id, 'token-1')
+      enqueueIn('topic-a:assistant-1', 'queued')
+
+      application.get('DbService').withWriteTx((tx) => {
+        followupQueueService.purgeForScopePrefixTx(tx, 'topic-a:', { keepClosedReceipts: true })
+      })
+
+      const rows = await dbh.db.select().from(followupQueueTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ id: delivered.id, status: 'closed' })
+      expect(rows[0].sentAt).not.toBeNull()
+
+      // A's late same-id retry settles against the receipt instead of resurrecting.
+      const retry = followupQueueService.enqueue({
+        scopeKey: 'topic-a:assistant-1',
+        draft: draft('delivered'),
+        payload: payload('delivered'),
+        id: delivered.id
+      })
+      expect(retry).toMatchObject({ id: delivered.id, status: 'closed' })
+      expect(followupQueueService.listByScope('topic-a:assistant-1')).toEqual([])
+    })
   })
 
   describe('conversation delete cascade', () => {

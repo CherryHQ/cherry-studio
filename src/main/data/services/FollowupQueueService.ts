@@ -19,7 +19,7 @@
  * `purgeForScopePrefixTx` — there is no FK by design.
  */
 
-import { and, asc, eq, gte, inArray, isNull, like, lt, ne, not, or } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, not, or } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -787,7 +787,40 @@ export class FollowupQueueService {
    * (`topicFollowupScopePrefix` / `sessionFollowupScopePrefix`); LIKE is safe
    * here because scope prefixes contain no `%` / `_` wildcards.
    */
-  purgeForScopePrefixTx(tx: Pick<DbType, 'delete'>, prefix: string, options?: { keepClosedReceipts?: boolean }): void {
+  purgeForScopePrefixTx(
+    tx: Pick<DbType, 'delete' | 'update'>,
+    prefix: string,
+    options?: { keepClosedReceipts?: boolean }
+  ): void {
+    if (options?.keepClosedReceipts) {
+      // A row carrying sentAt was delivered but crashed before its dequeue
+      // removal landed, so it is still `sending`. Close it before purging:
+      // deleting it would drop the replay barrier, and a late same-id retry
+      // would resurrect an already-sent item instead of settling here.
+      const delivered = tx
+        .update(followupQueueTable)
+        .set({ status: 'closed' })
+        .where(
+          and(
+            like(followupQueueTable.scopeKey, `${prefix}%`),
+            isNotNull(followupQueueTable.sentAt),
+            ne(followupQueueTable.status, 'closed')
+          )
+        )
+        .returning({ id: followupQueueTable.id })
+        .all()
+      if (delivered.length > 0) {
+        // Parity with `remove`: a closed receipt no longer owns file bytes.
+        tx.delete(followupQueueFileRefTable)
+          .where(
+            inArray(
+              followupQueueFileRefTable.sourceId,
+              delivered.map((row) => row.id)
+            )
+          )
+          .run()
+      }
+    }
     tx.delete(followupQueueTable)
       .where(
         options?.keepClosedReceipts
