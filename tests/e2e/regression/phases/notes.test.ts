@@ -416,20 +416,21 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     const pdf = await getDocument({ data: new Uint8Array(await readFile(pdfPath)), useSystemFonts: true }).promise
     expect(pdf.numPages).toBeGreaterThan(1)
     const texts: string[] = []
+    const codeFonts: string[] = []
     for (let index = 1; index <= pdf.numPages; index++) {
       const pdfPage = await pdf.getPage(index)
       const content = await pdfPage.getTextContent()
       const items = content.items.filter((item) => 'str' in item)
-      const text = items.map((item) => item.str).join(' ')
+      const text = items.map((item) => item.str).join('')
       texts.push(text)
       expect(text.trim()).not.toBe('')
       expect(text).not.toContain('\uFFFD')
       for (const item of items) {
-        if (item.str.includes('const greeting')) {
-          expect(content.styles[item.fontName].fontFamily).toMatch(/monospace/i)
-        }
+        if (item.str.includes('const')) codeFonts.push(content.styles[item.fontName].fontFamily)
       }
     }
+    expect(codeFonts).not.toHaveLength(0)
+    for (const family of codeFonts) expect(family).toMatch(/monospace/i)
     const pdfText = texts.join(' ')
     for (const expected of ['中文标题', '苹果', '12', '香蕉', '34', code, 'MP77_END']) {
       expect(pdfText).toContain(expected)
@@ -554,10 +555,15 @@ test(...caseDefinition('MP-78'), async ({ app, mainWindow }, testInfo) => {
   )
   expect(births[0]).toBeLessThan(births[1])
   expect(births[1]).toBeLessThan(births[2])
+  const modificationBase = Date.now()
   for (const [index, name] of [alpha, middle, zulu].entries()) {
-    const modified = new Date(Date.UTC(2026, 0, index + 1))
+    // macOS lowers birthtime when mtime predates it; keep creation and modification orders independent.
+    const modified = new Date(modificationBase + index * 1000)
     await utimes(join(notesPath, `${name}.md`), modified, modified)
   }
+  expect(
+    await Promise.all(createdOrder.map(async (name) => (await stat(join(notesPath, `${name}.md`))).birthtimeMs))
+  ).toEqual(births)
 
   const navigation = () => page.locator('[data-ui~="notes.navigation"]')
   const rows = () => navigation().getByRole('treeitem')

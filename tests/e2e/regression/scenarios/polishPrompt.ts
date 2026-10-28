@@ -121,9 +121,9 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     await attachScreenshot('MP-16 real polish running')
     await expect
       .soft(editor, 'Prompt editor must lock while the real request is pending')
-      .not.toBeEditable({ timeout: 1000 })
+      .toHaveAttribute('contenteditable', 'false', { timeout: 1000 })
     await expect(polish).toBeVisible({ timeout: 70_000 })
-    await expect(editor).toBeEditable()
+    await expect(editor).toHaveAttribute('contenteditable', 'true')
     const polished = (await editor.innerText()).trim()
     expect(polished.length, 'Real model must return a nonempty rewritten prompt').toBeGreaterThan(0)
     expect(polished).not.toBe(rough)
@@ -135,7 +135,9 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     await polish.click()
     const invalid = await server.nextRequest()
     expect(JSON.stringify(invalid.body.messages)).toContain('{{date}}')
-    await expect.soft(editor, 'Prompt editor must be locked during polishing').not.toBeEditable({ timeout: 1000 })
+    await expect
+      .soft(editor, 'Prompt editor must be locked during polishing')
+      .toHaveAttribute('contenteditable', 'false', { timeout: 1000 })
     const beforeTyping = await editor.innerText()
     await editor.click()
     await page.keyboard.type('MP16_LOCK_PROBE')
@@ -150,7 +152,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
       page.getByText('The polished result changed or removed prompt variables. Try again.', { exact: true })
     ).toBeVisible()
     await expect.poll(() => editor.innerText()).toBe(withVariable)
-    await expect(editor).toBeEditable()
+    await expect(editor).toHaveAttribute('contenteditable', 'true')
     await attachScreenshot('MP-16 rejected changed variable without data loss')
 
     await polish.click()
@@ -158,7 +160,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     failed.complete('')
     await expect(page.getByText('Failed to polish prompt', { exact: true })).toBeVisible()
     await expect(page.getByText('Check or change the default model, then try again.', { exact: true })).toBeVisible()
-    await expect(editor).toBeEditable()
+    await expect(editor).toHaveAttribute('contenteditable', 'true')
     await expect.poll(() => editor.innerText()).toBe(withVariable)
     await attachScreenshot('MP-16 failed polish retains final prompt')
 
@@ -180,7 +182,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     await expect.poll(readPrompt).toBe(withVariable)
     await openEditor()
     await expect.poll(() => editor.innerText()).toBe(withVariable)
-    await expect(editor).toBeEditable()
+    await expect(editor).toHaveAttribute('contenteditable', 'true')
     await attachScreenshot('MP-16 saved prompt after reopening')
     await page.keyboard.press('Escape')
   } finally {

@@ -16,7 +16,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `mockProvider.ts`, `mockWorker.ts` | Start, verify and stop the run-owned aiMock service |
 | `process.ts` | OS process identity, ancestry, ports, and termination |
 | `debugBridge.ts`, `cdpClient.ts` | Explicit main-process debug operations and HTTP callback delivery |
-| `systemAutomation.ts` | Native dialogs, external text selection, and keyboard input |
+| `systemAutomation.ts` | Native dialogs and notifications, external text selection, and keyboard input |
 | `RegressionReporter.ts` | Playwright result adapter and run-state updates |
 | `state.ts`, `report.ts` | Run state, platform/aggregate verdicts, and human-readable reports |
 | `fixtureFiles.ts`, `paths.ts`, `config.ts` | Input fixtures, run-owned paths, and configuration |
@@ -24,6 +24,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 Dependencies flow from CLI and E2E fixtures into these modules. The controller does not import E2E scenarios or production services.
 The debug bridge may inspect the owned main process; it must never manufacture a successful product result.
 Native save helpers are asynchronous so fixture HTTP servers keep serving while the application prepares an export.
+macOS notification lookups treat disappearing accessibility objects as absent; other automation errors still fail the case.
 Scenario cleanup cancels only owned Windows file dialogs, preventing a failed export from intercepting the next case's save.
 The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
 

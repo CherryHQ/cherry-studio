@@ -14,6 +14,45 @@ let activeWindowsTextFixturePid: number | undefined
 let activeMacTextFixturePath: string | undefined
 let macProductMajor: number | undefined
 
+export function findMacNotification(paths: RunPaths, text: string, click = false): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = `on run argv
+    tell application "System Events" to tell process "NotificationCenter"
+      try
+      repeat with windowIndex from 1 to count of windows
+        set windowElements to entire contents of window windowIndex
+        repeat with groupReference in windowElements
+          set notificationGroup to contents of groupReference
+          if role of notificationGroup is "AXGroup" and subrole of notificationGroup is "AXNotificationCenterAlert" then
+            set alertElements to entire contents of notificationGroup
+            repeat with elementReference in alertElements
+              set element to contents of elementReference
+              if role of element is "AXStaticText" then
+                if value of element as text is item 1 of argv then
+                  if item 2 of argv is "click" then perform action "AXPress" of notificationGroup
+                  return "found"
+                end if
+              end if
+            end repeat
+          end if
+        end repeat
+      end repeat
+      on error errorMessage number errorNumber
+        if errorNumber is not -1728 then error errorMessage number errorNumber
+      end try
+    end tell
+    return "absent"
+  end run`
+  return (
+    execFileSync('osascript', ['-e', script, '--', text, click ? 'click' : 'read'], {
+      encoding: 'utf8',
+      timeout: 10_000
+    }).trim() === 'found'
+  )
+}
+
 export function closeExternalText(platform: Platform): void {
   if (platform === 'macos' && activeMacTextFixturePath) {
     const script = [

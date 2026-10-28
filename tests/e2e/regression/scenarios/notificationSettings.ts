@@ -11,42 +11,11 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { findMacNotification } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
-
-function nativeNotification(text: string, click = false): boolean {
-  const script = `on run argv
-    tell application "System Events" to tell process "NotificationCenter"
-      repeat with windowIndex from 1 to count of windows
-        set windowElements to entire contents of window windowIndex
-        repeat with groupReference in windowElements
-          set notificationGroup to contents of groupReference
-          if role of notificationGroup is "AXGroup" and subrole of notificationGroup is "AXNotificationCenterAlert" then
-            set alertElements to entire contents of notificationGroup
-            repeat with elementReference in alertElements
-              set element to contents of elementReference
-              if role of element is "AXStaticText" then
-                if value of element as text is item 1 of argv then
-                  if item 2 of argv is "click" then perform action "AXPress" of notificationGroup
-                  return "found"
-                end if
-              end if
-            end repeat
-          end if
-        end repeat
-      end repeat
-    end tell
-    return "absent"
-  end run`
-  return (
-    execFileSync('osascript', ['-e', script, '--', text, click ? 'click' : 'read'], {
-      encoding: 'utf8',
-      timeout: 10_000
-    }).trim() === 'found'
-  )
-}
 
 // A failure after the case hides the application must not leave it hidden for the cases that follow.
 function restoreAppVisibility(pid: number): void {
@@ -224,7 +193,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         { timeout: 10_000 }
       )
       await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
-      expect(nativeNotification(answer)).toBe(false)
+      expect(findMacNotification(app.paths, answer)).toBe(false)
       await new Promise((resolve) => setTimeout(resolve, 1500))
       request.complete(answer)
       await expect
@@ -250,8 +219,8 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         )
         .toBe(true)
       if (enabled) {
-        await expect.poll(() => nativeNotification(answer), { timeout: 15_000 }).toBe(true)
-        expect(nativeNotification(answer, true)).toBe(true)
+        await expect.poll(() => findMacNotification(app.paths, answer), { timeout: 15_000 }).toBe(true)
+        expect(findMacNotification(app.paths, answer, true)).toBe(true)
         await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
         await expect(chat).toBeVisible()
         await expect(chat.getByText(answer, { exact: true })).toBeVisible()
@@ -261,7 +230,9 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         // Observe a bounded delivery window after confirmed completion, rather than checking too early.
         const deadline = Date.now() + 8000
         while (Date.now() < deadline) {
-          expect(nativeNotification(answer), 'Disabled conversation notifications must never appear').toBe(false)
+          expect(findMacNotification(app.paths, answer), 'Disabled conversation notifications must never appear').toBe(
+            false
+          )
           await new Promise((resolve) => setTimeout(resolve, 500))
         }
         execFileSync(
