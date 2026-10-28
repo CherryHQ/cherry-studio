@@ -13,6 +13,7 @@ import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
+import { applyBrowserCertificatePolicy } from '@main/features/browser'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
 import { openRequestPath } from '@main/services/file'
@@ -371,6 +372,7 @@ export class MainWindowService extends BaseService {
       undefined,
       true
     )
+    applyBrowserCertificatePolicy(session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser)))
     this.setupRestrictedWebviewSession(
       getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
       (details) => this.agentDevPreviewRequestPolicy.isAllowed(details),
