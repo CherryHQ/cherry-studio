@@ -110,6 +110,7 @@ export interface PreparedRemoteJob<
   /**
    * Optional, processor-owned wording for the diagnostic thrown when polling is aborted
    * (the processor knows its own remote state vocabulary).
+   * `elapsedMs` measures the whole remote attempt (task creation, upload and polling), not polling alone.
    */
   formatPollingAbort?(details: { lastKnownStage: FileProcessingStage | null; elapsedMs: number }): string
   startRemote(signal?: AbortSignal): Promise<{

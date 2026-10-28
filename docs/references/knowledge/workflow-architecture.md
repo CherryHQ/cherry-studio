@@ -112,7 +112,7 @@ in `processing`. On success the output's relative path is recorded via
 `updateIndexedRelativePath`, then `index-documents` is scheduled. A linked job with
 `JOB_HANDLER_TIMEOUT` fails the item with `file_processing_timed_out`, localized as
 Reindex guidance. MinerU polling abort diagnostics retain the last observed remote
-state and elapsed polling wait for that attempt in the job error.
+state and the whole remote attempt elapsed (task creation, upload and polling) in the job error.
 
 Knowledge starts these FileProcessing jobs with `recovery: 'abandon'`. Boot recovery fails an
 interrupted item (`recoverInterruptedItems`), so its conversion is cancelled at startup instead of

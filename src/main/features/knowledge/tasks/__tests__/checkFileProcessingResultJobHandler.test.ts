@@ -211,7 +211,7 @@ describe('check-file-processing-result job handler', () => {
 
   it.each([
     'JobHandlerTimeout',
-    'MinerU polling aborted; last known remote state=pending; elapsed polling wait this attempt=1800000 ms'
+    'MinerU polling aborted; last known remote state=pending; remote attempt elapsed=1800000 ms (includes task creation and upload)'
   ])('maps a linked job execution timeout to actionable item guidance: %s', async (message) => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())

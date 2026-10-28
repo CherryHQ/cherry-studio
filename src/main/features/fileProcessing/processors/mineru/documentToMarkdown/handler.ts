@@ -26,7 +26,7 @@ export function formatMineruPollingAbort(details: {
   elapsedMs: number
 }): string {
   const state = details.lastKnownStage === null ? 'unknown' : MINERU_REMOTE_STATES[details.lastKnownStage]
-  return `MinerU polling aborted; last known remote state=${state}; elapsed polling wait this attempt=${Math.max(0, Math.floor(details.elapsedMs))} ms`
+  return `MinerU polling aborted; last known remote state=${state}; remote attempt elapsed=${Math.max(0, Math.floor(details.elapsedMs))} ms (includes task creation and upload)`
 }
 
 type MineruQueryContext = Omit<PreparedMineruQueryContext, 'signal'>

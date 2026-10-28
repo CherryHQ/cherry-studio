@@ -401,7 +401,7 @@ describe('remotePollJobHandler.execute', () => {
       const ctx = createCtx({ signal: controller.signal, metadata: { remoteState: { providerTaskId: 't' } } })
       const result = executeRemotePolling(ctx, prepared, { id: 'mineru' } as never)
       const assertion = expect(result).rejects.toThrow(
-        `MinerU polling aborted; last known remote state=pending; elapsed polling wait this attempt=${where === 'sleep' ? 500 : 1500} ms`
+        `MinerU polling aborted; last known remote state=pending; remote attempt elapsed=${where === 'sleep' ? 500 : 1500} ms (includes task creation and upload)`
       )
       await vi.advanceTimersByTimeAsync(where === 'sleep' ? 500 : 1500)
       if (where === 'empty') expect(vi.mocked(ctx.reportProgress).mock.calls.at(-1)).toEqual([0, { stage: null }])
@@ -427,7 +427,7 @@ describe('remotePollJobHandler.execute', () => {
         metadata: where === 'rehydrate' ? { remoteState: { providerTaskId: 't', stage: 'parsing' } } : {}
       })
       await expect(executeRemotePolling(ctx, prepared, { id: 'mineru' } as never)).rejects.toThrow(
-        /^MinerU polling aborted; last known remote state=unknown; elapsed polling wait this attempt=\d+ ms$/
+        /^MinerU polling aborted; last known remote state=unknown; remote attempt elapsed=\d+ ms \(includes task creation and upload\)$/
       )
       if (where === 'rehydrate') expect(vi.mocked(ctx.reportProgress).mock.calls).toEqual([[0, { stage: null }]])
     }
