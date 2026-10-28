@@ -501,13 +501,18 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       '$dialog = $null',
       'do {',
       '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-      '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
+      '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and -not $_.Current.IsOffscreen -and $_.Current.IsEnabled } | Select-Object -Last 1',
       '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
       '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
       'if (-not $dialog) { throw "Native file dialog was not found" }',
       ...(isDirectory
         ? [
-            '$dialog.SetFocus()',
+            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
+            '$focused = $false',
+            'do {',
+            '  try { $dialog.SetFocus(); $focused = $true } catch { Start-Sleep -Milliseconds 100 }',
+            '} while (-not $focused -and [DateTime]::UtcNow -lt $deadline)',
+            'if (-not $focused) { throw "Native folder dialog could not receive focus" }',
             '[System.Windows.Forms.SendKeys]::SendWait("^l")',
             '$addressCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "41477"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
             '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
@@ -550,7 +555,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       stdio: ['ignore', 'ignore', 'pipe'],
-      timeout: 25_000
+      timeout: 30_000
     })
   }
   return filePath
