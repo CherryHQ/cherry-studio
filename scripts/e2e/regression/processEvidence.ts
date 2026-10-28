@@ -66,7 +66,7 @@ export function observeOwnedProcess(
   commandFragment: string,
   expectedRunning: boolean,
   baselinePids: ReadonlySet<number> = new Set(),
-  executableName?: string
+  executable?: { name: string; shimPath?: string }
 ): ProcessObservation {
   const fragment = commandFragment.trim().toLowerCase()
   if (fragment.length < 2) throw new Error('Process evidence requires a command fragment with at least two characters')
@@ -77,9 +77,12 @@ export function observeOwnedProcess(
       (processInfo) =>
         processInfo.pid !== record.electronPid &&
         belongsToApp(processInfo, byPid, record.electronPid) &&
-        (!executableName ||
+        (!executable ||
           (processInfo.executablePath &&
-            win32.basename(processInfo.executablePath).toLowerCase() === executableName.toLowerCase())) &&
+            win32.basename(processInfo.executablePath).toLowerCase() === executable.name.toLowerCase() &&
+            (!executable.shimPath ||
+              win32.normalize(processInfo.executablePath).toLowerCase() !==
+                win32.normalize(executable.shimPath).toLowerCase()))) &&
         processInfo.command.toLowerCase().includes(fragment)
     )
     .map(({ command, pid }) => ({ command, pid }))

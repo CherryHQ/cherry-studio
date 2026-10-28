@@ -31,6 +31,11 @@ beforeEach(() => execFileSync.mockReset())
 it.each([
   { name: 'an owned native executable behind a terminal', process: claude, expected: true },
   { name: 'a different executable with claude.exe in its arguments', process: terminal, expected: false },
+  {
+    name: 'a mise shim named claude.exe',
+    process: { ...claude, ExecutablePath: 'C:\\isolated profile\\shims\\CLAUDE.EXE' },
+    expected: false
+  },
   { name: 'an unrelated native executable', process: { ...claude, ParentProcessId: 1 }, expected: false },
   { name: 'a process without executable identity', process: { ...claude, ExecutablePath: null }, expected: false },
   {
@@ -46,15 +51,30 @@ it.each([
 ])('checks executable identity for $name', ({ process, expected }) => {
   execFileSync.mockReturnValue(JSON.stringify([electron, terminal, process]))
 
-  expect(observeOwnedProcess(record, 'claude', true, new Set(), 'claude.exe').passed).toBe(expected)
+  expect(
+    observeOwnedProcess(record, 'claude', true, new Set(), {
+      name: 'claude.exe',
+      shimPath: 'C:/isolated profile/shims/claude.exe'
+    }).passed
+  ).toBe(expected)
 })
 
 it('requires a new native process and keeps existing native processes visible to stop checks', () => {
   execFileSync.mockReturnValue(JSON.stringify([electron, terminal, claude]))
   const baseline = new Set(listOwnedProcessIds(record))
 
-  expect(observeOwnedProcess(record, 'claude', true, baseline, 'claude.exe')).toEqual({ matched: [], passed: false })
-  expect(observeOwnedProcess(record, 'claude', false, baseline, 'claude.exe')).toEqual({
+  expect(
+    observeOwnedProcess(record, 'claude', true, baseline, {
+      name: 'claude.exe',
+      shimPath: 'C:/isolated profile/shims/claude.exe'
+    })
+  ).toEqual({ matched: [], passed: false })
+  expect(
+    observeOwnedProcess(record, 'claude', false, baseline, {
+      name: 'claude.exe',
+      shimPath: 'C:/isolated profile/shims/claude.exe'
+    })
+  ).toEqual({
     matched: [{ pid: 102, command: claude.CommandLine }],
     passed: false
   })
