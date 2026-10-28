@@ -4,7 +4,7 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createChannelContextPart } from '@shared/data/types/uiParts'
 
-import { stripChannelContextParts } from '../../../agentSession/editInput'
+import { stripChannelContextParts } from '../../../../utils/channelContextParts'
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 

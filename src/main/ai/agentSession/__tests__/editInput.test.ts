@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createChannelContextPart } from '@shared/data/types/uiParts'
 
-import { restoreStoredChannelContext, stripChannelContextParts, validateEditedInput } from '../editInput'
+import { restoreStoredChannelContext, stripChannelContextParts } from '../../../utils/channelContextParts'
+import { validateEditedInput } from '../editInput'
 
 const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
 

@@ -11,8 +11,8 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createChannelContextPart } from '@shared/data/types/uiParts'
 
+import { restoreStoredChannelContext, stripChannelContextParts } from '../../../../utils/channelContextParts'
 import { runtimeDriverRegistry } from '../../../runtime/registry'
-import { restoreStoredChannelContext, stripChannelContextParts } from '../../editInput'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -162,6 +162,42 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
     )
 
     expect(persistedParts).toEqual([{ type: 'text', text: 'edited' }, storedContext])
+    expect(JSON.stringify(persistedParts)).not.toContain('oc_forged')
+  })
+
+  it('a forged message PATCH cannot replace the context that edit-resend restores', async () => {
+    const storedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_123', chatType: 'group' })
+    const forgedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_forged', chatType: 'group' })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'original' }, storedContext] }
+      }
+    })
+
+    // Renderer DataApi PATCH (the message-update write path) attempts to swap in a forged context.
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, USER_MESSAGE_ID, {
+      data: { parts: [forgedContext, { type: 'text', text: 'patched' }] }
+    })
+
+    // The subsequent edit-and-resend must restore only the authoritative stored context.
+    let persistedParts: unknown
+    await forks.edit(
+      SESSION_ID,
+      targetFor(USER_MESSAGE_ID),
+      async () => {},
+      (_tx, _native, storedUserParts) => {
+        persistedParts = restoreStoredChannelContext(
+          stripChannelContextParts([{ type: 'text', text: 're-sent' } as never]),
+          storedUserParts
+        )
+      }
+    )
+
+    expect(persistedParts).toEqual([{ type: 'text', text: 're-sent' }, storedContext])
     expect(JSON.stringify(persistedParts)).not.toContain('oc_forged')
   })
 })

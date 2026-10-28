@@ -22,10 +22,8 @@ import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@share
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import {
-  restoreStoredChannelContext,
-  validateEditedInput
-} from '../../agentSession/editInput'
+import { restoreStoredChannelContext } from '../../../utils/channelContextParts'
+import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
