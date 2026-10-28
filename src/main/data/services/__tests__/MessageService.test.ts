@@ -1152,6 +1152,42 @@ describe('MessageService', () => {
         code: ErrorCode.NOT_FOUND
       })
     })
+
+    it('pages older history through nextCursor and rejects a cursor off the active path', async () => {
+      const message = (id: string, parentId: string | null, createdAt: number) => ({
+        id,
+        parentId,
+        topicId: 'topic-paged',
+        role: 'user' as const,
+        data: mainText(id),
+        status: 'success' as const,
+        siblingsGroupId: 0,
+        createdAt,
+        updatedAt: createdAt
+      })
+      await dbh.db.insert(topicTable).values({ id: 'topic-paged', activeNodeId: 'c5', orderKey: 'paged' })
+      await dbh.db
+        .insert(messageTable)
+        .values(
+          withRoot('topic-paged', [
+            message('c1', null, 100),
+            message('c2', 'c1', 200),
+            message('c3', 'c2', 300),
+            message('c4', 'c3', 400),
+            message('c5', 'c4', 500),
+            message('side', 'c3', 600)
+          ])
+        )
+      const page = (cursor?: string) => {
+        const result = messageService.getBranchMessages('topic-paged', { limit: 2, cursor, includeSiblings: false })
+        return { ids: result.items.map((item) => item.message.id), nextCursor: result.nextCursor }
+      }
+
+      expect(page()).toEqual({ ids: ['c4', 'c5'], nextCursor: 'c4' })
+      expect(page('c4')).toEqual({ ids: ['c2', 'c3'], nextCursor: 'c2' })
+      expect(page('c2')).toEqual({ ids: ['c1'], nextCursor: undefined })
+      expect(() => page('side')).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+    })
   })
 
   describe('search', () => {
@@ -2320,6 +2356,36 @@ describe('MessageService', () => {
       expect(path[1].siblingsGroupId).toBe(1)
       expect(path[1].modelId).toBe(createUniqueModelId('provider-b', 'model-B'))
       expect(path[2].parentId).toBe('m-a2')
+    })
+
+    it('loads a path longer than the SQLite bound-variable limit', async () => {
+      const count = 33_000
+      const rows = withRoot(
+        'topic-long-path',
+        Array.from({ length: count }, (_, i) => ({
+          id: `p-${i}`,
+          parentId: i === 0 ? null : `p-${i - 1}`,
+          topicId: 'topic-long-path',
+          role: i % 2 === 0 ? ('user' as const) : ('assistant' as const),
+          data: mainText(`message ${i}`),
+          status: 'success' as const,
+          siblingsGroupId: 0,
+          createdAt: 100 + i,
+          updatedAt: 100 + i
+        }))
+      )
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-long-path', activeNodeId: `p-${count - 1}`, orderKey: 'long-path' })
+      for (let i = 0; i < rows.length; i += 500) {
+        await dbh.db.insert(messageTable).values(rows.slice(i, i + 500))
+      }
+      const expectedIds = Array.from({ length: count }, (_, i) => `p-${i}`)
+
+      expect(messageService.getPathToNode(`p-${count - 1}`).map((m) => m.id)).toEqual(expectedIds)
+      expect(
+        messageService.getBranchMessages('topic-long-path', { limit: 3 }).items.map((item) => item.message.id)
+      ).toEqual(expectedIds.slice(-3))
     })
   })
 
