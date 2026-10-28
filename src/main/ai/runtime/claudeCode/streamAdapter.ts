@@ -2204,7 +2204,7 @@ export class ClaudeCodeStreamAdapter {
       markerHead = cached.markerHead
       paragraph = cached.paragraph
     } else {
-      markerHead = /^(?:[-*+]|\d{1,9}[.)])[ \t]+/.exec(remainder)?.[0] ?? ''
+      markerHead = /^(?:(?:[-*+]|\d{1,9}[.)])|#{1,6})[ \t]+/.exec(remainder)?.[0] ?? ''
       paragraph = openLineParagraphContinuation(openLine, state)
       // Only verdicts over a line with real content past the marker head are
       // append-stable: a bare '1. ' can still grow into '1.     ' (W>=5 ->

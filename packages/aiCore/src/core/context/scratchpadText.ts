@@ -2416,7 +2416,7 @@ export function stableScratchpadStreamPrefix(
     if (close) {
       pos = lt + close[0].length
       const at = stack.map((entry) => entry.name).lastIndexOf(close[1].toLowerCase())
-      if (at !== -1) stack.splice(at, 1)
+      if (at !== -1) stack.splice(at)
       continue
     }
     const parsed = parseOpeningTagAt(cm.text, lt)

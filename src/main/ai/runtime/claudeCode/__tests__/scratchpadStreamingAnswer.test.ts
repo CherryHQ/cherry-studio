@@ -314,6 +314,42 @@ describe('append-only scratchpad answer streaming', () => {
       expect(performance.now() - start).toBeLessThan(1500)
     }
   })
+  it('keeps heading carry and outer scratchpad cutoff consistent through snapshots', () => {
+    for (const pieces of [
+      ['# Heade', 'r\n    <thinking>literal</thinking>\n\n\nDone'],
+      ['`x`\n\nAnswer. <analysis>secret<thinking>', '</analysis>after']
+    ]) {
+      const raw = pieces.join('')
+      const expected = stripKnownModelScratchpadBlocksPreservingCodeFences(raw)
+      for (const chunks of [
+        pieces,
+        ...[1, 2, 3, 5, raw.length].map((size) =>
+          Array.from({ length: Math.ceil(raw.length / size) }, (_, i) => raw.slice(i * size, (i + 1) * size))
+        )
+      ]) {
+        const s = setup()
+        for (const chunk of chunks) s.push(chunk)
+        s.stop()
+        expect(s.text()).toBe(expected)
+        s.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        expect(s.text()).toBe(expected)
+        expect(s.a.scratchpadPrefixViolation).toBe(false)
+      }
+    }
+  })
+  it('pins ancestor-closing wrapper sensitivity separately', () => {
+    const raw = '`x`\n\nAnswer. <analysis>secret<thinking></analysis>after'
+    const s = setup()
+    for (let i = 0; i < raw.length; i += 3) s.push(raw.slice(i, i + 3))
+    s.stop()
+    expect(s.text()).toBe('`x`\n\nAnswer. after')
+  })
   it('keeps quoted greater-than attributes opaque through fragments and snapshot', () => {
     const exact = ['`x`\n\n', '<div title="> <analysis>literal</analysis>"', '>PUBLIC</div>']
     const raw = exact.join('')
