@@ -17,9 +17,8 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getApplicationId } from '@main/utils/appEdition'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import type { SelectionActionSession } from '@shared/types/selection'
+import type { SelectionAction, SelectionActionSession } from '@shared/types/selection'
 
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 
@@ -1289,7 +1288,7 @@ export class SelectionService extends BaseService implements Activatable {
    * @param actionItem Action item to process
    * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
    */
-  public processAction(actionItem: SelectionActionItem, isFullScreen: boolean = false): void {
+  public processAction(actionItem: SelectionAction, isFullScreen: boolean = false): void {
     const wm = application.get('WindowManager')
 
     // open({ initData }) atomically stores the action payload and, for the

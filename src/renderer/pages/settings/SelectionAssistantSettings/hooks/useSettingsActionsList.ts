@@ -7,7 +7,13 @@ import { popup } from '@renderer/services/popup'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SELECTION_ACTION_RUNNER, type SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import {
+  type AskAgentSelectionAction,
+  type CustomSelectionAction,
+  SELECTION_BUILTIN_ACTION_ID,
+  type SelectionAction
+} from '@shared/types/selection'
 
 import { DEFAULT_SEARCH_ENGINES } from '../components/SelectionActionSearchModal'
 
@@ -17,9 +23,9 @@ const MAX_CUSTOM_ITEMS = 10
 const MAX_ENABLED_ITEMS = 8
 
 export const ACTIONS_DIVIDER = '__actions_divider__'
-export type ActionRow = SelectionActionItem | typeof ACTIONS_DIVIDER
+export type ActionRow = SelectionAction | typeof ACTIONS_DIVIDER
 
-const isActionItem = (row: ActionRow): row is SelectionActionItem => row !== ACTIONS_DIVIDER
+const isActionItem = (row: ActionRow): row is SelectionAction => row !== ACTIONS_DIVIDER
 
 export const actionItemsFromRows = (rows: ActionRow[]): SelectionActionItem[] => {
   const dividerIndex = rows.indexOf(ACTIONS_DIVIDER)
@@ -32,27 +38,27 @@ export const actionItemsFromRows = (rows: ActionRow[]): SelectionActionItem[] =>
 }
 
 export const useActionItems = (
-  initialItems: SelectionActionItem[] | undefined,
+  initialItems: SelectionAction[] | undefined,
   setActionItems: (items: SelectionActionItem[]) => void
 ) => {
   const { t } = useTranslation()
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false)
   const [isAskAgentModalOpen, setIsAskAgentModalOpen] = useState(false)
-  const [userEditingAction, setUserEditingAction] = useState<SelectionActionItem | null>(null)
+  const [userEditingAction, setUserEditingAction] = useState<CustomSelectionAction | null>(null)
   const { agents } = useAgents()
 
   const enabledItems = useMemo(() => initialItems?.filter((item) => item.enabled) ?? [], [initialItems])
   const disabledItems = useMemo(() => initialItems?.filter((item) => !item.enabled) ?? [], [initialItems])
   const customItemsCount = useMemo(() => initialItems?.filter((item) => !item.isBuiltIn).length ?? 0, [initialItems])
 
-  const handleEditActionItem = (item: SelectionActionItem) => {
+  const handleEditActionItem = (item: SelectionAction) => {
     if (item.isBuiltIn) {
-      if (item.id === 'search') {
+      if (item.id === SELECTION_BUILTIN_ACTION_ID.SEARCH) {
         setIsSearchModalOpen(true)
         return
       }
-      if (item.id === 'ask-agent') {
+      if (item.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT) {
         setIsAskAgentModalOpen(true)
         return
       }
@@ -68,7 +74,7 @@ export const useActionItems = (
     setIsUserModalOpen(true)
   }
 
-  const handleUserModalOk = (actionItem: SelectionActionItem) => {
+  const handleUserModalOk = (actionItem: CustomSelectionAction) => {
     if (userEditingAction && initialItems) {
       const updatedItems = initialItems.map((item) => (item.id === userEditingAction.id ? actionItem : item))
       setActionItems(updatedItems)
@@ -85,14 +91,20 @@ export const useActionItems = (
 
   const handleSearchModalOk = (searchEngine: string) => {
     if (!initialItems) return
-    const updatedItems = initialItems.map((item) => (item.id === 'search' ? { ...item, searchEngine } : item))
+    const updatedItems = initialItems.map((item) =>
+      item.isBuiltIn && item.id === SELECTION_BUILTIN_ACTION_ID.SEARCH ? { ...item, searchEngine } : item
+    )
     setActionItems(updatedItems)
     setIsSearchModalOpen(false)
   }
 
-  const handleAskAgentModalOk = (binding: Pick<SelectionActionItem, 'agentId' | 'agentWorkspace'>) => {
+  const handleAskAgentModalOk = (binding: Pick<AskAgentSelectionAction, 'agentId' | 'agentWorkspace'>) => {
     if (!initialItems) return
-    setActionItems(initialItems.map((item) => (item.id === 'ask-agent' ? { ...item, ...binding } : item)))
+    setActionItems(
+      initialItems.map((item) =>
+        item.isBuiltIn && item.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT ? { ...item, ...binding } : item
+      )
+    )
     setIsAskAgentModalOpen(false)
   }
 
@@ -142,12 +154,19 @@ export const useActionItems = (
     return { icon: customEngine?.icon, name: engine }
   }
 
-  const getAgentInfo = (item: SelectionActionItem) => {
-    const agent = item.agentId
-      ? agents.find((candidate) => candidate.id === item.agentId)
-      : item.id === 'ask-agent'
-        ? agents.find((candidate) => candidate.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT)
+  const builtinAssistantAgentId = agents.find(
+    (candidate) => candidate.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
+  )?.id
+
+  const getAgentInfo = (item: SelectionAction) => {
+    const agentId = item.isBuiltIn
+      ? item.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT
+        ? (item.agentId ?? builtinAssistantAgentId)
         : undefined
+      : item.runner === SELECTION_ACTION_RUNNER.AGENT
+        ? item.agentId
+        : undefined
+    const agent = agentId ? agents.find((candidate) => candidate.id === agentId) : undefined
     if (!agent) return null
     return { emoji: getAgentAvatarFromConfiguration(agent.configuration), name: agent.name }
   }
