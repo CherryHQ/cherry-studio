@@ -65,6 +65,23 @@ describe('append-only scratchpad answer streaming', () => {
       expect(s.text()).toBe(payload)
     }
   })
+  it('does not rebuild previous legacy history for tick events without a completed blank boundary', () => {
+    const s = setup()
+    s.push('<b>heading</b> ')
+    const original = s.a.filterScratchpadFromOngoingDelta.bind(s.a)
+    // Keep the established scanner's own work separate from migration-attempt instrumentation.
+    s.a.filterScratchpadFromOngoingDelta = (text: string, ctx: any) => {
+      const n = s.a.scratchpadScanInputChars
+      const out = original(text, ctx)
+      s.a.scratchpadScanInputChars = n
+      return out
+    }
+    const before = s.a.scratchpadScanInputChars
+    for (let i = 0; i < 100; i++) s.push('`code` words ')
+    expect(s.a.scratchpadScanInputChars).toBe(before)
+    s.stop()
+    expect(s.a.scratchpadPrefixViolation).toBe(false)
+  })
   it('normalizes snapshot-only text and reconciled assistant suffixes before emission', () => {
     const payload = 'Public <thinking>secret</thinking> answer'
     for (const streamed of [false, true]) {

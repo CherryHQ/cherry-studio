@@ -176,6 +176,7 @@ type StreamContext = {
   scratchpadPartFailed: boolean
   scratchpadAnswerStream: {
     segments: string[]
+    rawTail: string
     visible: string
     pending: boolean
     probe: string
@@ -1770,6 +1771,7 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.scratchpadPartFailed) return ''
     const state = ctx.scratchpadAnswerStream ?? {
       segments: [],
+      rawTail: '',
       visible: '',
       pending: false,
       probe: '',
@@ -1778,14 +1780,18 @@ export class ClaudeCodeStreamAdapter {
     }
     ctx.scratchpadAnswerStream = state
     this.scratchpadStreamInputChars += text.length
+    const previousEndedAtBlankLine = /(?:\r?\n){2}$/.test(state.rawTail)
+    state.rawTail = (state.rawTail + text).slice(-4)
     state.segments.push(text)
     if (
       state.legacy &&
+      previousEndedAtBlankLine &&
       text.includes('`') &&
       ctx.scratchpadStreamRemainder === '' &&
       ctx.scratchpadStreamFenceCarry === ''
     ) {
       const previous = state.segments.slice(0, -1).join('')
+      this.scratchpadScanInputChars += previous.length
       const boundary = stableScratchpadStreamPrefix(previous)
       if (boundary.checkpoint && boundary.checkpoint.raw === previous.length && boundary.visible === state.visible) {
         state.segments = [text]
