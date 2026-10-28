@@ -110,4 +110,65 @@ describe('ApiGatewayPairedDeviceService', () => {
     expect(apiGatewayPairedDeviceService.list()).toEqual([device])
     expect(dbh.db.select().from(apiGatewayPairedDeviceTable).get()).toMatchObject(metadata)
   })
+  const pairPhone = () =>
+    apiGatewayPairedDeviceService.approveRemote({
+      name: 'iPhone',
+      platform: 'ios',
+      peerIdentity: 'phone-key',
+      capabilities: ['agent']
+    }).device
+
+  it('persists a trimmed custom name and preserves it when the phone pairs again', () => {
+    const device = pairPhone()
+    expect(apiGatewayPairedDeviceService.rename(device.id, { customName: '  Kitchen iPhone  ' })).toMatchObject({
+      name: 'iPhone',
+      customName: 'Kitchen iPhone'
+    })
+    expect(apiGatewayPairedDeviceService.list()).toEqual([expect.objectContaining({ customName: 'Kitchen iPhone' })])
+    expect(dbh.db.select().from(apiGatewayPairedDeviceTable).get()?.customName).toBe('Kitchen iPhone')
+    const paired = apiGatewayPairedDeviceService.approveRemote({
+      name: 'New reported name',
+      platform: 'ios',
+      peerIdentity: 'phone-key',
+      capabilities: ['configuration']
+    }).device
+    expect(paired).toMatchObject({ id: device.id, name: 'New reported name', customName: 'Kitchen iPhone' })
+    expect(dbh.db.select().from(apiGatewayPairedDeviceTable).get()).toMatchObject({
+      name: 'New reported name',
+      customName: 'Kitchen iPhone'
+    })
+  })
+
+  it('clears a custom name without changing the reported name', () => {
+    const device = pairPhone()
+    apiGatewayPairedDeviceService.rename(device.id, { customName: 'Kitchen' })
+    expect(apiGatewayPairedDeviceService.rename(device.id, { customName: null })).not.toHaveProperty('customName')
+    expect(apiGatewayPairedDeviceService.list()).toEqual([expect.objectContaining({ name: 'iPhone' })])
+    expect(dbh.db.select().from(apiGatewayPairedDeviceTable).get()?.customName).toBeNull()
+  })
+
+  it.each([
+    { customName: '' },
+    { customName: '   ' },
+    { customName: 'a'.repeat(65) },
+    { customName: 'x', name: 'y' },
+    { customName: 'x', platform: 'android' }
+  ])('rejects invalid rename input without changing the row: %j', (input) => {
+    const device = pairPhone()
+    apiGatewayPairedDeviceService.rename(device.id, { customName: 'Keep me' })
+    const before = dbh.db.select().from(apiGatewayPairedDeviceTable).all()
+    expect(() => apiGatewayPairedDeviceService.rename(device.id, input)).toThrowError(
+      expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR })
+    )
+    expect(dbh.db.select().from(apiGatewayPairedDeviceTable).all()).toEqual(before)
+  })
+
+  it('rejects renaming a missing device without writing a row', () => {
+    pairPhone()
+    const before = dbh.db.select().from(apiGatewayPairedDeviceTable).all()
+    expect(() => apiGatewayPairedDeviceService.rename('missing-device', { customName: 'Kitchen' })).toThrowError(
+      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+    )
+    expect(dbh.db.select().from(apiGatewayPairedDeviceTable).all()).toEqual(before)
+  })
 })

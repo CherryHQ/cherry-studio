@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, MonitorSmartphone, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowRight, MonitorSmartphone, Pencil, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -14,6 +14,10 @@ import {
   Button,
   Checkbox,
   IndicatorLight,
+  Input,
+  Field,
+  FieldLabel,
+  DialogFooter,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -42,6 +46,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import type { ApiGatewayPairedDevice } from '@shared/data/types/apiGatewayPairedDevice'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { MobileAppDownload } from './MobileAppDownload'
@@ -85,6 +90,27 @@ const DeviceConnectionsSettings: FC = () => {
   const { trigger: deleteDevice, isLoading: isRevoking } = useMutation('DELETE', '/api-gateway/paired-devices/:id', {
     refresh: ['/api-gateway/paired-devices']
   })
+
+  const { trigger: renameDevice, isLoading: isRenaming } = useMutation('PATCH', '/api-gateway/paired-devices/:id', {
+    refresh: ['/api-gateway/paired-devices']
+  })
+  const [renamingDevice, setRenamingDevice] = useState<ApiGatewayPairedDevice>()
+  const [customName, setCustomName] = useState('')
+
+  const closeRename = () => {
+    setRenamingDevice(undefined)
+    setCustomName('')
+  }
+  const saveRename = async (name: string | null) => {
+    if (!renamingDevice || isRenaming) return
+    try {
+      await renameDevice({ params: { id: renamingDevice.id }, body: { customName: name?.trim() || null } })
+      toast.success(t('deviceConnections.devices.renamed'))
+      closeRename()
+    } catch {
+      toast.error(t('common.save_failed'))
+    }
+  }
 
   const onboardingComplete = step === 'complete' || devices.length > 0
   const pairingActive = onboardingComplete || step === 'connect'
@@ -565,8 +591,8 @@ const DeviceConnectionsSettings: FC = () => {
                     <div className="flex flex-col gap-2">
                       {devices.map((device) => (
                         <div key={device.id} className="flex items-center justify-between gap-3 py-2">
-                          <div className="min-w-0">
-                            <div className="truncate font-medium text-sm">{device.name}</div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium text-sm">{device.customName ?? device.name}</div>
                             <div className="text-muted-foreground text-xs">
                               {device.platform} · {new Date(device.createdAt).toLocaleDateString()}
                             </div>
@@ -580,6 +606,18 @@ const DeviceConnectionsSettings: FC = () => {
                               </div>
                             )}
                           </div>
+                          <Tooltip content={t('deviceConnections.devices.rename')}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={t('deviceConnections.devices.rename')}
+                              onClick={() => {
+                                setRenamingDevice(device)
+                                setCustomName(device.customName ?? device.name)
+                              }}>
+                              <Pencil size={14} />
+                            </Button>
+                          </Tooltip>
                           <Tooltip content={t('deviceConnections.devices.revoke')}>
                             <Button
                               variant="ghost"
@@ -608,6 +646,43 @@ const DeviceConnectionsSettings: FC = () => {
             )}
           </div>
         )}
+        <Dialog
+          open={!!renamingDevice}
+          onOpenChange={(open) => {
+            if (!open) closeRename()
+          }}>
+          <DialogContent closeLabel={t('common.close')}>
+            <DialogHeader>
+              <DialogTitle>{t('deviceConnections.devices.renameTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('deviceConnections.devices.renameHint', { name: renamingDevice?.name })}
+              </DialogDescription>
+            </DialogHeader>
+            <Field>
+              <FieldLabel htmlFor="paired-device-name">{t('deviceConnections.devices.renameLabel')}</FieldLabel>
+              <Input
+                id="paired-device-name"
+                maxLength={64}
+                value={customName}
+                onChange={(event) => setCustomName(event.target.value)}
+                autoFocus
+              />
+            </Field>
+            <DialogFooter>
+              {renamingDevice?.customName && (
+                <Button variant="ghost" loading={isRenaming} onClick={() => void saveRename(null)}>
+                  {t('deviceConnections.devices.renameReset')}
+                </Button>
+              )}
+              <Button variant="outline" onClick={closeRename}>
+                {t('common.cancel')}
+              </Button>
+              <Button disabled={!customName.trim()} loading={isRenaming} onClick={() => void saveRename(customName)}>
+                {t('common.save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <MobileAppShowcase />
       </div>
     </SettingsContentColumn>

@@ -15,6 +15,8 @@ import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
   type ApiGatewayPairedDevice,
   type ApiGatewayPairedDeviceMetadata,
+  type ApiGatewayPairedDeviceRename,
+  ApiGatewayPairedDeviceRenameSchema,
   ApiGatewayPairedDeviceMetadataSchema
 } from '@shared/data/types/apiGatewayPairedDevice'
 
@@ -26,6 +28,7 @@ function rowToApiGatewayPairedDevice(row: ApiGatewayPairedDeviceRow): ApiGateway
   return {
     id: row.id,
     name: row.name,
+    ...(row.customName ? { customName: row.customName } : {}),
     platform: row.platform,
     ...(row.peerIdentity
       ? { remoteAccess: { capabilities: authorizationFor(row).grants.map((grant) => grant.domain) } }
@@ -90,6 +93,20 @@ export class ApiGatewayPairedDeviceService {
     const device = rowToApiGatewayPairedDevice(row)
     notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [device.id] }])
     return { device, authorization: authorizationFor(row) }
+  }
+
+  rename(id: string, input: ApiGatewayPairedDeviceRename): ApiGatewayPairedDevice {
+    const parsed = ApiGatewayPairedDeviceRenameSchema.safeParse(input)
+    if (!parsed.success) throw toDataApiError(parsed.error, 'rename paired device')
+    const row = this.db
+      .update(apiGatewayPairedDeviceTable)
+      .set(parsed.data)
+      .where(eq(apiGatewayPairedDeviceTable.id, id))
+      .returning()
+      .get()
+    if (!row) throw DataApiErrorFactory.notFound('ApiGatewayPairedDevice', id)
+    notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [id] }])
+    return rowToApiGatewayPairedDevice(row)
   }
 
   getRemoteAuthorization(deviceId: string, peerIdentity: string): RemoteAuthorization | undefined {
