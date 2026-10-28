@@ -2,6 +2,7 @@ import { previewFormats } from '@cherrystudio/file-preview/react'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { normalizeExt } from '@shared/utils/file'
 
+import { heifFilePreviewPlugin } from './plugins/heif/heifFilePreviewPlugin'
 import { htmlFilePreviewPlugin } from './plugins/html/htmlFilePreviewPlugin'
 import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
@@ -42,6 +43,7 @@ export function resolveExtensionPlugin(filePath: string, registry: FilePreviewRe
 export const filePreviewRegistry = createFilePreviewRegistry({
   extensionPlugins: [
     ...previewFormats.map((format) => ({ ...format, load: () => import('./ElectronFilePreview') })),
+    heifFilePreviewPlugin,
     htmlFilePreviewPlugin,
     markdownFilePreviewPlugin,
     textFilePreviewPlugin,

@@ -57,3 +57,7 @@ describe('getFileTypeByExt', () => {
     }
   })
 })
+
+it.each(['heic', '.heif', 'HEIC', '.HEIF'])('classifies %s as an image', (ext) => {
+  expect(getFileTypeByExt(ext)).toBe('image')
+})

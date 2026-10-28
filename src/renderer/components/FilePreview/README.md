@@ -1,8 +1,12 @@
 # FilePreview
 
-`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, text and video remain local plugins.
+`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, text, video and HEIF/HEIC remain local plugins.
 
 The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
+
+## HEIF/HEIC preview
+
+The desktop-only `heif` plugin previews `.heic` and `.heif` through a main-process PNG rendition (`file.get_heif_rendition`), retaining the original file. The portable package deliberately does not gain HEIF support: decoder ownership and IPC belong to the desktop application.
 
 ## Path Contract
 
@@ -107,7 +111,7 @@ Embedded and tab previews are host composition choices, not `FilePreview` displa
 The public package has a static registry for its document and image formats. `ElectronFilePreview` supplies
 `PreviewSource` through file IPC, forwards PDF resource reads and diagnostics, and builds
 `SelectionReference` from its path and the same metadata request used to open the document. The desktop registry routes those formats through
-that adapter. Only HTML, Markdown, text and video keep application-owned plugins under `plugins/`.
+that adapter. HTML, Markdown, text, video and HEIF/HEIC keep application-owned plugins under `plugins/`.
 All formats reuse layout and toolbar components exported by the package.
 
 For a desktop-only plugin, use this structure:

@@ -648,6 +648,36 @@ describe('MessagePartsRenderer', () => {
       expect(markdown[1]).toContain('console.log(1)')
     })
 
+    it('propagates HEIF media type through single and grouped image rendering', async () => {
+      const request = vi.spyOn(ipcApi, 'request').mockResolvedValue({ content: new Uint8Array([137, 80, 78, 71]) })
+      const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:parts-png')
+      const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      try {
+        const single = renderParts([
+          { type: 'file', url: 'file:///tmp/extensionless', mediaType: 'image/heic', filename: 'original.heic' }
+        ] as CherryMessagePart[])
+        await waitFor(() =>
+          expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["blob:parts-png"]')
+        )
+        single.unmount()
+        const group = renderParts([
+          { type: 'file', url: 'file:///tmp/extensionless', mediaType: 'image/heif', filename: 'original.heif' },
+          { type: 'file', url: 'file:///tmp/photo.png', mediaType: 'image/png', filename: 'photo.png' }
+        ] as CherryMessagePart[])
+        await waitFor(() =>
+          expect(screen.getByTestId('mock-image-block')).toHaveAttribute(
+            'data-images',
+            '["blob:parts-png","file:///tmp/photo.png"]'
+          )
+        )
+        group.unmount()
+      } finally {
+        request.mockRestore()
+        createUrl.mockRestore()
+        revokeUrl.mockRestore()
+      }
+    })
+
     it('renders single and grouped images while skipping image parts without a URL', () => {
       const single = renderParts([
         { type: 'file', url: 'https://img.test/single.png', mediaType: 'image/png' }

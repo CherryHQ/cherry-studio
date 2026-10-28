@@ -124,6 +124,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       return null
     }
   },
+  'file.get_heif_rendition': async ({ source }) => application.get('HeifRenditionService').getRendition(source),
   'file.batch_get_physical_paths': async ({ ids }) => {
     const fileManager = application.get('FileManager')
     const pairs = await Promise.all(

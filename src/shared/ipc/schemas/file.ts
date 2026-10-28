@@ -80,6 +80,24 @@ const binaryReadResultSchema = z.strictObject({
   contentHash: ContentHashSchema.optional()
 })
 
+const heifRenditionSourceSchema = z.union([
+  FileHandleSchema,
+  z.strictObject({ kind: z.literal('bytes'), content: uint8ArraySchema })
+])
+const heifRenditionRequestSchema = z.strictObject({ source: heifRenditionSourceSchema })
+const heifRenditionSchema = z.strictObject({
+  content: uint8ArraySchema,
+  mediaType: z.literal('image/png'),
+  width: z.int().positive().max(16384),
+  height: z.int().positive().max(16384),
+  revision: z.string(),
+  sourceVersion: FileVersionSchema.optional()
+})
+
+export type HeifRenditionSource = z.infer<typeof heifRenditionSourceSchema>
+export type HeifRenditionRequest = z.infer<typeof heifRenditionRequestSchema>
+export type HeifRendition = z.infer<typeof heifRenditionSchema>
+
 const writeIfUnchangedInputSchema = z.strictObject({
   handle: FileHandleSchema,
   data: uint8ArraySchema,
@@ -132,6 +150,7 @@ const treeIdSchema = z.string().min(1)
  */
 export const fileRequestSchemas = {
   ...fileEditRequestSchemas,
+  'file.get_heif_rendition': defineRoute({ input: heifRenditionRequestSchema, output: heifRenditionSchema }),
   'file.read': defineRoute({ input: binaryReadInputSchema, output: binaryReadResultSchema }),
   'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: FileVersionSchema }),
   'file.batch_get_metadata': defineRoute({

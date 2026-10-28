@@ -50,3 +50,21 @@ describe('MessageImageBlock', () => {
     expect(mocks.request).toHaveBeenCalledTimes(1)
   })
 })
+
+it('keeps raw HEIF out of thumbnails and lightbox inputs while preserving ordinary images', async () => {
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:message-png') })
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+  mocks.request.mockResolvedValue({ content: new Uint8Array([137, 80, 78, 71]) })
+  const { unmount } = render(
+    <MessageImageBlock
+      sources={[
+        { url: 'file:///tmp/photo', mediaType: 'image/heic', filename: 'photo.heic' },
+        { url: 'file:///tmp/ordinary.png', mediaType: 'image/png' }
+      ]}
+    />
+  )
+  expect(images()).toEqual(['file:///tmp/ordinary.png'])
+  await waitFor(() => expect(images()).toEqual(['blob:message-png', 'file:///tmp/ordinary.png']))
+  unmount()
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:message-png')
+})

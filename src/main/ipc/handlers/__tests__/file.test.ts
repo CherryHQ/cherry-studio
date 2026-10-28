@@ -562,3 +562,44 @@ describe('fileHandlers', () => {
     expect(directoryTreeManager.dispose).not.toHaveBeenCalled()
   })
 })
+
+describe('file.get_heif_rendition', () => {
+  it('rejects remote, relative, malformed and option-bearing sources at the IPC schema', () => {
+    const schema = fileRequestSchemas['file.get_heif_rendition'].input
+    for (const source of [
+      { kind: 'path', path: 'relative.heic' },
+      { kind: 'url', url: 'https://a/photo.heic' },
+      { kind: 'entry', entryId: 'invalid' },
+      { kind: 'bytes', content: new Uint8Array(), quality: 80 }
+    ]) {
+      expect(schema.safeParse({ source }).success).toBe(false)
+    }
+  })
+  it.each([
+    'HEIF_INVALID',
+    'HEIF_UNAVAILABLE',
+    'HEIF_TOO_LARGE',
+    'HEIF_TIMEOUT',
+    'HEIF_BUSY',
+    'HEIF_READ_FAILED'
+  ] as const)('preserves the service %s code and structured data', async (key) => {
+    const error = new IpcError(
+      fileErrorCodes[key],
+      undefined,
+      key === 'HEIF_TOO_LARGE' ? { limit: 'pixels' } : undefined
+    )
+    appGetMock.mockReturnValueOnce({
+      getRendition: async () => {
+        throw error
+      }
+    })
+    await expect(
+      fileHandlers['file.get_heif_rendition'](
+        { source: { kind: 'bytes', content: new Uint8Array() } },
+        {
+          senderId: null
+        }
+      )
+    ).rejects.toEqual(error)
+  })
+})

@@ -14,6 +14,7 @@
  * currently fall back to inline base64 here.
  */
 
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import mime from 'mime'
@@ -21,9 +22,18 @@ import mime from 'mime'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { read as fsRead } from '@main/utils/file'
+import { HEIF_MAX_BYTES } from '@main/utils/image'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { HeifRenditionSource } from '@shared/ipc/schemas/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { HeifAttachmentError } from './HeifAttachmentError'
+
+const isHeifExt = (value: string) => /\.he(?:ic|if)$/i.test(value)
+const isHeifMime = (value: string) => /^image\/hei[cf](?:-sequence)?$/i.test(value)
 
 const logger = loggerService.withContext('ai:fileProcessor')
 
@@ -56,11 +66,16 @@ function sanitizeFilePartMediaType(part: FileUIPart): FileUIPart {
  * Returns `null` on missing entry / unreadable file so the caller can fall
  * through to the `file://` URL branch.
  */
-async function fileEntryIdToDataUrl(fileEntryId: string) {
+async function fileEntryIdToDataUrl(fileEntryId: string, signal?: AbortSignal) {
   try {
+    const manager = application.get('FileManager')
+    const entry = await manager.getById(fileEntryId)
+    if (isHeifExt('.' + (entry.ext ?? '').replace(/^\./, '')))
+      return heifToDataUrl({ kind: 'entry', entryId: fileEntryId }, signal)
     const { content, mime } = await application.get('FileManager').read(fileEntryId, { encoding: 'base64' })
     return { url: `data:${mime};base64,${content}`, mediaType: mime }
   } catch (error) {
+    if (error instanceof HeifAttachmentError || signal?.aborted) throw error
     logger.warn('Failed to inline file from fileEntryId', {
       fileEntryId,
       error: error instanceof Error ? error.message : error
@@ -74,12 +89,14 @@ async function fileEntryIdToDataUrl(fileEntryId: string) {
  * MIME. Returns `null` on failure so callers can drop the part rather than
  * abort the whole request.
  */
-async function fileUrlToDataUrl(fileUrl: string) {
+async function fileUrlToDataUrl(fileUrl: string, signal?: AbortSignal) {
   try {
     const absPath = AbsoluteFilePathSchema.parse(fileURLToPath(fileUrl))
+    if (isHeifExt(absPath)) return heifToDataUrl({ kind: 'path', path: absPath }, signal)
     const { data, mime } = await fsRead(absPath, { encoding: 'base64' })
     return { url: `data:${mime};base64,${data}`, mediaType: mime }
   } catch (error) {
+    if (error instanceof HeifAttachmentError || signal?.aborted) throw error
     logger.warn('Failed to inline file:// URL', { fileUrl, error: error instanceof Error ? error.message : error })
     return null
   }
@@ -97,8 +114,9 @@ async function fileUrlToDataUrl(fileUrl: string) {
  * same signature. Add the provider/model strategy input then — callers won't
  * need to change.
  */
-export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
-  const materialized = await materializeInner(part)
+export async function materializeNativeFilePart(part: FileUIPart, signal?: AbortSignal): Promise<FileUIPart | null> {
+  signal?.throwIfAborted()
+  const materialized = await materializeInner(part, signal)
   if (materialized === null) return null
   const normalized = sanitizeFilePartMediaType(materialized)
   // Validate only locally available formats in this contract. Do not fetch
@@ -120,8 +138,10 @@ export async function materializeNativeFilePart(part: FileUIPart): Promise<FileU
     // Metadata/magic alone accepts truncated pixel data. Strict decode also
     // rejects malformed-but-displayable files; persisted attachments stay intact.
     await sharp(bytes, { failOn: 'error', limitInputPixels: 100_000_000 }).stats()
+    signal?.throwIfAborted()
     return normalized
-  } catch {
+  } catch (error) {
+    if (signal?.aborted || error instanceof HeifAttachmentError) throw error
     logger.warn('Unreadable image attachment; using the existing file failure note', {
       filename: normalized.filename,
       mediaType: normalized.mediaType
@@ -130,26 +150,72 @@ export async function materializeNativeFilePart(part: FileUIPart): Promise<FileU
   }
 }
 
-async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {
+async function materializeInner(part: FileUIPart, signal?: AbortSignal): Promise<FileUIPart | null> {
   const fileEntryId = readCherryMeta(part)?.fileEntryId
   if (fileEntryId) {
-    const inlined = await fileEntryIdToDataUrl(fileEntryId)
-    if (inlined) return { ...part, ...inlined }
+    const inlined = await fileEntryIdToDataUrl(fileEntryId, signal)
+    if (inlined) return renditionPart(part, inlined)
     // fileEntry missing / unreadable — try to rescue from a still-valid
     // `file://` snapshot (legacy / migrated rows). If no usable file:// URL
     // is available, drop the part rather than emit `{type:'file', data:''}`.
     const url = part.url
     if (!url || !url.startsWith('file://')) return null
-    const rescued = await fileUrlToDataUrl(url)
-    return rescued ? { ...part, ...rescued } : null
+    const rescued = await fileUrlToDataUrl(url, signal)
+    return rescued ? renditionPart(part, rescued) : null
   }
 
   const url = part.url
   if (!url) return part
+  if (url.startsWith('data:') && (isHeifMime(part.mediaType) || /^data:image\/hei[cf](?:-sequence)?[;,]/i.test(url))) {
+    try {
+      const comma = url.indexOf(',')
+      if (comma < 0) throw new IpcError(fileErrorCodes.HEIF_INVALID)
+      const payload = url.slice(comma + 1)
+      const base64 = /;base64$/i.test(url.slice(0, comma))
+      let length = base64 ? Math.floor((payload.replace(/=+$/, '').length * 3) / 4) : 0
+      if (!base64) {
+        for (let i = 0; i < payload.length && length <= HEIF_MAX_BYTES; i++, length++) {
+          if (payload[i] === '%' && /^[0-9a-f]{2}$/i.test(payload.slice(i + 1, i + 3))) i += 2
+        }
+      }
+      if (length > HEIF_MAX_BYTES)
+        throw new IpcError(fileErrorCodes.HEIF_TOO_LARGE, undefined, { limit: 'input_bytes' })
+      const content = base64
+        ? Buffer.from(payload, 'base64')
+        : Buffer.from(
+            payload.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16))),
+            'binary'
+          )
+      return renditionPart(part, await heifToDataUrl({ kind: 'bytes', content }, signal))
+    } catch (error) {
+      if (signal?.aborted || error instanceof HeifAttachmentError) throw error
+      throw new HeifAttachmentError(error)
+    }
+  }
   if (!url.startsWith('file://')) return part
 
-  const inlined = await fileUrlToDataUrl(url)
+  const inlined = await fileUrlToDataUrl(url, signal)
   if (!inlined) return null
 
-  return { ...part, ...inlined }
+  return renditionPart(part, inlined)
+}
+
+async function heifToDataUrl(source: HeifRenditionSource, signal?: AbortSignal) {
+  try {
+    const rendition = await application.get('HeifRenditionService').getRendition(source, signal)
+    return {
+      url: `data:image/png;base64,${Buffer.from(rendition.content).toString('base64')}`,
+      mediaType: 'image/png',
+      heif: true
+    }
+  } catch (error) {
+    if (signal?.aborted) throw error
+    throw new HeifAttachmentError(error)
+  }
+}
+
+function renditionPart(part: FileUIPart, inlined: { url: string; mediaType: string; heif?: boolean }): FileUIPart {
+  const filename =
+    part.filename && inlined.heif ? path.basename(part.filename).replace(/(?:\.[^.]+)?$/, '.png') : part.filename
+  return { ...part, url: inlined.url, mediaType: inlined.mediaType, ...(filename !== undefined && { filename }) }
 }

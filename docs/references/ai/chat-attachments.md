@@ -29,9 +29,11 @@ Decided per file part in `prepareChatMessages`
 
 | Attachment | Native when | What the model receives |
 |---|---|---|
-| image | model is vision | native image part (inline) |
-| image | non-vision, OCR finds text | OCR text, inline (capped) |
-| image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
+| HEIF/HEIC | model is vision | transient PNG image part (inline) |
+| HEIF/HEIC | non-vision | localized HEIF-specific rejection; no OCR or provider request |
+| other image | model is vision | native image part (inline) |
+| other image | non-vision, OCR finds text | OCR text, inline (capped) |
+| other image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
 | pdf | provider+model native PDF | native PDF part (inline) |
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
@@ -57,6 +59,9 @@ Decided per file part in `prepareChatMessages`
   model that accepts images must have **Vision** enabled under Provider Settings
   → model input modalities; that user override takes precedence over the catalog
   and sends the native image without running OCR.
+- HEIF conversion failures raise a localized, actionable error and stop dispatch.
+  This includes historical attachments in active context: remove or exclude the
+  failing attachment before a later turn can proceed. Originals remain intact.
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
@@ -69,6 +74,8 @@ image/audio/video parts are omitted when native support is false. Other
 gateway/external file types keep their existing behavior.
 
 ## Supported extensions (upload allowlist)
+
+Images include `.heic` and `.heif`, case-insensitively.
 
 What the composer lets the user pick is `imageExts`, `documentExts`, and
 `textExts` (`src/shared/utils/file/fileExtensions.ts`) — images and documents
@@ -85,6 +92,30 @@ with no extension or an unrecognized extension (`FILE_TYPE.OTHER`) reach the
 conservative decoder too. Binary bytes or legacy encodings too ambiguous to
 decode safely produce a short unsupported-type note (see the routing matrix
 above).
+
+## HEIF/HEIC display and wire contract
+
+| Boundary | Invariant |
+|---|---|
+| Admission | `.heic` and `.heif` are image extensions, case-insensitively; existing modality gates apply. |
+| Storage | Original identity, filename and bytes stay unchanged. No derived FileEntry or persistent PNG is created. |
+| Display | Composer hover, sent images and lightbox, desktop file-preview pane/tab and Files image activation use a main-process PNG rendition through `file.get_heif_rendition`. Chromium never receives raw HEIF for display. |
+| Wire | Local entry, file URL and declared inline HEIF input become transient `image/png` data; a supplied filename becomes a PNG basename. First-party Claude Code vision input shares this preparation. |
+| Failure | Invalid input, unavailable decoder, size limits, busy queue, inconsistent reads and soft timeout stop dispatch with localized guidance to retry or convert to JPEG/PNG. |
+| Non-vision | HEIF OCR is not supported yet; reject before OCR. Ordinary image OCR is unchanged. |
+| Files grid | Uses an icon. Thumbnails are deferred because Chromium cannot decode raw HEIF and the grid has no rendition lifecycle. Image activation still resolves a rendition. |
+| External Claude Code | Path-only HEIF normalization is unsupported; the existing fallback forwards paths outside first-party preparation. Remote HEIF fetching is outside this contract. |
+
+Renditions decode the primary top-level image (first top-level image if no primary
+is exposed) at full resolution to 8-bit RGBA PNG, applying container transforms
+once and preserving alpha. The main process runs one conversion at a time, with
+at most eight waiting requests and 128 MiB of retained waiting inputs. Input and
+PNG output each allow 64 MiB; each dimension must be a positive safe integer at
+most 16,384, with at most 50,000,000 pixels. Equality is permitted. The 30-second
+deadline starts at queue admission and is **soft**: synchronous WASM can block
+main, and cancellation does not terminate decoding. These limits are not an RSS
+ceiling. Encoded results use a content-hash LRU (16 entries, 64 MiB, five-minute
+TTL); concurrent equal inputs coalesce and failures are not cached.
 
 ## The cap (the only context guard)
 

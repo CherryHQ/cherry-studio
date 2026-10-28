@@ -1,26 +1,36 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { assertQuadrants } from '@main/utils/__tests__/heifFixture'
 import type { FileUIPart } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { readMock } = vi.hoisted(() => ({
+const { readMock, getByIdMock, renditionMock } = vi.hoisted(() => ({
+  getByIdMock: vi.fn().mockResolvedValue({ ext: '.png' }),
+  renditionMock: vi.fn(),
   readMock: vi.fn<(id: string, options: { encoding: 'base64' }) => Promise<{ content: string; mime: string }>>()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  const overrides = { FileManager: { read: readMock } } as Parameters<typeof mockApplicationFactory>[0]
+  const overrides = {
+    FileManager: { read: readMock, getById: getByIdMock },
+    HeifRenditionService: { getRendition: renditionMock }
+  } as Parameters<typeof mockApplicationFactory>[0]
   return mockApplicationFactory(overrides)
 })
 
+import { transcodeHeifToPng } from '@main/utils/image'
+
 import { materializeNativeFilePart } from '../fileProcessor'
+import { HeifAttachmentError } from '../HeifAttachmentError'
 
 const filePart = (p: Partial<FileUIPart>): FileUIPart => ({
   type: 'file',
@@ -139,4 +149,64 @@ describe('materializeNativeFilePart — fileEntryId inline', () => {
     )
     expect(out).toBeNull()
   })
+})
+
+describe('HEIF wire normalization', () => {
+  const fixture = path.resolve('tests/fixtures/heif/quadrants.heic')
+  it.each(['entry', 'path', 'data', 'data-percent'])(
+    'emits PNG for the %s branch and preserves the original hash',
+    async (branch) => {
+      const bytes = await fs.readFile(fixture)
+      const png = await transcodeHeifToPng(bytes)
+      renditionMock.mockImplementationOnce(async (source) =>
+        source.kind === 'bytes' ? transcodeHeifToPng(source.content) : png
+      )
+      if (branch === 'entry') getByIdMock.mockResolvedValueOnce({ ext: '.heic' })
+      const input = filePart({
+        filename: '目录/photo.HEIC',
+        mediaType: 'image/heic',
+        url:
+          branch === 'data'
+            ? 'data:image/heic;base64,' + bytes.toString('base64')
+            : branch === 'data-percent'
+              ? 'data:image/heic,' + [...bytes].map((b) => '%' + b.toString(16).padStart(2, '0')).join('')
+              : 'file://' + fixture,
+        ...(branch === 'entry' && { providerMetadata: { cherry: { fileEntryId: 'entry-1' } } })
+      })
+      const out = await materializeNativeFilePart(input)
+      expect(out?.mediaType).toBe('image/png')
+      expect(out?.filename).toBe('photo.png')
+      expect(Buffer.from(out!.url.split(',')[1], 'base64').subarray(0, 4).toString('hex')).toBe('89504e47')
+      await assertQuadrants(Buffer.from(out!.url.split(',')[1], 'base64'))
+      expect(out?.providerMetadata).toEqual(input.providerMetadata)
+      expect(
+        createHash('sha256')
+          .update(await fs.readFile(fixture))
+          .digest('hex')
+      ).toBe(createHash('sha256').update(bytes).digest('hex'))
+      expect(input.mediaType).toBe('image/heic')
+    }
+  )
+  it('does not rescue a failed canonical HEIF conversion from a stale PNG path', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: '.heic' })
+    renditionMock.mockRejectedValueOnce(new Error('native diagnostic'))
+    await expect(
+      materializeNativeFilePart(
+        filePart({
+          mediaType: 'image/heic',
+          url: 'file:///stale/photo.png',
+          providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+        })
+      )
+    ).rejects.toBeInstanceOf(HeifAttachmentError)
+  })
+})
+
+it('rejects oversized inline HEIF before passing decoded bytes to the rendition service', async () => {
+  renditionMock.mockClear()
+  const payload = 'A'.repeat(Math.ceil(((64 * 1024 * 1024 + 1) * 4) / 3))
+  await expect(
+    materializeNativeFilePart(filePart({ mediaType: 'image/heic', url: 'data:image/heic;base64,' + payload }))
+  ).rejects.toMatchObject({ name: 'HeifAttachmentError', detailI18nKey: 'heif_detail_too_large' })
+  expect(renditionMock).not.toHaveBeenCalled()
 })

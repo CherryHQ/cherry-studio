@@ -54,6 +54,7 @@ import { ConversationNavigationService } from '@main/services/ConversationNaviga
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
+import { HeifRenditionService } from '@main/services/HeifRenditionService'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
@@ -134,6 +135,7 @@ export const services = {
   DeepSeekHarnessService,
   HermesDashboardService,
   FileManager,
+  HeifRenditionService,
   FileEditService,
   AttachmentPresenceService,
   FileIntakeService,
