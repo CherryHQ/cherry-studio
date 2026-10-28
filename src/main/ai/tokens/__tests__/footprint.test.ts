@@ -9,7 +9,7 @@ import {
   measureMedia
 } from '../footprint'
 import { mediaTokensFor } from '../profiles'
-import type { TextTokenizer } from '../textTokenizer'
+import { loadGptO200kTokenizer, type TextTokenizer } from '../textTokenizer'
 
 /** Deterministic tokenizer (1 token per char) so assertions are exact and tokenizer-agnostic. */
 const fake: TextTokenizer = { id: 'fake', count: (t) => t.length }
@@ -22,6 +22,41 @@ const FILE_OVERHEAD = 5
 const PNG_1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
 describe('estimateModelMessagesFootprint', () => {
+  it('conservatively prices oversized system and tool text while leaving media bytes untokenized', async () => {
+    const tokenizer = await loadGptO200kTokenizer()
+    const system = 'A'.repeat(16_385)
+    const toolText = '中'.repeat(16_385)
+    const media = 'A'.repeat(40_000)
+    const messages: ModelMessage[] = [
+      { role: 'system', content: system },
+      {
+        role: 'tool',
+        content: [
+          { type: 'tool-result', toolCallId: 't1', toolName: 'read', output: { type: 'text', value: toolText } }
+        ]
+      },
+      { role: 'user', content: [{ type: 'file', data: media, mediaType: 'audio/mpeg' }] }
+    ]
+    const bytes = new TextEncoder().encode(system).length + new TextEncoder().encode(toolText).length
+    const cost = await estimateModelMessagesFootprint(messages, { dialect: 'openai', tokenizer })
+
+    expect(Number.isFinite(cost)).toBe(true)
+    expect(cost).toBeGreaterThanOrEqual(bytes)
+    expect(cost).toBeLessThanOrEqual(bytes + 4 * MESSAGE_OVERHEAD + TOOL_OVERHEAD + mediaTokensFor('openai', 'audio'))
+    expect(estimateModelMessagesSync(messages, { dialect: 'openai', tokenizer })).toBe(cost)
+    const textFileMessages: ModelMessage[] = [
+      ...messages.slice(0, -1),
+      { role: 'user', content: [{ type: 'file', data: media, mediaType: 'text/plain' }] }
+    ]
+    const textFileCost = await estimateModelMessagesFootprint(textFileMessages, { dialect: 'openai', tokenizer })
+    expect(cost).toBeGreaterThan(textFileCost)
+    expect(cost - textFileCost).toBe(mediaTokensFor('openai', 'audio') - FILE_OVERHEAD)
+    const tool = { name: 'read', description: toolText, schema: { type: 'object' } }
+    expect(countToolTokens(tool, tokenizer)).toBeGreaterThanOrEqual(
+      new TextEncoder().encode(JSON.stringify(tool)).length
+    )
+  })
+
   it('counts a plain-text tool_result output as TEXT (defensive path)', async () => {
     // The converter now emits structured image content, but a text output must still be
     // counted as text — a data-URL string here would ride as its full length.
