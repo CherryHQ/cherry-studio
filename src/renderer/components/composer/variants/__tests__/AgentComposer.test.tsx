@@ -11,10 +11,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import english from '@renderer/i18n/locales/en-us.json'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { AgentSessionCompactionState } from '@shared/ai/agentSessionCompaction'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -36,7 +38,16 @@ import AgentComposerImpl, {
   MissingAgentHomeComposer
 } from '../AgentComposer'
 
+const uiStubs = await vi.hoisted(async () => await import('@cherrystudio/ui'))
+
+vi.mock('@cherrystudio/ui', async () => {
+  const { Alert } = await import('@cherrystudio/ui/components/primitives/alert')
+  const { Button } = await import('@cherrystudio/ui/components/primitives/button')
+  return { ...uiStubs, Alert, Button }
+})
+
 const mocks = vi.hoisted(() => ({
+  compaction: { status: 'idle' } as AgentSessionCompactionState,
   screenshotEnabled: false,
   screenshotListeners: new Map<string, (payload: any) => void>(),
   draftText: 'hello',
@@ -350,6 +361,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         : props.sendAccessory
     return (
       <div>
+        {props.queueContent}
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
         <div data-testid="composer-compact-controls">
           {props.compactWhenSingleLine ? props.renderCompactControls?.(inputAdapter, unifiedPanelControl) : null}
@@ -521,7 +533,7 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
-  useAgentSessionCompaction: () => ({ status: 'idle' })
+  useAgentSessionCompaction: () => mocks.compaction
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
@@ -685,7 +697,10 @@ vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18nextModule>()
   // Real i18next returns a referentially stable `t`; keep it stable here so memoized
   // consumers (e.g. the @ mention suggestion source) don't churn across rerenders.
-  const t = (key: string) => key
+  const t = (key: string) =>
+    key.startsWith('chat.compaction.') || (key === 'agent.session.new' && mocks.compaction.status === 'failed')
+      ? english[key as keyof typeof english]
+      : key
   return {
     ...actual,
     useTranslation: () => ({ t, i18n: { resolvedLanguage: 'en-US' } })
@@ -764,6 +779,7 @@ const originalFetch = globalThis.fetch
 
 describe('AgentComposer', () => {
   beforeEach(() => {
+    mocks.compaction = { status: 'idle' }
     MockCacheUtils.resetMocks()
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
@@ -1718,6 +1734,80 @@ describe('AgentComposer', () => {
 
     const modelLabel = await screen.findByText('Custom Model | My Custom Provider')
     expect(modelLabel).toHaveAttribute('title', 'Custom Model | My Custom Provider')
+  })
+
+  it.each([
+    [
+      'nothing_to_compact',
+      'too_few_groups',
+      'This conversation cannot be compacted yet',
+      "There isn't enough conversation history to compact. You can start a new task with an empty conversation."
+    ],
+    [
+      'request_too_large',
+      "Request too large for the API's 32MB request limit: this conversation is about 40MB, and none of it is images or documents that could be removed, so removing attachments or compacting cannot make it fit.",
+      'Request is too large',
+      'This conversation exceeds the request size limit. Start a new task with a smaller input.'
+    ]
+  ] as const)(
+    'renders localized %s recovery and activates an empty session',
+    async (reason, error, title, description) => {
+      mocks.compaction = { status: 'failed', error, reason }
+      const onCreateEmptySession = vi.fn()
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+          onCreateEmptySession={onCreateEmptySession}
+        />
+      )
+      const notice = screen.getByRole('status')
+      expect(within(notice).getByText(title)).toBeInTheDocument()
+      expect(within(notice).getByText(description)).toBeInTheDocument()
+      expect(notice.outerHTML).not.toContain(error)
+      fireEvent.click(within(notice).getByRole('button', { name: 'New task' }))
+      await waitFor(() => expect(onCreateEmptySession).toHaveBeenCalledTimes(1))
+    }
+  )
+
+  it.each(['nothing_to_compact', 'request_too_large'] as const)(
+    'omits the %s recovery button without a callback',
+    (reason) => {
+      mocks.compaction = { status: 'failed', error: 'raw diagnostic', reason }
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
+      const notice = screen.getByRole('status')
+      expect(within(notice).queryByRole('button')).not.toBeInTheDocument()
+      expect(notice.outerHTML).not.toContain('raw diagnostic')
+    }
+  )
+
+  it('preserves the generic compaction warning and raw unknown diagnostic without recovery', () => {
+    mocks.compaction = { status: 'failed', error: 'context too large' }
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        onCreateEmptySession={vi.fn()}
+      />
+    )
+    const notice = screen.getByRole('status')
+    expect(within(notice).getByText('Context compaction failed')).toBeInTheDocument()
+    expect(within(notice).getByText('context too large')).toBeInTheDocument()
+    expect(within(notice).queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('routes new session shortcuts through the empty session action', () => {
