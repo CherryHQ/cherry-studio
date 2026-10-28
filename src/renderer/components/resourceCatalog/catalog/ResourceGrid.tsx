@@ -405,7 +405,6 @@ export const ResourceGrid: FC<Props> = ({
                   collapsedSize={30}
                   style={{ borderRadius: 8 }}
                 />
-                {toolbarLeading ? <div className="flex shrink-0 items-center">{toolbarLeading}</div> : null}
               </div>
               {description ? (
                 <SettingDescription className="mt-1 text-sm leading-5">{description}</SettingDescription>
@@ -424,19 +423,24 @@ export const ResourceGrid: FC<Props> = ({
           </div>
         )}
 
-        {toolbarFooter || (isSettings && allowColumnToggle) ? (
+        {toolbarFooter || (isSettings && (toolbarLeading || allowColumnToggle)) ? (
           <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle">
             {toolbarFooter}
-            {isSettings && allowColumnToggle && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={layoutLabel}
-                title={layoutLabel}
-                disabled={responsiveColumnCount < 2}
-                onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
-                {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
-              </Button>
+            {isSettings && (toolbarLeading || allowColumnToggle) && (
+              <div className="ml-auto flex shrink-0 items-center gap-3">
+                {toolbarLeading}
+                {allowColumnToggle && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={layoutLabel}
+                    title={layoutLabel}
+                    disabled={responsiveColumnCount < 2}
+                    onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
+                    {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         ) : null}

@@ -47,14 +47,14 @@ export function SkillsSettings() {
             filterResource={filterResource}
             allowColumnToggle
             toolbarLeading={
-              <label className="flex cursor-pointer items-center gap-2 text-muted-foreground text-sm">
+              <label className="flex cursor-pointer items-center gap-2 text-xs whitespace-nowrap text-muted-foreground">
+                <span>{enabledOnlyLabel}</span>
                 <Switch
-                  size="sm"
+                  size="xs"
                   checked={enabledOnly}
                   aria-label={enabledOnlyLabel}
                   onCheckedChange={setEnabledOnly}
                 />
-                <span>{enabledOnlyLabel}</span>
               </label>
             }
             toolbarFooter={
