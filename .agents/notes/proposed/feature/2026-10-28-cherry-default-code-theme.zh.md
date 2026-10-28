@@ -34,8 +34,8 @@ Status: proposed
 | 函数 | blue-600 | blue-300 |
 | 标记语言标签 | rose-700 | rose-300 |
 | 链接 | `link` | `link` |
-| Diff 新增 / 删除 | `success` / `error` | `success` / `error` |
-| 无效内容 | `error` | `error` |
+| Diff 新增 / 删除 | green-700 / red-600 | green-400 / red-400 |
+| 无效内容 | red-600 | red-400 |
 
 变量和属性不着色，颜色只用于标示语法。暗色下各彩色角色处于同一亮度带（OKLCH L 0.81–0.86），不会有某个色相格外突出。所有角色相对白色背景和半透明暗色宿主背景都满足 WCAG AA（≥ 4.5:1）。
 
@@ -43,9 +43,9 @@ Status: proposed
 
 - **主题目录与设置：** 在共享代码高亮目录中注册 `cherry`。`auto` 在亮色和暗色下都解析为 `cherry`，设置中 `auto` 的标签标明它是 Cherry 默认主题。
 - **消息查看器、Tiptap 与 CodeMirror 语法色：** `getCodeBlockPalette` 将 CSS 变量主题映射为 `var(--cherry-code-*)` 引用，不再写入固定颜色值。
-- **Pierre 文件与 Diff：** 在主线程和 `fileEditor.worker.ts` 中分别通过 `registerCustomTheme(..., 'zed')` 注册 `cherry`，因为 worker 有独立的主题注册表。
+- **Pierre 文件与 Diff：** 在主线程通过 `registerCustomTheme(..., 'zed')` 注册一次 `cherry`；worker pool 在主线程解析主题后再发送给各 worker。
 - **暗色判断：** 使用 `cherry` 时，`isCodeThemeDark` 跟随应用的明暗模式，而不是读取固定的 `appearance` 字段。
-- **固定行号栏：** 代码正文透明。Pierre 的固定行号栏和 CodeMirror 的行号栏使用 `var(--background)`，避免横向滚动时代码透过行号栏显示。亮色下完全一致；在暗色半透明宿主上可能出现一条较淡的竖条。
+- **行号栏：** 行号栏透明，并在横向滚动时随代码一起移动，与消息查看器现有的行号行为一致。Pierre（通过 `unsafeCSS`）和 CodeMirror（`gutters({ fixed: false })`）不再固定行号栏，代码不会从行号栏下方经过。
 - **CodeMirror 外观：** `chat.code.editor.theme_*` 为 `auto` 时，CodeMirror 编辑器不再使用 `materialLight` / `dark`，改用 Cherry 外观主题。该主题背景透明，正文、光标、选区、行号栏和当前行颜色取自应用的颜色变量，语法色使用同一套调色板。
 
 用户主动选择的第三方主题保留完整配色和背景。不改写已保存的设置值，也不需要迁移。
@@ -54,7 +54,7 @@ Status: proposed
 
 - **只覆盖第三方主题的背景：** 已否决。第三方主题的语法色按其自身背景设计；放到浅色宿主或暗色半透明宿主上后，无法保证对比度。
 - **两个使用固定颜色值的主题（`cherry-light` / `cherry-dark`）：** 已否决。切换明暗时需要重建分词器，用户也可能在暗色应用中配上亮色调色板。
-- **行号栏完全透明：** 已否决。Pierre 的行号栏在横向滚动时固定在左侧，代码会透过它显示出来。
+- **固定行号栏：** 已否决。透明的固定行号栏会在横向滚动时让代码透出来；不透明的又无法与暗色半透明宿主一致：`var(--background)` 本身是半透明的，实色则显示为一条明显的竖条（用户于 2026-10-28 否决）。
 - **CodeMirror 外观继续使用 `materialLight` / `dark`：** 用户于 2026-10-28 否决。否则编辑器仍是实色背景，与沉浸式的查看器并排时不一致。
 
 ## Acceptance criteria
@@ -70,5 +70,5 @@ Status: proposed
 ## Risks
 
 - Pierre 的 Diff、分隔条和装饰颜色由 `color-mix` 与 `--diffs-bg` 混合得到。背景透明后，这些色块可能过淡；发布前需要在亮色和暗色下检查 Diff。
-- worker 注册表与主线程注册表可能不一致；如果 worker 中漏掉注册，会无提示地回退到 Pierre 的默认主题。
+- 行号栏随代码滚走后，横向滚动到长行右侧时看不到该行行号。
 - 依赖 `auto` 显示为 One Light 或 Material Darker 的用户会看到新的默认主题；他们仍可主动选择这些主题。

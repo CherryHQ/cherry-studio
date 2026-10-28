@@ -34,8 +34,8 @@ The palette lives in the rich-text-and-code domain of `packages/ui/src/styles/pr
 | Function | blue-600 | blue-300 |
 | Markup tag | rose-700 | rose-300 |
 | Link | `link` | `link` |
-| Diff inserted / deleted | `success` / `error` | `success` / `error` |
-| Invalid | `error` | `error` |
+| Diff inserted / deleted | green-700 / red-600 | green-400 / red-400 |
+| Invalid | red-600 | red-400 |
 
 Variables and properties stay uncolored so that color marks only syntax. Dark-mode roles share one lightness band (OKLCH L 0.81–0.86), so no hue dominates. Every role meets WCAG AA (≥ 4.5:1) against white and against the translucent dark host.
 
@@ -43,9 +43,9 @@ Variables and properties stay uncolored so that color marks only syntax. Dark-mo
 
 - **Theme catalog and settings:** register `cherry` in the shared code-highlight catalog. `auto` resolves to `cherry` in both appearances, and the settings label for `auto` names it as the Cherry default.
 - **Message viewer, Tiptap, and CodeMirror syntax:** `getCodeBlockPalette` maps a CSS-variable theme to `var(--cherry-code-*)` references instead of literal colors.
-- **Pierre files and diffs:** register `cherry` with `registerCustomTheme(..., 'zed')` on the main thread and in `fileEditor.worker.ts`, which keeps its own theme registry.
+- **Pierre files and diffs:** register `cherry` once on the main thread with `registerCustomTheme(..., 'zed')`; the worker pool resolves themes there and sends them to its workers.
 - **Dark-mode detection:** for `cherry`, `isCodeThemeDark` follows the application appearance instead of a fixed `appearance` field.
-- **Sticky gutters:** the code body is transparent. Pierre's sticky line-number gutter and CodeMirror's gutters use `var(--background)` so code cannot show through during horizontal scrolling. In light mode this matches exactly; on the dark translucent host it may show as a faint stripe.
+- **Gutters:** line-number gutters are transparent and scroll horizontally with the code, as message viewer line numbers already do. Pierre (through `unsafeCSS`) and CodeMirror (`gutters({ fixed: false })`) no longer pin the gutter, so code never passes beneath it.
 - **CodeMirror chrome:** with `chat.code.editor.theme_*` set to `auto`, CodeMirror editors use a Cherry chrome theme instead of `materialLight` / `dark`. This theme uses a transparent background and takes text, caret, selection, gutter, and active-line colors from application tokens. Syntax colors come from the same palette.
 
 Explicitly selected third-party themes keep their full colors and background. Stored preference values are not rewritten, and no migration is needed.
@@ -54,7 +54,7 @@ Explicitly selected third-party themes keep their full colors and background. St
 
 - **Override only the background of third-party themes:** rejected, because their syntax colors assume their own background, and on light hosts or the translucent dark host contrast is no longer guaranteed.
 - **Two named themes (`cherry-light` / `cherry-dark`) with literal colors:** rejected. A mode switch would rebuild tokenizers, and a user could pair the light palette with the dark application.
-- **A fully transparent gutter:** rejected, because Pierre's gutter is sticky and code would show through during horizontal scrolling.
+- **A sticky gutter:** rejected. A transparent sticky gutter lets code show through during horizontal scrolling. An opaque one cannot match the translucent dark host: `var(--background)` is itself translucent, and a solid color showed as a distinct stripe (rejected by the user on 2026-10-28).
 - **Keep CodeMirror chrome on `materialLight` / `dark`:** rejected by the user on 2026-10-28. Editors would keep a solid background beside immersive viewers.
 
 ## Acceptance criteria
@@ -70,5 +70,5 @@ Explicitly selected third-party themes keep their full colors and background. St
 ## Risks
 
 - Pierre derives diff, separator, and decoration colors with `color-mix` against `--diffs-bg`. A transparent background can make these tints too faint; verify diffs in both modes before release.
-- The worker registry and the main-thread registry can drift; a missing worker registration would quietly fall back to Pierre's default theme.
+- With the line-number gutter scrolled away, a horizontally scrolled long line no longer shows its line number.
 - Users who relied on `auto` getting One Light or Material Darker will see a different default; they can still select those themes explicitly.
