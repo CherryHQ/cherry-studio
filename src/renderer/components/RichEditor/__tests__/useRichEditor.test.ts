@@ -242,12 +242,14 @@ describe('useRichEditor markdown paste', () => {
       { initialProps: { editable: true } }
     )
 
+    const editor = getEditor(result)
+
     await act(async () => {
-      pasteImage(result.current.editor)
+      pasteImage(editor)
     })
 
     rerender({ editable: false })
-    await waitFor(() => expect(result.current.editor.isEditable).toBe(false))
+    await waitFor(() => expect(editor.isEditable).toBe(false))
 
     await act(async () => {
       resolveEntry({ id: 'entry-1', name: 'Pasted Image', ext: 'png' })
@@ -255,7 +257,7 @@ describe('useRichEditor markdown paste', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    await waitFor(() => expect(countImageNodes(result.current.editor)).toBe(1))
+    await waitFor(() => expect(countImageNodes(editor)).toBe(1))
     expect(onChange).toHaveBeenCalled()
     expect(onChange.mock.calls.at(-1)?.[0]).toContain('file:///tmp/pasted.png')
   })
