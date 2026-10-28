@@ -1251,6 +1251,11 @@ export function maskIndentedCodeBlocksReference(text: string): {
   // (CommonMark 0.31.2 §4.4; cherry-pr-review inv_0847c277aaa83851). A setext
   // underline only closes an OPEN paragraph; on its own it is paragraph text.
   const isLeafBlockBoundaryLine = (line: string, paragraphWasOpen: boolean): boolean => {
+    // Reference oracle uses the same thematic-before-list precedence while
+    // retaining its own forward-scanner implementation.
+    const quoteStripped = expandFencePrefixTabs(line).replace(/^(?: {0,3}> ?)+/, '')
+    const breakContent = stripInheritedListIndent(quoteStripped, inheritedListColumns)
+    if (/^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(breakContent)) return true
     const stripped = stripMarkdownContainerMarkers(line)
     const content =
       stripped === line && inheritedListColumns > 0
@@ -1306,7 +1311,9 @@ export function maskIndentedCodeBlocksReference(text: string): {
     // the three optional columns allowed relative to the current container.
     const nestedOffset =
       inheritedListColumns > 0 && expanded.startsWith(' '.repeat(inheritedListColumns)) ? inheritedListColumns : 0
-    const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(expanded.slice(nestedOffset))
+    const listContent = expanded.slice(nestedOffset)
+    const thematic = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(listContent)
+    const list = thematic ? null : /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(listContent)
     if (list) {
       const padding = list[3].length <= 4 ? list[3].length : 1
       const nextColumns = nestedOffset + list[1].length + list[2].length + padding
@@ -1568,6 +1575,11 @@ export function isLeafBlockBoundaryLineFor(
   paragraphWasOpen: boolean,
   inheritedListColumns: number
 ): boolean {
+  // Thematic breaks outrank list markers; do not strip their spaced markers
+  // as nested lists before testing the leaf boundary.
+  const quoteStripped = expandFencePrefixTabs(l).replace(/^(?: {0,3}> ?)+/, '')
+  const breakContent = stripInheritedListIndent(quoteStripped, inheritedListColumns)
+  if (/^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(breakContent)) return true
   const stripped = stripMarkdownContainerMarkers(l)
   const content =
     stripped === l && inheritedListColumns > 0 ? stripInheritedListIndent(stripped, inheritedListColumns) : stripped
@@ -1672,7 +1684,9 @@ export function indentedMaskStep(
     state.inheritedListColumns > 0 && expanded.startsWith(' '.repeat(state.inheritedListColumns))
       ? state.inheritedListColumns
       : 0
-  const list = /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(expanded.slice(nestedOffset))
+  const listContent = expanded.slice(nestedOffset)
+  const thematic = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(listContent)
+  const list = thematic ? null : /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(listContent)
   if (list) {
     const padding = list[3].length <= 4 ? list[3].length : 1
     const nextColumns = nestedOffset + list[1].length + list[2].length + padding

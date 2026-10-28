@@ -257,6 +257,63 @@ describe('append-only scratchpad answer streaming', () => {
         expect(s.a.scratchpadPrefixViolation).toBe(false)
       }
   })
+  it.each(['1.     <analysis>LITERAL</analysis>\n', '* * *\n\n    <thinking>LITERAL</thinking>\n'])(
+    'preserves literal code after marker padding and thematic breaks: %j',
+    (raw) => {
+      for (const size of [1, 2, 3, 5, raw.length]) {
+        const s = setup()
+        for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+        s.stop()
+        expect(s.text()).toBe(raw)
+        s.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        expect(s.text()).toBe(raw)
+      }
+    }
+  )
+  it('preserves thematic breaks without blank lines and after prior lists', () => {
+    for (const marker of ['* * *', '- - -', '_ _ _'])
+      for (const lead of ['', '- x\n', '1. a\n'])
+        for (const blank of ['', '\n']) {
+          const raw = lead + marker + '\n' + blank + '    <thinking>L</thinking>\n'
+          for (const size of [1, 2, 3, 5, raw.length]) {
+            const s = setup()
+            for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+            s.stop()
+            expect(s.text()).toBe(raw)
+            s.a.handleMessage({
+              type: 'assistant',
+              parent_tool_use_id: null,
+              session_id: 's',
+              uuid: crypto.randomUUID(),
+              message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+            } as any)
+            expect(s.text()).toBe(raw)
+          }
+        }
+  })
+  it('bounds long fragmented marker-only padding', () => {
+    for (const count of [8000, 16000]) {
+      const raw = '1.' + ' '.repeat(count) + '<analysis>LITERAL</analysis>\n'
+      const s = setup()
+      const start = performance.now()
+      for (let i = 0; i < raw.length; i += 64) s.push(raw.slice(i, i + 64))
+      s.stop()
+      expect(s.text()).toBe(raw)
+      console.log({
+        markerPadding: count,
+        ms: performance.now() - start,
+        scanChars: s.a.scratchpadScanInputChars,
+        carryChars: s.a.scratchpadCarryWorkChars
+      })
+      expect(performance.now() - start).toBeLessThan(1500)
+    }
+  })
   it('keeps quoted greater-than attributes opaque through fragments and snapshot', () => {
     const exact = ['`x`\n\n', '<div title="> <analysis>literal</analysis>"', '>PUBLIC</div>']
     const raw = exact.join('')

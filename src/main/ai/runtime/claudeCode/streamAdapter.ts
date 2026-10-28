@@ -2189,6 +2189,8 @@ export class ClaudeCodeStreamAdapter {
     // A complete outer marker followed by an unfinished nested marker must retain its raw
     // spelling: the next delta can supply whitespace and a fence on that nested marker.
     if (/^(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)+(?:[-*+]|\d{1,9}[.)]?)[ \t]*$/.test(remainder)) return openLine
+    // Padding on a marker-only line is not settled until actual content arrives.
+    if (/^(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)+$/.test(remainder)) return openLine
     const cacheableKey = ctx.textBlockContextStart + lineStart
     const cached = ctx.scratchpadOpenLineCarry
     let markerHead: string

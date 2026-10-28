@@ -208,3 +208,36 @@ describe('code-literal HTML before tilde fence', () => {
     expect(ContextPrompts.formatCompactSummary(raw)).toBe(raw)
   })
 })
+
+describe('thematic break precedence', () => {
+  it('keeps indented code after spaced thematic breaks in formatter and both masks', () => {
+    for (const marker of ['* * *', '- - -', '_ _ _']) {
+      const raw = marker + '\n\n    <thinking>LITERAL</thinking>\n'
+      expect(ContextPrompts.formatCompactSummary(raw)).toBe(raw.trimEnd())
+      expect(maskIndentedCodeBlocks(raw).text).toBe(maskIndentedCodeBlocksReference(raw).text)
+    }
+  })
+})
+
+describe('thematic leaf boundary before list classification', () => {
+  it('preserves no-blankline and prior-list thematic code shapes', () => {
+    for (const marker of ['* * *', '- - -', '_ _ _'])
+      for (const lead of ['', '- x\n', '1. a\n'])
+        for (const blank of ['', '\n']) {
+          const raw = lead + marker + '\n' + blank + '    <thinking>L</thinking>\n'
+          expect(ContextPrompts.formatCompactSummary(raw)).toBe(raw.trimEnd())
+        }
+  })
+})
+
+describe('thematic reference parity', () => {
+  it('agrees on tabs and quote/container thematic boundaries', () => {
+    for (const raw of [
+      '-\t-\t-\n    <thinking>LIT</thinking>\n',
+      '> * * *\n>     <thinking>LIT</thinking>\n',
+      '- x\n  * * *\n      <thinking>LIT</thinking>\n'
+    ]) {
+      expect(maskIndentedCodeBlocks(raw).text).toBe(maskIndentedCodeBlocksReference(raw).text)
+    }
+  })
+})
