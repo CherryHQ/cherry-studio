@@ -1,7 +1,7 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, renderHook, screen } from '@testing-library/react'
 import type * as XyFlowModule from '@xyflow/react'
-import type { ReactNode } from 'react'
+import { Activity, type ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,9 +19,10 @@ import TopicBranchPanel from '../TopicBranchPanel'
 
 type Viewport = { x: number; y: number; zoom: number }
 
-const { setViewport, defaultViewports } = vi.hoisted(() => ({
+const { setViewport, defaultViewports, flowInstances } = vi.hoisted(() => ({
   setViewport: vi.fn(),
-  defaultViewports: [] as Viewport[]
+  defaultViewports: [] as Viewport[],
+  flowInstances: [] as object[]
 }))
 
 vi.mock('@xyflow/react', async (importOriginal) => {
@@ -41,9 +42,11 @@ vi.mock('@xyflow/react', async (importOriginal) => {
       onInit: (instance: { setViewport: typeof setViewport }) => void
     }) => {
       defaultViewports.push(defaultViewport)
+      const [instance] = React.useState(() => ({ setViewport }))
       React.useEffect(() => {
-        onInit({ setViewport })
-      }, [onInit])
+        flowInstances.push(instance)
+        onInit(instance)
+      }, [instance, onInit])
       return (
         <div data-testid="react-flow" data-default-viewport={JSON.stringify(defaultViewport)}>
           {children}
@@ -105,6 +108,7 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
     MockUseDataApiUtils.resetMocks()
     setViewport.mockClear()
     defaultViewports.length = 0
+    flowInstances.length = 0
     frames = new Map()
     let nextFrame = 0
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -130,6 +134,103 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
       pending.forEach((callback) => callback(0))
     })
   }
+
+  // Mutation refresh bypasses the panel's notification reader and must not consume stale focus.
+  it('waits for overlapping real SWR mutation invalidation before locating the new branch', async () => {
+    const actual = await vi.importActual<typeof DataApiHooks>('@data/hooks/useDataApi')
+    vi.mocked(useQuery).mockImplementation(actual.useQuery)
+    vi.mocked(useDataChange).mockImplementation(actual.useDataChange)
+    const cached = makeTree('long-11')
+    const refreshed = makeTree('short-sibling')
+    const opening = deferred<TreeResponse>()
+    const replacement = deferred<TreeResponse>()
+    const mutation = deferred<unknown>()
+    const get = vi.mocked(dataApiService.get)
+    get.mockReset()
+    get.mockResolvedValue(cached)
+    vi.mocked(dataApiService.put).mockReturnValueOnce(mutation.promise)
+    const cache = new Map()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SWRConfig value={{ provider: () => cache }}>{children}</SWRConfig>
+    )
+    const activeNode = renderHook(
+      () =>
+        actual.useMutation('PUT', '/topics/:id/active-node', {
+          refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
+        }),
+      { wrapper }
+    )
+    const pane = (open: boolean, focusKey: string) => (
+      <Activity mode={open ? 'visible' : 'hidden'}>
+        <TopicBranchPanel open={open} topicId="topic-1" focusKey={focusKey} />
+      </Activity>
+    )
+    const { rerender } = render(pane(true, 'cycle:0'), { wrapper })
+    await flushFrame()
+    expect(setViewport).toHaveBeenLastCalledWith(getCenteredViewport(cached, 'long-11').viewport, { duration: 0 })
+    const flow = screen.getByTestId('react-flow')
+    const instance = flowInstances.at(-1)
+    const previousViewport = flow.getAttribute('data-default-viewport')
+    rerender(pane(false, 'cycle:0'))
+    let pendingMutation!: Promise<unknown>
+    await act(async () => {
+      pendingMutation = activeNode.result.current.trigger({
+        params: { id: 'topic-1' },
+        body: { nodeId: 'short-sibling' }
+      })
+    })
+    setViewport.mockClear()
+    get.mockReset()
+    get.mockReturnValueOnce(opening.promise).mockReturnValueOnce(replacement.promise)
+    rerender(pane(true, 'cycle:1'))
+    await flushFrame()
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(
+      setViewport.mock.calls.every(
+        ([viewport]) => JSON.stringify(viewport) === JSON.stringify(getCenteredViewport(cached, 'long-11').viewport)
+      )
+    ).toBe(true)
+    setViewport.mockClear()
+    // The server has switched branches; mutation success now globally invalidates the tree.
+    await act(async () => mutation.resolve({}))
+    expect(get).toHaveBeenCalledTimes(2)
+    await act(async () => opening.resolve(cached))
+    await flushFrame()
+    expect.soft(setViewport).not.toHaveBeenCalled()
+    expect.soft(screen.getByTestId('react-flow')).toBe(flow)
+    expect.soft(flowInstances.at(-1)).toBe(instance)
+    expect.soft(flow).toHaveAttribute('data-default-viewport', previousViewport)
+
+    await act(async () => {
+      replacement.resolve(refreshed)
+      await pendingMutation
+    })
+    await flushFrame()
+    const { node, viewport } = getCenteredViewport(refreshed, 'short-sibling')
+    expect(setViewport).toHaveBeenCalledExactlyOnceWith(viewport, { duration: 0 })
+    expect(screen.getByTestId('react-flow')).toBe(flow)
+    expect(flowInstances.at(-1)).toBe(instance)
+    const applied = setViewport.mock.calls.at(-1)![0] as Viewport
+    const left = node.position.x * applied.zoom + applied.x
+    const top = node.position.y * applied.zoom + applied.y
+    expect(left).toBeGreaterThanOrEqual(0)
+    expect(top).toBeGreaterThanOrEqual(0)
+    expect(left + TOPIC_MESSAGE_FLOW_NODE_SIZE.width * applied.zoom).toBeLessThanOrEqual(canvasSize.width)
+    expect(top + TOPIC_MESSAGE_FLOW_NODE_SIZE.height * applied.zoom).toBeLessThanOrEqual(canvasSize.height)
+  })
+
+  // A synchronous read can settle without an observed validating frame and must not strand focus.
+  it('releases unobserved-revalidation after a synchronous read settles while idle', async () => {
+    const cached = makeTree('short-sibling')
+    const refetch = vi.fn().mockResolvedValue(cached)
+    MockUseDataApiUtils.mockQueryResult('/topics/:topicId/tree', { data: cached, isRefreshing: false, refetch })
+    render(<TopicBranchPanel open topicId="topic-1" />)
+    await flushFrame()
+    expect(setViewport).toHaveBeenCalledExactlyOnceWith(getCenteredViewport(cached, 'short-sibling').viewport, {
+      duration: 0
+    })
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
 
   // A discarded opening response must not consume the cycle before the notification read commits.
   it('waits for overlapping real SWR notification revalidation before locating the new branch', async () => {
@@ -260,7 +361,7 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
     expect(refetch).toHaveBeenCalledTimes(2)
   })
 
-  // Real SWR must bypass its five-second dedupe and expose the exact committed reference for the readiness gate.
+  // Real SWR must bypass its five-second dedupe and keep cached data usable after a failed refresh.
   it('bypasses real SWR deduplication and returns rendered cache data even after a failed refresh', async () => {
     const { useQuery } = await vi.importActual<typeof DataApiHooks>('@data/hooks/useDataApi')
     const cached = makeTree('long-11')

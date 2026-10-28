@@ -69,14 +69,12 @@ const TopicBranchPanel: FC<Props> = ({
     id: number
     topicId: string
     focusKey: Props['focusKey']
-    sequence: number
-    pending: number
+    cached: boolean
   } | null>(null)
   const [cycleRefresh, setCycleRefresh] = useState<{
     cycle: NonNullable<typeof refreshCycleRef.current>
-    sequence: number
-    data?: unknown
     settled: boolean
+    sawRevalidating: boolean
     failed?: boolean
     ready: boolean
   } | null>(null)
@@ -84,24 +82,16 @@ const TopicBranchPanel: FC<Props> = ({
   const refreshTree = useCallback(async () => {
     const cycle = refreshCycleRef.current
     if (!cycle) return
-    const sequence = ++cycle.sequence
-    cycle.pending++
-    setCycleRefresh((previous) =>
-      previous?.cycle === cycle && previous.ready ? previous : { cycle, sequence, settled: false, ready: false }
-    )
-    let refreshedData: unknown
     let failed = false
     try {
-      refreshedData = await refetch()
+      await refetch()
     } catch {
       failed = true
     } finally {
-      cycle.pending--
       if (refreshCycleRef.current === cycle) {
         setCycleRefresh((previous) => {
           if (!previous || previous.cycle !== cycle || previous.ready) return previous
-          if (sequence !== cycle.sequence) return { ...previous }
-          return { cycle, sequence, data: refreshedData, settled: true, failed, ready: false }
+          return { ...previous, settled: true, failed }
         })
       }
     }
@@ -110,29 +100,33 @@ const TopicBranchPanel: FC<Props> = ({
   useEffect(() => {
     if (!open) return
     if (refreshCycleRef.current?.topicId === topicId && refreshCycleRef.current.focusKey === focusKey) return
-    const cycle = { id: (refreshCycleRef.current?.id ?? 0) + 1, topicId, focusKey, sequence: 0, pending: 0 }
+    const cycle = { id: (refreshCycleRef.current?.id ?? 0) + 1, topicId, focusKey, cached: data !== undefined }
     refreshCycleRef.current = cycle
-    setCycleRefresh({ cycle, sequence: 0, settled: false, ready: false })
+    setCycleRefresh({ cycle, settled: false, sawRevalidating: isRefreshing, ready: false })
     if (data !== undefined) void refreshTree()
-  }, [open, topicId, focusKey, data, refreshTree])
+  }, [open, topicId, focusKey, data, isRefreshing, refreshTree])
 
   useEffect(() => {
+    if (!cycleRefresh || cycleRefresh.ready || cycleRefresh.cycle !== refreshCycleRef.current) return
+    if (isRefreshing) {
+      if (!cycleRefresh.sawRevalidating) setCycleRefresh({ ...cycleRefresh, sawRevalidating: true })
+      return
+    }
+    const hasResult = data !== undefined || !!error
+    const unobservedRevalidation =
+      !cycleRefresh.sawRevalidating && (cycleRefresh.settled || (!cycleRefresh.cycle.cached && !isLoading && hasResult))
     if (
-      cycleRefresh &&
-      !cycleRefresh.ready &&
-      cycleRefresh.cycle === refreshCycleRef.current &&
-      cycleRefresh.sequence === cycleRefresh.cycle.sequence &&
-      (cycleRefresh.sequence === 0
-        ? data !== undefined || error
-        : cycleRefresh.settled &&
-          (cycleRefresh.failed || data === cycleRefresh.data || (cycleRefresh.cycle.pending === 0 && !isRefreshing)))
+      (cycleRefresh.sawRevalidating && hasResult) ||
+      (!cycleRefresh.sawRevalidating && (cycleRefresh.failed || error)) ||
+      unobservedRevalidation
     ) {
       setCycleRefresh({ ...cycleRefresh, ready: true })
     }
-  }, [cycleRefresh, data, error, isRefreshing])
+  }, [cycleRefresh, data, error, isLoading, isRefreshing])
 
   const focusReady =
     open &&
+    !isRefreshing &&
     cycleRefresh?.cycle.topicId === topicId &&
     cycleRefresh.cycle.focusKey === focusKey &&
     cycleRefresh.cycle === refreshCycleRef.current &&
