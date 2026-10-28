@@ -9,7 +9,7 @@ import { resolveAllowedPath } from './paths'
 import { assertOwnedProcess, findCdpPid, isDescendant } from './process'
 import type { Platform } from './types'
 
-const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
+const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'c', 'e', 'k', 's'])
 let activeWindowsTextFixturePid: number | undefined
 let activeMacTextFixturePath: string | undefined
 let macProductMajor: number | undefined
@@ -267,7 +267,7 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
 }
 
 export function openExternalText(platform: Platform, paths: RunPaths, candidatePath: string): string {
-  const filePath = resolveAllowedPath(candidatePath, [paths.fixtures])
+  const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`External text fixture does not exist: ${filePath}`)
   if (platform === 'macos') {
     closeExternalText(platform)

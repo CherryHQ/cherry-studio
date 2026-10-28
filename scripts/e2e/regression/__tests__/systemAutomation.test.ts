@@ -32,25 +32,37 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-it('closes only the owned TextEdit document without quitting the application', () => {
+it.each(['fixtures', 'evidence'] as const)(
+  'closes only the owned TextEdit document from %s without quitting the application',
+  (root) => {
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    const filePath = join(
+      paths[root],
+      process.platform === 'win32' ? "selection 'quoted'.txt" : 'selection "quoted".txt'
+    )
+    writeFileSync(filePath, 'Test selection')
+    automation.openExternalText('macos', paths, filePath)
+    execFileSync.mockClear()
+    automation.closeExternalText('macos')
+    const [command, args] = execFileSync.mock.calls[0]
+    expect(command).toBe('osascript')
+    expect(args.slice(-2)).toEqual(['--', pathToFileURL(filePath).href])
+    expect(args[1]).toContain('if value of attribute "AXDocument" of docWindow is item 1 of argv then')
+    expect(args[1]).not.toContain('tell application "TextEdit"')
+    expect(args[1]).not.toMatch(/\bquit\b/)
+    execFileSync.mockClear()
+    automation.closeExternalText('macos')
+    expect(execFileSync).not.toHaveBeenCalled()
+  }
+)
+
+it('rejects external text outside the owned input and export directories', () => {
   const paths = getRunPaths(directory)
   ensureRunDirectories(paths)
-  const filePath = join(
-    paths.fixtures,
-    process.platform === 'win32' ? "selection 'quoted'.txt" : 'selection "quoted".txt'
-  )
-  writeFileSync(filePath, 'Test selection')
-  automation.openExternalText('macos', paths, filePath)
-  execFileSync.mockClear()
-  automation.closeExternalText('macos')
-  const [command, args] = execFileSync.mock.calls[0]
-  expect(command).toBe('osascript')
-  expect(args.slice(-2)).toEqual(['--', pathToFileURL(filePath).href])
-  expect(args[1]).toContain('if value of attribute "AXDocument" of docWindow is item 1 of argv then')
-  expect(args[1]).not.toContain('tell application "TextEdit"')
-  expect(args[1]).not.toMatch(/\bquit\b/)
-  execFileSync.mockClear()
-  automation.closeExternalText('macos')
+  const filePath = join(directory, 'outside.txt')
+  writeFileSync(filePath, 'Unrelated document')
+  expect(() => automation.openExternalText('macos', paths, filePath)).toThrow('outside the regression test directories')
   expect(execFileSync).not.toHaveBeenCalled()
 })
 

@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { rm, writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -15,7 +14,12 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
+import {
+  closeExternalText,
+  openExternalText,
+  saveNativeFile,
+  sendSystemHotkey
+} from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
@@ -751,26 +755,14 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     expect(exported[0].regularPhrases).toEqual([])
     await testInfo.attach('MP-23 exported JSON', { path: exportedPath, contentType: 'application/json' })
     if (app.record.platform === 'macos') {
-      const editorText = execFileSync(
-        'osascript',
-        [
-          '-e',
-          [
-            'on run argv',
-            'tell application "TextEdit"',
-            'set exportedDocument to open POSIX file (item 1 of argv)',
-            'set exportedText to text of exportedDocument',
-            'close exportedDocument saving no',
-            'return exportedText',
-            'end tell',
-            'end run'
-          ].join('\n'),
-          '--',
-          exportedPath
-        ],
-        { encoding: 'utf8', timeout: 15000 }
-      )
-      expect(JSON.parse(editorText)).toEqual(exported)
+      try {
+        await page.evaluate(() => navigator.clipboard.writeText('MP23_BEFORE_COPY'))
+        openExternalText(app.record.platform, app.paths, exportedPath)
+        sendSystemHotkey(app.record.platform, ['Meta', 'c'])
+        await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(content)
+      } finally {
+        closeExternalText(app.record.platform)
+      }
     }
     await screenshot('MP-23 original assistant after JSON export')
 
