@@ -661,7 +661,7 @@ describe('OnboardingPage', () => {
   it('uses CherryIN in the CN edition when Cherry Account onboarding is disabled', async () => {
     const user = userEvent.setup()
     cloudMocks.appEdition = 'cn'
-    render(<OnboardingPage />)
+    render(<OnboardingPage enableCherryAccountLogin={false} />)
 
     await user.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
 
@@ -685,7 +685,8 @@ describe('OnboardingPage', () => {
     render(<OnboardingPage enableCherryAccountLogin />)
 
     expect(screen.queryByRole('button', { name: 'onboarding.welcome.login_cherryin' })).not.toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' }))
+    expect(screen.getByRole('button', { name: 'onboarding.welcome.custom_provider' })).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'onboarding.welcome.sign_in' }))
 
     expect(cloudMocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.start')
     expect(oauthWithCherryInMock).not.toHaveBeenCalled()
@@ -694,7 +695,7 @@ describe('OnboardingPage', () => {
     await user.click(screen.getByRole('button', { name: 'common.cancel' }))
 
     expect(cloudMocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.cancel')
-    expect(await screen.findByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'onboarding.welcome.sign_in' })).toBeEnabled()
   })
 
   it('selects the first available Cherry Cloud Agent model and completes onboarding', async () => {

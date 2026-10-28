@@ -54,7 +54,7 @@ interface OnboardingPageProps {
   enableCherryAccountLogin?: boolean
 }
 
-const ENABLE_CHERRY_ACCOUNT_LOGIN = false
+const ENABLE_CHERRY_ACCOUNT_LOGIN = true
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
@@ -394,7 +394,7 @@ export default function OnboardingPage({
       ? t('settings.provider.cherry_cloud.logged_in')
       : isCloudAuthorizing
         ? t('settings.provider.cherry_cloud.signing_in')
-        : t('onboarding.welcome.login_cherry_cloud')
+        : t('onboarding.welcome.sign_in')
     : t('onboarding.welcome.login_cherryin')
 
   return (
@@ -482,7 +482,9 @@ export default function OnboardingPage({
                       disabled={isUpdatingPrivacy}
                       onClick={() => void runAfterPrivacyChoice(() => setStep('provider'))}>
                       <KeyRound size={16} />
-                      {t('onboarding.welcome.other_provider')}
+                      {shouldUseCherryAccountLogin
+                        ? t('onboarding.welcome.custom_provider')
+                        : t('onboarding.welcome.other_provider')}
                     </Button>
                   </div>
                   <p className="mt-4 mb-0 text-center text-muted-foreground text-xs">

@@ -8,7 +8,6 @@ import { Button } from '@cherrystudio/ui'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
 import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
-import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
 
 function percent(value: number, limit: number): number {
@@ -29,7 +28,7 @@ function quotaWindowLabel(
 
 export function SubscriptionSettings() {
   const { t, i18n } = useTranslation()
-  const { status, login } = useCherryAccountSession(getAppEdition() === 'global')
+  const { status, login } = useCherryAccountSession()
   const accountId = status?.phase === 'signed-in' ? status.accountId : null
   // Keyed by account: a response for a previous account only ever lands in that account's cache entry.
   const {
