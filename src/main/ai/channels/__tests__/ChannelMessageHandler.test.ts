@@ -1007,10 +1007,13 @@ describe('ChannelMessageHandler', () => {
     })
 
     const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
-    expect(parts).toEqual([{ type: 'text', text: 'Hi' }, {
-      type: 'data-channel-context',
-      data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
-    }])
+    expect(parts).toEqual([
+      { type: 'text', text: 'Hi' },
+      {
+        type: 'data-channel-context',
+        data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
+      }
+    ])
     // The identity never enters the model-facing user text; the runtime reads it host-side.
     expect(buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)).toBe('Hi')
   })
@@ -1030,10 +1033,13 @@ describe('ChannelMessageHandler', () => {
     const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
     // pi expands `/skill:` only when the joined text starts with the command, so the context must
     // ride as a hidden part - present as metadata, absent from the command string.
-    expect(parts).toEqual([{ type: 'text', text: '/skill:review please look at this PR' }, {
-      type: 'data-channel-context',
-      data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
-    }])
+    expect(parts).toEqual([
+      { type: 'text', text: '/skill:review please look at this PR' },
+      {
+        type: 'data-channel-context',
+        data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
+      }
+    ])
     expect(buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)).toBe(
       '/skill:review please look at this PR'
     )
@@ -1054,10 +1060,13 @@ describe('ChannelMessageHandler', () => {
     const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
     // pi's command parse reads `slice(7, indexOf(" "))`: ANY context line in the text (leading or
     // trailing) would be swallowed into the skill name. The hidden part is the only safe carrier.
-    expect(parts).toEqual([{ type: 'text', text: '/skill:review' }, {
-      type: 'data-channel-context',
-      data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
-    }])
+    expect(parts).toEqual([
+      { type: 'text', text: '/skill:review' },
+      {
+        type: 'data-channel-context',
+        data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
+      }
+    ])
     expect(buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)).toBe('/skill:review')
   })
 
@@ -1079,10 +1088,13 @@ describe('ChannelMessageHandler', () => {
       // PiRuntimeConnection.parseManualCompactCommand trims before matching, so
       // whitespace-leading compact text is still a command; a context line anywhere in the text
       // would land in its instructions. The hidden part is the only safe carrier.
-      expect(parts).toEqual([{ type: 'text', text: commandText }, {
-      type: 'data-channel-context',
-      data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
-    }])
+      expect(parts).toEqual([
+        { type: 'text', text: commandText },
+        {
+          type: 'data-channel-context',
+          data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
+        }
+      ])
       expect(buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)).toBe(commandText)
     }
   )
@@ -1109,9 +1121,9 @@ describe('ChannelMessageHandler', () => {
       const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
       expect(parts[0]).toEqual({ type: 'text', text: 'What is in this image?' })
       expect(parts[1]).toEqual({
-      type: 'data-channel-context',
-      data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
-    })
+        type: 'data-channel-context',
+        data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' }
+      })
       expect(parts[2]).toMatchObject({ type: 'file', mediaType: 'image/png' })
       expect(parts).toHaveLength(3)
     } finally {

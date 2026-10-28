@@ -337,9 +337,13 @@ export class AgentSessionMessageService {
     sessionId: string,
     target: { messageId: string; version: string },
     prefix: readonly SessionMessageRow[]
-  ): void {
+  ): CherryMessagePart[] {
     const snapshot = this.readEditSnapshotTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
+    // Captured before the delete: the edit target's stored parts are the only authoritative source
+    // of hidden host-owned metadata for the resent turn. After this method runs the target row is
+    // gone, so no later in-transaction read can recover them.
+    const storedUserParts = snapshot.user.data.parts ?? []
     for (const row of snapshot.rows.slice(snapshot.prefix.length)) {
       this.deleteSessionMessageTx(tx, sessionId, row.id)
     }
@@ -349,6 +353,7 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, row.id)))
         .run()
     }
+    return storedUserParts
   }
 
   hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {

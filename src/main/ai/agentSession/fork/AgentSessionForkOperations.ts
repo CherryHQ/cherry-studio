@@ -18,6 +18,7 @@ import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/ru
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Sequencer } from '@shared/utils/async'
 
 import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHistory'
@@ -74,7 +75,7 @@ export class AgentSessionForkOperations {
     sessionId: string,
     target: AgentSessionEditTarget,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, storedUserParts: CherryMessagePart[]) => T
   ): Promise<T> {
     if (this.edits.has(sessionId)) return Promise.reject(new AgentSessionEditError('busy'))
     const operationId = randomUUID()
@@ -92,7 +93,7 @@ export class AgentSessionForkOperations {
     operationId: string,
     signal: AbortSignal,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, storedUserParts: CherryMessagePart[]) => T
   ): Promise<T> {
     await ensureRetiredSessionHistory(sessionId)
     const database = application.get('DbService')
@@ -151,8 +152,10 @@ export class AgentSessionForkOperations {
       await closeSource()
       signal.throwIfAborted()
       return database.withWriteTx((tx) => {
-        agentSessionMessageService.replaceEditTailTx(tx, sessionId, target, prefix)
-        return persist(tx, nativeSessionId)
+        // replaceEditTailTx re-reads and version-checks the snapshot in this transaction, then
+        // deletes the target; its return is the only authoritative copy of the stored user parts.
+        const storedUserParts = agentSessionMessageService.replaceEditTailTx(tx, sessionId, target, prefix)
+        return persist(tx, nativeSessionId, storedUserParts)
       })
     } catch (error) {
       if (resources && !this.hasPublishedResources(resources)) {

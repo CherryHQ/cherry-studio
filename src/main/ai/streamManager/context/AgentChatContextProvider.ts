@@ -22,7 +22,11 @@ import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@share
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { validateEditedInput } from '../../agentSession/editInput'
+import {
+  restoreStoredChannelContext,
+  stripChannelContextParts,
+  validateEditedInput
+} from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
@@ -165,7 +169,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
         model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
-      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
+      // Hidden channel metadata is host-owned: it enters only through the main-side durable
+      // delivery message. Renderer-submitted parts are stripped of it - schema-valid is not
+      // authority - and the edit flow restores the stored target's own part at persist time.
+      userMessageParts: deliveryMessage?.data.parts ?? stripChannelContextParts(req.userMessageParts ?? []),
       ...(deliveryMessage ? { deliveryMessage } : {}),
       shouldAutoNameInitialTurn
     }
@@ -315,16 +322,29 @@ export class AgentChatContextProvider implements ChatContextProvider {
       runtime.assertSessionEditable(validated.sessionId)
       await validateEditedInput(validated.userMessageParts)
       validated.shouldAutoNameInitialTurn = false
-      const persisted = await runtime.editSession(validated.sessionId, req.editTarget, (tx, nativeSessionId) => {
-        const result = this.persistDispatchTx(tx, validated, {
-          id: validated.agentId,
-          updatedAt: validated.agentUpdatedAt,
-          model: validated.uniqueModelId,
-          type: validated.agentType
-        })
-        agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
-        return result
-      })
+      const persisted = await runtime.editSession(
+        validated.sessionId,
+        req.editTarget,
+        (tx, nativeSessionId, storedUserParts) => {
+          // The composer rebuilds the resent message from text, so the hidden source-chat identity
+          // of a channel-originated turn would silently drop off the edit. storedUserParts was
+          // captured from the version-checked snapshot inside this transaction, before the target
+          // row was deleted - it is the only authoritative copy. Restore onto a clean local copy;
+          // the shared validated object is never mutated here.
+          const editValidated = {
+            ...validated,
+            userMessageParts: restoreStoredChannelContext(validated.userMessageParts, storedUserParts)
+          }
+          const result = this.persistDispatchTx(tx, editValidated, {
+            id: validated.agentId,
+            updatedAt: validated.agentUpdatedAt,
+            model: validated.uniqueModelId,
+            type: validated.agentType
+          })
+          agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+          return result
+        }
+      )
       notifyDataApiDataChange([
         {
           endpoint: '/agent-sessions/:sessionId/messages',

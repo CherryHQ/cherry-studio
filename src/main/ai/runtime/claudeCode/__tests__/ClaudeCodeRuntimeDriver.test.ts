@@ -696,6 +696,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'claude-code::sonnet',
       'default',
       false,
+      undefined,
+      // No source-chat identity on a contextless connect.
       undefined
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
@@ -4165,7 +4167,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
       await connection.reconcile({ modelId: 'claude-code::sonnet', knowledgeBaseIds: ['kb-1'] })
 
-      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', false, ['kb-1'])
+      expect(mocks.deriveConfig).toHaveBeenCalledWith(
+        'session-1',
+        'claude-code::sonnet',
+        'default',
+        false,
+        ['kb-1'],
+        // Reconcile without a chat-identity change keeps the connection's baked context.
+        undefined
+      )
     })
 
     it('hot-patches live tool-policy facts and advances the baseline', async () => {

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
+import { ChannelContextPartDataSchema, readCherryMeta } from '@shared/data/types/uiParts'
 
 export async function validateEditedInput(parts: CherryMessagePart[]): Promise<void> {
   if (!parts.some((part) => part.type === 'file' || (part.type === 'text' && part.text.trim())))
@@ -16,6 +16,14 @@ export async function validateEditedInput(parts: CherryMessagePart[]): Promise<v
       continue
     }
     if (part.type === 'data-knowledge-scope') continue
+    // Stored hidden metadata must survive the edit-target read. Schema validity is checked here,
+    // but schema-valid is not authority: renderer-submitted parts are stripped of this type before
+    // they ever reach dispatch, and only stored parts are restored.
+    if (part.type === 'data-channel-context') {
+      if (!ChannelContextPartDataSchema.safeParse(part.data).success)
+        throw new AgentSessionEditError('input_unsupported')
+      continue
+    }
     if (part.type !== 'file' || !part.url) throw new AgentSessionEditError('input_unsupported')
     try {
       const id = readCherryMeta(part)?.fileEntryId
@@ -33,4 +41,30 @@ export async function validateEditedInput(parts: CherryMessagePart[]): Promise<v
       throw new AgentSessionEditError('attachment_unavailable')
     }
   }
+}
+
+/**
+ * Hidden channel metadata is host-owned: only parts the main process persisted carry authority, so
+ * renderer-supplied parts never keep a data-channel-context part, however well-formed. Strip them
+ * on ingest; the stored edit target's own part is restored by restoreStoredChannelContext.
+ */
+export function stripChannelContextParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  return parts.filter((part) => part.type !== 'data-channel-context')
+}
+
+/**
+ * Edit-and-resend rebuilds the user message from composer input, so the hidden source-chat identity
+ * of a channel-originated turn would silently drop off the resent message. Re-attach the LAST
+ * schema-valid context part from the stored edit target (read inside the edit transaction) - or
+ * nothing when the stored message carries none. Renderer round-trips are stripped upstream and
+ * cannot substitute for the stored part.
+ */
+export function restoreStoredChannelContext(
+  userParts: CherryMessagePart[],
+  storedParts: CherryMessagePart[]
+): CherryMessagePart[] {
+  const stored = storedParts
+    .filter((part) => part.type === 'data-channel-context' && ChannelContextPartDataSchema.safeParse(part.data).success)
+    .at(-1)
+  return stored ? [...userParts, stored] : userParts
 }

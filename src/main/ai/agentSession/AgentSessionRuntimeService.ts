@@ -422,7 +422,7 @@ export class AgentSessionRuntimeService extends BaseService {
   editSession<T>(
     sessionId: string,
     target: AgentSessionEditTarget,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, storedUserParts: CherryMessagePart[]) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
     const editing = this.forks.edit(
