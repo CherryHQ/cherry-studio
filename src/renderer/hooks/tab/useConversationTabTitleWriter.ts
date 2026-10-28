@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
 import { useDataChange } from '@renderer/data/hooks/useDataApi'
@@ -35,18 +35,22 @@ export function useConversationTabTitleWriter() {
   const context = useOptionalTabsContext()
   const updateTab = context?.updateTab
   const tabs = context?.tabs
+  // A delayed read-back must match against the tabs as they are when it lands,
+  // not as they were when the rename was observed.
+  const tabsRef = useRef(tabs)
+  tabsRef.current = tabs
 
   return useCallback(
     (kind: ConversationTabKind, conversationId: string, name: string | null | undefined) => {
       const title = name?.trim()
-      if (!updateTab || !tabs || !title) return
+      if (!updateTab || !tabsRef.current || !title) return
       const param = CONVERSATION_PARAM[kind]
-      for (const tab of tabs) {
+      for (const tab of tabsRef.current) {
         if (tab.title === title) continue
         if (boundConversationId(tab, param) === conversationId) updateTab(tab.id, { title })
       }
     },
-    [tabs, updateTab]
+    [updateTab]
   )
 }
 

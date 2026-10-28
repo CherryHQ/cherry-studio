@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import type * as DataApiModule from '@renderer/data/hooks/useDataApi'
 import { useAgentSessionAutoRenameSync, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useConversationTabTitleChangeSync, useTabsContext } from '@renderer/hooks/tab'
 import { useTopicAutoRenameSync, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -49,7 +50,7 @@ const { changeListeners } = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/data/hooks/useDataApi')>()
+  const actual = await importOriginal<typeof DataApiModule>()
   return {
     ...actual,
     useDataChange: (endpoints: string | string[], listener: (effects: never) => void) => {
@@ -127,6 +128,15 @@ function CrossWindowRenameSync() {
   return null
 }
 
+function NavigateTabAwayButton() {
+  const { updateTab } = useTabsContext()
+  return (
+    <button type="button" onClick={() => updateTab('tab-a', { url: '/app/chat?topicId=topic-b' })}>
+      Navigate away
+    </button>
+  )
+}
+
 function renderShell(extra: React.ReactNode) {
   return render(
     <TabsProvider initialDefaultTab={HOME_TAB}>
@@ -201,7 +211,7 @@ describe('useConversationTabTitleWriter', () => {
     // A rename in another window only reaches this one as a DataApi change notification, which
     // carries no name — the label has to follow the row it points at.
     normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a'), chatTab('tab-b', 'Other B', 'topic-b')]
-    const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a', name: 'Other-window A' } as never)
+    const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a', name: 'Other-window A' })
     renderShell(<CrossWindowRenameSync />)
 
     await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Old A'))
@@ -214,6 +224,39 @@ describe('useConversationTabTitleWriter', () => {
     expect(screen.getByTestId('labels')).toHaveTextContent('tab-b=Other B')
     // A conversation this window has no tab for is not read at all.
     expect(get).toHaveBeenCalledTimes(1)
+    get.mockRestore()
+  })
+
+  it('drops a delayed cross-window rename after the tab navigated away', async () => {
+    // The read-back resolves after the user navigated tab-a to another conversation;
+    // the stale name must not overwrite the tab's current binding.
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a')]
+    let resolveGet: ((row: unknown) => void) | undefined
+    const get = vi
+      .spyOn(dataApiService, 'get')
+      .mockImplementation(() => new Promise((resolve) => (resolveGet = resolve)))
+    renderShell(
+      <>
+        <CrossWindowRenameSync />
+        <NavigateTabAwayButton />
+      </>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Old A'))
+
+    await act(async () => {
+      changeListeners.get('/topics/:id')?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
+      await waitFor(() => expect(get).toHaveBeenCalled())
+    })
+
+    // Navigate tab-a away from topic-a while the read is still in flight.
+    fireEvent.click(screen.getByRole('button', { name: 'Navigate away' }))
+
+    await act(async () => {
+      resolveGet?.({ id: 'topic-a', name: 'Other-window A' })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Old A'))
     get.mockRestore()
   })
 
