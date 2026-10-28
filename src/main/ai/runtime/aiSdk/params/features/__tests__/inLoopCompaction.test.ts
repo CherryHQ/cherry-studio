@@ -2,6 +2,7 @@ import type { ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import type * as TextTokenizer from '@main/ai/tokens/textTokenizer'
 
 const compactModelMessages = vi.fn()
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
@@ -14,6 +15,22 @@ vi.mock('@main/ai/agentSession/topic', () => ({
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: { hasTopic: (id: string) => id.startsWith('temp:') }
 }))
+
+/** Every string the token counter is asked to score, in order. */
+const countedTexts: string[] = []
+vi.mock('@main/ai/tokens/textTokenizer', async (importOriginal) => {
+  const actual = await importOriginal<typeof TextTokenizer>()
+  return {
+    ...actual,
+    tokenxTokenizer: {
+      ...actual.tokenxTokenizer,
+      count: (text: string) => {
+        countedTexts.push(text)
+        return actual.tokenxTokenizer.count(text)
+      }
+    }
+  }
+})
 
 import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
 
@@ -441,6 +458,28 @@ describe('inLoopCompactionFeature', () => {
 
     expect(compactModelMessages).toHaveBeenCalledTimes(1) // no second summarize
     expect(result).toEqual({ messages: [...fold, ...grown.slice(1)] })
+  })
+
+  it('does not re-estimate the folded prefix on later steps (cached prefix tokens)', async () => {
+    compactModelMessages.mockClear()
+    const prepareStep = getPrepareStep()
+
+    // Step 1 folds; the folded prefix carries a marker string.
+    const original = [userMessage(90_000)]
+    const prefix: ModelMessage = { role: 'user', content: `PREFIXMARKER ${'word '.repeat(10)}` }
+    compactModelMessages.mockResolvedValueOnce([prefix])
+    await prepareStep({ messages: original } as any)
+
+    countedTexts.length = 0
+    // Step 2 appends a small delta; the folded view fits, so no new fold —
+    // and the trigger estimate must come from the cached prefix tokens plus
+    // the increment only, never re-counting the prefix text.
+    const grown = [...original, assistantMessage(5), toolMessage(5)]
+    const result = await prepareStep({ messages: grown } as any)
+
+    expect(compactModelMessages).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ messages: [prefix, ...grown.slice(1)] })
+    expect(countedTexts.some((t) => t.includes('PREFIXMARKER'))).toBe(false)
   })
 
   it('passes at least one recent turn to keep when over budget', async () => {

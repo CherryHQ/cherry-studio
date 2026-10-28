@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 
 import AddKnowledgeItemDialog from '../AddKnowledgeItemDialog'
@@ -505,6 +507,80 @@ describe('AddKnowledgeItemDialog', () => {
       })
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
     })
+  })
+
+  describe('dropped directories', () => {
+    it('folder-only drop opens a picker: submits typed directory roots without selecting files or folders', async () => {
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-1',
+        pendingAddSource: 'file',
+        pendingAddDirectoryPaths: ['/host/FolderDropFixture', '/host/DocsPdf.pdf']
+      })
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([
+        [
+          [
+            { type: 'directory', data: { source: '/host/FolderDropFixture' } },
+            { type: 'directory', data: { source: '/host/DocsPdf.pdf' } }
+          ],
+          'detect'
+        ]
+      ])
+      expect(mockFileSelect).not.toHaveBeenCalled()
+      expect(mockSelectFolder).not.toHaveBeenCalled()
+      expect(mockGetPathForFile).not.toHaveBeenCalled()
+      expect(toast.warning).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { label: '全部保留', strategy: 'rename' },
+      { label: '替换', strategy: 'replace' }
+    ])(
+      'mixed drop splits conflicts or loses roots on retry: $strategy retains the complete batch',
+      async ({ label, strategy }) => {
+        const user = userEvent.setup()
+        const plain = createMockFile('plain.md', 10)
+        const unsupported = createMockFile('bad.exe', 10)
+        mockUseKnowledgePage.mockReturnValue({
+          selectedBaseId: 'base-1',
+          pendingAddSource: 'file',
+          pendingAddFiles: [plain, unsupported],
+          pendingAddDirectoryPaths: ['/host/FolderDropFixture', '/host/DocsPdf.pdf']
+        })
+        mockSubmitKnowledgeItems.mockResolvedValueOnce({
+          status: 'conflicts',
+          conflicts: [{ type: 'directory', title: 'FolderDropFixture' }]
+        })
+        const onOpenChange = vi.fn()
+        render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+        await user.click(await screen.findByRole('button', { name: label }))
+        await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+
+        const items = [
+          { type: 'file', data: { source: '/external/plain.md', path: '/external/plain.md' } },
+          { type: 'directory', data: { source: '/host/FolderDropFixture' } },
+          { type: 'directory', data: { source: '/host/DocsPdf.pdf' } }
+        ]
+        expect(mockSubmitKnowledgeItems.mock.calls).toEqual([
+          [items, 'detect'],
+          [items, strategy]
+        ])
+        expect(mockFileSelect).not.toHaveBeenCalled()
+        expect(mockSelectFolder).not.toHaveBeenCalled()
+        expect(mockGetPathForFile.mock.calls).toEqual([[plain]])
+        expect(vi.mocked(ipcApi.request).mock.calls).toEqual([
+          ['file.get_metadata', { kind: 'path', path: '/external/plain.md' }]
+        ])
+        expect(vi.mocked(toast.warning).mock.calls).toEqual([['已跳过 1 个不支持的文件']])
+        expect(toast.error).not.toHaveBeenCalled()
+        expect(toast.success).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('note source (panel)', () => {

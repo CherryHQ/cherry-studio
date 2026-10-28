@@ -51,7 +51,7 @@ const describeFileMetadata = (file: { origin_name?: string; name?: string }) => 
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
-  const { selectedBaseId, pendingAddSource, pendingAddFiles } = useKnowledgePage()
+  const { selectedBaseId, pendingAddSource, pendingAddFiles, pendingAddDirectoryPaths } = useKnowledgePage()
   // The dialog mounts fresh per open (the section conditionally renders it), so the requested
   // source is fixed for this lifetime — derive it instead of mirroring it into state.
   const activeSource = pendingAddSource ?? DEFAULT_SOURCE_TYPE
@@ -253,7 +253,16 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     const run = async () => {
       setIsResolvingSubmit(true)
       try {
-        const items = activeSource === 'file' ? await collectFileInputs() : await collectDirectoryInputs()
+        let items: KnowledgeAddItemInput[] | null
+        if (pendingAddDirectoryPaths?.length) {
+          const fileInputs = pendingAddFiles?.length ? await collectFileInputs() : []
+          items = [
+            ...(fileInputs ?? []),
+            ...pendingAddDirectoryPaths.map((source) => ({ type: 'directory' as const, data: { source } }))
+          ]
+        } else {
+          items = activeSource === 'file' ? await collectFileInputs() : await collectDirectoryInputs()
+        }
         // Picker cancelled or nothing selectable — close the (panel-less) flow.
         if (!items || items.length === 0) {
           handleOpenChange(false)
@@ -276,6 +285,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     directPick,
     handleOpenChange,
     open,
+    pendingAddDirectoryPaths,
+    pendingAddFiles,
     submitWithStrategy,
     t
   ])

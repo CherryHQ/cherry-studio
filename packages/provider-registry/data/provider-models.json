@@ -8898,6 +8898,123 @@
       }
     },
     {
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "deepseek-v4-flash",
+      "providerId": "deepseek",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "high",
+                "low": "low",
+                "medium": "high",
+                "minimal": "low",
+                "xhigh": "max"
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "effortMap": {
+                "low": "low",
+                "medium": "high",
+                "minimal": "low",
+                "xhigh": "max"
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "high",
+                "low": "low",
+                "medium": "high",
+                "minimal": "low",
+                "xhigh": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "effortMap": {
+                "low": "low",
+                "medium": "high",
+                "minimal": "low",
+                "xhigh": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "limits": {
         "maxOutputTokens": 384000
@@ -13705,6 +13822,29 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 120
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "openai/gpt-6.1-terra",
+      "modelId": "gpt-6-1-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
         }
       },
       "providerId": "gateway"
@@ -21873,6 +22013,31 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6.1-terra",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxInputTokens": 372000
+      },
+      "modelId": "gpt-6-1-terra",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "gpt-6-astra",
       "endpointTypes": ["openai-responses"],
       "limits": {
@@ -28526,6 +28691,48 @@
             ],
             "defaultEffort": "high",
             "supportedEfforts": ["high"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-6.1-terra",
+      "modelId": "gpt-6-1-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -41697,5 +41904,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "8fb3a93c61123de2"
+  "version": "e2fb4a4b563d0f27"
 }

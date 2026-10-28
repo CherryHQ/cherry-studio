@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
   "agent.session.workspace_status.missing": "Η διαδρομή του χώρου εργασίας δεν υπάρχει: {{path}}",
   "agent.session.workspace_status.not_directory": "Η διαδρομή του χώρου εργασίας δεν είναι κατάλογος: {{path}}",
+  "agent.tools.to_markdown.unsupported_windows_arm64": "Το to_markdown δεν υποστηρίζεται στα Windows ARM64, επειδή ο ενσωματωμένος μετατροπέας εγγράφων δεν διαθέτει εγγενή έκδοση για αυτή την πλατφόρμα. Η επανεγκατάσταση των εξαρτήσεων δεν θα επιλύσει αυτόν τον περιορισμό.",
   "apiGateway.docs.description": "HTTP API του Cherry Studio συμβατό με OpenAI, Anthropic και Gemini, καθώς και endpoints αποκλειστικά του Cherry (μοντέλα, βάσεις γνώσης)",
   "apiGateway.docs.language_switcher_label": "Γλώσσα τεκμηρίωσης",
   "apiGateway.docs.operations.chat_completions": "Δημιουργεί ένα chat completion. Το σώμα αιτήματος και απόκρισης ακολουθεί τη μορφή OpenAI Chat Completions· με `stream: true` η έξοδος γίνεται σταδιακά.",

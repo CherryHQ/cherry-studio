@@ -1408,7 +1408,12 @@ export default defineConfig([
   },
   {
     files: ['src/renderer/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
-    ignores: ['packages/ui/src/lib/code-highlight/**', 'packages/ui/src/code-highlight.ts'],
+    ignores: [
+      'packages/ui/src/lib/code-highlight/**',
+      'packages/ui/src/code-highlight.ts',
+      'packages/ui/src/lib/code-block/**',
+      'packages/ui/src/code-block.ts'
+    ],
     plugins: {
       'highlight-boundary': {
         rules: {
@@ -1416,12 +1421,18 @@ export default defineConfig([
             meta: {
               type: 'problem',
               schema: [],
-              messages: { private: 'Import the headless highlighting API through @cherrystudio/ui/code-highlight.' }
+              messages: {
+                private:
+                  'Import highlighting APIs through @cherrystudio/ui/code-highlight or @cherrystudio/ui/code-block.'
+              }
             },
             create(context) {
               return {
                 ImportDeclaration(node) {
-                  if (typeof node.source.value === 'string' && node.source.value.includes('lib/code-highlight'))
+                  if (
+                    typeof node.source.value === 'string' &&
+                    /lib\/(code-highlight|code-block)/.test(node.source.value)
+                  )
                     context.report({ node, messageId: 'private' })
                 }
               }
