@@ -73,6 +73,35 @@ describe('CherryToolMetaSchema', () => {
     const bad = CherryToolMetaSchema.safeParse({ tool: { type: 'pluggable' } })
     expect(bad.success).toBe(false)
   })
+  it('keeps the subagent resume linkage fields through a readCherryMeta round-trip', () => {
+    const part = {
+      type: 'dynamic-tool',
+      providerMetadata: {
+        cherry: {
+          parentToolCallId: 'task-root',
+          launchToolCallId: 'task-root',
+          resumedViaCallId: 'call-resume'
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    expect(readCherryMeta(part)).toMatchObject({
+      parentToolCallId: 'task-root',
+      launchToolCallId: 'task-root',
+      resumedViaCallId: 'call-resume'
+    })
+  })
+
+  // The adapter stamps the resume marker on the content a continuation streams, not only on tools,
+  // and the reader picks its schema by part type — so every part type has to accept the linkage.
+  it.each(['text', 'reasoning'] as const)('keeps the linkage on a %s part', (type) => {
+    const part = {
+      type,
+      providerMetadata: { cherry: { resumedViaCallId: 'call-resume', parentToolCallId: 'task-root' } }
+    } as unknown as CherryMessagePart
+
+    expect(readCherryMeta(part)).toMatchObject({ resumedViaCallId: 'call-resume', parentToolCallId: 'task-root' })
+  })
 })
 
 describe('CherryFileMetaSchema', () => {
