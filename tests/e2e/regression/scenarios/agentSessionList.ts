@@ -152,7 +152,23 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     )
     await page.reload()
     await selectSidebarApp(page, 'Work')
-    await list().getByRole('textbox', { name: 'Search tasks', exact: true }).fill('MP54')
+    await testInfo.attach('MP-54 grouped panel layout', {
+      body: JSON.stringify(
+        await page.evaluate(async () => ({
+          position: await window.api.preference.get('agent.session.position'),
+          mode: await window.api.preference.get('agent.session.display_mode'),
+          panels: [...document.querySelectorAll('[data-testid="resource-list-session"]')].map((panel) => ({
+            visible: panel.getClientRects().length > 0,
+            width: panel.getBoundingClientRect().width,
+            groupHeaders: panel.querySelectorAll('[data-ui~="chat.group-header"]').length,
+            searchInputs: panel.querySelectorAll('input').length
+          }))
+        })),
+        null,
+        2
+      ),
+      contentType: 'application/json'
+    })
     const agentHeader = list().locator('[data-ui~="chat.group-header"]').filter({ hasText: agent!.name }).first()
     await agentHeader.hover()
     const expand = agentHeader.getByRole('button', { name: 'Expand', exact: true })
@@ -177,7 +193,6 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     await handleGatewayPrompt()
     await dismissOnboarding(page)
     await selectSidebarApp(page, 'Work')
-    await list().getByRole('textbox', { name: 'Search tasks', exact: true }).fill('MP54')
     await expect.soft
       .poll(async () => (await pins()).map((pin) => pin.entityId), {
         timeout: 3000,
