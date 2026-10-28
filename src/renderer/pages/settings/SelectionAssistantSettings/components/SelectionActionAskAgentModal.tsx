@@ -6,14 +6,14 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { AskAgentSelectionAction } from '@shared/types/selection'
 
 import { SelectionAgentPicker, SelectionWorkspacePicker } from './selectionAgentPickers'
 
 interface SelectionActionAskAgentModalProps {
   isModalOpen: boolean
-  currentAction: SelectionActionItem | undefined
-  onOk: (binding: Pick<SelectionActionItem, 'agentId' | 'agentWorkspace'>) => void
+  currentAction: AskAgentSelectionAction | undefined
+  onOk: (binding: Pick<AskAgentSelectionAction, 'agentId' | 'agentWorkspace'>) => void
   onCancel: () => void
 }
 
@@ -25,7 +25,7 @@ const SelectionActionAskAgentModal: FC<SelectionActionAskAgentModalProps> = ({
 }) => {
   const { t } = useTranslation()
   const { agents } = useAgents()
-  // null keeps the built-in assistant agent as a live default instead of pinning its id.
+  // null keeps Cherry Assistant as the default instead of pinning its id.
   const [agentId, setAgentId] = useState<string | null>(null)
   const [workspace, setWorkspace] = useState<AgentSessionWorkspaceSource>({ type: AGENT_WORKSPACE_TYPE.SYSTEM })
   const builtinAssistantId =

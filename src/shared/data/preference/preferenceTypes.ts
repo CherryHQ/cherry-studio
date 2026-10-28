@@ -62,6 +62,18 @@ export enum SelectionFilterMode {
   Blacklist = 'blacklist'
 }
 
+export const SELECTION_ACTION_RUNNERS = ['default', 'assistant', 'agent'] as const
+export type SelectionActionRunner = (typeof SELECTION_ACTION_RUNNERS)[number]
+export const SELECTION_ACTION_RUNNER = {
+  DEFAULT: 'default',
+  ASSISTANT: 'assistant',
+  AGENT: 'agent'
+} as const satisfies Record<string, SelectionActionRunner>
+
+/**
+ * Stored shape of a selection action. Readers narrow it through `SelectionActionSchema`
+ * (`@shared/types/selection`), which fixes the fields each built-in and custom action carries.
+ */
 export type SelectionActionItem = {
   id: string
   name: string
@@ -69,12 +81,18 @@ export type SelectionActionItem = {
   isBuiltIn: boolean
   icon?: string
   prompt?: string
+  /** What runs a custom action. `assistantId` and `agentId` keep each runner's last choice. */
+  runner?: SelectionActionRunner
   assistantId?: string
-  /** Agent that runs the action. `ask-agent` without one uses the built-in assistant agent. */
+  /** `ask-agent` without one uses Cherry Assistant (the agent whose `builtin_role` is `assistant`). */
   agentId?: string
+  /** Missing means the system workspace. */
   agentWorkspace?: AgentSessionWorkspaceSource
   selectedText?: string
-  /** Source application of the selection; carried at runtime like `selectedText`, never stored. */
+  /**
+   * Platform identifier of the selection's source application: the executable name on Windows,
+   * the bundle ID on macOS, `WM_CLASS` on X11, and empty on Wayland. Runtime-only like `selectedText`.
+   */
   programName?: string
   searchEngine?: string
 }

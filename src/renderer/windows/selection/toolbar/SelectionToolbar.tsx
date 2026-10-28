@@ -6,7 +6,8 @@ import { loggerService } from '@logger'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { parseSelectionActions } from '@renderer/utils/selectionAction'
+import { SELECTION_BUILTIN_ACTION_ID, type SearchSelectionAction, type SelectionAction } from '@shared/types/selection'
 
 const logger = loggerService.withContext('SelectionToolbar')
 
@@ -52,7 +53,7 @@ const SelectionToolbar: FC = () => {
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   const realActionItems = useMemo(() => {
-    return actionItems?.filter((item) => item.enabled)
+    return parseSelectionActions(actionItems ?? []).filter((item) => item.enabled)
   }, [actionItems])
 
   const selectedText = useRef('')
@@ -126,7 +127,7 @@ const SelectionToolbar: FC = () => {
     }
   }, [setTimeoutTimer])
 
-  const handleSearch = useCallback((action: SelectionActionItem) => {
+  const handleSearch = useCallback((action: SearchSelectionAction) => {
     if (!action.selectedText) return
 
     const selectedText = action.selectedText.trim()
@@ -150,38 +151,38 @@ const SelectionToolbar: FC = () => {
   /**
    * Quote the selected text to the inputbar of the main window
    */
-  const handleQuote = (action: SelectionActionItem) => {
+  const handleQuote = (action: SelectionAction) => {
     if (action.selectedText) {
       void window.api?.quoteToMainWindow(action.selectedText)
       void ipcApi.request('selection.hide_toolbar')
     }
   }
 
-  const handleDefaultAction = (action: SelectionActionItem) => {
+  const handleDefaultAction = (action: SelectionAction) => {
     // [macOS] only macOS has the available isFullscreen mode
     void ipcApi.request('selection.process_action', { actionItem: action, isFullScreen: isFullScreen.current })
     void ipcApi.request('selection.hide_toolbar')
   }
 
   const handleAction = useCallback(
-    (action: SelectionActionItem) => {
+    (action: SelectionAction) => {
       /** avoid mutating the original action, it will cause syncing issue */
       const newAction = { ...action, selectedText: selectedText.current, programName: programName.current }
 
-      switch (action.id) {
-        case 'copy':
-          void handleCopy()
-          break
-        case 'search':
-          handleSearch(newAction)
-          break
-        case 'quote':
-          handleQuote(newAction)
-          break
-        default:
-          handleDefaultAction(newAction)
-          break
+      if (newAction.isBuiltIn) {
+        switch (newAction.id) {
+          case SELECTION_BUILTIN_ACTION_ID.COPY:
+            void handleCopy()
+            return
+          case SELECTION_BUILTIN_ACTION_ID.SEARCH:
+            handleSearch(newAction)
+            return
+          case SELECTION_BUILTIN_ACTION_ID.QUOTE:
+            handleQuote(newAction)
+            return
+        }
       }
+      handleDefaultAction(newAction)
     },
     [handleCopy, handleSearch]
   )

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { AskAgentSelectionAction } from '@shared/types/selection'
 
 import SelectionActionAskAgentModal from '../SelectionActionAskAgentModal'
 
@@ -39,7 +39,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const ASK_AGENT: SelectionActionItem = {
+const ASK_AGENT: AskAgentSelectionAction = {
   id: 'ask-agent',
   name: 'selection.action.builtin.ask_agent',
   enabled: true,

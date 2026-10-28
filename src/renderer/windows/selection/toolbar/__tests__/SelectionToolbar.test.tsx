@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
     },
     { id: 'quote', name: 'Quote', enabled: true, isBuiltIn: true },
     { id: 'summary', name: 'Summary', enabled: true, isBuiltIn: true },
-    { id: 'disabled', name: 'Disabled', enabled: false, isBuiltIn: false }
+    { id: 'disabled', name: 'Disabled', enabled: false, isBuiltIn: false, runner: 'default' }
   ] as SelectionActionItem[],
   clearTimeoutTimer: vi.fn(),
   handlers: new Map<string, (payload: unknown) => void>(),

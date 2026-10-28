@@ -50,7 +50,7 @@ Status: proposed
 | macOS 黄灯 | `native/darwin/selectionPanel.mm` | Electron 的 `minimize` 事件不能取消。打了标记的智能体面板拦截 `performMiniaturize:` / `miniaturize:`，通过 N-API 线程安全回调通知 JavaScript。聚焦在智能体窗口时，Cmd+M 改走收起。 |
 | 动效 | 主进程 | macOS 用 `setBounds(bounds, true)` 做展开，以及朝胶囊位置的收起。Windows 和 Linux 直接切换。`systemPreferences.getAnimationSettings().prefersReducedMotion` 为 true 时，所有平台都直接切换。 |
 | 草稿交接 | `navigation.focus_or_open_conversation` | 新增可选的草稿文本。接收方主窗口 renderer 在打开会话前写入该会话的智能体草稿缓存；如果该会话的输入框已经挂载，就把文本追加进去。 |
-| 划词动作数据 | `SelectionActionItem` 和 `selectionActionItemSchema` | 新增 `agentId?` 和 `agentWorkspace?`（`AgentSessionWorkspaceSource`）。模型单选变为默认模型、助手、智能体，保存时清空其他选项对应的字段。`ask-agent` 没有 `agentId` 时，解析为 `builtin_role` 为 `assistant` 的内置智能体；没有工作目录时使用系统工作目录。 |
+| 划词动作数据 | `SelectionActionItem` 和 `SelectionActionSchema`（`@shared/types/selection`） | 存储形态新增 `runner?`（`default`、`assistant` 或 `agent`）、`agentId?` 和 `agentWorkspace?`（`AgentSessionWorkspaceSource`）。业务代码通过以 `isBuiltIn` 为判别字段的联合类型解析它：内置动作再按 `id` 区分，只带各自的字段；自定义动作必须有 `runner`。`runner` 决定自定义动作由谁运行，`assistantId`、`agentId` 和 `agentWorkspace` 则保留每种方式上次的选择。升级 seeder 按 `assistantId` 给已有的自定义动作补上 `runner`。`ask-agent` 没有 `agentId` 时，解析为 `builtin_role` 为 `assistant` 的内置智能体。没有工作目录即表示系统工作目录。 |
 | 默认值与升级 | `classification.json` 和一个版本化的升级 seeder | 新装用户默认启用 `ask-agent`。已有的存储数组只补一次，未启用并追加在末尾，不改变用户条目的顺序和内容。 |
 | 划词来源 | 工具栏 renderer 和 `selection.process_action` 的输入 | 把 `programName` 和选中文本一起传递；目前工具栏把它丢掉了。 |
 | 设置 | `SelectionAssistantSettings` | `ask-agent` 在名称旁显示默认智能体，并有一个设置默认智能体和工作目录的弹窗。绑定智能体的自定义动作显示智能体名。自定义动作弹窗新增智能体选项、智能体选择和工作目录选择。 |
@@ -85,12 +85,13 @@ Status: proposed
 - **划词窗口专用的消息呈现（标题式首条消息、紧凑的步骤行）。** 推迟到实际体验复用的渲染之后。
 - **在这个窗口里保留 renderer 侧的追问队列。** 在 #22824 之前否决。关窗会悄悄丢掉排队的消息；在关窗时补发或弹窗确认，等于为一个放错归属的队列加一条异步关窗路径。
 - **把智能体草稿改成 shared 缓存层来做交接。** 否决。为了一次交接，会改变所有窗口的草稿同步方式。
+- **根据哪个 id 有值来推断运行方式。** 否决。选择只有两种状态时可行；变成三种以后，保存时必须清空其他字段，切走再切回就丢了之前的选择。
 
 ## 验收标准
 
 - AC1 — 在主窗口里，ErrorBlock 的服务商链接会打开或切到该服务商的设置标签页，不替换对话标签页。在没有路由的窗口里，它会打开主窗口的设置。智能体页面的分叉来源跳转行为不变。 (verification: renderer)
-- AC2 — 新装用户的动作列表里 `ask-agent` 已启用。已有用户只补一次、未启用，不改变他们条目的顺序和内容。 (verification: unit)
-- AC3 — 自定义动作弹窗提供默认模型、助手和智能体。选智能体时保存智能体 id 和工作目录并清空助手 id，反之亦然。已有的助手动作行为不变。 (verification: renderer)
+- AC2 — 新装用户的动作列表里 `ask-agent` 已启用。已有用户只补一次、未启用，不改变他们条目的顺序和运行方式。 (verification: unit)
+- AC3 — 自定义动作弹窗提供默认模型、助手和智能体，选择保存为动作的 `runner`。每种方式各自记住自己的选择，切走再切回会恢复，且只有选中的方式生效。已有的助手动作行为不变。 (verification: renderer)
 - AC4 — `ask-agent` 打开一个已聚焦的指令条，显示选中文本和来源应用，不发送也不创建会话。关掉它后会话列表没有变化。 (verification: renderer + Electron)
 - AC5 — 第一次发送在选定的智能体和工作目录下恰好创建一个对话会话。它的第一条用户消息包含指令、引用的选中文本和来源应用，指令条展开成对话窗口。 (verification: renderer + Electron)
 - AC6 — 绑定智能体的自定义动作打开对话窗口，并立即发送按 `{{text}}` 规则展开的提示词。 (verification: renderer)

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { CustomSelectionAction } from '@shared/types/selection'
 
 import SelectionActionUserModal from '../SelectionActionUserModal'
 
@@ -40,7 +40,12 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistants: () => ({ assistants: [] })
+  useAssistants: () => ({
+    assistants: [
+      { id: 'assistant-1', name: 'Writer' },
+      { id: 'assistant-2', name: 'Editor' }
+    ]
+  })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -69,11 +74,12 @@ describe('SelectionActionUserModal', () => {
   it('keeps the footer accessible when editing a long prompt', () => {
     const longPrompt = 'Keep the prompt inside the dialog.\n'.repeat(200)
     const onOk = vi.fn()
-    const editingAction: SelectionActionItem = {
+    const editingAction: CustomSelectionAction = {
       id: 'user-long-prompt',
       name: 'Long prompt',
       enabled: true,
       isBuiltIn: false,
+      runner: 'default',
       prompt: longPrompt
     }
 
@@ -120,20 +126,19 @@ describe('SelectionActionUserModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     expect(onOk).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Research', agentId: 'agent-2', agentWorkspace: { type: 'system' } })
+      expect.objectContaining({ name: 'Research', runner: 'agent', agentId: 'agent-2' })
     )
-    expect(onOk.mock.calls[0][0].assistantId).toBeUndefined()
   })
 
   it('saves the chosen work directory with the agent', () => {
     const onOk = vi.fn()
-    const editingAction: SelectionActionItem = {
+    const editingAction: CustomSelectionAction = {
       id: 'user-agent',
       name: 'Research',
       enabled: true,
       isBuiltIn: false,
-      agentId: 'agent-2',
-      agentWorkspace: { type: 'system' }
+      runner: 'agent',
+      agentId: 'agent-2'
     }
     render(<SelectionActionUserModal isModalOpen editingAction={editingAction} onOk={onOk} onCancel={vi.fn()} />)
 
@@ -148,13 +153,34 @@ describe('SelectionActionUserModal', () => {
     )
   })
 
-  it('drops the agent binding when the action switches back to the default model', () => {
+  it('restores the previous assistant after switching to another runner and back', () => {
     const onOk = vi.fn()
-    const editingAction: SelectionActionItem = {
+    const editingAction: CustomSelectionAction = {
+      id: 'user-assistant',
+      name: 'Polish',
+      enabled: true,
+      isBuiltIn: false,
+      runner: 'assistant',
+      assistantId: 'assistant-2'
+    }
+    render(<SelectionActionUserModal isModalOpen editingAction={editingAction} onOk={onOk} onCancel={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'selection.settings.user_modal.model.default' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'selection.settings.user_modal.model.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    expect(onOk).toHaveBeenCalledWith(expect.objectContaining({ runner: 'assistant', assistantId: 'assistant-2' }))
+  })
+
+  it("keeps every runner's choice when the action switches to the default model", () => {
+    const onOk = vi.fn()
+    const editingAction: CustomSelectionAction = {
       id: 'user-agent',
       name: 'Research',
       enabled: true,
       isBuiltIn: false,
+      runner: 'agent',
+      assistantId: 'assistant-2',
       agentId: 'agent-2',
       agentWorkspace: { type: 'user', workspaceId: 'workspace-1' }
     }
@@ -163,9 +189,6 @@ describe('SelectionActionUserModal', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'selection.settings.user_modal.model.default' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
-    const saved = onOk.mock.calls[0][0] as SelectionActionItem
-    expect(saved.agentId).toBeUndefined()
-    expect(saved.agentWorkspace).toBeUndefined()
-    expect(saved.assistantId).toBeUndefined()
+    expect(onOk).toHaveBeenCalledWith({ ...editingAction, runner: 'default' })
   })
 })
