@@ -16,6 +16,7 @@ import {
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
+import { formatApiHost } from '@shared/utils/api'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
@@ -307,117 +308,224 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
     await access(filePath, constants.R_OK)
   })
 
-  await ensureEmbeddingProvider(app, page)
-  await closeSettings(page)
-  await selectSidebarApp(page, 'Knowledge Base')
-  await page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ }).click()
-  const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
-  await dialog
-    .getByRole('textbox', { name: 'Name', exact: true })
-    .fill(app.resourceName(`File processing ${Date.now()}`))
-  await dialog.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-  await selectVisibleModel(page, app.config.customEmbeddingProvider.model)
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(dialog).toBeHidden({ timeout: 120_000 })
-
-  const observation = await page.evaluateHandle(() => {
-    const entries: Array<{ status: string; text: string; elapsedMs: number }> = []
-    const started = performance.now()
-    const record = () => {
-      const row = Array.from(document.querySelectorAll('[data-ui~="knowledge.content"] [role="row"]')).find(
-        (element) => element.getClientRects().length > 0 && element.textContent?.includes('sample-chinese.md')
-      )
-      if (!row || !row.getBoundingClientRect().height) return
-      const text = row.textContent ?? ''
-      const status = text.match(/Reading|Chunking|Embedding|Ready|Error/)?.[0]
-      if (status && entries.at(-1)?.text !== text)
-        entries.push({ status, text, elapsedMs: performance.now() - started })
-    }
-    const observer = new MutationObserver(record)
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
-    return { entries, stop: () => observer.disconnect() }
+  const providerId = `mp60-${Date.now()}`
+  const baseName = app.resourceName(`File processing ${Date.now()}`)
+  const upstream = app.config.customEmbeddingProvider
+  let holdResponse = false
+  let releaseResponse!: () => void
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve
   })
-  const started = Date.now()
-  try {
-    await test.step('Import sample-chinese.md through Add Data Source → File', async () => {
-      const add = page.getByRole('button', { name: 'Add Data Source', exact: true })
-      if (await add.isVisible()) {
-        await add.click()
-        await page.getByRole('menuitem', { name: 'File', exact: true }).click()
-      } else {
-        await page.getByRole('button', { name: 'File', exact: true }).click()
+  const server = createServer((request, response) => {
+    void (async () => {
+      if (request.method !== 'POST' || request.url !== '/v1/embeddings') {
+        response.writeHead(404).end()
+        return
       }
-      chooseNativeFile(app.record.platform, { ...app.paths, fixtures: dirname(filePath) }, filePath)
-    })
-    const row = page.getByRole('row').filter({ hasText: 'sample-chinese.md' })
-    await expect(row).toBeVisible()
-    await expect
-      .poll(() => observation.evaluate(({ entries }) => entries.at(-1)?.status), { timeout: 180_000 })
-      .toMatch(/Ready|Error/)
-    const processingMs = Date.now() - started
-    const entries = await observation.evaluate(({ entries }) => entries)
-    await attachScreenshot('MP-60 file processing result')
-    if (entries.at(-1)?.status === 'Error') {
-      const error = row.getByText('Error', { exact: true })
-      await expect(error).toBeVisible()
-      await error.hover()
-      const reason = page.getByRole('tooltip')
-      await expect(reason).toBeVisible()
-      await expect(reason).not.toHaveText('')
-      throw new Error(`File processing failed: ${await reason.innerText()}`)
-    }
-    const statuses = entries
-      .map(({ status }) => status)
-      .filter((status, index, all) => index === 0 || status !== all[index - 1])
-    // The item only reports reading → embedding → completed; `Chunking` is the list's fallback
-    // label for states outside that set, so requiring it would reject a successful import.
-    const order = ['Reading', 'Embedding', 'Ready']
-    expect(
-      statuses.filter((status) => !order.includes(status)),
-      'Only states the item actually reports may render'
-    ).toEqual([])
-    expect(statuses.at(-1), 'The import must end in the ready state').toBe('Ready')
-    expect(
-      statuses.some((status) => status === 'Reading' || status === 'Embedding'),
-      'At least one processing state must be visible'
-    ).toBe(true)
-    const positions = statuses.map((status) => order.indexOf(status))
-    expect(
-      positions.every((position, index) => index === 0 || position >= positions[index - 1]),
-      'Processing states must not render out of order'
-    ).toBe(true)
-    await expect(row.getByText('Ready', { exact: true })).toBeVisible()
+      const held = holdResponse
+      const chunks: Buffer[] = []
+      for await (const chunk of request) chunks.push(Buffer.from(chunk))
+      const result = await fetch(`${formatApiHost(upstream.baseUrl)}/embeddings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${upstream.apiKey}` },
+        body: Buffer.concat(chunks),
+        signal: AbortSignal.timeout(120_000)
+      })
+      const body = Buffer.from(await result.arrayBuffer())
+      if (held) await responseGate
+      response.writeHead(result.status, { 'Content-Type': result.headers.get('Content-Type') ?? 'application/json' })
+      response.end(body)
+    })().catch(() => response.writeHead(502).end('MP60 embedding transport failed'))
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('MP60 embedding gateway did not bind')
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Real configured embedding API through a loopback response gate; the response is released after the real UI displays Embedding.'
+  })
+  try {
+    const configured = await page.evaluate(
+      async ({ providerId, model, baseUrl }) => {
+        const provider = await window.api.dataApi.request({
+          id: 'mp60-provider',
+          method: 'POST',
+          path: '/providers',
+          body: {
+            providerId,
+            name: 'MP60 embedding gateway',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: { 'openai-embeddings': { baseUrl } },
+            apiKeys: [{ id: 'gateway', key: 'local-gateway', isEnabled: true }]
+          }
+        })
+        const enabled = await window.api.dataApi.request({
+          id: 'mp60-enable',
+          method: 'PATCH',
+          path: `/providers/${providerId}`,
+          body: { isEnabled: true }
+        })
+        const models = await window.api.dataApi.request({
+          id: 'mp60-model',
+          method: 'POST',
+          path: '/models',
+          body: [{ providerId, modelId: model, capabilities: ['embedding'], endpointTypes: ['openai-embeddings'] }]
+        })
+        return [provider.status, enabled.status, models.status]
+      },
+      { providerId, model: upstream.model, baseUrl: `http://127.0.0.1:${address.port}/v1` }
+    )
+    expect(configured).toEqual([201, 200, 201])
+    await selectSidebarApp(page, 'Knowledge Base')
+    await page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(baseName)
+    await dialog.getByRole('button', { name: 'Embedding Model', exact: true }).click()
+    const selector = page.getByTestId('model-selector-content')
+    await selector.getByTestId('model-selector-search').fill(upstream.model)
+    await selector.getByTestId(`model-selector-item-${createUniqueModelId(providerId, upstream.model)}`).click()
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+    await expect(dialog).toBeHidden({ timeout: 120_000 })
 
-    const menuMode = await page.evaluate(() => window.api.preference.get('menu.presentation_mode'))
+    const observation = await page.evaluateHandle(() => {
+      const entries: Array<{ status: string; text: string; elapsedMs: number }> = []
+      const started = performance.now()
+      const record = () => {
+        const row = Array.from(document.querySelectorAll('[data-ui~="knowledge.content"] [role="row"]')).find(
+          (element) => element.getClientRects().length > 0 && element.textContent?.includes('sample-chinese.md')
+        )
+        if (!row || !row.getBoundingClientRect().height) return
+        const text = row.textContent ?? ''
+        const status = text.match(/Reading|Chunking|Embedding|Ready|Error/)?.[0]
+        if (status && entries.at(-1)?.text !== text)
+          entries.push({ status, text, elapsedMs: performance.now() - started })
+      }
+      const observer = new MutationObserver(record)
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+      return { entries, stop: () => observer.disconnect() }
+    })
+    const started = Date.now()
     try {
-      await page.evaluate(() => window.api.preference.set('menu.presentation_mode', 'cherry'))
-      await row.click({ button: 'right' })
-      await page.getByRole('menuitem', { name: 'View Chunks', exact: true }).click()
-      const chunks = page.getByText(/^[1-9]\d* chunks$/)
-      await expect(chunks).toBeVisible()
-      await attachScreenshot('MP-60 indexed chunks')
-      await testInfo.attach('MP-60 processing duration', {
+      holdResponse = true
+      await test.step('Import sample-chinese.md through Add Data Source → File', async () => {
+        const add = page.getByRole('button', { name: 'Add Data Source', exact: true })
+        if (await add.isVisible()) {
+          await add.click()
+          await page.getByRole('menuitem', { name: 'File', exact: true }).click()
+        } else {
+          await page.getByRole('button', { name: 'File', exact: true }).click()
+        }
+        chooseNativeFile(app.record.platform, { ...app.paths, fixtures: dirname(filePath) }, filePath)
+      })
+      const row = page.getByRole('row').filter({ hasText: 'sample-chinese.md' })
+      await expect(row).toBeVisible()
+      await expect
+        .poll(() => observation.evaluate(({ entries }) => entries.at(-1)?.status), {
+          timeout: 30_000,
+          message: 'An in-flight embedding request must be visible as Embedding'
+        })
+        .toBe('Embedding')
+      releaseResponse()
+      await expect
+        .poll(() => observation.evaluate(({ entries }) => entries.at(-1)?.status), { timeout: 180_000 })
+        .toMatch(/Ready|Error/)
+      const processingMs = Date.now() - started
+      const entries = await observation.evaluate(({ entries }) => entries)
+      await attachScreenshot('MP-60 file processing result')
+      if (entries.at(-1)?.status === 'Error') {
+        const error = row.getByText('Error', { exact: true })
+        await expect(error).toBeVisible()
+        await error.hover()
+        const reason = page.getByRole('tooltip')
+        await expect(reason).toBeVisible()
+        await expect(reason).not.toHaveText('')
+        throw new Error(`File processing failed: ${await reason.innerText()}`)
+      }
+      const statuses = entries
+        .map(({ status }) => status)
+        .filter((status, index, all) => index === 0 || status !== all[index - 1])
+      // The item only reports reading → embedding → completed; `Chunking` is the list's fallback
+      // label for states outside that set, so requiring it would reject a successful import.
+      const order = ['Reading', 'Embedding', 'Ready']
+      expect(
+        statuses.filter((status) => !order.includes(status)),
+        'Only states the item actually reports may render'
+      ).toEqual([])
+      expect(statuses.at(-1), 'The import must end in the ready state').toBe('Ready')
+      expect(
+        statuses.some((status) => status === 'Reading' || status === 'Embedding'),
+        'At least one processing state must be visible'
+      ).toBe(true)
+      const positions = statuses.map((status) => order.indexOf(status))
+      expect(
+        positions.every((position, index) => index === 0 || position >= positions[index - 1]),
+        'Processing states must not render out of order'
+      ).toBe(true)
+      await expect(row.getByText('Ready', { exact: true })).toBeVisible()
+
+      const menuMode = await page.evaluate(() => window.api.preference.get('menu.presentation_mode'))
+      try {
+        await page.evaluate(() => window.api.preference.set('menu.presentation_mode', 'cherry'))
+        await row.click({ button: 'right' })
+        await page.getByRole('menuitem', { name: 'View Chunks', exact: true }).click()
+        const chunks = page.getByText(/^[1-9]\d* chunks$/)
+        await expect(chunks).toBeVisible()
+        await attachScreenshot('MP-60 indexed chunks')
+        await testInfo.attach('MP-60 processing duration', {
+          body: JSON.stringify(
+            { processingMs, chunks: await chunks.innerText(), provider: 'configured embedding provider', entries },
+            null,
+            2
+          ),
+          contentType: 'application/json'
+        })
+      } finally {
+        await page.evaluate((menuMode) => window.api.preference.set('menu.presentation_mode', menuMode), menuMode)
+      }
+    } finally {
+      releaseResponse()
+      await observation.evaluate(({ stop }) => stop())
+      await testInfo.attach('MP-60 processing timeline', {
         body: JSON.stringify(
-          { processingMs, chunks: await chunks.innerText(), provider: 'configured embedding provider', entries },
+          { totalMs: Date.now() - started, entries: await observation.evaluate(({ entries }) => entries) },
           null,
           2
         ),
         contentType: 'application/json'
       })
-    } finally {
-      await page.evaluate((menuMode) => window.api.preference.set('menu.presentation_mode', menuMode), menuMode)
+      await observation.dispose()
     }
   } finally {
-    await observation.evaluate(({ stop }) => stop())
-    await testInfo.attach('MP-60 processing timeline', {
-      body: JSON.stringify(
-        { totalMs: Date.now() - started, entries: await observation.evaluate(({ entries }) => entries) },
-        null,
-        2
-      ),
-      contentType: 'application/json'
-    })
-    await observation.dispose()
+    releaseResponse()
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    await page.evaluate(
+      async ({ baseName, providerId }) => {
+        const bases = await window.api.dataApi.request({
+          id: 'mp60-bases',
+          method: 'GET',
+          path: '/knowledge-bases',
+          params: { search: baseName }
+        })
+        if (bases.status === 200) {
+          for (const base of (bases.data as KnowledgeBaseListResponse).items.filter((base) => base.name === baseName)) {
+            await window.api.dataApi.request({
+              id: 'mp60-clean-base',
+              method: 'DELETE',
+              path: `/knowledge-bases/${base.id}`
+            })
+          }
+        }
+        await window.api.dataApi.request({
+          id: 'mp60-clean-provider',
+          method: 'DELETE',
+          path: `/providers/${providerId}`
+        })
+      },
+      { baseName, providerId }
+    )
   }
 })
 
