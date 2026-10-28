@@ -23,16 +23,21 @@ async function checkGuestFocus(session: GuestSession, options: BrowserActionOpti
 }
 
 export async function pressKey(session: GuestSession, chord: string, options: BrowserActionOptions) {
+  const prepared = resolveChord(chord)
   await requestInputFocus(session, options)
-  await dispatchKey(session, chord, options, () => checkGuestFocus(session, options))
+  await dispatchKey(session, prepared, options, () => checkGuestFocus(session, options))
 }
 
-async function dispatchKey(
-  session: GuestSession,
-  chord: string,
-  options: BrowserActionOptions,
-  guard: () => Promise<void>
-) {
+type ResolvedChord = {
+  key: string
+  code: string
+  windowsVirtualKeyCode: number
+  modifiers: number
+  text: string | undefined
+  selectAll: boolean
+}
+
+function resolveChord(chord: string): ResolvedChord {
   const parts = chord.split('+')
   let input = parts.pop()!
   if (!input && parts.at(-1) === '') {
@@ -55,8 +60,18 @@ async function dispatchKey(
         : [...key].length === 1
           ? key
           : undefined
-  const params = { key, code, windowsVirtualKeyCode, modifiers }
   const selectAll = modifiers === (isMac ? KeyModifier.Meta : KeyModifier.Control) && key.toLowerCase() === 'a'
+  return { key, code, windowsVirtualKeyCode, modifiers, text, selectAll }
+}
+
+async function dispatchKey(
+  session: GuestSession,
+  chord: ResolvedChord,
+  options: BrowserActionOptions,
+  guard: () => Promise<void>
+) {
+  const { key, code, windowsVirtualKeyCode, modifiers, text, selectAll } = chord
+  const params = { key, code, windowsVirtualKeyCode, modifiers }
   await guard()
   await session.send(
     'Input.dispatchKeyEvent',
@@ -133,7 +148,7 @@ export async function typeText(
           if (!focused) throw new BrowserSessionError('input_not_focused')
         }
       }
-      const key = (chord: string) => dispatchKey(session, chord, options, guard)
+      const key = (chord: string) => dispatchKey(session, resolveChord(chord), options, guard)
       const clearField = async () => {
         await key(`${isMac ? 'Meta' : 'Control'}+a`)
         await key('Backspace')

@@ -6,6 +6,7 @@ import { pressKey, typeText } from '../actions/keyboard'
 import { click, hover } from '../actions/mouse'
 import { resolveTarget } from '../actions/resolveTarget'
 import { settleAction } from '../actions/settle'
+import { BrowserSessionError } from '../session/BrowserSessionError'
 import { GuestSession } from '../session/GuestSession'
 import { createGuest } from './guestFixture'
 
@@ -311,6 +312,57 @@ describe('Browser actions', () => {
 
   describe('borrowed keyboard focus', () => {
     beforeEach(borrowGuest)
+
+    it('rejects an invalid modifier without requesting focus or touching the host', async () => {
+      guestFocused = false
+      const acknowledge = vi.fn(async () => {
+        guestFocused = true
+      })
+      await expect(pressKey(session, 'Bogus+a', { focusInput: acknowledge })).rejects.toMatchObject({
+        code: 'not_allowed'
+      })
+      expect(acknowledge).not.toHaveBeenCalled()
+      expect(guestFocused).toBe(false)
+      expect(inputCommands()).toEqual([])
+      expect(host.value).toBe('host draft')
+    })
+
+    it('rejects an invalid chord before an inert pane can refuse focus', async () => {
+      const inert = vi.fn(async () => {
+        throw new BrowserSessionError('input_not_focused')
+      })
+      await expect(pressKey(session, 'Bogus+a', { focusInput: inert })).rejects.toMatchObject({ code: 'not_allowed' })
+      expect(inert).not.toHaveBeenCalled()
+    })
+
+    it('rejects an unknown key without requesting focus', async () => {
+      const acknowledge = vi.fn()
+      await expect(pressKey(session, 'Control+Nope', { focusInput: acknowledge })).rejects.toMatchObject({
+        code: 'not_allowed'
+      })
+      expect(acknowledge).not.toHaveBeenCalled()
+    })
+
+    it('rejects an invalid chord before requiring a focus callback', async () => {
+      await expect(pressKey(session, 'Bogus+a', {})).rejects.toMatchObject({ code: 'not_allowed' })
+    })
+
+    it('requests focus exactly once before dispatching a valid chord', async () => {
+      guestFocused = false
+      ;(target as HTMLInputElement).focus()
+      const acknowledge = vi.fn(focusInput)
+      afterCommand = (method) => {
+        if (method === 'Input.dispatchKeyEvent') {
+          expect(acknowledge).toHaveBeenCalledTimes(1)
+          expect(guestFocused).toBe(true)
+        }
+      }
+      await pressKey(session, 'x', { focusInput: acknowledge })
+      expect(acknowledge).toHaveBeenCalledTimes(1)
+      expect(inputCommands().map(({ params }) => params.type)).toEqual(['rawKeyDown', 'char', 'keyUp'])
+      expect((target as HTMLInputElement).value).toBe('oldx')
+      expect(host.value).toBe('host draft')
+    })
 
     it.each(['type', 'key'])('refuses %s without a focus callback before dispatch', async (action) => {
       await expect(
