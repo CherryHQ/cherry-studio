@@ -33,6 +33,11 @@ export async function messageTokenDetails(app: RegressionApp, page: Page, testIn
   let assistantId: string | undefined
   const serverErrors: Error[] = []
   // Mock only the provider HTTP boundary; usage persistence and both UI surfaces remain real.
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies and token usage; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const server = createServer((req, res) => {
     void (async () => {
       const chunks: Buffer[] = []

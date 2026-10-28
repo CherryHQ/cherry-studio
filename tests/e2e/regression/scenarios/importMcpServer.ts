@@ -16,6 +16,11 @@ import { openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function importMcpServer(app: RegressionApp, page: Page, testInfo: TestInfo) {
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies and MCP tool server; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const fixture = await startMcpImportServer()
   const name = app.resourceName(`JSON MCP ${Date.now()}`)
   const providerId = `mp134-${Date.now()}`

@@ -117,6 +117,11 @@ test(...caseDefinition('MP-59'), async ({ app, mainWindow }, testInfo) => {
   let groupId: string | undefined
   const embeddingRequests: { model: string; input: unknown }[] = []
   // Mock only the external embedding API; creation, validation and persistence use the real application.
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock embedding vectors; real Electron UI, IPC and persisted knowledge data. Does not validate embedding quality.'
+  })
   const server = createServer(async (request, response) => {
     if (request.url !== '/v1/embeddings' || request.method !== 'POST') {
       response.writeHead(404).end()

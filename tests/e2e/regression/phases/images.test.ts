@@ -144,6 +144,11 @@ test(...caseDefinition('MP-91'), async ({ mainWindow: page }, testInfo) => {
   const image = await readFile('resources/data/painting-templates/images/monochrome-suit.webp')
   const requests: Array<{ path: string; body: Record<string, unknown> }> = []
   let failEnhancement = false
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat enhancement and image generation responses; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const server = createServer(async (req, res) => {
     const chunks: Buffer[] = []
     for await (const chunk of req) chunks.push(Buffer.from(chunk))
@@ -327,6 +332,11 @@ test(...caseDefinition('MP-92'), async ({ mainWindow: page }, testInfo) => {
   const keys = { invalid: 'sk-mp92-invalid-secret', empty: 'sk-mp92-empty-secret', valid: 'sk-mp92-valid-secret' }
   const providers = [`mp92-invalid-${Date.now()}`, `mp92-empty-${Date.now()}`]
   const requests: { authorization: string; body: { model?: string; prompt?: string }; response: ServerResponse }[] = []
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock image provider responses; real Electron UI, IPC, storage and image decoding. Does not validate external model quality.'
+  })
   const server = createServer(async (request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/images/generations') {
       response.writeHead(404).end()

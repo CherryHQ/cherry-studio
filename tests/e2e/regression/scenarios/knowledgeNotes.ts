@@ -45,6 +45,11 @@ export async function knowledgeNotes(app: RegressionApp, page: Page, testInfo: T
   let assistantId: string | undefined
   const requests: Array<{ messages: Array<{ role: string; content?: unknown }>; tools?: unknown[] }> = []
   // Only the model is scripted; kb_search must retrieve both real indexed note bodies.
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies and tool calls; real Electron UI, IPC and indexed notes. Does not validate external model quality.'
+  })
   const server = createServer(async (req, res) => {
     const chunks: Buffer[] = []
     for await (const chunk of req) chunks.push(Buffer.from(chunk))

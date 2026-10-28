@@ -26,6 +26,11 @@ export async function mcpConversation(app: RegressionApp, page: Page, testInfo: 
     naming: await window.api.preference.get('topic.naming.enabled'),
     pinned: await window.api.preference.get('chat.input.toolbar.pinned_tools')
   }))
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies and MCP tool server; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const fixture = await startMcpConversationServer()
   const providerId = `mp135-${Date.now()}`
   const modelId = 'gpt-4o-mini'

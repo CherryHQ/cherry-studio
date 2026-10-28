@@ -29,6 +29,11 @@ export async function renameMoveDeleteKnowledge(
   const marker = `MP67 vector cleanup orchid ${suffix}`
   const menuMode = await page.evaluate(() => window.api.preference.get('menu.presentation_mode'))
   // Deterministic vectors exercise the real index lifecycle; this case makes no semantic-recall claim.
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock embedding vectors; real Electron UI, IPC and knowledge index lifecycle. Does not validate embedding quality.'
+  })
   const server = createServer(async (request, response) => {
     if (request.url !== '/v1/embeddings') {
       response.writeHead(404).end()
