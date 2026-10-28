@@ -3236,6 +3236,33 @@ describe('AgentSessionRuntimeService', () => {
       expect(enqueue).toHaveBeenCalledWith({ type: 'text-start', id: 'fresh' })
     })
 
+    // The recovery buffer is keyed by root, so a late delta can arrive after the message buffer
+    // dropped its start. Replay must consult the message-level record before routing it.
+    it('refuses a replayed delta whose start the message buffer discarded', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      entry.currentTurn.controller = { enqueue } as never
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      entry.pendingBackgroundFlowDiscardedParts = new Map([['assistant-1', new Set(['lost'])]])
+      entry.pendingRecoveryFlowChunks = new Map([
+        ['task-root', [{ type: 'text-delta', id: 'lost', delta: 'orphan' }]]
+      ]) as never
+      entry.pendingRecoveryFlowChunkCount = 1
+
+      ;(service as any).recoverDetachedFlowHost(entry, 'task-root')
+
+      expect(enqueue).not.toHaveBeenCalledWith({ type: 'text-delta', id: 'lost', delta: 'orphan' })
+      expect(entry.pendingBackgroundFlowDiscardedParts?.get('assistant-1')?.has('lost')).toBe(true)
+
+      // A fresh start re-opens the part and is delivered.
+      entry.pendingRecoveryFlowChunks = new Map([['task-root', [{ type: 'text-start', id: 'lost' }]]]) as never
+      entry.pendingRecoveryFlowChunkCount = 1
+      ;(service as any).recoverDetachedFlowHost(entry, 'task-root')
+      expect(enqueue).toHaveBeenCalledWith({ type: 'text-start', id: 'lost' })
+    })
+
     // Two detached subagents can share one host message: a restart of one stream must not admit
     // the other's orphaned delta, or the reader aborts on the part whose start was dropped.
     it('keeps an overflowed sibling stream refused when another root restarts', () => {
