@@ -78,31 +78,43 @@ describe('provider reasoning contracts', () => {
     expect(dashscopeSupport?.controls).toEqual([{ default: 'max', kind: 'effort', values: ['none', 'max'] }])
   })
 
-  // Both current models must translate xhigh to DeepSeek's supported max effort.
-  it.each(['deepseek-flash', 'deepseek-v4-pro'])('maps %s reasoning to the official effort vocabulary', (modelId) => {
-    const contracts = override('deepseek', modelId).reasoningContracts
-    const responsesWire = contracts?.['openai-responses']?.wire
-    expect(responsesWire?.off?.operations).toEqual([
+  // Every shipping DeepSeek V4 model must offer the off switch and translate xhigh to max.
+  it.each(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'])(
+    'maps %s reasoning to the official effort vocabulary',
+    (modelId) => {
+      const contracts = override('deepseek', modelId).reasoningContracts
+      const responsesWire = contracts?.['openai-responses']?.wire
+      expect(responsesWire?.off?.operations).toEqual([
+        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+      ])
+      expect(responsesWire?.auto?.effortMap).toEqual({
+        auto: 'high',
+        minimal: 'low',
+        low: 'low',
+        medium: 'high',
+        xhigh: 'max'
+      })
+      expect(responsesWire?.effort).toMatchObject({
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+      })
+      expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
+        operations: [
+          { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+          { target: 'reasoningEffort', value: { source: 'effort' } }
+        ],
+        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+      })
+    }
+  )
+
+  it('carries the off switch on the provider-level DeepSeek Responses endpoint', () => {
+    const responsesFormat = provider('deepseek').endpointConfigs?.['openai-responses']?.reasoningFormat as {
+      wire?: { off?: { operations?: unknown[] } }
+    }
+    expect(responsesFormat?.wire?.off?.operations).toEqual([
       { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
     ])
-    expect(responsesWire?.auto?.effortMap).toEqual({
-      auto: 'high',
-      minimal: 'low',
-      low: 'low',
-      medium: 'high',
-      xhigh: 'max'
-    })
-    expect(responsesWire?.effort).toMatchObject({
-      operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
-      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-    })
-    expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
-      operations: [
-        { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-        { target: 'reasoningEffort', value: { source: 'effort' } }
-      ],
-      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-    })
   })
 
   // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle

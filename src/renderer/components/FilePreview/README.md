@@ -279,6 +279,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 | Missing or inaccessible path | Unavailable | Explanation without an open action |
 | Invalid or non-absolute path | Invalid | Explanation without an open action |
 
+- Markdown previews read the complete document without a fixed file-size rejection limit.
+- Text, Markdown and HTML source bodies use the renderer's `FileEditor` in read-only mode, with Pierre
+  row virtualization bound to the preview scroller. File editing uses the same component and
+  viewer-theme preferences; the existing host still owns permissions, drafts and saving.
 - Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;
   they never access Electron APIs. The adapter serves whole-document reads with one full
   `file.read` and PDF ranges with 1 MiB range requests, checking every response against the
@@ -292,7 +296,8 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
   Synchronous parsing cannot be interrupted.
 - Local loading effects depend on `filePath`, `refreshKey`, and the host's metadata request. Text,
-  Markdown, and restricted HTML wait for that request before checking size or reading content.
+  Markdown, and restricted HTML wait for that request before reading content. Text and restricted
+  HTML also apply their size checks after metadata resolves.
   Shared plugins reload when their opened document changes. Do not request metadata again inside a format plugin.
 - A same-path refresh retains a compatible preview while metadata and content reload. Local plugins
   and the portable preview package preserve valid reading state; different paths or formats reset it.

@@ -15,7 +15,9 @@ import {
 } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
+  lazy,
   type ReactNode,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -42,9 +44,7 @@ import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { canProduceSelectionReference, FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
-import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import {
   FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
   type FileEditSession
@@ -83,6 +83,7 @@ export {
 } from './artifactPanePath'
 
 const logger = loggerService.withContext('ArtifactPane')
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 
 const ARTIFACT_FILE_TREE_ERROR_KEYS = {
   invalid_path: {
@@ -207,7 +208,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onInsertSelectionReference
   } = props
   const { t } = useTranslation()
-  const activeCmTheme = useCmTheme(editMode === 'edit')
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
@@ -802,7 +802,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="text-muted-foreground shrink-0 hover:bg-accent hover:text-foreground"
+                className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label={t('common.back')}
                 onClick={handleClosePreview}>
                 <ArrowLeft size={16} />
@@ -976,7 +976,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {fileSession?.saveError && (
           <div
             role="alert"
-            className="bg-error-subtle text-error-subtle-foreground flex shrink-0 items-center gap-2 border-b border-error-border px-3 py-2 text-xs">
+            className="flex shrink-0 items-center gap-2 border-b border-error-border bg-error-subtle px-3 py-2 text-xs text-error-subtle-foreground">
             <AlertCircle className="size-4 shrink-0" />
             <span className="min-w-0 flex-1">
               {t(
@@ -1005,27 +1005,20 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Button>
           </div>
         )}
-        {/* The inset pads inside the editor's scroll container (not this wrapper) so the
-            editor runs full height under the elevated composer with trailing scroll room. */}
-        <div
-          data-file-edit
-          className="relative min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
+        <div data-file-edit className="relative min-h-0 flex-1 overflow-hidden">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
-            <LazyCodeEditor
-              key={`${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
-              readOnly={fileSession.readOnly}
-              editable={!fileSession.readOnly}
-              value={fileSession.draft}
-              language={getFileExtension(overlaySelection.filePath)}
-              theme={activeCmTheme}
-              onChange={(content) => fileSession.setDraft(content)}
-              height="100%"
-              expanded={false}
-              wrapped
-              fontSize={14}
-              style={{ minHeight: 0 }}
-              options={{ keymap: true, lineNumbers: true }}
-            />
+            <Suspense fallback={<LoadingState label={t('common.loading')} />}>
+              <FileEditor
+                key={`${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
+                sessionKey={`artifact:${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
+                readOnly={fileSession.readOnly}
+                value={fileSession.draft}
+                fileName={getPathBasename(overlaySelection.filePath)}
+                onChange={fileSession.setDraft}
+                wrapLines
+                className="h-full"
+              />
+            </Suspense>
           ) : canEditSelection && editMode === 'edit' && fileSession?.status === 'loading' ? (
             <div className="flex h-full items-center justify-center">
               <LoadingState label={t('common.loading')} />
@@ -1062,7 +1055,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           searchClearLabel={t('common.clear')}
           getMenuItems={getFileTreeMenuItems}
           emptyState={
-            <div className="text-muted-foreground px-2 py-3 text-xs">
+            <div className="px-2 py-3 text-xs text-muted-foreground">
               {treeErrorKeys
                 ? t(treeErrorKeys.title)
                 : trimmedFileSearch
