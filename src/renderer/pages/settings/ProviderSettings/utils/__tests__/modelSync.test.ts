@@ -336,3 +336,43 @@ describe('toCreateModelDto', () => {
     expect(dto.capabilities).toBeUndefined()
   })
 })
+
+describe('discovered reasoning transport', () => {
+  it.each([{ controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }] }, { controls: [] }])(
+    'preserves $controls over a different catalog descriptor through creation',
+    async ({ controls }) => {
+      listModelsMock.mockResolvedValueOnce({
+        models: [
+          {
+            id: 'ollama::qwen3.8:27b',
+            providerId: 'ollama',
+            apiModelId: 'qwen3.8:27b',
+            name: 'qwen3.8:27b',
+            contextWindow: 40960,
+            discoveredReasoningControls: controls
+          }
+        ]
+      })
+      dataApiGetMock.mockResolvedValueOnce([
+        {
+          id: 'ollama::qwen3.8:27b',
+          apiModelId: 'qwen3.8:27b',
+          presetModelId: 'qwen3-8-27b',
+          name: 'Qwen3.8 27B',
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+          contextWindow: 1000000,
+          reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }] }
+        }
+      ])
+      const {
+        models: [model]
+      } = await fetchResolvedProviderModels('ollama')
+      expect(model.discoveredReasoningControls).toEqual(controls)
+      expect(toCreateModelDto('ollama', model)).toMatchObject({
+        discoveredReasoningControls: controls,
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+        contextWindow: 1000000
+      })
+    }
+  )
+})

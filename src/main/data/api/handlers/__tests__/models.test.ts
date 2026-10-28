@@ -534,3 +534,69 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
     expect(result).toBeNull()
   })
 })
+
+describe('discovered controls create-only validation', () => {
+  const dto = {
+    providerId: 'ollama',
+    modelId: 'qwen3.8:27b',
+    discoveredReasoningControls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }]
+  }
+
+  it('passes discovery through create and reconcile additions', async () => {
+    lookupModelMock.mockReset()
+    lookupModelMock.mockReturnValue(undefined)
+    createMock.mockReturnValue([])
+    reconcileForProviderMock.mockReturnValue([])
+    await modelHandlers['/models'].POST({ body: [dto] } as never)
+    expect(createMock.mock.calls[0][0][0].dto).toEqual(dto)
+    await modelHandlers['/providers/:providerId/models:reconcile'].POST({
+      params: { providerId: 'ollama' },
+      body: { toAdd: [dto], toRemove: [] }
+    } as never)
+    expect(reconcileForProviderMock.mock.calls[0][1].toAdd[0].dto).toEqual(dto)
+  })
+
+  it.each(
+    [
+      null,
+      [{ kind: 'unknown' }],
+      [{ kind: 'budget', min: 0, max: 10 }],
+      [{ kind: 'effort', values: [] }],
+      ...['max', 'minimal', 'xhigh', 'ultra'].map((value) => [{ kind: 'effort', values: ['low', value] }]),
+      [{ kind: 'toggle' }, { kind: 'effort', values: ['low'] }],
+      [{ kind: 'toggle', default: false }],
+      [{ kind: 'effort', values: ['low'], wire: { target: 'think' } }],
+      { controls: [{ kind: 'toggle' }] }
+    ].map((discoveredReasoningControls) => ({ discoveredReasoningControls }))
+  )(
+    'rejects invalid discovery $discoveredReasoningControls in create and reconcile',
+    async ({ discoveredReasoningControls }) => {
+      const invalid = { ...dto, discoveredReasoningControls }
+      await expect(modelHandlers['/models'].POST({ body: [invalid] } as never)).rejects.toThrow()
+      await expect(
+        modelHandlers['/providers/:providerId/models:reconcile'].POST({
+          params: { providerId: 'ollama' },
+          body: { toAdd: [invalid], toRemove: [] }
+        } as never)
+      ).rejects.toThrow()
+    }
+  )
+
+  it('rejects full reasoning overposting and discovery in single and bulk patches', async () => {
+    await expect(
+      modelHandlers['/models'].POST({
+        body: [{ providerId: 'ollama', modelId: 'local', reasoning: { controls: [] } }]
+      } as never)
+    ).rejects.toThrow()
+    const patch = { discoveredReasoningControls: [] }
+    await expect(
+      modelHandlers['/models/:uniqueModelId*'].PATCH({
+        params: { uniqueModelId: 'ollama::local' },
+        body: patch
+      } as never)
+    ).rejects.toThrow()
+    await expect(
+      modelHandlers['/models'].PATCH({ body: [{ uniqueModelId: 'ollama::local', patch }] } as never)
+    ).rejects.toThrow()
+  })
+})

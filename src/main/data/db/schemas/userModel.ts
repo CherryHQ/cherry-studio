@@ -85,7 +85,7 @@ export const userModelTable = sqliteTable(
     supportsStreaming: integer({ mode: 'boolean' }),
 
     /** Reasoning configuration */
-    reasoning: text({ mode: 'json' }).$type<ReasoningConfig>(),
+    reasoning: text({ mode: 'json' }).$type<ReasoningConfig & { controlsSource?: 'discovered' }>(),
 
     /** Parameter support */
     parameters: text({ mode: 'json' }).$type<ParameterSupport>(),

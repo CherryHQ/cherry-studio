@@ -455,6 +455,25 @@ export const ModelSchema = z.object({
 
 export type Model = z.infer<typeof ModelSchema>
 
+export const DiscoveredReasoningControlsSchema = z
+  .array(
+    z.discriminatedUnion('kind', [
+      z.strictObject({ kind: z.literal('toggle') }),
+      z.strictObject({
+        kind: z.literal('effort'),
+        values: z.array(z.enum(['none', 'auto', 'low', 'medium', 'high'])).min(1)
+      })
+    ])
+  )
+  .max(1)
+export type DiscoveredReasoningControls = z.infer<typeof DiscoveredReasoningControlsSchema>
+
+/** Provider listing item: a `Partial<Model>` that may also carry discovered reasoning controls. */
+export const ProviderListedModelSchema = ModelSchema.partial().extend({
+  discoveredReasoningControls: DiscoveredReasoningControlsSchema.optional()
+})
+export type ProviderListedModel = z.infer<typeof ProviderListedModelSchema>
+
 /**
  * The result of listing a provider's models. A provider may list entries that
  * cannot be offered as models — it drops them, and a caller that only received
@@ -464,7 +483,7 @@ export type Model = z.infer<typeof ModelSchema>
  * A provider with nothing to hold back returns the same envelope with `models`
  * alone, so every fetcher and `ai.provider.model.list` share one shape.
  */
-export interface ListedModels<M = Partial<Model>> {
+export interface ListedModels<M = ProviderListedModel> {
   models: M[]
   /** Names the provider lists but that are dropped from the model list. */
   skippedModels?: string[]

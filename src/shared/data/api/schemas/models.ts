@@ -8,6 +8,7 @@
 import * as z from 'zod'
 
 import {
+  DiscoveredReasoningControlsSchema,
   ENDPOINT_TYPE,
   type ImageGenerationSupport,
   MODALITY,
@@ -37,6 +38,7 @@ const PositiveModelTokenLimitSchema = z.number().int().positive()
 export const CreateModelSchema = z.strictObject({
   /** Provider ID */
   providerId: z.string().min(1),
+  discoveredReasoningControls: DiscoveredReasoningControlsSchema.optional(),
   /** Model ID (used in API calls) */
   modelId: z.string().min(1),
   /** Associated preset model ID */
@@ -89,7 +91,8 @@ export type CreateModelsDto = z.infer<typeof CreateModelsSchema>
 export const UpdateModelSchema = CreateModelSchema.omit({
   providerId: true,
   modelId: true,
-  presetModelId: true
+  presetModelId: true,
+  discoveredReasoningControls: true
 })
   .partial()
   .extend({
