@@ -853,10 +853,13 @@ function containerOpensBlock(container: string, previous: string): boolean {
     // inside it has no lazy continuation into a top-level item, so `> para` followed by
     // `2. [label]: /url` opens a list even though `2.` could not interrupt a paragraph.
     if (held === '>') return true
-    // A list marker opens an item: a sibling of the list the paragraph sits in interrupts at any
-    // number, while a fresh list interrupts only where its own number may start one — `123.` below
-    // a paragraph is prose the parser keeps, so a definition shape inside it is not a definition.
-    if (held !== undefined && held.slice(-1) === marker.slice(-1)) return true
+    // A list marker under a paragraph the item holds opens a block whatever it carries: a sibling
+    // continues the list, while a marker of another number or kind closes the item's flow and the
+    // parser reads the marker outside it, unbound by the interrupt rule — `2.` below a bullet item
+    // opens an ordered list at any number, though it cannot interrupt a bare paragraph. Only below
+    // a paragraph with no container of its own does the rule hold: `123.` there is prose the parser
+    // keeps, so a definition shape inside it is not a definition.
+    if (held !== undefined) return true
     return !/^\d/.test(marker) || Number.parseInt(marker, 10) === 1
   }
   return false
@@ -999,8 +1002,12 @@ function inlineLinkTarget(content: string): boolean {
   return /^[ \t]*$/.test(rest) || (/^[ \t]/.test(rest) && LINK_TITLE.test(rest))
 }
 
-/** A run of emphasis markers — the `*` in `# foo*bar*`, whose open/close class decides the text. */
-const EMPHASIS_RUN = /^[*_]+/
+/**
+ * A run of one emphasis marker — the `*` in `# foo*bar*`, whose open/close class decides the text.
+ * The marker is the run's whole class: micromark's attention tokenizer reads `*_` as the two runs
+ * it is written as, and a run spanning both would key their pairing on the wrong flanks.
+ */
+const EMPHASIS_RUN = /^(\*+|_+)/
 
 /** micromark's punctuation class (`unicodePunctuation`): `\p{P}|\p{S}`. */
 const MICROMARK_PUNCTUATION = /\p{P}|\p{S}/u
@@ -1030,8 +1037,11 @@ function micromarkClass(code: number): 'whitespace' | 'punctuation' | undefined 
 function emphasisFlanks(before: number, run: string, after: number): { opens: boolean; closes: boolean } {
   const left = micromarkClass(before)
   const right = micromarkClass(after)
-  const open = right === undefined || (right === 'punctuation' && left !== undefined)
-  const close = left === undefined || (left === 'punctuation' && right !== undefined)
+  // A run also opens against a marker beside it and closes behind one (`*` at `x*_y` opens and
+  // closes): the two flags take the attention markers themselves, not only the class they fall in.
+  const isMarker = (code: number): boolean => code === 42 || code === 95
+  const open = right === undefined || (right === 'punctuation' && left !== undefined) || isMarker(after)
+  const close = left === undefined || (left === 'punctuation' && right !== undefined) || isMarker(before)
   // The `!before`/`!after` tests above already cover whitespace, which classifies as its own group
   // here; micromark asks the same question of every non-punctuation neighbour, whitespace included.
   if (run[0] === '*') return { opens: open, closes: close }
@@ -1274,14 +1284,14 @@ function highlightSpans(source: string): Set<number> {
  * one up to seven decimal or six hexadecimal digits, or a named one up to thirty-one alphanumerics,
  * each closed by the semicolon. Anything else is not a reference at all.
  */
-const ENTITY_REFERENCE = /^&(#(?:\d{1,7}|x[\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/
+const ENTITY_REFERENCE = /^&(#(?:\d{1,7}|[xX][\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/
 
 /**
  * The character a reference renders as, or null when the renderer leaves it as the literal text it
  * was written as — a name it does not know, or a number outside what a character can be.
  */
 function decodeEntity(value: string): string | null {
-  const numeric = /^#(?:x([\dA-Fa-f]{1,6})|(\d{1,7}))$/.exec(value)
+  const numeric = /^#(?:[xX]([\dA-Fa-f]{1,6})|(\d{1,7}))$/.exec(value)
   if (numeric) return decodeNumericCharacterReference(numeric[1] ?? numeric[2], numeric[1] ? 16 : 10)
   return decodeNamedCharacterReference(value) || null
 }
@@ -1476,7 +1486,7 @@ function stripHtmlTags(content: string): string {
  */
 function htmlHeadingText(content: string): string {
   return stripHtmlTags(content).replace(
-    /&(#(?:\d{1,7}|x[\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/g,
+    /&(#(?:\d{1,7}|[xX][\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/g,
     (entity, value: string) => decodeEntity(value) ?? entity
   )
 }

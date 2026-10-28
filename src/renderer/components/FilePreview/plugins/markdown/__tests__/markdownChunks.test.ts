@@ -3359,6 +3359,31 @@ describe('unequal emphasis runs in a heading', () => {
   })
 })
 
+describe('mixed emphasis markers in a heading', () => {
+  it('reads adjacent runs of different markers the way the renderer pairs them', () => {
+    // micromark's attention tokenizer never spans two markers, so `*x*_x_` is the two runs it is
+    // written as and the heading renders `xx`. A run spanning the `*_` boundary keyed the pairing
+    // on the run's first marker and numbered the heading `x-x`, where the document writes `xx` and
+    // numbers the neighbour's copy `-1` — the `[jump](#xx-1)` then had no target.
+    const filler = 'filler\n\n'.repeat(3072)
+    const content = `# *x*_x_\n\n${filler}# xx\n\n[jump](#xx-1)\n`
+
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+    expect(headingIds(content)).toEqual(['doc--xx', 'doc--xx-1'])
+  })
+
+  it('rejects a pairing the rule of three rejects on the run the other marker makes', () => {
+    // The `*` before `_` can open as well as close against the marker beside it, so `**` + `*`
+    // sum to a multiple of three and cannot pair — the heading renders `**x*x` and numbers
+    // `x-x`. Letting the `*` close paired `**` and `*` around `x`, and numbered the heading `xx`.
+    const filler = 'filler\n\n'.repeat(3072)
+    const content = `# **x*_x_\n\n${filler}# x-x\n\n[jump](#x-x)\n`
+
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+    expect(headingIds(content)).toEqual(['doc--x-x', 'doc--x-x-1'])
+  })
+})
+
 describe('nested emphasis runs in a heading', () => {
   it('lists the ids the renderer numbers when a long run closes against a shorter one', () => {
     // micromark consumes two markers of `***` against `**` and leaves one for the trailing `*`, so
@@ -3665,6 +3690,17 @@ describe('a heading whose text a character reference spells', () => {
     expect(headingIds(content)).toEqual(['doc--a-b', 'doc--a-b-1'])
     expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
   })
+
+  it('decodes a hexadecimal reference written with an uppercase X', () => {
+    // micromark's reference tokenizer accepts the marker in either case, so `# &#X41;` renders `A`
+    // the same as `# A` and the document numbers the second `-1`. The scanner's patterns only held
+    // the lowercase `x`, so the heading keyed on `x41` and `[jump](#a-1)` had no target.
+    const filler = 'filler\n\n'.repeat(3072)
+    const content = `# &#X41;\n\n${filler}# A\n\n[jump](#a-1)\n`
+
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+    expect(headingIds(content)).toEqual(['doc--a', 'doc--a-1'])
+  })
 })
 
 describe('a definition a footnote’s content holds', () => {
@@ -3856,6 +3892,16 @@ describe('definition shapes inside list items', () => {
       '1. introduction\n2. [guide]: https://example.com/intended\n\n[guide]: https://example.com/other\n\n[open guide][guide]'
 
     expect(hoistedDefinition(content)).toContain('https://example.com/intended')
+  })
+
+  it('keeps a definition an ordered item opens after a bullet item’s paragraph', () => {
+    // The bullet item holds the paragraph, so its flow ends at `2.` — the parser reads the marker
+    // outside the item, where any number may open a list. Read against the bare-paragraph rule the
+    // shape was prose, and the later duplicate won the label.
+    const content = '- p\n2. [x]: https://right.example\n\n[x]: https://fallback.example\n\nSee [x].'
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 })
 
