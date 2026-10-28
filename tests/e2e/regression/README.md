@@ -101,6 +101,9 @@ alone can also match the hidden prewarmed SubWindow and produce a false empty-pa
 
 ## Configuration and evidence
 
+MP-77 verifies PDF text/fonts and DOCX structure before checking for `/Applications/Pages.app`.
+Without Pages, the remaining native editing and print checks are blocked; successful export checks do not make the whole case pass.
+
 Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.
 
 `translation-settings` selects only MP-86. The case uses pinned aiMock responses for

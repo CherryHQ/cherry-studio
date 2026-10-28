@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdtemp, rm, writeFile, mkdir, stat, utimes, readFile, readdir } from 'node:fs/promises'
 import { join, basename, dirname } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
@@ -448,6 +449,10 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     expect(xml).toContain('<w:tbl>')
     expect(xml).toContain('苹果')
     expect(xml).toContain('中文标题')
+    test.skip(
+      !existsSync('/Applications/Pages.app'),
+      'PDF and DOCX structure verified; Pages is required for Word editing and print acceptance'
+    )
     const edited = appleScript(
       [
         'on run argv',
