@@ -1,5 +1,17 @@
 # @cherrystudio/provider-registry
 
+## 0.2.8
+
+### Patch Changes
+
+- [#22711](https://github.com/CherryHQ/cherry-studio/pull/22711) [`c43e512`](https://github.com/CherryHQ/cherry-studio/commit/c43e512322b7a878dcc828514991da99c393aa50) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT-6.1 Terra with API pricing, long-context tiers, Responses tools, and Codex-specific context and reasoning limits.
+
+## 0.2.7
+
+### Patch Changes
+
+- [#22719](https://github.com/CherryHQ/cherry-studio/pull/22719) [`3c99b48`](https://github.com/CherryHQ/cherry-studio/commit/3c99b4860c33d220f4296c4f37c3f5a63c4e372a) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Narrow DashScope native web search eligibility to supported model families and exact hosted GLM 5.2 and Kimi K3 SKUs.
+
 ## 0.2.6
 
 ### Patch Changes

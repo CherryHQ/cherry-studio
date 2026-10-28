@@ -369,8 +369,8 @@ export type SharedCacheSchema = {
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
-  // File-processing progress for a knowledge item, main -> all windows. The check job
-  // mirrors the linked file-processing job's progress here every poll round so the row can
+  // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
+  // mirrors the progress of the job the item waits on here when it changes, so the row can
   // show a percentage during the 'processing' wait; absence means no progress was reported.
   'knowledge.item.file_processing_progress.${itemId}': number | null
 }

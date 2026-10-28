@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
-import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
+import { type PropsWithChildren, useState } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,7 +9,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
-import type * as LazyCodeEditorModule from '@renderer/components/LazyCodeEditor'
+import type * as FileEditorModule from '@renderer/components/FileEditor'
 import { FileEditSessionContext, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
 import type { SelectionReference } from '@renderer/types/selectionReference'
@@ -191,14 +191,7 @@ const mocks = vi.hoisted(() => ({
     excerpt: 'selected text',
     fileStamp: { size: 10, mtimeMs: 1 }
   } as unknown,
-  nextTreeId: 0,
-  useRealCodeEditor: false,
-  codeEditorRef: null as null | {
-    current: null | {
-      getContent?: () => string
-      insertText?: (text: string) => boolean
-    }
-  }
+  nextTreeId: 0
 }))
 
 /**
@@ -297,36 +290,16 @@ function binaryReadResult(content: Uint8Array) {
   }
 }
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' }),
-  useCmTheme: () => 'light'
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: (props: React.ComponentProps<typeof FileEditorModule.default>) => (
+    <textarea
+      data-testid="code-editor"
+      readOnly={props.readOnly}
+      value={props.value}
+      onChange={(event) => props.onChange?.(event.currentTarget.value)}
+    />
+  )
 }))
-
-vi.mock('@renderer/components/LazyCodeEditor', async (importOriginal) => {
-  const actual = await importOriginal<typeof LazyCodeEditorModule>()
-
-  return {
-    LazyCodeEditor: (props: React.ComponentProps<typeof actual.LazyCodeEditor>) => {
-      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>['current']>(null)
-      useEffect(() => {
-        mocks.codeEditorRef = ref
-      })
-
-      if (mocks.useRealCodeEditor) return <actual.LazyCodeEditor {...props} ref={ref} />
-
-      return (
-        <textarea
-          data-testid="code-editor"
-          data-font-size={props.fontSize}
-          data-wrapped={String(props.wrapped)}
-          readOnly={props.editable === false}
-          value={props.value}
-          onChange={(event) => props.onChange?.(event.currentTarget.value)}
-        />
-      )
-    }
-  }
-})
 
 vi.mock('@cherrystudio/ui', async (importActual) => {
   await importActual<typeof CherryStudioUi>()
@@ -751,8 +724,6 @@ describe('ArtifactPane', () => {
     mocks.ipcRequest.mockReset()
     mocks.filePreviewProps.length = 0
     mocks.nextTreeId = 0
-    mocks.useRealCodeEditor = false
-    mocks.codeEditorRef = null
     // Default: every test gets an empty tree unless it queues a fixture
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
     mocks.treeCreate.mockResolvedValue({
@@ -2020,7 +1991,6 @@ describe('ArtifactPane', () => {
         diskSize = oversizedDraftBytes
         return { mtime: 2, size: oversizedDraftBytes }
       })
-    mocks.useRealCodeEditor = true
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
@@ -2028,10 +1998,7 @@ describe('ArtifactPane', () => {
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
-    await waitFor(() => expect(mocks.codeEditorRef?.current).toBeTruthy())
-    act(() => {
-      expect(mocks.codeEditorRef?.current?.insertText?.(oversizedDraft)).toBe(true)
-    })
+    fireEvent.change(await within(overlay).findByTestId('code-editor'), { target: { value: oversizedDraft } })
 
     // The debounced autosave persists the large draft; the size cap only blocks
     // loading an already-oversized file into the editor.
@@ -2046,7 +2013,7 @@ describe('ArtifactPane', () => {
     // large to reopen. Switching to Preview delegates the saved file back to
     // FilePreview while the edit-size metadata refresh is still pending.
     await waitFor(() => expect(mocks.getMetadata.mock.calls.length).toBeGreaterThanOrEqual(3))
-    expect(mocks.codeEditorRef?.current).toBeTruthy()
+    expect(within(overlay).getByTestId('code-editor')).toHaveValue(oversizedDraft)
     mocks.fsReadText.mockClear()
     fireEvent.click(within(overlay).getByRole('button', { name: 'common.preview' }))
 
@@ -2096,24 +2063,7 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('wraps long lines in the artifact preview editor', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
-    mocks.fsReadText.mockResolvedValue('first\n')
-    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
-
-    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
-    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
-
-    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
-    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
-
-    const editor = await within(overlay).findByTestId('code-editor')
-    // wrapped={false} is the bug: long lines stay on one row and need a bottom-only scrollbar.
-    expect(editor).not.toHaveAttribute('data-wrapped', 'false')
-  })
-
-  it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
+  it('preserves UTF-8 BOM and CRLF when saving', async () => {
     const encoded = new TextEncoder().encode('first\r\nsecond\r\n')
     const source = new Uint8Array(encoded.length + 3)
     source.set([0xef, 0xbb, 0xbf])
@@ -2123,7 +2073,6 @@ describe('ArtifactPane', () => {
     mocks.ipcRequest
       .mockResolvedValueOnce(binaryReadResult(source))
       .mockResolvedValueOnce({ mtime: 2, size: source.byteLength })
-    mocks.useRealCodeEditor = true
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
@@ -2132,13 +2081,9 @@ describe('ArtifactPane', () => {
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
 
-    await waitFor(() => expect(mocks.codeEditorRef?.current).toBeTruthy())
-    expect(document.querySelector('.code-editor')).toHaveStyle({ fontSize: '14px' })
-    expect(mocks.codeEditorRef?.current?.getContent?.()).toBe('first\nsecond\n')
-
-    act(() => {
-      expect(mocks.codeEditorRef?.current?.insertText?.('changed\ncontent\n')).toBe(true)
-    })
+    const editor = await within(overlay).findByTestId('code-editor')
+    expect(editor).toHaveValue('first\nsecond\n')
+    fireEvent.change(editor, { target: { value: 'changed\ncontent\nfirst\nsecond\n' } })
 
     // Autosave (debounced) writes without a manual save button.
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.edit.write', expect.anything()), {

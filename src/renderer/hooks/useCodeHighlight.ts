@@ -69,9 +69,6 @@ export function useCodeHighlight({ value, language, callerId }: UseCodeHighlight
   )
 
   const current = highlighted?.request
-  const tokens =
-    highlighted && current?.value === value && current.language === language && current.theme === activeCodeTheme
-      ? highlighted.result
-      : null
+  const tokens = highlighted && current?.value === value && current.language === language ? highlighted.result : null
   return { tokens, highlightLines, resetHighlight }
 }
