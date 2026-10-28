@@ -7,8 +7,11 @@ import type { PropsWithChildren, ReactElement } from 'react'
 import { SWRConfig } from 'swr'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
+import { useMutation } from '@data/hooks/useDataApi'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
+import type { ApiGatewayPairedDevice } from '@shared/data/types/apiGatewayPairedDevice'
 import type { OutputFor } from '@shared/ipc/types'
 
 const { androidDownloadMock, invitationMock, requestMock, navigateMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(
@@ -882,6 +885,57 @@ describe('DeviceConnectionsSettings', () => {
     expect(trigger).toHaveBeenCalledWith({ params: { id: device.id }, body: { customName: '新名' } })
     expect(toast.success).toHaveBeenCalledWith(enUS['deviceConnections.devices.renamed'])
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['another device', 1],
+    ['the same device', 0]
+  ] as const)('preserves a new rename session for %s when an earlier save completes', async (_, deviceIndex) => {
+    const { useMutation: realUseMutation } = await vi.importActual<{ useMutation: typeof useMutation }>(
+      '@data/hooks/useDataApi'
+    )
+    const previousUseMutation = vi.mocked(useMutation).getMockImplementation()!
+    vi.mocked(useMutation).mockImplementation(realUseMutation)
+    try {
+      const otherDevice = { ...device, id: '22222222-2222-4222-8222-222222222222', name: 'My tablet' }
+      const devices = [device, otherDevice]
+      MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', devices)
+      let resolveRename!: (result: ApiGatewayPairedDevice) => void
+      const response = new Promise<ApiGatewayPairedDevice>((resolve) => {
+        resolveRename = resolve
+      })
+      vi.mocked(dataApiService.patch).mockReturnValueOnce(response)
+      const user = userEvent.setup()
+      render(<DeviceConnectionsSettings />)
+
+      await user.click(screen.getAllByRole('button', { name: enUS['deviceConnections.devices.rename'] })[0])
+      const firstInput = screen.getByRole('textbox', { name: enUS['deviceConnections.devices.renameLabel'] })
+      await user.clear(firstInput)
+      await user.type(firstInput, 'First rename')
+      await user.click(screen.getByRole('button', { name: enUS['common.save'] }))
+      expect(dataApiService.patch).toHaveBeenCalledWith(`/api-gateway/paired-devices/${device.id}`, {
+        body: { customName: 'First rename' },
+        query: undefined
+      })
+      expect(screen.getByRole('button', { name: enUS['common.save'] })).toBeDisabled()
+
+      await user.click(screen.getByRole('button', { name: enUS['common.cancel'] }))
+      await user.click(screen.getAllByRole('button', { name: enUS['deviceConnections.devices.rename'] })[deviceIndex])
+      const dialog = screen.getByRole('dialog', { name: enUS['deviceConnections.devices.renameTitle'] })
+      expect(dialog).toHaveTextContent(devices[deviceIndex].name)
+      const input = within(dialog).getByRole('textbox', { name: enUS['deviceConnections.devices.renameLabel'] })
+      await user.clear(input)
+      await user.type(input, 'New session draft')
+
+      await act(async () => resolveRename({ ...device, customName: 'First rename' }))
+
+      expect(dialog).toBeVisible()
+      expect(dialog).toHaveTextContent(devices[deviceIndex].name)
+      expect(input).toHaveValue('New session draft')
+      expect(toast.success).toHaveBeenCalledWith(enUS['deviceConnections.devices.renamed'])
+    } finally {
+      vi.mocked(useMutation).mockImplementation(previousUseMutation)
+    }
   })
 
   it('keeps input after a save failure, resets on cancel, and clears a custom name', async () => {

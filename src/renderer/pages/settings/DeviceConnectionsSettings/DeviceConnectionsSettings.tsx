@@ -96,17 +96,20 @@ const DeviceConnectionsSettings: FC = () => {
   })
   const [renamingDevice, setRenamingDevice] = useState<ApiGatewayPairedDevice>()
   const [customName, setCustomName] = useState('')
+  const renameSession = useRef(0)
 
   const closeRename = () => {
+    renameSession.current += 1
     setRenamingDevice(undefined)
     setCustomName('')
   }
   const saveRename = async (name: string | null) => {
     if (!renamingDevice || isRenaming) return
+    const session = renameSession.current
     try {
       await renameDevice({ params: { id: renamingDevice.id }, body: { customName: name?.trim() || null } })
       toast.success(t('deviceConnections.devices.renamed'))
-      closeRename()
+      if (renameSession.current === session) closeRename()
     } catch {
       toast.error(t('common.save_failed'))
     }
@@ -612,6 +615,7 @@ const DeviceConnectionsSettings: FC = () => {
                               size="icon"
                               aria-label={t('deviceConnections.devices.rename')}
                               onClick={() => {
+                                renameSession.current += 1
                                 setRenamingDevice(device)
                                 setCustomName(device.customName ?? device.name)
                               }}>
