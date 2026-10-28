@@ -11,15 +11,11 @@ import type { FilePreviewType } from '../../../types'
 import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
-  codeViewer: vi.fn(),
   readText: vi.fn()
 }))
 
-vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
-    mocks.codeViewer(props)
-    return <div data-testid="code-viewer">{props.value}</div>
-  }
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: (props: { value: string }) => <div data-testid="code-viewer">{props.value}</div>
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
@@ -270,20 +266,19 @@ describe('MarkdownFilePreview', () => {
     expect(screen.queryByRole('heading')).not.toBeInTheDocument()
   })
 
-  it('rejects files over 8 MiB before reading their contents', async () => {
-    renderPreview({ size: 8 * 1024 * 1024 + 1 })
+  it('renders a document larger than 8 MiB without truncating its contents', async () => {
+    const paragraph = `${'ordinary text '.repeat(600)}\n\n`
+    const source = `# Large document\n\n${paragraph.repeat(1_000)}## End of document`
+    mocks.readText.mockResolvedValueOnce(source)
+    const user = userEvent.setup()
+    renderPreview({ size: new TextEncoder().encode(source).byteLength })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.markdown.too_large.title')
-    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.markdown.too_large.description')
-    expect(mocks.readText).not.toHaveBeenCalled()
-  })
+    expect(await screen.findByRole('heading', { name: 'End of document' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
-  it('renders files at exactly the 8 MiB limit', async () => {
-    mocks.readText.mockResolvedValueOnce('# Boundary content')
-    renderPreview({ size: 8 * 1024 * 1024 })
-
-    expect(await screen.findByRole('heading', { name: 'Boundary content' })).toBeInTheDocument()
-  })
+    await user.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' }))
+    expect((await screen.findByTestId('code-viewer')).textContent).toBe(source)
+  }, 20_000)
 
   it('logs the actual read error but shows only a localized description', async () => {
     const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
@@ -301,16 +296,14 @@ describe('MarkdownFilePreview', () => {
     )
   })
 
-  it('switches between rendered preview and wrapped source', async () => {
+  it('switches between rendered preview and source', async () => {
     renderPreview()
     await screen.findByRole('heading')
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' }))
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('File preview')
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ language: 'markdown', value: '# File preview', wrapped: true })
-    )
+    expect(screen.getByTestId('code-viewer').textContent).toBe('# File preview')
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' }))
     expect(screen.getByRole('heading')).toBeInTheDocument()

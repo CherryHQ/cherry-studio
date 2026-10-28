@@ -227,6 +227,7 @@ export const { createCheckFileProcessingResultJobHandler } = await import('../ch
 export const { createIndexDocumentsJobHandler } = await import('../indexDocumentsJobHandler')
 export const { createPrepareRootJobHandler } = await import('../prepareRootJobHandler')
 export const { createReindexSubtreeJobHandler } = await import('../reindexSubtreeJobHandler')
+export const { FileProcessingWaitManager } = await import('../../ingestion/FileProcessingWaitManager')
 
 export const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 export const FILE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abd'
@@ -398,7 +399,6 @@ export const knowledgeLockManager = {
 }
 
 export const ingestionService: Mocked<KnowledgeItemScheduler> = {
-  scheduleFileProcessingCheck: vi.fn(),
   scheduleIndexing: vi.fn(),
   scheduleItem: scheduleItemMock
 }
@@ -468,7 +468,6 @@ beforeEach(() => {
   probeKnowledgeFileMock.mockResolvedValue('readable')
   probeKnowledgeSourcePathMock.mockResolvedValue('readable')
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
-  ingestionService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
   ingestionService.scheduleIndexing.mockResolvedValue(undefined)
   scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
 })

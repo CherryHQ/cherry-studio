@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-hidden-browser-tab-freeze.md
+2026-10-28-hidden-browser-tab-freeze.md: 35948e419d9223000cb64c41432be28faebb0797
+2026-10-28-hidden-browser-tab-freeze.zh.md: 1edf9eeb4c097ad8c52572860e43c4f1aa937a3d

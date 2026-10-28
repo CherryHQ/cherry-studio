@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "Uygulama Verilerini Sıfırla",
   "dialog.diagnostic_bundle.title": "Tanılama paketini kaydet",
   "dialog.diagnostic_bundle.zip_filter": "ZIP arşivi",
+  "dialog.external_link.message": "Bu bağlantı harici bir uygulamada açılsın mı?",
+  "dialog.external_link.open": "Uygulamayı aç",
   "dialog.html_files": "HTML Dosyaları",
   "dialog.migration_database_unavailable.detail": "Veri konumunun kullanılabilir ve yazılabilir olduğunu ve diskte yeterli boş alan bulunduğunu kontrol edip yeniden deneyin.",
   "dialog.migration_database_unavailable.message": "Cherry Studio yerel veritabanına erişemedi.",

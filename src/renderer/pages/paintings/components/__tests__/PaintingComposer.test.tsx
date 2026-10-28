@@ -79,6 +79,8 @@ vi.mock('@renderer/components/composer/tools/registry', () => ({
 }))
 
 vi.mock('@renderer/components/composer/variants/shared/ComposerControlScaffolding', () => ({
+  COMPOSER_ICON_ONLY_LABEL_CLASS: 'sr-only',
+  COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS: 'w-8 justify-center px-0',
   COMPOSER_SELECTOR_BUTTON_CLASS: '',
   ComposerToolbarControls: ({
     renderContextControls,
@@ -442,4 +444,97 @@ describe('PaintingComposer', () => {
     // Summary (incl. registry defaults) is appended after the settings label.
     expect(paramsButton()).toHaveAccessibleName(/^common\.settings: .*1536×1024/)
   })
+})
+
+// The manager owns resource IO; these cases isolate the composer's insertion and draft boundaries.
+vi.mock('../PaintingPromptPresetsDialog', () => ({
+  PaintingPromptPresetsDialog: ({
+    open,
+    onApply,
+    onOpenChange
+  }: {
+    open: boolean
+    onApply: (content: string) => void
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="presets">
+        <button
+          type="button"
+          onClick={() => {
+            onApply('X')
+            onOpenChange(false)
+          }}>
+          Apply preset
+        </button>
+      </div>
+    ) : null
+}))
+
+describe('PaintingComposer prompt presets', () => {
+  it('keeps a labelled dialog entry available without a resolved model or parameter fields', () => {
+    mockUseImageGenerationSupport.mockReturnValue(undefined)
+    renderComposer({ painting: makePainting({ providerId: '', model: '' }) })
+    const entry = screen.getByRole('button', { name: 'settings.prompts.title' })
+    expect(entry).toBeEnabled()
+    expect(entry).toHaveTextContent('settings.prompts.title')
+    expect(entry).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(entry).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('appends to the latest cold draft, closes the manager, and never generates', () => {
+    const { onPromptChange, onGenerate, rerenderPainting } = renderComposer({
+      painting: makePainting({ prompt: 'old' })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.prompts.title' }))
+    expect(screen.getByRole('dialog', { name: 'presets' })).toBeVisible()
+    rerenderPainting(makePainting({ prompt: 'AB' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply preset' }))
+    expect(onPromptChange).toHaveBeenCalledWith('ABX')
+    expect(onGenerate).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog', { name: 'presets' })).not.toBeInTheDocument()
+  })
+
+  it('preserves attached files and model selection when applying a preset', () => {
+    const files = [imageAttachment('preset-image')]
+    composerState.files = files
+    const onModelSelect = vi.fn()
+    const onConfigChange = vi.fn()
+    const { onPromptChange } = renderComposer({
+      painting: makePainting({ prompt: 'AB' }),
+      onModelSelect,
+      onConfigChange
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.prompts.title' }))
+    const setFiles = captured.surfaceProps?.setFiles
+    fireEvent.click(screen.getByRole('button', { name: 'Apply preset' }))
+    expect(onPromptChange).toHaveBeenCalledWith('ABX')
+    expect(composerState.files).toBe(files)
+    expect(captured.surfaceProps?.filesCount).toBe(1)
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(onModelSelect).not.toHaveBeenCalled()
+    expect(onConfigChange).not.toHaveBeenCalled()
+  })
+})
+
+it('uses the adapter that mounts while the preset manager is already open', () => {
+  composerState.files = []
+  const { onPromptChange, onGenerate } = renderComposer({ painting: makePainting({ prompt: 'AB' }) })
+  fireEvent.click(screen.getByRole('button', { name: 'settings.prompts.title' }))
+  const adapter = {
+    getText: () => 'AB',
+    insertText: vi.fn(),
+    replaceRange: vi.fn(),
+    deleteTriggerRange: vi.fn(),
+    focus: vi.fn()
+  }
+  // The runtime replaces the toolbar subtree; the manager must survive and use its new adapter.
+  render(captured.surfaceProps?.renderLeftControls?.(adapter, { available: false, open: () => undefined }))
+  expect(screen.getByRole('dialog', { name: 'presets' })).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Apply preset' }))
+  expect(adapter.insertText).toHaveBeenCalledWith('X')
+  expect(adapter.focus).toHaveBeenCalled()
+  expect(adapter.replaceRange).not.toHaveBeenCalled()
+  expect(onPromptChange).not.toHaveBeenCalled()
+  expect(onGenerate).not.toHaveBeenCalled()
 })
