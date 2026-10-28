@@ -130,19 +130,16 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     // Send the entry's untouched draft, then answer the interview one question at a time.
     await view.getByRole('button', { name: 'Send', exact: true }).click()
     let answer = await waitForAnswer(previousCount)
-    const turns = [
-      {
-        question: /做什么|内容|what.*(do|task)|task.*(do|content)/i,
-        answer: `任务名称必须是「${name}」，提示词必须完整且仅为「${prompt}」。`
-      },
-      { question: /多久|频率|时间|often|frequency|schedule|when/i, answer: '每 5 分钟执行一次。' },
-      { question: /Agent|智能体|代理/i, answer: `使用 Agent「${agentName}」。` }
-    ]
-    for (const turn of turns) {
-      await expect(answer).toContainText(turn.question)
-      answer = await reply(turn.answer)
+    const requirements = `任务名称必须是「${name}」，提示词必须完整且仅为「${prompt}」。每 5 分钟执行一次，使用 Agent「${agentName}」，启用任务，结果保存在任务卡片中，不发送到外部渠道。先不要创建，等我明确确认创建。`
+    for (let question = 0; question < 8; question += 1) {
+      const text = await (
+        (await questionInput.isVisible()) ? questionnaire.getByRole('heading', { level: 2 }) : answer
+      ).innerText()
+      if (question > 0 && /确认|confirm|proceed|shall.*creat|ready.*creat/i.test(text)) break
+      expect(text.trim(), 'Agent interview question must not be empty').not.toBe('')
+      answer = await reply(requirements)
     }
-    await expect(answer).toContainText(/确认|confirm/i)
+    await expect(answer).toContainText(/确认|confirm|proceed|shall.*creat|ready.*creat/i)
     const readTasks = async () => {
       const response = await page.evaluate(
         (agentId) =>

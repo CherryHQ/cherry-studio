@@ -53,7 +53,10 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     return (result.data as Pin[]).filter((pin) => sessions.some((session) => session.id === pin.entityId))
   }
   const assertUnique = async () => {
-    for (const name of names) await expect(row(name)).toHaveCount(1)
+    for (const name of names) {
+      await revealVirtualized(page, list().getByRole('listbox'), row(name))
+      await expect(row(name)).toHaveCount(1)
+    }
     const result = await page.evaluate(
       (ids) =>
         window.api.dataApi.request({ id: 'mp54-sessions', method: 'GET', path: '/agent-sessions', params: { ids } }),
@@ -64,17 +67,22 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     expect(items.map((item) => item.id).sort()).toEqual(sessions.map((session) => session.id).sort())
   }
   const drag = async (source: Locator, target: Locator, after = false) => {
-    await source.scrollIntoViewIfNeeded()
+    await revealVirtualized(page, list().getByRole('listbox'), source)
     const from = await source.boundingBox()
-    const to = await target.boundingBox()
     expect(from).not.toBeNull()
-    expect(to).not.toBeNull()
     await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
     await page.mouse.down()
-    await page.mouse.move(from!.x + from!.width / 2 + 12, from!.y + from!.height / 2, { steps: 5 })
-    await page.mouse.move(to!.x + to!.width / 2, to!.y + (after ? to!.height - 3 : 3), { steps: 20 })
-    await page.waitForTimeout(300)
-    await page.mouse.up()
+    try {
+      await page.mouse.move(from!.x + from!.width / 2 + 12, from!.y + from!.height / 2, { steps: 5 })
+      await expect(page.locator('[data-dragging="true"]').first()).toBeVisible({ timeout: 3000 })
+      await revealVirtualized(page, list().getByRole('listbox'), target)
+      const to = await target.boundingBox()
+      expect(to).not.toBeNull()
+      await page.mouse.move(to!.x + to!.width / 2, to!.y + (after ? to!.height - 3 : 3), { steps: 20 })
+      await page.waitForTimeout(300)
+    } finally {
+      await page.mouse.up()
+    }
   }
 
   try {
@@ -173,8 +181,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     await agentHeader.hover()
     const expand = agentHeader.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
-    await expect(row(names[0])).toBeVisible()
-    await expect(row(names[1])).toBeVisible()
+    await assertUnique()
     const before = (await pins()).map((pin) => pin.entityId)
     const desired = [...before].reverse()
     const firstName = sessions.find((session) => session.id === before[0])!.name
