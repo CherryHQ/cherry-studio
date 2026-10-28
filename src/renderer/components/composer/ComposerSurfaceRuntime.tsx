@@ -2,8 +2,17 @@ import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
-import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Check, ChevronRight, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import React, {
+  startTransition,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -130,6 +139,20 @@ export interface ComposerSurfaceActions {
   getDraft: () => ComposerSerializedDraft
 }
 
+export interface ComposerSurfaceEditingReasoning {
+  value: string
+  /** Visible section label, e.g. "Thinking". */
+  label: string
+  /** Tooltip label for the toggle, e.g. "Edit thinking". */
+  actionLabel: string
+  title: string
+  placeholder: string
+  hint: string
+  onChange: (value: string) => void
+  /** Mirrors the composer's save lock so typing cannot be lost mid-save. */
+  disabled?: boolean
+}
+
 export interface ComposerSurfaceEditingState {
   description?: string
   sendLabel?: string
@@ -140,6 +163,51 @@ export interface ComposerSurfaceEditingState {
   onLocate?: () => void
   /** Save the edit in place, without resending. Omitted when the send button already saves. */
   onSave?: (draft: ComposerSerializedDraft) => void | Promise<void>
+  /** Editable reasoning above the main text, when the edited message has unsigned reasoning. */
+  reasoning?: ComposerSurfaceEditingReasoning
+}
+
+function EditingReasoningSection({ reasoning }: { reasoning: ComposerSurfaceEditingReasoning }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentId = useId()
+
+  return (
+    <div data-composer-editing-reasoning="" className="border-b border-border-subtle px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          title={reasoning.actionLabel}
+          onClick={() => setExpanded((value) => !value)}
+          className="flex min-w-0 items-center gap-1.5 rounded-md text-left text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:bg-accent/50 focus-visible:outline-none">
+          <ChevronRight
+            aria-hidden="true"
+            className={cn('size-3.5 shrink-0 transition-transform', expanded && 'rotate-90')}
+          />
+          <span className="font-medium">{reasoning.label}</span>
+        </button>
+        <span className="truncate text-[11px] text-muted-foreground">{reasoning.title}</span>
+      </div>
+      {expanded ? (
+        <div id={contentId} className="mt-2">
+          <textarea
+            value={reasoning.value}
+            onChange={(event) => reasoning.onChange(event.target.value)}
+            onDragEnter={(event) => event.stopPropagation()}
+            onDragOver={(event) => event.stopPropagation()}
+            onDrop={(event) => event.stopPropagation()}
+            placeholder={reasoning.placeholder}
+            aria-label={reasoning.label}
+            disabled={reasoning.disabled}
+            rows={6}
+            className="w-full resize-y rounded-lg border border-border bg-background p-2 font-[var(--font-family)] text-foreground text-xs leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground leading-4">{reasoning.hint}</p>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 type ComposerSurfaceSendAccessoryRenderer = (
@@ -2331,6 +2399,7 @@ export default function ComposerSurfaceRuntime({
         </>
       ) : null}
       {editingModeHeader}
+      {editingState?.reasoning ? <EditingReasoningSection reasoning={editingState.reasoning} /> : null}
       {topContent}
       <div
         data-composer-compact-row={isCompact ? '' : undefined}

@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ipcApi } from '@renderer/ipc'
 import { ContentHashSchema } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { fileEditRequestSchemas, type FileEditRead, type FileWriteOutcome } from '@shared/ipc/schemas/fileEdit'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { fileEditRequestSchemas, type FileEditRead } from '@shared/ipc/schemas/fileEdit'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { FileEditSessionManager } from '../FileEditSessionManager'
@@ -17,20 +18,14 @@ const hash = (value: string) => ContentHashSchema.parse(`sha256:${createHash('sh
 let disk: FileEditRead
 let manager: FileEditSessionManager
 let writes: string[]
-let receipts: Map<number, FileWriteOutcome>
 let failWrite: boolean
 let holdWrite: Promise<void> | undefined
-let failSettlement: boolean
-let loseReceipt: boolean
 
 beforeEach(() => {
   vi.useFakeTimers()
   disk = snapshot('a')
   writes = []
-  receipts = new Map()
   failWrite = false
-  failSettlement = false
-  loseReceipt = false
   holdWrite = undefined
   manager = new FileEditSessionManager()
   vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
@@ -42,37 +37,16 @@ beforeEach(() => {
     }
     if (route === 'file.edit.read') return disk
     if (route === 'file.edit.close') return undefined
-    if (route === 'file.edit.settle_write' && input && typeof input === 'object' && 'sequence' in input) {
-      if (failSettlement) throw new Error('disconnected')
-      const receipt = receipts.get(input.sequence)
-      if (!receipt) throw new Error('no receipt')
-      return receipt
-    }
-    if (
-      route === 'file.edit.write' &&
-      input &&
-      typeof input === 'object' &&
-      'expected' in input &&
-      'sequence' in input &&
-      'data' in input
-    ) {
+    if (route === 'file.edit.write' && input && typeof input === 'object' && 'expected' in input && 'data' in input) {
       await holdWrite
       const content = new TextDecoder().decode(input.data)
-      if (failWrite) return { kind: 'not-committed', sequence: input.sequence, code: fileErrorCodes.EDIT_NO_SPACE }
+      if (failWrite) throw new IpcError(fileErrorCodes.EDIT_NO_SPACE, 'File save failed')
       if (input.expected.contentHash !== disk.baseline.contentHash) {
-        return { kind: 'not-committed', sequence: input.sequence, code: fileErrorCodes.STALE_VERSION }
+        throw new IpcError(fileErrorCodes.STALE_VERSION, 'File changed since the editing baseline')
       }
       writes.push(content)
       disk = snapshot(content)
-      const receipt = {
-        kind: 'committed',
-        sequence: input.sequence,
-        baseline: disk.baseline,
-        metadataRecoveryPending: false
-      } as const
-      receipts.set(input.sequence, receipt)
-      if (loseReceipt) throw new Error('lost receipt')
-      return receipt
+      return { baseline: disk.baseline, metadataRecoveryPending: false }
     }
     throw new Error(`Unexpected request ${route}`)
   })
@@ -144,18 +118,18 @@ describe('file editing lifetime', () => {
     expect(writes).toEqual(['b', 'a', 'c'])
   })
 
-  it('settles a lost receipt before issuing the next sequence', async () => {
+  it('treats a committed write whose reply was lost as saved on the next flush', async () => {
     const lease = await manager.acquire('notes', handle)
-    loseReceipt = true
-    failSettlement = true
+    const original = vi.mocked(ipcApi.request).getMockImplementation()!
+    vi.mocked(ipcApi.request).mockImplementationOnce(async (route, ...args) => {
+      await original(route, ...args)
+      throw new Error('reply lost')
+    })
     lease.acceptEdit('b')
-    await expect(lease.flush()).rejects.toThrow('disconnected')
-    expect(lease.getSnapshot().outcomeUnknown).toBe(true)
-    lease.acceptEdit('c')
-    failSettlement = false
+    await expect(lease.flush()).rejects.toThrow('reply lost')
     await lease.flush()
-    expect(writes).toEqual(['b', 'c'])
-    expect(lease.getSnapshot()).toMatchObject({ savedContent: 'c', outcomeUnknown: false })
+    expect(writes).toEqual(['b'])
+    expect(lease.getSnapshot()).toMatchObject({ savedContent: 'b', isDirty: false, conflict: false })
   })
 
   it('preserves the draft on an external change and only replaces it on explicit reload', async () => {
@@ -366,6 +340,50 @@ describe('file editing lifetime', () => {
     nextLease.release()
     await manager.recover(lease.getSnapshot().sessionId, 'discard')
     await vi.waitFor(() => expect(manager.listRetained()).toEqual([]))
+  })
+
+  it('does not let a conflicted session block mutations or flushes of other files', async () => {
+    const other = AbsoluteFilePathSchema.parse('/notes/B.md')
+    const files = new Map<string, FileEditRead>([
+      [path, snapshot('a')],
+      [other, snapshot('b')]
+    ])
+    const ids = new Map<string, string>()
+    vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
+      const input = args[0] as Record<string, any>
+      if (route === 'file.edit.open') {
+        const editId = crypto.randomUUID()
+        ids.set(editId, input.handle.path)
+        return { editId }
+      }
+      const target = ids.get(input?.editId)!
+      if (route === 'file.edit.read') return files.get(target)
+      if (route === 'file.edit.close') return undefined
+      if (route === 'file.edit.write') {
+        if (input.expected.contentHash !== files.get(target)!.baseline.contentHash)
+          throw new IpcError(fileErrorCodes.STALE_VERSION, 'stale')
+        files.set(target, snapshot(new TextDecoder().decode(input.data)))
+        return { baseline: files.get(target)!.baseline, metadataRecoveryPending: false }
+      }
+      throw new Error(`Unexpected request ${route}`)
+    })
+    const conflicted = await manager.acquire('notes', handle)
+    conflicted.acceptEdit('local A')
+    files.set(path, snapshot('external A'))
+    await expect(conflicted.flush()).rejects.toThrow('external changes')
+    conflicted.release()
+    const editing = await manager.acquire('notes', { kind: 'path', path: other })
+    editing.acceptEdit('B edit')
+
+    const prepared = await manager.prepareMutation()
+    await prepared.finish()
+
+    expect(new TextDecoder().decode(files.get(other)!.data)).toBe('B edit')
+    expect(new TextDecoder().decode(files.get(path)!.data)).toBe('external A')
+    expect(manager.getSnapshot()).toEqual([
+      expect.objectContaining({ locator: path, draft: 'local A', conflict: true })
+    ])
+    editing.release()
   })
 
   it('refuses file mutations during composition without discarding accepted text', async () => {

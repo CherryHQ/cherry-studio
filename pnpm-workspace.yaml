@@ -124,6 +124,8 @@ patchedDependencies:
   "@aiden0z/pptx-renderer@1.2.2": patches/@aiden0z__pptx-renderer@1.2.2.patch
   # Normalize RTF byte representations before code-page decoding; preserve font resets and binary ranges.
   rtf.js@3.0.9: patches/rtf.js@3.0.9.patch
+  "@pierre/diffs@1.6.1": patches/@pierre__diffs@1.6.1.patch
+  vfile-location@5.0.3: patches/vfile-location@5.0.3.patch
 
 allowBuilds:
   "@google/genai": false

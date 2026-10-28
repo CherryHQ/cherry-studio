@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Combobox, Tooltip } from '@cherrystudio/ui'
 import { CODE_LANGUAGES } from '@cherrystudio/ui/code-highlight'
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from '@renderer/components/CodeBlockView/constants'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 const languageOptions = [
   ...new Set([...Object.keys(CODE_LANGUAGES), ...Object.values(CODE_LANGUAGES).flat(), ...SPECIAL_VIEWS])
@@ -17,6 +18,7 @@ const options = languageOptions.map((value) => ({ value, label: value }))
 const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const { node, updateAttributes, editor } = props
   const { t } = useTranslation()
+  const { codeBlockStyle } = useCodeStyle()
 
   // Detect language from node attrs or fallback
   const language = (node.attrs.language as string) || 'text'
@@ -55,7 +57,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
     const codeContent = node.textContent || ''
 
     return (
-      <NodeViewWrapper className="code-block-wrapper">
+      <NodeViewWrapper className="code-block-wrapper code-syntax-root" style={codeBlockStyle}>
         <div className="code-block-header">
           <span className="code-block-language-label">{language}</span>
           <div className="flex items-center gap-1">
@@ -81,7 +83,9 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
         <div className="special-preview-wrapper">
           <SpecialComponent>{codeContent}</SpecialComponent>
         </div>
-        <pre className={`language-${language}`} style={{ display: 'none' }}>
+        <pre
+          className={`language-${language}`}
+          style={{ display: 'none', backgroundColor: 'var(--code-background)', color: 'var(--code-foreground)' }}>
           <NodeViewContent<'code'> as="code" />
         </pre>
       </NodeViewWrapper>
@@ -91,7 +95,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   // Special view: source editing mode with toggle to preview
   if (isSpecialView && !showPreview) {
     return (
-      <NodeViewWrapper className="code-block-wrapper">
+      <NodeViewWrapper className="code-block-wrapper code-syntax-root" style={codeBlockStyle}>
         <div className="code-block-header">
           <Combobox
             value={language}
@@ -118,7 +122,9 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
             </Tooltip>
           </div>
         </div>
-        <pre className={`language-${language}`}>
+        <pre
+          className={`language-${language}`}
+          style={{ backgroundColor: 'var(--code-background)', color: 'var(--code-foreground)', tabSize: 2 }}>
           <NodeViewContent<'code'> as="code" />
         </pre>
       </NodeViewWrapper>
@@ -127,7 +133,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
 
   // Normal code block: source code with language selector
   return (
-    <NodeViewWrapper className="code-block-wrapper">
+    <NodeViewWrapper className="code-block-wrapper code-syntax-root" style={codeBlockStyle}>
       <div className="code-block-header">
         <Combobox
           value={language}
@@ -147,7 +153,9 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           </Button>
         </Tooltip>
       </div>
-      <pre className={`language-${language}`}>
+      <pre
+        className={`language-${language}`}
+        style={{ backgroundColor: 'var(--code-background)', color: 'var(--code-foreground)', tabSize: 2 }}>
         <NodeViewContent<'code'> as="code" />
       </pre>
     </NodeViewWrapper>

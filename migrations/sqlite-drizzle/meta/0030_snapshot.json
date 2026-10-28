@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f5cff893-e464-4fbd-8a08-e1e4764b6b2c",
-  "prevId": "48588181-f234-4284-b0ad-42d77aac81e4",
+  "id": "48588181-f234-4284-b0ad-42d77aac81e4",
+  "prevId": "fbdcebe7-a527-4ca9-94cd-c825f652f31b",
   "tables": {
     "agent": {
       "name": "agent",
@@ -3399,7 +3399,7 @@
       "checkConstraints": {
         "followup_queue_status_check": {
           "name": "followup_queue_status_check",
-          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed', 'closed')"
+          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed')"
         }
       }
     },
