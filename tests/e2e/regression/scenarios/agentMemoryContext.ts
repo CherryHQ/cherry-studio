@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { AgentEntitySchema } from '@shared/data/api/schemas/agents'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
@@ -35,7 +36,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
     contentType: 'text/plain'
   })
   await screenshot('MP-57 application before memory setup')
-  await ensureCustomChatProvider(app, page)
+  const providerId = await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   const name = app.resourceName(`Memory ${Date.now()}`)
   const models = await page.evaluate(() =>
@@ -43,8 +44,12 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
   )
   expect(models.status).toBe(200)
   const available = models.data as { id: string; providerId: string; name: string }[]
-  const model = available.find((item) => item.id.endsWith(`::${app.config.customProvider.chatModel}`))
-  expect(model, 'The configured real provider model must be available').toBeDefined()
+  const expectedModelId = createUniqueModelId(providerId, app.config.customProvider.chatModel)
+  const model = available.find((item) => item.id === expectedModelId)
+  expect(
+    model,
+    `The configured provider ${providerId} must expose ${app.config.customProvider.chatModel}`
+  ).toBeDefined()
   const result = (await page.evaluate(
     ({ name, model }) =>
       window.api.ipcApi.request('ai.agent.create', {
