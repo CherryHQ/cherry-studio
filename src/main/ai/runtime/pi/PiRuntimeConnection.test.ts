@@ -664,6 +664,30 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('By default, respond in English.')
   })
 
+  it.each([false, true])('only recommends Fetch when its Pi tool is enabled (disabled=%s)', async (disabled) => {
+    const server = { id: 'fetch-id', name: '@cherry/fetch', type: 'inMemory' as const, isActive: true }
+    const name = buildPiMcpToolName(server.id, 'fetch_html')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      mcps: [server.id],
+      disabledTools: disabled ? [name] : []
+    })
+    const capture = mocks.captureConnectionSnapshot.getMockImplementation()!
+    mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+      ...(await capture(...args)),
+      mcpServerSnapshots: new Map([[server.id, server]])
+    }))
+    mocks.listMcpTools.mockReturnValue([{ name: 'fetch_html', id: 'fetch-html' }])
+    const connection = await new PiRuntimeConnection(input).start()
+    if (disabled) expect(appendedSystemPrompt()).not.toContain('Cherry Fetch preference')
+    else {
+      expect(appendedSystemPrompt()).toContain('Cherry Fetch preference')
+      expect(appendedSystemPrompt()).toContain(name)
+    }
+    await connection.close()
+  })
+
   it('per-agent language overrides the global default', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     mocks.getAgent.mockReturnValue({

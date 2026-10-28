@@ -67,9 +67,16 @@ export function createFetchServer(): McpServer {
     urlDescription: string,
     transform: (text: string) => string | Promise<string>
   ) =>
-    server.registerTool(name, { description, inputSchema: requestPayloadSchema(urlDescription) }, async (args) => ({
-      content: [{ type: 'text', text: await transform(await fetchText(args)) }]
-    }))
+    server.registerTool(
+      name,
+      {
+        description: `${description}. Cherry Studio's built-in URL reader. Prefer it for this output format unless another source is explicitly requested or a preferred model-native URL tool is available.`,
+        inputSchema: requestPayloadSchema(urlDescription)
+      },
+      async (args) => ({
+        content: [{ type: 'text', text: await transform(await fetchText(args)) }]
+      })
+    )
 
   register(
     'fetch_html',

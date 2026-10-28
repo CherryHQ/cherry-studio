@@ -9,6 +9,7 @@ import type * as NodeFs from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const {
   mockFindBySessionId,
@@ -208,6 +209,23 @@ describe('buildSystemPrompt — current workspace', () => {
 })
 
 describe('buildSystemPrompt — Agent System Prompt authority', () => {
+  it('recommends only enabled Fetch tools with Claude runtime names', async () => {
+    const server = { id: 'fetch-id', name: '@cherry/fetch', type: 'inMemory', isActive: true } as McpServer
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'McpCatalogService'
+        ? { listTools: () => [{ name: 'fetch_html', id: 'fetch-html' }] }
+        : { get: () => undefined }
+    )
+    const agent = makeAgent({ mcps: [server.id] })
+    const snapshot = new Map([[server.id, server]])
+    const name = 'mcp__fetch-id__fetch_html'
+    const enabled = promptText(await buildSystemPrompt(agent, '/workspace', '/workspace', [], [], null, snapshot))
+    expect(enabled).toContain('Cherry Fetch preference')
+    expect(enabled).toContain(name)
+    const disabled = promptText(await buildSystemPrompt(agent, '/workspace', '/workspace', [], [name], null, snapshot))
+    expect(disabled).not.toContain('Cherry Fetch preference')
+  })
+
   it.each([{ instructions: undefined }, { instructions: '' }, { instructions: '   ' }])(
     'keeps legacy persona role guidance when Agent System Prompt is blank: $instructions',
     async ({ instructions }) => {

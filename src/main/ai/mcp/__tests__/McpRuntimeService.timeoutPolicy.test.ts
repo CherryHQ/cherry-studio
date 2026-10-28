@@ -91,6 +91,10 @@ describe('McpRuntimeService.callTool timeout policy', () => {
     const rejection = expect(call).rejects.toThrow(/timed out/i)
     await vi.advanceTimersByTimeAsync(1_000)
     await rejection
+    expect((await service.getServerLogs('srv')).map((log) => log.data)).toMatchObject([
+      { status: 'started' },
+      { status: 'timeout', durationMs: 1_000 }
+    ])
     await client.close()
   })
 
@@ -125,6 +129,10 @@ describe('McpRuntimeService.callTool timeout policy', () => {
     })
     await vi.advanceTimersByTimeAsync(3_000)
     await completion
+    expect((await service.getServerLogs('srv')).map((log) => log.data)).toMatchObject([
+      { status: 'started' },
+      { status: 'success', durationMs: 2_500 }
+    ])
     await client.close()
   })
 

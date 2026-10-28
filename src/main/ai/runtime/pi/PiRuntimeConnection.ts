@@ -17,6 +17,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { buildFetchPreferenceContext } from '@main/ai/mcp/serverInstructions'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
@@ -312,6 +313,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         agentDataPath,
         agent,
         citationsGuidance,
+        mcpInstructions: buildFetchPreferenceContext(initialSnapshot.mcpServerSnapshots.values(), (tool, server) => {
+          const name = buildPiMcpToolName(server.id, tool.name)
+          return [name, buildFunctionCallToolName(server.name, tool.name), `mcp__${server.id}__${tool.name}`].some(
+            (alias) => this.disabledTools.has(alias)
+          )
+            ? undefined
+            : name
+        }),
         effectiveLanguage: initialSnapshot.effectiveLanguage
       })
       const mountedServers = resolveMountedMcpServers(agent, {

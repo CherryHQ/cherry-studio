@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 
 import { SdkError, SdkErrorCode, SseError, UnauthorizedError } from '@modelcontextprotocol/client'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -24,6 +25,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     McpCatalogService: mcpCatalogMock,
+    AgentSessionRuntimeService: { getMcpInteractionHost: () => ({}) },
     WindowManager: { getWindow: interactionMocks.getWindow },
     IpcApiService: { send: interactionMocks.send, broadcastToType: interactionMocks.broadcastToType }
   } as Record<string, unknown>)
@@ -842,6 +844,70 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
     // A mutation WOULD have changed the key — this documents why the bug surfaced.
     expect(service.getServerKey({ ...server, env: merged } as McpServer)).not.toBe(keyBefore)
   })
+})
+
+describe('MCP call lifecycle logs', () => {
+  const server = { id: 'server-1', name: 'Fetch', type: 'stdio', isActive: true } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    getByIdMock.mockReturnValue(server)
+    interactionMocks.broadcastToType.mockClear()
+    mockMainLoggerService.info.mockClear()
+  })
+
+  it.each(['success', 'tool-error', 'exception', 'timeout', 'cancelled'] as const)(
+    'records one start and one accurate terminal event for %s without exposing tool payloads',
+    async (outcome) => {
+      const service = new McpRuntimeService()
+      const controller = new AbortController()
+      vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue({
+        callTool: async () => {
+          if (outcome === 'exception') throw new Error('Transport failed')
+          if (outcome === 'timeout')
+            throw new SdkError(SdkErrorCode.RequestTimeout, 'Request timed out', { timeout: 10 })
+          if (outcome === 'cancelled') {
+            controller.abort()
+            throw controller.signal.reason
+          }
+          return { isError: outcome === 'tool-error', content: [{ type: 'text', text: 'private-result' }] }
+        }
+      })
+      const call = service.callTool({
+        serverId: server.id,
+        name: 'fetch_html',
+        callId: 'sdk-call',
+        signal: controller.signal,
+        args: { url: 'https://private.example/path', headers: { Authorization: 'private-key' } },
+        interactionContext: { topicId: 'topic-1', sessionId: 'session-1' }
+      })
+      if (outcome === 'success' || outcome === 'tool-error') await expect(call).resolves.toHaveProperty('content')
+      else await expect(call).rejects.toBeDefined()
+      const logs = await service.getServerLogs(server.id)
+      expect(logs).toHaveLength(2)
+      expect(logs[0].data).toMatchObject({
+        status: 'started',
+        callId: 'sdk-call',
+        topicId: 'topic-1',
+        sessionId: 'session-1'
+      })
+      expect(logs[1].data).toMatchObject({
+        status: outcome === 'tool-error' || outcome === 'exception' ? 'error' : outcome,
+        invocationId: (logs[0].data as { invocationId: string }).invocationId,
+        durationMs: expect.any(Number)
+      })
+      expect(new Set(logs.map((entry) => entry.eventId)).size).toBe(2)
+      expect(mockMainLoggerService.info).toHaveBeenCalledWith('Tool call started', logs[0].data)
+      expect(
+        interactionMocks.broadcastToType.mock.calls
+          .filter(([, event]) => event === 'mcp.server.log')
+          .map(([, , data]) => data)
+      ).toEqual(logs.map((entry) => ({ ...entry, serverId: server.id })))
+      const serialized = JSON.stringify(logs)
+      for (const secret of ['private-key', 'private.example', 'private-result'])
+        expect(serialized).not.toContain(secret)
+    }
+  )
 })
 
 describe('redactSensitive (mcp-services-3)', () => {

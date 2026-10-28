@@ -23,8 +23,9 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
 
   useEffect(() => {
     let disposed = false
+    setLogs([])
     const unsubscribe = ipcApi.on('mcp.server.log', (log) => {
-      if (log.serverId !== serverId) return
+      if (disposed || log.serverId !== serverId) return
       setLogs((current) => appendServerLog(current, log))
     })
 
@@ -50,9 +51,7 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-foreground-tertiary text-sm">
-          {t('settings.mcp.logsHint', 'Logs from the MCP server process')}
-        </span>
+        <span className="text-foreground-tertiary text-sm">{t('settings.mcp.logsHint')}</span>
         <CopyButton
           textToCopy={logsText}
           size={14}
@@ -66,7 +65,7 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
           <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
         )}
         {logs.map((log, index) => (
-          <LogItem key={`${log.timestamp}-${index}`}>
+          <LogItem key={log.eventId ?? `${log.timestamp}-${index}`}>
             <LogHeader>
               <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
               <Badge variant="outline" className={mapLogLevelClass(log.level)}>
@@ -134,6 +133,7 @@ function appendServerLog(
   current: (McpServerLogEntry & { serverId?: string })[],
   log: McpServerLogEntry & { serverId: string }
 ) {
+  if (log.eventId && current.some((entry) => entry.eventId === log.eventId)) return current
   const merged = [...current, log]
   return merged.length > 200 ? merged.slice(merged.length - 200) : merged
 }
@@ -146,7 +146,7 @@ function mergeServerLogs(
   const merged: (McpServerLogEntry & { serverId?: string })[] = []
 
   for (const log of [...history, ...current]) {
-    const key = `${log.timestamp}:${log.level}:${log.source ?? ''}:${log.message}`
+    const key = log.eventId ?? `${log.timestamp}:${log.level}:${log.source ?? ''}:${log.message}`
     if (seen.has(key)) continue
     seen.add(key)
     merged.push(log)

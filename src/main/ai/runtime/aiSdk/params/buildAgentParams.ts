@@ -4,11 +4,12 @@ import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'a
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
-import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
+import { buildFetchPreferenceContext, buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AutomationRun } from '@main/services/automation'
@@ -339,7 +340,18 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
+  const mcpInstructions =
+    [
+      buildMcpInstructionsContext(mcpServerIds),
+      finalWebToolRoutes.webFetch !== 'server'
+        ? buildFetchPreferenceContext(
+            [...mcpServerIds].map((id) => mcpServerService.findByIdOrName(id)),
+            (tool) => (mcpToolIds.has(tool.id) ? tool.id : undefined)
+          )
+        : undefined
+    ]
+      .filter(Boolean)
+      .join('\n\n') || undefined
   const system =
     request.system !== undefined
       ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')

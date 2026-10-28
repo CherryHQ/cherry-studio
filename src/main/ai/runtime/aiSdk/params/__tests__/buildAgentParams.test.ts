@@ -59,7 +59,11 @@ vi.mock('@application', () => ({
 
 // No MCP servers configured in these tests — keeps the MCP tool/resource resolution off the DB.
 vi.mock('@main/data/services/McpServerService', () => ({
-  mcpServerService: { list: listMcpServers }
+  mcpServerService: {
+    list: listMcpServers,
+    findByIdOrName: (id: string) =>
+      listMcpServers().items.find((server: { id: string; name: string }) => server.id === id || server.name === id)
+  }
 }))
 
 const {
@@ -79,7 +83,14 @@ beforeEach(() => {
 
 describe('buildAgentParams provider resolution', () => {
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
-    const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
+    const server = {
+      id: 'docs',
+      name: '@cherry/fetch',
+      type: 'inMemory',
+      isActive: true,
+      disabledTools: [],
+      disabledAutoApproveTools: []
+    }
     const toolId = 'mcp__docs__read'
     listMcpServers.mockReturnValue({ items: [server] })
     listMcpTools.mockReturnValue([
@@ -138,11 +149,14 @@ describe('buildAgentParams provider resolution', () => {
       const first = requests[0].messages.find((message) => message.role === 'system')!.content
       expect(first).toContain('USER_SYSTEM_PROMPT')
       expect(first).toContain('SELECTED_GUIDANCE')
+      expect(first).toContain('Cherry Fetch preference')
+      expect(first).toContain(toolId)
       expect(first).not.toContain('PRIVATE_UNSELECTED_GUIDANCE')
       expect(requests[1].messages.find((message) => message.role === 'system')!.content).toBe('USER_SYSTEM_PROMPT')
       const overridden = requests[2].messages.find((message) => message.role === 'system')!.content
       expect(overridden).toContain('REQUEST_SYSTEM')
       expect(overridden).toContain('SELECTED_GUIDANCE')
+      expect(overridden).toContain('Cherry Fetch preference')
       expect(overridden).not.toContain('USER_SYSTEM_PROMPT')
     } finally {
       registry.deregister(toolId)
@@ -1235,6 +1249,7 @@ describe('buildAgentParams web-tool routing', () => {
   afterEach(() => {
     registry.deregister(clientSearchEntry.name)
     registry.deregister(clientFetchEntry.name)
+    registry.deregister('mcp__fetch__html')
   })
 
   it.each([
@@ -1274,9 +1289,15 @@ describe('buildAgentParams web-tool routing', () => {
       preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
       registry.register(clientSearchEntry)
       registry.register(clientFetchEntry)
+      listMcpServers.mockReturnValue({
+        items: [{ id: 'fetch', name: '@cherry/fetch', type: 'inMemory', isActive: true }]
+      })
+      listMcpTools.mockReturnValue([
+        { id: 'mcp__fetch__html', name: 'fetch_html', serverId: 'fetch', inputSchema: { type: 'object' } }
+      ])
 
       const result = await buildAgentParams({
-        request: { conversation: CONVERSATION },
+        request: { conversation: CONVERSATION, mcpToolIds: ['mcp__fetch__html'] },
         signal: undefined,
         provider,
         model,
@@ -1293,6 +1314,7 @@ describe('buildAgentParams web-tool routing', () => {
       expect(hasServerFetch).toBe(expectedRoute === 'server')
       expect(Number(hasClientSearch) + Number(hasServerSearch)).toBe(1)
       expect(Number(hasClientFetch) + Number(hasServerFetch)).toBe(1)
+      expect(result.system?.includes('Cherry Fetch preference')).toBe(expectedRoute === 'client')
     }
   )
 
