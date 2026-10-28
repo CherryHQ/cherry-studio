@@ -115,7 +115,10 @@ export function containerLine(
       p += c.width
       continue
     }
-    if (state.paragraph !== null && rest.trim() !== '' && !interrupts(rest)) {
+    // A marker at an existing item's boundary starts a sibling even when
+    // empty. This is not the rule for a new list interrupting a paragraph.
+    const sibling = c.kind === 'item' && marker(rest) !== null
+    if (!sibling && state.paragraph !== null && rest.trim() !== '' && !interrupts(rest)) {
       lazy = true
       matched = state.stack.length
       break

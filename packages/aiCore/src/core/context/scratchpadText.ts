@@ -706,7 +706,13 @@ function fenceCloseMatchesContainerContext(candidatePrefix: string, openerPrefix
   return /^ {0,3}$/.test(rest)
 }
 
-function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: string, limit = text.length): number {
+function fenceContainerEnd(
+  text: string,
+  openerLineEnd: number,
+  openerPrefix: string,
+  limit = text.length,
+  pendingContainerPrefix = false
+): number {
   const segments = parseFenceContainerSegments(openerPrefix)
   if (segments.length === 0) return limit
   for (let start = openerLineEnd; start < limit; start = lineEndAfter(text, start)) {
@@ -714,7 +720,19 @@ function fenceContainerEnd(text: string, openerLineEnd: number, openerPrefix: st
     for (const segment of segments) {
       if (segment.type === 'quote') {
         const quote = /^ {0,3}> ?/.exec(rest)
-        if (!quote) return start
+        if (!quote) {
+          // Streaming discovery must not end an owned fence on an unfinished
+          // container prefix that can still gain the missing quote marker.
+          // Whole/final masking uses the default, sealed-line interpretation.
+          if (
+            pendingContainerPrefix &&
+            lineEndAfter(text, start) === text.length &&
+            !/[\r\n]$/.test(text) &&
+            /^ {0,3}$/.test(rest)
+          )
+            return limit
+          return start
+        }
         rest = rest.slice(quote[0].length)
       } else {
         // Blank lines may remain inside a list, but sibling/dedented content
@@ -816,7 +834,8 @@ function findCodeFenceClose(
   fenceChar: string,
   fenceLen: number,
   openerPrefix = '',
-  inheritedPrefix = inheritedFencePrefixLookup(text)
+  inheritedPrefix = inheritedFencePrefixLookup(text),
+  pendingContainerPrefix = false
 ): number {
   openerPrefix = inheritedPrefix(lineStartBefore(text, searchFrom), openerPrefix)
   let boundaryStart = lineEndAfter(text, searchFrom)
@@ -826,7 +845,7 @@ function findCodeFenceClose(
     if (rel === -1) break
     const markerStart = pos + rel
     const candidateEnd = lineEndAfter(text, markerStart)
-    const containerEnd = fenceContainerEnd(text, boundaryStart, openerPrefix, candidateEnd)
+    const containerEnd = fenceContainerEnd(text, boundaryStart, openerPrefix, candidateEnd, pendingContainerPrefix)
     if (containerEnd < candidateEnd) return containerEnd
     boundaryStart = candidateEnd
     const candidateLineStart = lineStartBefore(text, markerStart)
@@ -840,7 +859,7 @@ function findCodeFenceClose(
     }
     return candidateEnd
   }
-  const containerEnd = fenceContainerEnd(text, boundaryStart, openerPrefix)
+  const containerEnd = fenceContainerEnd(text, boundaryStart, openerPrefix, text.length, pendingContainerPrefix)
   return containerEnd < text.length ? containerEnd : -1
 }
 
@@ -2552,7 +2571,8 @@ function findUnclosedCodeFence(text: string, initialContainerPrefix?: string): {
       fenceChar,
       fenceLen,
       text.slice(openerLineStart, markerStart),
-      inheritedPrefix
+      inheritedPrefix,
+      true
     )
     if (closeEnd === -1) return { markerStart }
     pos = closeEnd
@@ -2979,6 +2999,11 @@ export function stripModelScratchpadBlocks(raw: string): string {
         }
         const parsed = parseOpeningTagAt(out, lt)
         if (parsed) {
+          const textElementEnd = htmlTextElementEnd(out, parsed, lt)
+          if (textElementEnd !== null) {
+            scan = textElementEnd
+            continue
+          }
           if (
             parsed.tagName.toLowerCase() === 'summary' &&
             !parsed.isSelfClosing &&
