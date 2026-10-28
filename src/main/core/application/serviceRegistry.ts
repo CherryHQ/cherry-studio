@@ -8,6 +8,7 @@ import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionD
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
+import { TtsInferenceService } from '@main/ai/localModel'
 import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
@@ -24,6 +25,7 @@ import {
 } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
+import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -41,15 +43,17 @@ import { AppMenuService } from '@main/services/AppMenuService'
 import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
+import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
+import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
+import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
@@ -67,6 +71,7 @@ import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
+import { RuntimeQuitConfirmationService } from '@main/services/RuntimeQuitConfirmationService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionService } from '@main/services/selection/SelectionService'
@@ -104,6 +109,8 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  ComputerUseService,
+  AutomationReplService,
   RemoteAccessService,
   MainNetworkDevtoolsService,
   WindowManager,
@@ -127,11 +134,14 @@ export const services = {
   DeepSeekHarnessService,
   HermesDashboardService,
   FileManager,
+  FileEditService,
   AttachmentPresenceService,
   FileIntakeService,
   DirectoryTreeManager,
   FileProcessingService,
   PowerService,
+  RuntimeActivityService,
+  RuntimeQuitConfirmationService,
   SelectionService,
   ShortcutService,
   ThemeService,
@@ -177,6 +187,7 @@ export const services = {
   ClaudeCodeSessionStateService,
   AiStreamManager,
   AsrInferenceService,
+  TtsInferenceService,
   EmbeddingInferenceService,
   OcrInferenceService,
   LocalModelService,

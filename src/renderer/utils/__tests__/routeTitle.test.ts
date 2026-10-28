@@ -27,7 +27,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 import {
   getDefaultRouteTitle,
   getRouteTitleKey,
-  isPageTitledRoute,
+  isConversationRoute,
   isTopLevelRoute,
   shouldAutoLocalizeRouteTitle
 } from '../routeTitle'
@@ -153,18 +153,18 @@ describe('routeTitle', () => {
     })
   })
 
-  describe('isPageTitledRoute', () => {
-    it('treats chat/agent routes as page-titled regardless of query/sub-path', () => {
-      expect(isPageTitledRoute('/app/chat')).toBe(true)
-      expect(isPageTitledRoute('/app/chat?topicId=123')).toBe(true)
-      expect(isPageTitledRoute('/app/agents')).toBe(true)
-      expect(isPageTitledRoute('/app/agents?sessionId=abc')).toBe(true)
+  describe('isConversationRoute', () => {
+    it('identifies conversation routes with or without a query', () => {
+      expect(isConversationRoute('/app/chat')).toBe(true)
+      expect(isConversationRoute('/app/chat?topicId=123')).toBe(true)
+      expect(isConversationRoute('/app/agents')).toBe(true)
+      expect(isConversationRoute('/app/agents?sessionId=abc')).toBe(true)
     })
 
-    it('treats route-titled apps as not page-titled', () => {
-      expect(isPageTitledRoute('/app/files')).toBe(false)
-      expect(isPageTitledRoute('/app/paintings/zhipu')).toBe(false)
-      expect(isPageTitledRoute('/settings')).toBe(false)
+    it('excludes other application routes', () => {
+      expect(isConversationRoute('/app/files')).toBe(false)
+      expect(isConversationRoute('/app/paintings/zhipu')).toBe(false)
+      expect(isConversationRoute('/settings')).toBe(false)
     })
   })
 

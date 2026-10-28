@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
+import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
@@ -150,9 +151,9 @@ vi.mock('@renderer/services/NotesService', () => ({
 
 const notesMigrationLocked = vi.hoisted(() => ({ value: false }))
 
-vi.mock('@renderer/services/NotesEditFlushService', () => ({
-  notesEditFlushService: {
-    getMigrationLocked: () => notesMigrationLocked.value
+vi.mock('@renderer/services/notesMigrationLock', () => ({
+  notesMigrationLock: {
+    isLocked: () => notesMigrationLocked.value
   }
 }))
 
@@ -178,6 +179,7 @@ import {
   exportNote,
   ExportService,
   exportService,
+  exportContentToNotes,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -923,7 +925,37 @@ describe('ExportService', () => {
     beforeEach(() => {
       vi.clearAllMocks()
       notesMigrationLocked.value = false
-      ;(addNote as any).mockResolvedValue(undefined)
+      vi.mocked(addNote).mockResolvedValue({ path: '/notes/Topic (1).md', name: 'Topic (1)' })
+    })
+
+    it('offers to open the actual saved note without navigating before the user clicks', async () => {
+      const navigations: string[] = []
+      const handleRoute = (event: Event) => {
+        event.preventDefault()
+        navigations.push((event as OpenMainRouteEvent).detail.path)
+      }
+      window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handleRoute)
+      try {
+        await exportContentToNotes('Topic', 'Synthetic note content', '/notes')
+        expect(navigations).toEqual([])
+        const notification = vi.mocked(toast.success).mock.calls[0][0]
+        expect(notification).toMatchObject({
+          title: 'message.success.notes.export',
+          action: { label: 'notes.open' }
+        })
+        if (typeof notification !== 'object' || !notification.action) throw new Error('Missing open-note action')
+        await notification.action.onClick()
+        expect(navigations).toEqual(['/app/notes?notePath=%2Fnotes%2FTopic+%281%29.md'])
+      } finally {
+        window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handleRoute)
+      }
+    })
+
+    it('does not offer an open-note action when writing the note fails', async () => {
+      vi.mocked(addNote).mockRejectedValueOnce(new Error('Write failed'))
+      await expect(exportContentToNotes('Topic', 'Synthetic content', '/notes')).rejects.toThrow('Write failed')
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
     })
 
     it('refuses to write while notes directory migration holds the edit lock', async () => {
@@ -1488,6 +1520,29 @@ describe('ExportService image capture serialization', () => {
     vi.mocked(htmlToImage.toCanvas).mockReset()
     vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => canvasStub('data:image/png;base64,xxx'))
   })
+
+  it.each(['data-url', 'blob'] as const)(
+    'keeps conversation and default backdrops separate in queued %s captures',
+    async (format) => {
+      const root = document.createElement('div')
+      root.style.cssText = '--background: #191919; --chat-message-well-solid: #141414'
+      const backgrounds: unknown[] = []
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (_element, options) => {
+        backgrounds.push(options?.backgroundColor)
+        return canvasStub('data:image/png;base64,xxx')
+      })
+
+      if (format === 'data-url') {
+        await captureService.captureScrollableAsDataUrl({ current: root }, '--chat-message-well-solid')
+        await captureService.captureScrollableAsDataUrl({ current: root })
+      } else {
+        await captureService.captureScrollableAsBlob({ current: root }, () => {}, '--chat-message-well-solid')
+        await captureService.captureScrollableAsBlob({ current: root }, () => {})
+      }
+
+      expect(backgrounds).toEqual(['#141414', '#141414', '#191919', '#191919'])
+    }
+  )
 
   it('serializes capture lifecycles across roots and restores each root before the next starts', async () => {
     const rootA = document.createElement('div')

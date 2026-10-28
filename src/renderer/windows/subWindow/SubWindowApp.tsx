@@ -3,7 +3,9 @@ import { useEffect } from 'react'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -13,9 +15,10 @@ import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { NotesFileEditSessionProvider } from '@renderer/pages/notes/NotesFileEditSessionProvider'
+import { NotesMigrationHost } from '@renderer/pages/notes/NotesMigrationHost'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
+import { WindowFileEditRecovery } from '@renderer/windows/WindowFileEditRecovery'
 
 // Headless behavior leaf inside the providers: the shared window runtime (same route
 // tree as main, so it needs the same window-level side effects). It renders nothing;
@@ -43,23 +46,24 @@ function SubWindowApp(): React.ReactElement {
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
       <ThemeProvider>
         <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                {/* Same route tree as main, so detached tabs can render NotesPage —
-                    which requires the notes file-edit session provider. */}
-                <NotesFileEditSessionProvider>
+          <FileEditSessionProvider>
+            <NotesMigrationHost />
+            <CommandContextKeyProvider>
+              <CommandProvider>
+                <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
                   <SubWindowAppShell />
-                </NotesFileEditSessionProvider>
-                <SubWindowRuntime />
-                <ConversationNotificationRuntime />
-                <McpInteractionHost />
-                <PopupHost />
-                <ToastHost />
-                <VoicePlaybackHost />
-              </TabsProvider>
-            </CommandProvider>
-          </CommandContextKeyProvider>
+                  <SubWindowRuntime />
+                  <ConversationNotificationRuntime />
+                  <McpInteractionHost />
+                  <PopupHost />
+                  <ToastHost />
+                  <WindowFileEditRecovery />
+                  <DictationShortcutHost />
+                  <VoicePlaybackHost />
+                </TabsProvider>
+              </CommandProvider>
+            </CommandContextKeyProvider>
+          </FileEditSessionProvider>
         </CodeStyleProvider>
       </ThemeProvider>
     </ErrorBoundary>

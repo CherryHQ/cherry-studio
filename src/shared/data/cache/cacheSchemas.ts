@@ -142,6 +142,14 @@ export type UseCacheSchema = {
   'ui.window.chat.right_pane_open_override': boolean | null
   'ui.window.agent.right_pane_open_override': boolean | null
 
+  // Detached Chat/Agent windows keep list-group expansion within their renderer process. These
+  // values are seeded from the matching persisted preference but never sync back to the main window.
+  'ui.window.chat.topic.expansion.time': string[]
+  'ui.window.chat.topic.expansion.assistant': string[] | null
+  'ui.window.agent.session.expansion.time': string[]
+  'ui.window.agent.session.expansion.agent': string[] | null
+  'ui.window.agent.session.expansion.workdir': string[] | null
+
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
 
@@ -235,6 +243,11 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.chat.resource_pane.width': 275,
   'ui.window.chat.right_pane_open_override': null,
   'ui.window.agent.right_pane_open_override': null,
+  'ui.window.chat.topic.expansion.time': [],
+  'ui.window.chat.topic.expansion.assistant': null,
+  'ui.window.agent.session.expansion.time': [],
+  'ui.window.agent.session.expansion.agent': null,
+  'ui.window.agent.session.expansion.workdir': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
@@ -356,8 +369,8 @@ export type SharedCacheSchema = {
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
-  // File-processing progress for a knowledge item, main -> all windows. The check job
-  // mirrors the linked file-processing job's progress here every poll round so the row can
+  // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
+  // mirrors the progress of the job the item waits on here when it changes, so the row can
   // show a percentage during the 'processing' wait; absence means no progress was reported.
   'knowledge.item.file_processing_progress.${itemId}': number | null
   /**

@@ -13,7 +13,7 @@ import { StarterKit } from '@tiptap/starter-kit'
 import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
 
 import { createCommandSuggestion } from './command'
-import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
+import { CodeBlockHighlight } from './extensions/codeBlockHighlight/codeBlockHighlight'
 import { EnhancedImage } from './extensions/enhancedImage'
 import { EnhancedLink, type EnhancedLinkOptions } from './extensions/enhancedLink'
 import { EnhancedMath, type EnhancedMathOptions } from './extensions/enhancedMath'
@@ -31,8 +31,8 @@ export interface CreateRichEditorExtensionsOptions {
   editable?: boolean
   /** Placeholder text shown in the empty editor. */
   placeholder?: string
-  /** Shiki theme for the code block extension. */
-  shikiTheme?: string
+  /** Code theme for the code block extension. */
+  codeTheme?: string
   /** Link hover callback. */
   onLinkHover?: EnhancedLinkOptions['onLinkHover']
   /** Link hover-end callback. */
@@ -68,7 +68,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
   const {
     editable = true,
     placeholder = '',
-    shikiTheme = 'one-light',
+    codeTheme = 'one-light',
     onLinkHover,
     onLinkHoverEnd,
     tocScrollParent,
@@ -106,8 +106,8 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       onUpdate: onTocUpdate ?? (() => {}),
       scrollParent: (tocScrollParent as any) ?? window
     }),
-    CodeBlockShiki.configure({
-      theme: shikiTheme,
+    CodeBlockHighlight.configure({
+      theme: codeTheme,
       defaultLanguage: 'text'
     }),
     EnhancedMath.configure({

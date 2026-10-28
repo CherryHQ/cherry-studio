@@ -10,24 +10,24 @@ import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessErr
 import { regionService } from '@main/services/RegionService'
 import { FUNASR_SUPPORTED_PLATFORM_KEYS } from '@shared/ai/localVoice'
 import { LOCAL_VOICE_MODELS, VoiceModelSupport, VoiceResourceOperation } from '@shared/ai/localVoice'
-import { FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+import { FUNASR_MODEL_ID, FUNASR_BUNDLE_ID } from '@shared/ai/localVoice'
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 
 import type { TranscriptionModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
-import { withScratch } from './nativeSupport'
-import { voiceAudioProcess } from './voiceAudioProcess'
+import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
+import { inspectCanonicalWav } from './inspectCanonicalWav'
+import { decodeVoiceRecording } from './recordingDecoder'
+import { withScratch } from './scratch'
+import { completeTranscriptionOperation } from './sdkOperations'
 
-const AUDIO_DECODE_TIMEOUT_MS = 30_000
 const ASR_INFERENCE_TIMEOUT_MS = 120_000
+// Deadline ceiling for recordings longer than the fixed floor: twice the audio
+// duration, so a slow machine still finishes instead of failing with a retry
+// that can never succeed.
+const ASR_INFERENCE_REALTIME_FACTOR = 2
 const logger = loggerService.withContext('FunAsrAdapter')
-
-function checkAbort(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new VoiceRuntimeError('aborted')
-}
 
 function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
@@ -53,7 +53,7 @@ function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeErr
 
 export function getFunAsrStatus(signal?: AbortSignal): LocalVoiceStatus {
   checkAbort(signal)
-  const { status } = application.get('LocalModelService').refreshStatus(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr)
+  const { status } = application.get('LocalModelService').refreshStatus(FUNASR_BUNDLE_ID)
   switch (status) {
     case 'not_downloaded':
       return { status: 'not_installed', reason: 'model_required' }
@@ -62,9 +62,7 @@ export function getFunAsrStatus(signal?: AbortSignal): LocalVoiceStatus {
         status: 'installing',
         reason: 'model_required',
         percent:
-          application.get('CacheService').getShared(LOCAL_MODEL_STATUS_CACHE_KEY)?.[
-            LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr
-          ]?.percent ?? 0
+          application.get('CacheService').getShared(LOCAL_MODEL_STATUS_CACHE_KEY)?.[FUNASR_BUNDLE_ID]?.percent ?? 0
       }
     case 'ready':
       return { status: 'ready' }
@@ -87,31 +85,40 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
     modelId: FUNASR_MODEL_ID,
     async doGenerate(input) {
       if (options.language) throw new VoiceRuntimeError('invalid_request')
-      if (!(input.audio instanceof Uint8Array) || !['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType))
-        throw new VoiceRuntimeError('invalid_audio')
+      if (!(input.audio instanceof Uint8Array)) throw new VoiceRuntimeError('invalid_audio')
+      const audio = input.audio
+      const isWebm = ['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType)
+      const wavMetadata = input.mediaType === 'audio/wav' ? inspectCanonicalWav(audio) : undefined
+      if (!isWebm && !wavMetadata) throw new VoiceRuntimeError('invalid_audio')
       await requireReady(input.abortSignal)
       return withScratch(
         async (directory) => {
-          const timeout = AbortSignal.timeout(AUDIO_DECODE_TIMEOUT_MS)
-          const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-          const decoded = await application
-            .get('UtilityProcessManager')
-            .client(voiceAudioProcess)
-            .request('decode', { audio: input.audio as Uint8Array, mimeType: 'audio/webm;codecs=opus' }, { signal })
-            .catch((error: unknown) => {
-              if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-              throw error
-            })
+          let wavBytes: Uint8Array
+          let durationSeconds: number
+          if (wavMetadata) {
+            wavBytes = audio
+            durationSeconds = wavMetadata.durationSeconds
+          } else {
+            const decoded = await decodeVoiceRecording(audio, input.abortSignal)
+            wavBytes = decoded.wav
+            durationSeconds = decoded.durationSeconds
+          }
           checkAbort(input.abortSignal)
           const inputPath = join(directory, 'input.wav')
-          await writeFile(inputPath, decoded.wav, { mode: 0o600 })
-          const inferenceTimeout = AbortSignal.timeout(ASR_INFERENCE_TIMEOUT_MS)
+          await writeFile(inputPath, wavBytes, { mode: 0o600 })
+          // Inference is chunked CPU work whose cost scales with the recording;
+          // the fixed floor only covers short clips, so longer recordings get
+          // realtime-factor headroom instead of a deadline they cannot meet.
+          // AbortSignal.timeout rejects fractional milliseconds.
+          const inferenceTimeout = AbortSignal.timeout(
+            Math.max(ASR_INFERENCE_TIMEOUT_MS, Math.ceil(durationSeconds * 1_000 * ASR_INFERENCE_REALTIME_FACTOR))
+          )
           const inferenceSignal = input.abortSignal
             ? AbortSignal.any([input.abortSignal, inferenceTimeout])
             : inferenceTimeout
           const transcript = await application
             .get('AsrInferenceService')
-            .transcribe({ kind: 'wav', filePath: inputPath }, inferenceSignal)
+            .transcribe(FUNASR_BUNDLE_ID, { kind: 'wav', filePath: inputPath }, inferenceSignal)
             .catch((error: unknown) => {
               if (inferenceTimeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
               throw error
@@ -120,7 +127,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
           logger.debug('Local transcription completed', {
             modelId: FUNASR_MODEL_ID,
             status: 'completed',
-            durationSeconds: decoded.durationSeconds,
+            durationSeconds,
             segmentCount: transcript.segments.length,
             transcriptNonEmpty: transcript.text.length > 0
           })
@@ -132,7 +139,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
               endSecond: segment.end
             })),
             language: undefined,
-            durationInSeconds: decoded.durationSeconds,
+            durationInSeconds: durationSeconds,
             warnings: [],
             response: { timestamp: new Date(), modelId: FUNASR_MODEL_ID }
           }
@@ -164,16 +171,14 @@ export const funAsrTranscriptionDefinition: TranscriptionModelDefinition = {
   }),
   status: (_options, signal) => getFunAsrStatus(signal),
   locales: async () => ({ supported: [], installed: [] }),
-  createModel: createFunAsrTranscriptionModel,
+  transcriptionOperations: [completeTranscriptionOperation(createFunAsrTranscriptionModel)],
   download: () =>
     application
       .get('LocalModelService')
-      .download(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr, async () =>
-        (await regionService.isInChina()) ? 'china-first' : 'global-first'
-      )
+      .download(FUNASR_BUNDLE_ID, async () => ((await regionService.isInChina()) ? 'china-first' : 'global-first'))
       .catch(() => {
         throw new VoiceRuntimeError('download_failed')
       }),
-  cancelDownload: () => application.get('LocalModelService').cancel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr),
-  remove: () => application.get('LocalModelService').remove(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr)
+  cancelDownload: () => application.get('LocalModelService').cancel(FUNASR_BUNDLE_ID),
+  remove: () => application.get('LocalModelService').remove(FUNASR_BUNDLE_ID)
 }

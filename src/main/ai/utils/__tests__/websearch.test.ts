@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { resolveWebToolRoutes } from '@shared/utils/provider'
 
+import { buildCapabilityProviderOptions } from '../options'
 import { buildProviderBuiltinWebSearchConfig, getWebSearchParams } from '../websearch'
 
 const webSearchConfig = { maxResults: 50, excludeDomains: [] }
@@ -90,24 +92,30 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
 
 /**
  * Bailian serves built-in search through two different mechanisms, split by endpoint: the Responses
- * `web_search` tool (Qwen3.x line only) and Chat Completions' `enable_search` params. This matrix pins
+ * `web_search` tool (Qwen3.x and documented hosted SKUs) and Chat Completions' `enable_search` params. This matrix pins
  * which mechanism each SKU gets, so a model can never be handed the one its endpoint does not serve.
  */
 describe('dashscope built-in web search: endpoint x model matrix', () => {
   const dashscope = (apiModelId: string) =>
     model({ id: `dashscope::${apiModelId}`, providerId: 'dashscope', apiModelId })
 
-  // Responses tool: "Responses API 仅支持 Qwen3.7 Max系列、Qwen3.6、Qwen3.5、qwen3-max".
-  it.each(['qwen3.7-max', 'qwen3.6-plus', 'qwen3.6-flash', 'qwen3.5-plus', 'qwen3.5-flash', 'qwen3-max'])(
-    'attaches the Responses web_search tool for %s',
-    (apiModelId) => {
-      expect(
-        buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, dashscope(apiModelId), preset('dashscope'))
-      ).toEqual({
-        openai: {}
-      })
-    }
-  )
+  // Qwen3.x retains its Responses search tool.
+  it.each([
+    'qwen3.8-max',
+    'qwen3.8-flash',
+    'qwen3.7-max',
+    'qwen3.6-plus',
+    'qwen3.6-flash',
+    'qwen3.5-plus',
+    'qwen3.5-flash',
+    'qwen3-max'
+  ])('attaches the Responses web_search tool for %s', (apiModelId) => {
+    expect(
+      buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, dashscope(apiModelId), preset('dashscope'))
+    ).toEqual({
+      openai: {}
+    })
+  })
 
   // These search via Chat's enable_search; on Responses they must get NO tool. `undefined` (not `{}`) is
   // what actually suppresses it — providerWebSearchFeature applies on a truthy config.
@@ -229,4 +237,155 @@ describe('getWebSearchParams (dashscope chat)', () => {
     )
     expect(params).toEqual({ enable_search: true, search_options: { forced_search: true, search_strategy: 'agent' } })
   })
+})
+
+describe('DashScope routed search delivery', () => {
+  const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  const responses = ENDPOINT_TYPE.OPENAI_RESPONSES
+  const host = (id = 'dashscope'): Provider =>
+    ({
+      id,
+      presetProviderId: 'dashscope',
+      defaultChatEndpoint: chat,
+      serverTools: [
+        { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' },
+        { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
+      ]
+    }) as Provider
+  const hosted = (wireId: string, providerId = 'dashscope', apiModelId: string | undefined = wireId) =>
+    model({
+      id: `${providerId}::${wireId}`,
+      providerId,
+      apiModelId,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+  const delivery = (m: Model, p: Provider, endpointType: EndpointType, clientSearchAvailable: boolean) => {
+    const route = resolveWebToolRoutes(m, p, {
+      webSearchEnabled: true,
+      modelToolsPreferred: true,
+      clientSearchAvailable,
+      clientFetchAvailable: false,
+      endpointType
+    })
+    const runtimeProviderId = endpointType === responses ? 'openai' : 'openai-compatible'
+    const options = buildCapabilityProviderOptions(
+      m,
+      p,
+      {
+        enableReasoning: false,
+        enableWebSearch: route.webSearch === 'server',
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: runtimeProviderId,
+        runtimeProviderId,
+        providerOptionsKey: runtimeProviderId,
+        endpointType,
+        reasoning: { kind: 'omit', selection: 'default', emissions: [] }
+      }
+    )
+    return { route, options }
+  }
+  const expectNoChatSearch = (options: unknown) => {
+    expect(JSON.stringify(options)).not.toContain('"enable_search"')
+    expect(JSON.stringify(options)).not.toContain('"search_options"')
+  }
+
+  describe.each(['dashscope', 'user-copy-1'])('%s', (providerId) => {
+    it.each(['glm-5.2', 'kimi/kimi-k3', 'kimi-k3'])(
+      'routes %s through client/none on Chat and server on Responses',
+      (wireId) => {
+        const p = host(providerId)
+        for (const apiModelId of [wireId, undefined, '']) {
+          const m = hosted(wireId, providerId)
+          m.apiModelId = apiModelId
+          const client = delivery(m, p, chat, true)
+          const none = delivery(m, p, chat, false)
+          expect(client.route.webSearch).toBe('client')
+          expect(none.route.webSearch).toBe('none')
+          expectNoChatSearch(client.options)
+          expectNoChatSearch(none.options)
+          const server = delivery(m, p, responses, true)
+          expect(server.route.webSearch).toBe('server')
+          expectNoChatSearch(server.options)
+          expect(buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, m, preset('dashscope'))).toEqual({
+            openai: {}
+          })
+          expect(buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, m, p)).toEqual({ openai: {} })
+        }
+      }
+    )
+  })
+
+  it.each(['glm-5.2', 'kimi/kimi-k3', 'kimi-k3'])(
+    'omits invalid Chat keys independently of route assertions for %s',
+    (wireId) => {
+      for (const ready of [true, false]) {
+        expectNoChatSearch(delivery(hosted(wireId), host(), chat, ready).options)
+      }
+    }
+  )
+
+  it.each(['glm-5.2', 'kimi/kimi-k3', 'kimi-k3'])('emits the bare Responses config for hosted %s', (wireId) => {
+    expect(buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, hosted(wireId), host())).toEqual({
+      openai: {}
+    })
+  })
+
+  it.each([
+    'glm-5.3',
+    'glm-5.2-fast',
+    'kimi-k3-fast',
+    'kimi/kimi-k3-fast',
+    'kimi-latest',
+    'glm-4',
+    'glm-5',
+    'glm-5.1',
+    'kimi-k2',
+    'kimi-k2.7-code',
+    'kimi-k3-1-pro',
+    'glm-5-2',
+    'GLM-5.2',
+    'other/glm-5.2',
+    'other/kimi-k3',
+    'glm-5.2-2026-10-01'
+  ])('never delivers native search for unlisted wire id %s', (wireId) => {
+    const m = hosted(wireId)
+    if (wireId === 'glm-5-2') m.apiModelId = undefined
+    for (const endpoint of [chat, responses]) {
+      for (const ready of [true, false]) {
+        const result = delivery(m, host(), endpoint, ready)
+        expect(result.route.webSearch).toBe(ready ? 'client' : 'none')
+        expectNoChatSearch(result.options)
+      }
+    }
+    expect(buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, m, host())).toBeUndefined()
+  })
+
+  it.each(['qwen3-max', 'qwen3.7-max', 'qwen3.8-max', 'qwen-plus', 'qwen-flash'])(
+    'preserves agent_max Chat payload for extractor-capable %s',
+    (wireId) => {
+      const m = hosted(wireId)
+      expect(delivery(m, host(), chat, true).route.webSearch).toBe('server')
+      expect(getWebSearchParams(m, host())).toEqual({
+        enable_search: true,
+        search_options: { forced_search: true, search_strategy: 'agent_max' }
+      })
+      expect(JSON.stringify(getWebSearchParams(m, host()))).toBe(
+        '{"enable_search":true,"search_options":{"forced_search":true,"search_strategy":"agent_max"}}'
+      )
+    }
+  )
+
+  it.each(['deepseek-v3', 'deepseek-v3.2', 'deepseek-v4-pro', 'deepseek-v4-flash'])(
+    'preserves the DeepSeek Chat payload for %s',
+    (wireId) => {
+      const m = hosted(wireId)
+      expect(delivery(m, host(), chat, true).route.webSearch).toBe('server')
+      expect(getWebSearchParams(m, host())).toEqual({ enable_search: true, search_options: { forced_search: true } })
+      expect(JSON.stringify(getWebSearchParams(m, host()))).toBe(
+        '{"enable_search":true,"search_options":{"forced_search":true}}'
+      )
+    }
+  )
 })

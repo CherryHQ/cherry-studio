@@ -125,8 +125,8 @@ function DialogContent({
           // no-drag punches the dialog's area out of any titlebar drag region it overlaps,
           // so the close button stays clickable when the dialog reaches max height (Electron).
           'fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 bg-card p-6 text-card-foreground shadow-xl [-webkit-app-region:no-drag]',
-          'data-[state=open]:animate-in data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-[state=open]:animation-duration-[260ms] data-[state=open]:fade-in-0 data-[state=open]:zoom-in-99',
-          'data-[state=closed]:animate-out data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)] data-[state=closed]:animation-duration-[200ms] data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99',
+          'data-[state=open]:animate-in data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-[state=open]:animation-duration-[260ms] data-[state=open]:fade-in-0',
+          'data-[state=closed]:animate-out data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)] data-[state=closed]:animation-duration-[200ms] data-[state=closed]:fade-out-0',
           motion === 'directional' &&
             'data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4',
           'fill-mode-both motion-reduce:animate-none',

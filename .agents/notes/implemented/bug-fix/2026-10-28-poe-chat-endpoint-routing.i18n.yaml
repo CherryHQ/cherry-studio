@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-poe-chat-endpoint-routing.md
+2026-10-28-poe-chat-endpoint-routing.md: 0c99b876c4ae796aa38068df9e6e0708ce51f011
+2026-10-28-poe-chat-endpoint-routing.zh.md: 56d53ddd4c69258bc0444d5f5dbd7f74cfb49397

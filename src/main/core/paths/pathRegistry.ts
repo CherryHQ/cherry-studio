@@ -112,6 +112,14 @@ export function buildPathRegistry() {
     // Plaintext fallback (0600) used only when no OS key store is available
     'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
 
+    'feature.computer_use.runtime': app.isPackaged
+      ? path.join(
+          appExtraResources,
+          'computer-use',
+          isMac ? 'Cherry Computer Use.app' : isWin ? 'open-computer-use.exe' : 'open-computer-use'
+        )
+      : path.join(app.getAppPath(), '.context', isWin ? 'computer-use-runtime.exe' : 'computer-use-runtime'),
+
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
       ? path.join(appExtraResources, 'provider-registry')
@@ -136,8 +144,12 @@ export function buildPathRegistry() {
     // sherpa-onnx native binding and its private onnxruntime, downloaded on demand.
     'feature.sherpa_onnx.binary': path.join(appUserDataToolchain, 'sherpa-onnx'),
 
-    // FunASR Nano and Silero VAD model files, downloaded on demand.
+    // ASR model files, downloaded on demand.
+    'feature.asr.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-asr-1.7b-8bit'),
     'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
+    'feature.mlx.binary': path.join(appUserDataToolchain, 'mlx-node'),
+    'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),
+    'feature.tts.kokoro': path.join(appUserDataRuntime, 'models', 'kokoro-multi-lang-v1.1'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
@@ -415,6 +427,7 @@ const NO_ENSURE = [
   'feature.backup.restore.session',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.computer_use.runtime',
   'feature.pdfjs.cmaps',
   'feature.pdfjs.standard_fonts',
   'feature.webview.preload_file',

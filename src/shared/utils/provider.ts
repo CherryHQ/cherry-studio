@@ -2,21 +2,16 @@ import {
   isServerToolModelEligible as isRegistryServerToolModelEligible,
   isWebSearchEffortUnsupported,
   matchVendor,
+  normalizeModelId,
   SERVER_TOOL,
   SERVER_TOOL_MODEL_SCOPE,
   type ServerTool,
   type ServerToolConfig,
   supportsServerToolFunctionMixing
 } from '@cherrystudio/provider-registry'
-import {
-  CHERRY_CLOUD_AUDIENCE,
-  CHERRYAI_PROVIDER_ID,
-  isManagedCherryCloudModel,
-  isManagedCherryProviderId
-} from '@shared/data/presets/cherryai'
+import { CHERRYAI_PROVIDER_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
-import type { AppEdition } from '@shared/types/appEdition'
 
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
@@ -182,13 +177,11 @@ export function isExternalCliProvider(provider: Pick<Provider, 'authMethods'>): 
 
 /**
  * Agent-only providers are surfaced only to Agent pickers / runtimes — never to
- * general chat selectors or the public gateway catalog. External-CLI providers are
- * always agent-only (no app-side credential); Cherry Cloud follows `CHERRY_CLOUD_AUDIENCE`.
+ * general chat selectors or the public gateway catalog. External-CLI providers have
+ * no app-side credential, so their models cannot be used outside their Agent runtime.
  */
-export function isAgentOnlyProvider(provider: Pick<Provider, 'id' | 'authMethods'>, edition: AppEdition): boolean {
-  if (isExternalCliProvider(provider)) return true
-  if (isManagedCherryCloudModel(provider.id)) return CHERRY_CLOUD_AUDIENCE[edition] === 'agent'
-  return false
+export function isAgentOnlyProvider(provider: Pick<Provider, 'authMethods'>): boolean {
+  return isExternalCliProvider(provider)
 }
 
 export function isAnthropicSupportedProvider(provider: Provider): boolean {
@@ -219,6 +212,14 @@ export function resolveEndpointDialect(
     reasoningSummary: declared?.reasoningSummary ?? false
   }
 }
+
+// Bailian Beijing: these hosted SKUs use Responses web_search, never Chat enable_search.
+// Registry modelIds declares endpoint-independent membership; this table owns runtime endpoint/wire restrictions.
+// https://help.aliyun.com/zh/model-studio/web-search
+export const DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS = [
+  { canonicalId: 'glm-5-2', wireIds: ['glm-5.2'] },
+  { canonicalId: 'kimi-k3', wireIds: ['kimi-k3', 'kimi/kimi-k3'] }
+] as const
 
 function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
   return provider.serverTools?.find((tool) => tool.id === id)
@@ -272,6 +273,20 @@ export function isBuiltinWebSearchAvailable(
     !serverToolServesEndpoint(tool, resolveServerToolEndpoint(model, provider, endpointType))
   ) {
     return false
+  }
+
+  if (matchesPreset(provider, 'dashscope')) {
+    const rawId = getRawModelId(model)
+    const responsesOnly = DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS.find(
+      (row) => row.canonicalId === normalizeModelId(rawId)
+    )
+    if (
+      responsesOnly &&
+      (resolveServerToolEndpoint(model, provider, endpointType) !== ENDPOINT_TYPE.OPENAI_RESPONSES ||
+        !responsesOnly.wireIds.some((wireId) => wireId === rawId))
+    ) {
+      return false
+    }
   }
 
   if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {

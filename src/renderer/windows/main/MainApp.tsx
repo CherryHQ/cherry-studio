@@ -11,7 +11,9 @@ import {
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
@@ -26,9 +28,10 @@ import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreference
 import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { NotesFileEditSessionProvider } from '@renderer/pages/notes/NotesFileEditSessionProvider'
+import { NotesMigrationHost } from '@renderer/pages/notes/NotesMigrationHost'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
+import { WindowFileEditRecovery } from '@renderer/windows/WindowFileEditRecovery'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
@@ -125,15 +128,15 @@ export function MainWindowContent(): React.ReactElement {
               <OnboardingPage />
             </Suspense>
           ) : (
-            <NotesFileEditSessionProvider>
-              <AppShell />
-            </NotesFileEditSessionProvider>
+            <AppShell />
           )}
           <MainWindowRuntime />
           <ConversationNotificationRuntime />
           <McpInteractionHost />
           <PopupHost />
           <ToastHost />
+          <WindowFileEditRecovery />
+          <DictationShortcutHost />
           <VoicePlaybackHost />
           {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
         </MandatoryGateProvider>
@@ -151,11 +154,14 @@ function MainApp(): React.ReactElement {
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
       <ThemeProvider>
         <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <MainWindowContent />
-            </CommandProvider>
-          </CommandContextKeyProvider>
+          <FileEditSessionProvider>
+            <NotesMigrationHost />
+            <CommandContextKeyProvider>
+              <CommandProvider>
+                <MainWindowContent />
+              </CommandProvider>
+            </CommandContextKeyProvider>
+          </FileEditSessionProvider>
         </CodeStyleProvider>
       </ThemeProvider>
     </ErrorBoundary>

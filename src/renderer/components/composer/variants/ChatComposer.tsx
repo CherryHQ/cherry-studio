@@ -8,6 +8,10 @@ import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/cha
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
+  hasSignedReasoningMetadata,
+  replaceReasoningPartText
+} from '@renderer/components/chat/messages/blocks/reasoningEditing'
+import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
@@ -24,6 +28,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerInputFilePreviewAction } from '@renderer/components/composer/filePreview'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
@@ -51,7 +56,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
-import { getComposerShortcutLabel, resolveSendShortcut } from '@renderer/utils/input'
+import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
@@ -179,6 +184,7 @@ export interface ChatComposerProps {
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  previewInputFile?: ComposerInputFilePreviewAction
 }
 
 interface SavedComposerDraft {
@@ -401,6 +407,7 @@ const ChatComposerRoot = ({
   onDraftAssistantChange,
   onNewTopic,
   onCreateEmptyTopic,
+  previewInputFile,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -460,6 +467,7 @@ const ChatComposerRoot = ({
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
             onCreateEmptyTopic={onCreateEmptyTopic}
+            previewInputFile={previewInputFile}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
             deferQuickPanel={deferQuickPanel}
@@ -500,6 +508,7 @@ const ChatComposerInner = ({
   onDraftAssistantChange,
   onNewTopic,
   onCreateEmptyTopic,
+  previewInputFile,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -552,10 +561,28 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
+  // Assistant edits expose the unsigned reasoning above the main text; signed
+  // reasoning cannot be replayed after a change, so it stays read-only. A
+  // message with several reasoning parts keeps the plain anchor behaviour.
+  const editingReasoning = useMemo(() => {
+    const snapshot = editingMessageForCurrentTopic
+    if (!snapshot || snapshot.message.role !== 'assistant') return undefined
+    const reasoningIndexes = snapshot.parts.flatMap((part, index) => (part.type === 'reasoning' ? [index] : []))
+    if (reasoningIndexes.length !== 1) return undefined
+    const index = reasoningIndexes[0]
+    const part = snapshot.parts[index]
+    if (part.type !== 'reasoning' || hasSignedReasoningMetadata(part)) return undefined
+    return { index, text: part.text ?? '' }
+  }, [editingMessageForCurrentTopic])
+  const [reasoningDraft, setReasoningDraft] = useState('')
+  useEffect(() => {
+    setReasoningDraft(editingReasoning?.text ?? '')
+  }, [editingMessageForCurrentTopic?.editingSessionId, editingReasoning?.index, editingReasoning?.text])
+  const { isPending, status: streamStatus, lastCompletedAt } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  const releaseFollowupEditRef = useRef<() => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -606,6 +633,7 @@ const ChatComposerInner = ({
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
+      releaseFollowupEditRef.current()
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
@@ -1122,6 +1150,7 @@ const ChatComposerInner = ({
 
     if (!savedDraft) return
 
+    releaseFollowupEditRef.current()
     exitInputHistoryPreview()
     actionsRef.current.replaceDraft({ text: savedDraft.text, tokens: savedDraft.draftTokens })
     setText(savedDraft.text)
@@ -1159,6 +1188,7 @@ const ChatComposerInner = ({
   }, [editingMessageId])
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
+    releaseFollowupEditRef.current()
     const editableDraft = createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
@@ -1221,7 +1251,7 @@ const ChatComposerInner = ({
     stopEditing()
   }, [restoreSavedDraft, staleEditingMessage, stopEditing])
 
-  const placeholderText = t('chat.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) })
+  const placeholderText = t('chat.input.placeholder')
 
   const tokens = useMemo(
     () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
@@ -1520,7 +1550,7 @@ const ChatComposerInner = ({
         return true
       } catch (error) {
         logger.warn('send failed', { error })
-        toast.error(t('chat.input.send_failed'))
+        toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
         return false
       } finally {
         setIsSending(false)
@@ -1530,6 +1560,7 @@ const ChatComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
+    releaseFollowupEditRef.current()
     setText('')
     setDraftTokens(undefined)
     setFiles([])
@@ -1548,16 +1579,21 @@ const ChatComposerInner = ({
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
+    sendId: sendFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    takeForEdit: takeFollowupForEdit,
+    releaseEdit,
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
-    isFulfilled,
-    markSeen,
+    status: streamStatus,
+    lastCompletedAt,
     onDrain: sendQueuedPayload
   })
+  releaseFollowupEditRef.current = releaseEdit
+
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
@@ -1567,8 +1603,21 @@ const ChatComposerInner = ({
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
-  // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
-  // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.
+  const captureOutgoingFollowup = useCallback(
+    (taken: FollowupQueueItem) => {
+      const draft = actionsRef.current.getDraft()
+      const payload = buildQueuedPayload(draft)
+      if (payload === null) {
+        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
+        return null
+      }
+      return { draft, payload: { ...payload, chatTarget: taken.payload.chatTarget } }
+    },
+    [actionsRef, buildQueuedPayload, files]
+  )
+
+  // After takeForEdit removes the queued item, atomic replacement preserves unmanaged tokens
+  // even when the restored text is unchanged.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       resetHistoryIndex()
@@ -1669,13 +1718,20 @@ const ChatComposerInner = ({
         const edited = await buildEditedMessageParts(draft)
         if (!edited) return
 
+        // Compare and persist the raw text: trimming would rewrite Markdown
+        // indentation (code blocks, lists). Trimming only guards emptiness.
+        const reasoningValue = reasoningDraft
+        const reasoningChanged = !!editingReasoning && reasoningValue !== editingReasoning.text
+        if (isAssistantReply && reasoningChanged && !reasoningValue.trim()) {
+          toast.error(t('message.reasoning.empty'))
+          return
+        }
+        const baseParts =
+          reasoningChanged && editingReasoning
+            ? replaceReasoningPartText(editingMessageForCurrentTopic.parts, editingReasoning.index, reasoningValue)
+            : editingMessageForCurrentTopic.parts
         const savedParts = isAssistantReply
-          ? replaceEditedMessageParts(
-              editingMessageForCurrentTopic.parts,
-              editingMessageForCurrentTopic.message.id,
-              edited.draft,
-              edited.parts
-            )
+          ? replaceEditedMessageParts(baseParts, editingMessageForCurrentTopic.message.id, edited.draft, edited.parts)
           : edited.parts
         if (isAssistantReply || !resend) {
           await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
@@ -1699,6 +1755,7 @@ const ChatComposerInner = ({
               }
           await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
         }
+        if (reasoningChanged) toast.success(t('message.reasoning.saved'))
         if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
           restoreSavedDraft()
           stopEditing()
@@ -1721,8 +1778,10 @@ const ChatComposerInner = ({
       chatWrite,
       editingMessageForCurrentTopic,
       editingMessageForCurrentTopicRef,
+      editingReasoning,
       fastMode,
       isMentionedModelSelectorLocked,
+      reasoningDraft,
       reasoningEffort,
       serviceTier,
       restoreSavedDraft,
@@ -1951,6 +2010,18 @@ const ChatComposerInner = ({
                   highlightKey: editingMessageForCurrentTopic.editingSessionId,
                   onLocate: handleLocateEditingMessage,
                   onCancel: handleCancelEditing,
+                  reasoning: editingReasoning
+                    ? {
+                        value: reasoningDraft,
+                        onChange: setReasoningDraft,
+                        disabled: isSavingEdit,
+                        label: t('chat.input.editing_part.reasoning'),
+                        actionLabel: t('message.reasoning.edit'),
+                        title: t('message.reasoning.edit_title'),
+                        placeholder: t('message.reasoning.edit_placeholder'),
+                        hint: t('message.reasoning.edit_hint')
+                      }
+                    : undefined,
                   // Assistant edits already save in place on send; only user edits need a save-only path.
                   onSave:
                     editingMessageForCurrentTopic.message.role === 'assistant' ? undefined : handleSaveEditedMessage
@@ -1964,19 +2035,20 @@ const ChatComposerInner = ({
                 items={queuedFollowups}
                 paused={followupPaused}
                 onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
-                }}
+                onSteer={sendFollowup}
                 onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  restoreFollowupDraft(item)
-                  removeFollowup(id)
+                  if (directSendInFlightRef.current) return
+                  if (editingMessageForCurrentTopic) {
+                    releaseEdit()
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    restoreFollowupDraft(item)
+                    removeFollowup(id)
+                    return
+                  }
+                  const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
+                  if (!incoming) return
+                  restoreFollowupDraft(incoming)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
@@ -1986,6 +2058,7 @@ const ChatComposerInner = ({
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
+          previewInputFile={previewInputFile}
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}
