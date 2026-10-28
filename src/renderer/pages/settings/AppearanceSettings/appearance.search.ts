@@ -90,6 +90,12 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: inputGroup
   },
   {
+    anchorId: 'history-recall',
+    titleKey: 'settings.messages.input.history_recall',
+    groupKey: inputGroup,
+    aliases: ['input history', 'recall', 'up arrow', 'ctrl+up', '入力履歴', '输入历史']
+  },
+  {
     anchorId: 'spell-check',
     titleKey: 'settings.general.spell_check.label',
     groupKey: inputGroup

@@ -96,6 +96,8 @@ export type LanguageVarious =
 
 export type WindowStyle = 'transparent' | 'opaque'
 
+export type ComposerHistoryRecall = 'arrow' | 'ctrl_arrow' | 'off'
+
 /**
  * A composer key binding (send / line break / steer). Stored as a token array so the
  * platform-aware `CommandOrControl` token and the shared formatting helpers apply.

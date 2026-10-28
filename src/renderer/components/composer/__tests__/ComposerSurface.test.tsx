@@ -1,3 +1,4 @@
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Editor } from '@tiptap/core'
@@ -312,7 +313,8 @@ vi.mock('../ComposerToolRuntime', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [mocks.preferences[key]]
+  usePreference: (key: Parameters<typeof mockUsePreference>[0]) =>
+    key === 'chat.input.history_recall' ? mockUsePreference(key) : [mocks.preferences[key]]
 }))
 
 vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
@@ -459,6 +461,7 @@ describe('ComposerSurface', () => {
   let hasFocusSpy: ReturnType<typeof vi.spyOn> | undefined
 
   beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
     // jsdom reports an unfocused document, which would short-circuit every focus-restore path.
     hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     mocks.editorOptions = undefined
@@ -5717,6 +5720,44 @@ describe('ComposerSurface', () => {
       } as any
     }
 
+    it.each(['off', 'ctrl_arrow'])('history recall policy %s rejects plain Up on an eligible editor', (mode) => {
+      MockUsePreferenceUtils.setPreferenceValue('chat.input.history_recall', mode)
+      const onInputHistoryNavigate = vi.fn(() => true)
+      render(<ComposerSurface {...baseProps} text="" onInputHistoryNavigate={onInputHistoryNavigate} />)
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      mocks.editorOptions.editorProps.handleKeyDown(buildView(true, false), event)
+      expect(event.defaultPrevented).toBe(false)
+      expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+    })
+
+    it('history recall policy updates the retained editor handler without recreating the editor', () => {
+      mocks.stabilizeEditor = true
+      const onInputHistoryNavigate = vi.fn(() => true)
+      const props = { ...baseProps, text: '', onInputHistoryNavigate }
+      const { rerender } = render(<ComposerSurface {...props} />)
+      const editor = mocks.editorInstance
+      const handler = mocks.editorOptions.editorProps.handleKeyDown
+      const press = (init: KeyboardEventInit = {}) => {
+        const event = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true, ...init })
+        const count = onInputHistoryNavigate.mock.calls.length
+        handler(buildView(true, false), event)
+        return { called: onInputHistoryNavigate.mock.calls.length > count, prevented: event.defaultPrevented }
+      }
+      expect(press()).toEqual({ called: true, prevented: true })
+      MockUsePreferenceUtils.setPreferenceValue('chat.input.history_recall', 'off')
+      rerender(<ComposerSurface {...props} />)
+      expect(press()).toEqual({ called: false, prevented: false })
+      expect(press({ ctrlKey: true })).toEqual({ called: false, prevented: false })
+      MockUsePreferenceUtils.setPreferenceValue('chat.input.history_recall', 'ctrl_arrow')
+      rerender(<ComposerSurface {...props} />)
+      expect(press()).toEqual({ called: false, prevented: false })
+      expect(press({ ctrlKey: true })).toEqual({ called: true, prevented: true })
+      expect(press({ ctrlKey: true, shiftKey: true })).toEqual({ called: false, prevented: false })
+      expect(press({ metaKey: true })).toEqual({ called: false, prevented: false })
+      expect(mocks.editorInstance).toBe(editor)
+      expect(mocks.editorOptions.editorProps.handleKeyDown).toBe(handler)
+    })
+
     it('calls onInputHistoryNavigate with "up" when ArrowUp is pressed at the cursor end', async () => {
       const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
       render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
@@ -5729,6 +5770,17 @@ describe('ComposerSurface', () => {
       expect(handled).toBe(true)
       expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
       expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('recalls history with keypad Up at the cursor end', () => {
+      const onInputHistoryNavigate = vi.fn(() => true)
+      render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', code: 'Numpad8', cancelable: true })
+
+      mocks.editorOptions.editorProps.handleKeyDown(buildView(true, false), event)
+
+      expect(event.defaultPrevented).toBe(true)
+      expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
     })
 
     it('keeps ArrowUp in the editor when a soft-wrapped line remains above the cursor', async () => {

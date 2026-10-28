@@ -67,7 +67,11 @@ import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './Composer
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import type { ComposerInputFilePreviewAction } from './filePreview'
 import { createComposerFolderToken } from './folderToken'
-import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
+import {
+  type InputHistoryDirection,
+  matchesHistoryRecallShortcut,
+  shouldHandleInputHistoryNavigation
+} from './inputHistoryNavigation'
 import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
@@ -619,6 +623,7 @@ export default function ComposerSurfaceRuntime({
   const quickPanelReady = !deferQuickPanel || editorReady
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = _sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
+  const [historyRecall] = usePreference('chat.input.history_recall')
   const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
@@ -646,6 +651,7 @@ export default function ComposerSurfaceRuntime({
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
   const sendMessageShortcutRef = useRef(sendMessageShortcut)
+  const historyRecallRef = useRef(historyRecall)
   const newlineShortcutRef = useRef(newlineShortcut)
   const steerShortcutRef = useRef(steerShortcut)
   const setFilesRef = useRef(setFiles)
@@ -669,6 +675,7 @@ export default function ComposerSurfaceRuntime({
     sendDisabledRef.current = sendDisabled
     sendBlockedReasonRef.current = sendBlockedReason
     sendMessageShortcutRef.current = sendMessageShortcut
+    historyRecallRef.current = historyRecall
     newlineShortcutRef.current = newlineShortcut
     steerShortcutRef.current = steerShortcut
     setFilesRef.current = setFiles
@@ -676,6 +683,7 @@ export default function ComposerSurfaceRuntime({
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
+    historyRecall,
     filesCount,
     steerShortcut,
     isExpanded,
@@ -1595,26 +1603,26 @@ export default function ComposerSurfaceRuntime({
           }
         }
 
-        if (
-          (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          !event.altKey &&
-          !event.shiftKey &&
-          shouldHandleInputHistoryNavigation({
-            ...getComposerSelectionState(view, event.key, isInputHistoryActiveRef.current),
-            isComposing: event.isComposing,
-            isQuickPanelVisible: qp.isVisible,
-            key: event.key,
-            text: textRef.current
-          })
-        ) {
-          const direction: InputHistoryDirection = event.key === 'ArrowUp' ? 'up' : 'down'
-          const handled = onInputHistoryNavigateRef.current?.(direction) ?? false
-          if (handled) {
-            event.preventDefault()
-            event.stopPropagation()
-            return true
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          const historyRecall = historyRecallRef.current
+          const isHistoryShortcut = historyRecall !== 'off' && matchesHistoryRecallShortcut(event, historyRecall)
+          if (
+            shouldHandleInputHistoryNavigation({
+              ...getComposerSelectionState(view, event.key, isInputHistoryActiveRef.current),
+              isHistoryShortcut,
+              isComposing: event.isComposing,
+              isQuickPanelVisible: qp.isVisible,
+              key: event.key,
+              text: textRef.current
+            })
+          ) {
+            const direction: InputHistoryDirection = event.key === 'ArrowUp' ? 'up' : 'down'
+            const handled = onInputHistoryNavigateRef.current?.(direction) ?? false
+            if (handled) {
+              event.preventDefault()
+              event.stopPropagation()
+              return true
+            }
           }
         }
 

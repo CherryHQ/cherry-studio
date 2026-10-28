@@ -28,7 +28,7 @@ import {
   resolveSteerShortcut
 } from '@renderer/utils/input'
 import { isMac } from '@renderer/utils/platform'
-import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerHistoryRecall, ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 import {
@@ -68,6 +68,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [storedSendShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [steerShortcut, setSteerShortcut] = usePreference('chat.input.steer_shortcut')
+  const [historyRecall, setHistoryRecall] = usePreference('chat.input.history_recall')
   const [newlineShortcut, setNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   // Newline and steer are stored as null until the user overrides them; show the effective default.
   const resolvedSendShortcut = resolveSendShortcut(storedSendShortcut)
@@ -245,6 +246,33 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                     {item.label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-history-recall" className="scroll-mt-6">
+            <SettingRowTitleSmall hint={t('settings.messages.input.history_recall_hint')}>
+              {t('settings.messages.input.history_recall')}
+            </SettingRowTitleSmall>
+            <Select
+              value={historyRecall}
+              onValueChange={(value) => void setHistoryRecall(value as ComposerHistoryRecall)}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                <SelectItem className="text-sm" value="arrow">
+                  {t('settings.messages.input.history_recall_arrow')}
+                </SelectItem>
+                <SelectItem className="text-sm" value="ctrl_arrow">
+                  {t('settings.messages.input.history_recall_ctrl_arrow', {
+                    up: getComposerShortcutLabel(['CommandOrControl', 'Up']),
+                    down: getComposerShortcutLabel(['CommandOrControl', 'Down'])
+                  })}
+                </SelectItem>
+                <SelectItem className="text-sm" value="off">
+                  {t('settings.messages.input.history_recall_off')}
+                </SelectItem>
               </SelectContent>
             </Select>
           </SettingRow>

@@ -29,6 +29,7 @@ import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
 import { getComposerEditorMinHeight } from './composerSizing'
 import type { ComposerDeferredIntent, ComposerSurfaceActions, ComposerSurfaceProps } from './ComposerSurfaceRuntime'
+import { matchesHistoryRecallShortcut, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 
 const COMPOSER_SIDE_PADDING_PX = 24
@@ -73,6 +74,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const intentRef = useRef<ComposerDeferredIntent>({})
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = props.sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
+  const [historyRecall] = usePreference('chat.input.history_recall')
   const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
   const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
@@ -280,14 +282,25 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const navigateInputHistory = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (!props.onInputHistoryNavigate) return false
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false
-    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.nativeEvent.isComposing) return false
+    const isHistoryShortcut = historyRecall !== 'off' && matchesHistoryRecallShortcut(event, historyRecall)
 
     const input = event.currentTarget
     const isAllSelected =
       input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
     const isAtBoundary =
       event.key === 'ArrowUp' ? input.selectionStart === input.value.length : input.selectionEnd === input.value.length
-    if (!(props.text.trim().length === 0 || isAllSelected || isAtBoundary)) return false
+    if (
+      !shouldHandleInputHistoryNavigation({
+        isHistoryShortcut,
+        isAllSelected,
+        isCursorAtHistoryBoundary: isAtBoundary,
+        isComposing: event.nativeEvent.isComposing,
+        isQuickPanelVisible: false,
+        key: event.key,
+        text: props.text
+      })
+    )
+      return false
 
     return props.onInputHistoryNavigate(event.key === 'ArrowUp' ? 'up' : 'down')
   }
