@@ -44,6 +44,7 @@ import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
+import type { AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
 import type {
   AiStreamRequest,
@@ -98,6 +99,7 @@ const logger = loggerService.withContext('AiStreamManager')
 type ManagedAiStreamRequest = AiStreamRequest & {
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
+  resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
 }
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
@@ -972,6 +974,8 @@ export class AiStreamManager extends BaseService {
   streamPrompt(input: {
     streamId: string
     uniqueModelId: UniqueModelId
+    /** Trusted caller's admitted model snapshot, including its selected wire endpoint. */
+    resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
     prompt?: string
     messages?: CherryUIMessage[]
     listener: StreamListener | StreamListener[]
@@ -1006,6 +1010,7 @@ export class AiStreamManager extends BaseService {
       },
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
+      ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,

@@ -78,7 +78,7 @@ invoices remain authoritative.
   before the provider call. Completion never consults current configuration or
   rotation state.
 - Every runtime route has one capture owner. Gateway-backed Agent traffic uses
-  provider-call capture; direct/external Agent traffic uses Agent SDK messages.
+  provider-call capture; external-CLI subscription traffic uses Agent SDK messages.
 
 There is deliberately no operation table or persistence compensation layer.
 
@@ -392,9 +392,10 @@ serial.
 
 ## Agent runtime ownership
 
-### Direct and external CLI
+### External CLI subscription
 
-The connection carries `{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
+Explicit Claude CLI subscription login carries
+`{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
 Every emitted invocation id is globally namespaced by its driver (`claude-agent:`;
 historical records can also use `pi-agent:` or `dsh-agent:`) before it crosses the runtime contract; the host persists that id
 verbatim for cross-runtime idempotency.
@@ -421,12 +422,12 @@ model, and usage:
 The response-to-message mapping survives a product turn roll. Finishing a
 provider call after that roll cannot move its usage onto the newer message.
 
-Historical Pi and DSH invocation records remain available after runtime migration.
+Historical direct Claude, Pi and DSH invocation records remain available after runtime migration.
 
 ### Gateway-backed Agent
 
 The connection carries `{ owner: 'provider-calls' }`; SDK usage events do not
-create billing records. Pi and Pi Durable always use this path; native usage
+create billing records. Pi, Pi Durable and Cherry-managed Claude models use this path; native usage
 remains available for context and display. Trusted in-process gateway context supplies the frozen source to
 normal AiService language middleware. For Claude Code, the gateway creates its
 wire response ID before dispatch. Credentials and pricing freeze at request

@@ -611,6 +611,14 @@ credentials and process-exit barrier; otherwise the package starts it.
 The desktop reserves or restores a Claude backend/context before dispatch.
 It consumes paired native/common observations without a second Query iterator.
 
+Cherry-managed models always use the internal gateway, including Anthropic
+models and same-provider background model slots. The subprocess receives only
+the gateway credential and provider-prefixed model IDs. Provider execution owns
+upstream credentials, headers, key rotation and billing; editing those upstream
+settings does not invalidate a warm Query's gateway identity. Explicit external
+CLI subscription login retains native authentication. See the gateway's
+[internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
+
 Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. Rich native tool, thinking,
@@ -644,7 +652,7 @@ The driver converts Claude SDK messages into runtime events:
 
 - `stream_event` / assistant/user messages -> root `chunk` and replacement-aware
   `message-projection`; child bodies go directly to their independent projection;
-- direct/external `stream_event` messages establish one invocation per
+- external-CLI subscription `stream_event` messages establish one invocation per
   message id and provide terminal usage plus per-request timing; complete
   `assistant` messages are a whole-snapshot usage candidate when the terminal
   delta omits usage. Gateway-owned connections do not emit this record input;
@@ -682,13 +690,13 @@ from assistant/user chunks and it excludes the permission prompt. A hook that
 fires with no active UI turn is not attached to the last message.
 
 The result's cumulative `modelUsage`, duration, and total cost are
-reconciliation-only and are never divided across requests. For direct/external
+reconciliation-only and are never divided across requests. For external-CLI subscription
 calls, `SDKPartialAssistantMessage.ttft_ms` supplies per-request TTFT.
 Completion is TTFT plus the monotonic interval from `message_start` to the
 terminal delta/stop; reasoning duration is measured between reasoning and the
 first non-reasoning output. If a step omits `ttft_ms`, TTFT and completion stay
 null rather than treating stream-only duration as the whole provider call.
-Both direct SDK and gateway invocations join to product messages through the
+Both native subscription and gateway invocations join to product messages through the
 native API response ID. The gateway freezes credentials, prices and source at
 request start, but waits for native response ownership before recording its
 message association. Usage and ownership may arrive in either order. If the
@@ -974,8 +982,8 @@ The Agent request itself proves that Claude Code's standard loop intends another
 sample, so this normalization is independent of the target provider, endpoint,
 and model. The original assistant attachment is preserved and the caller's params
 are not mutated. The continuation is never written to the database, the SDK
-transcript's user-visible history, or the renderer. Direct Anthropic requests do
-not enter the gateway, and external gateway requests remain unchanged so their
+transcript's user-visible history, or the renderer. Native subscription requests
+bypass the gateway, and external gateway requests remain unchanged so their
 callers can intentionally use assistant prefill.
 
 ## Native resume failures

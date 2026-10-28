@@ -27,7 +27,7 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
-import { ServiceTierSelectionSchema } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
@@ -160,7 +160,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
   }
   const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
-  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
+  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
@@ -177,6 +177,16 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const provider: Provider = config.provider ?? resolvedProvider
   const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
+  const endpoint = resolveEffectiveEndpoint(
+    provider,
+    resolvedAddress.model,
+    isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
+  )
+  const model =
+    endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
+      ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
+      : resolvedAddress.model
+  const resolvedModel = { provider, model }
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -215,7 +225,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // across turns; targets that reject them get a downgrade 400 or a fold.
   const positionedMessages = positionInlineSystemMessages(
     convertedMessages,
-    resolveEffectiveEndpoint(provider, model).endpointType,
+    endpoint.endpointType,
     config.requestHeaders
   )
   const messages = isInternalAnthropicAgentRequest
@@ -405,6 +415,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             ...turnOptions,
             streamId,
             uniqueModelId,
+            resolvedModel,
             messages,
             listener,
             callOverrides,
@@ -500,6 +511,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         ...turnOptions,
         streamId,
         uniqueModelId,
+        resolvedModel,
         messages,
         listener,
         callOverrides,
