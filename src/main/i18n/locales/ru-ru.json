@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "Путь к рабочей области недоступен: {{path}}",
   "agent.session.workspace_status.missing": "Путь к рабочей области не существует: {{path}}",
   "agent.session.workspace_status.not_directory": "Путь к рабочей области не является каталогом: {{path}}",
+  "agent.tools.to_markdown.unsupported_windows_arm64": "to_markdown не поддерживается в Windows ARM64, поскольку встроенный конвертер документов не имеет нативной сборки для этой платформы. Переустановка зависимостей не устранит это ограничение.",
   "apiGateway.docs.description": "HTTP API Cherry Studio, совместимый с OpenAI, Anthropic и Gemini, а также собственные эндпоинты Cherry (модели, базы знаний)",
   "apiGateway.docs.language_switcher_label": "Язык документации",
   "apiGateway.docs.operations.chat_completions": "Создаёт ответ чата. Формат запроса и ответа соответствует OpenAI Chat Completions; с `stream: true` вывод передаётся по частям.",

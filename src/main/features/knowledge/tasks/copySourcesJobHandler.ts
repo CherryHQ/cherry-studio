@@ -1,9 +1,9 @@
 import './jobTypes'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobHandler } from '@main/core/job/types'
 import type { PreparedAtomicWrite } from '@main/utils/file'
+import type { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { prepareFileCopyIntoKnowledgeBaseAt } from '../pathStorage'
