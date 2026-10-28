@@ -35,29 +35,56 @@ export async function downloadBundleFiles(
   const totalWeight = files.reduce((sum, file) => sum + file.weight, 0)
   let doneWeight = 0
 
+  const downloadOne = (file: BundleFile, fileSignal: AbortSignal, onFileProgress: (fraction: number) => void) => {
+    const urls = file.urls
+      ? orderDownloadUrls(file.urls, sourceOrder[0] === 'modelscope' ? 'china-first' : 'global-first')
+      : file.sources
+        ? sourceOrder.flatMap((id) =>
+            file.sources
+              .filter((source) => source.source === id)
+              .map((source) => resolveModelFileUrl(id, source.repo, source.remoteFile, source.revision))
+          )
+        : sourceOrder.map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
+    return withMirrorFallback(urls, fileSignal, `${bundle.id}/${file.key}`, (url) =>
+      writeBundleFile(file, url, path.join(installDir, file.relPath), fileSignal, onFileProgress)
+    )
+  }
+
   // The caller hands the files in catalog order, which is the order they must be written
   // in: the frontend files first, the weights last. An interrupted attempt therefore
   // leaves the bundle plainly incomplete, which is what lets the next download fill in
   // the gaps instead of reporting a complete install that cannot load.
   for (const group of downloadGroups(files, bundle.parallelFetchFrom)) {
-    await Promise.all(
-      group.map(async (file) => {
-        const urls = file.urls
-          ? orderDownloadUrls(file.urls, sourceOrder[0] === 'modelscope' ? 'china-first' : 'global-first')
-          : file.sources
-            ? sourceOrder.flatMap((id) =>
-                file.sources
-                  .filter((source) => source.source === id)
-                  .map((source) => resolveModelFileUrl(id, source.repo, source.remoteFile, source.revision))
-              )
-            : sourceOrder.map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
-        await withMirrorFallback(urls, signal, `${bundle.id}/${file.key}`, (url) =>
-          writeBundleFile(file, url, path.join(installDir, file.relPath), signal, (fraction) =>
-            onProgress?.((doneWeight + file.weight * fraction) / totalWeight)
-          )
+    if (group.length === 1) {
+      const file = group[0]
+      await downloadOne(file, signal, (fraction) => onProgress?.((doneWeight + file.weight * fraction) / totalWeight))
+    } else {
+      // A concurrent wave gets one scoped signal: the first failure aborts the siblings,
+      // and the wave is not done until every sibling has actually settled. No write or
+      // progress report may outlive this promise — the caller tears its attempt down as
+      // soon as it rejects, and a still-streaming sibling could otherwise recreate a
+      // directory a removal has just deleted.
+      const waveAbort = new AbortController()
+      const waveSignal = AbortSignal.any([signal, waveAbort.signal])
+      const fractions = group.map(() => 0)
+      const reportWave = () =>
+        onProgress?.(
+          (doneWeight + group.reduce((sum, file, index) => sum + file.weight * fractions[index], 0)) / totalWeight
         )
-      })
-    )
+      const results = await Promise.allSettled(
+        group.map((file, index) =>
+          downloadOne(file, waveSignal, (fraction) => {
+            fractions[index] = fraction
+            reportWave()
+          }).catch((error: unknown) => {
+            waveAbort.abort(error)
+            throw error
+          })
+        )
+      )
+      const failure = results.find((result) => result.status === 'rejected')
+      if (failure) throw failure.reason
+    }
     doneWeight += group.reduce((sum, file) => sum + file.weight, 0)
     onProgress?.(doneWeight / totalWeight)
   }
@@ -73,13 +100,13 @@ function downloadGroups(files: readonly BundleFile[], parallelFrom: number | und
   if (parallelFrom === undefined) return files.map((file) => [file])
 
   const start = parallelFrom
-  if (!isIndependent(files[start])) {
+  if (!files[start]?.independent) {
     // parallelFrom points to a non-independent file (e.g., a weight) — no parallel section
     return files.map((file) => [file])
   }
 
   const rest = files.slice(start)
-  const runLength = rest.findIndex((file) => !isIndependent(file))
+  const runLength = rest.findIndex((file) => !file.independent)
   const independent = new Set(runLength < 0 ? rest : rest.slice(0, runLength))
 
   const groups: BundleFile[][] = []
@@ -97,12 +124,6 @@ function downloadGroups(files: readonly BundleFile[], parallelFrom: number | und
   return groups
 }
 
-/** Kokoro's bundle: the lexicons and eSpeak data are independent of one another. */
-function isIndependent(file: BundleFile): boolean {
-  return INDEPENDENT_FILE_PREFIXES.some((prefix) => file.key.startsWith(prefix))
-}
-
-const INDEPENDENT_FILE_PREFIXES: readonly string[] = ['lexicon-', 'espeak-ng-data/']
 /** Two small lexicons for Kokoro; 8 is safe because files are small (<1MB each) and from the same host. */
 const DOWNLOAD_CONCURRENCY = 8
 

@@ -41,7 +41,18 @@ const KOKORO_ORDER = [
   'number-zh.fst',
   'phone-zh.fst',
   'tokens.txt',
-  'espeak-ng-data/',
+  // eSpeak data: this release's Chinese additions first, then the English voice data,
+  // then the base tables.
+  'espeak-ng-data/cmn_dict',
+  'espeak-ng-data/lang/sit/cmn',
+  'espeak-ng-data/lang/gmw/en',
+  'espeak-ng-data/lang/gmw/en-US',
+  'espeak-ng-data/phondata',
+  'espeak-ng-data/phondata-manifest',
+  'espeak-ng-data/phonindex',
+  'espeak-ng-data/phontab',
+  'espeak-ng-data/intonations',
+  'espeak-ng-data/en_dict',
   'model.onnx',
   'voices.bin',
   'LICENSE' // last: not required for model loading, but part of the bundle
@@ -49,7 +60,7 @@ const KOKORO_ORDER = [
 
 /** Position in {@link KOKORO_ORDER}; an unlisted path is a catalog mistake, not a rank. */
 const kokoroRank = (relPath: string) => {
-  const rank = KOKORO_ORDER.findIndex((prefix) => relPath.startsWith(prefix))
+  const rank = KOKORO_ORDER.indexOf(relPath)
   if (rank < 0) throw new Error(`Kokoro bundle file ${relPath} has no install position`)
   return rank
 }
@@ -254,9 +265,16 @@ export const LOCAL_MODEL_BUNDLES = {
         minBytes: file.sizeBytes,
         weight: Math.max(0.01, file.sizeBytes / 1_000_000),
         sources: [
-          { source: 'huggingface', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath },
+          {
+            source: 'huggingface',
+            repo: kokoroRelease.repo,
+            revision: kokoroRelease.revision,
+            remoteFile: file.relPath
+          },
           { source: 'hf-mirror', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath }
-        ]
+        ],
+        // The two small lexicons are safe to race; everything else lands alone, in order.
+        independent: file.relPath.startsWith('lexicon-')
       })),
     // The two small lexicons, fetched together ahead of the eSpeak data they pair with.
     parallelFetchFrom: 0

@@ -93,6 +93,10 @@ interface BundleFileBase {
   /** Share of the bundle's progress bar (≈ file MB). */
   weight: number
   derivation?: BundleFileDerivation
+  /** Declared by the owning catalog when this file may be fetched concurrently with the
+   * bundle's other independent files. Omitted means fetched alone: the acquisition engine
+   * groups by this declaration, it does not guess from filenames. */
+  independent?: boolean
 }
 
 export type BundleFile = BundleFileBase &
