@@ -32,6 +32,39 @@ function setup() {
   }
 }
 describe('append-only scratchpad answer streaming', () => {
+  it('keeps literal markup at the tilde-to-inline transition and streams the next user turn', () => {
+    const raw = '~~~\ncode\n~~~\n\n`<thinking>literal</thinking>`\n<thinking>hidden2</thinking>\nDone'
+    const s = setup()
+    for (let i = 0; i < raw.length; i += 3) s.push(raw.slice(i, i + 3))
+    s.stop()
+    expect(s.a.scratchpadPrefixViolation).toBe(false)
+    expect(s.text()).toBe(stripKnownModelScratchpadBlocksPreservingCodeFences(raw))
+    const before = s.text()
+    s.a.beginTurn({ userPrompt: true })
+    s.a.handleMessage(ev({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }))
+    s.push('Hello world')
+    expect(s.text().slice(before.length)).toBe('Hello world')
+    s.stop()
+  })
+  it('preserves balanced protocol-named markup containing literal HTML text bodies in snapshots', () => {
+    for (const payload of [
+      '<parameter><textarea>Literal </parameter></textarea></parameter>',
+      '<parameter><script>const x = "</parameter>"</script></parameter>',
+      '<parameter><style>x::after {content:"</parameter>"}</style></parameter>',
+      '<parameter><title>Literal </parameter></title></parameter>'
+    ]) {
+      const s = setup()
+      s.a.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 's',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: payload }] }
+      } as any)
+      s.stop()
+      expect(s.text()).toBe(payload)
+    }
+  })
   it('normalizes snapshot-only text and reconciled assistant suffixes before emission', () => {
     const payload = 'Public <thinking>secret</thinking> answer'
     for (const streamed of [false, true]) {

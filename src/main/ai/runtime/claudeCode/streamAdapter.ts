@@ -173,6 +173,7 @@ type StreamContext = {
   textStreamedViaContentBlock: boolean
   /** Parentless main-agent text may carry model scratchpad wrappers outside compaction windows. */
   filterParentlessScratchpadText: boolean
+  scratchpadPartFailed: boolean
   scratchpadAnswerStream: {
     segments: string[]
     visible: string
@@ -771,6 +772,7 @@ export class ClaudeCodeStreamAdapter {
       hasStreamedJson: false,
       textStreamedViaContentBlock: false,
       filterParentlessScratchpadText,
+      scratchpadPartFailed: false,
       scratchpadAnswerStream: null,
       scratchpadTextProbe: '',
       scratchpadStreamRemainder: '',
@@ -1297,6 +1299,8 @@ export class ClaudeCodeStreamAdapter {
   ): void {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
+    this.scratchpadPrefixViolation = false
+    ctx.scratchpadPartFailed = false
     ctx.scratchpadAnswerStream = null
     ctx.textBlockContextStart = ctx.accumulatedText.length
     ctx.olSyncLen = -1
@@ -1763,7 +1767,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private filterStreamingAnswer(text: string, ctx: StreamContext): string {
-    if (this.scratchpadPrefixViolation) return ''
+    if (ctx.scratchpadPartFailed) return ''
     const state = ctx.scratchpadAnswerStream ?? {
       segments: [],
       visible: '',
@@ -1781,8 +1785,14 @@ export class ClaudeCodeStreamAdapter {
       ctx.scratchpadStreamRemainder === '' &&
       ctx.scratchpadStreamFenceCarry === ''
     ) {
-      state.tickSeen = true
-      state.legacy = false
+      const previous = state.segments.slice(0, -1).join('')
+      const boundary = stableScratchpadStreamPrefix(previous)
+      if (boundary.checkpoint && boundary.checkpoint.raw === previous.length && boundary.visible === state.visible) {
+        state.segments = [text]
+        state.visible = ''
+        state.tickSeen = true
+        state.legacy = false
+      }
     }
     if (
       !state.tickSeen &&
@@ -1795,12 +1805,6 @@ export class ClaudeCodeStreamAdapter {
       state.probe = ''
       const out = this.filterScratchpadFromOngoingDelta(pending, ctx)
       state.visible += out
-      // A tick arriving inside unresolved private/fence markup stays with that scanner.
-      // Otherwise migrate the complete raw history to the stable-prefix lane next time.
-      if (text.includes('`') && ctx.scratchpadStreamRemainder === '' && ctx.scratchpadStreamFenceCarry === '') {
-        state.tickSeen = true
-        state.legacy = false
-      }
       return out
     }
     state.tickSeen ||= text.includes('`')
@@ -1833,6 +1837,7 @@ export class ClaudeCodeStreamAdapter {
     const { visible, pending, checkpoint } = stableScratchpadStreamPrefix(raw)
     if (!visible.startsWith(state.visible)) {
       this.scratchpadPrefixViolation = true
+      ctx.scratchpadPartFailed = true
       logger.warn('Scratchpad stream classification changed after emission; withholding unresolved output')
       state.pending = true
       return ''
@@ -3956,10 +3961,11 @@ export class ClaudeCodeStreamAdapter {
       const { visible } = stableScratchpadStreamPrefix(state.segments.join(''), true)
       if (!visible.startsWith(state.visible)) {
         this.scratchpadPrefixViolation = true
+        ctx.scratchpadPartFailed = true
         logger.warn('Scratchpad flush classification changed after emission; withholding unresolved output')
         return
       }
-      if (this.scratchpadPrefixViolation) return
+      if (ctx.scratchpadPartFailed) return
       const delta = visible.slice(state.visible.length)
       if (delta) this.appendVisibleTextDelta(delta, ctx)
       return

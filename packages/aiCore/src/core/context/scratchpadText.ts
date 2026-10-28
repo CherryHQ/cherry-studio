@@ -3040,9 +3040,10 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
         scan = end
         continue
       }
-      // Some other tag: skip it quote-aware so its attributes stay opaque.
+      // Other tags own their attributes, and HTML text elements own their literal bodies.
       const parsed = parseOpeningTagAt(prefix, lt)
-      scan = parsed ? lt + parsed.opener.length : lt + 1
+      const textEnd = parsed ? htmlTextElementEnd(prefix, parsed, lt) : null
+      scan = textEnd ?? (parsed ? lt + parsed.opener.length : lt + 1)
     }
     if (balance > 0) break
     out = out.slice(0, trailing.index)
