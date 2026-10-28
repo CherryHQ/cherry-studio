@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "搜索服务商",
   "settings.tool.websearch.search_provider_placeholder": "选择一个搜索服务商",
   "settings.tool.websearch.set_as_default": "设为默认",
+  "settings.tool.websearch.sync_provider_api_keys": "从模型服务同步 API 密钥",
+  "settings.tool.websearch.sync_provider_api_keys_success": "已从模型服务同步 API 密钥",
   "settings.tool.websearch.title": "网络搜索",
   "settings.topic.position.label": "对话位置",
   "settings.topic.position.left": "左侧",

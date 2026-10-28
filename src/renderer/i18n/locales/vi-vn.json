@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "Nhà cung cấp dịch vụ tìm kiếm",
   "settings.tool.websearch.search_provider_placeholder": "Chọn một nhà cung cấp dịch vụ tìm kiếm.",
   "settings.tool.websearch.set_as_default": "Đặt làm mặc định",
+  "settings.tool.websearch.sync_provider_api_keys": "Đồng bộ khóa API từ nhà cung cấp mô hình",
+  "settings.tool.websearch.sync_provider_api_keys_success": "Đã đồng bộ khóa API từ nhà cung cấp mô hình",
   "settings.tool.websearch.title": "Tìm kiếm Web",
   "settings.topic.position.label": "Vị trí chủ đề",
   "settings.topic.position.left": "Trái",

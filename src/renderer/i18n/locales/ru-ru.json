@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "Провайдер поискового сервиса",
   "settings.tool.websearch.search_provider_placeholder": "Выберите провайдера поисковых услуг",
   "settings.tool.websearch.set_as_default": "Установить по умолчанию",
+  "settings.tool.websearch.sync_provider_api_keys": "Синхронизировать ключ API из провайдера моделей",
+  "settings.tool.websearch.sync_provider_api_keys_success": "Ключ API синхронизирован из провайдера моделей",
   "settings.tool.websearch.title": "Поиск в Интернете",
   "settings.topic.position.label": "Позиция топиков",
   "settings.topic.position.left": "Слева",

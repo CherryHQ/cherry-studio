@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "Πάροχος αναζήτησης",
   "settings.tool.websearch.search_provider_placeholder": "Επιλέξτε έναν πάροχο αναζήτησης",
   "settings.tool.websearch.set_as_default": "Ορισμός ως προεπιλογή",
+  "settings.tool.websearch.sync_provider_api_keys": "Συγχρονισμός κλειδιού API από την υπηρεσία μοντέλων",
+  "settings.tool.websearch.sync_provider_api_keys_success": "Το κλειδί API συγχρονίστηκε από την υπηρεσία μοντέλων",
   "settings.tool.websearch.title": "Διαδικτυακή Αναζήτηση",
   "settings.topic.position.label": "Θέση θεμάτων",
   "settings.topic.position.left": "Αριστερά",

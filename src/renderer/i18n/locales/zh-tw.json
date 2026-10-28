@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "搜尋供應商",
   "settings.tool.websearch.search_provider_placeholder": "選擇一個搜尋供應商",
   "settings.tool.websearch.set_as_default": "設為預設",
+  "settings.tool.websearch.sync_provider_api_keys": "從模型供應商同步 API 金鑰",
+  "settings.tool.websearch.sync_provider_api_keys_success": "已從模型供應商同步 API 金鑰",
   "settings.tool.websearch.title": "網路搜尋",
   "settings.topic.position.label": "對話位置",
   "settings.topic.position.left": "左側",

@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "Furnizor serviciu căutare",
   "settings.tool.websearch.search_provider_placeholder": "Alege un furnizor de servicii de căutare.",
   "settings.tool.websearch.set_as_default": "Setează ca implicit",
+  "settings.tool.websearch.sync_provider_api_keys": "Sincronizează cheia API de la furnizorul de modele",
+  "settings.tool.websearch.sync_provider_api_keys_success": "Cheia API a fost sincronizată de la furnizorul de modele",
   "settings.tool.websearch.title": "Căutare web",
   "settings.topic.position.label": "Poziție subiect",
   "settings.topic.position.left": "Stânga",

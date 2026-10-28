@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "検索サービスプロバイダー",
   "settings.tool.websearch.search_provider_placeholder": "検索サービスプロバイダーを選択する",
   "settings.tool.websearch.set_as_default": "既定として設定",
+  "settings.tool.websearch.sync_provider_api_keys": "モデルプロバイダーから API キーを同期",
+  "settings.tool.websearch.sync_provider_api_keys_success": "モデルプロバイダーから API キーを同期しました",
   "settings.tool.websearch.title": "ウェブ検索",
   "settings.topic.position.label": "トピックの位置",
   "settings.topic.position.left": "左",

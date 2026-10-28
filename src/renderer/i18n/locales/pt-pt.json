@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "Fornecedor de pesquisa",
   "settings.tool.websearch.search_provider_placeholder": "Selecione um fornecedor de pesquisa",
   "settings.tool.websearch.set_as_default": "Definir como Padrão",
+  "settings.tool.websearch.sync_provider_api_keys": "Sincronizar a chave API a partir do serviço de modelos",
+  "settings.tool.websearch.sync_provider_api_keys_success": "Chave API sincronizada a partir do serviço de modelos",
   "settings.tool.websearch.title": "Pesquisa na Web",
   "settings.topic.position.label": "Posição do tópico",
   "settings.topic.position.left": "Esquerda",

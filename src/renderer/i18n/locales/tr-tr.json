@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "Arama hizmeti sağlayıcısı",
   "settings.tool.websearch.search_provider_placeholder": "Bir arama hizmeti sağlayıcısı seçin.",
   "settings.tool.websearch.set_as_default": "Varsayılan Olarak Ayarla",
+  "settings.tool.websearch.sync_provider_api_keys": "API anahtarını model sağlayıcısından eşitle",
+  "settings.tool.websearch.sync_provider_api_keys_success": "API anahtarı model sağlayıcısından eşitlendi",
   "settings.tool.websearch.title": "Web Arama",
   "settings.topic.position.label": "Konuşma konumu",
   "settings.topic.position.left": "Sol",

@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "ผู้ให้บริการค้นหา",
   "settings.tool.websearch.search_provider_placeholder": "เลือกผู้ให้บริการค้นหา",
   "settings.tool.websearch.set_as_default": "ตั้งเป็นค่าเริ่มต้น",
+  "settings.tool.websearch.sync_provider_api_keys": "ซิงค์ API Key จากผู้ให้บริการโมเดล",
+  "settings.tool.websearch.sync_provider_api_keys_success": "ซิงค์ API Key จากผู้ให้บริการโมเดลแล้ว",
   "settings.tool.websearch.title": "ค้นหาเว็บ",
   "settings.topic.position.label": "ตำแหน่งสนทนา",
   "settings.topic.position.left": "ซ้าย",

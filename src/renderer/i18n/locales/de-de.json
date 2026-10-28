@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "Suchanbieter",
   "settings.tool.websearch.search_provider_placeholder": "Einen Suchanbieter auswählen",
   "settings.tool.websearch.set_as_default": "Als Standard festlegen",
+  "settings.tool.websearch.sync_provider_api_keys": "API-Schlüssel aus dem Modelldienst synchronisieren",
+  "settings.tool.websearch.sync_provider_api_keys_success": "API-Schlüssel aus dem Modelldienst synchronisiert",
   "settings.tool.websearch.title": "Websuche",
   "settings.topic.position.label": "Themenposition",
   "settings.topic.position.left": "Links",

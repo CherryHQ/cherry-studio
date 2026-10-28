@@ -5768,6 +5768,8 @@
   "settings.tool.websearch.search_provider": "Search service provider",
   "settings.tool.websearch.search_provider_placeholder": "Choose a search service provider.",
   "settings.tool.websearch.set_as_default": "Set as Default",
+  "settings.tool.websearch.sync_provider_api_keys": "Sync API key from model provider",
+  "settings.tool.websearch.sync_provider_api_keys_success": "API key synced from model provider",
   "settings.tool.websearch.title": "Web Search",
   "settings.topic.position.label": "Conversation position",
   "settings.topic.position.left": "Left",
