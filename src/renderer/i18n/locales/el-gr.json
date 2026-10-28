@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Χρησιμοποιήστε πιο όμορφο στιλ μπλοκ κώδικα, για παράδειγμα κάρτες HTML",
   "chat.settings.code_image_tools.label": "Ενεργοποίηση εργαλείου προεπισκόπησης",
   "chat.settings.code_image_tools.tip": "Ενεργοποίηση εργαλείου προεπισκόπησης για εικόνες που αποδίδονται από blocks κώδικα όπως το mermaid",
+  "chat.settings.code_theme.cherry_default": "Cherry (προεπιλογή)",
   "chat.settings.code_wrappable": "Οι κώδικες μπορούν να γράφονται σε διαφορετική γραμμή",
   "chat.settings.show_line_numbers": "Εμφάνιση αριθμού γραμμών στον κώδικα",
   "chat.settings.thought_auto_collapse.label": "Αυτόματη συμπίεση σκέψεων",

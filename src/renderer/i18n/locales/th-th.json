@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "เปิดใช้สไตล์สวยงามสำหรับบล็อกโค้ด เช่น การ์ด HTML",
   "chat.settings.code_image_tools.label": "เปิดใช้เครื่องมือพรีวิว",
   "chat.settings.code_image_tools.tip": "เปิดใช้เครื่องมือพรีวิวสำหรับรูปภาพที่แสดงจากบล็อกโค้ด เช่น mermaid",
+  "chat.settings.code_theme.cherry_default": "Cherry (ค่าเริ่มต้น)",
   "chat.settings.code_wrappable": "บล็อกโค้ดตัดบรรทัดได้",
   "chat.settings.show_line_numbers": "แสดงหมายเลขบรรทัดในโค้ด",
   "chat.settings.thought_auto_collapse.label": "ยุบเนื้อหาความคิด",

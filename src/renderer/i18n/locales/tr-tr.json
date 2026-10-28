@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Kod bloğu için gösterişli stili etkinleştirir; ör. html kartı",
   "chat.settings.code_image_tools.label": "Önizleme araçlarını etkinleştir",
   "chat.settings.code_image_tools.tip": "mermaid gibi kod bloklarından oluşturulan görseller için önizleme araçlarını etkinleştirir",
+  "chat.settings.code_theme.cherry_default": "Cherry (varsayılan)",
   "chat.settings.code_wrappable": "Kod bloğunda satır kaydırma",
   "chat.settings.show_line_numbers": "Kodda satır numaralarını göster",
   "chat.settings.thought_auto_collapse.label": "Düşünce İçeriğini Daralt",

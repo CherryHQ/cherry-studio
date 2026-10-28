@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Activează stilul sofisticat pentru blocul de cod, de ex., card html",
   "chat.settings.code_image_tools.label": "Activează instrumentele de previzualizare",
   "chat.settings.code_image_tools.tip": "Activează instrumentele de previzualizare pentru imaginile randate din blocuri de cod, cum ar fi mermaid",
+  "chat.settings.code_theme.cherry_default": "Cherry (implicit)",
   "chat.settings.code_wrappable": "Încadrare text în blocul de cod",
   "chat.settings.show_line_numbers": "Afișează numerele liniilor de cod",
   "chat.settings.thought_auto_collapse.label": "Restrânge conținutul gândirii",

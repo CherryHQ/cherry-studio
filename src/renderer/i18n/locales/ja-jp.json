@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "より見栄えの良いコードブロックスタイルを使用する、例えばHTMLカード",
   "chat.settings.code_image_tools.label": "プレビューツールを有効にする",
   "chat.settings.code_image_tools.tip": "mermaid などのコードブロックから生成された画像に対してプレビューツールを有効にする",
+  "chat.settings.code_theme.cherry_default": "Cherry（デフォルト）",
   "chat.settings.code_wrappable": "コードブロック折り返し",
   "chat.settings.show_line_numbers": "コードに行番号を表示",
   "chat.settings.thought_auto_collapse.label": "思考内容を自動的に折りたたむ",

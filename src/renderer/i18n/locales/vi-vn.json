@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Bật kiểu dáng đẹp cho khối mã, ví dụ: thẻ html",
   "chat.settings.code_image_tools.label": "Bật công cụ xem trước",
   "chat.settings.code_image_tools.tip": "Bật công cụ xem trước cho hình ảnh được kết xuất từ các khối mã như mermaid",
+  "chat.settings.code_theme.cherry_default": "Cherry (mặc định)",
   "chat.settings.code_wrappable": "Khối mã có thể ngắt dòng",
   "chat.settings.show_line_numbers": "Hiển thị số dòng trong mã",
   "chat.settings.thought_auto_collapse.label": "Thu gọn Nội dung Suy nghĩ",

@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Utiliser un style de bloc de code plus esthétique, comme une carte HTML",
   "chat.settings.code_image_tools.label": "Activer l'outil d'aperçu",
   "chat.settings.code_image_tools.tip": "Activer les outils de prévisualisation pour les images rendues des blocs de code tels que mermaid",
+  "chat.settings.code_theme.cherry_default": "Cherry (par défaut)",
   "chat.settings.code_wrappable": "Blocs de code avec retours à la ligne",
   "chat.settings.show_line_numbers": "Afficher les numéros de ligne",
   "chat.settings.thought_auto_collapse.label": "Pliage automatique du contenu de la pensée",

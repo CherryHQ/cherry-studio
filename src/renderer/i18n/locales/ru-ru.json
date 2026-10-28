@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Используйте более эстетичный стиль блоков кода, например, HTML-карточки",
   "chat.settings.code_image_tools.label": "Включить инструменты предпросмотра",
   "chat.settings.code_image_tools.tip": "Включить инструменты предпросмотра для изображений, сгенерированных из блоков кода (например mermaid)",
+  "chat.settings.code_theme.cherry_default": "Cherry (по умолчанию)",
   "chat.settings.code_wrappable": "Блок кода можно переносить",
   "chat.settings.show_line_numbers": "Показать номера строк в коде",
   "chat.settings.thought_auto_collapse.label": "Автоматически сворачивать содержание мыслей",

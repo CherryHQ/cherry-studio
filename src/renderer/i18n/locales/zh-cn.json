@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "使用更美观的代码块样式，例如 HTML 卡片",
   "chat.settings.code_image_tools.label": "启用预览工具",
   "chat.settings.code_image_tools.tip": "为 mermaid 等代码块渲染后的图像启用预览工具",
+  "chat.settings.code_theme.cherry_default": "Cherry（默认）",
   "chat.settings.code_wrappable": "代码块可换行",
   "chat.settings.show_line_numbers": "代码显示行号",
   "chat.settings.thought_auto_collapse.label": "思考内容自动折叠",

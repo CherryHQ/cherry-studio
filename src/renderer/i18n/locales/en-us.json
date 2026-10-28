@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Enable fancy style for code block, e.g., html card",
   "chat.settings.code_image_tools.label": "Enable preview tools",
   "chat.settings.code_image_tools.tip": "Enable preview tools for images rendered from code blocks such as mermaid",
+  "chat.settings.code_theme.cherry_default": "Cherry (default)",
   "chat.settings.code_wrappable": "Code block wrappable",
   "chat.settings.show_line_numbers": "Show line numbers in code",
   "chat.settings.thought_auto_collapse.label": "Collapse Thought Content",

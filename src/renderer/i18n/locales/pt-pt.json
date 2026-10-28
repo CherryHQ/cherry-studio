@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Use um estilo de bloco de código mais agradável, como cartões HTML",
   "chat.settings.code_image_tools.label": "Ativar ferramenta de visualização",
   "chat.settings.code_image_tools.tip": "Ativar ferramentas de visualização para imagens renderizadas de blocos de código como mermaid",
+  "chat.settings.code_theme.cherry_default": "Cherry (predefinido)",
   "chat.settings.code_wrappable": "Bloco de código com quebra de linha",
   "chat.settings.show_line_numbers": "Exibir números de linha no código",
   "chat.settings.thought_auto_collapse.label": "Conteúdo de pensamento colapsado automaticamente",

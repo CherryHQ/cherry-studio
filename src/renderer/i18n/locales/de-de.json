@@ -903,6 +903,7 @@
   "chat.settings.code_fancy_block.tip": "Verwenden Sie schönere Codeblock-Stile, z.B. HTML-Karten",
   "chat.settings.code_image_tools.label": "Vorschau-Tools aktivieren",
   "chat.settings.code_image_tools.tip": "Aktivieren Sie Vorschau-Tools für gerenderte Bilder aus Codeblöcken wie Mermaid",
+  "chat.settings.code_theme.cherry_default": "Cherry (Standard)",
   "chat.settings.code_wrappable": "Codeblöcke können umbrechen",
   "chat.settings.show_line_numbers": "Code mit Zeilennummern anzeigen",
   "chat.settings.thought_auto_collapse.label": "Denkinhalt automatisch einklappen",

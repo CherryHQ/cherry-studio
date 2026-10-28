@@ -115,16 +115,19 @@ a different external source begins a fresh document epoch. Newly attached editor
 
 The viewer and adopted editor share language loading, semantic HighlightStyle and palette variables from
 `chat.code.viewer.theme_*`. Theme changes update colors without resetting the document or parsing it again.
+`auto` resolves to the Cherry default theme, a transparent CSS-variable palette that follows the application
+appearance, so a light/dark switch only recolors ([Agent Note](../../../.agents/notes/implemented/feature/2026-10-28-cherry-default-code-theme.md)).
 The shared loader preserves directly supported grammars and caller-configured extensions, then resolves missing
 names and aliases through the existing compatibility catalog and installed grammar keys. This covers `jsonc`,
 `shellscript`, and canonical names such as `clojure` and `latex` in
 document highlighting and HTML/Markdown exports.
 Both modes use two-column tab stops and preserve a full line of height for empty lines. Switching modes preserves
-text and line-number alignment, wrapped line heights and the code surface background.
+text and line-number alignment, wrapped line heights and the code surface background. In both modes line numbers
+scroll horizontally with the code instead of staying pinned.
 Integer vertical padding keeps CodeMirror's gutter baseline aligned with the viewer. The lazy editor waits for
 its language before mounting; returning to reading seeds visible syntax from the retained editor's parsed tree
 until Worker results arrive. Unparsed ranges retain the normal plain-source fallback.
-Generic Notes, prompt and configuration editors retain CodeMirror themes from `chat.code.editor.theme_*`, with a separate editor theme selector. The renderer entry applies shared syntax only when the adopted message or HTML-artifact host explicitly supplies it. Copy/save preserve source whitespace;
+Generic Notes, prompt and configuration editors retain CodeMirror themes from `chat.code.editor.theme_*`, with a separate editor theme selector; `auto` uses the Cherry chrome theme with the same palette. The renderer entry applies shared syntax only when the adopted message or HTML-artifact host explicitly supplies it. Copy/save preserve source whitespace;
 CodeMirror uses `sliceDoc` and the source line separator rather than implicitly converting CRLF.
 Initial content and external replacements normalize incoming LF, CRLF and CR into document lines before computing
 positions. A shared transaction filter normalizes inserted text from editing commands, search replacements, paste,
