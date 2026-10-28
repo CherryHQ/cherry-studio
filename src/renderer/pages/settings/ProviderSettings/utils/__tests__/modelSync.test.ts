@@ -27,6 +27,47 @@ beforeEach(() => {
 })
 
 describe('fetchResolvedProviderModels', () => {
+  it('imports resolved descriptions sparsely while retaining explicit remote endpoints', async () => {
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        { id: 'relay::tts-1', apiModelId: 'tts-1', name: 'tts-1', capabilities: [] },
+        {
+          id: 'relay::image-model',
+          apiModelId: 'image-model',
+          name: 'image-model',
+          endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+        }
+      ]
+    })
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'relay::tts-1',
+        apiModelId: 'tts-1',
+        capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH],
+        inputModalities: ['text'],
+        outputModalities: ['audio']
+      },
+      {
+        id: 'relay::image-model',
+        apiModelId: 'image-model',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      }
+    ])
+    const { models } = await fetchResolvedProviderModels('relay')
+    expect(models[0]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]
+    })
+    expect(toCreateModelDto('relay', models[0])).toEqual({ providerId: 'relay', modelId: 'tts-1' })
+    expect(toCreateModelDto('relay', models[1])).toEqual({
+      providerId: 'relay',
+      modelId: 'image-model',
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+  })
+
   it('throws when upstream model listing fails instead of returning an empty list', async () => {
     const apiKey = 'sk-should-not-reach-logs'
     const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})

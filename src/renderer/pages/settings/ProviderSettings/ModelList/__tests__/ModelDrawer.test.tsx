@@ -1,7 +1,9 @@
+import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ModelSchema } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import AddModelDrawer from '../ModelDrawer/AddModelDrawer'
@@ -88,6 +90,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
+    createModels: (items: any[]) => Promise.all(items.map((item) => createModelMock(item))),
     createModel: (...args: any[]) => createModelMock(...args),
     updateModel: (...args: any[]) => updateModelMock(...args)
   })
@@ -111,6 +114,20 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 describe('Model drawers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDataApiService.get.mockImplementation(async (path, options) =>
+      (options?.query?.ids ?? []).map((id: string) =>
+        ModelSchema.parse({
+          id: `${path.split('/')[2]}::${id}`,
+          providerId: path.split('/')[2],
+          name: id,
+          apiModelId: id,
+          capabilities: [],
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false
+        })
+      )
+    )
     ipcRequest.mockImplementation((route: string) =>
       route === 'app.get_info' ? Promise.resolve({}) : Promise.resolve(undefined)
     )
@@ -149,8 +166,7 @@ describe('Model drawers', () => {
         providerId: 'openai',
         modelId: 'alpha-model',
         name: 'Alpha Model',
-        group: 'Alpha',
-        endpointTypes: undefined
+        group: 'Alpha'
       })
     )
     expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('inputModalities')
@@ -228,10 +244,10 @@ describe('Model drawers', () => {
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: 'custom-provider',
-        modelId: 'chat-model',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        modelId: 'chat-model'
       })
     )
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('endpointTypes')
   })
 
   it('saves independent capability and input-modality selections when adding', async () => {

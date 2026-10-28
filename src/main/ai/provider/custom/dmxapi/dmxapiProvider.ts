@@ -1,33 +1,28 @@
-import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
-import { createOpenAI } from '@ai-sdk/openai'
-import {
-  OpenAICompatibleChatLanguageModel,
-  OpenAICompatibleEmbeddingModel,
-  OpenAICompatibleImageModel
-} from '@ai-sdk/openai-compatible'
+import { OpenAICompatibleEmbeddingModel, OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import { OpenAIImageModel } from '@ai-sdk/openai/internal'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { resolveDmxapiChatFamily } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { withoutTrailingApiVersion } from '@shared/utils/api'
 
+import type { LanguageModelAdapter } from '../../languageModelAdapter'
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
-import { resolveDmxapiNativeImageFamily } from './dmxapiImageRouting'
-import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
+import { resolveDmxapiLanguageModelAdapter } from './dmxapiLanguageModel'
+import { createDmxapiTransport } from './dmxapiTransport'
 
 export { dmxapiUsesCustomTransport } from './dmxapiImageRouting'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
 
 export interface DmxapiProviderSettings {
+  imageAdapter?: 'openai-native' | 'google' | 'compatible' | 'custom'
+  languageModelAdapter?: LanguageModelAdapter
+  endpointType?: EndpointType
   apiKey?: string
-  /** Base URL selected for this request. When `endpointBaseURLs` is absent, the
-   *  factory retains the legacy behavior of deriving every protocol from it. */
+  /** Fully resolved base URL of the selected endpoint. */
   baseURL?: string
   /** Explicit per-protocol URLs for providers whose endpoints use different hosts. */
   endpointBaseURLs?: Partial<Record<EndpointType, string>>
@@ -40,22 +35,6 @@ export interface DmxapiProvider extends ProviderV3 {
   languageModel(modelId: string): LanguageModelV3
   embeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
-}
-
-type DmxapiEmbeddingFamily = 'openai-compat' | 'gemini'
-
-const EMBEDDING_FAMILY_TABLE: Array<{
-  family: Exclude<DmxapiEmbeddingFamily, 'openai-compat'>
-  match: (modelId: string) => boolean
-}> = [
-  {
-    family: 'gemini',
-    match: (id) => /^(gemini-embedding-|embedding-001|text-embedding-\d{3}(?!-))/i.test(id)
-  }
-]
-
-function resolveEmbeddingFamily(modelId: string): DmxapiEmbeddingFamily {
-  return EMBEDDING_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat'
 }
 
 /**
@@ -93,19 +72,9 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     ...settings.headers
   })
 
-  const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? baseURL
-  const compatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(chatBaseURL)}${path}`
-  const nativeBaseURL = withoutTrailingApiVersion(baseURL)
-  const anthropicBaseURL =
-    settings.endpointBaseURLs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ?? formatApiHost(nativeBaseURL, true)
-  const geminiBaseURL =
-    settings.endpointBaseURLs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] ?? formatApiHost(nativeBaseURL, true, 'v1beta')
-  const openaiBaseURL =
-    settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? formatApiHost(nativeBaseURL, true)
-
   const googleProvider = () =>
     createGoogleGenerativeAI({
-      baseURL: geminiBaseURL,
+      baseURL,
       apiKey: resolveApiKey(),
       headers: settings.headers,
       fetch: customFetch
@@ -114,79 +83,37 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   const googleImageModel = (modelId: string) => googleProvider().image(modelId)
   const googleEmbeddingModel = (modelId: string) => googleProvider().embeddingModel(modelId)
 
-  const openaiChatModel = (modelId: string) =>
-    createOpenAI({
-      baseURL: openaiBaseURL,
-      apiKey: resolveApiKey(),
-      headers: settings.headers,
-      fetch: customFetch
-    }).chat(modelId)
-
-  const transport = buildDmxapiTransport(settings)
-
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    switch (resolveDmxapiChatFamily(modelId)) {
-      case 'anthropic':
-        return new AnthropicMessagesLanguageModel(modelId, {
-          provider: `${DMXAPI_PROVIDER_NAME}.anthropic`,
-          baseURL: anthropicBaseURL,
-          headers: () => ({ 'x-api-key': resolveApiKey(), ...settings.headers }),
-          fetch: customFetch,
-          supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
-          supportsNativeStructuredOutput: false
-        })
-      case 'gemini':
-        return new GoogleGenerativeAILanguageModel(modelId, {
-          provider: `${DMXAPI_PROVIDER_NAME}.google`,
-          baseURL: geminiBaseURL,
-          headers: () => ({ 'x-goog-api-key': resolveApiKey(), ...settings.headers }),
-          fetch: customFetch,
-          generateId: () => `${DMXAPI_PROVIDER_NAME}-${Date.now()}`,
-          supportedUrls: () => ({})
-        })
-      case 'openai':
-        return openaiChatModel(modelId)
-      default:
-        return new OpenAICompatibleChatLanguageModel(modelId, {
-          provider: `${DMXAPI_PROVIDER_NAME}.chat`,
-          url: compatUrl,
-          headers: compatHeaders,
-          fetch: customFetch
-        })
-    }
+    const adapter = settings.languageModelAdapter ?? resolveDmxapiLanguageModelAdapter(settings.endpointType, modelId)
+    if (!adapter) throw new Error('DMXAPI chat requires an explicit supported endpoint')
+    return adapter.createModel(modelId, { baseURL, apiKey: resolveApiKey, headers: compatHeaders, fetch: customFetch })
   }
 
   const createImageModelV3 = (modelId: string): ImageModelV3 => {
-    // Native SDK families win first — `gpt-image-*` / `dall-e-*` via
-    // `@ai-sdk/openai`'s `OpenAIImageModel` (multipart edits, etc.),
-    // `imagen-*` / `gemini-*-image*` via `@ai-sdk/google`'s `provider.image`.
-    // Putting these ahead of `resolveDmxapiFamily` ensures a model that has
-    // a first-party adapter is never accidentally routed to the bespoke
-    // transport just because a family-table matcher overlaps.
-    switch (resolveDmxapiNativeImageFamily(modelId)) {
+    const imageUrl = ({ path }: { path: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+    switch (settings.imageAdapter) {
+      case 'google':
+        return googleImageModel(modelId)
       case 'openai-native':
         return new OpenAIImageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.openai-image`,
-          url: compatUrl,
+          url: imageUrl,
           headers: compatHeaders,
           fetch: customFetch
         })
-      case 'gemini-native':
-        return googleImageModel(modelId)
+      case 'custom':
+        return createImageGenerationModel(modelId, {
+          provider: DMXAPI_PROVIDER_NAME,
+          transport: buildDmxapiTransport(settings)
+        })
+      case 'compatible':
+        break
+      default:
+        throw new Error('DMXAPI image requires a resolved adapter')
     }
-    // Bespoke families (Doubao Seedream / Wan / async Qwen-image) — no native
-    // AI SDK adapter covers these wire shapes (Responses-API string/messages
-    // body, `extra.output.results[].url` async wrapper), so they go through
-    // the custom transport.
-    if (resolveDmxapiFamily(modelId) !== 'openai-flat') {
-      return createImageGenerationModel(modelId, { provider: DMXAPI_PROVIDER_NAME, transport })
-    }
-    // Fallback for unknown models — OpenAI-compat image model is the safest
-    // assumption since DMXAPI's gateway translates the rest of its catalog
-    // through that wire shape.
     return new OpenAICompatibleImageModel(modelId, {
       provider: `${DMXAPI_PROVIDER_NAME}.image`,
-      url: compatUrl,
+      url: imageUrl,
       headers: compatHeaders,
       fetch: customFetch
     })
@@ -196,12 +123,12 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
   provider.embeddingModel = (modelId: string): EmbeddingModelV3 => {
-    if (resolveEmbeddingFamily(modelId) === 'gemini') {
+    if (settings.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
       return googleEmbeddingModel(modelId)
     }
     return new OpenAICompatibleEmbeddingModel(modelId, {
       provider: `${DMXAPI_PROVIDER_NAME}.embedding`,
-      url: compatUrl,
+      url: ({ path }) => `${withoutTrailingSlash(baseURL)}${path}`,
       headers: compatHeaders,
       fetch: customFetch
     })

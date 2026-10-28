@@ -100,6 +100,29 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('configured cloud speech', () => {
+  it('omits a Gemini model with explicitly cleared capabilities without breaking other speech models', async () => {
+    addModel('unsupported-google', 'custom-audio', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    dbh.db
+      .update(userModelTable)
+      .set({ capabilities: [] })
+      .where(eq(userModelTable.providerId, 'unsupported-google'))
+      .run()
+    const modelId = 'unsupported-google::custom-audio'
+
+    expect(
+      listSpeechModels()
+        .map(({ id }) => id)
+        .sort()
+    ).toEqual(['speech-google::gemini-2.5-flash-preview-tts', 'speech-openai::tts-1'])
+    expect(await resolveSpeechConfiguration({ modelId })).toMatchObject({
+      modelId,
+      status: { status: 'unsupported' }
+    })
+    await expect(
+      generateModelSpeech(modelId, 'Hello', { voice: 'Kore' }, new AbortController().signal)
+    ).rejects.toThrow(NoSuchModelError)
+  })
+
   it.each(['https://aiplatform.googleapis.com', 'https://vertex.example/api'])(
     'rejects Vertex IAM speech consistently before transport at %s',
     async (baseUrl) => {
@@ -131,6 +154,22 @@ describe('configured cloud speech', () => {
       expect(fetch).not.toHaveBeenCalled()
     }
   )
+
+  it('rejects transcription-only models during speech resolution before transport', async () => {
+    addModel('transcription', 'whisper-1', ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION)
+    dbh.db
+      .update(userModelTable)
+      .set({ capabilities: [], inputModalities: ['audio'], outputModalities: ['text'] })
+      .where(eq(userModelTable.providerId, 'transcription'))
+      .run()
+    const fetch = vi.spyOn(net, 'fetch')
+    const modelId = 'transcription::whisper-1'
+
+    expect(listSpeechModels().map(({ id }) => id)).not.toContain(modelId)
+    expect(await resolveSpeechConfiguration({ modelId })).toMatchObject({ status: { status: 'unsupported' } })
+    expect(() => resolveSpeechRequest({ modelId, voice: 'nova' })).toThrow(NoSuchModelError)
+    expect(fetch).not.toHaveBeenCalled()
+  })
 
   it('lists only finite speech models and keeps unavailable explicit selections', async () => {
     addModel('live-google', 'gemini-live-audio', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)

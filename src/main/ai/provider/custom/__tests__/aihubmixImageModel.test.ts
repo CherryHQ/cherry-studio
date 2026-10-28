@@ -1,20 +1,6 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const innerDoGenerate = vi.fn()
-const InnerCtor = vi.fn()
-
-vi.mock('@ai-sdk/openai-compatible', () => ({
-  OpenAICompatibleImageModel: class {
-    constructor(modelId: string, config: unknown) {
-      InnerCtor(modelId, config)
-    }
-    doGenerate(options: unknown) {
-      return innerDoGenerate(options)
-    }
-  }
-}))
-
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
@@ -22,14 +8,12 @@ import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
 /**
  * Covers the relocated AiHubMix special branches (Google native image models,
  * Ideogram V_3 FormData, Ideogram V_1/V_2 JSON/FormData), response parsing,
- * abort, error handling, and the byte-identical default delegate to the inner
- * `OpenAICompatibleImageModel`.
+ * abort, error handling, and standard OpenAI image requests.
  */
 describe('AihubmixImageModel', () => {
   afterEach(() => {
     vi.restoreAllMocks()
-    innerDoGenerate.mockReset()
-    InnerCtor.mockReset()
+    vi.unstubAllGlobals()
   })
 
   const baseURL = 'https://aihubmix.com/v1'
@@ -37,6 +21,13 @@ describe('AihubmixImageModel', () => {
   const headers = () => ({ Authorization: 'Bearer sk-test', 'APP-Code': 'MLTG2087' })
 
   const make = (modelId: string) => createAihubmixImageModel(modelId, { baseURL, resolveApiKey, headers })
+  const makeGoogle = (modelId: string) =>
+    createAihubmixImageModel(modelId, {
+      endpointType: 'google-generate-content',
+      baseURL: 'https://aihubmix.com/gemini/v1beta',
+      resolveApiKey,
+      headers
+    })
 
   const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions => ({
     prompt: 'a fox',
@@ -51,14 +42,6 @@ describe('AihubmixImageModel', () => {
   })
 
   const okJson = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
-
-  it('exposes a v3 ImageModel spec', () => {
-    const model = make('gpt-image-1')
-    expect(model.specificationVersion).toBe('v3')
-    expect(model.provider).toBe('aihubmix.image')
-    expect(model.modelId).toBe('gpt-image-1')
-    expect(model.maxImagesPerCall).toBe(10)
-  })
 
   describe('Google native image models', () => {
     it('routes Gemini image models through @ai-sdk/google and normalizes image config', async () => {
@@ -78,7 +61,7 @@ describe('AihubmixImageModel', () => {
       )
       vi.stubGlobal('fetch', fetchMock)
 
-      const model = make('gemini-3-pro-image-preview')
+      const model = makeGoogle('gemini-3-pro-image-preview')
       const result = await model.doGenerate(
         callOptions({
           providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize: '2k' } }
@@ -98,7 +81,7 @@ describe('AihubmixImageModel', () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ predictions: [{ bytesBase64Encoded: 'IMG' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const result = await make('imagen-4.0-generate-preview-06-06').doGenerate(
+      const result = await makeGoogle('imagen-4.0-generate-preview-06-06').doGenerate(
         callOptions({
           size: '16:9' as never,
           providerOptions: { aihubmix: { personGeneration: 'ALLOW_ADULT' } }
@@ -326,30 +309,19 @@ describe('AihubmixImageModel', () => {
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
   })
 
-  describe('default branch delegates byte-identically to the inner OpenAICompatibleImageModel', () => {
-    for (const id of ['gpt-image-1', 'gpt-image-2', 'FLUX.1-Kontext-pro', 'some-unknown-model']) {
-      it(`delegates ${id} forwarding the options to the inner model and returns its result unchanged`, async () => {
-        const innerResult = { images: ['data:image/png;base64,DELEGATED'], warnings: [], response: {} }
-        innerDoGenerate.mockResolvedValue(innerResult)
-
-        const options = callOptions({ providerOptions: { aihubmix: { mode: 'generate', quality: 'high' } } })
-        const result = await make(id).doGenerate(options)
-
-        expect(InnerCtor).toHaveBeenCalledWith(id, expect.objectContaining({ provider: 'aihubmix.image', headers }))
-        const ctorConfig = InnerCtor.mock.calls[0][1] as { url: (a: { path: string }) => string }
-        expect(ctorConfig.url({ path: '/images/generations' })).toBe('https://aihubmix.com/v1/images/generations')
-        // The default branch snake-cases the aihubmix bag before delegating, so
-        // the inner model receives an equivalent (not reference-identical)
-        // options object; the bag here has no rename-able keys, so it deep-equals.
-        expect(innerDoGenerate).toHaveBeenCalledWith(options)
-        expect(result).toBe(innerResult)
+  it.each(['gpt-image-1', 'FLUX.1-Kontext-pro', 'gemini-3-pro-image-preview'])(
+    'uses OpenAI Images for %s when no Google endpoint was selected',
+    async (modelId) => {
+      const fetch = vi.fn().mockResolvedValue(okJson({ created: 1, data: [{ b64_json: 'QUJD' }] }))
+      vi.stubGlobal('fetch', fetch)
+      const result = await make(modelId).doGenerate(callOptions({ providerOptions: { aihubmix: { quality: 'high' } } }))
+      expect(fetch.mock.calls[0][0]).toBe('https://aihubmix.com/v1/images/generations')
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+        model: modelId,
+        prompt: 'a fox',
+        quality: 'high'
       })
+      expect(result.images).toEqual(['QUJD'])
     }
-
-    it('does NOT delegate non-default ids (V_2) to the inner model', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [] })))
-      await make('V_2').doGenerate(callOptions())
-      expect(innerDoGenerate).not.toHaveBeenCalled()
-    })
-  })
+  )
 })

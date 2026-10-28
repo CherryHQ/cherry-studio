@@ -7,6 +7,7 @@ import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
   resolveAiSdkProviderId,
   resolveEffectiveEndpoint,
+  resolveRequestEndpoint,
   resolveProviderOptionsKey,
   resolveProviderVariant,
   resolveWireModelId
@@ -62,16 +63,6 @@ describe('resolveProviderOptionsKey', () => {
 
   it('preserves provider ids whose runtime namespace matches their registration', () => {
     expect(resolveProviderOptionsKey('openai')).toBe('openai')
-  })
-
-  it('uses the resolved gateway route instead of re-detecting the model in the encoder', () => {
-    expect(
-      resolveProviderOptionsKey('aihubmix', {
-        actualProviderId: 'aihubmix',
-        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        gatewayProviderOptionsKey: 'google'
-      })
-    ).toBe('google')
   })
 
   it('uses the concrete provider namespace for openai-compatible adapters', () => {
@@ -189,7 +180,7 @@ describe('resolveAiSdkProviderId', () => {
       expect(resolvedEndpoint).toEqual({
         endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
         baseUrl: 'https://express-ent-admin.cherryin.net/v1',
-        providerOptionsKey: undefined
+        languageModelAdapter: undefined
       })
       expect(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType)).toBe('open-responses')
     })
@@ -465,7 +456,7 @@ describe('resolveEffectiveEndpoint', () => {
     ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, providerOptionsKey) => {
       expect(resolveEffectiveEndpoint(aihubmix, { id } as never)).toMatchObject({
         endpointType,
-        providerOptionsKey
+        languageModelAdapter: { providerOptionsKey }
       })
     })
 
@@ -478,7 +469,7 @@ describe('resolveEffectiveEndpoint', () => {
       const model = { id: 'claude-opus-4-6', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as never
       expect(resolveEffectiveEndpoint(aihubmix, model)).toMatchObject({
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        providerOptionsKey: undefined
+        languageModelAdapter: expect.objectContaining({ providerOptionsKey: 'aihubmix' })
       })
     })
 
@@ -500,8 +491,9 @@ describe('resolveEffectiveEndpoint', () => {
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       )
       expect(
-        resolveEffectiveEndpoint(staleAihubmix, { id: 'gemini-2.5-pro' } as never).providerOptionsKey
-      ).toBeUndefined()
+        resolveEffectiveEndpoint(staleAihubmix, { id: 'gemini-2.5-pro' } as never).languageModelAdapter
+          ?.providerOptionsKey
+      ).toBe('aihubmix')
       expect(resolveEffectiveEndpoint(staleAihubmix, { id: 'gpt-4o' } as never).endpointType).toBe(
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       )
@@ -539,7 +531,7 @@ describe('resolveEffectiveEndpoint', () => {
     ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, providerOptionsKey) => {
       expect(resolveEffectiveEndpoint(dmxapi, { id } as never)).toMatchObject({
         endpointType,
-        providerOptionsKey
+        languageModelAdapter: { providerOptionsKey }
       })
     })
 
@@ -604,5 +596,67 @@ describe('inherited endpoint preference', () => {
       endpointType: ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH,
       baseUrl: 'https://relay.example/v1'
     })
+  })
+})
+
+describe('request endpoint selection', () => {
+  const provider = makeProvider({
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      'openai-chat-completions': { baseUrl: 'https://chat.example/v1' },
+      'openai-image-generation': { baseUrl: 'https://images.example/v1' },
+      'openai-image-edit': { baseUrl: 'https://edit.example/v1' }
+    }
+  })
+  it('uses the image address without rewriting LLM ordering', () => {
+    const model = makeModel({
+      capabilities: ['image-generation'],
+      endpointTypes: ['openai-chat-completions', 'openai-image-generation']
+    })
+    expect(resolveRequestEndpoint(provider, model, 'image')).toMatchObject({
+      endpointType: 'openai-image-generation',
+      baseUrl: 'https://images.example/v1'
+    })
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: 'openai-chat-completions',
+      baseUrl: 'https://chat.example/v1'
+    })
+  })
+  it('uses an explicit edit endpoint and keeps generation on its own endpoint', () => {
+    const model = makeModel({
+      capabilities: ['image-generation'],
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    })
+    expect(resolveRequestEndpoint(provider, model, 'image-edit').baseUrl).toBe('https://edit.example/v1')
+    expect(resolveRequestEndpoint(provider, model, 'image').baseUrl).toBe('https://images.example/v1')
+  })
+  it('preserves declared ordering between native Google and dedicated image transports', () => {
+    const multiProvider = makeProvider({
+      ...provider,
+      endpointConfigs: {
+        ...provider.endpointConfigs,
+        'google-generate-content': { baseUrl: 'https://google.example/v1beta' }
+      }
+    })
+    const model = makeModel({
+      capabilities: ['image-generation'],
+      endpointTypes: ['google-generate-content', 'openai-image-generation']
+    })
+    expect(resolveRequestEndpoint(multiProvider, model, 'image')).toMatchObject({
+      endpointType: 'google-generate-content',
+      baseUrl: 'https://google.example/v1beta'
+    })
+    expect(
+      resolveRequestEndpoint(
+        multiProvider,
+        { ...model, endpointTypes: ['openai-image-generation', 'google-generate-content'] },
+        'image'
+      ).baseUrl
+    ).toBe('https://images.example/v1')
+  })
+  it('rejects an unrelated request instead of choosing the first model endpoint', () => {
+    expect(() =>
+      resolveRequestEndpoint(provider, makeModel({ endpointTypes: ['anthropic-messages'] }), 'embedding')
+    ).toThrow('no endpoint')
   })
 })

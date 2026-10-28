@@ -44,6 +44,7 @@ import {
   REASONING_EFFORT,
   REASONING_FORMAT_PROFILES,
   selectFormatWire,
+  suggestModelEndpoints,
   stripBedrockDottedVendorPrefix,
   stripBedrockRevision,
   stripDateSnapshot,
@@ -54,6 +55,7 @@ import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
+import { resolveGatewayDefaultEndpoint } from '@shared/data/presets/gatewayChatRouting'
 import type {
   Currency,
   ImageGenerationSupport,
@@ -542,7 +544,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
   let outputModalities: Modality[] | undefined = presetModel.outputModalities?.length
     ? [...presetModel.outputModalities]
     : undefined
-  let endpointTypes: EndpointType[] | undefined = undefined
+  let endpointTypes: EndpointType[] | undefined = presetModel.endpointTypes ? [...presetModel.endpointTypes] : undefined
   const name = catalogOverride?.name ?? presetModel.name ?? presetModel.id
   const description = presetModel.description
   let contextWindow = presetModel.contextWindow
@@ -1089,6 +1091,11 @@ class ProviderRegistryService {
     return this.resolveModel(this.getEffectiveProviderContext(providerId), modelId)
   }
 
+  lookupModels(providerId: string, modelIds: string[]) {
+    const context = this.getEffectiveProviderContext(providerId)
+    return modelIds.map((modelId) => this.resolveModel(context, modelId))
+  }
+
   /** Resolve registry metadata from explicit provider context without querying SQLite. */
   resolveModel(
     providerContext: ReasoningProviderContext,
@@ -1121,9 +1128,20 @@ class ProviderRegistryService {
       }
     }
     const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
-    const presetModel =
+    const matchedModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
+
+    const presetModel = matchedModel
+      ? {
+          ...matchedModel,
+          endpointTypes: suggestModelEndpoints(
+            providerContext,
+            matchedModel,
+            resolveGatewayDefaultEndpoint(providerContext, modelId)
+          )
+        }
+      : null
 
     return {
       presetModel,

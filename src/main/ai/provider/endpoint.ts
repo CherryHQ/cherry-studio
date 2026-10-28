@@ -3,24 +3,27 @@
  * `docs/references/ai/adapter-family.md` for design rationale.
  */
 
-import { ENDPOINT_CONNECTION_FAMILY } from '@cherrystudio/provider-registry'
+import { supportsNativeTask } from '@cherrystudio/provider-registry'
 import { resolveEndpointBaseUrl } from '@main/ai/provider/endpointConnection'
+import { selectChatEndpoint } from '@shared/ai/modelEndpoint'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
-import { resolveGatewayRoute } from './gatewayRouting'
+import { extensions } from './extensions'
+import type { LanguageModelAdapter } from './languageModelAdapter'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
   endpointType: EndpointType | undefined
   /** Empty string when no config matched. */
   baseUrl: string
-  /** Provider-options namespace selected by a multi-backend gateway route. */
-  providerOptionsKey?: string
+  /** Executable adapter and its parameter namespace, supplied by the provider extension. */
+  languageModelAdapter?: LanguageModelAdapter
 }
 
 /**
@@ -47,24 +50,91 @@ export function resolveEffectiveEndpoint(
   model: Model,
   preferredEndpointType?: EndpointType
 ): ResolvedEndpoint {
-  const gatewayRoute = resolveGatewayRoute(provider, model)
-  const preferred =
-    preferredEndpointType &&
-    model.endpointTypes?.includes(preferredEndpointType) &&
-    resolveEndpointBaseUrl(provider, preferredEndpointType)
-      ? preferredEndpointType
-      : undefined
+  const endpointType = selectChatEndpoint(provider, model, preferredEndpointType)
+  const languageModelAdapter = resolveLanguageModelAdapter(
+    endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined,
+    endpointType,
+    model.apiModelId ?? model.id
+  )
+  return { endpointType, baseUrl: resolveEndpointBaseUrl(provider, endpointType), languageModelAdapter }
+}
+
+/** Provider-specific execution is registered beside the provider factory. */
+export function resolveLanguageModelAdapter(
+  providerId: string | undefined,
+  endpointType: EndpointType | undefined,
+  modelId: string
+): LanguageModelAdapter | undefined {
+  const config = extensions.find((extension) => providerId && extension.hasProviderId(providerId))?.config
+  return config && 'resolveLanguageModelAdapter' in config
+    ? config.resolveLanguageModelAdapter(endpointType, modelId)
+    : undefined
+}
+
+export type ModelRequestKind = 'image' | 'image-edit' | 'embedding' | 'speech' | 'rerank'
+
+/** Select the target before constructing SDK settings, without changing the model's chat ordering. */
+export function resolveRequestEndpoint(provider: Provider, model: Model, kind: ModelRequestKind): ResolvedEndpoint {
+  const endpoint = findRequestEndpoint(provider, model, kind)
+  if (!endpoint) throw new Error(`Model ${model.id} has no endpoint for ${kind}`)
+  return endpoint
+}
+
+/** The same request routing used by execution, with unsupported models omitted during discovery. */
+export function findRequestEndpoint(
+  provider: Provider,
+  model: Model,
+  kind: ModelRequestKind
+): ResolvedEndpoint | undefined {
+  if (provider.id === LOCAL_EMBEDDING_PROVIDER_ID && kind === 'embedding') {
+    return { endpointType: undefined, baseUrl: '' }
+  }
+  const dedicated: Record<ModelRequestKind, EndpointType[]> = {
+    image: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+    'image-edit': [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+    embedding: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+    speech: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH],
+    rerank: [ENDPOINT_TYPE.JINA_RERANK]
+  }
+  const capability = {
+    image: MODEL_CAPABILITY.IMAGE_GENERATION,
+    'image-edit': MODEL_CAPABILITY.IMAGE_GENERATION,
+    embedding: MODEL_CAPABILITY.EMBEDDING,
+    speech: MODEL_CAPABILITY.AUDIO_GENERATION,
+    rerank: MODEL_CAPABILITY.RERANK
+  }[kind]
+  const declared = model.endpointTypes?.length
+    ? model.endpointTypes
+    : [resolveEffectiveEndpoint(provider, model).endpointType].filter((ep): ep is EndpointType => !!ep)
+  const general = declared.filter((ep) => {
+    if (!model.capabilities.includes(capability)) return false
+    if (supportsNativeTask(provider.endpointConfigs?.[ep]?.adapterFamily, capability)) return true
+    if (kind === 'speech') {
+      return (
+        ep === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT &&
+        model.inputModalities?.length === 1 &&
+        model.inputModalities[0] === 'text' &&
+        model.outputModalities?.length === 1 &&
+        model.outputModalities[0] === 'audio'
+      )
+    }
+    return [
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.OLLAMA_CHAT,
+      ENDPOINT_TYPE.OLLAMA_GENERATE
+    ].some((candidate) => candidate === ep)
+  })
+  const applicable = declared.filter(
+    (ep) => dedicated[kind].includes(ep) || (ep === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && general.includes(ep))
+  )
   const endpointType =
-    preferred ??
-    model.endpointTypes?.[0] ??
-    gatewayRoute?.endpointType ??
-    provider.defaultChatEndpoint ??
-    (Object.keys(ENDPOINT_CONNECTION_FAMILY) as EndpointType[]).find(
-      (candidate) => provider.endpointConfigs?.[candidate]?.baseUrl
-    )
-  const providerOptionsKey =
-    gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
-  return { endpointType, baseUrl: resolveEndpointBaseUrl(provider, endpointType), providerOptionsKey }
+    (kind === 'image-edit' && declared.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)
+      ? ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+      : applicable[0]) ?? general[0]
+  if (!endpointType) return undefined
+  return resolveEffectiveEndpoint(provider, { ...model, endpointTypes: [endpointType] })
 }
 
 /** Maps base id → variant id (`openai` + `openai-chat-completions` → `openai-chat`). No-op when no variant exists. */
@@ -107,11 +177,8 @@ export function resolveProviderOptionsKey(
   context?: {
     actualProviderId?: string
     endpointType?: EndpointType
-    gatewayProviderOptionsKey?: string
   }
 ): string {
-  if (context?.gatewayProviderOptionsKey) return context.gatewayProviderOptionsKey
-
   switch (providerId) {
     // open-responses included: `createOpenResponses({ name: 'openai' })` keeps
     // the wire namespace 'openai'.
@@ -144,8 +211,6 @@ export function resolveProviderOptionsKey(
     case 'cherryin':
     case 'cherryin-chat':
     case 'newapi':
-    case 'aihubmix':
-    case SystemProviderIds.dmxapi:
     case SystemProviderIds.gateway:
       if (context?.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return 'anthropic'
       if (context?.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return 'google'
@@ -164,9 +229,11 @@ export function resolveProviderOptionsKey(
  * provider-option writers can never disagree on the namespace.
  */
 export function resolveEndpointProviderOptionsKey(provider: Provider, resolvedEndpoint: ResolvedEndpoint): string {
-  return resolveProviderOptionsKey(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType), {
-    actualProviderId: provider.id,
-    endpointType: resolvedEndpoint.endpointType,
-    gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-  })
+  return (
+    resolvedEndpoint.languageModelAdapter?.providerOptionsKey ??
+    resolveProviderOptionsKey(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType), {
+      actualProviderId: provider.id,
+      endpointType: resolvedEndpoint.endpointType
+    })
+  )
 }

@@ -150,6 +150,87 @@ export function canInheritEndpointConnection(
   )
 }
 
+export interface EndpointConnectionSource {
+  defaultChatEndpoint?: EndpointType
+  endpointConfigs?: Partial<Record<EndpointType, PersistedEndpointConfig>> | null
+}
+
+/** Selects a configured connection; URL normalization and request semantics remain caller-owned. */
+export function resolveEndpointConnection(
+  provider: EndpointConnectionSource,
+  target: EndpointType | undefined
+): { source: EndpointType; baseUrl: string } | undefined {
+  if (!target) return undefined
+  const configs = provider.endpointConfigs
+  for (const source of [
+    target,
+    provider.defaultChatEndpoint,
+    ...(Object.keys(ENDPOINT_CONNECTION_FAMILY) as EndpointType[])
+  ]) {
+    if (!source || !canInheritEndpointConnection(target, source, configs?.[target], configs?.[source])) continue
+    const baseUrl = configs?.[source]?.baseUrl?.trim()
+    if (baseUrl) return { source, baseUrl }
+  }
+  return undefined
+}
+
+/** Tasks served by native adapters through their configured connection endpoint. */
+export function supportsNativeTask(adapterFamily: string | undefined, capability: ModelCapability): boolean {
+  if (adapterFamily === 'voyage') {
+    return capability === MODEL_CAPABILITY.EMBEDDING || capability === MODEL_CAPABILITY.RERANK
+  }
+  return adapterFamily === 'bedrock' && capability === MODEL_CAPABILITY.EMBEDDING
+}
+
+/** Suggestions are deployment-aware defaults, never replacements for explicit model endpoints. */
+export function suggestModelEndpoints(
+  provider: EndpointConnectionSource,
+  model: Pick<ModelConfig, 'endpointTypes' | 'capabilities' | 'outputModalities'>,
+  deploymentDefaultEndpoint?: EndpointType
+): EndpointType[] | undefined {
+  const taskOnly =
+    (model.capabilities ?? []).some((capability) =>
+      [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK].some((task) => task === capability)
+    ) ||
+    (model.outputModalities?.some((modality) => modality !== 'text') && !model.outputModalities?.includes('text'))
+  const chatDefault = deploymentDefaultEndpoint ?? provider.defaultChatEndpoint
+  if (!taskOnly && chatDefault) return [chatDefault]
+  const nativeEndpoint = provider.defaultChatEndpoint
+  if (
+    nativeEndpoint &&
+    (model.capabilities ?? []).some((capability) =>
+      supportsNativeTask(provider.endpointConfigs?.[nativeEndpoint]?.adapterFamily, capability)
+    ) &&
+    resolveEndpointConnection(provider, nativeEndpoint)
+  )
+    return [nativeEndpoint]
+  const declared = model.endpointTypes?.filter((endpoint) => resolveEndpointConnection(provider, endpoint))
+  if (declared?.length) return declared
+  const defaultEndpoint = provider.defaultChatEndpoint
+  const capabilities = model.capabilities ?? []
+  let candidates: EndpointType[]
+  if (capabilities.includes(MODEL_CAPABILITY.EMBEDDING)) {
+    candidates = [ENDPOINT_TYPE.OPENAI_EMBEDDINGS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, ENDPOINT_TYPE.OLLAMA_CHAT]
+  } else if (capabilities.includes(MODEL_CAPABILITY.RERANK)) {
+    candidates = [ENDPOINT_TYPE.JINA_RERANK]
+  } else if (
+    capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) &&
+    model.outputModalities?.length === 1 &&
+    model.outputModalities[0] === 'audio'
+  ) {
+    candidates = model.endpointTypes?.length
+      ? []
+      : [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]
+  } else if (capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) && !model.outputModalities?.includes('text')) {
+    candidates = [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+  } else {
+    return defaultEndpoint ? [defaultEndpoint] : undefined
+  }
+  const compatible = candidates.filter((endpoint) => resolveEndpointConnection(provider, endpoint))
+  const preferred = defaultEndpoint && compatible.includes(defaultEndpoint) ? defaultEndpoint : compatible[0]
+  return preferred ? [preferred] : undefined
+}
+
 /**
  * Capability-exclusive endpoints imply a model capability: a model whose primary
  * endpoint is `jina-rerank` can only rerank, `openai-embeddings` can only embed,

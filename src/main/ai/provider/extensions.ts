@@ -21,9 +21,11 @@ import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/a
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { resolveAihubmixLanguageModelAdapter } from './custom/aihubmix/aihubmixLanguageModel'
 import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
 import type { ComfyuiProvider, ComfyuiProviderSettings } from './custom/comfyui/comfyuiProvider'
 import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
+import { resolveDmxapiLanguageModelAdapter } from './custom/dmxapi/dmxapiLanguageModel'
 import type { DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import type { LocalEmbeddingProviderSettings } from './custom/localEmbedding/localEmbeddingProvider'
 import type { MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
@@ -41,6 +43,7 @@ import type { PpioProviderSettings } from './custom/ppio/ppioProvider'
 import type { SiliconProviderSettings } from './custom/silicon/siliconProvider'
 import type { TokenhubProviderSettings } from './custom/tokenhub/tokenhubProvider'
 import type { ZhipuProviderSettings } from './custom/zhipuProvider'
+import type { LanguageModelAdapterExtension } from './languageModelAdapter'
 
 let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
 let moonshotWebSearchToolName: typeof KIMI_WEB_SEARCH_TOOL_NAME | undefined
@@ -261,12 +264,14 @@ export const MoonshotExtension = ProviderExtension.create({
   }
 } as const satisfies ProviderExtensionConfig<MoonshotProviderSettings, MoonshotProvider, 'moonshot'>)
 
-/** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
+/** AiHubMix — protocol execution bound to the selected endpoint. */
 export const AiHubMixExtension = ProviderExtension.create({
   name: 'aihubmix',
+  resolveLanguageModelAdapter: resolveAihubmixLanguageModelAdapter,
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/aihubmix/aihubmixProvider')).createAihubmix(settings)
-} as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ProviderV3, 'aihubmix'>)
+} as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ProviderV3, 'aihubmix'> &
+  LanguageModelAdapterExtension)
 
 /** NewAPI — multi-backend gateway routed by endpoint_type. */
 export const NewApiExtension = ProviderExtension.create({
@@ -297,9 +302,11 @@ export const PpioExtension = ProviderExtension.create({
  */
 export const DmxapiExtension = ProviderExtension.create({
   name: 'dmxapi',
+  resolveLanguageModelAdapter: resolveDmxapiLanguageModelAdapter,
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/dmxapi/dmxapiProvider')).createDmxapiProvider(settings)
-} as const satisfies ProviderExtensionConfig<DmxapiProviderSettings, ProviderV3, 'dmxapi'>)
+} as const satisfies ProviderExtensionConfig<DmxapiProviderSettings, ProviderV3, 'dmxapi'> &
+  LanguageModelAdapterExtension)
 
 /**
  * SiliconFlow Extension - OpenAI-compatible chat + embedding, URL-returning sync image generation.

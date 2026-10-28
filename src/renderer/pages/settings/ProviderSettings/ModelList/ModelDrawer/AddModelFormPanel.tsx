@@ -7,13 +7,17 @@ import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
+import type { CreateModelDto } from '@shared/data/api/schemas/models'
+import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
+import { resolveProviderModelDefaults } from '../../utils/modelSync'
 import { getInitialAddModelFormState, splitModelIds } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
+import { ModelConnectionDetails } from './ModelConnectionDetails'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import { ModelMetadataControls } from './ModelMetadataControls'
 import type { AddModelDrawerPrefill, ModelBasicFormState, ModelMetadata } from './types'
@@ -46,9 +50,15 @@ export default function AddModelFormPanel({
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { models } = useModels({ providerId })
-  const { createModel } = useModelMutations()
+  const { createModels } = useModelMutations()
   const [formState, setFormState] = useState<ModelBasicFormState>(() => getInitialAddModelFormState(null))
-  const [metadata, setMetadata] = useState<ModelMetadata>({ capabilities: [] })
+  const [overrides, setOverrides] = useState<Partial<ModelMetadata> & Pick<CreateModelDto, 'endpointTypes'>>({})
+  const [defaults, setDefaults] = useState<Model | null>(null)
+  const identityRef = useRef('')
+  identityRef.current = `${providerId}::${formState.modelId.trim()}`
+  const resolutionRef = useRef(0)
+  const metadata: ModelMetadata = { capabilities: [], ...defaults, ...overrides }
+  const endpointTypes = overrides.endpointTypes ?? defaults?.endpointTypes ?? formState.endpointTypes
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -60,15 +70,19 @@ export default function AddModelFormPanel({
 
   useEffect(() => {
     setFormState(getInitialAddModelFormState(prefill, defaultEndpointType))
-    setMetadata({
-      capabilities: prefill?.model?.capabilities ?? [],
-      inputModalities: prefill?.model?.inputModalities,
-      outputModalities: prefill?.model?.outputModalities
+    setDefaults(prefill?.model ?? null)
+    setOverrides({
+      ...(prefill?.endpointTypes
+        ? { endpointTypes: prefill.endpointTypes }
+        : prefill?.endpointType
+          ? { endpointTypes: [prefill.endpointType] }
+          : {})
     })
+    resolutionRef.current++
     setModelIdTouched(false)
     setShowMoreSettings(false)
     setSubmitError(null)
-  }, [defaultEndpointType, prefill])
+  }, [defaultEndpointType, prefill, providerId])
 
   const handleModelIdChange = useCallback(
     (value: string) => {
@@ -76,6 +90,8 @@ export default function AddModelFormPanel({
         return
       }
 
+      resolutionRef.current++
+      setDefaults(null)
       setFormState((current) => ({
         ...current,
         modelId: value,
@@ -90,93 +106,65 @@ export default function AddModelFormPanel({
     [provider]
   )
 
-  const addSingleModel = useCallback(
-    async (values: ModelBasicFormState) => {
-      if (!provider) {
-        return null
+  const resolveDefaults = useCallback(
+    async (ids: string[]) => {
+      const identity = identityRef.current
+      const generation = ++resolutionRef.current
+      const resolved = await resolveProviderModelDefaults(providerId, ids)
+      if (resolved.length !== ids.length) throw new Error('Incomplete model defaults')
+      if (generation === resolutionRef.current && identity === identityRef.current && ids.length === 1) {
+        setDefaults(resolved[0])
+        setSubmitError(null)
       }
-
-      const modelId = values.modelId.trim()
-
-      if (models.some((model) => model.id.endsWith(`::${modelId}`))) {
-        setSubmitError(t('error.model.exists'))
-        return null
-      }
-
-      await createModel({
-        providerId,
-        modelId,
-        name: values.name ? values.name : modelId.toUpperCase(),
-        group: values.group || getDefaultGroupName(modelId),
-        endpointTypes: values.endpointTypes?.length ? [...values.endpointTypes] : undefined,
-        capabilities: metadata.capabilities,
-        ...(metadata.inputModalities !== undefined ? { inputModalities: metadata.inputModalities } : {}),
-        ...(metadata.outputModalities !== undefined ? { outputModalities: metadata.outputModalities } : {}),
-        ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
-        ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
-        ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {})
-      })
-
-      return createUniqueModelId(providerId, modelId)
+      return resolved
     },
-    [metadata, createModel, models, provider, providerId, t]
+    [providerId]
   )
 
   const submitAddModel = useCallback(async () => {
-    if (submitInFlightRef.current) {
-      return
-    }
-
-    const normalizedId = formState.modelId.trim().replaceAll('，', ',')
-    if (!normalizedId) {
+    if (submitInFlightRef.current) return
+    const ids = splitModelIds(formState.modelId.trim().replaceAll('，', ','))
+    if (!ids.length) {
       setModelIdTouched(true)
       modelIdInputRef.current?.focus()
       return
     }
-
+    if (ids.some((id) => models.some((model) => model.id === createUniqueModelId(providerId, id)))) {
+      setSubmitError(t('error.model.exists'))
+      return
+    }
+    const identity = identityRef.current
     submitInFlightRef.current = true
     setIsSubmitting(true)
     setSubmitError(null)
-
     try {
-      if (normalizedId.includes(',')) {
-        const addedModelIds: UniqueModelId[] = []
-        for (const singleId of splitModelIds(normalizedId)) {
-          const addedModelId = await addSingleModel({
-            modelId: singleId,
-            name: singleId,
-            group: '',
-            contextWindow: null,
-            maxInputTokens: null,
-            maxOutputTokens: null,
-            endpointTypes: formState.endpointTypes
-          })
-
-          if (addedModelId) {
-            addedModelIds.push(addedModelId)
-          }
-        }
-
-        if (addedModelIds.length > 0) {
-          onSuccess(addedModelIds)
-        }
-        return
-      }
-
-      const addedModelId = await addSingleModel({
-        ...formState,
-        modelId: normalizedId
-      })
-      if (addedModelId) {
-        onSuccess([addedModelId])
-      }
+      await resolveDefaults(ids)
+      if (identity !== identityRef.current) return
+      const dtos = ids.map(
+        (modelId): CreateModelDto => ({
+          providerId,
+          modelId,
+          ...(ids.length === 1
+            ? {
+                name: formState.name || undefined,
+                group: formState.group || undefined,
+                ...(formState.contextWindow !== null ? { contextWindow: formState.contextWindow } : {}),
+                ...(formState.maxInputTokens !== null ? { maxInputTokens: formState.maxInputTokens } : {}),
+                ...(formState.maxOutputTokens !== null ? { maxOutputTokens: formState.maxOutputTokens } : {})
+              }
+            : {}),
+          ...overrides
+        })
+      )
+      await createModels(dtos)
+      if (identity === identityRef.current) onSuccess(ids.map((id) => createUniqueModelId(providerId, id)))
     } catch {
-      setSubmitError(t('settings.models.manage.operation_failed'))
+      if (identity === identityRef.current) setSubmitError(t('settings.models.manage.operation_failed'))
     } finally {
       submitInFlightRef.current = false
       setIsSubmitting(false)
     }
-  }, [addSingleModel, formState, onSuccess, t])
+  }, [createModels, formState, models, onSuccess, overrides, providerId, resolveDefaults, t])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -229,71 +217,85 @@ export default function AddModelFormPanel({
       id={formId}
       data-testid={dataTestId}
       className="flex min-h-0 flex-col gap-4 py-0"
+      onBlur={(event) => {
+        if (!Object.is(event.target, modelIdInputRef.current)) return
+        const ids = splitModelIds(formState.modelId.trim().replaceAll('，', ','))
+        if (!ids.length) return
+        const identity = identityRef.current
+        void resolveDefaults(ids).catch(() => {
+          if (identity === identityRef.current) setSubmitError(t('settings.models.manage.operation_failed'))
+        })
+      }}
       onSubmit={(event) => void handleFormSubmit(event)}>
-      <ProviderSection className={drawerClasses.section}>
-        <div className={drawerClasses.fieldList}>
-          <ModelBasicFields
-            values={formState}
-            showEndpointType
-            showRequiredIndicator
-            layout="horizontal"
-            modelIdAutoFocus
-            modelIdInputRef={modelIdInputRef}
-            modelIdError={
-              modelIdTouched && !formState.modelId.trim() ? t('settings.models.add.model_id.required') : undefined
-            }
-            onModelIdChange={handleModelIdChange}
-            onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
-            onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
-            onEndpointTypesChange={(next) => {
-              setFormState((current) => ({ ...current, endpointTypes: [...next] }))
-            }}
-          />
-        </div>
-      </ProviderSection>
-
-      {submitError && (
-        <div
-          role="alert"
-          className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
-          {submitError}
-        </div>
-      )}
-
-      <ProviderActions>
-        <Button
-          type="button"
-          variant="ghost"
-          className={drawerClasses.toggleButton}
-          onClick={() => setShowMoreSettings((current) => !current)}>
-          {t('settings.moresetting.label')}
-          {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </Button>
-      </ProviderActions>
-
-      {showMoreSettings && (
+      <fieldset disabled={isSubmitting} className="contents">
         <ProviderSection className={drawerClasses.section}>
-          <div className="space-y-4">
-            <div className={drawerClasses.sectionCard}>
-              <ModelMetadataControls
-                value={metadata}
-                onChange={(patch) => setMetadata((current) => ({ ...current, ...patch }))}
-              />
-            </div>
-
-            <div className={drawerClasses.sectionCard}>
-              <ModelContextWindowFields
-                contextWindow={formState.contextWindow}
-                maxInputTokens={formState.maxInputTokens}
-                maxOutputTokens={formState.maxOutputTokens}
-                onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
-                onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
-                onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
-              />
-            </div>
+          <div className={drawerClasses.fieldList}>
+            <ModelBasicFields
+              values={{ ...formState, endpointTypes }}
+              showEndpointType
+              showRequiredIndicator
+              layout="horizontal"
+              modelIdAutoFocus
+              modelIdInputRef={modelIdInputRef}
+              modelIdError={
+                modelIdTouched && !formState.modelId.trim() ? t('settings.models.add.model_id.required') : undefined
+              }
+              onModelIdChange={handleModelIdChange}
+              onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
+              onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
+              onEndpointTypesChange={(next) => {
+                setOverrides((current) => ({ ...current, endpointTypes: [...next] }))
+              }}
+            />
+            <ModelConnectionDetails provider={provider} endpoints={endpointTypes ?? []} />
           </div>
         </ProviderSection>
-      )}
+
+        {submitError && (
+          <div
+            role="alert"
+            className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
+            {submitError}
+          </div>
+        )}
+
+        <ProviderActions>
+          <Button
+            type="button"
+            variant="ghost"
+            className={drawerClasses.toggleButton}
+            onClick={() => setShowMoreSettings((current) => !current)}>
+            {t('settings.moresetting.label')}
+            {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </Button>
+        </ProviderActions>
+
+        {showMoreSettings && (
+          <ProviderSection className={drawerClasses.section}>
+            <div className="space-y-4">
+              <div className={drawerClasses.sectionCard}>
+                <ModelMetadataControls
+                  value={metadata}
+                  onChange={(patch) => setOverrides((current) => ({ ...current, ...patch }))}
+                />
+              </div>
+
+              <div className={drawerClasses.sectionCard}>
+                <ModelContextWindowFields
+                  contextWindow={formState.contextWindow}
+                  maxInputTokens={formState.maxInputTokens}
+                  maxOutputTokens={formState.maxOutputTokens}
+                  onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
+                  onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
+                  onMaxOutputTokensChange={(value) =>
+                    setFormState((current) => ({ ...current, maxOutputTokens: value }))
+                  }
+                />
+              </div>
+            </div>
+          </ProviderSection>
+        )}
+      </fieldset>
     </form>
   )
 

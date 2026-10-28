@@ -9,7 +9,12 @@ const PROMPT: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [
 describe('DMXAPI chat boundary', () => {
   it('serializes compat reasoning from providerOptions.dmxapi', async () => {
     const req = await captureWithFetch((fetch) =>
-      createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
+      createDmxapiProvider({
+        endpointType: 'openai-chat-completions',
+        apiKey: 'sk',
+        baseURL: 'https://www.dmxapi.cn/v1',
+        fetch
+      })
         .languageModel('qwen3.5-plus')
         .doGenerate({
           prompt: PROMPT,
@@ -23,7 +28,12 @@ describe('DMXAPI chat boundary', () => {
 
   it('serializes native OpenAI reasoning from providerOptions.openai', async () => {
     const req = await captureWithFetch((fetch) =>
-      createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
+      createDmxapiProvider({
+        endpointType: 'openai-chat-completions',
+        apiKey: 'sk',
+        baseURL: 'https://www.dmxapi.cn/v1',
+        fetch
+      })
         .languageModel('gpt-5')
         .doGenerate({
           prompt: PROMPT,
@@ -35,9 +45,14 @@ describe('DMXAPI chat boundary', () => {
     expect(req.body).toMatchObject({ model: 'gpt-5', reasoning_effort: 'high' })
   })
 
-  it('derives the Gemini v1beta base from the shared configured chat base', async () => {
+  it('uses the selected Gemini connection', async () => {
     const req = await captureWithFetch((fetch) =>
-      createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
+      createDmxapiProvider({
+        endpointType: 'google-generate-content',
+        apiKey: 'sk',
+        baseURL: 'https://www.dmxapi.cn/v1beta',
+        fetch
+      })
         .languageModel('gemini-2.5-pro')
         .doGenerate({ prompt: PROMPT })
     )
@@ -48,6 +63,7 @@ describe('DMXAPI chat boundary', () => {
   it('uses the resolved Gemini endpoint when Chat and Gemini point at different proxies', async () => {
     const req = await captureWithFetch((fetch) =>
       createDmxapiProvider({
+        endpointType: 'google-generate-content',
         apiKey: 'sk',
         baseURL: 'https://gemini.dmx.example/custom/v1beta',
         endpointBaseURLs: {

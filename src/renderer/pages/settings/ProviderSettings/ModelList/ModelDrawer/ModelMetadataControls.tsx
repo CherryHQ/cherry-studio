@@ -17,6 +17,7 @@ const CAPABILITY_OPTIONS = [
   { value: MODEL_CAPABILITY.FUNCTION_CALL, label: 'models.type.function_calling' },
   { value: MODEL_CAPABILITY.IMAGE_GENERATION, label: 'settings.models.add.capabilities.image_generation' },
   { value: MODEL_CAPABILITY.EMBEDDING, label: 'models.type.embedding' },
+  { value: MODEL_CAPABILITY.AUDIO_GENERATION, label: 'models.type.speech' },
   { value: MODEL_CAPABILITY.RERANK, label: 'models.type.rerank' }
 ] as const
 

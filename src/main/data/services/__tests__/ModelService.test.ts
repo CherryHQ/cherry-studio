@@ -1196,7 +1196,7 @@ describe('ModelService.list — registry enrichment', () => {
         id: 'gpt-6-astra',
         name: 'GPT-6 Astra',
         capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
-        endpointTypes: ['openai-responses']
+        endpointTypes: ['openai-chat-completions']
       },
       registryOverride: null,
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
@@ -1209,7 +1209,7 @@ describe('ModelService.list — registry enrichment', () => {
       presetModelId: 'gpt-6-astra',
       capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
     })
-    expect(model.endpointTypes).toBeUndefined()
+    expect(model.endpointTypes).toEqual(['openai-chat-completions'])
   })
 
   it('hydrates same-canonical variants through their exact API model ID', async () => {

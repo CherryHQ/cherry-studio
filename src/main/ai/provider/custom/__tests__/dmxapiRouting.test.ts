@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveDmxapiChatFamily, resolveDmxapiChatRoute } from '@shared/data/presets/gatewayChatRouting'
+import { resolveDmxapiChatFamily, resolveDmxapiEndpointType } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 describe('resolveDmxapiChatFamily', () => {
@@ -16,14 +16,13 @@ describe('resolveDmxapiChatFamily', () => {
   })
 })
 
-describe('resolveDmxapiChatRoute', () => {
+describe('resolveDmxapiEndpointType', () => {
   it.each([
-    ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
-    ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
-    // Both use chat-completions, but the concrete SDK models read different option namespaces.
-    ['gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai'],
-    ['qwen3.5-plus', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'dmxapi']
-  ] as const)('maps %s → %s / %s', (modelId, endpointType, providerOptionsKey) => {
-    expect(resolveDmxapiChatRoute(modelId)).toEqual({ endpointType, providerOptionsKey })
+    ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+    ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+    ['gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+    ['qwen3.5-plus', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+  ] as const)('defaults %s to %s', (modelId, endpointType) => {
+    expect(resolveDmxapiEndpointType(modelId)).toBe(endpointType)
   })
 })

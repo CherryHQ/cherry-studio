@@ -342,6 +342,7 @@ function getBaselineField(model: Model, field: PresetDeltaField): unknown {
 }
 
 function matchesBaseline(value: unknown, baseline: unknown, field: PresetDeltaField): boolean {
+  if (Array.isArray(value) && value.length === 0) return false
   if (field === 'pricing') {
     return matchesModelPricingBaseline(value, baseline)
   }
@@ -546,6 +547,23 @@ class ModelService {
     dto: UpdateModelDto
   ): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
+    if (dto.resetFields?.length) {
+      for (const field of dto.resetFields) {
+        if (dto[field] !== undefined) {
+          throw DataApiErrorFactory.validation({ [field]: ['Cannot set and reset the same field'] })
+        }
+      }
+      const context = providerService
+        .getReasoningContextsByProviderIdsTx(tx, [existing.providerId])
+        .get(existing.providerId)
+      const baseline = context && providerRegistryService.resolveModel(context, existing.modelId).presetModel
+      if (!baseline) {
+        throw DataApiErrorFactory.validation({ resetFields: ['Model has no registry defaults to restore'] })
+      }
+      updates.presetModelId = baseline.id
+      for (const field of dto.resetFields) updates[field] = null
+      if (dto.resetFields.includes('inputModalities')) updates.inputModalitiesExplicit = false
+    }
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
       .some(isPresetDeltaField)
@@ -997,36 +1015,36 @@ class ModelService {
     providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
-    const db = application.get('DbService').getDb()
+    return application.get('DbService').withWriteTx((db) => {
+      // Fetch existing row (also verifies existence)
+      const [existing] = db
+        .select()
+        .from(userModelTable)
+        .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+        .limit(1)
+        .all()
 
-    // Fetch existing row (also verifies existence)
-    const [existing] = db
-      .select()
-      .from(userModelTable)
-      .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
-      .limit(1)
-      .all()
+      if (!existing) {
+        throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+      }
 
-    if (!existing) {
-      throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
-    }
+      const updates = this.buildUpdatesTx(db, existing, dto)
 
-    const updates = this.buildUpdatesTx(db, existing, dto)
+      if (Object.keys(updates).length === 0) {
+        return this.enrichRowsFromRegistryTx(db, [existing])[0]
+      }
 
-    if (Object.keys(updates).length === 0) {
-      return this.enrichRowsFromRegistryTx(db, [existing])[0]
-    }
+      const [row] = db
+        .update(userModelTable)
+        .set(updates)
+        .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+        .returning()
+        .all()
 
-    const [row] = db
-      .update(userModelTable)
-      .set(updates)
-      .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
-      .returning()
-      .all()
+      logger.info('Updated model', { providerId, modelId, changes: Object.keys(dto) })
 
-    logger.info('Updated model', { providerId, modelId, changes: Object.keys(dto) })
-
-    return this.enrichRowsFromRegistryTx(db, [row])[0]
+      return this.enrichRowsFromRegistryTx(db, [row])[0]
+    })
   }
 
   /**
