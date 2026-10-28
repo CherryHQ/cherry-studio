@@ -222,7 +222,7 @@ describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc87
     // remainder starts a fence run, plus strict own-marker-line fence
     // recognition in the scan's container guards. The case now runs as a
     // normal assertion at every chunking.
-    const runner = id === 'nested-marker-tilde-fence' ? it.fails : it
+    const runner = it
     runner(`${id}: whole/1/2/3/5/7/20-char delivery`, () => {
       const whole = deliver(input, null)
       if (PRESERVE_CASES.has(id)) expect(whole.includes('<thinking>')).toBe(true)
@@ -271,7 +271,7 @@ describe('retained-fence incremental advance corpus (cherry-review inv_50f4adc87
     // exposes it as pre-stop stale state. Final output stays correct via the
     // stop flush. A real closer-recognition fix fires this tripwire: retire
     // the it.fails and say why.
-    const preStopRunner = id === 'ordered-2digit-marker-tilde-fence' || id === 'tab-marker-tilde-fence' ? it.fails : it
+    const preStopRunner = it
     preStopRunner(`${id}: held fence released before stop`, () => {
       for (const size of [null, 1, 5, 20]) {
         const adapter = deliverAdapter(input, size, false)

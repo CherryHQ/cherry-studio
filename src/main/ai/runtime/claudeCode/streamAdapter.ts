@@ -1814,6 +1814,34 @@ export class ClaudeCodeStreamAdapter {
     const previousEndedAtBlankLine = /(?:\r?\n){2}$/.test(state.rawTail)
     state.rawTail = (state.rawTail + text).slice(-4)
     state.segments.push(text)
+    // A sealed top-level backtick opener is immutable literal context. Hand
+    // its body to the existing incremental fence path only when the raw and
+    // committed prefix are identical and finish on an LF boundary. A suffix
+    // after a checkpoint has insufficient ownership context for this handoff.
+    // CRLF stays on its existing path; never hand off in a partial line.
+    const sealedOpener = /^ {0,3}`{3,}[^`\r\n]*(?:\r\n|\n)/.exec(state.visible)
+    if (
+      !state.legacy &&
+      !state.pending &&
+      ctx.accumulatedText.length - ctx.textBlockContextStart === state.visible.length &&
+      state.visible.endsWith('\n') &&
+      sealedOpener &&
+      !state.visible.includes('\r') &&
+      ctx.scratchpadMaskState.listColumnStack.length === 0
+    ) {
+      const previous = state.segments.slice(0, -1).join('')
+      const fence = confirmedOpenFenceStreamPrefix(previous)
+      if (
+        previous === state.visible &&
+        ctx.accumulatedText.slice(ctx.textBlockContextStart) === previous &&
+        fence?.openerLine === sealedOpener[0]
+      ) {
+        ctx.scratchpadStreamFenceCarry = sealedOpener[0]
+        state.legacy = true
+        state.tickSeen = false
+        state.segments = [text]
+      }
+    }
     if (
       state.legacy &&
       previousEndedAtBlankLine &&
@@ -2196,6 +2224,10 @@ export class ClaudeCodeStreamAdapter {
     if (/^(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)+(?:[-*+]|\d{1,9}[.)]?)[ \t]*$/.test(remainder)) return openLine
     // Padding on a marker-only line is not settled until actual content arrives.
     if (/^(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)+$/.test(remainder)) return openLine
+    // A quote marker reached through inherited item columns is structural
+    // context even when its absolute indentation exceeds three. Until this
+    // line commits, its parent events live only in the raw open-line carry.
+    if (/^(?:[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)*[ \t]*>/.test(openLine)) return openLine
     const cacheableKey = ctx.textBlockContextStart + lineStart
     const cached = ctx.scratchpadOpenLineCarry
     let markerHead: string

@@ -1,3 +1,11 @@
+import {
+  cloneContainerState,
+  containerLine,
+  initialContainerState,
+  legacyContainerView,
+  type ContainerState
+} from './containerEvents'
+
 /** Model scratchpad wrappers named in compaction prompts and observed in leaked transcripts. */
 export const MODEL_SCRATCHPAD_TAG_NAMES = ['analysis', 'assessment', 'thinking'] as const
 
@@ -821,10 +829,6 @@ function findCodeFenceClose(
     const containerEnd = fenceContainerEnd(text, boundaryStart, openerPrefix, candidateEnd)
     if (containerEnd < candidateEnd) return containerEnd
     boundaryStart = candidateEnd
-    if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
-      pos = markerStart + 1
-      continue
-    }
     const candidateLineStart = lineStartBefore(text, markerStart)
     if (!fenceCloseMatchesContainerContext(text.slice(candidateLineStart, markerStart), openerPrefix)) {
       pos = markerStart + 1
@@ -1225,7 +1229,7 @@ function truncateUnreachedOuterLists(
   }
 }
 
-export function maskIndentedCodeBlocksReference(text: string): {
+export function maskIndentedCodeBlocksLegacyReference(text: string): {
   text: string
   blocks: string[]
   placeholderBase: string
@@ -1489,14 +1493,14 @@ export function maskIndentedCodeBlocksReference(text: string): {
 }
 
 // ---------------------------------------------------------------------------
-// Phase-1 extraction (LOCAL, unpublished): the maskIndentedCodeBlocks loop as
-// an explicit per-line state machine. maskIndentedCodeBlocksStepped must be
-// byte-identical to maskIndentedCodeBlocks; the original stays as the
-// reference implementation until corpus + suite validation proves identity.
+// Whole and incremental masking consume the same ordered raw-container
+// events. The legacy forward scan above is retained for compatibility
+// comparisons, not as a second source of ownership decisions.
 // ---------------------------------------------------------------------------
 
 /** Cross-line classification state of the indented-code masker. */
 export interface IndentedMaskState {
+  containers: ContainerState
   inheritedListColumns: number
   listInsideQuote: boolean
   listColumnStack: Array<{ column: number; quoteDepth: number }>
@@ -1513,6 +1517,7 @@ export interface IndentedMaskState {
 
 export function initialIndentedMaskState(): IndentedMaskState {
   return {
+    containers: initialContainerState(),
     inheritedListColumns: 0,
     listInsideQuote: false,
     listColumnStack: [],
@@ -1634,17 +1639,9 @@ export function isLeafBlockBoundaryLineFor(
  * must full-carry marker-prefix, quote, and whitespace-only lines instead.
  */
 export function openLineParagraphContinuation(openLine: string, state: IndentedMaskState): boolean {
-  if (state.run) {
-    if (openLine.trim() === '' || isIndentedCodeLineFor(openLine, state.run.enclosingListStack)) return false
-  }
-  const expanded = expandFencePrefixTabs(openLine)
-  if (/^( {0,3})([-*+]|\d{1,9}[.)])( +)/.test(expanded)) {
-    return !isLeafBlockBoundaryLineFor(openLine, false, state.inheritedListColumns)
-  }
-  if (state.paragraphOpen || !isIndentedCodeLineFor(openLine, state.enclosingListStack)) {
-    return !isLeafBlockBoundaryLineFor(openLine, state.paragraphOpen, state.inheritedListColumns)
-  }
-  return false
+  const probe = cloneContainerState(state.containers)
+  containerLine(probe, openLine)
+  return probe.paragraph !== null
 }
 
 /**
@@ -1680,147 +1677,39 @@ export function indentedMaskStep(
   offset: number,
   ctx: IndentedMaskContext
 ): void {
-  // Lines consumed into an open code run keep the run-start classification
-  // context, exactly like the original forward scan, which never updates
-  // container or paragraph state for run lines.
+  const verdict = containerLine(state.containers, line)
+  const view = legacyContainerView(state.containers)
+  state.listColumnStack = view.listColumnStack
+  state.enclosingListStack = view.listColumnStack.map((entry) => ({ ...entry }))
+  state.inheritedListColumns = view.inheritedListColumns
+  state.listInsideQuote = view.listInsideQuote
+  state.paragraphOpen = view.paragraphOpen
+  state.quoteDepth = view.quoteDepth
   if (state.run) {
-    if (line.trim() === '' || isIndentedCodeLineFor(line, state.run.enclosingListStack)) {
+    if (verdict.code || line.trim() === '') {
       state.run.lines.push({ text: line, ending })
       if (line.trim() !== '') state.run.lastContent = state.run.lines.length - 1
       return
     }
     closeIndentedMaskRun(state, ctx)
   }
-
-  const isLeafBlockBoundaryLine = (l: string, paragraphWasOpen: boolean): boolean =>
-    isLeafBlockBoundaryLineFor(l, paragraphWasOpen, state.inheritedListColumns)
-
-  const depth = explicitQuoteDepth(line)
-  const previousListColumns = state.inheritedListColumns
-  const rawExpanded = expandFencePrefixTabs(line)
-  const withoutQuote = rawExpanded.replace(/^(?: {0,3}> ?)+/, '')
-  if (/^ {0,3}(?:[-*+]|\d{1,9}[.)]) +/.test(withoutQuote) && withoutQuote !== rawExpanded) state.listInsideQuote = true
-  if (
-    depth === 0 &&
-    state.listInsideQuote &&
-    line.trim() &&
-    // Lazy paragraph continuation guard (round-14): see the reference loop.
-    (!state.paragraphOpen || isLeafBlockBoundaryLine(line, state.paragraphOpen))
-  ) {
-    state.listInsideQuote = false
-    for (let k = state.listColumnStack.length - 1; k >= 0; k--) {
-      if (state.listColumnStack[k].quoteDepth > 0) state.listColumnStack.splice(k, 1)
-    }
-    state.inheritedListColumns = state.listColumnStack[state.listColumnStack.length - 1]?.column ?? 0
-    state.enclosingListStack = [...state.listColumnStack]
-  }
-  const expanded = state.listInsideQuote ? withoutQuote : rawExpanded
-  const nestedOffset =
-    state.inheritedListColumns > 0 && expanded.startsWith(' '.repeat(state.inheritedListColumns))
-      ? state.inheritedListColumns
-      : 0
-  const listContent = expanded.slice(nestedOffset)
-  const thematic = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(listContent)
-  const setext =
-    state.paragraphOpen &&
-    nestedOffset === state.inheritedListColumns &&
-    paragraphQuoteDepth(line) === state.quoteDepth &&
-    /^ {0,3}(?:=+|-+)[ \t]*$/.test(listContent)
-  const list = thematic || setext ? null : /^( {0,3})([-*+]|\d{1,9}[.)])( +|$)(.*)$/.exec(listContent)
-  if (list) {
-    const padding = list[4].trim() !== '' && list[3].length > 0 && list[3].length <= 4 ? list[3].length : 1
-    const nextColumns = nestedOffset + list[1].length + list[2].length + padding
-    const markerColumn = nestedOffset + list[1].length
-    truncateUnreachedOuterLists(state.listColumnStack, line, depth)
-    while (state.listColumnStack.length) {
-      const top = state.listColumnStack[state.listColumnStack.length - 1]
-      // See the reference loop: sibling markers at a shallower column end
-      // every level above the marker's own column (cherry-pr-review round-17
-      // stale-sibling-ownership, CommonMark 0.31.2 ex313).
-      if (top.quoteDepth > depth || (top.quoteDepth === depth && top.column > markerColumn)) {
-        state.listColumnStack.pop()
-      } else break
-    }
-    state.enclosingListStack = [...state.listColumnStack]
-    state.listColumnStack.push({ column: nextColumns, quoteDepth: depth })
-    state.inheritedListColumns = nextColumns
-  } else if (expanded.trim() !== '') {
-    const columns = expanded.length - expanded.trimStart().length
-    // Lazy paragraph continuation guard (rounds 14-16): see the reference loop.
-    if (!state.paragraphOpen || explicitQuoteDepth(line) > 0 || isLeafBlockBoundaryLine(line, state.paragraphOpen)) {
-      // Outside-in container-ownership walk (round-16): see the reference loop.
-      const markers = depth > 0 ? quoteMarkerPositions(line) : null
-      if (markers) {
-        const markerCount = markers.markerStarts.length
-        for (let k = 0; k < state.listColumnStack.length; k++) {
-          const level = state.listColumnStack[k]
-          let reached: boolean
-          if (level.quoteDepth > markerCount) {
-            reached = false
-          } else if (level.quoteDepth === 0) {
-            reached = markers.markerStarts[0] >= level.column
-          } else if (level.quoteDepth < markerCount) {
-            reached = markers.markerStarts[level.quoteDepth] - markers.markerEnds[level.quoteDepth - 1] >= level.column
-          } else {
-            reached = level.column <= columns
-          }
-          if (!reached) {
-            state.listColumnStack.length = k
-            break
-          }
-        }
-      } else {
-        while (
-          state.listColumnStack.length &&
-          state.listColumnStack[state.listColumnStack.length - 1].column > columns
-        ) {
-          state.listColumnStack.pop()
-        }
-      }
-      state.inheritedListColumns = state.listColumnStack[state.listColumnStack.length - 1]?.column ?? 0
-      state.enclosingListStack = [...state.listColumnStack]
-    }
-  }
-  // Lazy depth decrease keeps the paragraph (round-16): see the reference loop.
-  const paragraphDepth = paragraphQuoteDepth(line)
-  const lazyDepthDecrease = state.paragraphOpen && paragraphDepth > 0 && paragraphDepth < state.quoteDepth
-  if (
-    (paragraphDepth > 0 && paragraphDepth !== state.quoteDepth && !lazyDepthDecrease) ||
-    (isListItemStart(line) && !setext) ||
-    previousListColumns !== state.inheritedListColumns
-  )
-    state.paragraphOpen = false
-  if (paragraphDepth > 0 || isListItemStart(line)) state.quoteDepth = paragraphDepth
-  if (line.trim() === '' || isContainerOnlyLine(line)) {
-    state.paragraphOpen = false
-    if (line.trim() === '') {
-      // A raw blank line ends its blockquote (separate-quote-list-state).
-      state.listInsideQuote = false
-      for (let k = state.listColumnStack.length - 1; k >= 0; k--) {
-        if (state.listColumnStack[k].quoteDepth > 0) state.listColumnStack.splice(k, 1)
-      }
-      state.inheritedListColumns = state.listColumnStack[state.listColumnStack.length - 1]?.column ?? 0
-      state.enclosingListStack = [...state.listColumnStack]
-    }
-    ctx.outLines.push(line + ending)
-    return
-  }
-  if (state.paragraphOpen || !isIndentedCodeLineFor(line, state.enclosingListStack)) {
-    state.paragraphOpen = !isLeafBlockBoundaryLine(line, state.paragraphOpen) && !isEmptyListItem(line)
+  // Fences have their own literal span mask. Their classifier state must not
+  // turn the mask token or a fence body into an indented-code replacement.
+  if (!verdict.code || state.containers.fence !== null) {
     ctx.outLines.push(line + ending)
     return
   }
   if (enclosingScratchpadTag(ctx.text, offset, ctx.inlineRanges, state.scratchpadScan) !== null) {
+    // Suppressed private content still participates in raw block ownership.
+    state.containers.paragraph = state.containers.stack[state.containers.stack.length - 1]?.id ?? 0
     state.paragraphOpen = true
     ctx.outLines.push(line + ending)
     return
   }
-  // Run start: buffer instead of forward-scanning; the run closes on its
-  // terminating line or at end of input (flushIndentedMaskRun).
   state.run = {
     lines: [{ text: line, ending }],
     lastContent: 0,
-    enclosingListStack: [...state.enclosingListStack]
+    enclosingListStack: state.enclosingListStack.map((entry) => ({ ...entry }))
   }
   state.paragraphOpen = false
 }
@@ -1832,6 +1721,7 @@ export function flushIndentedMaskRun(state: IndentedMaskState, ctx: IndentedMask
 
 export function cloneIndentedMaskState(state: IndentedMaskState): IndentedMaskState {
   return {
+    containers: cloneContainerState(state.containers),
     inheritedListColumns: state.inheritedListColumns,
     listInsideQuote: state.listInsideQuote,
     listColumnStack: state.listColumnStack.map((entry) => ({ ...entry })),
@@ -1907,6 +1797,15 @@ export function advanceIndentedMaskState(state: IndentedMaskState, text: string)
 
 /** Reference-equal driver: byte-identical to maskIndentedCodeBlocks (validated locally). */
 
+/** Whole and incremental drivers consume the identical ordered container events. */
+export function maskIndentedCodeBlocksReference(text: string): {
+  text: string
+  blocks: string[]
+  placeholderBase: string
+} {
+  const { text: masked, blocks, placeholderBase } = maskIndentedCodeBlocksStepped(text)
+  return { text: masked, blocks, placeholderBase }
+}
 export function maskIndentedCodeBlocks(text: string): {
   text: string
   blocks: string[]
@@ -2160,7 +2059,14 @@ export function maskCodeFences(
       pos = markerStart + 1
       continue
     }
-    const fenceStart = listContinuationFence ? markerLineStart : fenceLinePrefixStart(text, markerStart)
+    // The marker is a structural event in its own right, outside the literal
+    // fence span. Keep it available to the shared container-event consumer.
+    const fenceStart =
+      listContinuationFence && ownMarkerLineListColumns(markerPrefix) > 0
+        ? markerStart
+        : listContinuationFence
+          ? markerLineStart
+          : fenceLinePrefixStart(text, markerStart)
     out += text.slice(pos, fenceStart)
     const openMatch = text.slice(markerStart).match(/^([`~])\1{2,}/)
     if (!openMatch) {
@@ -2189,7 +2095,7 @@ export function maskCodeFences(
       afterOpen,
       fenceChar,
       fenceLen,
-      text.slice(fenceStart, markerStart),
+      text.slice(listContinuationFence ? markerLineStart : fenceStart, markerStart),
       inheritedPrefix
     )
     // A fence opened inside a scratchpad block ends at that block's closing
@@ -2228,7 +2134,8 @@ export function maskCodeFences(
     if (closeEnd === -1 || (blockCloseIdx !== -1 && closeEnd > blockCloseIdx)) {
       const fenceEnd = blockCloseIdx !== -1 ? blockCloseIdx : text.length
       fences.push(text.slice(fenceStart, fenceEnd))
-      out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
+      const replacement = `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
+      out += replacement
       pos = fenceEnd
       opaqueScanPos = Math.max(opaqueScanPos, fenceEnd)
       opaqueUntil = -1
@@ -2240,7 +2147,8 @@ export function maskCodeFences(
     const separator = /(?:\r\n|\r|\n)$/.exec(text.slice(Math.max(0, closeEnd - 2), closeEnd))?.[0] ?? ''
     const fenceEnd = closeEnd - separator.length
     fences.push(text.slice(fenceStart, fenceEnd))
-    out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
+    const replacement = `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
+    out += replacement
     pos = fenceEnd
     // Markup inside an already accepted Markdown fence must not acquire ownership
     // of later fence candidates outside it.
