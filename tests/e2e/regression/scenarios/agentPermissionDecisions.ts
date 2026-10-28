@@ -43,7 +43,7 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
   const view = page.locator('[data-ui~="agent.view"]:visible').first()
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   const preview = view.getByTestId('permission-preview')
-  const messages = view.locator('[data-ui~="chat.message"]')
+  const messages = view.locator('[data-ui~="chat.message"]:visible')
   const pause = view.getByRole('button', { name: 'Pause', exact: true })
   const send = async () => {
     await composer.fill(
@@ -56,7 +56,7 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
     expect(existsSync(output), 'The pending write must not execute before approval').toBe(false)
   }
   const expandProcess = async () => {
-    const process = view.getByTestId('completed-process-trigger').last()
+    const process = messages.last().getByTestId('completed-process-trigger')
     await expect(process).toBeVisible({ timeout: 90_000 })
     if ((await process.getAttribute('aria-expanded')) !== 'true') await process.click()
     const tools = messages.last().getByTestId('child-tool-group').getByRole('button').first()

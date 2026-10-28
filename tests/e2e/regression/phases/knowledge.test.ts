@@ -277,10 +277,11 @@ test(...caseDefinition('MP-59'), async ({ app, mainWindow }, testInfo) => {
   } finally {
     const bases = await readBases()
     for (const base of bases.filter((base) => base.name === name || base.name === invalidName)) {
-      await page.evaluate(
-        (id) => window.api.dataApi.request({ id: 'mp59-clean-base', method: 'DELETE', path: `/knowledge-bases/${id}` }),
+      const deleted = await page.evaluate(
+        (baseId) => window.api.ipcApi.request('knowledge.delete_base', { baseId }),
         base.id
       )
+      expect(deleted).toMatchObject({ ok: true })
     }
     if (groupId)
       await page.evaluate(
@@ -499,33 +500,36 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
     }
   } finally {
     releaseResponse()
-    server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
-    await page.evaluate(
-      async ({ baseName, providerId }) => {
-        const bases = await window.api.dataApi.request({
-          id: 'mp60-bases',
-          method: 'GET',
-          path: '/knowledge-bases',
-          params: { search: baseName }
-        })
-        if (bases.status === 200) {
+    try {
+      await page.evaluate(
+        async ({ baseName, providerId }) => {
+          const bases = await window.api.dataApi.request({
+            id: 'mp60-bases',
+            method: 'GET',
+            path: '/knowledge-bases',
+            params: { search: baseName }
+          })
+          if (bases.status !== 200) throw new Error('MP60 cleanup could not list its knowledge base')
           for (const base of (bases.data as KnowledgeBaseListResponse).items.filter((base) => base.name === baseName)) {
-            await window.api.dataApi.request({
-              id: 'mp60-clean-base',
-              method: 'DELETE',
-              path: `/knowledge-bases/${base.id}`
-            })
+            const deleted = (await window.api.ipcApi.request('knowledge.delete_base', {
+              baseId: base.id
+            })) as IpcResult<unknown>
+            if (!deleted.ok) throw new Error('MP60 cleanup could not delete its knowledge base')
           }
-        }
-        await window.api.dataApi.request({
-          id: 'mp60-clean-provider',
-          method: 'DELETE',
-          path: `/providers/${providerId}`
-        })
-      },
-      { baseName, providerId }
-    )
+          const deletedProvider = await window.api.dataApi.request({
+            id: 'mp60-clean-provider',
+            method: 'DELETE',
+            path: `/providers/${providerId}`
+          })
+          if (deletedProvider.status !== 204) throw new Error('MP60 cleanup could not delete its provider')
+        },
+        { baseName, providerId }
+      )
+      await page.reload()
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
   }
 })
 
