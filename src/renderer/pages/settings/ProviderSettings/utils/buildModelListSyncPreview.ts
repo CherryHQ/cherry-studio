@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 
 import type { ModelSyncPreviewMissingItem, ModelSyncPreviewResponse } from '../types/modelSyncPreviewTypes'
 import { fetchResolvedProviderModels } from './modelSync'
-import { modelWireKey } from './modelWireKey'
 
 const logger = loggerService.withContext('ModelListSyncPreview')
 
@@ -24,13 +23,10 @@ export async function buildModelListSyncPreview(params: { providerId: string }):
   const localIds = new Set(localModels.map((m) => m.id))
   const remoteIds = new Set(remoteModels.map((m) => m.id))
 
-  const localWireKeys = new Set(localModels.map(modelWireKey))
-  const remoteWireKeys = new Set(remoteModels.map(modelWireKey))
-
-  const added = remoteModels.filter((m) => !localIds.has(m.id) && !localWireKeys.has(modelWireKey(m)))
+  const added = remoteModels.filter((m) => !localIds.has(m.id))
   /** Purely user-defined rows (no preset trace) are out of upstream removal diff. */
   const missingModels = localModels.filter((m) => {
-    if (remoteIds.has(m.id) || remoteWireKeys.has(modelWireKey(m))) {
+    if (remoteIds.has(m.id)) {
       return false
     }
     if (m.presetModelId == null || m.presetModelId === '') {

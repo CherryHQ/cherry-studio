@@ -8,7 +8,6 @@ import type { Provider } from '@shared/data/types/provider'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
-import { hasModelIdentity, modelWireKeyOrNull, uniqueModelsByIdentity } from '../utils/modelWireKey'
 import ModelListSyncContent from './ModelListSyncContent'
 import { useModelListSyncView } from './useModelListSyncView'
 
@@ -50,27 +49,20 @@ export default function ModelListSyncDrawer({
   onClose
 }: ModelListSyncDrawerProps) {
   const { t } = useTranslation()
-  const displayModels = useMemo(() => uniqueModelsByIdentity(allModels, localModels), [allModels, localModels])
-  const view = useModelListSyncView({ models: displayModels, staleModelIds, resetKey: open })
+  const view = useModelListSyncView({ models: allModels, staleModelIds, resetKey: open })
   const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
-  const localWireKeys = useMemo(
-    () => new Set(localModels.map(modelWireKeyOrNull).filter((key) => key !== null)),
-    [localModels]
-  )
   const removableModelIdSet = useMemo(() => new Set(removableModelIds), [removableModelIds])
   const defaultModelIdSet = useMemo(() => new Set(defaultModelIds), [defaultModelIds])
   const isAllFilteredInProvider = useMemo(
-    () =>
-      view.filteredModels.length > 0 &&
-      view.filteredModels.every((model) => hasModelIdentity(model, localModelIds, localWireKeys)),
-    [localModelIds, localWireKeys, view.filteredModels]
+    () => view.filteredModels.length > 0 && view.filteredModels.every((model) => localModelIds.has(model.id)),
+    [localModelIds, view.filteredModels]
   )
   const removableFilteredModelIds = useMemo(
     () =>
       view.filteredModels
-        .filter((model) => hasModelIdentity(model, localModelIds, localWireKeys) && removableModelIdSet.has(model.id))
+        .filter((model) => localModelIds.has(model.id) && removableModelIdSet.has(model.id))
         .map((model) => model.id),
-    [localModelIds, localWireKeys, removableModelIdSet, view.filteredModels]
+    [localModelIds, removableModelIdSet, view.filteredModels]
   )
   const busy = isLoading || isApplying
   const hasLoadError = Boolean(loadErrorMessage)
@@ -88,11 +80,10 @@ export default function ModelListSyncDrawer({
       return
     }
 
-    void onAddModels(view.filteredModels.filter((model) => !hasModelIdentity(model, localModelIds, localWireKeys)))
+    void onAddModels(view.filteredModels.filter((model) => !localModelIds.has(model.id)))
   }, [
     isAllFilteredInProvider,
     localModelIds,
-    localWireKeys,
     onAddModels,
     onRemoveModels,
     removableFilteredModelIds,
@@ -107,7 +98,7 @@ export default function ModelListSyncDrawer({
         <span className={modelSyncClasses.manageTitle}>
           <span className={modelSyncClasses.manageTitleText}>{drawerTitle}</span>
           <Badge variant="secondary" className={modelSyncClasses.manageTitleCountBadge}>
-            {displayModels.length}
+            {allModels.length}
           </Badge>
         </span>
       }
@@ -170,7 +161,6 @@ export default function ModelListSyncDrawer({
         provider={provider}
         view={view}
         localModelIds={localModelIds}
-        localWireKeys={localWireKeys}
         removableModelIds={removableModelIdSet}
         defaultModelIds={defaultModelIdSet}
         isLoading={isLoading}

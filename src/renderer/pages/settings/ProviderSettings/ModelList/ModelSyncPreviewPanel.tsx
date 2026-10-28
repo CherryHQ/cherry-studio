@@ -13,7 +13,6 @@ import type { Provider } from '@shared/data/types/provider'
 
 import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
 import { modelListClasses, modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
-import { hasModelIdentity } from '../utils/modelWireKey'
 import { getModelGroupLabel } from './grouping'
 import type { ModelGroups } from './modelListDerivedState'
 
@@ -29,7 +28,6 @@ interface ModelSyncPreviewPanelCommonProps {
 
 interface ModelSyncPreviewPanelManageProps extends ModelSyncPreviewPanelCommonProps {
   mode: 'manage'
-  localWireKeys: Set<string>
   removableModelIds: Set<UniqueModelId>
   defaultModelIds: Set<UniqueModelId>
   staleModelIds: Set<UniqueModelId>
@@ -303,11 +301,9 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
       )
     }
 
-    const isAllInProvider = models.every((model) => hasModelIdentity(model, localModelIds, props.localWireKeys))
+    const isAllInProvider = models.every((model) => localModelIds.has(model.id))
     const removableGroupModelIds = models
-      .filter(
-        (model) => hasModelIdentity(model, localModelIds, props.localWireKeys) && props.removableModelIds.has(model.id)
-      )
+      .filter((model) => localModelIds.has(model.id) && props.removableModelIds.has(model.id))
       .map((model) => model.id)
     const title = isAllInProvider
       ? t('settings.models.manage.remove_whole_group')
@@ -328,9 +324,7 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
               void props.onRemoveModels(removableGroupModelIds)
               return
             }
-            void props.onAddModels(
-              models.filter((model) => !hasModelIdentity(model, localModelIds, props.localWireKeys))
-            )
+            void props.onAddModels(models.filter((model) => !localModelIds.has(model.id)))
           }}>
           {isAllInProvider ? <Minus className="size-4" /> : <Plus className="size-4" />}
         </Button>
@@ -402,7 +396,7 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
               <ManageModelRow
                 provider={provider}
                 model={row.model}
-                isAdded={hasModelIdentity(row.model, localModelIds, props.localWireKeys)}
+                isAdded={localModelIds.has(row.model.id)}
                 isRemovable={props.removableModelIds.has(row.model.id)}
                 isDefaultModel={props.defaultModelIds.has(row.model.id)}
                 isStale={props.staleModelIds.has(row.model.id)}

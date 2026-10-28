@@ -11,11 +11,6 @@ import {
   resolveCreateModelEndpointTypes,
   toCreateModelDto
 } from '@renderer/pages/settings/ProviderSettings/utils/modelSync'
-import {
-  hasModelIdentity,
-  modelWireKeyOrNull,
-  uniqueModelsByIdentity
-} from '@renderer/pages/settings/ProviderSettings/utils/modelWireKey'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
 import { serializeHealthCheckError } from '@renderer/utils/error'
@@ -94,15 +89,8 @@ export function useProviderModelPullReconcile(providerId: string) {
     { refresh: ['/models'] }
   )
 
-  const allModels = useMemo(
-    () => uniqueModelsByIdentity([...fetchedModels, ...models], models),
-    [fetchedModels, models]
-  )
+  const allModels = useMemo(() => uniqueById([...fetchedModels, ...models]), [fetchedModels, models])
   const remoteModelIds = useMemo(() => new Set(fetchedModels.map((model) => model.id)), [fetchedModels])
-  const remoteWireKeys = useMemo(
-    () => new Set(fetchedModels.map(modelWireKeyOrNull).filter((key) => key !== null)),
-    [fetchedModels]
-  )
   const defaultModelIds = useMemo(
     () =>
       new Set(
@@ -122,12 +110,9 @@ export function useProviderModelPullReconcile(providerId: string) {
     }
 
     return models.filter(
-      (model) =>
-        !hasModelIdentity(model, remoteModelIds, remoteWireKeys) &&
-        model.presetModelId != null &&
-        model.presetModelId !== ''
+      (model) => !remoteModelIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
     )
-  }, [hasLoadedCompleteRemoteModels, models, remoteModelIds, remoteWireKeys])
+  }, [hasLoadedCompleteRemoteModels, models, remoteModelIds])
   const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
   const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
@@ -181,8 +166,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const addModels = useCallback(
     async (nextModels: Model[]) => {
       const currentIds = new Set(models.map((model) => model.id))
-      const currentWireKeys = new Set(models.map(modelWireKeyOrNull).filter((key) => key !== null))
-      const toAdd = uniqueById(nextModels).filter((model) => !hasModelIdentity(model, currentIds, currentWireKeys))
+      const toAdd = uniqueById(nextModels).filter((model) => !currentIds.has(model.id))
       if (toAdd.length === 0) {
         return
       }
