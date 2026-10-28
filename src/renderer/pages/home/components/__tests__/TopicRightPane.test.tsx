@@ -92,10 +92,22 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
 vi.mock('../TopicBranchPanel', () => {
   topicBranchPanelModuleState.importCount += 1
   return {
-    default: ({ open, onLocateMessage }: { open: boolean; onLocateMessage?: (messageId: string) => void }) => (
+    default: ({
+      open,
+      onLocateMessage,
+      focusKey,
+      layoutReady
+    }: {
+      open: boolean
+      onLocateMessage?: (messageId: string) => void
+      focusKey?: string | number
+      layoutReady?: boolean
+    }) => (
       <button
         type="button"
         data-open={String(open)}
+        data-focus-key={focusKey}
+        data-layout-ready={String(layoutReady)}
         data-testid="branch-pane"
         onClick={() => onLocateMessage?.('message-1')}>
         locate current branch message
@@ -435,6 +447,38 @@ describe('TopicRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'chat.topics.title 3' }))
     expect(screen.getByTestId('resource-list')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+  })
+
+  it('refreshes branch focus on tab return but keeps it stable during one visible period', async () => {
+    const pane = (topicName: string) => (
+      <TopicRightPane.Scope topicId="topic-a" topicName={topicName} traceId="trace-a">
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+    const view = render(pane('Initial title'))
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    const branchPane = await screen.findByTestId('branch-pane')
+    const firstFocusKey = branchPane.getAttribute('data-focus-key')
+    expect(firstFocusKey).toBeTruthy()
+    const layoutReady = branchPane.getAttribute('data-layout-ready')
+
+    view.rerender(pane('Updated title'))
+    expect(branchPane).toHaveAttribute('data-focus-key', firstFocusKey)
+    expect(branchPane).toHaveAttribute('data-layout-ready', layoutReady)
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+    expect(branchPane).not.toBeVisible()
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    await waitFor(() => {
+      expect(branchPane.getAttribute('data-focus-key')).not.toBe(firstFocusKey)
+    })
+    expect(screen.getByTestId('branch-pane')).toBe(branchPane)
+    expect(branchPane).toBeVisible()
+
+    const reopenedFocusKey = branchPane.getAttribute('data-focus-key')
+    view.rerender(pane('Another title'))
+    expect(branchPane).toHaveAttribute('data-focus-key', reopenedFocusKey)
   })
 
   it('keeps the resource count entry visible while docked open and lets it close the active resource view', () => {
