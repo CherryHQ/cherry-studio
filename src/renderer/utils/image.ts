@@ -19,6 +19,35 @@ const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAA
  */
 export const IMAGE_CAPTURE_ATTRIBUTE = 'data-image-capturing'
 
+/** Virtualized content registers a preparation promise and its restoration at capture time. */
+export class ImageCaptureEvent extends Event {
+  static readonly type = 'prepare-image-capture'
+  readonly preparations: Promise<() => void | Promise<void>>[] = []
+
+  constructor() {
+    super(ImageCaptureEvent.type)
+  }
+}
+
+async function prepareCaptureContents(root: HTMLElement): Promise<() => Promise<void>> {
+  const event = new ImageCaptureEvent()
+  for (const element of [root, ...root.querySelectorAll('[data-image-capture-content]')]) {
+    element.dispatchEvent(event)
+  }
+  const results = await Promise.allSettled(event.preparations)
+  const restore = async () => {
+    for (const result of results.toReversed()) {
+      if (result.status === 'fulfilled') await result.value()
+    }
+  }
+  const failed = results.find((result) => result.status === 'rejected')
+  if (failed) {
+    await restore()
+    throw failed.reason
+  }
+  return restore
+}
+
 /** Marks interactive HTML artifact subtrees; both export paths omit them (shared policy selector). */
 const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
 
@@ -278,14 +307,18 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
  */
 export async function captureElement(elRef: React.RefObject<HTMLElement>) {
   if (elRef.current) {
+    let restoreContents: (() => Promise<void>) | undefined
     try {
       const htmlToImage = await loadHtmlToImage()
+      restoreContents = await prepareCaptureContents(elRef.current)
       const canvas = await htmlToImage.toCanvas(elRef.current)
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
       logger.error('Error capturing element:', error as Error)
       return Promise.reject()
+    } finally {
+      await restoreContents?.()
     }
   }
   return Promise.resolve(undefined)
@@ -302,6 +335,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
     let restoreRemoteImages: (() => void) | undefined
+    let restoreContents: (() => Promise<void>) | undefined
     const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
     try {
@@ -309,6 +343,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       // attribute (e.g. unclipped table viewports) can change the scroll size,
       // and html-to-image freezes computed styles at clone time.
       el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+      restoreContents = await prepareCaptureContents(el)
 
       // Wait for webfonts before cloning. The clone pins every element's
       // computed width/height, so text re-laid-out with fallback font metrics
@@ -390,6 +425,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       }
       restoreLocalImageSources?.()
       restoreRemoteImages?.()
+      await restoreContents?.()
     }
   }
 

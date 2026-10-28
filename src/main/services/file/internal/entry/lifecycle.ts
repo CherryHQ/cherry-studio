@@ -25,6 +25,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { BatchMutationResult } from '@shared/types/file'
 
+import { runPathMutationExclusive } from '../../pathMutationLock'
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
@@ -81,11 +82,21 @@ export async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntr
 }
 
 export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
+  return deps.contentWriteLock.runExclusive(id, () => runPathMutationExclusive(() => permanentDeleteLocked(deps, id)))
+}
+
+async function permanentDeleteLocked(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
   const entry = deps.fileEntryService.withWriteTx((tx) => permanentDeleteTx(deps, tx, id))
   await cleanupDeletedEntry(deps, entry)
 }
 
 export async function deleteInternalTemporaryEntry(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
+  return deps.contentWriteLock.runExclusive(id, () =>
+    runPathMutationExclusive(() => deleteInternalTemporaryEntryLocked(deps, id))
+  )
+}
+
+async function deleteInternalTemporaryEntryLocked(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
   const entry = deps.fileEntryService.getById(id)
   if (entry.origin !== 'internal' || entry.cleanupPolicy !== 'delete_when_unreferenced') {
     throw DataApiErrorFactory.invalidOperation(
@@ -118,6 +129,12 @@ function permanentDeleteFromTrashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileE
 }
 
 export async function permanentDeleteFromTrash(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
+  return deps.contentWriteLock.runExclusive(id, () =>
+    runPathMutationExclusive(() => permanentDeleteFromTrashLocked(deps, id))
+  )
+}
+
+async function permanentDeleteFromTrashLocked(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
   const entry = deps.fileEntryService.withWriteTx((tx) => permanentDeleteFromTrashTx(deps, tx, id))
   await cleanupDeletedEntry(deps, entry)
 }
@@ -133,6 +150,12 @@ function removeExternalFromLibraryTx(deps: FileManagerDeps, tx: DbOrTx, id: File
 }
 
 export async function removeExternalFromLibrary(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
+  return deps.contentWriteLock.runExclusive(id, () =>
+    runPathMutationExclusive(() => removeExternalFromLibraryLocked(deps, id))
+  )
+}
+
+async function removeExternalFromLibraryLocked(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
   const entry = deps.fileEntryService.withWriteTx((tx) => removeExternalFromLibraryTx(deps, tx, id))
   await cleanupDeletedEntry(deps, entry)
 }

@@ -11,8 +11,6 @@ export interface TabSelfVisuals {
   icon?: string
   /** Only stamp while the current tab URL belongs to this caller-supplied route prefix. */
   routePrefix?: string
-  /** Keep the tab's stored title/icon while the bound conversation is still loading. */
-  preserveVisuals?: boolean
 }
 
 /**
@@ -23,13 +21,7 @@ export interface TabSelfVisuals {
  * system or the `Tab` shape. No-op without a TabsProvider / TabIdProvider
  * (tests, detached popups).
  */
-export function useTabSelfVisuals({
-  title,
-  emoji,
-  icon: imageIcon,
-  routePrefix,
-  preserveVisuals = false
-}: TabSelfVisuals): void {
+export function useTabSelfVisuals({ title, emoji, icon: imageIcon, routePrefix }: TabSelfVisuals): void {
   const currentTabId = useCurrentTabId()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
@@ -37,7 +29,6 @@ export function useTabSelfVisuals({
 
   useEffect(() => {
     if (!currentTabId || !updateTab || !currentTab) return
-    if (preserveVisuals) return
     if (
       routePrefix &&
       currentTab.url !== routePrefix &&
@@ -48,5 +39,5 @@ export function useTabSelfVisuals({
     const icon = imageIcon ?? emojiTabIcon(emoji)
     if (currentTab.title === title && currentTab.icon === icon) return
     updateTab(currentTabId, { title, icon })
-  }, [currentTabId, currentTab, updateTab, title, emoji, imageIcon, routePrefix, preserveVisuals])
+  }, [currentTabId, currentTab, updateTab, title, emoji, imageIcon, routePrefix])
 }

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { VoiceTargetRegistration } from '@renderer/services/voice'
+import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -47,6 +48,10 @@ const state = vi.hoisted(() => ({
   bindVoiceTarget: vi.fn(),
   unbindVoiceTarget: vi.fn(),
   voiceTargetRegistration: null as VoiceTargetRegistration | null,
+  overlayOnUpdate: null as
+    | ((executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void)
+    | null,
+  autoReadUpdate: vi.fn(),
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
   autoReadEnabled: false,
   autoReadConsume: vi.fn(),
@@ -120,8 +125,12 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
     _topicId: string,
     _executions: unknown[],
     _messages: CherryUIMessage[],
-    options?: { onFinish?: (executionId: string, event: ExecutionFinishEvent) => void }
+    options?: {
+      onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
+      onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
+    }
   ) => {
+    state.overlayOnUpdate = options?.onUpdate ?? null
     state.overlayOnFinish = options?.onFinish ?? null
     return {
       liveAssistants: state.liveAssistants,
@@ -133,6 +142,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 
 vi.mock('@renderer/services/voice', () => ({
   autoReadService: {
+    update: state.autoReadUpdate,
     consume: state.autoReadConsume
   },
   readMessageAloud: state.readMessageAloud,
@@ -310,6 +320,7 @@ describe('HomeWindow', () => {
     })
     state.overlayOnFinish = null
     state.autoReadEnabled = false
+    state.autoReadUpdate.mockReset()
     state.autoReadConsume.mockReset()
     state.readMessageAloud.mockReset()
     state.isMac = false
@@ -400,6 +411,44 @@ describe('HomeWindow', () => {
 
     unmount()
     expect(state.unbindVoiceTarget).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads eligible live text before completion through the incremental coordinator', async () => {
+    state.autoReadEnabled = true
+    const spoken: string[] = []
+    const coordinator = new AutoReadService({
+      supportsStreaming: async () => true,
+      playback: {
+        start: async (input) => {
+          spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      }
+    })
+    state.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    state.activeExecutions = [{ executionId: 'provider::model', attemptId: 7 }]
+    view.rerender(<HomeWindow draggable={false} />)
+    await act(async () => {
+      state.overlayOnUpdate?.('provider::model', {
+        attemptId: 7,
+        message: {
+          id: 'active-assistant',
+          role: 'assistant',
+          parts: [
+            { type: 'reasoning', text: 'Private.' },
+            { type: 'text', text: 'Live answer. ' }
+          ]
+        }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(spoken).toEqual(['Live answer.'])
+    await coordinator.setEnabled(true)
+    await coordinator.setEnabled(false)
   })
 
   it('forwards a tracked chat finish to auto-read and exposes that exact result for manual playback', async () => {

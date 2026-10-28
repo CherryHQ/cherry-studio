@@ -33,12 +33,6 @@ This project uses symlinks to synchronize files such as AGENTS.md and skills. Wi
 
 ## Project Setup
 
-### Install
-
-```bash
-pnpm install
-```
-
 ### Setup Node.js
 
 The required Node.js version is defined in `.node-version`. Use a version manager like [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm) to install it automatically:

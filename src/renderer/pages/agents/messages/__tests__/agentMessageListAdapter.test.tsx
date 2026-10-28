@@ -1,4 +1,4 @@
-import { render, renderHook } from '@testing-library/react'
+import { act, render, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -7,11 +7,13 @@ import type {
   MessageListRuntime
 } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
@@ -201,6 +203,49 @@ describe('useAgentMessageListProviderValue', () => {
       modifiedAt: 0,
       mime: 'application/octet-stream'
     })
+  })
+
+  it('delivers sent attachment activation to the current pane callback after rerender', async () => {
+    const opened: InputFilePreview[] = []
+    const input = { displayName: 'report.md', previewPath: '/managed/report.md' as AbsoluteFilePath }
+    const { result, rerender } = renderHook(
+      ({ previewInputFile }) =>
+        useAgentMessageListProviderValue({
+          topic: {
+            id: 'agent-session:source',
+            assistantId: 'agent-1',
+            name: 'Source',
+            messages: []
+          } as unknown as Topic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor',
+          previewInputFile
+        }),
+      {
+        initialProps: {
+          previewInputFile: (file: InputFilePreview) => {
+            opened.push(file)
+          }
+        }
+      }
+    )
+    await act(async () => {
+      await result.current.actions.previewInputFile?.(input)
+    })
+    expect(opened).toEqual([input])
+    const nextOpened: InputFilePreview[] = []
+    rerender({
+      previewInputFile: (file: InputFilePreview) => {
+        nextOpened.push(file)
+      }
+    })
+    await act(async () => {
+      await result.current.actions.previewInputFile?.(input)
+    })
+    expect(nextOpened).toEqual([input])
+    expect(opened).toEqual([input])
   })
 
   it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(

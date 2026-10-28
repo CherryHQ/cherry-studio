@@ -141,7 +141,7 @@ export function ImagePreviewDialog({
           <DialogTitle className="sr-only">{mergedLabels.dialogTitle ?? mergedLabels.close}</DialogTitle>
           <Button
             aria-label={mergedLabels.close}
-            className="absolute top-4 right-4 z-20 size-9 rounded-none bg-transparent p-0 text-white shadow-none transition-none hover:bg-transparent hover:text-white"
+            className="absolute top-[calc(1rem+var(--image-preview-titlebar-height,0px))] right-4 z-20 size-9 rounded-none bg-transparent p-0 text-white shadow-none transition-none hover:bg-transparent hover:text-white"
             onClick={close}
             size="icon"
             type="button"

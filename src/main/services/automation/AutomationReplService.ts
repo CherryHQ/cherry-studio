@@ -321,7 +321,7 @@ export class AutomationReplService extends BaseService {
               if (result.observation) {
                 observations.add(
                   {
-                    ...result.value,
+                    ...('displayValue' in result ? result.displayValue : result.value),
                     domain,
                     operation: name,
                     afterAction: execution.events.findLast(

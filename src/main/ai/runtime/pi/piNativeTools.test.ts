@@ -166,12 +166,13 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
           emit: () => {
             throw new Error('Disabled tools must not request approval')
           },
-          getInteractionState: () => ({ userResponse: 'unavailable' }),
+          getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
           getPermissionMode: () => 'bypassPermissions',
           isDisabled: (name) => name === `${nativePrefix}forbidden`,
           autoApprovedTools: new Set(),
           approvalRequiredTools: new Set(),
-          nonBypassableApprovalTools: new Set()
+          nonBypassableApprovalTools: new Set(),
+          delegationTools: new Set()
         })
       ]
     })

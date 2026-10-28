@@ -55,8 +55,8 @@ import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { AsyncEventQueue } from '@shared/utils/async'
 
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -344,6 +344,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         nonBypassableApprovalTools: new Set(
           mountedPolicies
             .filter(({ approval, bypassApproval }) => approval === 'required' && bypassApproval === 'enforce')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        delegationTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'delegation')
             .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
         )
       }
@@ -884,7 +889,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return
       }
       // Auto-compaction failure stays non-terminal — the surrounding turn owns the terminal event.
-      this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
+      this.eventQueue.push({
+        type: 'compaction-error',
+        error: event.errorMessage ?? 'pi compaction aborted',
+        aborted: event.aborted
+      })
       return
     }
     // `willRetry` keeps the surrounding agent turn open; it does not defer this compaction result.

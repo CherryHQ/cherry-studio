@@ -9,6 +9,7 @@ import ChatPreferenceSections from '../ChatPreferenceSections'
 
 const mocks = vi.hoisted(() => ({
   loadThemeNames: vi.fn(async () => ['auto', 'github']),
+  loadCmThemeNames: vi.fn(async () => ['auto', 'githubDark']),
   setPreference: vi.fn(),
   preferenceValues: {
     'chat.message.style': 'plain',
@@ -19,6 +20,8 @@ const mocks = vi.hoisted(() => ({
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': true,
     'chat.message.thought.auto_collapse': true,
+    'chat.message.keep_intermediate_text': false,
+    'chat.message.user_content.default_expanded': false,
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
@@ -64,7 +67,12 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyleThemeCatalog: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
+  useCodeStyleThemeCatalog: () => ({
+    loadThemeNames: mocks.loadThemeNames,
+    themeNames: ['auto', 'github'],
+    loadCmThemeNames: mocks.loadCmThemeNames,
+    cmThemeNames: ['auto', 'githubDark']
+  })
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -116,8 +124,10 @@ describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
+    mocks.preferenceValues['chat.message.user_content.default_expanded'] = false
     mocks.preferenceValues['chat.input.paste_long_text_as_file'] = false
     mocks.preferenceValues['chat.input.paste_long_text_threshold'] = 1500
+    mocks.preferenceValues['chat.message.keep_intermediate_text'] = false
     mocks.loadThemeNames.mockClear()
     mocks.setPreference.mockClear()
   })
@@ -134,6 +144,14 @@ describe('ChatPreferenceSections', () => {
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
     expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
+  })
+
+  it('labels the auto code themes as the Cherry default while keeping the stored value', () => {
+    render(<ChatPreferenceSections />)
+
+    const autoItems = screen.getAllByText('chat.settings.code_theme.cherry_default')
+    expect(autoItems.map((item) => item.getAttribute('data-value'))).toEqual(['auto', 'auto'])
+    expect(screen.queryByText('auto')).toBeNull()
   })
 
   it('does not render input translation controls', () => {
@@ -166,6 +184,22 @@ describe('ChatPreferenceSections', () => {
     ).toBeInTheDocument()
   })
 
+  it('saves default user-message expansion independently from thinking auto-collapse', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ChatPreferenceSections />)
+    const name = 'settings.messages.user_content.default_expanded.label'
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'false')
+
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.user_content.default_expanded', true)
+    expect(mocks.preferenceValues['chat.message.thought.auto_collapse']).toBe(true)
+    rerender(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
+
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.user_content.default_expanded', false)
+  })
+
   it('lets the user update the long paste threshold through the real number field', async () => {
     const user = userEvent.setup()
     mocks.preferenceValues['chat.input.paste_long_text_as_file'] = true
@@ -193,6 +227,17 @@ describe('ChatPreferenceSections', () => {
     fireEvent.click(wideModeSwitch)
 
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.narrow_mode', false)
+  })
+
+  it('lets the user enable intermediate assistant text from message settings', async () => {
+    const user = userEvent.setup()
+    render(<ChatPreferenceSections />)
+
+    const toggle = screen.getByRole('button', { name: 'settings.messages.keep_intermediate_text.label' })
+    expect(toggle).toHaveAttribute('data-checked', 'false')
+    await user.click(toggle)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.keep_intermediate_text', true)
   })
 
   it('renders preference groups without collapsible controls', () => {
