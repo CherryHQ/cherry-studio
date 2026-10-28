@@ -1,0 +1,8 @@
+---
+# 2026-10-28-gemini-tool-call-history-names-repaired.i18n.yaml
+# This file pairs the English and Chinese Agent Notes for the sync tool.
+# Do not edit the keys; only add new languages under `translations`.
+english: 2026-10-28-gemini-tool-call-history-names-repaired.md
+translations:
+  zh: 2026-10-28-gemini-tool-call-history-names-repaired.zh.md
+---

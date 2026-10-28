@@ -146,6 +146,63 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
   return out ?? messages
 }
 
+/** Placeholder for a tool call whose stored name cannot be recovered. */
+const UNKNOWN_TOOL_NAME = 'unknown_tool'
+
+/** A name a `dynamic-tool` part can still carry outside its (possibly missing) `toolName`. */
+function recoveredToolName(part: Extract<UIMessage['parts'][number], { type: 'dynamic-tool' }>): string | undefined {
+  // `callProviderMetadata.cherry.toolName` is the approval bridge's pre-finalize copy; a migrated
+  // v1 part instead carries the real name under `cherry.tool.name` and a display-join `toolName`,
+  // but those always present a `toolName` of their own, so they never reach the cherry fallback.
+  const cherry = (part.callProviderMetadata?.cherry as { toolName?: unknown } | undefined)?.toolName
+  for (const name of [part.toolName, cherry]) {
+    if (typeof name === 'string' && name.length > 0) return name
+  }
+  return undefined
+}
+
+/**
+ * Give every replayed tool part a name, and keep a tool call paired with its result by that name.
+ *
+ * `@ai-sdk/google` names each `functionCall` / `functionResponse` after the *same* part and has no
+ * tool-call id it can match on, so the two halves are already consistent for a stored part: a name
+ * that is absent makes the provider reject the whole turn ("missing name"), and a name that is not
+ * wire-legal makes it reject with `name "kb_list" does not match …` (#22577). The name is recovered
+ * from the part's `toolName` first, then its `callProviderMetadata.cherry.toolName` (the approval
+ * bridge's pre-finalize copy); nothing recoverable becomes {@link UNKNOWN_TOOL_NAME} rather than an
+ * invalid history. A dynamic name that is not a declared tool is rewritten exactly as
+ * {@link sanitizeDynamicToolNames} does, so this is idempotent. A name already present on the part
+ * wins over `cherry.toolName`, because for a migrated v1 part that field holds the original tool
+ * name while `toolName` is the persisted display join — overwriting it would desync the wire name
+ * from the rest of the history. A truly cross-part mismatch (a call with no matching result) is a
+ * missing-result problem a naming fix cannot repair.
+ */
+export function repairToolNames<T extends UIMessage>(messages: T[], tools?: ToolSet): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    let parts: T['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (!isToolUIPart(part) || part.type !== 'dynamic-tool') return
+      const name = recoveredToolName(part)
+      // A recoverable name keeps the sanitizer's legal rewrite; nothing recoverable gets the plain placeholder.
+      const toolName =
+        name === undefined
+          ? UNKNOWN_TOOL_NAME
+          : WIRE_TOOL_NAME.test(name) || tools?.[name]
+            ? name
+            : toWireToolName(name)
+      if (part.toolName === toolName) return
+      parts ??= [...message.parts]
+      parts[partIndex] = { ...part, toolName }
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
 /**
  * Drop tool parts still parked on an unanswered approval card.
  *
@@ -285,9 +342,9 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
  * attribute a user's denial reason to the user → make legacy v1 tool names wire-legal →
- * strip media the model can't accept → drop tool
- * calls parked on an unanswered approval → drop tool parts with non-object replay inputs →
- * restore inferable legacy step boundaries →
+ * repair missing/unmatchable tool-call names so a call and its result pair up → strip media the
+ * model can't accept → drop tool calls parked on an unanswered approval → drop tool parts with
+ * non-object replay inputs → restore inferable legacy step boundaries →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
@@ -299,7 +356,8 @@ export async function toModelMessages(
   tools?: ToolSet,
   toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
-  const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
+  const named = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
+  const rendered = attributeUserDenialReasons(repairToolNames(named, tools))
   const shaped = restoreLegacyToolStepBoundaries(
     deduplicateLocalToolParts(
       dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
