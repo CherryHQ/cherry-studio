@@ -3,6 +3,7 @@ import { InlineMath } from '@tiptap/extension-mathematics'
 import { closeHistory, isHistoryTransaction } from '@tiptap/pm/history'
 import type { EditorState } from '@tiptap/pm/state'
 import { AllSelection, NodeSelection, Plugin, TextSelection } from '@tiptap/pm/state'
+import { StepMap } from '@tiptap/pm/transform'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 
 import { COMPOSER_INLINE_MATH_NODE_NAME, serializeComposerMath, transformComposerMathTextRun } from './composerMath'
@@ -11,79 +12,92 @@ import { ComposerMathNodeView } from './ComposerMathNodeView'
 const COMPOSER_MATH_META = 'composerMath'
 
 function transformDocument(state: EditorState, enabled: boolean, ranges: readonly { from: number; to: number }[]) {
-  const replacements: { from: number; to: number; latex: string; asText?: boolean }[] = []
+  const expansions: { from: number; to: number; latex: string }[] = []
+  const insertions: { runStart: number; from: number; to: number; latex: string }[] = []
   state.doc.descendants((node, position) => {
-    if (node.type.name === COMPOSER_INLINE_MATH_NODE_NAME) {
-      const affected = ranges.some((range) => range.from <= position + node.nodeSize + 1 && range.to >= position - 1)
-      if (!enabled || affected) {
-        const source = serializeComposerMath(node.attrs.latex)
-        const before = state.doc.resolve(position).nodeBefore
-        const after = state.doc.resolve(position + node.nodeSize).nodeAfter
-        const prev = before?.isText ? (before.text?.match(/\$?\\*$/)?.[0] ?? '') : ''
-        const next =
-          after?.isText && !replacements.some((replacement) => replacement.from === position + node.nodeSize)
-            ? (after.text?.[0] ?? '')
-            : ''
-        const from = prev.length
-        const to = from + source.length
-        const segments = enabled
-          ? transformComposerMathTextRun(prev + source + next, [{ from, to }]).filter(
-              (segment) => segment.type === 'inlineMath'
-            )
-          : []
-        if (
-          segments.length !== 1 ||
-          segments[0].from !== from ||
-          segments[0].to !== to ||
-          segments[0].latex !== node.attrs.latex
-        ) {
-          replacements.push({ from: position, to: position + node.nodeSize, latex: node.attrs.latex, asText: true })
-        }
-      }
-    }
-    if (!enabled || node.type.name !== 'paragraph') return
+    if (node.type.name !== 'paragraph') return
 
     let runText = ''
     let runStart = position + 1
+    let runEnd = runStart
+    let atoms: { from: number; to: number; docFrom: number; docTo: number; latex: string }[] = []
     const flush = () => {
-      const localRanges = ranges
-        .filter((range) => range.from <= runStart + runText.length && range.to >= runStart)
-        .map((range) => ({
-          from: Math.max(0, range.from - runStart),
-          to: Math.min(runText.length, range.to - runStart)
-        }))
-      if (!runText || !localRanges.length) return
-      for (const segment of transformComposerMathTextRun(runText, localRanges)) {
-        if (segment.type === 'inlineMath') {
-          replacements.push({ from: runStart + segment.from, to: runStart + segment.to, latex: segment.latex })
+      const changedRanges = ranges.filter((range) => range.from <= runEnd && range.to >= runStart)
+      if (runText && (!enabled || changedRanges.length)) {
+        const sourceMap = new StepMap(
+          atoms.flatMap((atom) => [atom.from, atom.to - atom.from, atom.docTo - atom.docFrom])
+        )
+        const toSource = sourceMap.invert()
+        const localRanges = changedRanges.map((range) => {
+          const from = toSource.map(Math.max(runStart, range.from) - runStart)
+          let to = toSource.map(Math.min(runEnd, range.to) - runStart)
+          while (runText[to] === '\\') to += 1
+          return { from, to }
+        })
+        const segments = enabled
+          ? transformComposerMathTextRun(runText, [...localRanges, ...atoms]).filter(
+              (segment) => segment.type === 'inlineMath'
+            )
+          : []
+        const matches = (atom: (typeof atoms)[number], segment: (typeof segments)[number]) =>
+          atom.from === segment.from && atom.to === segment.to && atom.latex === segment.latex
+        const retained = atoms.filter((atom) => segments.some((segment) => matches(atom, segment)))
+        const retainedMap = new StepMap(
+          retained.flatMap((atom) => [atom.from, atom.to - atom.from, atom.docTo - atom.docFrom])
+        )
+        for (const atom of atoms) {
+          if (!retained.includes(atom)) expansions.push({ from: atom.docFrom, to: atom.docTo, latex: atom.latex })
+        }
+        for (const segment of segments) {
+          if (!atoms.some((atom) => matches(atom, segment))) {
+            insertions.push({
+              runStart,
+              from: retainedMap.map(segment.from),
+              to: retainedMap.map(segment.to),
+              latex: segment.latex
+            })
+          }
         }
       }
       runText = ''
+      atoms = []
     }
     node.forEach((child, offset) => {
-      if (child.isText) {
-        if (!runText) runStart = position + 1 + offset
-        runText += child.text
+      if (child.isText || child.type.name === COMPOSER_INLINE_MATH_NODE_NAME) {
+        const docFrom = position + 1 + offset
+        if (!runText) runStart = docFrom
+        runEnd = docFrom + child.nodeSize
+        if (child.isText) {
+          runText += child.text
+        } else {
+          const from = runText.length
+          runText += serializeComposerMath(child.attrs.latex)
+          atoms.push({ from, to: runText.length, docFrom, docTo: runEnd, latex: child.attrs.latex })
+        }
       } else {
         flush()
-        runText = ''
       }
     })
     flush()
+    return false
   })
 
-  if (!replacements.length) return null
+  if (!expansions.length && !insertions.length) return null
   const tr = state.tr.setMeta(COMPOSER_MATH_META, 'derived')
-  for (const { from, to, latex, asText } of replacements.toSorted((a, b) => b.from - a.from)) {
-    tr.replaceWith(
-      from,
-      to,
-      asText ? state.schema.text(serializeComposerMath(latex)) : state.schema.nodes.inlineMath.create({ latex })
-    )
+  for (const { from, to, latex } of expansions.toSorted((a, b) => b.from - a.from)) {
+    tr.replaceWith(from, to, state.schema.text(serializeComposerMath(latex)))
+  }
+  // New spans can use a delimiter inside an expanded atom, so map them after expansion.
+  const mappedInsertions = insertions.map(({ runStart, from, to, latex }) => {
+    const start = tr.mapping.map(runStart, -1)
+    return { from: start + from, to: start + to, latex }
+  })
+  for (const { from, to, latex } of mappedInsertions.toSorted((a, b) => b.from - a.from)) {
+    tr.replaceWith(from, to, state.schema.nodes.inlineMath.create({ latex }))
   }
   if (
     state.selection instanceof NodeSelection &&
-    replacements.some((replacement) => replacement.asText && replacement.from === state.selection.from)
+    expansions.some((expansion) => expansion.from === state.selection.from)
   ) {
     tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(state.selection.to))))
   }

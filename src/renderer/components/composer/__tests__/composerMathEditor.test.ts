@@ -105,6 +105,68 @@ describe('composer math editor', () => {
     expect(children()).toEqual([text(String.raw`\\`), math('x'), text(' distant!')])
   })
 
+  it('revalidates math when a distant leading backslash changes escape parity', () => {
+    createEditor().commands.insertContent(String.raw`\\\\$x$`)
+    expect(children()).toEqual([text(String.raw`\\\\`), math('x')])
+    editor.commands.deleteRange({ from: 1, to: 2 })
+    expect(children()).toEqual([text(String.raw`\\\$x$`)])
+    expect(serializeComposerDocument(editor).text).toBe(String.raw`\\\$x$`)
+    editor.commands.setTextSelection(1)
+    editor.commands.insertContent('\\')
+    expect(children()).toEqual([text(String.raw`\\\\`), math('x')])
+    expect(serializeComposerDocument(editor).text).toBe(String.raw`\\\\$x$`)
+  })
+
+  it('retokenizes a completed prompt variable surrounding existing math', () => {
+    createEditor().commands.insertContent('$x$')
+    expect(children()).toEqual([math('x')])
+    editor.commands.setTextSelection(1)
+    editor.commands.insertContent('${foo ')
+    // 冻结词法器对 `${foo $` 因尾随空白拒绝且不回退，所以原子在此展开。
+    expect(children()).toEqual([text('${foo $x$')])
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.insertContent('}')
+    expect(children()).toMatchObject([{ type: 'composerToken', attrs: { kind: 'promptVariable', label: 'foo $x$' } }])
+    expect(children().some((node) => node.type === 'inlineMath')).toBe(false)
+    expect(serializeComposerDocument(editor).text).toBe('${foo $x$}')
+  })
+
+  it('retains valid atoms throughout an edited run', () => {
+    createEditor().commands.insertContent('$a$ and $b$')
+    expect(children()).toEqual([math('a'), text(' and '), math('b')])
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.insertContent('!')
+    expect(children()).toEqual([math('a'), text(' and '), math('b'), text('!')])
+    expect(serializeComposerDocument(editor).text).toBe('$a$ and $b$!')
+  })
+
+  it('isolates edits to runs separated by a hard break', () => {
+    createEditor().commands.insertContent([math('x'), { type: 'hardBreak' }, math('y')])
+    const otherAtom = editor.state.doc.firstChild?.lastChild
+    editor.commands.setTextSelection(1)
+    editor.commands.insertContent('\\')
+    expect(children()).toEqual([text(String.raw`\$x$`), { type: 'hardBreak' }, math('y')])
+    expect(editor.state.doc.firstChild?.lastChild).toBe(otherAtom)
+    expect(serializeComposerDocument(editor).text).toBe(String.raw`\$x$` + '\n$y$')
+  })
+
+  it('expands adjacent atoms when their shared source is edited', () => {
+    createEditor().commands.insertContent('$x$ $y$')
+    expect(children()).toEqual([math('x'), text(' '), math('y')])
+    editor.commands.deleteRange({ from: 2, to: 3 })
+    expect(children()).toEqual([text('$x$$y$')])
+    expect(serializeComposerDocument(editor).text).toBe('$x$$y$')
+  })
+
+  it.each([
+    { before: '$a', after: '', expected: [math('a'), text('x$')], source: '$a$x$' },
+    { before: '$', after: 'a$', expected: [text('$$x'), math('a')], source: '$$x$a$' }
+  ])('maps new spans using expanded atom delimiters in $source', ({ before, after, expected, source }) => {
+    createEditor().commands.insertContent([text(before), math('x'), ...(after ? [text(after)] : [])])
+    expect(children()).toEqual(expected)
+    expect(serializeComposerDocument(editor).text).toBe(source)
+  })
+
   it.each(['A$x$B', '计算$x$的值'])('preserves text on both sides of %s', (source) => {
     createEditor().commands.insertContent(source)
     const [before, after] = source.split('$x$')
@@ -116,7 +178,8 @@ describe('composer math editor', () => {
     createEditor().commands.setContent('<p>see $x$</p>', { emitUpdate: false })
     expect(children()).toEqual([text('see '), math('x')])
     editor.commands.insertContent({ type: 'text', text: '$y$' })
-    expect(children().filter((node) => node.type === 'inlineMath')).toEqual([math('x'), math('y')])
+    expect(children()).toEqual([text('see $x$$y$')])
+    expect(serializeComposerDocument(editor).text).toBe('see $x$$y$')
   })
 
   it('preserves prompt variables and refuses candidates across token boundaries', () => {
