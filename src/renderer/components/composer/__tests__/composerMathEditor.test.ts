@@ -43,6 +43,30 @@ describe('composer math editor', () => {
     expect(serializeComposerDocument(editor).text).toBe('see $x$')
   })
 
+  it('expands math after a preceding dollar and restores it when the dollar is removed', () => {
+    createEditor().commands.insertContent('$x$')
+    expect(children()).toEqual([math('x')])
+    editor.commands.setTextSelection(1)
+    editor.commands.insertContent('$')
+    expect.soft(children()).toEqual([text('$$x$')])
+    expect(serializeComposerDocument(editor).text).toBe('$$x$')
+    editor.commands.deleteRange({ from: 1, to: 2 })
+    expect(children()).toEqual([math('x')])
+    expect(serializeComposerDocument(editor).text).toBe('$x$')
+  })
+
+  it('expands math after a trailing dollar and restores it when the dollar is removed', () => {
+    createEditor().commands.insertContent('$x$')
+    expect(children()).toEqual([math('x')])
+    editor.commands.setTextSelection(2)
+    editor.commands.insertContent('$')
+    expect(children()).toEqual([text('$x$$')])
+    expect(serializeComposerDocument(editor).text).toBe('$x$$')
+    editor.commands.deleteRange({ from: 4, to: 5 })
+    expect(children()).toEqual([math('x')])
+    expect(serializeComposerDocument(editor).text).toBe('$x$')
+  })
+
   it('expands math after a trailing digit and restores it when the digit is removed', () => {
     createEditor().commands.insertContent('$x$')
     expect(children()).toEqual([math('x')])

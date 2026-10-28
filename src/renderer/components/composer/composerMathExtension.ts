@@ -19,7 +19,7 @@ function transformDocument(state: EditorState, enabled: boolean, ranges: readonl
         const source = serializeComposerMath(node.attrs.latex)
         const before = state.doc.resolve(position).nodeBefore
         const after = state.doc.resolve(position + node.nodeSize).nodeAfter
-        const prev = before?.isText ? (before.text?.match(/\\+$/)?.[0] ?? '') : ''
+        const prev = before?.isText ? (before.text?.match(/\$?\\*$/)?.[0] ?? '') : ''
         const next =
           after?.isText && !replacements.some((replacement) => replacement.from === position + node.nodeSize)
             ? (after.text?.[0] ?? '')
