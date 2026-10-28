@@ -227,7 +227,7 @@ const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[
   return [parsed.data]
 }
 
-const buildAgentFilePartsForAttachments = async (
+export const buildAgentFilePartsForAttachments = async (
   attachments: ComposerAttachment[],
   accessiblePaths: readonly AbsoluteFilePath[]
 ): Promise<FileUIPart[]> => {
@@ -239,7 +239,12 @@ const buildAgentFilePartsForAttachments = async (
     // A path-less attachment (message-editing round-trip) cannot be matched
     // against the workspace, so it takes the internalized branch — the same
     // outcome it already had when its non-path value failed the match.
-    if (attachment.path && isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
+    // A managed queued attachment (entryId) always internalizes, even when its
+    // managed path falls inside the workspace: the workspace-reference branch
+    // carries no fileEntryId, so message persistence would acquire no reference
+    // and the idle sweep could reclaim queue-owned bytes that history still
+    // points at (cherry-pr-review inv_d87f5a5cf758b8a0).
+    if (attachment.path && !attachment.entryId && isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
       accessibleAttachments.push({
         attachment,
         filePath: canonicalizeFilePath(attachment.path),
