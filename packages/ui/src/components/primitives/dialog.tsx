@@ -86,6 +86,7 @@ function DialogContent({
   ...props
 }: DialogContentProps) {
   const [contentElement, setContentElement] = React.useState<HTMLDivElement | null>(null)
+  const dialogPortalContainer = useDialogPortalContainer()
   const handleRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       setContentElement(node)
@@ -113,6 +114,8 @@ function DialogContent({
         Keep Content as a direct Portal child so Radix Presence receives its DOM ref and
         can retain it for the closed-state animation. Nested overlays still inherit the
         content element as their portal target from the provider inside Content.
+        Tooltips portal beside Content instead: it is the containing block for their fixed
+        positioning, so overflow set by callers on Content would clip them.
 
         The closed-state animation duration below must equal DIALOG_CLOSE_DURATION_MS
         (above); a test enforces it. Imperative host removal timing is defined separately
@@ -137,7 +140,7 @@ function DialogContent({
           checkForDefaultPrevented: false
         })}
         {...props}>
-        <PortalContainerProvider container={contentElement}>
+        <PortalContainerProvider container={contentElement} tooltipContainer={dialogPortalContainer}>
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close

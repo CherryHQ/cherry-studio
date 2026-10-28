@@ -10,7 +10,7 @@ import * as React from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-import { usePortalContainer } from './portal-container'
+import { useTooltipPortalContainer } from './portal-container'
 
 type Side = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
@@ -342,7 +342,7 @@ function TooltipContent({
   forceMount,
   ...props
 }: TooltipContentProps) {
-  const defaultPortalContainer = usePortalContainer()
+  const defaultPortalContainer = useTooltipPortalContainer()
   const contentVisible = React.use(TooltipOverlayContext)
   // 显式 forceMount 保留 Radix 公共契约（closed 也常驻 DOM），豁免 150ms 门控
   if (contentVisible === false && !forceMount) return null
@@ -424,7 +424,7 @@ export const Tooltip = ({
   asChild = false
 }: TooltipProps) => {
   const tooltipContent = content ?? title
-  const defaultPortalContainer = usePortalContainer()
+  const defaultPortalContainer = useTooltipPortalContainer()
   // An inactive surface drops the tooltip exactly like a disabled one; the disabled pass also
   // resets the open state so nothing resurfaces unhovered when the surface comes back.
   const surfaceActive = React.use(TooltipSurfaceContext)
