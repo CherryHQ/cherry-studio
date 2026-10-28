@@ -158,7 +158,11 @@ describe('local model catalog', () => {
     const paths = bundle.files.map((file) => file.relPath)
 
     expect(paths).toEqual(
-      expect.arrayContaining(['espeak-ng-data/lang/sit/cmn', 'espeak-ng-data/cmn_dict', 'espeak-ng-data/lang/gmw/en-US'])
+      expect.arrayContaining([
+        'espeak-ng-data/lang/sit/cmn',
+        'espeak-ng-data/cmn_dict',
+        'espeak-ng-data/lang/gmw/en-US'
+      ])
     )
     expect(paths.slice(-3)).toEqual(['model.onnx', 'voices.bin', 'LICENSE'])
   })
