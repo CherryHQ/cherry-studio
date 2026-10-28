@@ -15,7 +15,6 @@ import {
   type MessageSchemas,
   PathThroughQuerySchema,
   ReserveBranchSchema,
-  TreeQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -29,13 +28,8 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
   },
 
   '/topics/:topicId/tree': {
-    GET: async ({ params, query }) => {
-      const q = TreeQuerySchema.parse(query ?? {})
-      return messageService.getTree(params.topicId, {
-        rootId: q.rootId,
-        nodeId: q.nodeId,
-        depth: q.depth
-      })
+    GET: async ({ params }) => {
+      return messageService.getTree(params.topicId)
     }
   },
 

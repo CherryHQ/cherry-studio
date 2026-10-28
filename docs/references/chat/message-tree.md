@@ -130,10 +130,11 @@ they become first-turn nodes.)
   first turn (fail-safe). See [#16120](https://github.com/CherryHQ/cherry-studio/issues/16120).
 - **`getPathRowsToNodeTx`** walks from a node up to the virtual root and **excludes** the
   root — the displayed conversation starts at the first user message.
-- **`getTree`** finds the virtual root (`parentId IS NULL`), drops it from the active
-  path, and treats its children as the logical roots. First-turn nodes keep their **real**
-  parent (the virtual root id) in the response; the virtual root is **never** returned as a
-  node. Hence `TreeNode.parentId` and `SiblingsGroup.parentId` are non-null `string`.
+- **`getTree`** loads the topic's live messages in one query, finds the virtual root
+  (`parentId IS NULL`), and treats its children as the logical roots. First-turn nodes
+  keep their **real** parent (the virtual root id) in the response; the virtual root is
+  **never** returned as a node. Hence `TreeNode.parentId` and `SiblingsGroup.parentId` are
+  non-null `string`.
 - **Flow canvas** skips edges whose parent isn't a rendered node — the virtual root,
   which first turns hang off but which is never a node — so first turns still render as
   graph roots. Persisted awaiting-input branches remain real selectable tree nodes.
