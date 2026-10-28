@@ -53,6 +53,11 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
     return Object.fromEntries(await Promise.all(keys.map(async (key) => [key, await window.api.preference.get(key)])))
   }, keys)
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp115-${Date.now()}`
   const assistantName = app.resourceName('Backup history')
   let assistantId: string | undefined

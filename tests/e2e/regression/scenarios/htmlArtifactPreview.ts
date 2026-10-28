@@ -26,6 +26,11 @@ export async function htmlArtifactPreview(app: RegressionApp, page: Page, testIn
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const externalLoads: { userAgent: string; content: string; visibility: string }[] = []
   const evidenceServer = createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/loaded') {

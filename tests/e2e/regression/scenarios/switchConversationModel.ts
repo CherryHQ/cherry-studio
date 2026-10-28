@@ -26,6 +26,11 @@ export async function switchConversationModel(app: RegressionApp, page: Page, te
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const nextModelId = 'mock-chat-alternate'
   const providerId = `regression-switch-${Date.now()}`
   const topicName = app.resourceName('Switch model')

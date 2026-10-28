@@ -439,6 +439,11 @@ test(...caseDefinition('MP-85'), async ({ mainWindow: page }, testInfo) => {
   const name = 'MP85 Elvish'
   expect(before.some((language) => language.langCode === langCode)).toBe(false)
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-mp85-${Date.now()}`
   const panel = page.getByRole('dialog', { name: 'Translation Settings', exact: true })
   const customSection = panel.locator('[data-ui~="translate.custom-languages"]')

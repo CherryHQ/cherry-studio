@@ -19,6 +19,11 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp58-${Date.now()}`
   const agentName = app.resourceName(`Schedule agent ${Date.now()}`)
   const name = app.resourceName(`Scheduled time ${Date.now()}`)

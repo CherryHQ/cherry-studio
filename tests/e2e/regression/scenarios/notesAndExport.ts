@@ -36,6 +36,11 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp11-${Date.now()}`
   const title = app.resourceName('MP11 language note')
   const topicName = app.resourceName('MP11 export conversation')

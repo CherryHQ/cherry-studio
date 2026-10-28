@@ -59,6 +59,11 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     backup: await window.api.preference.get('data.backup.local.dir')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp119-${Date.now()}`
   const assistantName = app.resourceName('Migration history')
   let assistantId: string | undefined

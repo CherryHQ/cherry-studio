@@ -92,6 +92,11 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
       .toBe(true)
   }
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp150-${Date.now()}`
   let assistantId: string | undefined
   let inspectorUrl: string | undefined

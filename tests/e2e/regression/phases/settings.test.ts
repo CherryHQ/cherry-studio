@@ -548,6 +548,11 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp107-${Date.now()}`
   const assistantName = app.resourceName(`Input settings mock ${providerId}`)
   const topicName = app.resourceName(`Input settings ${providerId}`)
@@ -793,6 +798,11 @@ test(...caseDefinition('MP-108'), async ({ app, mainWindow: page }, testInfo) =>
     return Object.fromEntries(entries)
   }, keys)
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-mp108-${Date.now()}`
   const assistantName = app.resourceName('Default assignment assistant')
   const topicName = app.resourceName('Default assignment topic')

@@ -65,6 +65,11 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-notification-${Date.now()}`
   const topicName = app.resourceName(`Notification ${Date.now()}`)
   const assistantName = app.resourceName('Notification assistant')

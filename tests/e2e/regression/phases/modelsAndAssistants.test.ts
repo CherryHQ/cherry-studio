@@ -160,6 +160,11 @@ test(...caseDefinition('C-01'), async ({ app, mainWindow: page }) => {
 
 test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-stream-${Date.now()}`
   const assistantName = app.resourceName('Stream failure')
   const prompt = 'Explain how a rainbow forms.'

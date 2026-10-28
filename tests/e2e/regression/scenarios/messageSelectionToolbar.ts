@@ -29,6 +29,11 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     layout: await window.api.preference.get('chat.message.multi_model.style')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp149-${Date.now()}`
   const topicName = app.resourceName('MP-149 selection')
   const assistantName = app.resourceName('MP-149 selection assistant')

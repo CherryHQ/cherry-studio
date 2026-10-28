@@ -60,6 +60,11 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
       .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address ?? '127.0.0.1'
   const lanWildcard = `${lan.split('.')[0]}.*`
   const mock = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const mockPort = Number(new URL(mock.baseUrl).port)
   const requests: { route: string; host: string }[] = []
   const origin = createServer((req, res) => {

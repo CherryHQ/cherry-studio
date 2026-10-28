@@ -26,6 +26,11 @@ export async function clearChatMessages(app: RegressionApp, page: Page, testInfo
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-clear-${Date.now()}`
   const topicName = app.resourceName('Clear messages')
   const assistantName = app.resourceName('Clear messages assistant')

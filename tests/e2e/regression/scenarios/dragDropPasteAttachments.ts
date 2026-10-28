@@ -27,6 +27,11 @@ export async function dragDropPasteAttachments(app: RegressionApp, page: Page, t
     pasteThreshold: await window.api.preference.get('chat.input.paste_long_text_threshold')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-mp33-${Date.now()}`
   const topicName = app.resourceName('MP33 attachments')
   const assistantName = app.resourceName('MP33 attachments assistant')

@@ -25,6 +25,11 @@ export async function searchChatMessages(app: RegressionApp, page: Page, testInf
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-search-${Date.now()}`
   const topicName = app.resourceName('Search messages')
   const assistantName = app.resourceName('Search messages assistant')

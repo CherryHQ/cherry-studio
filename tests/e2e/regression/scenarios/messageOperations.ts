@@ -28,6 +28,11 @@ export async function messageOperations(app: RegressionApp, page: Page, testInfo
     speechModel: await window.api.preference.get('feature.voice.speech.model_id')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-mp28-${Date.now()}`
   const topicName = app.resourceName('MP28 message operations')
   const assistantName = app.resourceName('MP28 message operations assistant')

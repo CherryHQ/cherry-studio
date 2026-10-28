@@ -23,6 +23,11 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const real = app.config.customProvider
   const providerIds: string[] = []
   const name = app.resourceName('Polish prompt assistant')

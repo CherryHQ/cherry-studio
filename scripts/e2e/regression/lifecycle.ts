@@ -109,6 +109,8 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
     TEMP: tempDirectory,
     TMP: tempDirectory,
     TMPDIR: tempDirectory,
+    // Chromium on macOS resolves its temporary directory from NSTemporaryDirectory or this override, not TMPDIR.
+    MAC_CHROMIUM_TMPDIR: tempDirectory,
     CLAUDE_CONFIG_DIR: join(homeDirectory, '.claude'),
     CODEX_HOME: join(homeDirectory, '.codex')
   }

@@ -31,6 +31,11 @@ import { switchConversationModel } from '../scenarios/switchConversationModel'
 test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
   // Mock only the provider HTTP boundary; topic creation, navigation and persistence use the real app.
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-mp20-${Date.now()}`
   const preferences = await page.evaluate(async () => ({
     model: await window.api.preference.get('chat.default_model_id'),
@@ -846,6 +851,11 @@ test(...caseDefinition('MP-24'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-25'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-move-${Date.now()}`
   const assistantIds: string[] = []
   const names = [app.resourceName('Move source A'), app.resourceName('Move destination B')]

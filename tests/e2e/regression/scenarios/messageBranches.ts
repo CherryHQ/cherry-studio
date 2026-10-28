@@ -27,6 +27,11 @@ export async function messageBranches(app: RegressionApp, page: Page, testInfo: 
     quickModel: await window.api.preference.get('feature.quick_assistant.model_id')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-branches-${Date.now()}`
   const topicName = app.resourceName('Message branches')
   const assistantName = app.resourceName('Message branches assistant')

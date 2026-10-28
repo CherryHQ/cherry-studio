@@ -99,6 +99,11 @@ export async function fontsAndZoom(app: RegressionApp, mainWindow: Page, testInf
     expect(layout.overflow).toBeLessThanOrEqual(1)
   }
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   // Font availability differs per platform, so choose from the installed catalog instead of assuming one font exists.
   const installedFonts = await page.evaluate(async () => {
     const result = (await window.api.ipcApi.request('system.get_fonts')) as

@@ -32,6 +32,11 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     executionEnabled: await window.api.preference.get('chat.code.execution.enabled')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-mp40-${Date.now()}`
   const topicName = app.resourceName('Code toolbar')
   const assistantName = app.resourceName('Code toolbar assistant')

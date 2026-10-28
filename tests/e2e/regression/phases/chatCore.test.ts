@@ -577,6 +577,11 @@ test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
     sendShortcut: await window.api.preference.get('chat.input.send_message_shortcut')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-mp27-${Date.now()}`
   const topicName = app.resourceName('Input interactions')
   const assistantName = app.resourceName('Input interactions assistant')

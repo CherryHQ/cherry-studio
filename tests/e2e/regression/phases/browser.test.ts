@@ -323,6 +323,11 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
     browser: await window.api.preference.get('app.browser.open_links_in_browser')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const title = 'MP-124 linked search result'
   const content = 'MP-124 destination content: conversation links reached the correct page.'
   const website = createServer((req, res) => {

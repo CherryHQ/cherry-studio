@@ -22,6 +22,11 @@ import { topicGrouping } from '../scenarios/topicGrouping'
 test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-topics-${Date.now()}`
   const assistantName = app.resourceName('Persistence assistant')
   let assistantId: string | undefined
@@ -365,6 +370,11 @@ test(...caseDefinition('MP-43'), async ({ app, mainWindow }, testInfo) => {
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-mp43-${Date.now()}`
   const assistantName = app.resourceName('Topic naming assistant')
   const initialName = app.resourceName('Topic naming')
@@ -1020,6 +1030,11 @@ test(...caseDefinition('MP-47'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-48'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-draft-${Date.now()}`
   const assistantName = app.resourceName('Draft assistant')
   const draft = 'MP-48 会话草稿：这段文字尚未发送。'

@@ -81,6 +81,11 @@ export async function mcpEditDelete(app: RegressionApp, page: Page, testInfo: Te
   }))
   const fixture = await startServer()
   const model = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp136-${Date.now()}`
   const modelId = 'gpt-4o-mini'
   const name = app.resourceName('edit')

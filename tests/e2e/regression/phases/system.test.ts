@@ -67,6 +67,11 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
 
   // Real native selection and UI; only the external model HTTP responses are mocked.
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `mp127-${Date.now()}`
   const original = 'The early bird catches the worm. Preparation and timely action improve the chances of success.'
   const preferenceKeys = [

@@ -29,6 +29,11 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
   const privateResponseDetail = 'MP17_PRIVATE_RESPONSE_PAYLOAD'
   const contextError = 'maximum context length exceeded: MP17_CONTEXT_DETAIL'
   const upstream = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   let fault: 'none' | 'quota' | 'model' | 'rate' = 'none'
   const requests: { authorization?: string; body: { messages?: unknown[]; model?: string } }[] = []
   const gateway = createServer((req, res) => {

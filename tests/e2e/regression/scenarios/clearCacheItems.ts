@@ -56,6 +56,11 @@ export async function clearCacheItems(app: RegressionApp, page: Page, testInfo: 
     )
   }
   const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
   const providerId = `regression-cache-${Date.now()}`
   const topicName = app.resourceName('Cache preservation')
   const assistantName = app.resourceName('Cache preservation assistant')
