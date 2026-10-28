@@ -4551,6 +4551,7 @@
   "settings.doctor.empty.title": "ยังไม่มีผลการวินิจฉัย",
   "settings.doctor.entry.title": "การวินิจฉัยระบบ",
   "settings.doctor.error_category.auth": "ยังไม่ได้ลงชื่อเข้าใช้ หรือ API Key ไม่ถูกต้อง",
+  "settings.doctor.error_category.bad_request": "ผู้ให้บริการปฏิเสธคำขอ (HTTP 400)",
   "settings.doctor.error_category.content": "คำตอบถูกบล็อกโดยตัวกรองความปลอดภัย",
   "settings.doctor.error_category.context_length": "พรอมต์ยาวเกินไป",
   "settings.doctor.error_category.deprecated": "ฟีเจอร์นี้ไม่มีให้ใช้งานแล้ว",

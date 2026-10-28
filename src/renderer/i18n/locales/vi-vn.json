@@ -4551,6 +4551,7 @@
   "settings.doctor.empty.title": "Chưa có kết quả chẩn đoán",
   "settings.doctor.entry.title": "Chẩn đoán hệ thống",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",
+  "settings.doctor.error_category.bad_request": "Nhà cung cấp đã từ chối yêu cầu (HTTP 400)",
   "settings.doctor.error_category.content": "The response was blocked by a safety filter",
   "settings.doctor.error_category.context_length": "The prompt is too long",
   "settings.doctor.error_category.deprecated": "This feature is no longer available",

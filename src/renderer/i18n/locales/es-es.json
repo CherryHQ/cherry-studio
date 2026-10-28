@@ -4551,6 +4551,7 @@
   "settings.doctor.empty.title": "Aún no hay ningún resultado del diagnóstico",
   "settings.doctor.entry.title": "Diagnóstico del sistema",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",
+  "settings.doctor.error_category.bad_request": "El proveedor rechazó la solicitud (HTTP 400)",
   "settings.doctor.error_category.content": "The response was blocked by a safety filter",
   "settings.doctor.error_category.context_length": "The prompt is too long",
   "settings.doctor.error_category.deprecated": "This feature is no longer available",

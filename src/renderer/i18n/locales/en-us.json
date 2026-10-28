@@ -4551,6 +4551,7 @@
   "settings.doctor.empty.title": "No diagnostic result yet",
   "settings.doctor.entry.title": "System diagnostics",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",
+  "settings.doctor.error_category.bad_request": "The provider rejected the request (HTTP 400)",
   "settings.doctor.error_category.content": "The response was blocked by a safety filter",
   "settings.doctor.error_category.context_length": "The prompt is too long",
   "settings.doctor.error_category.deprecated": "This feature is no longer available",

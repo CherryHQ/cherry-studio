@@ -4551,6 +4551,7 @@
   "settings.doctor.empty.title": "Nessun risultato diagnostico disponibile",
   "settings.doctor.entry.title": "Diagnostica di sistema",
   "settings.doctor.error_category.auth": "Accesso non effettuato o chiave API non valida",
+  "settings.doctor.error_category.bad_request": "Il fornitore ha rifiutato la richiesta (HTTP 400)",
   "settings.doctor.error_category.content": "La risposta è stata bloccata da un filtro di sicurezza",
   "settings.doctor.error_category.context_length": "Il prompt è troppo lungo",
   "settings.doctor.error_category.deprecated": "Questa funzionalità non è più disponibile",
