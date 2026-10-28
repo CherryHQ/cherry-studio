@@ -2086,6 +2086,8 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '技能' })).toBeInTheDocument()
+    // Pi does not read `env_vars`, the Advanced tab's only field.
+    expect(screen.queryByRole('tab', { name: 'Advanced' })).not.toBeInTheDocument()
 
     selectTab('Built-in tools')
     expect(screen.getByRole('switch', { name: 'Read files' })).toBeInTheDocument()

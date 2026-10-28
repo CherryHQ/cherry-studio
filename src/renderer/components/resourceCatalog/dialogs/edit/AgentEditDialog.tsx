@@ -367,9 +367,9 @@ function AgentEditDialogContent({
             : [])
         ]
       },
-      { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
+      ...(caps.envVars ? [{ id: 'advanced' as const, label: t('library.config.dialogs.edit.advanced_tab') }] : [])
     ],
-    [caps.knowledgeBases, caps.mcp, caps.skills, t]
+    [caps.envVars, caps.knowledgeBases, caps.mcp, caps.skills, t]
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
@@ -614,9 +614,11 @@ function AgentEditDialogContent({
             />
           </TabsContent>
         ) : null}
-        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-          <AgentAdvancedFields form={form} />
-        </TabsContent>
+        {caps.envVars ? (
+          <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
+            <AgentAdvancedFields form={form} />
+          </TabsContent>
+        ) : null}
       </>
     </EditDialogShell>
   )
