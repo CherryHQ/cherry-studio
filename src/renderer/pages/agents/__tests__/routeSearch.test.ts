@@ -21,6 +21,14 @@ describe('parseAgentRouteSearch', () => {
     expect(parseAgentRouteSearch({ intent: 'feedback', skillId: 'skill-1' }).skillId).toBeUndefined()
   })
 
+  it('accepts the scheduled task intent with its prepared session', () => {
+    expect(parseAgentRouteSearch({ intent: 'task', sessionId: 'session-1' })).toEqual({
+      agentId: undefined,
+      intent: 'task',
+      sessionId: 'session-1'
+    })
+  })
+
   it('parses the sidebar agentId for pinned entity entries', () => {
     expect(parseAgentRouteSearch({ agentId: 'agent-1' })).toEqual({
       agentId: 'agent-1',

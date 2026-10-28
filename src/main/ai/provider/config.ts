@@ -230,7 +230,7 @@ export async function resolveProviderAiSdkConfig(
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     {
       match: (p) => isManagedCherryCloudModel(p.id),
-      build: withoutCredential((ctx) => buildCherryCloudProviderConfig(ctx.endpointType, ctx.endpoint))
+      build: withoutCredential((ctx) => buildCherryCloudProviderConfig(ctx.endpointType, ctx.endpoint, ctx.model.id))
     },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
     // Local embedding runs fully in-process (transformers.js in a worker): no
@@ -959,7 +959,9 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     rawBaseURL = ctx.baseConfig.baseURL
   }
 
-  const baseURL = formatNewApiBaseURL(rawBaseURL, endpointType)
+  const baseURL = isWithTrailingSharp(ctx.resolvedBaseUrl)
+    ? ctx.baseConfig.baseURL
+    : formatNewApiBaseURL(rawBaseURL, endpointType)
 
   return {
     providerId: 'newapi',

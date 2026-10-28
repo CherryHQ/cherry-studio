@@ -1,3 +1,4 @@
+export { ClaudeCodeBinaryService } from './ClaudeCodeBinaryService'
 export { ClaudeCodeProcessManager } from './ClaudeCodeProcessManager'
 export { ClaudeCodeSessionStateService } from './ClaudeCodeSessionStateService'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'

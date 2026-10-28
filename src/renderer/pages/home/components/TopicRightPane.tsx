@@ -96,7 +96,6 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
 const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallbacks | null>(null)
-
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
   if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane.Scope>')
@@ -161,8 +160,9 @@ function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<Topi
 
 function TopicBrowserPaneOpener({ topicId }: { topicId?: string }) {
   const actions = useRightPanelActions()
+  const [autoOpenPanel] = usePreference('app.browser.auto_open_panel')
   useIpcOn('browser.pane.open_requested', ({ sessionId, scope }) => {
-    if (scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
+    if (autoOpenPanel && scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
   })
   return null
 }

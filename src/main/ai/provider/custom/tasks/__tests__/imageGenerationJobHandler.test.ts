@@ -111,6 +111,7 @@ beforeEach(() => {
   getByProviderIdMock.mockReturnValue({
     id: 'ppio',
     name: 'PPIO',
+    settings: {},
     reportsActualCost: false
   })
   getApiKeysMock.mockReturnValue([{ id: 'key-a', key: 'submit-key', label: 'Primary', isEnabled: true }])
@@ -228,6 +229,24 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const submitArg = submitMock.mock.calls[0][0]
     expect(submitArg.modelDescriptor).toBeUndefined()
+  })
+
+  it('passes the payload request timeout through to transport.submit', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/timed.png'] })
+
+    const ctx = createCtx({
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        n: 1,
+        cleanupPolicy: 'delete_when_unreferenced',
+        providerParams: {},
+        requestTimeoutMs: 15_000
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(submitMock.mock.calls[0][0]).toMatchObject({ requestTimeoutMs: 15_000 })
   })
 
   it('sync: submit(imageUrls) → no poll, and no metadata is persisted', async () => {

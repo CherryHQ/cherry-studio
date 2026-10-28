@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  CodeEditor,
   Combobox,
   type ComboboxOption,
   Flex,
@@ -25,6 +24,7 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import {
   SettingDescription,
   SettingDivider,
@@ -34,7 +34,6 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -121,7 +120,6 @@ const AppearanceSettings: FC = () => {
   const { theme, settedTheme, setTheme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
-  const activeCmTheme = useCmTheme()
 
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
@@ -579,8 +577,7 @@ const AppearanceSettings: FC = () => {
         <div
           id="setting-appearance-custom-css"
           className="mt-4 scroll-mt-6 overflow-hidden rounded-lg border border-border-subtle">
-          <CodeEditor
-            theme={activeCmTheme}
+          <LazyCodeEditor
             fontSize={fontSize - 1}
             value={customCss}
             language="css"

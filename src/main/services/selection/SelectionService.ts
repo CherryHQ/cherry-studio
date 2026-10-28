@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { BrowserWindow } from 'electron'
 import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
@@ -17,6 +19,7 @@ import { WindowType } from '@main/core/window/types'
 import { getApplicationId } from '@main/utils/appEdition'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionSession } from '@shared/types/selection'
 
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 
@@ -248,6 +251,12 @@ export class SelectionService extends BaseService implements Activatable {
 
     const wm = application.get('WindowManager')
 
+    const actionWindowListeners = new Map<string, () => void>()
+    this.registerDisposable(() => {
+      for (const dispose of actionWindowListeners.values()) dispose()
+      actionWindowListeners.clear()
+    })
+
     // Inject behavior into newly-created Selection windows. onWindowCreatedByType fires
     // synchronously before content loads, so listeners here attach before the renderer
     // can start sending IPC messages.
@@ -267,6 +276,20 @@ export class SelectionService extends BaseService implements Activatable {
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
         if (isMac) this.getNativePanel().configurePanel(mw.window.getNativeWindowHandle())
+        const onHide = () => {
+          const session = wm.getInitData(mw.id) as SelectionActionSession | null
+          if (session) {
+            application.get('IpcApiService').send(mw.id, 'selection.action_dismissed', { sessionId: session.sessionId })
+          }
+        }
+        const dispose = () => {
+          mw.window.removeListener('hide', onHide)
+          mw.window.removeListener('closed', dispose)
+          actionWindowListeners.delete(mw.id)
+        }
+        actionWindowListeners.set(mw.id, dispose)
+        mw.window.on('hide', onHide)
+        mw.window.once('closed', dispose)
         mw.window.on('resized', () => {
           if (mw.window.isDestroyed()) return
           if (this.isRemeberWinSize) {
@@ -1278,7 +1301,7 @@ export class SelectionService extends BaseService implements Activatable {
     // paints before the user notices. This mirrors the behavior of the
     // pre-WindowManager SelectionService: push data, then show immediately.
     const windowId = wm.open(WindowType.SelectionAction, {
-      initData: actionItem,
+      initData: { ...actionItem, sessionId: randomUUID() } satisfies SelectionActionSession,
       options: {
         width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
         height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-19-agent-runtime-capability-lookup.md
+2026-10-19-agent-runtime-capability-lookup.md: 1312e08468b12d52ad662dcf9424ed8576a795a0
+2026-10-19-agent-runtime-capability-lookup.zh.md: 0b069079f239b7135eb2facd5f50f090f0691956

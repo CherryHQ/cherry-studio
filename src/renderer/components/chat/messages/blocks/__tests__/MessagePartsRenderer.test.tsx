@@ -6,8 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { CherryTextMetaSchema } from '@shared/data/types/uiParts'
 
 import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
@@ -122,6 +124,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.sessionSend.sent') return 'Sent to'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'
+      if (key === 'message.message.user_content.expand') return 'Expand'
+      if (key === 'message.message.user_content.collapse') return 'Collapse'
       if (key === 'common.expand') return 'Expand'
       if (key === 'common.collapse') return 'Collapse'
       if (key === 'common.reasoning_content') return 'Reasoning content'
@@ -335,7 +339,7 @@ vi.mock('../PlaceholderBlock', () => ({
   usePlaceholderElapsedMs: mockUsePlaceholderElapsedMs
 }))
 
-import MessagePartsRenderer from '../MessagePartsRenderer'
+import MessagePartsRenderer, { getHoistedAttachments } from '../MessagePartsRenderer'
 
 const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem => ({
   id: 'msg-1',
@@ -901,6 +905,81 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
     })
 
+    it('retains manual user-text expansion across virtualized remounts without sharing it with another message', async () => {
+      const user = userEvent.setup()
+      const parts: CherryMessagePart[] = [{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }]
+      const toggle = () => screen.getByRole('button', { name: /Expand|Collapse/ })
+      const first = renderParts(parts, msg({ role: 'user' }))
+      await user.click(toggle())
+      expect(toggle()).toHaveAttribute('aria-expanded', 'true')
+      first.unmount()
+      const restored = renderParts(parts, msg({ role: 'user' }))
+      expect(toggle()).toHaveAttribute('aria-expanded', 'true')
+      await user.click(toggle())
+      restored.unmount()
+      const collapsed = renderParts(parts, msg({ role: 'user' }))
+      expect(toggle()).toHaveAttribute('aria-expanded', 'false')
+      await user.click(toggle())
+      collapsed.unmount()
+      renderParts(parts, msg({ id: 'another-user-message', role: 'user' }))
+      expect(toggle()).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('clears retained expansion when a still-mounted message is invalidated', async () => {
+      const user = userEvent.setup()
+      renderParts([{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }], msg({ role: 'user' }))
+      await user.click(screen.getByRole('button', { name: 'Expand' }))
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      act(() => invalidateCachedMessageUiStates(['msg-1']))
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('applies the default expansion preference live to untouched user messages', () => {
+      const parts: CherryMessagePart[] = [{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }]
+      const message = msg({ role: 'user' })
+      const { rerender } = renderParts(parts, message)
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText(/six/)).toBeNull()
+
+      rerender(renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, userMessageDefaultExpanded: true }))
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText(/six/)).toBeInTheDocument()
+
+      rerender(renderPartsTree(parts, message))
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText(/six/)).toBeNull()
+    })
+
+    it('retains manual collapse across remounts without collapsing other messages when default expansion is on', async () => {
+      const user = userEvent.setup()
+      const parts: CherryMessagePart[] = [{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }]
+      const config = { ...defaultMessageRenderConfig, userMessageDefaultExpanded: true }
+      const first = renderParts(parts, msg({ role: 'user' }), {}, config)
+      await user.click(screen.getByRole('button', { name: 'Collapse' }))
+      expect(screen.queryByText(/six/)).toBeNull()
+      first.unmount()
+
+      const restored = renderParts(parts, msg({ role: 'user' }), {}, config)
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText(/six/)).toBeNull()
+      restored.unmount()
+
+      renderParts(parts, msg({ id: 'untouched-user-message', role: 'user' }), {}, config)
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText(/six/)).toBeInTheDocument()
+    })
+
+    it('uses the preference when short user content becomes long without a manual disclosure choice', () => {
+      const message = msg({ role: 'user' })
+      const config = { ...defaultMessageRenderConfig, userMessageDefaultExpanded: true }
+      const { rerender } = renderParts([{ type: 'text', text: 'one' }], message, {}, config)
+      expect(screen.queryByRole('button', { name: /Expand|Collapse/ })).toBeNull()
+
+      rerender(renderPartsTree([{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }], message, {}, config))
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText(/six/)).toBeInTheDocument()
+    })
+
     it('keeps sent images rendered when the user text is collapsed', () => {
       renderParts(
         [
@@ -967,42 +1046,333 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
     })
 
-    it('hoists non-image attachments and hides their token chips', () => {
+    it('opens uniquely named sent files from their read-only tokens when parts omit fileTokenSourceId', () => {
+      const previewInputFile = vi.fn()
+
       renderParts(
         [
           {
             type: 'text',
-            text: 'see the doc',
+            text: 'Review report.pdf and notes.md',
             providerMetadata: {
               cherry: {
                 composer: {
                   version: 1,
-                  tokens: [{ id: 'file:hoisted-doc', kind: 'file', label: 'report.pdf', index: 0, textOffset: 0 }]
+                  tokens: [
+                    {
+                      id: 'file:legacy-report-token',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    },
+                    {
+                      id: 'file:legacy-notes-token',
+                      kind: 'file',
+                      label: 'notes.md',
+                      index: 1,
+                      textOffset: 22,
+                      promptText: 'notes.md',
+                      payload: { name: 'notes.md', origin_name: 'notes.md' }
+                    }
+                  ]
                 }
               }
             }
           },
           {
             type: 'file',
-            url: 'file:///tmp/report.pdf',
+            url: 'file:///internal/message-files/report.pdf',
             mediaType: 'application/pdf',
             filename: 'report.pdf',
-            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-doc' } }
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-report',
+                originalPath: '/Users/alice/report.pdf'
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/notes.md',
+            mediaType: 'text/markdown',
+            filename: 'notes.md',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-notes',
+                originalPath: '/Users/alice/notes.md'
+              }
+            }
           }
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
-        {},
+        { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
-      expect(screen.getByText('see the doc')).toBeInTheDocument()
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'report.pdf' }))
+      fireEvent.click(screen.getByRole('button', { name: 'notes.md' }))
+
+      expect(previewInputFile).toHaveBeenNthCalledWith(1, {
+        displayName: 'report.pdf',
+        previewPath: '/internal/message-files/report.pdf',
+        fileEntryId: 'entry-report',
+        originalPath: '/Users/alice/report.pdf',
+        mediaType: 'application/pdf'
+      })
+      expect(previewInputFile).toHaveBeenNthCalledWith(2, {
+        displayName: 'notes.md',
+        previewPath: '/internal/message-files/notes.md',
+        fileEntryId: 'entry-notes',
+        originalPath: '/Users/alice/notes.md',
+        mediaType: 'text/markdown'
+      })
     })
 
-    it('hoists attachments that carry no composer token', () => {
+    it('lets an explicit fileTokenSourceId own the token when a same-name part appears first', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:target',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/fallback/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-fallback' } }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/explicit/stored-report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'stored-report.pdf',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-explicit',
+                fileTokenSourceId: 'target',
+                originalPath: '/Users/alice/stored-report.pdf'
+              }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        false
+      )
+
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
+        'data-handle',
+        JSON.stringify({ kind: 'entry', entryId: 'entry-fallback' })
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'report.pdf' }))
+      expect(previewInputFile).toHaveBeenCalledTimes(1)
+      expect(previewInputFile).toHaveBeenCalledWith({
+        displayName: 'report.pdf',
+        previewPath: '/internal/message-files/explicit/stored-report.pdf',
+        fileEntryId: 'entry-explicit',
+        originalPath: '/Users/alice/stored-report.pdf',
+        mediaType: 'application/pdf'
+      })
+    })
+
+    it('keeps the inline card when the matched token id has no preview key', () => {
+      const token = {
+        id: 'file:',
+        kind: 'file' as const,
+        label: 'report.pdf',
+        index: 0,
+        textOffset: 7,
+        promptText: 'report.pdf',
+        payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+      }
+      expect(CherryTextMetaSchema.safeParse({ composer: { version: 1, tokens: [token] } }).success).toBe(true)
+      expect(readComposerFileTokenIdSuffix(token.id)).toBeUndefined()
+
+      const previewInputFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf',
+            providerMetadata: { cherry: { composer: { version: 1, tokens: [token] } } }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        false
+      )
+
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
+        'data-handle',
+        JSON.stringify({ kind: 'entry', entryId: 'entry-report' })
+      )
+      expect(screen.queryByRole('button', { name: 'report.pdf' })).toBeNull()
+      fireEvent.click(document.querySelector('[data-composer-token-kind="file"]') as Element)
+      expect(previewInputFile).not.toHaveBeenCalled()
+    })
+
+    it('keeps every same-name file card and does not open one from the shared token', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:shared-report-token',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/a/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report-a' } }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/b/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report-b' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        false
+      )
+
+      const cards = screen.getAllByTestId('mock-attachments')
+      expect(cards.map((card) => card.getAttribute('data-handle'))).toEqual([
+        JSON.stringify({ kind: 'entry', entryId: 'entry-report-a' }),
+        JSON.stringify({ kind: 'entry', entryId: 'entry-report-b' })
+      ])
+      expect(screen.queryByRole('button', { name: 'report.pdf' })).toBeNull()
+      fireEvent.click(document.querySelector('[data-composer-token-kind="file"]') as Element)
+      expect(previewInputFile).not.toHaveBeenCalled()
+    })
+
+    it('keeps the file card when two visible tokens share its filename', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf report.pdf',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:report-token-a',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    },
+                    {
+                      id: 'file:report-token-b',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 1,
+                      textOffset: 18,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        false
+      )
+
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
+        'data-handle',
+        JSON.stringify({ kind: 'entry', entryId: 'entry-report' })
+      )
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(2)
+      expect(screen.queryByRole('button', { name: 'report.pdf' })).toBeNull()
+      for (const chip of document.querySelectorAll('[data-composer-token-kind="file"]')) {
+        fireEvent.click(chip)
+      }
+      expect(previewInputFile).not.toHaveBeenCalled()
+    })
+
+    it('keeps non-image attachments without composer tokens in the inline flow when attachments are hoisted', () => {
       renderParts(
         [
           { type: 'text', text: 'see the doc' },
@@ -1016,7 +1386,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(screen.getByText('see the doc')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'report.pdf')
     })
 
     // A blank text part stays "substantive" while it carries a token chip, so hoisting every
@@ -1093,6 +1463,7 @@ describe('MessagePartsRenderer', () => {
               cherry: {
                 fileEntryId: 'entry-pasted-text',
                 fileTokenSourceId: 'source-pasted-text',
+                originalPath: '/Users/alice/Notes/Pasted text.txt',
                 composerFileKind: 'pasted-text'
               }
             }
@@ -1103,11 +1474,72 @@ describe('MessagePartsRenderer', () => {
 
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-pasted-text')).toEqual({
         url: 'file:///internal/message-files/pasted-text.txt',
+        fileEntryId: 'entry-pasted-text',
         mediaType: 'text/plain',
+        originalPath: '/Users/alice/Notes/Pasted text.txt',
         composerFileKind: 'pasted-text'
       })
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('maps a sent composer file token preview to the injected preview action', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review ',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:source-report',
+                      kind: 'file',
+                      label: 'report.md',
+                      index: 0,
+                      textOffset: 7
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/report.md',
+            mediaType: 'text/markdown',
+            filename: 'report.md',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-report',
+                fileTokenSourceId: 'source-report',
+                originalPath: '/Users/alice/report.md'
+              }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile }
+      )
+
+      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('source-report')
+      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
+        id: 'file:source-report',
+        kind: 'file',
+        label: 'report.md'
+      })
+
+      expect(previewInputFile).toHaveBeenCalledWith({
+        displayName: 'report.md',
+        previewPath: '/internal/message-files/report.md',
+        fileEntryId: 'entry-report',
+        originalPath: '/Users/alice/report.md',
+        mediaType: 'text/markdown'
+      })
     })
 
     it('keeps a user image when no composer file token is visible', () => {
@@ -1164,6 +1596,120 @@ describe('MessagePartsRenderer', () => {
 
       expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('LICENSE')
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('hides the composer file chip when the bubble hoists a file with preview or open', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Open ',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:source-report',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 5
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileTokenSourceId: 'source-report' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewFile: vi.fn(), openFile: vi.fn() },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(screen.getByText('Open')).toBeInTheDocument()
+    })
+
+    it('preserves original file identity when moving a managed attachment outside the bubble', () => {
+      const { files } = getHoistedAttachments(
+        [
+          {
+            type: 'file',
+            url: 'file:///managed/report%20copy.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report', originalPath: '/original/report.pdf' } }
+          }
+        ] as CherryMessagePart[],
+        'message-1',
+        true
+      )
+
+      expect(files).toHaveLength(1)
+      expect(files[0].inputFilePreview).toEqual({
+        displayName: 'report.pdf',
+        previewPath: '/managed/report copy.pdf',
+        fileEntryId: 'entry-report',
+        originalPath: '/original/report.pdf',
+        mediaType: 'application/pdf'
+      })
+    })
+
+    it('hides the inline file token when its external card supports right-pane preview', () => {
+      const previewInputFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Open ',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:source-report',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 5
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: {
+              cherry: { fileEntryId: 'entry-report', fileTokenSourceId: 'source-report' }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewFile: vi.fn(), openFile: vi.fn(), previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(screen.getByText('Open')).toBeInTheDocument()
     })
 
     it('hides a duplicate attachment when its composer file token is visible', () => {
@@ -1587,6 +2133,41 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('active layout', () => {
+    it('shows intermediate prose inline while keeping tools and reasoning in one live fold', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          { type: 'text', text: 'First update' },
+          toolPart('read'),
+          { type: 'text', text: 'Second update' },
+          { type: 'reasoning', text: 'Checking result', state: 'done' },
+          toolPart('edit'),
+          { type: 'text', text: 'Final answer', state: 'streaming' }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
+      )
+
+      for (const text of ['First update', 'Second update', 'Final answer']) {
+        expect(screen.getByText(text).closest('[data-testid="live-tool-group"]')).toBeNull()
+      }
+      expect(
+        screen.getByText('First update').compareDocumentPosition(screen.getByText('Second update')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        screen.getByText('Second update').compareDocumentPosition(screen.getByText('Final answer')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(screen.getAllByTestId('live-tool-group')).toHaveLength(1)
+      expect(latestMainTextProps(5)?.isStreaming).toBe(true)
+      expandCollapsedLiveToolGroups()
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Checking result')
+      expect(screen.getAllByText('First update')).toHaveLength(1)
+    })
+
     it('uses one top-level disclosure for separated process parts without swallowing answer text', () => {
       activateTurn()
       const pendingMessage = msg({ status: 'pending' })
@@ -2150,6 +2731,41 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
     })
 
+    it('shows each completed prose part inline and leaves tools and reasoning in the fold', () => {
+      renderParts(
+        [
+          { type: 'text', text: 'First update' },
+          toolPart('read'),
+          { type: 'text', text: 'Second update' },
+          { type: 'reasoning', text: 'Checking result', state: 'done' },
+          toolPart('edit'),
+          { type: 'text', text: 'Final answer' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
+      )
+
+      for (const text of ['First update', 'Second update', 'Final answer']) {
+        expect(screen.getByText(text).closest('[data-testid="tool-history-content"]')).toBeNull()
+      }
+      expect(
+        screen.getByText('First update').compareDocumentPosition(screen.getByText('Second update')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        screen.getByText('Second update').compareDocumentPosition(screen.getByText('Final answer')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.click(historyTrigger)
+      expect(screen.getAllByTestId('child-tool-group')).toHaveLength(1)
+      expandCollapsedChildToolGroups()
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Checking result')
+      expect(screen.getAllByText('First update')).toHaveLength(1)
+    })
+
     it('keeps channel authentication QR tools outside collapsed process history', () => {
       renderParts([
         toolPart('read'),
@@ -2345,6 +2961,34 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(reasoningTrigger)
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Only thought')
+    })
+
+    it('keeps completed reasoning visible when thinking auto-collapse is disabled', () => {
+      renderParts(
+        [
+          { type: 'reasoning', text: 'Deep thought', state: 'done' },
+          { type: 'text', text: 'final answer' }
+        ],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Deep thought')
+      expect(screen.getByText('final answer')).toBeVisible()
+    })
+
+    it('keeps tool-only history collapsed when thinking auto-collapse is disabled', () => {
+      renderParts(
+        [toolPart('read')] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          thoughtAutoCollapse: false
+        }
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('reveals completed thinking behind the process summary for a reasoning-and-answer message', () => {

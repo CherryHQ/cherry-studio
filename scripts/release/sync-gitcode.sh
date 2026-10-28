@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Native jq otherwise emits CRLF, which breaks Bash comparisons and upload URLs.
+if [ "${RUNNER_OS:-}" = "Windows" ]; then
+  jq() { command jq --binary "$@"; }
+fi
+
 API_URL="${GITCODE_API_URL:-https://api.gitcode.com/api/v5}"
 RELEASE_INFO=$(gh release view "$TAG" --repo "$GH_REPO" --json name,isPrerelease,isDraft)
 if [ "$(jq -r '.isDraft' <<< "$RELEASE_INFO")" != "false" ]; then
@@ -11,11 +16,12 @@ RELEASE_NAME=$(jq -r '.name' <<< "$RELEASE_INFO")
 RELEASE_STATUS=""
 if [ "$(jq -r '.isPrerelease' <<< "$RELEASE_INFO")" = "true" ]; then
   RELEASE_STATUS="pre"
-elif [ "$(gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name')" = "$TAG" ]; then
+elif [ "$(gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name' | tr -d '\r')" = "$TAG" ]; then
   RELEASE_STATUS="latest"
 fi
 
-TEMP_DIR=$(mktemp -d)
+# Relative paths work for both Git Bash and native Windows curl/jq.
+TEMP_DIR=$(mktemp -d .gitcode-sync.XXXXXX)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 jq -n --arg tag "$TAG" --arg name "$RELEASE_NAME" --arg status "$RELEASE_STATUS" \
   --rawfile body release_body.txt \

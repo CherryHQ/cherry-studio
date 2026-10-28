@@ -6,17 +6,20 @@ import { useTranslation } from 'react-i18next'
 import { Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
+import { ProviderBillingButton } from '../BillingSettings/ProviderBillingButton'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
+import type { ModelListCapabilityCounts, ModelListFilter } from './modelListDerivedState'
 import { ModelTypeFilterTabs } from './ModelTypeFilterTabs'
 
 export interface ModelListHeaderProps {
+  providerId: string
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
-  selectedTypeFilter: ModelListCapabilityFilter
-  setSelectedTypeFilter: (filter: ModelListCapabilityFilter) => void
+  selectedFilter: ModelListFilter
+  setSelectedFilter: (filter: ModelListFilter) => void
   typeCounts: ModelListCapabilityCounts
+  failedModelCount: number
   groupsExpanded: boolean
   onToggleGroupsExpanded: () => void
   docsWebsite?: string
@@ -25,12 +28,14 @@ export interface ModelListHeaderProps {
 }
 
 const ModelListHeader: React.FC<ModelListHeaderProps> = ({
+  providerId,
   hasNoModels,
   searchText,
   setSearchText,
-  selectedTypeFilter,
-  setSelectedTypeFilter,
+  selectedFilter,
+  setSelectedFilter,
   typeCounts,
+  failedModelCount,
   groupsExpanded,
   onToggleGroupsExpanded,
   docsWebsite,
@@ -43,7 +48,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   const [filterOpen, setFilterOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const isSearchExpanded = searchOpen || Boolean(searchText)
-  const isFilterActive = selectedTypeFilter !== 'all'
+  const isFilterActive = selectedFilter !== 'all'
   const GroupExpansionIcon = groupsExpanded ? ChevronsDownUp : ChevronsUpDown
 
   useEffect(() => {
@@ -138,6 +143,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               <Filter className={modelListClasses.toolbarHeaderIcon} />
             </button>
           </Tooltip>
+          <ProviderBillingButton providerId={providerId} disabled={hasNoModels} />
         </div>
         <div className={modelListClasses.headerInlineActions}>
           <div className={modelListClasses.titleActions}>{actions}</div>
@@ -145,9 +151,20 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
       </div>
       {filterOpen ? (
         <ModelTypeFilterTabs
-          value={selectedTypeFilter}
-          onValueChange={(next) => setSelectedTypeFilter(next as ModelListCapabilityFilter)}
+          value={selectedFilter}
+          onValueChange={(next) => setSelectedFilter(next as ModelListFilter)}
           counts={typeCounts}
+          extraTabs={
+            failedModelCount > 0
+              ? [
+                  {
+                    value: 'failed',
+                    label: t('settings.models.check.filter_failed'),
+                    count: failedModelCount
+                  }
+                ]
+              : []
+          }
         />
       ) : null}
     </>

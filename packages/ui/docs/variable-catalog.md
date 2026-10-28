@@ -61,7 +61,7 @@ Component, page, and Electron-shell custom properties are a separate ownership c
 The migration registry's historical `--app-*` entries are retired semantic bridges, not a namespace-wide ban on
 genuine host-local variables.
 
-The Renderer Sidebar's active-row and glow custom properties are scoped by
+The Renderer Sidebar's hover and active-row custom properties are scoped by
 `src/renderer/components/Sidebar/Sidebar.css`. They remain private implementation details even though the Sidebar
 appears throughout the main App Shell; visual reach through one owner does not make them cross-package semantics.
 
@@ -143,6 +143,7 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 | --- | --- | --- |
 | Code blocks | `--code-block` | Block code `background-color` |
 | Inline code | `--inline-code`, `--inline-code-foreground` | Inline code `background-color` / `color` |
+| Default code theme | `--cherry-code-background`, `--cherry-code-foreground`, `--cherry-code-muted`, `--cherry-code-selection`, `--cherry-code-keyword`, `--cherry-code-string`, `--cherry-code-constant`, `--cherry-code-type`, `--cherry-code-function`, `--cherry-code-tag`, `--cherry-code-link`, `--cherry-code-inserted`, `--cherry-code-deleted` | Palette of the `cherry` code theme: transparent surface, text, selection, syntax roles, and diff text `color` |
 | References | `--reference`, `--reference-foreground`, `--reference-subtle` | Reference surface, content, and quiet surface variant |
 | Search highlights | `--highlight`, `--highlight-foreground`, `--highlight-accent` | Match surface, content, and active-match surface |
 | Markdown alerts | `--markdown-important` | Important alert title and icon accent |

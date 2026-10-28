@@ -8,6 +8,7 @@ import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyF
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import {
   AUTO_BACKUP_TYPES,
+  BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE,
   type AutoBackupEvent,
   type AutoBackupEventInput,
   type AutoBackupSnapshot,
@@ -17,7 +18,7 @@ import {
 } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
-import { BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
+import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
 import { decryptToken } from './nutstore/NutstoreService'
 
 const logger = loggerService.withContext('AutoBackupService')
@@ -27,6 +28,7 @@ const LAST_ATTEMPT_TIMES_KEY = 'backup.auto_sync.last_attempt_times'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
+const ACTIVE_WRITERS_POLL_MS = 30_000
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
   webdav: ['data.backup.webdav.auto_sync', 'data.backup.webdav.host', 'data.backup.webdav.sync_interval'],
@@ -265,8 +267,16 @@ export class AutoBackupService extends BaseService {
         return
       }
 
+      if (error instanceof BackupActiveWritersError) {
+        logger.debug('Active data writers detected; automatic backup postponed', { type })
+        this.markStopped(type, false)
+        this.scheduleNext(type, 'immediate', generation, ACTIVE_WRITERS_POLL_MS)
+        return
+      }
+
       state.retryCount++
-      if (state.retryCount < MAX_ATTEMPTS) {
+      const payloadTooLarge = error instanceof Error && error.message.includes(BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE)
+      if (!payloadTooLarge && state.retryCount < MAX_ATTEMPTS) {
         const delay = 2 ** (state.retryCount - 1) * 10_000 - 3_000
         logger.warn('Automatic backup failed; retry scheduled', { type, retry: state.retryCount, delayMs: delay })
         this.scheduleNext(type, 'immediate', generation, delay)
@@ -278,7 +288,10 @@ export class AutoBackupService extends BaseService {
       state.retryCount = 0
       state.running = false
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Automatic backup failed after all attempts', error as Error)
+      logger.error(
+        payloadTooLarge ? 'Automatic backup rejected: HTTP 413' : 'Automatic backup failed after all attempts',
+        error as Error
+      )
       this.emit({ type, status: 'failed', timestamp, errorMessage })
       this.scheduleNext(type, 'fromNow', generation)
     }
@@ -408,9 +421,11 @@ export class AutoBackupService extends BaseService {
     return this.active && this.schedules[type].generation === generation
   }
 
-  private markStopped(type: AutoBackupType): void {
+  private markStopped(type: AutoBackupType, resetRetryCount = true): void {
     const state = this.schedules[type]
-    state.retryCount = 0
+    if (resetRetryCount) {
+      state.retryCount = 0
+    }
     if (!state.running) return
     state.running = false
     this.emit({ type, status: 'stopped' })

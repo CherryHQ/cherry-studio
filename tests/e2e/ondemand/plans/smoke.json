@@ -1,0 +1,10 @@
+{
+  "steps": [
+    { "verb": "expectVisible", "selector": "#root" },
+    {
+      "verb": "expectVisible",
+      "selector": "[data-ui~=\"app.shell\"]:visible, [data-onboarding-language-select]:visible"
+    },
+    { "verb": "screenshot", "name": "smoke" }
+  ]
+}

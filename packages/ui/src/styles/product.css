@@ -40,6 +40,21 @@
   --inline-code: rgba(0, 0, 0, 0.06);
   --inline-code-foreground: rgb(218, 97, 92);
 
+  /* Default code theme: cherryCodeTheme maps syntax to these; `background` stays transparent */
+  --cherry-code-background: transparent;
+  --cherry-code-foreground: var(--foreground);
+  --cherry-code-muted: var(--muted-foreground);
+  --cherry-code-selection: color-mix(in oklab, var(--link) 20%, transparent);
+  --cherry-code-keyword: var(--cs-violet-700);
+  --cherry-code-string: var(--cs-emerald-700);
+  --cherry-code-constant: var(--cs-amber-700);
+  --cherry-code-type: var(--cs-cyan-700);
+  --cherry-code-function: var(--cs-blue-600);
+  --cherry-code-tag: var(--cs-rose-700);
+  --cherry-code-link: var(--link);
+  --cherry-code-inserted: var(--cs-green-700);
+  --cherry-code-deleted: var(--cs-red-600);
+
   /* Stable product domain: references and search highlights */
   --reference: #cfe1ff;
   --reference-foreground: #000;
@@ -67,6 +82,16 @@
   /* Stable product domain: rich text and code */
   --code-block: #323232;
   --inline-code: #323232;
+
+  /* Default code theme: one lightness band so no hue dominates */
+  --cherry-code-keyword: var(--cs-violet-300);
+  --cherry-code-string: var(--cs-emerald-300);
+  --cherry-code-constant: var(--cs-orange-300);
+  --cherry-code-type: var(--cs-cyan-300);
+  --cherry-code-function: var(--cs-blue-300);
+  --cherry-code-tag: var(--cs-rose-300);
+  --cherry-code-inserted: var(--cs-green-400);
+  --cherry-code-deleted: var(--cs-red-400);
 
   /* Stable product domain: references and search highlights */
   --reference: #404040;

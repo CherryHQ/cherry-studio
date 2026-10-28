@@ -11,11 +11,11 @@ import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { createDanglingCacheImpl } from '@main/services/file/danglingCache'
 import type { FileManagerDeps } from '@main/services/file/internal/deps'
 import { createVersionCacheImpl } from '@main/services/file/versionCache'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { createInternal, ensureExternal } from '../create'
 import { deleteUnreferencedInternalEntry } from '../lifecycle'
@@ -66,6 +66,19 @@ describe('unreferenced internal entry retirement', () => {
 
     expect(fileEntryService.findById(entry.id)).toBeNull()
     await expect(stat(physical)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('waits for an in-flight content write on the same entry', async () => {
+    const entry = await createImage()
+    const release = await deps.contentWriteLock.acquire(entry.id)
+
+    const deletion = deleteUnreferencedInternalEntry(deps, entry.id)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(fileEntryService.findById(entry.id)).not.toBeNull()
+
+    release()
+    await expect(deletion).resolves.toBe(true)
+    expect(fileEntryService.findById(entry.id)).toBeNull()
   })
 
   it('preserves the image and a painting reference that still uses it', async () => {

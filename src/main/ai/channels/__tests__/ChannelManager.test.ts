@@ -29,6 +29,12 @@ class TestWindowManager {
   }
 }
 
+@Injectable('FileManager')
+class TestFileManager {
+  constructor() {
+    Object.assign(this, defaultServiceInstances.FileManager)
+  }
+}
 @Injectable('PowerService')
 class TestPowerService {}
 
@@ -139,6 +145,7 @@ describe('ChannelManager', () => {
     })
     const container = ServiceContainer.getInstance()
     container.register(TestWindowManager)
+    container.register(TestFileManager)
     container.register(TestPowerService)
     container.register(ChannelManager)
     manager = container.get(ChannelManager)

@@ -112,6 +112,11 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
       return 'content'
   }
 
+  // A structured HTTP status outranks message-only category signals.
+  if (status !== undefined && status >= 500 && status < 600) {
+    return 'server'
+  }
+
   const msg = (text ?? '').toLowerCase()
 
   // Geo-block responses often use HTTP 403, so region signals must win over auth.
@@ -130,10 +135,30 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'region'
   }
 
+  // Client-refusal gateways reject third-party clients with auth-flavored wording that names
+  // the CLIENT, not the key ("unauthorized client detected, contact support" — #21376). The
+  // server is refusing this client outright, so claiming the key is invalid sends users off
+  // regenerating working keys. A key MENTION under a client policy ("this api key does not
+  // permit third-party clients") is still a refusal; only explicit invalidity phrases/codes
+  // keep the auth bucket, so this sits before the generic auth branch and yields to them.
+  if (
+    msg.includes('unauthorized client') &&
+    !msg.includes('invalid_api_key') &&
+    !msg.includes('invalid api key') &&
+    !msg.includes('api key is invalid') &&
+    !msg.includes('incorrect api key')
+  ) {
+    return 'permission'
+  }
+
   // Auth errors (401). 403 is handled below: a refused request is often unrelated to key
   // validity, so claiming the key is invalid sends users off regenerating working keys.
   if (
     status === 401 ||
+    msg.includes('api key is missing') ||
+    msg.includes('missing api key') ||
+    msg.includes('no api key') ||
+    msg.includes('api_key_missing') ||
     msg.includes('invalid_api_key') ||
     msg.includes('invalid api key') ||
     msg.includes('api key is invalid') ||
@@ -292,8 +317,6 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   // Server errors (5xx / overloaded)
   if (
-    status === 529 ||
-    (status !== undefined && status >= 500) ||
     msg.includes('overloaded') ||
     msg.includes('overload') ||
     msg.includes('service unavailable') ||
@@ -318,15 +341,24 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'knowledge'
   }
 
-  // Response parse errors
+  // Response parse errors. A "failed to parse" that names the REQUEST is the upstream
+  // rejecting our payload ("Failed to parse request body" — #22164), not a malformed AI
+  // response, so it falls through to the request-failure branch instead.
+  const requestParseFailure = msg.includes('failed to parse') && msg.includes('request')
+
   if (
     msg.includes('unexpected token') ||
     msg.includes('invalid response') ||
     msg.includes('parse error') ||
-    msg.includes('failed to parse') ||
+    (!requestParseFailure && msg.includes('failed to parse')) ||
     msg.includes('json parse') ||
     msg.includes('invalid json') ||
-    msg.includes('malformed json')
+    msg.includes('malformed json') ||
+    msg.includes('invalid input: expected object, received undefined') ||
+    msg.includes('type validation failed:') ||
+    msg.includes("expected 'function.name' to be a string.") ||
+    msg.includes("expected 'id' to be a string.") ||
+    msg.includes('response stream ended without a finish reason.')
   ) {
     return 'parse'
   }
