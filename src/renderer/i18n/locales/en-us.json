@@ -5692,6 +5692,7 @@
   "settings.skills.toggleFailed": "Failed to update the global state of skill {{name}}",
   "settings.skills.tryNow": "Try now",
   "settings.skills.viewSource": "View Source",
+  "settings.subscription.activated": "{{plan}} is active",
   "settings.subscription.card_label": "Subscription",
   "settings.subscription.go_to_subscribe": "Subscribe",
   "settings.subscription.limit_daily": "Daily limit",

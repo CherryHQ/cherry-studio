@@ -5692,6 +5692,7 @@
   "settings.skills.toggleFailed": "スキル {{name}} のグローバル状態を更新できませんでした",
   "settings.skills.tryNow": "今すぐ試す",
   "settings.skills.viewSource": "ソースを表示",
+  "settings.subscription.activated": "{{plan}} が有効になりました",
   "settings.subscription.card_label": "サブスクリプション",
   "settings.subscription.go_to_subscribe": "購読する",
   "settings.subscription.limit_daily": "1日の上限",
