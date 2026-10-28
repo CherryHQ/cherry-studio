@@ -3,8 +3,18 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
-import { Avatar, AvatarImage, Button, ColFlex, EmojiAvatar } from '@cherrystudio/ui'
+import {
+  Avatar,
+  AvatarImage,
+  Button,
+  ColFlex,
+  EmojiAvatar,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsage'
 import { CommandShortcut } from '@renderer/components/command'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
@@ -87,15 +97,19 @@ export function UserAccountPanel({
   const subscriptionLoading =
     cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && !plans && !plansError)
   const subscriptionFailed = cloudStatusLoadState === 'error' || (isCloudSignedIn && plansError && !plans)
-  const subscriptionAction = subscriptionLoading
-    ? t('common.loading')
-    : subscriptionFailed
-      ? t('common.retry')
-      : paidPlanName
-        ? remainingPercent === null
-          ? t('settings.subscription.no_quota')
-          : t('settings.subscription.remaining', { percent: remainingPercent })
-        : t('settings.subscription.go_to_subscribe')
+  const subscriptionAction = subscriptionLoading ? (
+    t('common.loading')
+  ) : subscriptionFailed ? (
+    t('common.retry')
+  ) : paidPlanName ? (
+    remainingPercent === null ? (
+      t('settings.subscription.no_quota')
+    ) : (
+      t('settings.subscription.remaining', { percent: remainingPercent })
+    )
+  ) : (
+    <span className="text-link">{t('settings.subscription.go_to_subscribe')}</span>
+  )
   const handleSubscriptionClick = () => {
     if (cloudStatusLoadState === 'error') {
       void loadCloudStatus()
@@ -142,6 +156,40 @@ export function UserAccountPanel({
             }
           : null
 
+  const openUsage = () => {
+    onRequestClose?.()
+    openSettingsTab('/settings/profile')
+  }
+  const subscriptionRow = (
+    <Button
+      type="button"
+      className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
+      disabled={subscriptionLoading}
+      onClick={handleSubscriptionClick}
+      size="sm"
+      variant="ghost">
+      {paidPlanName ? (
+        <Gauge className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+      ) : (
+        <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+      )}
+      <span className="shrink-0">
+        {paidPlanName ? t('settings.subscription.usage') : t('settings.subscription.card_label')}
+      </span>
+      <span className="ml-auto flex min-w-0 items-center gap-1 text-muted-foreground">
+        <span className="truncate">{subscriptionAction}</span>
+        {showSubscribeDot && !subscriptionLoading && (
+          <span
+            aria-hidden
+            data-testid="subscribe-reminder-dot"
+            className="size-1.5 shrink-0 rounded-full bg-destructive"
+          />
+        )}
+        <ChevronRight className="size-4 shrink-0" aria-hidden />
+      </span>
+    </Button>
+  )
+
   return (
     <ColFlex className="w-56 p-1.5">
       <ColFlex className="pb-1">
@@ -176,33 +224,28 @@ export function UserAccountPanel({
         </Button>
       </ColFlex>
       <ColFlex className="border-border-subtle gap-0.5 border-t py-1">
-        <Button
-          type="button"
-          className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
-          disabled={subscriptionLoading}
-          onClick={handleSubscriptionClick}
-          size="sm"
-          variant="ghost">
-          {paidPlanName ? (
-            <Gauge className="!text-muted-foreground size-4 shrink-0" aria-hidden />
-          ) : (
-            <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
-          )}
-          <span className="shrink-0">
-            {paidPlanName ? t('settings.subscription.usage') : t('settings.subscription.card_label')}
-          </span>
-          <span className="ml-auto flex min-w-0 items-center gap-1 text-muted-foreground">
-            <span className="truncate">{subscriptionAction}</span>
-            {showSubscribeDot && !subscriptionLoading && (
-              <span
-                aria-hidden
-                data-testid="subscribe-reminder-dot"
-                className="size-1.5 shrink-0 rounded-full bg-destructive"
-              />
-            )}
-            <ChevronRight className="size-4 shrink-0" aria-hidden />
-          </span>
-        </Button>
+        {activePaidPlan ? (
+          <HoverCard openDelay={150} closeDelay={120}>
+            <HoverCardTrigger asChild>{subscriptionRow}</HoverCardTrigger>
+            <HoverCardContent side="right" align="start" sideOffset={8} className="w-64">
+              <div className="truncate font-medium text-sm">{activePaidPlan.plan.display_name}</div>
+              <div className="mt-2 border-border border-t pt-1">
+                <CherryCloudQuotaUsage entitlement={activePaidPlan} />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-1 w-full justify-between px-0 text-muted-foreground text-xs hover:bg-transparent hover:text-foreground"
+                onClick={openUsage}>
+                {t('settings.subscription.view_usage_details')}
+                <ChevronRight className="size-3.5" aria-hidden />
+              </Button>
+            </HoverCardContent>
+          </HoverCard>
+        ) : (
+          subscriptionRow
+        )}
         <NotificationCenterButton
           onRequestClose={() => {
             onNotificationsOpen?.()
