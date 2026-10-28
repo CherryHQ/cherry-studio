@@ -16,8 +16,6 @@ import { resolveMigrationsPath } from './internal/migrationsPath'
 import { truncateAll } from './internal/truncate'
 
 export interface TestDatabaseOptions {
-  /** Production migration subset for genuine migrate-forward fixtures. */
-  migrationsFolder?: string
   /** Seeders to run after schema init. Default: none. */
   seeders?: ISeeder[]
 }
@@ -92,7 +90,7 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     sqlite.pragma('synchronous = NORMAL')
 
     // Same migration path as DbService.onInit(): migrations first, then custom SQL.
-    applyMigrations(db, options.migrationsFolder ?? resolveMigrationsPath())
+    applyMigrations(db, resolveMigrationsPath())
 
     if (options.seeders?.length) {
       new SeedRunner(db).runAll(options.seeders)
