@@ -25,6 +25,25 @@ Status: proposed
   - `FileProcessingTaskId`，branded 字符串；
   - `FileProcessingTaskStatus`：`queued`、`processing`、`completed`、`failed`、`cancelled`；
   - `FileProcessingTask`：`id`、`feature`、`processorId`、`status`，处理中时有 `progress`，完成时有 `artifact`，失败时有 `error`（一条消息）。
+
+  ```text
+    startTask
+        │
+        ▼
+     queued ───(1)───► processing ───(3)───► completed
+        │                │   ▲  │
+        │                │   └──┘ (2)
+        │                │
+        │                ├───────(4)───────► failed
+        │                │
+        └────────────────┴───────(5)───────► cancelled
+  ```
+
+  1. handler 的 `execute` 开始执行。
+  2. 处理器上报进度。
+  3. 产物写入完成。
+  4. 处理器出错，或 job 超时。
+  5. 调用 `cancelTask`，或下次启动时取消上次启动没跑完的任务。
 - **`FileProcessingService` 的主进程 API。** 取代 `startJob`：
   - `startTask(input)` resolve 为 `{ task, done }`。`task` 是刚入队时的任务，`done` resolve 为它的终态 `FileProcessingTask`。
   - `getTask(id)` 和 `cancelTask(id)`。

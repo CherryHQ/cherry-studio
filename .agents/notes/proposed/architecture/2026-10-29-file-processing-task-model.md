@@ -25,6 +25,25 @@ Goal (#22987): JobManager is invisible to any service that depends on FileProces
   - `FileProcessingTaskId`, a branded string;
   - `FileProcessingTaskStatus`: `queued`, `processing`, `completed`, `failed`, `cancelled`;
   - `FileProcessingTask`: `id`, `feature`, `processorId`, `status`, `progress` while processing, `artifact` when completed, and `error` (a message) when failed.
+
+  ```text
+    startTask
+        │
+        ▼
+     queued ───(1)───► processing ───(3)───► completed
+        │                │   ▲  │
+        │                │   └──┘ (2)
+        │                │
+        │                ├───────(4)───────► failed
+        │                │
+        └────────────────┴───────(5)───────► cancelled
+  ```
+
+  1. The handler's `execute` starts.
+  2. The processor reports progress.
+  3. The artifact is written.
+  4. The processor fails, or the job times out.
+  5. `cancelTask`, or the next launch cancelling a task the previous one left unfinished.
 - **Main-process API on `FileProcessingService`.** It replaces `startJob`:
   - `startTask(input)` resolves to `{ task, done }`. `task` is the task as just queued, and `done` resolves to its terminal `FileProcessingTask`.
   - `getTask(id)` and `cancelTask(id)`.
