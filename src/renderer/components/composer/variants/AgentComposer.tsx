@@ -57,6 +57,7 @@ import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSess
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
@@ -86,6 +87,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 
+import { CherryCloudQuotaNotice, getCherryCloudQuotaMessage } from '../CherryCloudQuotaNotice'
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
@@ -536,6 +538,7 @@ const AgentComposerInner = ({
   resolvedWorkspaceWarning
 }: InnerProps) => {
   const { updateAgent, updateModel } = useUpdateAgent()
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(model)
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -1630,10 +1633,13 @@ const AgentComposerInner = ({
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
+            !!quotaExhaustion ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
-            sendDisabled || isDirectSending || hasPendingReference ? t('common.loading') : missingModelMessage
+            sendDisabled || isDirectSending || hasPendingReference
+              ? t('common.loading')
+              : (missingModelMessage ?? (quotaExhaustion ? getCherryCloudQuotaMessage(quotaExhaustion, t) : undefined))
           }
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}
@@ -1643,6 +1649,7 @@ const AgentComposerInner = ({
           onPause={abortAgentSession}
           queueContent={
             <>
+              {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"
