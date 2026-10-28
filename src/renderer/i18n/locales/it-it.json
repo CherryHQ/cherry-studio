@@ -5627,6 +5627,8 @@
   "settings.skills.invalidFormat": "Sono supportati solo file ZIP e cartelle",
   "settings.skills.launchDraft": "Usa la competenza {{name}} per aiutarmi con questa attività.",
   "settings.skills.launchFailed": "Impossibile provare {{name}}",
+  "settings.skills.mirrorToggle": "Sincronizza la competenza {{name}} nella directory degli agenti",
+  "settings.skills.mirrorToggleFailed": "Impossibile sincronizzare la competenza {{name}}",
   "settings.skills.notFound": "Competenza non trovata",
   "settings.skills.readOnly": "Sola lettura",
   "settings.skills.remote.applyFailed": "Impossibile aggiornare la competenza",
