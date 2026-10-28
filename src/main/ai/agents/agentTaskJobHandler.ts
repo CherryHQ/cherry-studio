@@ -26,6 +26,8 @@ declare module '@main/core/job/jobRegistry' {
       prompt: string
       workspace?: AgentTaskInput['workspace']
       reuseRevision: number
+      /** Fire-time precondition; absent on rows written before guards existed. */
+      guard?: AgentTaskInput['guard']
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
       timeoutMinutes: number

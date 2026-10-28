@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { JobContext } from '@main/core/job/types'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, TaskGuard } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -81,7 +81,7 @@ vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { getById: vi.fn() }
+  jobService: { getById: vi.fn(), list: vi.fn(() => []) }
 }))
 vi.mock('@main/ai/agents/heartbeat', () => ({
   readHeartbeat: vi.fn()
@@ -137,6 +137,7 @@ type TestAgentTaskInput = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  guard?: TaskGuard
   reuseRevision: number
 }
 
@@ -253,6 +254,43 @@ describe('runAgentTask', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('guard', () => {
+    const taskTemplate = { agentId: 'a1', prompt: 'do work', timeoutMinutes: 2, workspace: { type: 'system' } }
+    const failingCommand = `"${process.execPath}" -e "process.exit(1)"`
+    const passingCommand = `"${process.execPath}" -e "process.exit(0)"`
+
+    function arrange() {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('task', {}, taskTemplate))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({}))
+    }
+
+    it('skips with a reason and starts no agent turn when the guard fails', async () => {
+      arrange()
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'command', command: failingCommand } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toMatch(/^Skipped \(guard: command failed \(exit code 1\)/)
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('runs the agent turn when the guard passes', async () => {
+      arrange()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'command', command: passingCommand } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      expect(await promise).toEqual({ result: 'Completed' })
+    })
   })
 
   it('throws when the agent cannot be found', async () => {

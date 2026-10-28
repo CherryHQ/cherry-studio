@@ -247,6 +247,22 @@ describe('AgentJobsService', () => {
     }
   })
 
+  it('defaults the guard to always and persists guard create/update into the job template', () => {
+    const task = service.createTask(AGENT_ID, form)
+    expect(task.guard).toEqual({ type: 'always' })
+
+    const updated = service.updateTask(AGENT_ID, task.id, { guard: { type: 'file_changed', path: '/tmp/a.txt' } })
+    expect(updated?.guard).toEqual({ type: 'file_changed', path: '/tmp/a.txt' })
+    expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({
+      guard: { type: 'file_changed', path: '/tmp/a.txt' }
+    })
+
+    expect(service.updateTask(AGENT_ID, task.id, { name: 'renamed' })?.guard).toEqual({
+      type: 'file_changed',
+      path: '/tmp/a.txt'
+    })
+  })
+
   it('rolls back the Agent, Sessions and schedules together when archive or restore fails', async () => {
     const task = service.createTask(AGENT_ID, form)
     const session = agentSessionService.create({ agentId: AGENT_ID, name: 'Owned', workspace: { type: 'system' } })

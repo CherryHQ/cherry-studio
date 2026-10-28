@@ -40,11 +40,13 @@ import { loggerService } from '@logger'
 import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
+import { evaluateTaskGuard } from '@main/ai/agents/taskGuard'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { TaskGuard } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -54,6 +56,8 @@ export type AgentTaskInput = {
   prompt: string
   timeoutMinutes: number
   workspace?: AgentSessionWorkspaceSource
+  /** Fire-time precondition; absent on rows written before guards existed. */
+  guard?: TaskGuard
   /** Reuse-config epoch captured when this job was enqueued. */
   reuseRevision: number
 }
@@ -61,6 +65,8 @@ export type AgentTaskInput = {
 export type AgentTaskOutput = {
   /** First 200 chars of the assistant reply, or a status marker for skipped runs. */
   result: string
+  /** Set when a guard stopped the run before any agent turn; the run log shows `skipped`. */
+  skipped?: true
 }
 
 /** Combine the JobManager-provided abort signal with an optional per-task timeout. */
@@ -135,6 +141,18 @@ function resolveTaskSession(params: {
     })
   }
   return session
+}
+
+/** Start time of the newest earlier run of this schedule that actually reached the agent. */
+function findLastExecutedRunStart(scheduleId: string, currentJobId: string): number | null {
+  for (const job of jobService.list({ scheduleId })) {
+    if (job.id === currentJobId || !job.startedAt) continue
+    if (job.status === 'completed' && (job.output as { skipped?: boolean } | null)?.skipped === true) continue
+    if (job.status === 'pending' || job.status === 'delayed') continue
+    const startedMs = Date.parse(job.startedAt)
+    if (Number.isFinite(startedMs)) return startedMs
+  }
+  return null
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -221,6 +239,15 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       '---',
       content
     ].join('\n')
+  }
+
+  if (!isHeartbeat && ctx.input.guard && ctx.input.guard.type !== 'always') {
+    const lastRunStartedAt = scheduleId ? findLastExecutedRunStart(scheduleId, ctx.jobId) : null
+    const outcome = await evaluateTaskGuard(ctx.input.guard, { lastRunStartedAt, signal: ctx.signal })
+    if (!outcome.proceed) {
+      logger.debug('Task skipped by guard', { agentId, scheduleId, reason: outcome.reason })
+      return { result: `Skipped (guard: ${outcome.reason})`, skipped: true }
+    }
   }
 
   const expectedReuseRevision = normalizeTaskSessionReuseRevision(ctx.input.reuseRevision)

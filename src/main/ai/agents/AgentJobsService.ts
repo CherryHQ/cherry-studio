@@ -8,6 +8,7 @@ import {
   HEARTBEAT_PROMPT_SENTINEL,
   isMissedTask,
   normalizeTaskSessionReuseRevision,
+  readTaskGuard,
   readTaskSessionReuse,
   writeTaskSessionReuse
 } from '@data/services/AgentTaskService'
@@ -17,7 +18,7 @@ import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
-import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
+import type { ScheduledTaskEntity, TaskGuard } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -56,7 +57,12 @@ type AgentTaskJobInputTemplate = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  guard: TaskGuard
   reuseRevision: number
+}
+
+function guardsEqual(a: TaskGuard, b: TaskGuard): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspaceSource): boolean {
@@ -82,6 +88,7 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
     timeoutMinutes:
       typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
     workspace,
+    guard: readTaskGuard(template.guard),
     reuseRevision: normalizeTaskSessionReuseRevision(template.reuseRevision)
   }
 }
@@ -261,6 +268,7 @@ export class AgentJobsService extends BaseService {
           timeoutMinutes:
             form.timeoutMinutes === null ? 0 : (form.timeoutMinutes ?? DEFAULT_AGENT_TASK_TIMEOUT_MINUTES),
           workspace: form.workspace,
+          guard: form.guard ?? { type: 'always' },
           reuseRevision: 0
         },
         // Reuse configuration lives in metadata; the sticky session itself is
@@ -305,7 +313,8 @@ export class AgentJobsService extends BaseService {
     const templateChanged =
       (patch.prompt !== undefined && patch.prompt !== existing.prompt) ||
       (patch.timeoutMinutes !== undefined && nextTimeoutMinutes !== existing.timeoutMinutes) ||
-      patch.workspace !== undefined
+      patch.workspace !== undefined ||
+      (patch.guard !== undefined && !guardsEqual(patch.guard, existing.guard))
 
     const nextReuseEnabled = patch.reuseSession ?? existing.reuseSession
     const reuseChanged = patch.reuseSession !== undefined && patch.reuseSession !== existing.reuseSession
@@ -348,6 +357,7 @@ export class AgentJobsService extends BaseService {
           prompt: patch.prompt ?? existing.prompt,
           timeoutMinutes: nextTimeoutMinutes,
           workspace: patch.workspace ?? existing.workspace,
+          guard: patch.guard ?? existing.guard,
           reuseRevision
         }
       }

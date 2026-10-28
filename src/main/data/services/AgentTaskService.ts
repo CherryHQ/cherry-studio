@@ -20,11 +20,13 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type {
-  ScheduledTaskEntity,
-  ScheduledTaskListItem,
-  TaskRunLogEntity,
-  TaskRunSummary
+import {
+  type ScheduledTaskEntity,
+  type ScheduledTaskListItem,
+  type TaskGuard,
+  TaskGuardSchema,
+  type TaskRunLogEntity,
+  type TaskRunSummary
 } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -53,6 +55,7 @@ type AgentTaskJobInputTemplate = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  guard: TaskGuard
 }
 
 type TaskOwnerStateChange = {
@@ -72,8 +75,15 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
     prompt: template.prompt,
     timeoutMinutes:
       typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
-    workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
+    workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' },
+    guard: readTaskGuard(template.guard)
   }
+}
+
+/** Missing or malformed guards (rows written before guards existed) fall back to `always`. */
+export function readTaskGuard(value: unknown): TaskGuard {
+  const parsed = TaskGuardSchema.safeParse(value)
+  return parsed.success ? parsed.data : { type: 'always' }
 }
 
 /**
@@ -522,6 +532,7 @@ export class AgentTaskService {
       trigger: snapshot.trigger,
       timeoutMinutes: tmpl.timeoutMinutes,
       workspace: tmpl.workspace,
+      guard: tmpl.guard,
       reuseSession: reuse.enabled,
       reuseSessionId: reuse.enabled ? reuseSessionId : null,
       channelIds: channelRows.map((c) => c.id),
@@ -535,7 +546,7 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { result?: string; sessionId?: string } | null
+    const output = job.output as { result?: string; sessionId?: string; skipped?: boolean } | null
     // New runs persist the link before execution; older v2 job rows only have it in output.
     const sessionId = job.metadata.sessionId ?? output?.sessionId
     const startedAt = job.startedAt ?? job.scheduledAt
@@ -550,7 +561,9 @@ export class AgentTaskService {
       ? 'cancelled'
       : job.status === 'pending' || job.status === 'delayed'
         ? 'running'
-        : job.status
+        : job.status === 'completed' && output?.skipped === true
+          ? 'skipped'
+          : job.status
 
     // Cancelled runs end at the cancel-request time — recovery stamps finishedAt
     // at sweep time, up to a process lifetime after the run actually stopped.

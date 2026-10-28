@@ -33,6 +33,7 @@ function scheduledTask(overrides: Partial<ScheduledTaskListItem> = {}): Schedule
     trigger: { kind: 'cron', expr: '0 21 * * *' },
     timeoutMinutes: 2,
     workspace: { type: 'system' },
+    guard: { type: 'always' as const },
     reuseSession: false,
     reuseSessionId: null,
     channelIds: [],

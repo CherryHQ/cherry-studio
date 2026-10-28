@@ -227,7 +227,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
             completed: t('agent.tasks.logs.completed'),
             running: t('agent.tasks.logs.running'),
             failed: t('agent.tasks.logs.failed'),
-            cancelled: t('agent.tasks.logs.cancelled')
+            cancelled: t('agent.tasks.logs.cancelled'),
+            skipped: t('agent.tasks.logs.skipped')
           }
           return (
             <Badge variant={value === 'failed' ? 'destructive' : value === 'running' ? 'secondary' : 'outline'}>

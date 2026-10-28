@@ -165,6 +165,19 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
+/**
+ * Precondition evaluated at fire time. A failing guard skips the run — no agent
+ * turn is started — and the run log records it as `skipped` with a reason.
+ */
+export const TaskGuardSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('always') }),
+  /** Proceed only when the file exists and was modified after the last executed run started. */
+  z.strictObject({ type: z.literal('file_changed'), path: z.string().trim().min(1) }),
+  /** Proceed only when the shell command exits 0. */
+  z.strictObject({ type: z.literal('command'), command: z.string().trim().min(1) })
+])
+export type TaskGuard = z.infer<typeof TaskGuardSchema>
+
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
@@ -174,6 +187,8 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
   workspace: AgentSessionWorkspaceSourceSchema,
+  /** Fire-time precondition; `always` runs every tick. */
+  guard: TaskGuardSchema,
   /**
    * When true, every fire continues the same agent session instead of creating
    * a fresh one. Off by default — a sticky session accumulates context without
@@ -207,7 +222,7 @@ export const TaskRunLogEntitySchema = z.strictObject({
   /** null while unfinished and for runs that never started (no queue-wait shown as duration). */
   durationMs: z.number().nullable(),
   /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
-  status: z.enum(['running', 'completed', 'failed', 'cancelled']),
+  status: z.enum(['running', 'completed', 'failed', 'cancelled', 'skipped']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })

@@ -48,7 +48,7 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
-import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
+import { TaskGuardSchema, TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -129,6 +129,9 @@ const CronInputSchema = z.object({
     .describe(
       'Continue each execution in the same session. Default is false on add; omit on update to keep the current setting.'
     ),
+  guard: TaskGuardSchema.optional().describe(
+    'Precondition checked at each fire; when it fails the run is skipped with no agent turn. {"type":"always"} (default), {"type":"file_changed","path":"..."} runs only if the file exists and changed since the last run, {"type":"command","command":"..."} runs only if the command exits 0. Omit on update to keep the current guard.'
+  ),
   id: z.string().min(1).optional().describe('Job ID (required for update and remove)')
 })
 type CronInput = z.output<typeof CronInputSchema>
@@ -606,6 +609,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     at,
     timeout_minutes: timeoutMinutes,
     reuse_session: reuseSession,
+    guard,
     id
   } = args
   if (action === 'update' && !id) throw new Error("'id' is required for update")
@@ -651,6 +655,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     trigger,
     timeoutMinutes,
     channelIds,
+    guard,
     ...(reuseSession !== undefined ? { reuseSession } : {})
   }
   const task =
