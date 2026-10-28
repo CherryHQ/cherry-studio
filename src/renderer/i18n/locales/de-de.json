@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji",
   "settings.assistant.icon.type.model": "Modellsymbol",
   "settings.assistant.icon.type.none": "Nicht anzeigen",
+  "settings.browser.autoOpenPanel": "Browserbereich automatisch öffnen",
+  "settings.browser.autoOpenPanelHelp": "Zeigt den Browserbereich rechts an, wenn Werkzeuge im Web surfen. Deaktivieren Sie diese Option, um den Bereich manuell zu öffnen, während die Werkzeuge weiter surfen.",
   "settings.browser.cachedFiles": "Zwischengespeicherte Dateien",
   "settings.browser.clear": "Browserdaten löschen",
   "settings.browser.clearCacheHelp": "Speicherplatz freigeben. Websites laden beim nächsten Besuch möglicherweise langsamer.",

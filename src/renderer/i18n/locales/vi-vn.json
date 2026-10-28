@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Biểu tượng cảm xúc",
   "settings.assistant.icon.type.model": "Biểu tượng mô hình",
   "settings.assistant.icon.type.none": "Ẩn",
+  "settings.browser.autoOpenPanel": "Tự động mở bảng trình duyệt",
+  "settings.browser.autoOpenPanelHelp": "Hiển thị bảng trình duyệt ở bên phải khi các công cụ duyệt web. Tắt tùy chọn này để mở bảng theo cách thủ công trong khi các công cụ vẫn tiếp tục duyệt web.",
   "settings.browser.cachedFiles": "Tệp trong bộ nhớ đệm",
   "settings.browser.clear": "Xóa dữ liệu duyệt web",
   "settings.browser.clearCacheHelp": "Giải phóng dung lượng. Các trang web có thể tải chậm hơn trong lần truy cập tiếp theo.",

@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji Icon",
   "settings.assistant.icon.type.model": "Model Icon",
   "settings.assistant.icon.type.none": "Hide",
+  "settings.browser.autoOpenPanel": "Automatically open the browser panel",
+  "settings.browser.autoOpenPanelHelp": "Show the browser panel on the right when tools browse the web. Turn this off to open the panel manually while tools continue browsing.",
   "settings.browser.cachedFiles": "Cached files",
   "settings.browser.clear": "Clear browsing data",
   "settings.browser.clearCacheHelp": "Free up space. Websites may load more slowly on the next visit.",

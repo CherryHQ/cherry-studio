@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji Simgesi",
   "settings.assistant.icon.type.model": "Model Simgesi",
   "settings.assistant.icon.type.none": "Gizle",
+  "settings.browser.autoOpenPanel": "Tarayıcı panelini otomatik olarak aç",
+  "settings.browser.autoOpenPanelHelp": "Araçlar web’de gezinirken sağ tarafta tarayıcı panelini gösterir. Araçlar gezinmeye devam ederken paneli elle açmak için bu seçeneği kapatın.",
   "settings.browser.cachedFiles": "Önbellekteki dosyalar",
   "settings.browser.clear": "Tarama verilerini temizle",
   "settings.browser.clearCacheHelp": "Yer açın. Siteler bir sonraki ziyarette daha yavaş yüklenebilir.",

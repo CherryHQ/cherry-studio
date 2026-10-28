@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji",
   "settings.assistant.icon.type.model": "Εικονίδιο μοντέλου",
   "settings.assistant.icon.type.none": "Κανένα",
+  "settings.browser.autoOpenPanel": "Αυτόματο άνοιγμα του πλαισίου περιήγησης",
+  "settings.browser.autoOpenPanelHelp": "Εμφανίζει το πλαίσιο περιήγησης στα δεξιά όταν τα εργαλεία περιηγούνται στον ιστό. Απενεργοποιήστε αυτή την επιλογή για να ανοίγετε το πλαίσιο χειροκίνητα, ενώ τα εργαλεία συνεχίζουν την περιήγηση.",
   "settings.browser.cachedFiles": "Αρχεία προσωρινής μνήμης",
   "settings.browser.clear": "Εκκαθάριση δεδομένων περιήγησης",
   "settings.browser.clearCacheHelp": "Ελευθερώστε χώρο. Οι ιστότοποι ενδέχεται να φορτώνουν πιο αργά στην επόμενη επίσκεψη.",

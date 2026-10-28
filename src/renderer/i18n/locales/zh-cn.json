@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji 表情",
   "settings.assistant.icon.type.model": "模型图标",
   "settings.assistant.icon.type.none": "不显示",
+  "settings.browser.autoOpenPanel": "自动打开浏览器面板",
+  "settings.browser.autoOpenPanelHelp": "工具浏览网页时，在右侧显示浏览器面板。关闭后可手动打开面板，工具仍会继续浏览网页。",
   "settings.browser.cachedFiles": "缓存文件",
   "settings.browser.clear": "清除浏览数据",
   "settings.browser.clearCacheHelp": "释放存储空间。下次访问网站时可能加载较慢。",

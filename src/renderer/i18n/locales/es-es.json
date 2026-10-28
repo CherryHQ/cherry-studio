@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji",
   "settings.assistant.icon.type.model": "Ícono del modelo",
   "settings.assistant.icon.type.none": "No mostrar",
+  "settings.browser.autoOpenPanel": "Abrir automáticamente el panel del navegador",
+  "settings.browser.autoOpenPanelHelp": "Muestra el panel del navegador a la derecha cuando las herramientas navegan por la web. Desactiva esta opción para abrir el panel manualmente mientras las herramientas siguen navegando.",
   "settings.browser.cachedFiles": "Archivos en caché",
   "settings.browser.clear": "Borrar datos de navegación",
   "settings.browser.clearCacheHelp": "Libera espacio. Los sitios pueden tardar más en cargarse la próxima vez.",

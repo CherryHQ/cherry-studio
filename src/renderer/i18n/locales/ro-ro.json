@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Pictogramă Emoji",
   "settings.assistant.icon.type.model": "Pictogramă model",
   "settings.assistant.icon.type.none": "Ascunde",
+  "settings.browser.autoOpenPanel": "Deschide automat panoul browserului",
+  "settings.browser.autoOpenPanelHelp": "Afișează panoul browserului în dreapta când instrumentele navighează pe web. Dezactivați această opțiune pentru a deschide panoul manual în timp ce instrumentele continuă navigarea.",
   "settings.browser.cachedFiles": "Fișiere din cache",
   "settings.browser.clear": "Șterge datele de navigare",
   "settings.browser.clearCacheHelp": "Eliberează spațiu. Site-urile se pot încărca mai lent la următoarea vizită.",

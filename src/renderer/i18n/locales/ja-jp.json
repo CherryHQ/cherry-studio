@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji アイコン",
   "settings.assistant.icon.type.model": "モデルアイコン",
   "settings.assistant.icon.type.none": "表示しない",
+  "settings.browser.autoOpenPanel": "ブラウザパネルを自動的に開く",
+  "settings.browser.autoOpenPanelHelp": "ツールがウェブを閲覧するときに、右側にブラウザパネルを表示します。オフにすると、ツールによる閲覧を続けながら、パネルを手動で開くことができます。",
   "settings.browser.cachedFiles": "キャッシュファイル",
   "settings.browser.clear": "閲覧データを消去",
   "settings.browser.clearCacheHelp": "空き容量を増やします。次回のサイト読み込みが遅くなる場合があります。",

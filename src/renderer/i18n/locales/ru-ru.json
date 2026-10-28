@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji иконка",
   "settings.assistant.icon.type.model": "Модель иконки",
   "settings.assistant.icon.type.none": "Не отображать",
+  "settings.browser.autoOpenPanel": "Автоматически открывать панель браузера",
+  "settings.browser.autoOpenPanelHelp": "Показывает панель браузера справа, когда инструменты просматривают веб-страницы. Отключите этот параметр, чтобы открывать панель вручную, пока инструменты продолжают работу в браузере.",
   "settings.browser.cachedFiles": "Кешированные файлы",
   "settings.browser.clear": "Очистить данные браузера",
   "settings.browser.clearCacheHelp": "Освободить место. При следующем посещении сайты могут загружаться медленнее.",

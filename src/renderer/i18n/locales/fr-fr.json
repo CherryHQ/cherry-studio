@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "Emoji",
   "settings.assistant.icon.type.model": "Icône de modèle",
   "settings.assistant.icon.type.none": "Ne pas afficher",
+  "settings.browser.autoOpenPanel": "Ouvrir automatiquement le panneau du navigateur",
+  "settings.browser.autoOpenPanelHelp": "Affiche le panneau du navigateur à droite lorsque les outils naviguent sur le Web. Désactivez cette option pour ouvrir le panneau manuellement pendant que les outils continuent à naviguer.",
   "settings.browser.cachedFiles": "Fichiers en cache",
   "settings.browser.clear": "Effacer les données de navigation",
   "settings.browser.clearCacheHelp": "Libérer de l’espace. Les sites peuvent se charger plus lentement lors de la prochaine visite.",

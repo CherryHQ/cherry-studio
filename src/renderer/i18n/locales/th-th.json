@@ -3730,6 +3730,8 @@
   "settings.assistant.icon.type.emoji": "ไอคอนอิโมจิ",
   "settings.assistant.icon.type.model": "ไอคอนโมเดล",
   "settings.assistant.icon.type.none": "ซ่อน",
+  "settings.browser.autoOpenPanel": "เปิดแผงเบราว์เซอร์โดยอัตโนมัติ",
+  "settings.browser.autoOpenPanelHelp": "แสดงแผงเบราว์เซอร์ทางด้านขวาเมื่อเครื่องมือท่องเว็บ ปิดตัวเลือกนี้เพื่อเปิดแผงด้วยตนเอง โดยเครื่องมือจะยังคงท่องเว็บต่อไป",
   "settings.browser.cachedFiles": "ไฟล์แคช",
   "settings.browser.clear": "ล้างข้อมูลการเรียกดู",
   "settings.browser.clearCacheHelp": "เพิ่มพื้นที่ว่าง เว็บไซต์อาจโหลดช้ากว่าเดิมเมื่อเข้าครั้งถัดไป",
