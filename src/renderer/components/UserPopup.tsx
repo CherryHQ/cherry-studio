@@ -23,6 +23,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 
@@ -134,12 +135,14 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                         }
                       }}
                     />
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-center"
-                      onClick={() => fileInputRef.current?.click()}>
-                      {t('settings.general.image_upload')}
-                    </Button>
+                    {hostFeatures.imageUploads && (
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-center"
+                        onClick={() => fileInputRef.current?.click()}>
+                        {t('settings.general.image_upload')}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       className="w-full justify-center"

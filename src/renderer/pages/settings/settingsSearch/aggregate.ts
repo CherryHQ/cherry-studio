@@ -25,5 +25,5 @@ for (const [, mod] of Object.entries(globModules).sort(([a], [b]) => a.localeCom
 export const settingsSearchSections: SettingsSearchSection[] = settingsMenu.map((item) => ({
   route: item.route,
   sectionTitleKey: item.titleKey,
-  entries: leavesByRoute.get(item.route) ?? []
+  entries: (leavesByRoute.get(item.route) ?? []).filter(({ available }) => available !== false)
 }))

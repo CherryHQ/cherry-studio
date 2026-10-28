@@ -1,3 +1,5 @@
+import { hostFeatures } from '@renderer/utils/hostFeatures'
+
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
 // Indexed rows = statically visible actionable rows (D8). The quick-model and
@@ -27,6 +29,7 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'painting-model',
+    available: hostFeatures.paintings,
     titleKey: 'settings.models.painting_model',
     groupKey: 'settings.model',
     descriptionKey: 'settings.models.painting_model_description'

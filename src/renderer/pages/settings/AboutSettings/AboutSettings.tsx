@@ -37,6 +37,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/utils/doctor'
@@ -261,7 +262,7 @@ const AboutSettings: FC = () => {
             </div>
           </div>
 
-          {!isPortable && (
+          {hostFeatures.appUpdates && !isPortable && (
             <div className="flex shrink-0 items-center justify-end">
               <Button
                 size="sm"
@@ -284,7 +285,7 @@ const AboutSettings: FC = () => {
           )}
         </div>
 
-        {!isPortable && (
+        {hostFeatures.appUpdates && !isPortable && (
           <>
             <Divider className="my-3" />
             <SettingRow id="setting-about-auto-check-update" className="scroll-mt-6 gap-3">
@@ -386,14 +387,18 @@ const AboutSettings: FC = () => {
           actionLabel={t('settings.about.careers.button')}
           onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
         />
-        <Divider className="my-3" />
-        <AboutActionRow
-          id="setting-about-debug-tools"
-          icon={<Bug className="size-4.5" />}
-          title={t('settings.about.debug.title')}
-          actionLabel={t('settings.about.debug.open')}
-          onAction={debug}
-        />
+        {hostFeatures.devTools && (
+          <>
+            <Divider className="my-3" />
+            <AboutActionRow
+              id="setting-about-debug-tools"
+              icon={<Bug className="size-4.5" />}
+              title={t('settings.about.debug.title')}
+              actionLabel={t('settings.about.debug.open')}
+              onAction={debug}
+            />
+          </>
+        )}
       </SettingGroup>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </SettingsContentColumn>

@@ -15,6 +15,7 @@ import type { DataApiService } from '@main/data/DataApiService'
 import type { PreferenceService } from '@main/data/PreferenceService'
 import type { IpcApiService } from '@main/ipc/IpcApiService'
 import type { FileManager } from '@main/services/file/FileManager'
+import type { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import type { PythonService } from '@main/services/PythonService'
 import type { TrashService } from '@main/services/trash'
 
@@ -42,6 +43,7 @@ export interface WebServices {
   AgentSessionRuntimeService: AgentSessionRuntimeService
   ClaudeCodeWarmQueryManager: Pick<ClaudeCodeWarmQueryManager, 'close' | 'closeAgentSessionWarm'>
   AgentJobsService: Pick<AgentJobsService, 'waitForHeartbeat'>
+  DirectoryTreeManager: DirectoryTreeManager
   AgentLifecycleService: AgentLifecycleService
   AgentSessionDeliveryService: Pick<
     AgentSessionDeliveryService,

@@ -2,18 +2,9 @@
 // iframe. Its opaque origin keeps Python away from the app's OPFS, IndexedDB and storage.
 import pyodideWorkerUrl from '@renderer/workers/pyodide.worker?worker&url'
 
-// WebKit starts no blob Worker in an opaque origin, so the worker comes from a `data:` URL.
-const FRAME_HTML = `<script>
-let worker
-onmessage = ({ source, data }) => {
-  if (source !== parent) return
-  if (!worker) {
-    worker = new Worker('data:text/javascript;charset=utf-8,' + encodeURIComponent(data.script))
-    worker.onmessage = (event) => parent.postMessage({ data: event.data }, '*')
-  } else worker.postMessage(data.data)
-}
-parent.postMessage({ ready: true }, '*')
-</script>`
+import { PYODIDE_FRAME_SCRIPT } from './pyodideFrameScript'
+
+const FRAME_HTML = `<script>${PYODIDE_FRAME_SCRIPT}</script>`
 
 /** The part of a `Worker` that the desktop `PyodideService` uses. */
 export default class SandboxedPyodideWorker extends EventTarget {

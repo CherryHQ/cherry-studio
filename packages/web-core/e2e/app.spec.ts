@@ -1,24 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import type { Page } from '@playwright/test'
 
-import type { DataRequest, DataResponse } from '@shared/data/api/types'
-
-import { composerInput, gotoApp, removeAppData, sidebarApps } from './appPage'
-import { expect, test as harnessTest } from './fixtures'
-import { MOCK_PROVIDER_PORT } from './mockProvider'
-
-declare global {
-  interface Window {
-    api: { dataApi: { request(request: DataRequest): Promise<DataResponse> } }
-  }
-}
-
-// The app always opens the one local account, so its data is removed after each test.
-const test = harnessTest.extend<{ page: Page }>({
-  page: async ({ context }, provide) => {
-    await provide(context.pages()[0] ?? (await context.newPage()))
-    await removeAppData(context)
-  }
-})
+import { APP_URL, composerInput, gotoApp, send, setUpAssistant, sidebarApps, test, useMockProvider } from './appPage'
+import { expect } from './fixtures'
 
 test('runs the desktop main window with only the Web edition features', async ({ page }) => {
   const pageErrors: string[] = []
@@ -35,12 +21,257 @@ test('runs the desktop main window with only the Web edition features', async ({
   await expect(page.locator('[data-ui~="part:menu-item"]')).toHaveText([
     'Model Provider',
     'Default Model',
+    'Prompts',
     'General',
     'Appearance',
     'Archive',
     'About & Feedback'
   ])
   expect(pageErrors).toEqual([])
+})
+
+test('leaves out the entries for desktop and Cherry account services', async ({ page }) => {
+  await page.goto(APP_URL)
+  // CherryIN signs in through a callback on the computer, which a Web page cannot receive.
+  await expect(page.getByRole('button', { name: 'Set up another provider' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Connect CherryIN' })).toHaveCount(0)
+  // Without the built-in model, which needs the desktop app's client secret, setup cannot be skipped.
+  await expect(page.getByRole('button', { name: 'Set up later' })).toHaveCount(0)
+  await gotoApp(page)
+
+  await expect(page.getByRole('button', { name: 'Help' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /dictation/i })).toHaveCount(0)
+  await page.getByRole('button', { name: 'User', exact: true }).click()
+  const panel = page.getByRole('dialog')
+  await expect(panel.getByRole('button')).toHaveText(['Enter your name', 'Settings'])
+  await expect(panel.getByRole('radio')).toHaveCount(3)
+  // An uploaded avatar would be stored as a file, and the Web edition stores none.
+  await panel.getByRole('button').filter({ hasText: 'Enter your name' }).click()
+  await page.getByRole('button', { name: 'Avatar', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Emoji Picker' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Image Upload' })).toHaveCount(0)
+})
+
+test('leaves out the entries a browser tab cannot carry out', async ({ page }) => {
+  const run = Date.now().toString(36)
+  await gotoApp(page)
+  await useMockProvider(page, run)
+  await gotoApp(page)
+  await send(page, `topic ${run}`)
+  await expect(page.getByText(`echo: topic ${run}`)).toBeVisible()
+  // The app is one tab: no tab or conversation opens in a window of its own.
+  await expect(page.getByRole('button', { name: 'Open in New Window' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'More' }).first().click()
+  await page
+    .getByTestId('topic-list-row')
+    .filter({ hasText: `topic ${run}` })
+    .click({ button: 'right' })
+  await expect(page.getByRole('menuitem', { name: 'Edit conversation name' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Open in New Window' })).toHaveCount(0)
+  // Notes are files on the computer; knowledge bases index files with the desktop's native libraries.
+  await expect(page.getByRole('menuitem', { name: 'Save to Notes' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Save to Knowledge Base' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Model Provider', exact: true }).click()
+  await page.getByTestId('provider-list-item-cherryin').click()
+  await expect(page.getByText('API Key', { exact: true }).first()).toBeVisible()
+  // Sign-in popups cannot report back to this cross-origin isolated page; CLI logins need a computer.
+  await expect(page.getByRole('button', { name: 'Authorize with CherryIN' })).toHaveCount(0)
+  for (const id of ['claude-code', 'openai-codex', 'grok-cli', 'copilot']) {
+    await expect(page.getByTestId(`provider-list-item-${id}`)).toHaveCount(0)
+  }
+  await page.getByRole('button', { name: 'Add Provider' }).click()
+  const editor = page.getByTestId('provider-editor-dialog')
+  await expect(editor.getByRole('button', { name: 'Builtin avatar' })).toBeVisible()
+  await expect(editor.getByRole('button', { name: 'Image Upload' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // The browser zooms, updates and debugs the page itself.
+  await page.getByRole('button', { name: 'Appearance', exact: true }).click()
+  await expect(page.getByText('Theme', { exact: true })).toBeVisible()
+  await expect(page.getByText('Page Zoom', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Context menu style', { exact: true })).toHaveCount(0)
+  // Messages take no attachments, so long text is not pasted as a file either.
+  await expect(page.getByText('Paste long text as file', { exact: true })).toHaveCount(0)
+  // A page cannot list the computer's fonts.
+  await expect(page.getByText('Global Font', { exact: true })).toHaveCount(0)
+  // The Web edition has no paintings and stores no files, so it archives neither.
+  await page.getByRole('button', { name: 'Archive', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Topics', exact: true })).toBeVisible()
+  for (const tab of ['Paintings', 'Files']) {
+    await expect(page.getByRole('tab', { name: tab, exact: true })).toHaveCount(0)
+  }
+  await page.getByRole('button', { name: 'Default Model', exact: true }).click()
+  await expect(page.getByText('Translate Model', { exact: true })).toBeVisible()
+  await expect(page.getByText('Painting Model', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'About & Feedback', exact: true }).click()
+  await expect(page.getByText('Official Website', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Check Update' })).toHaveCount(0)
+  await expect(page.getByText('Debug', { exact: true })).toHaveCount(0)
+  // The feedback assistant runs the desktop's diagnostics.
+  await page.getByRole('button', { name: 'Feedback', exact: true }).click()
+  await expect(page.getByRole('dialog').getByText('GitHub Issue', { exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').getByText('Feedback assistant', { exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // The browser, not the app, starts with the computer and sets the network, GPU and power use;
+  // agents run on Pi, not Claude Code.
+  await page.getByRole('button', { name: 'General', exact: true }).click()
+  await expect(page.getByText('Enable retry', { exact: true })).toBeVisible()
+  for (const row of [
+    'Start Automatically on Boot',
+    'Proxy Mode',
+    'Allow fetching local network addresses',
+    'Disable Hardware Acceleration',
+    'Commit attribution'
+  ]) {
+    await expect(page.getByText(row, { exact: true })).toHaveCount(0)
+  }
+  await expect(page.getByText('Enable Developer Mode', { exact: true })).toHaveCount(0)
+  // Settings search finds only the rows the page shows.
+  await page.getByRole('button', { name: 'Search settings' }).click()
+  await page.getByRole('combobox').fill('retry')
+  await expect(page.getByRole('option').filter({ hasText: 'Enable retry' })).toBeVisible()
+  await page.getByRole('combobox').fill('Hardware Acceleration')
+  await expect(page.getByText('No matching settings')).toBeVisible()
+})
+
+test("shows a failed reply's error without the desktop's diagnostics", async ({ page }) => {
+  const unsupported: string[] = []
+  page.on('console', (message) => {
+    if (message.text().includes('not available in the Web edition')) unsupported.push(message.text())
+  })
+  await gotoApp(page)
+  await useMockProvider(page, Date.now().toString(36))
+  await gotoApp(page)
+  await send(page, 'please fail')
+  await page.getByText('Detail', { exact: true }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('mock provider rejected the key').first()).toBeVisible()
+  // Diagnostics check the install, logs and network on the computer.
+  await expect(dialog.getByText('Diagnostic result')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Report a problem' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'AI consultation' })).toHaveCount(0)
+  expect(unsupported).toEqual([])
+})
+
+test('creates an assistant without the knowledge bases the Web edition lacks', async ({ page }) => {
+  await gotoApp(page)
+  await page.getByRole('button', { name: 'Add Assistant' }).click()
+  await page.getByRole('dialog').getByText('New Assistant', { exact: true }).click()
+  const wizard = page.getByRole('dialog', { name: 'New Assistant' })
+  await expect(wizard.getByText('System Prompt', { exact: true })).toBeVisible()
+  await expect(wizard.getByText('Knowledge', { exact: true })).toHaveCount(0)
+})
+
+test('edits an assistant without the browser and MCP tools the Web edition lacks', async ({ page }) => {
+  await gotoApp(page)
+  await page.getByRole('button', { name: 'Edit Assistant: Cherry Assistant' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Assistant' })
+  await expect(dialog.getByRole('tab', { name: 'System Prompt' })).toBeVisible()
+  for (const tab of ['Tools', 'Built-in', 'MCP']) {
+    await expect(dialog.getByRole('tab', { name: tab, exact: true })).toHaveCount(0)
+  }
+})
+
+test('quotes the selected text of a reply in the composer', async ({ page }) => {
+  const run = Date.now().toString(36)
+  await gotoApp(page)
+  await useMockProvider(page, run)
+  await gotoApp(page)
+  await send(page, `quote me ${run}`)
+  const reply = page.getByText(`echo: quote me ${run}`)
+  await reply.click({ clickCount: 3 })
+  await reply.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Quote', exact: true }).click()
+  await composerInput(page).click()
+  await page.keyboard.type('about this')
+  await page.keyboard.press('Enter')
+  // The message sent carries the quote, which its echo shows as a Markdown quote.
+  await expect(page.locator('blockquote').filter({ hasText: `echo: quote me ${run}` })).toBeVisible()
+})
+
+test('adds an assistant from the presets bundled with the app', async ({ page }) => {
+  await gotoApp(page)
+  await page.getByRole('button', { name: 'Add Assistant' }).click()
+  await page.getByRole('dialog').getByText('Product Manager', { exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Product Manager' }).first()).toBeVisible()
+})
+
+test('gives pdf.js the character maps and fonts the desktop ships', async ({ page }) => {
+  await gotoApp(page)
+  const read = (kind: string, name: string) =>
+    page.evaluate(
+      async ([kind, name]) => {
+        const api = window.api as unknown as {
+          ipcApi: { request(route: string, input: unknown): Promise<{ data: { content: Uint8Array } }> }
+        }
+        return [...(await api.ipcApi.request('pdfjs.resource.read', { kind, name })).data.content]
+      },
+      [kind, name]
+    )
+  // A small map, which the build inlines, and a large one and a font, which it emits as files.
+  for (const [kind, file] of [
+    ['cmap', 'cmaps/Roman.bcmap'],
+    ['cmap', 'cmaps/UniGB-UCS2-H.bcmap'],
+    ['standard_font', 'standard_fonts/FoxitFixed.pfb']
+  ]) {
+    const shipped = readFileSync(resolve(import.meta.dirname, '../../../node_modules/pdfjs-dist', file))
+    expect(await read(kind, file.split('/')[1])).toEqual([...shipped])
+  }
+})
+
+test('keeps desktop-only settings off in a workspace that had them on', async ({ page }) => {
+  type PreferenceApi = {
+    preference: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }
+  }
+  // As a workspace created before the Web edition turned these off has them.
+  const desktopValues: Record<string, unknown> = {
+    'app.browser.agent_control.enabled': true,
+    'app.browser.open_links_in_browser': true,
+    'app.developer_mode.enabled': true,
+    'menu.presentation_mode': 'native'
+  }
+  await gotoApp(page)
+  await page.evaluate(async (desktopValues) => {
+    for (const [key, value] of Object.entries(desktopValues)) {
+      await (window.api as unknown as PreferenceApi).preference.set(key, value)
+    }
+  }, desktopValues)
+
+  await page.reload()
+  await composerInput(page).waitFor()
+  const values = await page.evaluate(
+    (keys) => Promise.all(keys.map((key) => (window.api as unknown as PreferenceApi).preference.get(key))),
+    Object.keys(desktopValues)
+  )
+  expect(values).toEqual([false, false, false, 'cherry'])
+})
+
+test('saves a reply as a Markdown download', async ({ page }) => {
+  await gotoApp(page)
+  await useMockProvider(page, Date.now().toString(36))
+  await setUpAssistant(page)
+  await gotoApp(page)
+  await send(page, 'save me')
+  await expect(page.getByText('echo: save me')).toBeVisible()
+
+  await page.getByText('echo: save me').hover()
+  await page.getByRole('button', { name: 'More actions' }).click()
+  // Notes and knowledge bases are desktop features.
+  await expect(page.getByRole('menuitem', { name: 'Save to Notes' })).toHaveCount(0)
+  await page.getByRole('menuitem', { name: 'Save', exact: true }).click()
+  const download = page.waitForEvent('download')
+  await page.getByRole('menuitem', { name: 'Save to Local File' }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toMatch(/^\d{12}\.md$/)
+  expect(await (await file.createReadStream()).toArray().then((chunks) => Buffer.concat(chunks).toString())).toBe(
+    'echo: save me'
+  )
 })
 
 test('tells a second tab that the app is already open instead of loading forever', async ({ page, context }) => {
@@ -91,6 +322,54 @@ test('keeps a reply cut off by a reload and says it was interrupted', async ({ p
   await expect(messages.getByText(/^This reply was interrupted because the app closed\./)).toBeVisible()
 })
 
+test('runs no script from HTML in a reply, in its preview or in a link', async ({ page }) => {
+  await gotoApp(page)
+  await useMockProvider(page, Date.now().toString(36))
+  await gotoApp(page)
+
+  const injected = "window.injected = 'reply'"
+  const reply = [
+    `Inline <img src="x" onerror="${injected}"> and <script>${injected}</script> HTML.`,
+    "[A link](javascript:window.injected='link')",
+    "```html\n<p>Preview body</p><script>parent.injected = 'preview'; navigator.storage.getDirectory().then(() => (parent.injected = 'opfs'))</script>\n```"
+  ].join('\n\n')
+  await composerInput(page).click()
+  await page.keyboard.type(`say ${JSON.stringify(reply)}`)
+  await page.keyboard.press('Enter')
+  const messages = page.getByLabel('Messages')
+  await expect(messages.getByText(/^Inline .* HTML\.$/)).toBeVisible()
+  await expect(
+    page.frameLocator('[data-testid="message-html-artifact"] iframe').getByText('Preview body')
+  ).toBeVisible()
+
+  await expect(messages.getByText('A link', { exact: true })).toBeVisible()
+  await expect(page.locator('a[href^="javascript:" i]')).toHaveCount(0)
+  expect(await page.evaluate(() => (window as { injected?: string }).injected)).toBeUndefined()
+})
+
+test('opens links in a new tab and answers the device type from the browser', async ({
+  page,
+  context,
+  browserName
+}) => {
+  await context.route('https://cherry-ai.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '' }))
+  await gotoApp(page)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'About & Feedback', exact: true }).click()
+  const opened = context.waitForEvent('page', { timeout: 10_000 })
+  const row = page.getByText('Official Website', { exact: true }).locator('xpath=ancestor::*[.//button][1]')
+  await row.getByRole('button', { name: 'Website', exact: true }).click()
+  await (await opened).waitForURL('https://cherry-ai.com/')
+
+  const deviceType = await page.evaluate(async () => {
+    const api = window.api as unknown as { ipcApi: { request(route: string): Promise<{ data: unknown }> } }
+    return (await api.ipcApi.request('system.get_device_type')).data
+  })
+  // The Desktop Chrome and Firefox profiles present Windows; Desktop Safari presents a Mac.
+  const expected = browserName === 'webkit' ? 'mac' : 'windows'
+  expect(deviceType).toBe(expected)
+})
+
 test('archives a chat topic from the topic list and restores it from Settings', async ({ page }) => {
   const run = Date.now().toString(36)
   const message = `topic to archive ${run}`
@@ -117,33 +396,6 @@ test('archives a chat topic from the topic list and restores it from Settings', 
   await page.getByRole('tabpanel').getByRole('button', { name: 'Restore' }).click()
   await expect.poll(() => topicNames(page)).toContain(message)
 })
-
-/** Point every assistant at the mock endpoint; the trial's model source is not decided yet. */
-async function useMockProvider(page: Page, run: string): Promise<void> {
-  await page.evaluate(
-    async ({ baseUrl, providerId }) => {
-      const request = async (method: DataRequest['method'], path: string, body?: unknown) => {
-        const response = await window.api.dataApi.request({ id: crypto.randomUUID(), method, path, body })
-        if (response.error) throw new Error(`${method} ${path}: ${response.error.message}`)
-        return response.data as { items: { id: string }[] }
-      }
-      await request('POST', '/providers', {
-        providerId,
-        name: 'Mock provider',
-        defaultChatEndpoint: 'openai-chat-completions',
-        endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
-        apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
-      })
-      await request('POST', '/models', [
-        { providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }
-      ])
-      for (const { id } of (await request('GET', '/assistants')).items) {
-        await request('PATCH', `/assistants/${id}`, { modelId: `${providerId}::mock-chat` })
-      }
-    },
-    { baseUrl: `http://localhost:${MOCK_PROVIDER_PORT}`, providerId: `mock-${run}` }
-  )
-}
 
 /** Status of the latest message in the only topic. */
 function replyStatus(page: Page): Promise<string | undefined> {

@@ -6,7 +6,8 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "sideEffects": [
-    "./src/page/preload.ts"
+    "./src/page/preload.ts",
+    "./src/runtime/zodJitless.ts"
   ],
   "exports": {
     "./client": "./src/client/CoreClient.ts",

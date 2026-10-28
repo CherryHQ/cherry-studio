@@ -679,6 +679,14 @@ describe('OnboardingPage', () => {
     expect(cloudMocks.ipcRequest).not.toHaveBeenCalled()
   })
 
+  it('offers only provider setup when CherryIN login is turned off', async () => {
+    render(<OnboardingPage enableCherryInLogin={false} />)
+
+    expect(screen.queryByRole('button', { name: 'onboarding.welcome.login_cherryin' })).not.toBeInTheDocument()
+    await openProviderSetup()
+    expect(screen.getByTestId('provider-settings')).toBeInTheDocument()
+  })
+
   it('uses cancellable Cherry Cloud login instead of CherryIN in the CN edition', async () => {
     const user = userEvent.setup()
     cloudMocks.appEdition = 'cn'

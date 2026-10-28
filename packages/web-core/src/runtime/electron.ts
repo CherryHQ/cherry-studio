@@ -56,6 +56,11 @@ export interface IpcMainEvent {
 }
 export type IpcMainInvokeEvent = IpcMainEvent
 
+/** The channels the Worker handles or listens on; the harness reports them to the test of what the renderer calls. */
+export function handledChannels(): string[] {
+  return [...handlers.keys(), ...listeners.keys()]
+}
+
 export const ipcMain = {
   handle(channel: string, handler: InvokeHandler): void {
     if (handlers.has(channel)) throw new Error(`Attempted to register a second handler for '${channel}'`)

@@ -35,6 +35,7 @@ import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/sett
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { isWin } from '@renderer/utils/platform'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
@@ -52,6 +53,8 @@ type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pendin
 type PrivacyChoiceAction = () => void | Promise<void>
 interface OnboardingPageProps {
   enableCherryAccountLogin?: boolean
+  /** The Web edition turns this off: CherryIN signs in through a callback on the local machine. */
+  enableCherryInLogin?: boolean
 }
 
 const ENABLE_CHERRY_ACCOUNT_LOGIN = false
@@ -76,7 +79,8 @@ function OnboardingProviderSettings() {
 }
 
 export default function OnboardingPage({
-  enableCherryAccountLogin = ENABLE_CHERRY_ACCOUNT_LOGIN
+  enableCherryAccountLogin = ENABLE_CHERRY_ACCOUNT_LOGIN,
+  enableCherryInLogin = true
 }: OnboardingPageProps) {
   const { t } = useTranslation()
   const appEdition = getAppEdition()
@@ -422,15 +426,18 @@ export default function OnboardingPage({
               </SelectContent>
             </Select>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="nodrag text-muted-foreground hover:text-foreground"
-            onClick={() => void complete('skipped')}
-            disabled={isCompleting || isUpdatingPrivacy}>
-            {t('onboarding.skip')}
-          </Button>
+          {/* Skipping leaves the app on the built-in model; without it there would be no model to chat with. */}
+          {hostFeatures.builtinModel && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="nodrag text-muted-foreground hover:text-foreground"
+              onClick={() => void complete('skipped')}
+              disabled={isCompleting || isUpdatingPrivacy}>
+              {t('onboarding.skip')}
+            </Button>
+          )}
         </div>
         <WindowControls />
       </div>
@@ -447,22 +454,24 @@ export default function OnboardingPage({
                     <p className="m-0 text-muted-foreground text-sm">{t('onboarding.welcome.subtitle')}</p>
                   </div>
                   <div className="mt-8 flex w-full flex-col gap-3">
-                    <Button
-                      type="button"
-                      size="lg"
-                      className="h-11 w-full rounded-xl"
-                      loading={isPrimaryLoginPending}
-                      disabled={
-                        isUpdatingPrivacy || (shouldUseCherryAccountLogin && cloudStatus?.phase === 'signed-in')
-                      }
-                      onClick={() =>
-                        void runAfterPrivacyChoice(
-                          shouldUseCherryAccountLogin ? handleCherryCloudLogin : handleCherryInLogin
-                        )
-                      }>
-                      {!isPrimaryLoginPending && <LogIn size={16} />}
-                      {primaryLoginLabel}
-                    </Button>
+                    {shouldUseCherryAccountLogin || enableCherryInLogin ? (
+                      <Button
+                        type="button"
+                        size="lg"
+                        className="h-11 w-full rounded-xl"
+                        loading={isPrimaryLoginPending}
+                        disabled={
+                          isUpdatingPrivacy || (shouldUseCherryAccountLogin && cloudStatus?.phase === 'signed-in')
+                        }
+                        onClick={() =>
+                          void runAfterPrivacyChoice(
+                            shouldUseCherryAccountLogin ? handleCherryCloudLogin : handleCherryInLogin
+                          )
+                        }>
+                        {!isPrimaryLoginPending && <LogIn size={16} />}
+                        {primaryLoginLabel}
+                      </Button>
+                    ) : null}
                     {shouldUseCherryAccountLogin && cloudStatus?.phase === 'authorizing' ? (
                       <Button
                         type="button"

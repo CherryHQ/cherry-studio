@@ -1,3 +1,5 @@
+// First: modules below parse zod schemas while loading (see src/runtime/zodJitless.ts).
+import '../src/runtime/zodJitless'
 import fs from 'node:fs/promises'
 
 import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
@@ -5,6 +7,7 @@ import { messageService } from '@data/services/MessageService'
 import type { StreamListener } from '@main/ai/streamManager/types'
 
 import { application } from '../src/runtime/application'
+import { handledChannels } from '../src/runtime/electron'
 import { type CommandHandler, startCoreWorker, type WorkerScope } from '../src/worker/startCoreWorker'
 
 // Test-only commands next to the core ones: raw SQL, bulk seeding and integrity checks.
@@ -169,6 +172,9 @@ const revokeFolderPermission: CommandHandler = ({ revoked }: { revoked: boolean 
   else delete handlePrototype.queryPermission
 }
 
+/** The legacy `ipcRenderer.invoke` channels the Worker answers once an account is open. */
+const ipcChannels: CommandHandler = () => handledChannels()
+
 startCoreWorker(self as unknown as WorkerScope, {
   sql,
   seedMessages,
@@ -177,5 +183,6 @@ startCoreWorker(self as unknown as WorkerScope, {
   searchMessages,
   chat,
   fsCall,
-  revokeFolderPermission
+  revokeFolderPermission,
+  ipcChannels
 })

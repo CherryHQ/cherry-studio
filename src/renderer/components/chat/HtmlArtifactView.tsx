@@ -41,6 +41,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { stripMetaRefresh } from '@renderer/utils/htmlArtifact'
 
 const HtmlArtifactsPopup = lazy(() => import('@renderer/components/CodeBlockView/HtmlArtifactsPopup'))
@@ -625,18 +626,20 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
                   <span className="h-3.5 w-px bg-border-subtle" />
                 </>
               )}
-              <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6"
-                  aria-label={t('chat.artifacts.button.openExternal')}
-                  disabled={!hasContent}
-                  onClick={handleOpenExternal}>
-                  <Compass className="size-3" />
-                </Button>
-              </Tooltip>
+              {hostFeatures.systemApps && (
+                <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-6"
+                    aria-label={t('chat.artifacts.button.openExternal')}
+                    disabled={!hasContent}
+                    onClick={handleOpenExternal}>
+                    <Compass className="size-3" />
+                  </Button>
+                </Tooltip>
+              )}
               <Tooltip content={t('code_block.download.label')} delay={500}>
                 <Button
                   type="button"

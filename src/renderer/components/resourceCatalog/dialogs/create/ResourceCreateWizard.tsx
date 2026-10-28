@@ -8,6 +8,7 @@ import { type ModelSelectorFilter, useIsModelSelectable } from '@renderer/compon
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -170,7 +171,7 @@ export function ResourceCreateWizard({
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const systemPrompt = { id: 'system-prompt' as const, label: t('library.config.prompt.label') }
     const knowledge = { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
-    if (kind === 'assistant') return [basic, systemPrompt, knowledge]
+    if (kind === 'assistant') return [basic, systemPrompt, ...(hostFeatures.knowledgeBases ? [knowledge] : [])]
 
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
     const caps = AGENT_RUNTIME_CAPABILITIES[agentType]

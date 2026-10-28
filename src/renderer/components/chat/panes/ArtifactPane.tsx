@@ -54,6 +54,7 @@ import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { getFileExtension } from '@renderer/utils/file'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -131,7 +132,9 @@ function getPreviewFileTitle(selection: ArtifactPaneFileSelection): string {
 function canCopyFileContent(filePath: string | null, isText: string, fileSize: { status: string; size?: number }) {
   if (!filePath || fileSize.status !== 'ok' || typeof fileSize.size !== 'number') return false
   const extension = getFileExtension(filePath)
-  if (COPYABLE_DOCUMENT_EXTENSIONS.has(extension)) return fileSize.size <= DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES
+  if (COPYABLE_DOCUMENT_EXTENSIONS.has(extension)) {
+    return hostFeatures.documentText && fileSize.size <= DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES
+  }
   if (NON_TEXT_DOCUMENT_EXTENSIONS.has(extension)) return false
   return isText === 'text' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 }

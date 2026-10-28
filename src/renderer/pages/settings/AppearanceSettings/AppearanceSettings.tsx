@@ -44,6 +44,7 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -156,6 +157,7 @@ const AppearanceSettings: FC = () => {
 
   useEffect(() => {
     const loadSystemFonts = async () => {
+      if (!hostFeatures.systemFonts) return
       try {
         const fonts = await ipcApi.request('system.get_fonts')
         setFontList(fonts)
@@ -165,6 +167,7 @@ const AppearanceSettings: FC = () => {
     }
 
     const updateCurrentZoom = async () => {
+      if (!hostFeatures.appZoom) return
       try {
         const factor = await ipcApi.request('app.adjust_zoom', { delta: 0 })
         setCurrentZoom(factor)
@@ -383,7 +386,7 @@ const AppearanceSettings: FC = () => {
             </Select>
           </SelectorRow>
         </SettingRow>
-        {isLinux && (
+        {hostFeatures.desktopApp && isLinux && (
           <>
             <SettingDivider />
             <SettingRow>
@@ -392,42 +395,46 @@ const AppearanceSettings: FC = () => {
             </SettingRow>
           </>
         )}
-        <SettingDivider />
-        <SettingRow id="setting-appearance-zoom" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
-          <ZoomButtonGroup>
-            {!isDefaultZoom && (
-              <Tooltip content={t('preview.reset')} delay={800}>
-                <Button
-                  onClick={() => handleZoomFactor(0, true)}
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t('preview.reset')}>
-                  <ResetIcon size="14" />
-                </Button>
-              </Tooltip>
-            )}
-            <Tooltip content={t('preview.zoom_out')} delay={800}>
-              <Button
-                onClick={() => handleZoomFactor(-0.1)}
-                variant="ghost"
-                size="icon"
-                aria-label={t('preview.zoom_out')}>
-                <Minus size="14" />
-              </Button>
-            </Tooltip>
-            <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Tooltip content={t('preview.zoom_in')} delay={800}>
-              <Button
-                onClick={() => handleZoomFactor(0.1)}
-                variant="ghost"
-                size="icon"
-                aria-label={t('preview.zoom_in')}>
-                <Plus size="14" />
-              </Button>
-            </Tooltip>
-          </ZoomButtonGroup>
-        </SettingRow>
+        {hostFeatures.appZoom && (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-appearance-zoom" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
+              <ZoomButtonGroup>
+                {!isDefaultZoom && (
+                  <Tooltip content={t('preview.reset')} delay={800}>
+                    <Button
+                      onClick={() => handleZoomFactor(0, true)}
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('preview.reset')}>
+                      <ResetIcon size="14" />
+                    </Button>
+                  </Tooltip>
+                )}
+                <Tooltip content={t('preview.zoom_out')} delay={800}>
+                  <Button
+                    onClick={() => handleZoomFactor(-0.1)}
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t('preview.zoom_out')}>
+                    <Minus size="14" />
+                  </Button>
+                </Tooltip>
+                <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
+                <Tooltip content={t('preview.zoom_in')} delay={800}>
+                  <Button
+                    onClick={() => handleZoomFactor(0.1)}
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t('preview.zoom_in')}>
+                    <Plus size="14" />
+                  </Button>
+                </Tooltip>
+              </ZoomButtonGroup>
+            </SettingRow>
+          </>
+        )}
         {isMac && (
           <>
             <SettingDivider />
@@ -437,16 +444,20 @@ const AppearanceSettings: FC = () => {
             </SettingRow>
           </>
         )}
-        <SettingDivider />
-        <SettingRow id="setting-appearance-menu-presentation-mode" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
-          <SegmentedControl<MenuPresentationMode>
-            value={menuPresentationMode}
-            onValueChange={handleMenuPresentationModeChange}
-            options={menuPresentationModeOptions}
-            size="sm"
-          />
-        </SettingRow>
+        {hostFeatures.desktopApp && (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-appearance-menu-presentation-mode" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
+              <SegmentedControl<MenuPresentationMode>
+                value={menuPresentationMode}
+                onValueChange={handleMenuPresentationModeChange}
+                options={menuPresentationModeOptions}
+                size="sm"
+              />
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow id="setting-appearance-chat-list-position" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.display.list_position.chat')}</SettingRowTitle>
@@ -471,59 +482,61 @@ const AppearanceSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.font.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow id="setting-appearance-font-global" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
-          <SelectorRow className="gap-2">
-            {userTheme.userFontFamily && (
-              <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
-            )}
-            <div className="min-w-0 flex-1">
-              <Combobox
-                placeholder={t('settings.display.font.select')}
-                emptyText={t('common.no_results')}
-                options={fontOptions}
-                value={userTheme.userFontFamily || ''}
-                onChange={handleUserFontComboboxChange}
-                renderOption={renderFontOption}
-                searchPlacement="trigger"
-                className={fontComboboxClassName}
-                triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
-              />
-            </div>
-          </SelectorRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-appearance-font-code" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
-          <SelectorRow className="gap-2">
-            {userTheme.userCodeFontFamily && (
-              <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
-            )}
-            <div className="min-w-0 flex-1">
-              <Combobox
-                placeholder={t('settings.display.font.select')}
-                emptyText={t('common.no_results')}
-                options={fontOptions}
-                value={userTheme.userCodeFontFamily || ''}
-                onChange={handleUserCodeFontComboboxChange}
-                renderOption={renderFontOption}
-                searchPlacement="trigger"
-                className={fontComboboxClassName}
-                triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
-              />
-            </div>
-          </SelectorRow>
-        </SettingRow>
-      </SettingGroup>
+      {hostFeatures.systemFonts && (
+        <SettingGroup theme={theme}>
+          <SettingTitle>{t('settings.display.font.title')}</SettingTitle>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-font-global" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
+            <SelectorRow className="gap-2">
+              {userTheme.userFontFamily && (
+                <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
+                  <ResetIcon size="14" />
+                </Button>
+              )}
+              <div className="min-w-0 flex-1">
+                <Combobox
+                  placeholder={t('settings.display.font.select')}
+                  emptyText={t('common.no_results')}
+                  options={fontOptions}
+                  value={userTheme.userFontFamily || ''}
+                  onChange={handleUserFontComboboxChange}
+                  renderOption={renderFontOption}
+                  searchPlacement="trigger"
+                  className={fontComboboxClassName}
+                  triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
+                  popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
+                />
+              </div>
+            </SelectorRow>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-font-code" className="scroll-mt-6">
+            <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
+            <SelectorRow className="gap-2">
+              {userTheme.userCodeFontFamily && (
+                <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
+                  <ResetIcon size="14" />
+                </Button>
+              )}
+              <div className="min-w-0 flex-1">
+                <Combobox
+                  placeholder={t('settings.display.font.select')}
+                  emptyText={t('common.no_results')}
+                  options={fontOptions}
+                  value={userTheme.userCodeFontFamily || ''}
+                  onChange={handleUserCodeFontComboboxChange}
+                  renderOption={renderFontOption}
+                  searchPlacement="trigger"
+                  className={fontComboboxClassName}
+                  triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
+                  popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
+                />
+              </div>
+            </SelectorRow>
+          </SettingRow>
+        </SettingGroup>
+      )}
 
       <ChatPreferenceSections />
 

@@ -139,6 +139,82 @@ test('streams a reply to the page through the renderer chat transport', async ({
   expect(result.streamStatus).toBeTruthy()
 })
 
+test("lists a provider's models, checks one and generates text with it", async ({ page, account }) => {
+  await gotoBridge(page, account)
+  const result = await page.evaluate(async (baseUrl) => {
+    const { dataApiService, ipcApi } = bridge
+    const providerId = `mock-${crypto.randomUUID().slice(0, 8)}`
+    await dataApiService.post('/providers', {
+      body: {
+        providerId,
+        name: 'Mock provider',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
+        apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
+      }
+    })
+    // Model settings fetch the list before any model is added.
+    const listed = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })
+    await dataApiService.post('/models', {
+      body: [{ providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }]
+    })
+    const uniqueModelId = `${providerId}::mock-chat`
+    const check = await ipcApi.request('ai.provider.model.check', { uniqueModelId, timeout: 15000 })
+    // Topic naming and prompt polishing send one-shot requests like this.
+    const generated = await ipcApi.request('ai.text.generate', {
+      uniqueModelId,
+      system: 'Name the topic.',
+      prompt: 'say "Web title"'
+    })
+    return {
+      models: listed.models.map(({ apiModelId }: { apiModelId: string }) => apiModelId).sort(),
+      latency: typeof check.latency,
+      text: generated.text
+    }
+  }, MOCK_PROVIDER)
+  expect(result).toEqual({ models: ['mock-chat', 'mock-other'], latency: 'number', text: 'Web title' })
+})
+
+test('translates a message with the translation model', async ({ page, account }) => {
+  await gotoBridge(page, account)
+  const translation = await page.evaluate(async (baseUrl) => {
+    const { dataApiService, ipcApi, preferenceService } = bridge
+    const providerId = `mock-${crypto.randomUUID().slice(0, 8)}`
+    await dataApiService.post('/providers', {
+      body: {
+        providerId,
+        name: 'Mock provider',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
+        apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
+      }
+    })
+    await dataApiService.post('/models', {
+      body: [{ providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }]
+    })
+    await preferenceService.set('feature.translate.model_id', `${providerId}::mock-chat`)
+
+    // As the message menu's Translate does (`utils/translate/translateText`).
+    const streamId = `translate:${crypto.randomUUID()}`
+    let text = ''
+    const done = new Promise<void>((resolve, reject) => {
+      bridge.ipcApi.on('ai.stream.chunk', ({ topicId, chunk }) => {
+        if (topicId === streamId && chunk.type === 'text-delta') text += chunk.delta
+      })
+      bridge.ipcApi.on('ai.stream.done', ({ topicId }) => topicId === streamId && resolve())
+      bridge.ipcApi.on(
+        'ai.stream.error',
+        ({ topicId, error }) => topicId === streamId && reject(new Error(error.message))
+      )
+    })
+    await ipcApi.request('translate.open', { streamId, text: 'bonjour', targetLangCode: 'en-us' })
+    await done
+    return text
+  }, MOCK_PROVIDER)
+  // The mock echoes the translation prompt, which carries the text.
+  expect(translation).toMatch(/^echo: [\s\S]*bonjour/)
+})
+
 test('creates an agent and gives it a session, as the new-agent dialog does', async ({ page, account }) => {
   await gotoBridge(page, account)
   const result = await page.evaluate(async () => {
@@ -201,6 +277,56 @@ test('archives an agent with its sessions and restores them', async ({ page, acc
   expect(result.archive.deleted).toBe(true)
   expect(result.archived).toEqual({ agent: false, session: false })
   expect(result.restored).toEqual({ agent: true, session: true })
+})
+
+test("deletes a picked folder's workspace with its sessions and keeps the folder's files", async ({
+  page,
+  account
+}) => {
+  await gotoBridge(page, account)
+  const result = await page.evaluate(async () => {
+    const { client, dataApiService, ipcApi } = bridge
+    const folder = await (
+      await navigator.storage.getDirectory()
+    ).getDirectoryHandle(`picked-${Date.now()}`, {
+      create: true
+    })
+    const writable = await (await folder.getFileHandle('kept.txt', { create: true })).createWritable()
+    await writable.write('the user file')
+    await writable.close()
+    const path = await client.send<string>('local-folder.add', { handle: folder })
+    const workspace = await ipcApi.request('ai.agent.workspace.register', { path })
+
+    const providerId = `mock-${crypto.randomUUID().slice(0, 8)}`
+    await dataApiService.post('/providers', {
+      body: { providerId, name: 'Mock provider', defaultChatEndpoint: 'openai-chat-completions' }
+    })
+    await dataApiService.post('/models', {
+      body: [{ providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }]
+    })
+    const agent = await ipcApi.request('ai.agent.create', {
+      type: 'pi',
+      name: 'Web agent',
+      model: `${providerId}::mock-chat`
+    })
+    const { session } = await ipcApi.request('ai.agent.session.reuse_or_create', {
+      agentId: agent.id,
+      workspace: { type: 'user', workspaceId: workspace.id }
+    })
+
+    const deleted = await ipcApi.request('ai.agent.workspace.delete', { workspaceId: workspace.id })
+    const sessions = (await dataApiService.get('/agent-sessions')) as { items: { id: string }[] }
+    const workspaces = (await dataApiService.get('/agent-workspaces')) as { id: string }[]
+    return {
+      deletedIds: deleted.deletedIds,
+      sessionId: session.id,
+      sessionListed: sessions.items.some(({ id }) => id === session.id),
+      workspaceListed: workspaces.some(({ id }) => id === workspace.id),
+      file: await (await (await folder.getFileHandle('kept.txt')).getFile()).text()
+    }
+  })
+  expect(result.deletedIds).toEqual([result.sessionId])
+  expect(result).toMatchObject({ sessionListed: false, workspaceListed: false, file: 'the user file' })
 })
 
 test('archives a chat topic, restores it and empties the archive', async ({ page, account }) => {

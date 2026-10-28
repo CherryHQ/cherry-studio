@@ -7,6 +7,7 @@ import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import { ipcApi } from '@renderer/ipc'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 
 const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
@@ -28,9 +29,11 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
         action={
           <div className="flex items-center gap-2">
             <ErrorFallbackCopyButton error={error} />
-            <Button size="sm" onClick={debug}>
-              {t('error.boundary.default.devtools')}
-            </Button>
+            {hostFeatures.devTools && (
+              <Button size="sm" onClick={debug}>
+                {t('error.boundary.default.devtools')}
+              </Button>
+            )}
             <Button size="sm" onClick={reload}>
               {t('error.boundary.default.reload')}
             </Button>

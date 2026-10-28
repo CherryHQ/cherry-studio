@@ -92,6 +92,7 @@ import {
 } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -2242,7 +2243,7 @@ const Sessions = ({
           listRef={listRef}
           onDeleteSession={handleDeleteSession}
           onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
-          onOpenInNewWindow={openSessionInNewWindow}
+          onOpenInNewWindow={hostFeatures.windows ? openSessionInNewWindow : undefined}
           onOpenRenameDialog={handleOpenRenameSessionDialog}
           onRetry={handleRetry}
           onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}

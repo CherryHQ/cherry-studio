@@ -1,61 +1,7 @@
 import type { Page } from '@playwright/test'
 
-import type { DataRequest } from '@shared/data/api/types'
-
-import { composerInput, gotoApp, removeAppData } from './appPage'
-import { expect, test as harnessTest } from './fixtures'
-import { MOCK_PROVIDER_PORT } from './mockProvider'
-
-const test = harnessTest.extend<{ page: Page }>({
-  page: async ({ context }, provide) => {
-    await provide(context.pages()[0] ?? (await context.newPage()))
-    await removeAppData(context)
-  }
-})
-
-/** Points the built-in assistant at the mock endpoint in `default` mode, so file changes ask first. */
-async function setUpAssistant(page: Page) {
-  const run = Date.now().toString(36)
-  await page.evaluate(
-    async ({ baseUrl, providerId }) => {
-      const request = async (method: DataRequest['method'], path: string, body?: unknown) => {
-        const response = await window.api.dataApi.request({ id: crypto.randomUUID(), method, path, body })
-        if (response.error) throw new Error(`${method} ${path}: ${response.error.message}`)
-        return response.data as { items: { id: string }[] }
-      }
-      await request('POST', '/providers', {
-        providerId,
-        name: 'Mock provider',
-        defaultChatEndpoint: 'openai-chat-completions',
-        endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
-        apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
-      })
-      await request('POST', '/models', [
-        {
-          providerId,
-          modelId: 'mock-chat',
-          name: 'Mock chat',
-          endpointTypes: ['openai-chat-completions'],
-          capabilities: ['function-call']
-        }
-      ])
-      for (const { id } of (await request('GET', '/agents')).items) {
-        await request('PATCH', `/agents/${id}`, {
-          model: `${providerId}::mock-chat`,
-          configuration: { permission_mode: 'default' }
-        })
-      }
-    },
-    { baseUrl: `http://localhost:${MOCK_PROVIDER_PORT}`, providerId: `mock-${run}` }
-  )
-}
-
-/** Sends a message from the agent composer. */
-async function send(page: Page, text: string) {
-  await composerInput(page).click()
-  await page.keyboard.type(text)
-  await page.keyboard.press('Enter')
-}
+import { composerInput, gotoApp, send, setUpAssistant, test } from './appPage'
+import { expect } from './fixtures'
 
 /** The files in the agents' system workspaces, read from OPFS beside the running app. */
 function readWorkspaceFiles(page: Page): Promise<Record<string, string>> {
@@ -92,6 +38,20 @@ test('offers the built-in Cherry Assistant and creates Pi agents only', async ({
   await expect(dialog.getByRole('button', { name: /^\d/ })).toHaveText(['1Basic info', '2System Prompt'])
 })
 
+test("leaves the desktop's browser and computer control out of an agent's tools", async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await page.getByRole('button', { name: 'Cherry Assistant' }).first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: /^Edit/ }).first().click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('tab', { name: 'Built-in tools' }).click()
+  await expect(dialog.getByText('Read files').first()).toBeVisible()
+  await expect(dialog.getByText('Run Python code').first()).toBeVisible()
+  await expect(dialog.getByText('Allow AI browser control')).toHaveCount(0)
+  await expect(dialog.getByText('Allow agents to control desktop applications')).toHaveCount(0)
+  // Only Claude Code agents read environment variables, the one field of the Advanced tab.
+  await expect(dialog.getByRole('tab', { name: 'Advanced' })).toHaveCount(0)
+})
+
 test('writes a file only after approval and keeps the turn across a reload', async ({ page }) => {
   await gotoApp(page, 'Work')
   await setUpAssistant(page)
@@ -109,7 +69,10 @@ test('writes a file only after approval and keeps the turn across a reload', asy
 
   // Reads and searches inside the workspace run without asking.
   await send(page, 'please call read {"path":"notes.txt"} call grep {"pattern":"web agent"}')
-  await expect(page.getByText(/^tools said:.*from the web agent.*\|.*notes\.txt:1: from the web agent/)).toBeVisible()
+  // The two calls run together, so their results come back in either order.
+  await expect(
+    page.getByText(/^tools said: (from the web agent \| notes\.txt:1: .*|notes\.txt:1: .* \| from the web agent)$/)
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: /^Allow/ })).toHaveCount(0)
 
   await gotoApp(page, 'Work')
@@ -130,6 +93,39 @@ test('leaves no file when a write is denied', async ({ page }) => {
   await send(page, 'please call ls {} call find {"pattern":"*.txt"}')
   await expect(page.getByText(/^tools said:.*\(empty directory\).*\|.*No files found matching pattern/)).toBeVisible()
   await expect(page.getByRole('button', { name: /^Allow/ })).toHaveCount(0)
+})
+
+test('lists the files the agent writes in the file tree and previews them', async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+
+  await send(page, 'please call write {"path":"notes/first.txt","content":"the first file"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByText('notes', { exact: true }).click()
+  await page.getByText('first.txt', { exact: true }).click()
+  await expect(page.getByText('the first file', { exact: true })).toBeVisible()
+
+  // A file written while the tree is open shows up without reopening it.
+  await page.getByRole('button', { name: 'Back' }).click()
+  await send(page, 'please call write {"path":"second.txt","content":"the second file"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText('second.txt', { exact: true })).toBeVisible()
+})
+
+test("saves an edit to the agent's file from the file pane", async ({ page }) => {
+  const written = await writeInNewSession(page, 'edit-me.txt', 'before')
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByText('edit-me.txt', { exact: true }).click()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.insertText(' and after')
+
+  await expect.poll(async () => (await readWorkspaceFiles(page))[written]).toBe('before and after')
+  await expect(page.getByLabel('Unsaved')).toHaveCount(0)
 })
 
 /** Has the agent write `content` at `filePath` in a new session and returns the file's workspace path. */
@@ -159,6 +155,57 @@ async function openArchive(page: Page) {
   await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('button', { name: 'Archive', exact: true }).click()
 }
+
+test('reads a tool result too large for the message list after a reload', async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+  // Over the 32 KB above which the message list sends a reference instead of the result.
+  const content = Array.from({ length: 1000 }, (_, line) => `line ${line} of the long file`.padEnd(40, '.')).join('\\n')
+  await composerInput(page).click()
+  await page.keyboard.insertText(`please call write {"path":"long.txt","content":"${content}"}`)
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+  await send(page, 'please call read {"path":"long.txt"}')
+  // The mock's reply repeats the result.
+  await expect(page.getByText('line 999 of the long file').last()).toBeVisible()
+  // A reload before the turn is saved would interrupt it.
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const api = window.api as unknown as { dataApi: { request(request: object): Promise<{ data: any }> } }
+        const get = async (path: string) =>
+          (await api.dataApi.request({ id: crypto.randomUUID(), method: 'GET', path })).data
+        const [session] = (await get('/agent-sessions')).items
+        return (await get(`/agent-sessions/${session.id}/messages`)).items[0].status
+      })
+    )
+    .toBe('success')
+
+  await gotoApp(page, 'Work')
+  const result = await page.evaluate(async () => {
+    const api = window.api as unknown as {
+      dataApi: { request(request: object): Promise<{ data: any }> }
+      ipcApi: { request(route: string, input: unknown): Promise<{ ok: boolean; data: any }> }
+    }
+    const get = async (path: string, params?: object) =>
+      (await api.dataApi.request({ id: crypto.randomUUID(), method: 'GET', path, params })).data
+    const [session] = (await get('/agent-sessions')).items
+    // As the session's message list loads (`useAgentSessionParts`).
+    const { items } = await get(`/agent-sessions/${session.id}/messages`, { deferToolOutputs: true })
+    for (const { data } of items) {
+      for (const part of data.parts ?? []) {
+        const ref = part.output?.$deferredToolResult
+        if (ref) return { response: await api.ipcApi.request('ai.tool.get_result', ref) }
+      }
+    }
+    return null
+  })
+  expect(result?.response.ok).toBe(true)
+  expect(result?.response.data.found).toBe(true)
+  expect(JSON.stringify(result?.response.data.output)).toContain('line 999 of the long file')
+})
 
 test('archives a session with its files and restores it from the archive', async ({ page }) => {
   // Longer than the 100 characters a plain tar header holds for a name.
@@ -241,6 +288,13 @@ test('runs JavaScript in a sandbox and stops an endless loop at its timeout', as
   await page.getByRole('button', { name: /^Allow/ }).click()
   await expect(page.getByText(/^tools said: hi\s+42$/)).toBeVisible()
 
+  // Nothing in the sandbox reaches the network, the app's storage or another context.
+  const globals = ['fetch', 'XMLHttpRequest', 'indexedDB', 'navigator', 'postMessage']
+  const code = `[${globals.map((name) => `typeof ${name}`).join(', ')}].join(' ')`
+  await send(page, `please call js_execute ${JSON.stringify({ code })}`)
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:\s*undefined undefined undefined undefined undefined$/)).toBeVisible()
+
   await send(page, 'please call js_execute {"code":"while (true) {}","timeout":2000}')
   await page.getByRole('button', { name: /^Allow/ }).click()
   await expect(page.getByText(/^tools said:.*timed out after 2000 ms/)).toBeVisible()
@@ -249,16 +303,23 @@ test('runs JavaScript in a sandbox and stops an endless loop at its timeout', as
 /** The composer's work directory selector, which shows the session's folder. */
 const workspaceSelector = (page: Page) => page.getByRole('button', { name: /work directory|^picked-/ }).first()
 
-test('works in a folder the user picks and keeps it across a reload', async ({ page, browserName }, testInfo) => {
-  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
-  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
-  // The picker's folder is an OPFS directory: the same handle API as a folder on disk, without the dialog.
+/** Makes the folder picker return an OPFS directory: the same handle API as a folder on disk, without the dialog. */
+async function pickOpfsFolder(page: Page, name: string) {
   await page.addInitScript((name) => {
     Object.assign(window, {
       showDirectoryPicker: async () =>
         (await navigator.storage.getDirectory()).getDirectoryHandle(name, { create: true })
     })
   }, name)
+}
+
+const removeOpfsFolder = (page: Page, name: string) =>
+  page.evaluate(async (name) => (await navigator.storage.getDirectory()).removeEntry(name, { recursive: true }), name)
+
+test('works in a folder the user picks and keeps it across a reload', async ({ page, browserName }, testInfo) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
+  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
+  await pickOpfsFolder(page, name)
   const readPicked = () =>
     page.evaluate(async (name) => {
       const folder = await (await navigator.storage.getDirectory()).getDirectoryHandle(name)
@@ -282,14 +343,88 @@ test('works in a folder the user picks and keeps it across a reload', async ({ p
   await expect(page.getByText(/^tools said:/)).toBeVisible()
   expect(await readPicked()).toEqual({ 'from-agent.txt': 'written in the picked folder' })
 
+  // A session with messages keeps its folder, which it shows by name.
   await gotoApp(page, 'Work')
-  await expect(workspaceSelector(page)).toHaveText(name)
+  await expect(page.getByText(name, { exact: true })).toBeVisible()
   await send(page, 'please call read {"path":"from-agent.txt"}')
   await expect(page.getByText(/^tools said: written in the picked folder/)).toBeVisible()
-  await page.evaluate(
-    async (name) => (await navigator.storage.getDirectory()).removeEntry(name, { recursive: true }),
-    name
-  )
+  await removeOpfsFolder(page, name)
+})
+
+test("finds a file by name in the file pane and in the composer's mentions", async ({
+  page,
+  browserName
+}, testInfo) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
+  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
+  await pickOpfsFolder(page, name)
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+  await workspaceSelector(page).click()
+  await page.getByText('Add new work directory').click()
+  await expect(workspaceSelector(page)).toHaveText(name)
+  await send(page, 'please call write {"path":"deep/inner/target-file.txt","content":"nested"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+
+  // The search finds the file in folders the tree has not opened.
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByPlaceholder('Search files...').fill('target')
+  await expect(page.getByText('target-file.txt', { exact: true })).toBeVisible()
+
+  await composerInput(page).click()
+  await page.keyboard.type('@target')
+  await expect(page.getByRole('button', { name: 'target-file.txt deep/inner/target-file.txt' })).toBeVisible()
+  await removeOpfsFolder(page, name)
+})
+
+test('asks before overwriting a file another program changed in the picked folder', async ({
+  page,
+  browserName
+}, testInfo) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
+  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
+  await pickOpfsFolder(page, name)
+  const filePath = 'shared.txt'
+  const accessFile = (content?: string) =>
+    page.evaluate(
+      async ({ name, filePath, content }) => {
+        const folder = await (await navigator.storage.getDirectory()).getDirectoryHandle(name)
+        const file = await folder.getFileHandle(filePath)
+        if (content === undefined) return (await file.getFile()).text()
+        const writable = await file.createWritable()
+        await writable.write(content)
+        await writable.close()
+        return content
+      },
+      { name, filePath, content }
+    )
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+  await workspaceSelector(page).click()
+  await page.getByText('Add new work directory').click()
+  await expect(workspaceSelector(page)).toHaveText(name)
+  await send(page, `please call write {"path":"${filePath}","content":"before"}`)
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByText(filePath, { exact: true }).click()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await expect(page.locator('.cm-content')).toHaveText('before')
+  await accessFile('changed by another program')
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.insertText(' and mine')
+
+  const dialog = page.getByRole('dialog', { name: 'File changed on disk' })
+  await expect(dialog).toBeVisible()
+  expect(await accessFile()).toBe('changed by another program')
+  await dialog.getByRole('button', { name: 'Reload file' }).click()
+  await expect(page.locator('.cm-content')).toHaveText('changed by another program')
+  await removeOpfsFolder(page, name)
 })
 
 test('tells a browser without the folder picker to use Chrome or Edge', async ({ page }) => {

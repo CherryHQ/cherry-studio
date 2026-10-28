@@ -1,17 +1,27 @@
 import { application } from '@application'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiHandlers } from '@main/ipc/handlers/ai'
+import { translateHandlers } from '@main/ipc/handlers/translate'
 import { trashHandlers } from '@main/ipc/handlers/trash'
+import { dispatchHandle } from '@main/services/file/internal/dispatch'
+import type { TreeOwner } from '@main/services/file/tree/DirectoryTreeManager'
+import { readByPath, readChunkByPath, writeIfUnchangedByPath } from '@main/services/file/utils/content'
+import { getMetadataByPath } from '@main/services/file/utils/metadata'
+import { PathStaleVersionError } from '@main/utils/file'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { FileHandle } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { ipcRequestSchemas, type IpcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 import { version } from '../../../../package.json'
 import { isLocalFolderPath } from '../agent/localFolders'
 import { unsupported } from '../disabled/unsupported'
+import { PAGE_WINDOW_ID } from '../services/WebWindowManager'
 import { NATIVE_THEME_CHANNEL } from '../worker/protocol'
 import { purgeArchiveNow } from './archivePurge'
-import { ipcMain } from './electron'
+import { ipcMain, pageWebContents } from './electron'
 
 // The page reports its `prefers-color-scheme`, which Electron's `nativeTheme` gives the desktop main process.
 let nativeTheme: ThemeMode.light | ThemeMode.dark = ThemeMode.light
@@ -20,10 +30,19 @@ ipcMain.on(NATIVE_THEME_CHANNEL, (_event, theme) => {
   application.get('IpcApiService').broadcast('system.native_theme_updated', nativeTheme)
 })
 
+/** The page owns every directory tree: it is the only window. */
+const pageTreeOwner: TreeOwner = {
+  windowId: PAGE_WINDOW_ID,
+  webContents: pageWebContents as unknown as TreeOwner['webContents']
+}
+
+/** Files in the library (attachments) are not served; the file preview and editor use the agent's files by path. */
+const libraryFiles = unsupported('Library files')
+
 /**
- * IpcApi routes the Web edition serves: chat streams, agent creation, tool approvals, the agent
- * session runtime, archiving and deleting, local-folder workspaces, and Web answers to what the
- * desktop shell asks at start.
+ * IpcApi routes the Web edition serves: chat streams, one-shot text and translation, model listing
+ * and checks, agent creation, tool approvals, the agent session runtime, archiving and deleting,
+ * workspaces, the agent's file tree, file preview and editor, and Web answers to what the desktop shell asks.
  */
 const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.open': aiHandlers['ai.stream.open'],
@@ -31,6 +50,12 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.detach': aiHandlers['ai.stream.detach'],
   'ai.stream.abort': aiHandlers['ai.stream.abort'],
   'ai.tool.respond_approval': aiHandlers['ai.tool.respond_approval'],
+  'ai.tool.get_result': aiHandlers['ai.tool.get_result'],
+  'ai.text.generate': aiHandlers['ai.text.generate'],
+  'ai.text.abort': aiHandlers['ai.text.abort'],
+  'ai.provider.model.list': aiHandlers['ai.provider.model.list'],
+  'ai.provider.model.check': aiHandlers['ai.provider.model.check'],
+  'translate.open': translateHandlers['translate.open'],
   'ai.agent.create': aiHandlers['ai.agent.create'],
   'ai.agent.restore': aiHandlers['ai.agent.restore'],
   'ai.agent.delete': aiHandlers['ai.agent.delete'],
@@ -48,6 +73,20 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.agent.session.edit_target': aiHandlers['ai.agent.session.edit_target'],
   'ai.agent.session.edit_resend': aiHandlers['ai.agent.session.edit_resend'],
   'ai.agent.session.fork': aiHandlers['ai.agent.session.fork'],
+  'ai.agent.workspace.delete': aiHandlers['ai.agent.workspace.delete'],
+  // Attachments are not served, so no session has selected any; nor can a model run on OVMS.
+  'ai.agent.attachment_selections.list': async () => [],
+  'ovms.is_supported': async () => false,
+  // The Web edition has no Cherry Cloud account, so no Cherry Cloud model is available.
+  'cherry_cloud.models.sync': async () => ({
+    entitledModelIds: [],
+    freeModelIds: [],
+    availableModelIds: { agent: [], general: [] },
+    quotaExhaustedModelIds: []
+  }),
+  // A page cannot read other sites, so a citation has no preview, as when the desktop fails to fetch one.
+  'citation.fetch_preview': async () => ({ content: '' }),
+  'citation.cancel_previews': async () => undefined,
   'trash.topic.archive': trashHandlers['trash.topic.archive'],
   'trash.topic.delete_permanently': trashHandlers['trash.topic.delete_permanently'],
   'trash.assistant_topics.archive': trashHandlers['trash.assistant_topics.archive'],
@@ -59,6 +98,51 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
     if (!isLocalFolderPath(path)) throw new Error(`Not a local folder the user picked: ${path}`)
     return agentWorkspaceService.findOrCreateByPath(path, { name })
   },
+  'file.tree.create': ({ rootPath, options }) =>
+    application.get('DirectoryTreeManager').create(pageTreeOwner, rootPath, options),
+  'file.tree.activate': async ({ treeId, revision }) =>
+    application.get('DirectoryTreeManager').activateTree(treeId, revision, pageWebContents.id),
+  'file.tree.dispose': async ({ treeId }) => {
+    application.get('DirectoryTreeManager').dispose(treeId, pageWebContents.id)
+  },
+  'file.tree.rename': async ({ treeId, oldPath, newName }) =>
+    application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, pageWebContents.id),
+  'file.read': async ({ handle, options }) => {
+    if (options.mode === 'range') {
+      return dispatchHandle(handle as FileHandle, libraryFiles, (path) =>
+        readChunkByPath(path, options.offset, options.length)
+      )
+    }
+    return dispatchHandle(handle as FileHandle, libraryFiles, (path) =>
+      readByPath(path, { encoding: options.encoding, ...(options.withContentHash && { withContentHash: true }) })
+    )
+  },
+  // The editor saves only over the version it loaded; a newer one asks the user, as on the desktop.
+  'file.write_if_unchanged': async ({ handle, data, expectedVersion, expectedContentHash }) => {
+    try {
+      return await dispatchHandle(handle as FileHandle, libraryFiles, (path) =>
+        writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
+      )
+    } catch (error) {
+      if (!(error instanceof PathStaleVersionError)) throw error
+      throw new IpcError(fileErrorCodes.STALE_VERSION, error.message, {
+        expected: error.expected,
+        current: error.current
+      })
+    }
+  },
+  // A missing or unreadable file is `null`, as on the desktop.
+  'file.get_metadata': async (handle) =>
+    dispatchHandle(handle as FileHandle, libraryFiles, getMetadataByPath).catch(() => null),
+  'file.batch_get_metadata': async ({ items }) =>
+    Object.fromEntries(
+      await Promise.all(
+        items.map(async ({ key, handle }) => [
+          key,
+          await dispatchHandle(handle as FileHandle, libraryFiles, getMetadataByPath).catch(() => null)
+        ])
+      )
+    ),
   'app.get_info': async () => ({
     version,
     isPackaged: true,
@@ -82,6 +166,8 @@ const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'window.set_full_screen': async () => {},
   'navigation.protocol_dispatch_ready': async () => {},
   'chat.screenshot.target': async () => {},
+  // A page cannot read another site's image; the link stays a link.
+  'tool_result.preview_image': async () => null,
   'backup.get_auto_sync_state': async () => ({ pendingNotifications: [] })
 }
 

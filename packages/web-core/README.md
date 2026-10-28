@@ -8,8 +8,9 @@ unmodified desktop main window on top of it. See the Agent Notes for the
 [chat](../../.agents/notes/proposed/architecture/2026-10-20-web-core-ai.md),
 [page bridge](../../.agents/notes/proposed/architecture/2026-10-20-web-core-page-bridge.md),
 [Web app](../../.agents/notes/proposed/architecture/2026-10-20-web-core-app.md),
-[agent](../../.agents/notes/proposed/architecture/2026-10-21-web-core-agent.md) and
-[agent local folders](../../.agents/notes/proposed/architecture/2026-10-23-web-core-local-folder.md).
+[agent](../../.agents/notes/proposed/architecture/2026-10-21-web-core-agent.md),
+[agent local folders](../../.agents/notes/proposed/architecture/2026-10-23-web-core-local-folder.md) and
+[hardening](../../.agents/notes/proposed/architecture/2026-10-23-web-core-hardening.md).
 
 - `./worker` — `startCoreWorker(self, extraCommands?, hooks?)` turns a dedicated Worker into a
   Core Worker. Commands: `open` (account), `request` (a DataApi `DataRequest`),
@@ -18,6 +19,40 @@ unmodified desktop main window on top of it. See the Agent Notes for the
   every `webContents.send` of the Worker (e.g. `DataApi_DataChanged`).
 - `src/page/preload.ts` — imported before any renderer module, it runs the desktop preload
   in the page; `connectCore(client)` then routes its `ipcRenderer` to the Worker.
+
+## What the Web edition can do
+
+Everything runs in the browser tab; closing the tab stops replies and agent turns, and the app
+opens in one tab at a time. Browsers: the current and previous major versions of Chrome, Edge,
+Firefox and Safari.
+
+| Feature | Web edition | Notes |
+| --- | --- | --- |
+| Chat: topics, messages, streaming, assistants | Yes | A reply cut off by a reload is kept and marked interrupted. Cited web pages show no preview, as a page cannot read other sites. |
+| Model providers | Yes | Requests go from the browser, so the provider must allow CORS from the app's origin. Fetching the model list and checking a model work for every provider except Vertex AI. |
+| CherryIN sign-in, Cherry account, the built-in CherryAI model | No | First-run setup offers provider setup only; CherryIN works with an API key. |
+| Saving and exporting messages | Markdown and image downloads | Notes, knowledge bases, Word and note apps are desktop-only. |
+| Settings | Provider, default model, prompts, general, appearance, archive, about | Other sections are desktop-only. |
+| Agents | Pi runtime | Claude Code and other runtimes, skills, slash commands, heartbeat and scheduled runs are desktop-only. |
+| Agent file tools | Yes | `read`, `write`, `edit`, `ls`, `find`, `grep` in a workspace in the browser's storage. |
+| Agent file tree, file preview and editor | Yes | The editor saves only over the version it opened, as on the desktop. A local folder's tree does not see changes made outside the app. |
+| Agent in a folder on the computer | Chrome and Edge | Needs `showDirectoryPicker()`. |
+| Python | Yes | Pyodide, loaded from jsDelivr: pure-Python and Pyodide-built packages only. |
+| JavaScript | Yes | QuickJS, without network, file or DOM access. |
+| Shell commands | No | |
+| MCP servers | No | |
+| Archiving, restoring and deleting chat topics, assistants, agents and sessions | Yes | Archived items stay until deleted: the automatic cleanup is desktop-only. |
+| Forking agent sessions; editing a sent agent message | No | |
+| Attachments and file storage | No | |
+| Web search, knowledge bases | No | |
+| Paintings, translation, notes, mini apps and other sidebar apps | No | The sidebar and launchpad offer agents and chat only. |
+| Dictation, read aloud, the agent's browser | No | |
+| Help menu: release notes, guide, diagnostics, feedback | No | |
+| Backup and restore | Not yet | Planned (M4). Clearing the site's data deletes everything. |
+| Selection assistant, screenshots, global shortcuts, tray, auto-update | No | System features of the desktop app. |
+
+A desktop-only feature reached anyway (an old link, a stored setting) fails with
+`WebUnsupportedError` instead of acting.
 
 ## How the data layer runs here
 
@@ -143,6 +178,10 @@ everything else the main-process ones. Page files are typechecked with
 `sideEffects`; without it the bundler drops the preload import and `window.api` stays
 undefined.
 
+A few IpcApi routes are answered in the page (`answerInPage`), where the browser window and the
+click are: `src/page/browserShell.ts` opens links in a new tab, reloads the page, and reads the
+device type and full screen from the browser.
+
 ## The Web app
 
 `vite.app.config.ts` builds `app/` with the desktop renderer's own Vite config (its defines,
@@ -152,10 +191,30 @@ opens the `local` account (every visitor shares it until login exists) and then 
 `src/renderer/windows/main/entryPoint.tsx`. If the account does not open, for example while
 another tab holds it, `src/page/startError.ts` replaces the spinner with the reason and a
 reload button. `pageModuleReplacements` swaps renderer modules
-in the page: Sentry is off, the settings menu keeps the provider, default model,
+in the page: Sentry is off, the settings menu keeps the provider, default model, prompts,
 general, appearance, archive and about sections, creating an agent shows Pi as its runtime
-instead of a choice, and the Pyodide worker starts in a sandboxed iframe. Nothing under
-`src/renderer` is edited.
+instead of a choice, and the Pyodide worker starts in a sandboxed iframe. The launchpad, the
+composer's tools, the message menu, the user menu and first-run setup keep only the entries the
+Web edition serves, and the help menu, dictation and the read-aloud bar are left out. The provider
+panels leave out sign-in popups and the OVMS installer, while API keys still work. The button that
+opens a path in the computer's apps is left out, keeping only a label it shows, such as a session's
+folder. A quoted selection goes to the page's own composer (`src/page/browserShell.ts`).
+`src/page/tailwind.css` points Tailwind at the renderer, since the Vite root here is `app/`.
+Saving a message or an image becomes a browser download (`src/page/fileDownloads.ts`), and the
+assistant presets the desktop reads from `resources/data` and pdf.js's character maps and fonts
+are fetched from the app's own copy (`src/page/bundledData.ts`).
+
+The renderer itself changes in two places. First-run setup's `enableCherryInLogin` switch is off
+here. `src/renderer/utils/hostFeatures.ts` says what the app around the renderer can do: more
+windows, opening paths in the computer's apps, app zoom, updates, developer tools, stored image
+uploads, file storage (attachments and the files page), reading Word documents' text, notes,
+knowledge bases, MCP servers for assistants, mini apps, paintings, dictation and reading aloud,
+diagnostics (Doctor, problem reports and the feedback assistant), the agent browser, computer use,
+the desktop program's own settings (start at login, tray, its network access, GPU and power use,
+native menus, the spell checker's languages), listing installed fonts, Claude Code agents, provider
+sign-ins through a CLI, an app login or GitHub's device login, and the built-in CherryAI model. The
+desktop has all of them; `src/page/hostFeatures.ts` has none, so the entries for them, and their
+settings search results, are hidden in the page.
 
 ## Editions
 
@@ -177,6 +236,29 @@ Another edition builds its own Web app on this package, with its own Worker entr
   `mountOpfsDirectory` mounts any OPFS folder in ZenFS, and `deleteAccountData(account)` removes an
   account's database and files once no Worker holds it.
 
+## Serving
+
+Every response needs these headers; `webCoreHeaders()` in `vite.config.ts` defines them, the
+dev server and `vite preview` send them, and `build:app` writes them to `dist/app/_headers`
+(read by Cloudflare Pages and Netlify; copy them for other hosts, e.g. nginx `add_header … always`).
+
+- `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`: the
+  database needs a cross-origin-isolated page.
+- `Content-Security-Policy` (`contentSecurityPolicy()`): scripts only from the app, Pyodide's CDN and,
+  by hash, the Pyodide frame's inline script; WebAssembly but no `eval`; no plugins, no framing by
+  other sites; no `base-uri`, since HTML previews set their own base. `connect-src` allows any HTTPS host and local servers (`localhost`, `127.0.0.1`),
+  since users add their own providers; an edition passes its own `connectSrc`. zod's compiled
+  parsers need `eval`, so they are turned off by `src/runtime/zodJitless.ts`, which every page and
+  Worker entry imports before any module that uses zod (`src/page/preload.ts` and `startCoreWorker`
+  import it; an entry that imports desktop modules before them imports it first).
+
+Before starting the Worker, `src/page/browserSupport.ts` checks for WebAssembly, Workers, OPFS and
+cross-origin isolation, and the Worker checks for synchronous OPFS access handles. The start
+screen then names the cause: an unsupported browser, a site served without the isolation headers,
+or a browser that refuses storage (some private windows). Once the app is open,
+`src/page/persistentStorage.ts` asks for persistent storage and, if the browser refuses, warns
+once per account that the browser may delete the data.
+
 ## Database invariants
 
 - Non-pooled `opfs` VFS. The pooled `opfs-sahpool` VFS corrupted databases when a reload
@@ -188,6 +270,9 @@ Another edition builds its own Web app on this package, with its own Worker entr
 - The desktop seeders run on every `open`, as in the desktop `DbService.onInit`.
   `WebPreferenceDefaultsSeeder` runs first and writes the preferences whose Web default
   differs (the sidebar offers only agents and chat); the desktop seeders skip existing rows.
+  Desktop-only features with no Web settings page (the agent browser, links opening in it,
+  exports to Word and note apps, native menus and developer mode) are turned off on every `open`
+  (`fixedWebPreferences`), also in workspaces created before they were.
 
 ## Tests
 
@@ -199,3 +284,8 @@ directory stands in for a picked folder). `harness/bridge.html` loads the deskto
 Worker for `e2e/bridge.spec.ts`. `e2e/app.spec.ts` and `e2e/agent.spec.ts` drive the Web app (port 4320). `e2e/mockProvider.ts` is the
 OpenAI-compatible endpoint the chat and agent tests talk to; `call <tool> <json>` makes it call tools.
 `WEB_CORE_SCALE=1` adds the 50k-message timing run.
+`e2e/rendererCalls.spec.ts` reads the renderer's sources: every IpcApi route and `window.api` call
+in them must be served by the Worker, answered in the page, or listed in its `unreachable` table
+with the reason the Web page never makes it.
+Both preview servers send the CSP with a `report-uri` to the mock provider (`WEB_CORE_CSP_REPORT_URI`),
+and every test fails on a violation report from the page, its frames or its Workers.

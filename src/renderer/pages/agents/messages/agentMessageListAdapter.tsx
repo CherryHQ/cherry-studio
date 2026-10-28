@@ -36,6 +36,7 @@ import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
@@ -501,7 +502,7 @@ export function useAgentMessageListProviderValue({
       respondToolApproval,
       resolvePath,
       isDirectory,
-      openPath,
+      openPath: hostFeatures.systemApps ? openPath : undefined,
       openArtifactFile,
       previewInputFile,
       openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,

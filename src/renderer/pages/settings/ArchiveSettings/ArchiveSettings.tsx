@@ -29,6 +29,7 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
 
 import AllArchiveSection from './AllArchiveSection'
@@ -53,8 +54,8 @@ const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
   { id: 'agents', labelKey: 'settings.data.trash.domain.agents' },
   { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
   { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions' },
-  { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings' },
-  { id: 'files', labelKey: 'settings.data.trash.domain.files' }
+  ...(hostFeatures.paintings ? [{ id: 'paintings' as const, labelKey: 'settings.data.trash.domain.paintings' }] : []),
+  ...(hostFeatures.attachments ? [{ id: 'files' as const, labelKey: 'settings.data.trash.domain.files' }] : [])
 ]
 
 const SECTION_BY_CATEGORY: Record<ArchiveCategory, FC<ArchiveDomainSectionProps>> = {

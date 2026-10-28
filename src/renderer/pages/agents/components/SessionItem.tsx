@@ -23,6 +23,7 @@ import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuAction
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -185,8 +186,8 @@ const SessionItem = ({
       onExportYuque: () => sessionMenuActions.onExportYuque(session),
       onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
       onOpenInNewWindow: onOpenInNewWindow ? handleOpenInNewWindow : undefined,
-      onSaveToKnowledge: () => sessionMenuActions.onSaveToKnowledge(session),
-      onSaveToNotes: () => sessionMenuActions.onSaveToNotes(session),
+      onSaveToKnowledge: hostFeatures.knowledgeBases ? () => sessionMenuActions.onSaveToKnowledge(session) : undefined,
+      onSaveToNotes: hostFeatures.notes ? () => sessionMenuActions.onSaveToNotes(session) : undefined,
       onSetPanePosition,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
       onToggleSidebar: onToggleSidebar ? handleToggleSidebar : undefined,

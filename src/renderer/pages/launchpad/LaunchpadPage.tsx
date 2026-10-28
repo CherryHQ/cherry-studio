@@ -23,6 +23,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { createSidebarShortcutTarget, getSidebarMenuPath, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
@@ -63,7 +64,7 @@ export default function LaunchpadPage() {
     hideMiniApp,
     removeCustomMiniApp,
     reorderMiniAppsByStatus
-  } = useMiniApps()
+  } = useMiniApps({ enabled: hostFeatures.miniApps })
   const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)

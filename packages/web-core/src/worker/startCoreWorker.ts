@@ -1,3 +1,6 @@
+import '../runtime/zodJitless'
+import { readFile } from 'node:fs/promises'
+
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeeder'
@@ -10,19 +13,22 @@ import { CacheService } from '@main/data/CacheService'
 import { DataApiService } from '@main/data/DataApiService'
 import { PreferenceService } from '@main/data/PreferenceService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
+import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { PythonService } from '@main/services/PythonService'
 import { TrashService } from '@main/services/trash'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { DirectoryListOptions } from '@shared/types/file'
 
 import { mountBuiltinAgentTemplates } from '../agent/builtinAgentTemplates'
 import { addLocalFolder, allowLocalFolder, mountLocalFolders, unmountLocalFolders } from '../agent/localFolders'
 import { mountAccountFiles, unmountAccountFiles } from '../database/accountFiles'
 import { type OpenedDatabase, openDatabase } from '../database/openDatabase'
 import { WebCherryAssistantSeeder } from '../database/WebCherryAssistantSeeder'
-import { WebPreferenceDefaultsSeeder } from '../database/WebPreferenceDefaultsSeeder'
+import { fixedWebPreferences, WebPreferenceDefaultsSeeder } from '../database/WebPreferenceDefaultsSeeder'
 import { unsupportedService } from '../disabled/unsupported'
 import { application } from '../runtime/application'
 import { connectPage, ipcMain } from '../runtime/electron'
+import { listDirectoryEntries } from '../runtime/fileTreeSearch'
 import { installNodeGlobals } from '../runtime/nodeGlobals'
 import { WebWindowManager } from '../services/WebWindowManager'
 import type { CommandMessage, CoreCommands, SerializedError, WorkerMessage } from './protocol'
@@ -54,6 +60,12 @@ async function startPageServices(hooks: CoreWorkerHooks) {
   application.register('WindowManager', new WebWindowManager())
   // The desktop keeps renderer logs in its log file; the page has already written them to its console.
   ipcMain.handle(IpcChannel.App_LogToMain, () => undefined)
+  // The file preview's text; the desktop also detects encodings other than UTF-8.
+  ipcMain.handle(IpcChannel.Fs_ReadText, (_event, path) => readFile(String(path), 'utf-8'))
+  // The agent file pane's folders and search, and the composer's file mentions.
+  ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_event, dirPath, options) =>
+    listDirectoryEntries(String(dirPath), options as DirectoryListOptions | undefined)
+  )
   for (const [name, service] of [
     ['CacheService', new CacheService()],
     ['DataApiService', hooks.createDataApiService?.() ?? new DataApiService()],
@@ -85,6 +97,7 @@ async function startAccountServices(opened: OpenedDatabase) {
   ])
   const preferences = new PreferenceService()
   await preferences._doInit()
+  await preferences.setMultiple(fixedWebPreferences)
   application.register('PreferenceService', preferences)
   // The desktop keeps the system awake while a reply or agent turn runs; a tab cannot.
   application.register('RuntimeActivityService', { begin: () => ({ dispose() {} }) })
@@ -111,6 +124,9 @@ async function startAccountServices(opened: OpenedDatabase) {
   const agentSessions = new AgentSessionRuntimeService()
   await agentSessions._doInit()
   application.register('AgentSessionRuntimeService', agentSessions)
+  const directoryTrees = new DirectoryTreeManager()
+  await directoryTrees._doInit()
+  application.register('DirectoryTreeManager', directoryTrees)
   // Channels, scheduled tasks and agent-to-agent deliveries are desktop-only, so archiving and
   // deleting agents and sessions find nothing of theirs to pause, drain or resync.
   const idle = {
@@ -206,6 +222,7 @@ export function startCoreWorker(
       await application.get('AgentSessionRuntimeService')._doStop()
       await application.get('AiStreamManager')._doStop()
       await application.get('PreferenceService')._doStop()
+      await application.get('DirectoryTreeManager')._doStop()
       opened.close()
       unmountLocalFolders()
       unmountAccountFiles()

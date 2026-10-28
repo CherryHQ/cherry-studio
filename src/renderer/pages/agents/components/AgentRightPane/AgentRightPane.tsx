@@ -103,6 +103,7 @@ import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
@@ -472,12 +473,14 @@ function AgentRightPaneActionsProvider({
             if (fromPreview) captureInputPreviewReturnTarget()
           })
         },
-        openPath: async (path) => {
-          if (artifactOpenRequestRef.current !== requestId) return
-          await window.api.file.openPath(path)
-          if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(null)
-        },
+        openPath: hostFeatures.systemApps
+          ? async (path) => {
+              if (artifactOpenRequestRef.current !== requestId) return
+              await window.api.file.openPath(path)
+              if (artifactOpenRequestRef.current !== requestId) return
+              requestFileSelection(null)
+            }
+          : undefined,
         isDirectory: async () => {
           try {
             const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(targetPath))

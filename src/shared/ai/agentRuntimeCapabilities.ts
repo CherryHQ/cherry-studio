@@ -22,6 +22,8 @@ export interface AgentRuntimeCapabilities {
   heartbeat: boolean
   knowledgeBases: boolean
   mcp: boolean
+  /** The agent's environment variables (`configuration.env_vars`) reach the runtime. */
+  envVars: boolean
   skills: boolean
   /** Runtime's built-in tools are surfaced in the agent-tools access list (`useAgentTools`) through
    *  the Claude tool-registry pipeline. claude-only today — pi's built-ins come from `builtinTools`
@@ -76,6 +78,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     heartbeat: true,
     knowledgeBases: true,
     mcp: true,
+    envVars: true,
     skills: true,
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
@@ -105,6 +108,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     knowledgeBases: true,
     // Native Pi MCP tools retain Cherry's approval gate.
     mcp: true,
+    envVars: false,
     skills: true,
     claudeRegistryTools: false,
     slashCommands: PI_BUILTIN_COMMANDS,

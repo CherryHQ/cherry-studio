@@ -2,9 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { type BrowserContext, test as base, type Page } from '@playwright/test'
+import { type BrowserContext, type LaunchOptions, test as base, type Page } from '@playwright/test'
 
 import type { CoreClient } from '../src/client/CoreClient'
+import { MOCK_PROVIDER_PORT } from './mockProvider'
 
 export interface Harness {
   client: CoreClient
@@ -20,10 +21,36 @@ declare global {
  * Each test gets a persistent context on a fresh profile: OPFS must survive reloads,
  * and WebKit's ephemeral contexts fail to open OPFS files at all.
  */
-export const test = base.extend<{ context: BrowserContext; page: Page; account: string }>({
-  context: async ({ playwright, browserName, baseURL, locale }, provide) => {
+const CSP_REPORTS = `http://localhost:${MOCK_PROVIDER_PORT}/csp-reports`
+
+export const test = base.extend<{
+  context: BrowserContext
+  page: Page
+  account: string
+  csp: void
+  launch: Pick<LaunchOptions, 'args' | 'channel'>
+}>({
+  launch: [{}, { option: true }],
+  // Fails the test on any CSP violation, in the page, its frames or its Workers.
+  csp: [
+    // oxlint-disable-next-line no-empty-pattern -- Playwright reads a fixture's dependencies from this pattern
+    async ({}, provide) => {
+      await fetch(CSP_REPORTS, { method: 'DELETE' })
+      await provide()
+      // Browsers send reports asynchronously.
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      const reports = await (await fetch(CSP_REPORTS)).json()
+      if (reports.length) throw new Error(`CSP violations:\n${JSON.stringify(reports, null, 2)}`)
+    },
+    { auto: true }
+  ],
+  context: async ({ playwright, browserName, baseURL, locale, launch }, provide) => {
     const profile = mkdtempSync(join(tmpdir(), 'web-core-e2e-'))
-    const context = await playwright[browserName].launchPersistentContext(profile, { baseURL, locale })
+    const context = await playwright[browserName].launchPersistentContext(profile, {
+      baseURL,
+      locale,
+      ...launch
+    })
     await provide(context)
     await context.close()
     rmSync(profile, { recursive: true, force: true })

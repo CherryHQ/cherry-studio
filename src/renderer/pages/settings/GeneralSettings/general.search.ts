@@ -1,3 +1,5 @@
+import { hostFeatures } from '@renderer/utils/hostFeatures'
+
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
 // Indexed rows = statically visible actionable rows (D8): conditional rows
@@ -9,49 +11,58 @@ export const route = '/settings/general'
 export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'launch-onboot',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.launch.onboot',
     groupKey: 'settings.general.sections.startup',
     aliases: ['auto start', '开机自启', '开机启动', '自启动']
   },
   {
     anchorId: 'launch-totray',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.launch.totray',
     groupKey: 'settings.general.sections.startup'
   },
   {
     anchorId: 'tray-show',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.tray.show',
     groupKey: 'settings.general.sections.startup'
   },
   {
     anchorId: 'tray-onclose',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.tray.onclose',
     groupKey: 'settings.general.sections.startup'
   },
   {
     anchorId: 'prevent-sleep-when-busy',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.power.prevent_sleep_when_busy',
     groupKey: 'settings.general.sections.runtime'
   },
   {
     anchorId: 'proxy-mode',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.proxy.mode.title',
     groupKey: 'settings.general.sections.network',
     aliases: ['proxy', '代理']
   },
   {
     anchorId: 'allow-private-network',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.fetch.allow_private_network',
     groupKey: 'settings.general.sections.network'
   },
   {
     anchorId: 'hardware-acceleration',
+    available: hostFeatures.desktopApp,
     titleKey: 'settings.hardware_acceleration.title',
     groupKey: 'settings.general.sections.runtime',
     aliases: ['gpu']
   },
   {
     anchorId: 'commit-attribution',
+    available: hostFeatures.claudeCode,
     titleKey: 'settings.general.commit_attribution.title',
     groupKey: 'settings.general.sections.agent',
     descriptionKey: 'settings.general.commit_attribution.description',
@@ -59,6 +70,7 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'enable-developer-mode',
+    available: hostFeatures.devTools,
     titleKey: 'settings.developer.enable_developer_mode',
     groupKey: 'settings.general.sections.developer'
   },

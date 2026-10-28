@@ -1,0 +1,5 @@
+/* The desktop Tailwind entry. Tailwind looks for class names under the Vite root, which is `app/` in
+   this build instead of the renderer, so the renderer and the page modules are added here. */
+@import '../../../../src/renderer/assets/styles/tailwind.css';
+@source '../../../../src/renderer';
+@source '.';

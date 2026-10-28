@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 
 // OpenAI-compatible chat-completions endpoint for the chat tests, run by Playwright's webServer.
-// It replies `echo: <last user text>` in three stream chunks, answers 401 to "please fail" and
-// never finishes a reply to "please hang". To `call <tool> <json args>` (repeatable) it answers with
-// those tool calls, then replies `tools said: <results>` once the results come back.
+// It replies `echo: <last user text>` in three stream chunks, answers 401 to "please fail", never
+// finishes a reply to "please hang" and replies the JSON string after `say ` verbatim. To
+// `call <tool> <json args>` (repeatable) it answers with those tool calls, then replies
+// `tools said: <results>` once the results come back. `GET /v1/models` lists `mock-chat` and `mock-other`.
 // `GET /requests` returns what it received so tests can check what the browser sent.
+// It also collects the app's CSP violation reports (`/csp-reports`), on which every test fails.
 export const MOCK_PROVIDER_PORT = 4319
 
 interface ChatRequest {
@@ -14,6 +16,7 @@ interface ChatRequest {
 }
 
 const received: { authorization?: string; body: ChatRequest }[] = []
+let cspReports: unknown[] = []
 
 function textOf(content: ChatRequest['messages'][number]['content']): string {
   return typeof content === 'string' ? content : (content ?? []).map((part) => part.text ?? '').join('')
@@ -37,10 +40,14 @@ function chunk(model: string, delta: Record<string, unknown>, finishReason: stri
   return `data: ${JSON.stringify({ ...payload, choices: [{ index: 0, delta, finish_reason: finishReason }] })}\n\n`
 }
 
-async function handleChat(request: IncomingMessage, response: ServerResponse) {
+async function readBody(request: IncomingMessage): Promise<string> {
   let raw = ''
   for await (const part of request) raw += part
-  const body = JSON.parse(raw) as ChatRequest
+  return raw
+}
+
+async function handleChat(request: IncomingMessage, response: ServerResponse) {
+  const body = JSON.parse(await readBody(request)) as ChatRequest
   received.push({ authorization: request.headers.authorization, body })
   const text = lastUserText(body)
   if (text.includes('please fail')) {
@@ -65,7 +72,12 @@ async function handleChat(request: IncomingMessage, response: ServerResponse) {
     response.end('data: [DONE]\n\n')
     return
   }
-  const reply = results.length ? `tools said: ${results.join(' | ')}` : `echo: ${text}`
+  const say = /^say (".*")$/s.exec(text)
+  const reply = results.length
+    ? `tools said: ${results.join(' | ')}`
+    : say
+      ? (JSON.parse(say[1]) as string)
+      : `echo: ${text}`
   if (!body.stream) {
     response.writeHead(200, { 'content-type': 'application/json' })
     const message = { role: 'assistant', content: reply }
@@ -99,11 +111,24 @@ function startMockProvider() {
     // The Worker calls from another origin, so the endpoint must answer CORS like a real provider.
     response.setHeader('access-control-allow-origin', '*')
     response.setHeader('access-control-allow-headers', request.headers['access-control-request-headers'] ?? '*')
-    response.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS')
+    response.setHeader('access-control-allow-methods', 'GET, POST, DELETE, OPTIONS')
     if (request.method === 'OPTIONS') {
+      response.writeHead(204).end()
+    } else if (request.method === 'POST' && request.url === '/csp-reports') {
+      readBody(request)
+        .then((raw) => cspReports.push(JSON.parse(raw)))
+        .catch((error: Error) => cspReports.push({ unreadable: error.message }))
+      response.writeHead(204).end()
+    } else if (request.method === 'GET' && request.url === '/csp-reports') {
+      response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(cspReports))
+    } else if (request.method === 'DELETE' && request.url === '/csp-reports') {
+      cspReports = []
       response.writeHead(204).end()
     } else if (request.method === 'GET' && request.url === '/requests') {
       response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(received))
+    } else if (request.method === 'GET' && request.url === '/v1/models') {
+      const data = ['mock-chat', 'mock-other'].map((id) => ({ id, object: 'model', created: 0, owned_by: 'mock' }))
+      response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ object: 'list', data }))
     } else if (request.method === 'GET') {
       response.writeHead(200).end('mock provider')
     } else if (request.method === 'POST' && request.url === '/v1/chat/completions') {

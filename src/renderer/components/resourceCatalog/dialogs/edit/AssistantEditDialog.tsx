@@ -37,6 +37,7 @@ import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
@@ -243,24 +244,25 @@ function AssistantEditDialogContent({
   const saveIntent = useMemo(() => {
     return diffAssistantSaveIntent(buildAssistantFormState(formBaseline, values), formBaseline, resource)
   }, [formBaseline, resource, values])
-  const tabs = useMemo<EditDialogTab[]>(
-    () => [
+  const tabs = useMemo<EditDialogTab[]>(() => {
+    // The built-in tab holds only the browser switch.
+    const toolTabs: EditDialogTab[] = [
+      ...(hostFeatures.agentBrowser ? [{ id: 'tools.builtin', label: t('settings.skills.tabs.builtin') }] : []),
+      ...(hostFeatures.knowledgeBases
+        ? [{ id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') }]
+        : []),
+      ...(hostFeatures.mcp ? [{ id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') }] : [])
+    ]
+    return [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'advanced', label: t('library.config.agent.model_config') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
       { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
-      {
-        id: 'tools',
-        label: t('library.config.dialogs.edit.tools_tab'),
-        children: [
-          { id: 'tools.builtin', label: t('settings.skills.tabs.builtin') },
-          { id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') },
-          { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') }
-        ]
-      }
-    ],
-    [t]
-  )
+      ...(toolTabs.length > 0
+        ? [{ id: 'tools', label: t('library.config.dialogs.edit.tools_tab'), children: toolTabs }]
+        : [])
+    ]
+  }, [t])
 
   // Tracks the exact form snapshot that failed so it cannot be retried until
   // the user changes the form, while a later close can explicitly discard it.

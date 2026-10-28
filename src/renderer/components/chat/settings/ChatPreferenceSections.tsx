@@ -19,6 +19,7 @@ import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/compon
 import { useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { CodeStyleVarious } from '@renderer/types/app'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 import {
   COMPOSER_SHORTCUTS,
   composerShortcutId,
@@ -260,7 +261,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           <SettingRow id="setting-appearance-spell-check" className="scroll-mt-6">
             <Flex className="mr-4 flex-1 items-center justify-between">
               <SettingRowTitleSmall>{t('settings.general.spell_check.label')}</SettingRowTitleSmall>
-              {enableSpellCheck && !isMac && (
+              {enableSpellCheck && !isMac && hostFeatures.desktopApp && (
                 <Selector<string>
                   size={14}
                   multiple
@@ -299,15 +300,19 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('settings.messages.markdown_rendering_input_message')}
             />
           </SettingRow>
-          <SettingDivider />
-          <SettingRow className="scroll-mt-6">
-            <SettingSwitch
-              checked={pasteLongTextAsFile}
-              onCheckedChange={setPasteLongTextAsFile}
-              label={t('settings.messages.input.paste_long_text_as_file')}
-            />
-          </SettingRow>
-          {pasteLongTextAsFile && (
+          {hostFeatures.attachments && (
+            <>
+              <SettingDivider />
+              <SettingRow className="scroll-mt-6">
+                <SettingSwitch
+                  checked={pasteLongTextAsFile}
+                  onCheckedChange={setPasteLongTextAsFile}
+                  label={t('settings.messages.input.paste_long_text_as_file')}
+                />
+              </SettingRow>
+            </>
+          )}
+          {hostFeatures.attachments && pasteLongTextAsFile && (
             <>
               <SettingDivider />
               <SettingRow>

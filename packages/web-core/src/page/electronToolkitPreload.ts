@@ -6,7 +6,7 @@ import { ipcRenderer, type IpcRendererEvent } from './electron'
 
 type IpcRendererListener = (event: IpcRendererEvent, ...args: any[]) => void
 
-function platform(): 'win32' | 'darwin' | 'linux' {
+export function platform(): 'win32' | 'darwin' | 'linux' {
   const userAgent = navigator.userAgent
   if (/Windows/.test(userAgent)) return 'win32'
   if (/Mac OS X|Macintosh/.test(userAgent)) return 'darwin'

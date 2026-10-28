@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
+import { hostFeatures } from '@renderer/utils/hostFeatures'
 
 const HtmlArtifactsPopup = lazy(() => import('./HtmlArtifactsPopup'))
 
@@ -81,18 +82,20 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
 
         {!isStreaming && (
           <div className="mr-2 flex shrink-0 items-center gap-0.5">
-            <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-7 text-muted-foreground opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
-                aria-label={t('chat.artifacts.button.openExternal')}
-                disabled={!hasContent}
-                onClick={handleOpenExternal}>
-                <LinkIcon size={15} />
-              </Button>
-            </Tooltip>
+            {hostFeatures.systemApps && (
+              <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-7 text-muted-foreground opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
+                  aria-label={t('chat.artifacts.button.openExternal')}
+                  disabled={!hasContent}
+                  onClick={handleOpenExternal}>
+                  <LinkIcon size={15} />
+                </Button>
+              </Tooltip>
+            )}
             <Tooltip content={t('code_block.download.label')} delay={500}>
               <Button
                 type="button"
