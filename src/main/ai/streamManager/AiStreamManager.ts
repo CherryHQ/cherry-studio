@@ -1068,6 +1068,10 @@ export class AiStreamManager extends BaseService {
     const carriedListeners = existing
       ? [...existing.listeners.values()].filter((listener) => {
           if (listener.id.startsWith('persistence:') || listener.id.startsWith('agent-runtime:')) return false
+          // A fire's `agent-task:` sentinel owns THAT fire's completion; a replacement that inherits
+          // it while the fire sits inside terminal dispatch would settle the fire with this turn's
+          // result. The fire removes the sentinel itself in its terminal callback.
+          if (listener.id.startsWith('agent-task:')) return false
           // Channel recipients ride ONLY via the stash: the fire recorded the obligation there, and
           // a carried copy of a served (or never-recorded) listener would hand later wakes to chats
           // that were already answered — a user follow-up or the next fire must not inherit them.

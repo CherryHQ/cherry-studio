@@ -727,6 +727,37 @@ describe('AiStreamManager', () => {
     expect(sent).toEqual(['Found it: 42'])
   })
 
+  // A replacement turn starting while the previous turn's terminal dispatch awaits persistence
+  // must not inherit that fire's `agent-task:` sentinel: the fire's completion callbacks would
+  // then settle the scheduled fire with the wake's result (a wake error rejecting a successful
+  // fire, plus a doubled failure notice).
+  it('drops a fire’s agent-task sentinel from a replacement turn’s carried listeners', async () => {
+    const topicId = 'agent-session:s1'
+    const sentinel = new FakeListener('agent-task:cron-1')
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [sentinel]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    // The wake replaces the stream while the sentinel is still attached (the fire is inside its
+    // terminal dispatch and removes the sentinel only in its own callback).
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:wake')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain('agent-task:cron-1')
+
+    // The wake's own terminal must not reach the fire's sentinel callbacks.
+    await mgr.onExecutionError(topicId, 'provider-a::model-a', error('wake failed'))
+    expect(sentinel.errorResults).toEqual([])
+  })
+
   // Terminal dispatch awaits each listener in turn, so a listener queued behind a slow recipient
   // has not seen the foreground terminal when an overlapping wake terminal fans out. The manager
   // therefore binds the dispatching attempt on EVERY listener synchronously, before any delivery.
